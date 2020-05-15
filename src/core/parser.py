@@ -163,7 +163,16 @@ class treatment_time_parser(defaultparser):
         self.regexpatterns = {
                 'Treatment':r'.*/.*?[_-](.*?)[_-]',
                 'Time':r'.*/.*?[_-].*?[_-](\d*?)\.'}
-
+        
+    
+    
+class fov_time_well_parser(defaultparser):
+    
+    def init_patterns(self):
+        self.regexpatterns = {
+                'FOV':r'.*/.*?[_-](.*?)[_-]',
+                'Time':r'.*/.*?[_-].*?[_-](.*?)[_-]',
+                'Well':r'.*/.*?[_-].*?[_-].*?[_-](.*?)\.'}
 #class hyphenparser(defaultparser):
 #    
 #    def init_patterns(self):
