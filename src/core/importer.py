@@ -107,7 +107,7 @@ class dataimporter():
     def get_reserved_categorycols(self, parser=None):
         if parser is None:
             parser = self.parser
-        rcatnames = ['Cell line', 'Category', 'FOV', 'Cell', 'Treatment', 'Time', 'Compartment']    
+        rcatnames = ['Cell line', 'Category', 'FOV', 'Well', 'Cell', 'Treatment', 'Time', 'Compartment']    
         rcatnames.extend([key for key in parser.get_regexpatterns()])
         return sorted(set(rcatnames))
     

@@ -368,10 +368,29 @@ class PandasFrame(wx.Frame):
 
     
     def OnLabelClick(self, event):
-        colheader = self.grid.GetColLabelValue(event.GetCol())
-        if event.GetRow() == -1 and colheader in self.groups:
-            self.currentpopup = self.popupmenus[colheader]
-            self.PopupMenu(self.currentpopup)
+        group = self.grid.GetColLabelValue(event.GetCol())
+        if event.GetRow() == -1 and group in self.groups:
+            #self.currentpopup = self.popupmenus[group]
+            #self.PopupMenu(self.currentpopup)
+            items = self.data[group].unique()
+            selitems = self.dataview[group].unique().tolist()
+            dlg = SelectGroupsDlg(self, title='%s: Select Items' % group, groups=items, selected=selitems) 
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                dlg.Destroy()
+                return
+            selitems = dlg.get_selected()
+            notselected = [i for i in items if i not in selitems]
+            dlg.Destroy()
+            for value in selitems:
+                if self.droppedrows.get((group,value)) is not None:
+                    del self.droppedrows[(group,value)]
+            for value in notselected:        
+                self.droppedrows[(group,value)] = np.flatnonzero(self.data[group] == value)
+            # ****
+            # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
+            self.modified = True
+            self.update_view()
+
         
      
     def OnAutosize(self, event):
@@ -452,7 +471,7 @@ class PandasFrame(wx.Frame):
             # flatten multiindex in column headers
             pivot_data.columns = ['\n'.join(col).strip() for col in pivot_data.columns.values]    
 
-            print pivot_data.head()
+            #print pivot_data.head()
             pivot_data = pivot_data.reset_index()
             windowtitle = self.GetTitle()
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())

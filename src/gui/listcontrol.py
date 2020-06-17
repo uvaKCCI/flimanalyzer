@@ -162,7 +162,6 @@ class AnalysisListCtrl(wx.ListCtrl, listmix.CheckListCtrlMixin, listmix.ListCtrl
                 checked[key] = self.data[key]
         return checked
             
-        
             
     def BeginLabelEdit(self,event):
         col = event.GetColumn()
@@ -275,6 +274,8 @@ class FilterListCtrl(AnalysisListCtrl):
 
     def OnFilterUpdated(self, event):
         print "FilterListCtrl - OnFilterUpdated: %d updated" % len(event.GetUpdatedItems())
+        for i in event.GetUpdatedItems():
+            print i
         event.Skip()
 
 
@@ -303,6 +304,20 @@ class FilterListCtrl(AnalysisListCtrl):
 
     def UpdateDroppedRows(self, droppedrows):
         print "FilterListCtrl.UpdateDroppedRows, %d filters" % len(droppedrows)
+        droppedidx = {self.get_index_by_key(key):key for key in droppedrows}
+        for idx in range(self.GetItemCount()):
+            key = droppedidx.get(idx)
+            if key is not None: # and if self.data[key].is_selected():
+                dropped = droppedrows[key]
+                self.dropped[key] = dropped
+                print "\tUpdating dropped row (SELECTED), key=%s, index=%d: %d" % (key, idx, len(dropped))
+#               self.SetStringItem(idx, 4, str(len(dropped)))
+                self.SetItem(idx, 4, str(len(dropped)))
+            else:
+                print "\tUpdating dropped row (NOT SELECTED), key=%s, index=%d:" % (key, idx)
+                self.SetItem(idx, 4, "---")
+#               self.SetStringItem(idx, 4, "---")
+        """        
         for key in sorted(droppedrows):
             idx = self.get_index_by_key(key)
             if idx is not None:
@@ -316,6 +331,7 @@ class FilterListCtrl(AnalysisListCtrl):
                     print "\tUpdating dropped row (NOT SELECTED), key=%s, index=%d: %d" % (key, idx, len(dropped))
                     self.SetItem(idx, 4, "---")
 #                    self.SetStringItem(idx, 4, "---")
+        """            
         self.Update()
             
         

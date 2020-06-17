@@ -13,6 +13,8 @@ import numbers
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 
+from gui.events import DataWindowEvent, EVT_DATA_TYPE
+
 
 TRP_RZERO = 2.1
 ONE_SIXTH = 1.0/6 
@@ -67,6 +69,7 @@ def ratio(v1, v2):
     else:
         return np.NaN
 
+
 class dataanalyzer():
     
     def __init__(self):
@@ -93,6 +96,7 @@ class dataanalyzer():
                 'NADPH a2/FAD a1': [ratio, ['NAD(P)H a2', 'FAD a1']],
                 }
         self.rangefilters = {}
+        self.filters = {}
         self.analysis_functions = {
                 'Summary Tables': {
                         'functions': {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)},},
@@ -110,17 +114,32 @@ class dataanalyzer():
         if newfuncs is not None:
             self.functions.update(newfuncs)
 
-            
+
+    def add_filters(self, newfilters):
+        if newfilters is not None:
+            if type(newfilters) is list:
+                newfilters = {f.get_name():f for f in newfilters}
+            self.filters.update(newfilters)
+
+
+    def get_filters(self):
+        return self.filters
+
+    
     def add_rangefilters(self, newfilters):
         if newfilters is not None:
             self.rangefilters.update(newfilters)
 
-            
+        
     def set_rangefilters(self, newfilters):
         if newfilters is not None:
             self.rangefilters = newfilters
+
     
-        
+    def set_seriesfilter(self, newseriesfilter):
+        if newseriesfilter is not None:
+            self.seriesfilter = newseriesfilter
+            
     def get_rangefilters(self):
         return self.rangefilters
     
@@ -163,7 +182,9 @@ class dataanalyzer():
         return data, calculated, skipped
 
 
-    def apply_filter(self, data, dropna=True, onlyselected=False, inplace=True, dropsonly=False):
+    def apply_filter(self, data, dropna=True, onlyselected=True, inplace=True, dropsonly=False):
+        # store current col order
+        currentcols = data.columns.tolist()
         usedfilters = []
         skippedfilters = []
         alldroppedrows = []
@@ -179,25 +200,68 @@ class dataanalyzer():
             rfilter = self.rangefilters[acol]
             if (onlyselected and not rfilter.is_selected()) or not self.columns_available(data, [acol]):
                 skippedfilters.append([acol,rfilter])
-                continue
-            low,high = rfilter.get_range()
-            print "    filtering %s: %f, %f" % (acol, low, high)
-            if dropna:
-                droppedrows = np.flatnonzero((data[acol] != data[acol]) | (data[acol] > high) | (data[acol] < low))
-            else:    
-                droppedrows = np.flatnonzero((data[acol] > high) | (data[acol] < low))
-            #data = data[(data[acol] >= low) & (data[acol] <= high)]
-            usedfilters.append([acol, rfilter, droppedrows])
-            alldroppedrows.extend(droppedrows)
+            else:
+                low,high = rfilter.get_range()
+                print rfilter.is_selected(), "    filtering %s: %f, %f" % (acol, low, high)
+                if dropna:
+                    droppedrows = np.flatnonzero((data[acol] != data[acol]) | (data[acol] > high) | (data[acol] < low))
+                else:    
+                    droppedrows = np.flatnonzero((data[acol] > high) | (data[acol] < low))
+                #data = data[(data[acol] >= low) & (data[acol] <= high)]
+                usedfilters.append([acol, rfilter, droppedrows])
+                alldroppedrows.extend(droppedrows)
         
 #        alldroppedrows = sorted(np.unique(alldroppedrows), reverse=True)
         alldroppedrows = np.unique(alldroppedrows)
         filtereddata = data
         if not dropsonly:
             filtereddata = data.drop(alldroppedrows, inplace=inplace)
-        return filtereddata, usedfilters, skippedfilters, len(alldroppedrows)
-    
-    
+        #print filtereddata
+
+        # series filters        
+        cats = list(filtereddata.select_dtypes(['category']).columns.values)
+        noncats = filtereddata.select_dtypes(['number']).columns.values
+        # create shortlist of cols (all categories plus 1 data col)
+
+        
+        cols = list(cats)
+        cols.append(noncats[0])
+        #print self.seriesfilter
+        combineddroppedidx = None
+        for seriesname in self.seriesfilter:
+            print 'Required series:', seriesname, self.seriesfilter[seriesname]
+            print 'category columns:', cats
+            print 'Column subset:', cols
+            # create smaller df with cats, seriesname, and single datacolumn, restrict to data rows that match series rrequirment defined by filter
+            sdata = filtereddata[cols]
+            print sdata
+
+            # pivot data to find incomplete series            
+            indexgroups = [c for c in cats if c != seriesname]
+            pdata = sdata.pivot_table(index=indexgroups,columns=[seriesname],aggfunc='count')
+            # restrict to seriesfilter columns of interest
+            pdata = pdata.loc[:,pdata.columns.get_level_values(1).isin(self.seriesfilter[seriesname])]
+            print pdata
+            droppedseriesrows = pdata[pdata.isna().any(axis=1)]
+            print droppedseriesrows.index.tolist()
+            
+            # set index on filtered data and remove intersection with droppedseiresrows.index
+            filtereddata.set_index(indexgroups, inplace=True, drop=False)
+            droppedindex = droppedseriesrows.index.intersection(filtereddata.index)
+            if combineddroppedidx is None:
+                combineddroppedidx = droppedindex
+            else:
+                combineddroppedidx = droppedindex.union(combineddroppedidx)
+            #print filtereddata.index
+            #print droppedindex
+            if not droppedindex.empty:
+                filtereddata = filtereddata.set_index(droppedindex.names, drop=False).drop(droppedindex)
+            filtereddata.reset_index(inplace=True, drop=True)
+        # restore colun order
+        filtereddata = filtereddata[currentcols]
+        #print filtereddata
+        #print combineddroppedidx
+        return filtereddata, usedfilters, skippedfilters, len(alldroppedrows), combineddroppedidx    
 
 
     def summarize_data(self, titleprefix, data, cols, groups=None, aggs=['count', 'min', 'max', 'mean', 'std', 'median', 'percentile(25)', 'percentile(75)'], singledf=True, flattenindex=True):

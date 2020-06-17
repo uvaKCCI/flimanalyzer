@@ -16,6 +16,7 @@ import pandas as pd
 import json
 
 import wx
+import wx.lib.agw.customtreectrl as CT
 from wx.lib.pubsub import pub
 
 import core.configuration as cfg
@@ -31,6 +32,7 @@ from gui.delimpanel import DelimiterPanel
 from gui.datapanel import PandasFrame
 from gui.dicttablepanel import DictTable
 from gui.listcontrol import AnalysisListCtrl, FilterListCtrl, EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
+from gui.seriesfiltertree import SeriesFilterCtrl
 #from gui.mpanel import MatplotlibFrame
 #from core.plots import MatplotlibFigure
 from gui.dialogs import ConfigureCategoriesDlg
@@ -458,6 +460,8 @@ class TabFilter(wx.Panel):
         self.init_filterlist()
 #        self.filterlist.Bind(wx.EVT_LIST_END_LABEL_EDIT,pwindow.OnFilterUpdate)
                 
+        self.init_seriesfilter()
+        
         buttonsizer = wx.BoxSizer(wx.VERTICAL)
         buttonsizer.Add(self.selectall_button, 0, wx.EXPAND, 0)
         buttonsizer.Add(self.deselectall_button, 0, wx.EXPAND, 0)
@@ -465,7 +469,8 @@ class TabFilter(wx.Panel):
         buttonsizer.Add(self.dropinfo_button, 0, wx.EXPAND, 0)
 
         ssizer = wx.BoxSizer(wx.VERTICAL)
-        ssizer.Add(wx.StaticText(self, -1, "ROI Count Filter"))
+        ssizer.Add(wx.StaticText(self, -1, "Required Series"))
+        ssizer.Add(self.seriesfilter, 3, wx.ALL|wx.EXPAND, 5)
 
         fsizer = wx.BoxSizer(wx.HORIZONTAL)       
         fsizer.Add(self.filterlist, 3, wx.ALL|wx.EXPAND, 5)
@@ -501,6 +506,19 @@ class TabFilter(wx.Panel):
         self.filterlist.Arrange()
 
 
+    def init_seriesfilter(self):
+        #self.seriesfilter = SeriesFilterCtrl(parent=self)
+        #self.seriesfilter.setdata(self.rawdata)
+        
+        self.seriesfilter = SeriesFilterCtrl(self, agwStyle=(wx.TR_DEFAULT_STYLE|0x800|0x4000|0x10000)) # hide root, autocheck child and parent
+
+
+    def update_seriesfilter(self):
+        self.seriesfilter.DeleteAllItems()
+        if self.rawdata is not None:
+            self.seriesfilter.setdata(self.rawdata)        
+
+                
     def get_filter_settings(self):
         cfgs = self.filterlist.GetData()
         # convert dict to list
@@ -517,17 +535,35 @@ class TabFilter(wx.Panel):
 
     def OnFiltersUpdated(self, updateditems):
         rfilters = updateditems
+        if rfilters is None:
+            rfilters = self.filterlist.GetData()
         print "appframe.TabFilters.OnFiltersUpdated - %d Filters updated:" % len(rfilters)
         for key in rfilters:
             rfilter = rfilters[key]
             print "\t %s: %s" % (key, str(rfilter.get_parameters()))
-        dropsbyfilter, totaldrops = self.apply_filters(rfilters, dropsonly=True, onlyselected=False)
-#        self.analysistab.update_rangefilters(rfilters)
         olddata = self.data
+        filtereddata, dropsbyfilter, totaldrops, droppedindex = self.apply_filters(self.filterlist.GetData(), self.seriesfilter.GetData(), dropsonly=False, onlyselected=True)
+        self.update_data(filtereddata)
+
+        """
         self.data = self.rawdata.drop(totaldrops)
+        print self.data.head()
+        if droppedindex is not None:
+            self.data.set_index(droppedindex.names, inplace=True, drop=False)
+            print self.data.index
+            print droppedindex
+            currentcols = self.data.columns.tolist()
+            droppedindex = droppedindex.intersection(self.data.index)
+            print droppedindex
+            if not droppedindex.empty:
+                self.data = self.data.set_index(droppedindex.names, drop=False).drop(droppedindex)
+            self.data.reset_index(inplace=True, drop=True)
+            self.data = self.data[currentcols]
+        print self.data.head()    
         self.update_data(self.data)
-        pub.sendMessage(FILTERED_DATA_UPDATED, originaldata=olddata, newdata=self.data)
-        pub.sendMessage(DATA_UPDATED, originaldata=olddata, newdata=self.data)
+        """
+        #pub.sendMessage(FILTERED_DATA_UPDATED, originaldata=olddata, newdata=self.data)
+        #pub.sendMessage(DATA_UPDATED, originaldata=olddata, newdata=self.data)
         
         #cfgs = self.filterlist.GetData()
         ## convert dict to list
@@ -608,10 +644,10 @@ class TabFilter(wx.Panel):
         print 'COLUMNS WITH CATEGORY AS DTYPE', categories
         if 'Category' in categories:
             print 'CATEGORY VALUES:', sorted(self.rawdata['Category'].unique())
+        self.update_seriesfilter()
         self.set_filterlist()
         if applyfilters:
-            rangefilters = self.filterlist.GetData()
-            self.apply_filters(rangefilters)
+            self.apply_filters(self.filterlist.GetData(), self.seriesfilter.GetData(), dropsonly=False)
         
          
     def update_data(self, data):
@@ -619,7 +655,8 @@ class TabFilter(wx.Panel):
         self.data = data
         label = "Filtered Data:"
         if self.data is not None:
-            label += " %d rows, %d columns" % (self.rawdata.shape[0] - len(self.filterlist.get_total_dropped_rows()), self.data.shape[1])
+            label += " %d rows, %d columns" % (self.data.shape[0], self.data.shape[1])
+        print "appframe.TabFilter.update_data:", self.data.shape[0], "rows" 
         self.datainfo.SetLabel(label)    
         pub.sendMessage(FILTERED_DATA_UPDATED, originaldata=olddata, newdata=self.data)
         pub.sendMessage(DATA_UPDATED, originaldata=olddata, newdata=self.data)        
@@ -649,33 +686,35 @@ class TabFilter(wx.Panel):
                 print "key", key, "not found. creating default"        
                 rangefiltercfgs.append(RangeFilter(key,0,100, selected=False).get_params())
             else:
-                print "key", key, "FOUND."                                
-        rangefilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in rangefiltercfgs}        
-        print "\n******\n",rangefilters        
-        self.filterlist.SetData(rangefilters, dropped, ['Use', 'Column', 'Min', 'Max', 'Dropped'])        
+                print "key", key, "FOUND."
+        currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in rangefiltercfgs if rfcfg['name'] in datacols.columns.values.tolist()}        
+        print "\n******\n",currentfilters        
+        self.filterlist.SetData(currentfilters, dropped, ['Use', 'Column', 'Min', 'Max', 'Dropped'])        
 
 
-    def apply_filters(self, rangefilters, onlyselected=True, setall=False, dropsonly=False):
+    def apply_filters(self, rangefilters, seriesfilter, onlyselected=True, setall=False, dropsonly=False):
         if rangefilters is None:
             return
         analyzer = self.flimanalyzer.get_analyzer()
         analyzer.set_rangefilters(rangefilters)
+        analyzer.set_seriesfilter(seriesfilter)
         #self.data = self.rawdata.copy()
-        data, usedfilters, skippedfilters, no_droppedrows = analyzer.apply_filter(self.rawdata,dropna=True,onlyselected=onlyselected,inplace=False, dropsonly=dropsonly)
+        filtereddata, usedfilters, skippedfilters, no_droppedrows, droppedindex = analyzer.apply_filter(self.rawdata,dropna=True,onlyselected=onlyselected,inplace=False, dropsonly=dropsonly)
         print "TabFilter.applyfilters, dropsonly=%s" % str(dropsonly)
         print "\trawdata: rawdata.shape[0]=%d, dropped overall %d rows" % (self.rawdata.shape[0],no_droppedrows)
-        print "\tdata: data.shape[0]=%d" % (data.shape[0])
-   
+        print "\tdata: data.shape[0]=%d" % (filtereddata.shape[0])
+        
         droppedrows = {f[0]:f[2] for f in usedfilters}
         if setall:
             self.filterlist.SetDroppedRows(droppedrows)
         else:    
             self.filterlist.UpdateDroppedRows(droppedrows)
+        """
         if not dropsonly:
             # wx.PostEvent(self.pwindow, ApplyFilterEvent(data=self.data))
             self.update_data(data)
-            
-        return droppedrows, self.filterlist.get_total_dropped_rows()
+        """    
+        return filtereddata, droppedrows, self.filterlist.get_total_dropped_rows(), droppedindex
         
         
     def InfoOnDrop(self, event):

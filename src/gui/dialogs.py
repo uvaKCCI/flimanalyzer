@@ -42,7 +42,7 @@ def save_dataframe(parent, title, data, filename, wildcard="txt files (*.txt)|*.
         try:
             data.reset_index()
             # if indx was flattened in analyzer.summarize_data, multiindex col values were joined with '\n'--> revert here 
-            #data.columns = [c.replace('\n', ' ') for c in data.columns.values]
+            data.columns = [c.replace('\n', ' ') for c in data.columns.values]
             data.to_csv(fname, index=saveindex, sep='\t')
         except IOError:
             wx.MessageBox('Error saving data in file %s' % fname, 'Error', wx.OK)
@@ -70,7 +70,7 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
 
 class SelectGroupsDlg(wx.Dialog):
 
-    def __init__(self, parent, title, groups=[]):
+    def __init__(self, parent, title, groups=[], selected='All'):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         
         # 5 col gridsizer
@@ -81,7 +81,7 @@ class SelectGroupsDlg(wx.Dialog):
         self.cboxes = {}    
         for g in groups:
             cb = wx.CheckBox(self,wx.ID_ANY,g)
-            cb.SetValue(True)
+            cb.SetValue((g in selected) or (selected == 'All'))
             self.cboxes[g] = cb
             cbsizer.Add(cb, 0, wx.ALL, 5)
         selectbsizer = wx.BoxSizer(wx.VERTICAL)
