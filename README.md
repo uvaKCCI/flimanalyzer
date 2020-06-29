@@ -1,2 +1,3 @@
-# flimanalyzer
-B&amp;H FLIM data post analysis
+# FLIMAnalyzer
+
+Package for analsis of Fluoresence Life-time Microscopy (FLIM) data.
