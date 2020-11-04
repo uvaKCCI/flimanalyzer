@@ -1,3 +1,4 @@
+import logging
 import pandas as pd
 import numpy as np
 import os
@@ -6,7 +7,7 @@ import collections
 import wx
 import wx.grid
 import wx.lib.mixins.gridlabelrenderer as glr
-from wx.lib.pubsub import pub
+from pubsub import pub
 
 from gui.events import EVT_DATA_TYPE, DataWindowEvent, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, DATA_UPDATED
 import gui.dialogs
@@ -188,10 +189,10 @@ class PandasFrame(wx.Frame):
         for group in groups:
             self.popupmenus[group] = self.create_popupmenu(group)
         if self.grid is not None:
-            print ("datapanel.PandasFrame.SetData - REFRESHING", self.GetTitle())
+            logging.debug (f"datapanel.PandasFrame.SetData - REFRESHING {self.GetTitle()}")
             self.update_view()
         else:
-            print ("datapanel.PandasFrame.SetData - NOT REFRESHING", self.GetTitle())
+            logging.debug (f"datapanel.PandasFrame.SetData - NOT REFRESHING {self.GetTitle()}")
 
 
     def set_header_renderer(self):
@@ -290,7 +291,7 @@ class PandasFrame(wx.Frame):
     
     def OnDataUpdated(self, originaldata, newdata):
         if originaldata is not None and newdata is not None and self.data.__dict__ == originaldata.__dict__:
-            print ("datapanel.PandasFrame.OnDataUpdated:", self.GetTitle())
+            logging.debug (f"{self.GetTitle()}")
             self.SetData(data=newdata, showcolindex=self.showcolindex, analyzable=self.analyzable, savemodified=self.savemodied, precision=self.precision)
         
         
@@ -415,23 +416,21 @@ class PandasFrame(wx.Frame):
             colseries = self.dataview[col]
             if col not in numericcols.columns.values and (isinstance(colseries, (str, bytes, collections.Iterable))):
                 # handle strings, categories, objects
-                print ("AUTOSIZE col", col)
+                logging.debug (f"AUTOSIZE col {col}")
                 rowidx = colseries.map(len).idxmax()
                 valuestr = colseries[rowidx]
             else:
                 # handle numbers; using numpy min/max is orders of magnitude faster than grid.AutoSize 
                 minval = mins[col]
                 maxval = maxs[col]
+                value = maxval
+                formatstr = '%d'
                 if len(str(minval)) > len(str(maxval)):
                     value = minval
-                else:
-                    value = maxval
                 if col in floatcols:    
                     formatstr = '%' + '.%df' % (self.precision)
-                else:     
-                    # int/long integer
-                    formatstr = '%d'
-                valuestr = formatstr % value# value[:totaldigits]    
+                valuestr = formatstr % value# value[:totaldigits] 
+                logging.debug(f"minval={minval}, maxval={maxval},value={value}, formatstr={formatstr}, valuestr={valuestr}")
             width,h = dc.GetTextExtent(valuestr)
             width = max(width, headerwidth)
             self.grid.SetColSize(colindex,width + 20)
@@ -460,18 +459,18 @@ class PandasFrame(wx.Frame):
             return
         selcolumns = dlg.get_selected()
         dlg.Destroy()
-        print (usedata.head())
+        logging.debug (usedata.head())
         if len(selgroups) > 0:
             indexgroups = [g for g in usedata.columns.values if g in self.groups and g not in selgroups]
-            print ('index groups:', indexgroups)
-            print ('pivoting', selgroups, ' in', self.groups)
+            logging.debug ('index groups:', indexgroups)
+            logging.debug ('pivoting', selgroups, ' in', self.groups)
             pivot_data = usedata.reset_index()
             selcolumns.extend(self.groups)
             pivot_data = pd.pivot_table(pivot_data[selcolumns], index=indexgroups, columns=selgroups)
             # flatten multiindex in column headers
             pivot_data.columns = ['\n'.join(col).strip() for col in pivot_data.columns.values]    
 
-            #print pivot_data.head()
+            # logging.debug (pivot_data.head())
             pivot_data = pivot_data.reset_index()
             windowtitle = self.GetTitle()
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())

@@ -6,6 +6,7 @@ Created on Tue Jun 12 13:35:51 2018
 @author: khs3z
 """
 
+import logging
 import wx
 
 def check_data_msg(data):
@@ -63,7 +64,9 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
             else:                
                 fig.savefig(fname, dpi=dpi, bbox_inches='tight')            
         except IOError:
-            wx.MessageBox('Error saving figure in file %s' % fname, 'Error', wx.OK)
+            error = 'Error saving figure in file %s' % fname
+            logging.error(error)
+            wx.MessageBox(error, 'Error', wx.OK)
             return None
         return fname    
             
@@ -176,5 +179,6 @@ class ConfigureCategoriesDlg(wx.Dialog):
     
     def OnSave(self, event):
         self.bins = [float(f) for f in self.bin_field.GetValue().split(',')]
-        self.labels = self.label_field.GetValue().encode('ascii','ignore').split(',')
+        # self.labels = self.label_field.GetValue().encode('ascii','ignore').split(',')
+        self.labels = self.label_field.GetValue().split(',')
         self.EndModal(wx.ID_OK)

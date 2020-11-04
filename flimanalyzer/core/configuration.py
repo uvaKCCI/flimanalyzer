@@ -5,6 +5,8 @@ Created on Thu Jul  5 12:45:21 2018
 
 @author: khs3z
 """
+
+import logging
 import json
 import collections
 from core.filter import RangeFilter
@@ -53,17 +55,17 @@ class Config():
     def update(self, parameters, parentkeys=None, addmissing=True):
         updated = {}
         notfound = {}
-        print ("Configuration.UPDATE: keys=", parameters.keys(), "in", parentkeys)
+        logging.debug (f"Configuration.UPDATE: keys={parameters.keys()}in {parentkeys}")
         if parentkeys is not None:
-            print ("\tparentkeys", parentkeys)
+            logging.debug (f"\tparentkeys={parentkeys}")
             parentconfig = self.get(parentkeys)
             if parentconfig is None or not isinstance(parentconfig, dict):
-                print ("\tparentconfig is None not dict")
+                logging.debug ("\tparentconfig is None not dict")
                 if addmissing:
                     params = self.parameters
                     for key in parentkeys:
                         if not key in params or params[key] is None:
-                            print ("\tcreating missing key",key, "for", parentkeys)
+                            logging.debug (f"\tcreating missing key {key} for {parentkeys}")
                             params[key] = {}
                         params = params[key]
                     parentconfig = params    
@@ -188,7 +190,7 @@ class Config():
             
     
     def is_not_None(self,searchkeys):
-        print ("validating searchkeys", searchkeys,self.get(searchkeys) is not None)
+        logging.debug (f"validating searchkeys {searchkeys}, {self.get(searchkeys) is not None}")
         return self.get(searchkeys) is not None
 
 
@@ -232,20 +234,20 @@ class Config():
         config.update(dict(self.parameters))
         missing,invalid = self.validate()
         for longkey in set(missing + invalid):
-            print ("\ttrying to find", longkey[-1],"and update",longkey)
+            logging.debug (f"\ttrying to find {longkey[-1]} and update {longkey}")
             params,oldkey = config.get(longkey[-1], returnkeys=True)
             while config.remove(oldkey):
-                print ("\tremoved existing", oldkey)
+                logging.debug (f"\tremoved existing {oldkey}")
             if params is not None:    
                 updated, notfound = config.update({longkey[-1]:params},longkey[:-1])
-                print ("\ttrying to update", longkey)
+                logging.debug (f"\ttrying to update {longkey}")
             else:
-                print ("\tadding default for", longkey)
+                logging.debug (f"\tadding default for {longkey}")
                 updated, notfound = config.update({longkey[-1]:default.get(longkey)}, longkey[:-1])                                
             for u in updated:
-                print ("\tupdate for", u, "successful")
+                logging.debug (f"\tupdate for {u} successful")
             for nf in notfound:
-                print ("\tnot found/failed", nf)
+                logging.debug (f"\tnot found/failed {nf}")
         if config.is_valid():
             self.update(config.get())
             return True
@@ -424,27 +426,27 @@ if __name__ == '__main__':
     cfg, keys = config.get([CONFIG_FILTERS], returnkeys=True)
     print (keys)
     cfg = config.get([CONFIG_PARSERCLASS], returnkeys=False)
-    print (json.dumps(cfg, sort_keys=True, indent=4, separators=(',', ': ')), "\n")
+    print (json.dumps(cfg, sort_keys=True, indent=4, separators=(',', ': ')))
     
     # get root parameter dict
-    print (config.get(),"\n")
+    print (config.get())
 
     # Test get_parent
     pcfg,pkeys = config.get_parent(['FAD chi'], returnkeys=True)
-    print (pkeys, "\n")
+    print (pkeys)
     pcfg = config.get_parent(['FAD chi'], returnkeys=False)
-    print (pcfg, "\n")
+    print (pcfg)
 
     # Test update
     updated, notfound = config.update({CONFIG_PARSERCLASS: 'my.parser'}, [CONFIG_ROOT, CONFIG_IMPORT])
-    print ("updated:", updated)
-    print ("not found:", notfound)
-    print (config.get(CONFIG_PARSERCLASS, returnkeys=True),"\n")
+    print (f"updated: {updated}")
+    print (f"not found: {notfound}")
+    print (config.get(CONFIG_PARSERCLASS, returnkeys=True))
     
     # Test validate
     missing,invalid = config.validate()
-    print ("missing keys:", missing)
-    print ("invalid keys:", invalid, "\n")
+    print (f"missing keys: {missing}")
+    print (f"invalid keys: {invalid}")
     
     # Test get_keys
     print ("keys\n", "\n".join(str(k) for k in config.get_keys()), "\n")

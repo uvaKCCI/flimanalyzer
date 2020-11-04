@@ -6,6 +6,8 @@ Created on Fri May 18 07:53:29 2018
 @author: khs3z
 """
 
+import logging
+
 class Filter:
     
     def __init__(self, name, selected=False, params=None, descr=''):

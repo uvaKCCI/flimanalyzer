@@ -6,9 +6,10 @@ Created on Mon Jun  8 14:05:04 2020
 @author: khs3z
 """
 
+import logging
 import wx
 import wx.lib.agw.customtreectrl as CT
-from wx.lib.pubsub import pub
+from pubsub import pub
 from gui.events import FILTERS_UPDATED
 
 
@@ -87,10 +88,10 @@ class SeriesFilterCtrl(CT.CustomTreeCtrl):
     def SeriesFilterChanged(self, event):
         scol = event.GetItem().GetParent().GetText()
         svalue = event.GetItem().GetText()
-        print (svalue, event.GetItem().IsChecked(), "parent=",scol)
+        logging.debug (svalue, event.GetItem().IsChecked(), "parent=",scol)
         
         checked = self.GetData()
-        print (checked)
+        logging.debug (checked)
         self.fire_rowsupdated_event({})
 
         

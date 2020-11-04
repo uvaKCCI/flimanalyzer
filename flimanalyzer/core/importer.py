@@ -6,6 +6,7 @@ Created on Fri May  4 02:53:40 2018
 @author: khs3z
 """
 
+import logging
 import os
 import glob
 import pandas as pd
@@ -80,7 +81,6 @@ class dataimporter():
                 skipped_files += skipped
             else:
                 if (os.path.isfile(f) and f.endswith(ext) and not f in self.files and not os.path.basename(f) in exclude):
-#                    print('adding',f)
                     self.files.append(f)
                     added_files += 1
                 else:
@@ -91,7 +91,7 @@ class dataimporter():
 
     
     def remove_files(self, rfiles):
-        print ("remove",rfiles)
+        logging.debug ("remove",rfiles)
         if rfiles is not None:
             self.files = [f for f in self.files if f not in rfiles]
         
@@ -144,7 +144,7 @@ class dataimporter():
             df = pd.concat(dflist)
             df.reset_index(inplace=True, drop=True)
             allheaders = list(df.columns.values)
-            print (self.get_reserved_categorycols(hparser))
+            logging.debug (self.get_reserved_categorycols(hparser))
             for key in self.get_reserved_categorycols(hparser):
                 if key in allheaders:
                     df[key] = df[key].astype('category')

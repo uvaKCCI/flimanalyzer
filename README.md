@@ -1,3 +1,3 @@
 # FLIMAnalyzer
 
-Package for analsis of Fluoresence Life-time Microscopy (FLIM) data.
+Package for analysis of Fluoresence Lifetime Imaging Microscopy (FLIM) data.

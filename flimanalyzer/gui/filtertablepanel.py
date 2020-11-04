@@ -6,6 +6,7 @@ Created on Fri May 18 09:17:05 2018
 @author: khs3z
 """
 
+import logging
 import wx
 #from wx.grid import wxGridTableMessage
 
@@ -102,7 +103,7 @@ class FilterTable(wx.grid.GridTableBase):
         
         
     def SetValue(self, row, col, value):
-        print ("SetValue",row,col,"value=",value)
+        logging.debug (f"SetValue: row={row}, col={col}, value={value}")
         rfilter = self.data[self.names[row]]
         if col == 0:
             rfilter.select(value)

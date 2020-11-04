@@ -6,6 +6,7 @@ Created on Fri May  4 19:37:11 2018
 @author: khs3z
 """
 
+import logging
 import numpy as np
 import pandas as pd
 import core.preprocessor
@@ -190,7 +191,7 @@ class dataanalyzer():
         alldroppedrows = []
         if data is None:
             return None, usedfilters, [[k,self.rangefilters[k]] for k in self.rangefilters], len(alldroppedrows)
-        print ("dataanalyzer.apply_filter: filtering %d rows, %d filters, onlyselected=%s" % (data.shape[0], len(self.rangefilters), str(onlyselected)))
+        logging.debug ("dataanalyzer.apply_filter: filtering %d rows, %d filters, onlyselected=%s" % (data.shape[0], len(self.rangefilters), str(onlyselected)))
         #if dropna:
         #    droppedrows = np.flatnonzero(data.isna().any(axis=0))
         #    usedfilters.append(['drop NaN', 'any', droppedrows])
@@ -202,7 +203,7 @@ class dataanalyzer():
                 skippedfilters.append([acol,rfilter])
             else:
                 low,high = rfilter.get_range()
-                print (rfilter.is_selected(), "    filtering %s: %f, %f" % (acol, low, high))
+                logging.debug (f"{rfilter.is_selected()}, filtering {acol}: {low}, {high}")
                 if dropna:
                     droppedrows = np.flatnonzero((data[acol] != data[acol]) | (data[acol] > high) | (data[acol] < low))
                 else:    
@@ -229,21 +230,21 @@ class dataanalyzer():
         #print self.seriesfilter
         combineddroppedidx = None
         for seriesname in self.seriesfilter:
-            print ('Required series:', seriesname, self.seriesfilter[seriesname])
-            print ('category columns:', cats)
-            print ('Column subset:', cols)
+            logging.debug (f'Required series: {seriesname}, {self.seriesfilter[seriesname]}')
+            logging.debug (f'category columns: {cats}')
+            logging.debug (f'Column subset: {cols}')
             # create smaller df with cats, seriesname, and single datacolumn, restrict to data rows that match series rrequirment defined by filter
             sdata = filtereddata[cols]
-            print (sdata)
+            logging.debug (sdata)
 
             # pivot data to find incomplete series            
             indexgroups = [c for c in cats if c != seriesname]
             pdata = sdata.pivot_table(index=indexgroups,columns=[seriesname],aggfunc='count')
             # restrict to seriesfilter columns of interest
             pdata = pdata.loc[:,pdata.columns.get_level_values(1).isin(self.seriesfilter[seriesname])]
-            print (pdata)
+            logging.debug (pdata)
             droppedseriesrows = pdata[pdata.isna().any(axis=1)]
-            print (droppedseriesrows.index.tolist())
+            logging.debug (droppedseriesrows.index.tolist())
             
             # set index on filtered data and remove intersection with droppedseiresrows.index
             filtereddata.set_index(indexgroups, inplace=True, drop=False)
@@ -264,7 +265,7 @@ class dataanalyzer():
         return filtereddata, usedfilters, skippedfilters, len(alldroppedrows), combineddroppedidx    
 
 
-    def summarize_data(self, titleprefix, data, cols, groups=None, aggs=['count', 'min', 'max', 'mean', 'std', 'median', 'percentile(25)', 'percentile(75)'], singledf=True, flattenindex=True):
+    def summarize_data(self, titleprefix, data, cols, groups=None, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True):
         summaries = {}
         allfunc_dict = self.analysis_functions['Summary Tables']['functions']
         agg_functions = [allfunc_dict[f] for f in aggs]
@@ -279,7 +280,7 @@ class dataanalyzer():
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
                 summary = data[allcats].groupby(lambda _ : True, group_keys=False).agg(agg_functions)
             else:                
-                summary = data[allcats].groupby(groups).agg(aggs)
+                summary = data[allcats].groupby(groups).agg(agg_functions)
             if flattenindex:
                 summary.columns = ['\n'.join(col).strip() for col in summary.columns.values]    
             summaries[dftitle] = summary
@@ -349,12 +350,12 @@ class dataanalyzer():
         non_ref_cols = [c for c in grouping if c not in ref_cols]
         ref_values = tuple([normalizeto[c] for c in ref_cols])
         unstack_levels = [grouping.index(c) for c in ref_cols]
-        print ("COLS TO UNSTACK, ref_cols=%s, non_ref_cols=%s, unstack_levels=%s, ref_values=%s" % (str(ref_cols), str(non_ref_cols), str(unstack_levels), str(ref_values)))
+        logging.debug (f"COLS TO UNSTACK, ref_cols={str(ref_cols)}, non_ref_cols={str(non_ref_cols)}, unstack_levels={str(unstack_levels)}, ref_values={str(ref_values)}")
 #        med = data.groupby(grouping)[col].median().unstack(level=0)#.rename(columns=str).reset_index()
-        print (data.groupby(grouping)[col].median())
+        logging.debug (data.groupby(grouping)[col].median())
         med = data.groupby(grouping)[col].median().unstack(unstack_levels)#.rename(columns=str).reset_index()
         # keep only columns where topindex matches the outermost ref_value for unstacking
-        print ("unstacked med\n", med)
+        logging.debug (f"unstacked med\t{med}")
         
         # TEST
 #        xs_ref = med.xs(ref_values,level=ref_cols, axis=1, drop_level=True)
@@ -368,8 +369,8 @@ class dataanalyzer():
         med = med.loc[:,ref_values[0]]
         if dropna:
             med.dropna(axis=0, inplace=True)
-        print ('med\n', med)
-        print ('med.index\n', med.index)
+        logging.debug (f'med\t{med}')
+        logging.debug (f'med.index\t {med.index}')
         
 #        reorderedcols = [c for c in ref_cols] # [normalizeto]
 #        reorderedcols.extend([c for c in med.columns.values if c != ref_cols])
@@ -380,26 +381,26 @@ class dataanalyzer():
         # pick single multi-indexed column
         ref_median = med.loc[:,ref_values[1:]].iloc[:,0]
 #        ref_median = med.xs(ref_values[1:], level=ref_cols[1:], axis=1)
-        print ('ref_median\n', ref_median) 
-        print ('ref_median.index\n', ref_median.index)
+        logging.debug (f'ref_median\t{ref_median}') 
+        logging.debug (f'ref_median.index\t{ref_median.index}')
 
 #        rel = med.iloc[:,1:].apply(lambda df:(df-med[ref_cols])/med[ref_cols]*100)
 #        rel = med.apply(lambda df:(df-ref_median)/ref_median * 100, axis=0, raw=True)
         rel = med.apply(lambda df:(df-ref_median)/ref_median * 100)
-        print ('rel.columns.values\n', rel.columns.values)
-        print ('rel.index\n',rel.index)
-        print ('ref_values[1:]\n', ref_values[1:])
+        logging.debug (f'rel.columns.values\t{rel.columns.values}')
+        logging.debug (f'rel.index\t{rel.index}')
+        logging.debug (f'ref_values[1:]\t{ref_values[1:]}')
         if len(ref_values) == 2:
             rel.drop(ref_values[1], axis=1, inplace=True)
         else:    
             rel.drop(ref_values[1:], level=0, axis=1, inplace=True)
-        print ('rel\n', rel)
-        print ('rel.index\n',rel.index)
+        logging.debug (f'rel\t{rel}')
+        logging.debug (f'rel.index\t{rel.index}')
         rel.columns = [c+' rel %' for c in rel.columns.values]
         rel['min rel %'] = rel.min(axis=1)
         rel['max rel %'] = rel.max(axis=1)
-        print ('rel after addition of min %/max %\n', rel)
-        print ('rel.index after addition of min %/max %\n', rel.index)
+        logging.debug (f'rel after addition of min %/max %\t{rel}')
+        logging.debug (f'rel.index after addition of min %/max %\t{rel.index}')
         # create category for each column
         for c in rel.columns.values:
             rel['Cat %s' %c] = pd.cut(rel[c], bins=bins, labels=labels)#.rename('cat %s' % col)
@@ -408,22 +409,22 @@ class dataanalyzer():
             rel[category_colheader] = rel['Cat min rel %']    
         else:    
             rel[category_colheader] = rel['Cat max rel %']    
-        print ('med after rel merge', med)
+        logging.debug (f'med after rel merge {med}')
         med = pd.merge(med.rename(columns=str).reset_index(),rel.rename(columns=str).reset_index(), on=non_ref_cols)
         if joinmaster:
             if category_colheader in data.columns.values:
                 data = data.drop([category_colheader], axis=1)
-            print ("DATA.INDEX",data.index)
-            print ("REL[COL].INDEX",rel[category_colheader].index)
+            logging.debug (f"DATA.INDEX={data.index}")
+            logging.debug (f"REL[COL].INDEX={rel[category_colheader].index}")
             joineddata = data.join(rel[category_colheader], on=non_ref_cols).rename(index=str, columns={category_colheader: category_colheader})
-            print (joineddata.dtypes)
+            logging.debug (joineddata.dtypes)
             if add_ascategory:
                 joineddata[category_colheader].astype('category')
                 unassigned = 'unassigned'
                 joineddata[category_colheader] = joineddata[category_colheader].cat.add_categories([unassigned])
-                print ("CATEGORIES",joineddata[category_colheader].cat.categories)
+                logging.debug (f"CATEGORIES={joineddata[category_colheader].cat.categories}")
                 joineddata = joineddata.fillna(value={category_colheader:unassigned})
-            print (joineddata.columns.values)
+            logging.debug (joineddata.columns.values)
             return med, core.preprocessor.reorder_columns(joineddata)
         else:
             return med, data

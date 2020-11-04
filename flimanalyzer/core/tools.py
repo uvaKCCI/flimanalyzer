@@ -4,6 +4,7 @@ Created on Fri May  4 02:42:45 2018
 @author: khs3z
 """
 
+import logging
 from core.importer import dataimporter
 from core.parser import defaultparser
 from core.preprocessor import defaultpreprocessor
@@ -22,6 +23,7 @@ class FLIMAnalyzer():
         self.analyzer = danalyzer
         self.data = pd.DataFrame()
 #        self.outputgenerator = outputgenerator()
+        logging.debug(f"Initialized {__name__}.FlimAnalyzer with {importer}, {preprocessor}, {danalyzer}")
         
 
     def get_data(self):
@@ -65,35 +67,35 @@ def parse_arguments():
     return parser.parse_args()
     
 
-def noninteractive_test(fa, args):
+def noninteractive_test(fa, logger, args):
     impo = fa.get_importer()
 #    a,s = impo.add_files(["../data/large_dataset"], exclude=['Master.txt'])
     a,s = impo.add_files(args.input, exclude=args.exclude)
-    print ("\nFound %d file(s), skipping %d file(s)" % (a,s))
+    logger.debug ("\nFound %d file(s), skipping %d file(s)" % (a,s))
        
     hparser = defaultparser()
 #    pattern = hparser.get_regexpatterns()
 #    pattern['Test'] = pattern.pop('FOV')
 #    hparser.set_regexpatterns(pattern)
-    print ("\n","Importing raw data from %d file(s)..." % len(impo.get_files()))
+    logging.info ("\n","Importing raw data from %d file(s)..." % len(impo.get_files()))
     data,_,fheaders = impo.import_data(delimiter="\t", hparser=hparser)
     if data is None:
-        print ("No data")
+        logging.info ("No data")
         return
-    print ("Raw data contains %d rows, %d columns" % (data.shape[0], data.shape[1]))
+    logging.info ("Raw data contains %d rows, %d columns" % (data.shape[0], data.shape[1]))
     
     pp = fa.get_preprocessor()
     pp.set_replacementheaders({'Exc1_-Ch1-_':'trp ', 'Exc1_-Ch2-_':'NAD(P)H ', 'Exc2_-Ch3-_':'FAD '})
     data,ch = pp.rename_headers(data)
     data, dc = pp.drop_columns(data, [' ', 'Exc1', 'Exc2'], func='startswith')
-    print ("\nRenamed %d column header(s)" % len(ch))
-    print (ch)    
-    print ("\nDropped %d columns: data contains %d rows, %d columns" % (len(dc), data.shape[0], data.shape[1]))
-    print (dc)    
+    logging.debug ("\nRenamed %d column header(s)" % len(ch))
+    logging.debug (ch)    
+    logging.debug ("\nDropped %d columns: data contains %d rows, %d columns" % (len(dc), data.shape[0], data.shape[1]))
+    logging.debug (dc)    
 
     # reorder headers
-    print ("\nColumn headers parsed from file name(s): %s" % fheaders)
-    print ("Other headers: %s" % (set(data.columns.values)-fheaders))
+    logging.info ("\nColumn headers parsed from file name(s): %s" % fheaders)
+    logging.info ("Other headers: %s" % (set(data.columns.values)-fheaders))
     nh = list(fheaders)
     nh.extend(sorted(set(data.columns.values)-fheaders))
     if len(nh) == len(data.columns):
@@ -120,30 +122,21 @@ def noninteractive_test(fa, args):
             'trp E%3': [0,100],
             })
 
-    print ("\nCalculating values for added columns...")
+    logging.info ("\nCalculating values for added columns...")
     data,capplied,cskipped = analyzer.calculate(data)
-    print ("Applied %d calculation functions, skipped %d: data contains %d rows, %d columns" % (len(capplied),len(cskipped), data.shape[0], data.shape[1]))
+    logging.info ("Applied %d calculation functions, skipped %d: data contains %d rows, %d columns" % (len(capplied),len(cskipped), data.shape[0], data.shape[1]))
     for afunc in capplied:
-        print ("\tcalculated %s" % afunc)
+        logging.debug ("\tcalculated %s" % afunc)
     for sfunc in cskipped:
-        print ("\tskipped %s" % sfunc)
+        logging.debug ("\tskipped %s" % sfunc)
 
-    print ("\nFiltering values...")
+    logging.info ("\nFiltering values...")
     data,fapplied,fskipped, droppedrows = analyzer.apply_filter(data)
-    print ("Applied %d filters, skipped %d filters, dropped %d rows: data contains %d rows, %d columns" % (len(fapplied),len(fskipped), droppedrows, data.shape[0], data.shape[1]))
+    logging.info ("Applied %d filters, skipped %d filters, dropped %d rows: data contains %d rows, %d columns" % (len(fapplied),len(fskipped), droppedrows, data.shape[0], data.shape[1]))
     for afunc in fapplied:
-        print ("\tapplied: %s (%s), dropped %d rows" % (afunc[0],afunc[1],afunc[2],))
+        logging.debug ("\tapplied: %s (%s), dropped %d rows" % (afunc[0],afunc[1],afunc[2],))
     for sfunc in fskipped:
-        print ("\tskipped %s" % sfunc) 
+        logging.debug ("\tskipped %s" % sfunc) 
 
 
-
-#def interactive_main(fa):    
-#    app = FlimAnalyzerApp(fa)
-#    app.MainLoop()
-
-
-if __name__ == "__main__":
-    fa = FLIMAnalyzer()
-    noninteractive_test(fa,sys.args)
     

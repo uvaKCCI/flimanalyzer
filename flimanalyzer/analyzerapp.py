@@ -120,7 +120,7 @@ def init_logger(loglevel):
     numeric_level = getattr(logging, loglevel, None)
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % args.log)
-    logging.basicConfig(level=numeric_level,filename='flimanalyzer.log', filemode='w', format='%(levelname)s - %(asctime)-15s: %(message)s')
+    logging.basicConfig(level=numeric_level,filename='flimanalyzer.log', filemode='w', format='%(levelname)s \t %(asctime)-15s - %(module)s.%(funcName)s: %(message)s')
     logging.info(f'Log level: %d' % numeric_level)
 
 
@@ -130,9 +130,9 @@ if __name__ == "__main__":
     args = parse_arguments()
     init_logger(args.log.upper())
     logging.info("FlimAnalyzer version %s" % __version__)
+    logging.debug(args)
     fa = FLIMAnalyzer()
-    if len(sys.argv) < 4 and (sys.argv[1].startswith('-l') or sys.argv[1].startswith('--log')):
+    if args.input is None or args.output is None or args.config is None:
         interactive_run(fa)
     else:
-        logging.debug(args)
         noninteractive_run(fa,args)

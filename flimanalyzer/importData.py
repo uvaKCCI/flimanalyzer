@@ -6,6 +6,7 @@ Created on Thu Mar 29 17:30:44 2018
 @author: khs3z
 """
 
+import logging
 import os
 import pandas as pd
 import glob
@@ -62,11 +63,11 @@ def saveRawData(data, fname):
         
 if __name__ == "__main__":
     args = parseArguments()
-    print args
+    logging.debug (args)
     input = [os.path.abspath(i) for i in args.input]
     data,readfiles,skippedfiles = importRawData(input, delimiter="\t", exclude=args.exclude)
-    print "Read %d file(s)" % readfiles
-    print "Skipped %d file(s)" % skippedfiles
+    logging.debug ("Read %d file(s)" % readfiles)
+    logging.debug ("Skipped %d file(s)" % skippedfiles)
     if args.output is not None:
-        print "Saving imported data to", args.output
+        logging.debug ("Saving imported data to", args.output)
         saveRawData(data, args.output)

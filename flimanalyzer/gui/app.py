@@ -6,6 +6,7 @@ Created on Mon May  7 21:00:30 2018
 @author: khs3z
 """
 
+import logging
 import os
 import numpy as np
 import matplotlib
@@ -17,7 +18,7 @@ import json
 
 import wx
 import wx.lib.agw.customtreectrl as CT
-from wx.lib.pubsub import pub
+from pubsub import pub
 
 import core.configuration as cfg
 from core.configuration import Config
@@ -68,14 +69,14 @@ class FlimAnalyzerApp(wx.App):
 
 
     def OnConfigUpdated(self, source, config, updated):
-        print ("FLIMANALYZERAPP.OnConfigUpdated")
+        logging.debug ("FLIMANALYZERAPP.OnConfigUpdated")
         if source != self and updated:
             for key in updated:
-                print ("\tupdated key", key)
+                logging.debug (f"\tupdated key:{key}")
         
         
     def OnFilterUpdated(self, event):
-        print ("FLIMANALYZERAPP: filter updated:")
+        logging.debug ("FLIMANALYZERAPP: filter updated:")
 
     
 class TabImport(wx.Panel):
@@ -217,14 +218,14 @@ class TabImport(wx.Panel):
         
     
     def OnConfigUpdated(self, source, config, updated):
-        print ("appframe.TabImport.OnConfigUpdated")
+        logging.debug ("appframe.TabImport.OnConfigUpdated")
         if source != self:
             for key in updated:
                 if key in [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT, cfg.CONFIG_PREPROCESS]:
-                    print ("\tupdating: %s" % key)
+                    logging.debug (f"\tupdating: {key}")
                     self.update_config_gui_elements(config)
                 else:
-                    print ("\tignoring: %s" % key)
+                    logging.debug (f"\tignoring: {key}")
         
         
     def update_config_gui_elements(self, config):
@@ -237,9 +238,9 @@ class TabImport(wx.Panel):
         #self.calc_columns = rootconfig[CONFIG_CALC_COLUMNS]
         #self.filters = rootconfig[CONFIG_FILTERS]
         #self.headers = rootconfig[CONFIG_HEADERS]
-        print ("update_config_gui_elements")
-        print ("    ", cfg.CONFIG_IMPORT, config.get(cfg.CONFIG_IMPORT, returnkeys=True))
-        print ("    ", cfg.CONFIG_PREPROCESS, config.get(cfg.CONFIG_PREPROCESS, returnkeys=True))
+        logging.debug ("update_config_gui_elements")
+        logging.debug (f"\t{cfg.CONFIG_IMPORT}, {config.get(cfg.CONFIG_IMPORT, returnkeys=True)}")
+        logging.debug (f"\t{cfg.CONFIG_PREPROCESS}, {config.get(cfg.CONFIG_PREPROCESS, returnkeys=True)}")
         self.delimiter_panel.set_delimiters(config.get(cfg.CONFIG_DELIMITER))
         parsername = config.get(cfg.CONFIG_PARSERCLASS)
         sel_parser = self.avail_parsers.get(parsername)
@@ -277,7 +278,7 @@ class TabImport(wx.Panel):
         
         
     def OnParserChanged(self, event):
-        print ("Parser changed")
+        logging.debug ("Parser changed")
         #parser_chooser = event.GetEventObject()
         #parserparams = {cfg.CONFIG_PARSERCLASS:parser_chooser.GetStringSelection()}
         ##self.config.update(parsercfg)
@@ -294,12 +295,13 @@ class TabImport(wx.Panel):
             paths = fileDialog.GetPaths()
             importer = self.flimanalyzer.get_importer()
             filecount = len(importer.get_files())
+            exclude_list = self.exclude_files_list.GetValue().encode('ascii','ignore')
+            logging.debug (type(exclude_list))
+            excluded = exclude_list.splitlines()              
             for path in paths:
                 if os.path.isdir(path):
                     importer.add_files([path], exclude=[])
                 else:
-                    print (type(self.exclude_files_list.GetValue().encode('ascii','ignore')))
-                    excluded = self.exclude_files_list.GetValue().encode('ascii','ignore').splitlines()              
                     importer.add_files([path], exclude=excluded)
             new_filecount = len(importer.get_files())
             self.update_files(new_filecount-filecount)
@@ -328,7 +330,7 @@ class TabImport(wx.Panel):
         parsername = self.parser_chooser.GetStringSelection()
         hparser = core.parser.instantiate_parser('core.parser.' + parsername)
         if hparser is None:
-            print ("COULD NOT INSTANTIATE PARSER:", parsername)
+            logging.warning (f"COULD NOT INSTANTIATE PARSER:{parsername}")
             return
         dropped = self.drop_col_list.GetValue().encode('ascii','ignore').splitlines()
         if len(dropped)==1 and dropped[0]=='':
@@ -352,7 +354,7 @@ class TabImport(wx.Panel):
             if selected is None or len(selected)==0:
                 importer.set_files([files[0]])
             else:
-                print ("PREVIEWING: delimiter=%s, %s" % (delimiter,self.files_list.GetString(selected[0])))
+                logging.debug ("PREVIEWING: delimiter={delimiter}, {self.files_list.GetString(selected[0])}")
                 importer.set_files([self.files_list.GetString(selected[0])])
             rawdata, readfiles, headers = importer.import_data(delimiter=delimiter, nrows=previewrows)
             rawdata = self.calc_additional_columns(rawdata) 
@@ -381,8 +383,8 @@ class TabImport(wx.Panel):
         analyzer = self.flimanalyzer.get_analyzer()
         analyzer.add_columns(self.config_calc_columns)
         data,calculated,skipped = analyzer.calculate(data)
-        print ("CALC:", calculated)
-        print ("SKIPPED", skipped)
+        logging.debug (f"CALC:{calculated}")
+        logging.debug (f"SKIPPED: {skipped}")
         return data
     
                     
@@ -530,7 +532,7 @@ class TabFilter(wx.Panel):
 
 
     def OnDataImported(self, olddata, data):
-        print ("appframe.TabFilters.OnDataImported - %d rows, %d columns" % (len(data), len(data.columns.values)))
+        logging.debug (f"{len(data)} rows, {len(data.columns.values)} columns")
         self.update_rawdata(data)
 
 
@@ -538,29 +540,28 @@ class TabFilter(wx.Panel):
         rfilters = updateditems
         if rfilters is None:
             rfilters = self.filterlist.GetData()
-        print ("appframe.TabFilters.OnFiltersUpdated - %d Filters updated:" % len(rfilters))
+        logging.debug (f"{len(rfilters)} Filters updated.")
         for key in rfilters:
             rfilter = rfilters[key]
-            print ("\t %s: %s" % (key, str(rfilter.get_parameters())))
-        olddata = self.data
+            logging.debug (f"\t {key}: {str(rfilter.get_parameters())}")
         filtereddata, dropsbyfilter, totaldrops, droppedindex = self.apply_filters(self.filterlist.GetData(), self.seriesfilter.GetData(), dropsonly=False, onlyselected=True)
         self.update_data(filtereddata)
 
         """
         self.data = self.rawdata.drop(totaldrops)
-        print self.data.head()
+        logging.debug (self.data.head())
         if droppedindex is not None:
             self.data.set_index(droppedindex.names, inplace=True, drop=False)
-            print self.data.index
-            print droppedindex
+            logging.debug (self.data.index)
+            logging.debug (droppedindex)
             currentcols = self.data.columns.tolist()
             droppedindex = droppedindex.intersection(self.data.index)
-            print droppedindex
+            logging.debug (droppedindex)
             if not droppedindex.empty:
                 self.data = self.data.set_index(droppedindex.names, drop=False).drop(droppedindex)
             self.data.reset_index(inplace=True, drop=True)
             self.data = self.data[currentcols]
-        print self.data.head()    
+        logging.debug (self.data.head())    
         self.update_data(self.data)
         """
         #pub.sendMessage(FILTERED_DATA_UPDATED, originaldata=olddata, newdata=self.data)
@@ -574,12 +575,12 @@ class TabFilter(wx.Panel):
         
 
     def OnConfigUpdated(self, source, config, updated):
-        print ("appframe.TabFilters.OnConfigUpdated")
+        logging.debug ("appframe.TabFilters.OnConfigUpdated")
         if source != self and updated:
             self.config = config
             self.set_filterlist()
             for key in updated:
-                print ("\tupdated key", key)
+                logging.debug (f"\tupdated key: {key}")
         
                 
     def SelectAll(self, event):
@@ -612,7 +613,7 @@ class TabFilter(wx.Panel):
 #            self.summary_group = []
 #        else:    
 #            self.summary_group = groupstr.split(',')
-#        print self.summary_group
+#        logging.debug (self.summary_group)
         
         
 #    def onSingleSelect(self, event):
@@ -642,9 +643,9 @@ class TabFilter(wx.Panel):
         #self.update_data(None)
 
         categories = list(self.rawdata.select_dtypes(['category']).columns.values)
-        print ('COLUMNS WITH CATEGORY AS DTYPE', categories)
+        logging.debug (f'COLUMNS WITH CATEGORY AS DTYPE: {categories}')
         if 'Category' in categories:
-            print ('CATEGORY VALUES:', sorted(self.rawdata['Category'].unique()))
+            logging.debug (f"CATEGORY VALUES: {sorted(self.rawdata['Category'].unique())}")
         self.update_seriesfilter()
         self.set_filterlist()
         if applyfilters:
@@ -657,7 +658,7 @@ class TabFilter(wx.Panel):
         label = "Filtered Data:"
         if self.data is not None:
             label += " %d rows, %d columns" % (self.data.shape[0], self.data.shape[1])
-        print ("appframe.TabFilter.update_data:", self.data.shape[0], "rows")
+        logging.debug (f"{self.data.shape[0]} rows")
         self.datainfo.SetLabel(label)    
         pub.sendMessage(FILTERED_DATA_UPDATED, originaldata=olddata, newdata=self.data)
         pub.sendMessage(DATA_UPDATED, originaldata=olddata, newdata=self.data)        
@@ -684,12 +685,11 @@ class TabFilter(wx.Panel):
         filternames = [fc['name'] for fc in rangefiltercfgs]
         for key in datacols.columns.values.tolist():
             if key not in filternames:
-                print ("key", key, "not found. creating default")   
+                logging.debug (f"key {key} not found. Creating default.")   
                 rangefiltercfgs.append(RangeFilter(key,0,100, selected=False).get_params())
             else:
-                print ("key", key, "FOUND.")
+                logging.debug (f"key {key} found.")
         currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in rangefiltercfgs if rfcfg['name'] in datacols.columns.values.tolist()}        
-        print ("\n******\n",currentfilters)
         self.filterlist.SetData(currentfilters, dropped, ['Use', 'Column', 'Min', 'Max', 'Dropped'])        
 
 
@@ -701,9 +701,9 @@ class TabFilter(wx.Panel):
         analyzer.set_seriesfilter(seriesfilter)
         #self.data = self.rawdata.copy()
         filtereddata, usedfilters, skippedfilters, no_droppedrows, droppedindex = analyzer.apply_filter(self.rawdata,dropna=True,onlyselected=onlyselected,inplace=False, dropsonly=dropsonly)
-        print ("TabFilter.applyfilters, dropsonly=%s" % str(dropsonly))
-        print ("\trawdata: rawdata.shape[0]=%d, dropped overall %d rows" % (self.rawdata.shape[0],no_droppedrows))
-        print ("\tdata: data.shape[0]=%d" % (filtereddata.shape[0]))
+        logging.debug (f"dropsonly={dropsonly}")
+        logging.debug (f"\trawdata: rawdata.shape[0]={self.rawdata.shape[0]}, dropped overall {no_droppedrows} rows")
+        logging.debug (f"\tdata: data.shape[0]={filtereddata.shape[0]}")
         
         droppedrows = {f[0]:f[2] for f in usedfilters}
         if setall:
@@ -857,14 +857,14 @@ class TabAnalysis(wx.Panel):
                     
     def OnNewDataWindow(self, data, frame):
         label = frame.GetLabel()
-        print ("appframe.TabAnalysis.OnNewDataWindow - %s" % (label))
+        logging.debug (f"{label}")
         if frame.is_analyzable():
             self.update_datachoices({label:frame}, True)
             self.windows[label] = frame
             self.update_analysislist()
             currentdata,label = self.get_currentdata()
             self.set_roigroupings(list(currentdata.select_dtypes(['category']).columns.values))
-            print ("CURRENT DATA", label, self.datachoices_combo.GetStringSelection())
+            logging.debug ("CURRENT DATA: {label}, {self.datachoices_combo.GetStringSelection()}")
         if label == "Raw data":
             if self.rawdata is not None:
                 label += " %d rows, %d columns" % (self.rawdata.shape[0], self.rawdata.shape[1])
@@ -876,7 +876,7 @@ class TabAnalysis(wx.Panel):
 
 
     def OnClosingDataWindow(self, data, frame):
-        print ("appframe.TabAnalysis.OnClosingDataWindow - %s" % (frame.GetLabel()))
+        logging.debug (f"{frame.GetLabel()}")
         if self.windows.get(frame.GetLabel()):
             del self.windows[frame.GetLabel()]
             self.update_datachoices({frame.GetLabel():frame}, False)
@@ -886,49 +886,49 @@ class TabAnalysis(wx.Panel):
 
         
     def OnDataImported(self, olddata, data):
-        print ("appframe.TabAnalysis.OnDataImported - %d rows, %d columns" % (len(data), len(data.columns.values)))
+        logging.debug (f"{len(data)} rows, {len(data.columns.values)} columns")
         self.update_rawdata(data)
 
 
     def OnFiltersUpdated(self, updateditems):
-        print ("appframe.TabAnalysis.OnFiltersUpdated - %d " % (len(updateditems)))
+        logging.debug (f"{len(updateditems)} updated items.")
         self.update_rangefilters(updateditems)
 
 
     def OnFilteredDataUpdated(self, originaldata, newdata):
-        print ("appframe.TabAnalysis.OnFilteredDataUpdated")
+        logging.debug ("appframe.TabAnalysis.OnFilteredDataUpdated")
         self.update_data(newdata)
 
         
     def OnConfigUpdated(self, source, config, updated):
-        print ("appframe.TabAnalysis.OnConfigUpdated")
+        logging.debug ("appframe.TabAnalysis.OnConfigUpdated")
         if source != self and updated:
             for key in updated:
-                print ("\tupdated key", key)
+                logging.debug (f"\tupdated key:{key}")
             self.config = config    
             self.update_analysislist()
 
         
     def OnRoiGroupingChanged(self, event):
         groupstr = self.roigroup_combo.GetStringSelection()
-        print ("appframe.TabAnalysis.OnRoiGroupingChanged.GROUPSTR=", groupstr)
+        logging.debug (f"GROUPSTR={groupstr}")
         if groupstr == 'None':
             self.sel_roigrouping = []
             self.ctrlgroup_label.SetLabelText('Reference: None')
         else:    
             self.sel_roigrouping = groupstr.split(', ')
             self.ctrlgroup_label.SetLabelText('Reference: %s' % self.sel_roigrouping[0])
-        print (self.sel_roigrouping)
+        logging.debug (self.sel_roigrouping)
         self.update_sel_ctrlgroup()
 
         
     def OnAnalysisTypeChanged(self, event):
         groupindex = event.GetSelection()
-        print ("appframe.TabAnalysis.OnAnalysisTypeChanged: %s " % self.get_analysistypes()[groupindex])
+        logging.debug (f"{self.get_analysistypes()[groupindex]}")
 
     
     def OnDataWindowRenamed(self, original, new, data):
-        print ("appframe.TabAnalysis.OnDataWindowRenamed - %s --> %s" % (original, new))
+        logging.debug (f"{original} --> {new}")
         if original in self.windows:
             frame = self.windows[original]
             if frame.is_analyzable():
@@ -945,7 +945,7 @@ class TabAnalysis(wx.Panel):
     def OnDataChoiceChanged(self, event):
         datalabel = event.GetString()
         currentdata, _ = self.get_currentdata()
-        print ("appframe.TabAnalysis.OnDataChoiceChanged: %s, %s" % (datalabel, str(currentdata is not None)))
+        logging.debug (f"{datalabel}, {str(currentdata is not None)}")
         self.set_roigroupings(list(currentdata.select_dtypes(['category']).columns.values))
         self.update_analysislist()
         if self.windows.get(datalabel):
@@ -954,12 +954,12 @@ class TabAnalysis(wx.Panel):
                 
     def OnCtrlSelChanged(self, event):
         groupindex = event.GetSelection()
-        print ("appframe.TabAnalysis.OnCtrlSelChanged: %s " % self.get_ctrlgroupchoices()[groupindex])
+        logging.debug (f"{self.get_ctrlgroupchoices()[groupindex]}")
 
                 
     def ShowAnalysis(self, event):
         atype = self.analysistype_combo.GetStringSelection()
-        print ('appframe.TabAnalysis.ShowAnalysis: %s' % atype)
+        logging.debug (f"{atype}")
         if atype == 'Summary Tables':
             self.show_summary()
         elif atype == 'Mean Bar Plots':
@@ -985,7 +985,7 @@ class TabAnalysis(wx.Panel):
         
     def SaveAnalysis(self, event):
         atype = self.analysistype_combo.GetStringSelection()
-        print ('TabAnalysis.SaveAnalysis: %s' % atype)
+        logging.debug (f"{atype}")
         if atype == 'Summary Tables':
             self.save_summary()
         elif atype == 'Mean Bar Plots':
@@ -1027,10 +1027,10 @@ class TabAnalysis(wx.Panel):
         selection = self.datachoices_combo.GetStringSelection() 
         if not self.use_all_raw_and_filtered:
             if isinstance(self.availabledata.get(selection), PandasFrame):
-                print ("Using GetViewData")
+                logging.debug ("Using GetViewData")
                 return self.availabledata[selection].GetViewData(), selection
-            print ("COULD NOT FIND %s in existing windows" % selection)
-            print (self.availabledata)
+            logging.debug (f"COULD NOT FIND {selection} in existing windows")
+            logging.debug (self.availabledata)
         if selection == 'Raw data':
             if self.rawdata is not None:
                 return self.rawdata, 'Raw'
@@ -1041,27 +1041,27 @@ class TabAnalysis(wx.Panel):
 
 
     def update_rangefilters(self, rfilters):
-        print ("AnalysisTab.update_rangefilters: %d filters to update" % len(rfilters))
+        logging.debug (f"{len(rfilters)} filters to update")
         analysisconfig = self.config.get(cfg.CONFIG_HISTOGRAMS)
         for key in rfilters:
             rfilter = rfilters[key]
-            print ("\trfilter.get_parameters:", rfilter.get_parameters())
+            logging.debug (f"\trfilter.get_parameters: {rfilter.get_parameters()}")
             low = rfilter.get_rangelow()
             high = rfilter.get_rangehigh()
             aconfig = analysisconfig.get(rfilter.get_name())
             if aconfig is None:
-                print ("\tnot found:", rfilter.get_name())
+                logging.debug (f"\tnot found: {rfilter.get_name()}")
                 analysisconfig[rfilter.get_name()] = [low,high,100]
             else:                
-                print ("\told:", rfilter.get_name(), analysisconfig[rfilter.get_name()])
+                logging.debug (f"\told: {rfilter.get_name()}, {analysisconfig[rfilter.get_name()]}")
                 analysisconfig[rfilter.get_name()][0] = low
                 analysisconfig[rfilter.get_name()][1] = high
-            print ("\tnew:", rfilter.get_name(), analysisconfig[rfilter.get_name()])
+            logging.debug (f"\tnew: {rfilter.get_name()}, {analysisconfig[rfilter.get_name()]}")
             self.analysislist.SetRow(rfilter.get_name(), analysisconfig[rfilter.get_name()])
 
 
     def update_analysislist(self):
-        print ("TabAnalysis.update_analysislist")
+        logging.debug ("TabAnalysis.update_analysislist")
         data, label = self.get_currentdata()
         if data is None:
             return
@@ -1089,8 +1089,8 @@ class TabAnalysis(wx.Panel):
         
         
     def update_rawdata(self, rawdata):
-        print ("appframe.TabAnalysis.update_rawdata")
-        print ("\trawdata: rows=%d, cols=%d" % (rawdata.shape[0], rawdata.shape[1]))
+        logging.debug ("appframe.TabAnalysis.update_rawdata")
+        logging.debug (f"\trawdata: rows={rawdata.shape[0]}, cols={rawdata.shape[1]}")
         self.rawdata = rawdata
         #frame = PandasFrame(self, 'Raw data', data=self.rawdata)
         # *** self.update_datachoices({'Raw data':self.rawdata}, replace=False)
@@ -1101,25 +1101,25 @@ class TabAnalysis(wx.Panel):
         self.update_analysislist()
         # self.update_data(None)
         currentdata,label = self.get_currentdata()
-        print ("CURRENT DATA", label, self.datachoices_combo.GetStringSelection())
+        logging.debug (f"CURRENT DATA: {label}, {self.datachoices_combo.GetStringSelection()}")
         if currentdata is not None:
             self.set_roigroupings(list(currentdata.select_dtypes(['category']).columns.values))
 
 
 
     def update_data(self, data):
-        print ("appframe.TabAnalysis.update_data")
+        logging.debug ("appframe.TabAnalysis.update_data")
 #        print "\traw data: rows=%d, cols=%d" % (self.rawdata.shape[0], self.rawdata.shape[1])
         self.data = data
         #frame = PandasFrame(self, 'Filtered data', data=self.data)
         label = "Filtered Data:"
         # *** self.update_datachoices({'Filtered data':self.data}, add=(self.data is not None))
         if self.data is not None:
-            print ("\tdata: rows=%d, cols=%d" % (self.data.shape[0], self.data.shape[1]))
+            logging.debug (f"\tdata: rows={self.data.shape[0]}, cols={self.data.shape[1]}")
             label += " %d rows, %d columns" % (self.data.shape[0], self.data.shape[1])
 #            label += " %d rows, %d columns" % (self.rawdata.shape[0] - self.filterlist.get_total_dropped_rows(), self.data.shape[1])
         else:
-            print ("\tDATA IS NONE")
+            logging.debug ("\tNo data.")
         self.datainfo.SetLabel(label)    
 
 
@@ -1138,7 +1138,7 @@ class TabAnalysis(wx.Panel):
             for title in choices:
                 if self.availabledata is not None and self.availabledata.get(title) is not None:
                     del self.availabledata[title]
-        print ("appframe.TabAnalysis.update_datachoices", [t for t in self.availabledata])
+        logging.debug (f"appframe.TabAnalysis.update_datachoices, {[t for t in self.availabledata]}")
         current_sel = self.datachoices_combo.GetStringSelection()
         self.datachoices_combo.Clear()
         self.datachoices_combo.AppendItems(self.get_datachoices())
@@ -1188,7 +1188,7 @@ class TabAnalysis(wx.Panel):
                 categories = [c for c in categories if c in list(currentdata.select_dtypes(['category']).columns.values)]
             else:
                 categories = [c for c in list(currentdata.select_dtypes(['category']).columns.get_level_values(0).values)]
-            print ("CATEGORIES:", categories)
+            logging.debug (f"CATEGORIES: {categories}")
             for i in range(1,len(categories)+1):
                 permlist = list(itertools.permutations(categories,i))
                 for p in permlist:
@@ -1208,7 +1208,7 @@ class TabAnalysis(wx.Panel):
         if data is None:
             return None
         selcols = self.analysislist.get_checked_items()
-        print ("appFrame.TabAnalysis.get_checked_cols: SELECTED", selcols)
+        logging.debug (f"appFrame.TabAnalysis.get_checked_cols: SELECTED: {selcols}")
         return selcols
 #        selindices = self.analysislist.get_checked_indices()
 #        datacols =  data.select_dtypes(include=[np.number])
@@ -1234,7 +1234,7 @@ class TabAnalysis(wx.Panel):
                 if self.datachoices_combo.GetStringSelection() == self.get_datachoices()[1]:
                     mrange = (hconfig[0],hconfig[1])
                 bins = hconfig[2]
-            print ("\tcreating frequency histogram plot for %s with %d bins" % (header, bins))     
+            logging.debug (f"\tcreating frequency histogram plot for {header} with {bins} bins")     
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
 #            fig, ax = MatplotlibFigure()
             #fig = plt.figure(FigureClass=MatplotlibFigure)
@@ -1249,12 +1249,12 @@ class TabAnalysis(wx.Panel):
         bars = {}
         if not gui.dialogs.check_data_msg(data):
             return {}
-        cols = [c.decode('utf-8') for c in self.get_checked_cols(data)]
+        cols = [c for c in self.get_checked_cols(data)]
         if cols is None or len(cols) == 0:
             wx.MessageBox('No measurements selected.', 'Warning', wx.OK)
             return {}
         for col in sorted(cols):
-            print ("\tcreating mean bar plot for %s" % (col))
+            logging.debug (f"\tcreating mean bar plot for {col}")
             fig, ax = plt.subplots()
             fig, ax = core.plots.grouped_meanbarplot(ax, data, col, groups=groups)
             bars[col] = (fig,ax)
@@ -1270,7 +1270,7 @@ class TabAnalysis(wx.Panel):
             wx.MessageBox('No measurements selected.', 'Warning', wx.OK)
             return {}
         for col in sorted(cols):
-            print ("\tcreating box plot for %s" % (col))
+            logging.debug (f"\tcreating box plot for {col}")
             fig, ax = plt.subplots()
             fig, ax = core.plots.grouped_boxplot(ax, data, col, groups=groups, grid=False, rot=90, showmeans=True, showfliers=True, whis=[5,95])#whis=float("inf")
             bars[col] = (fig,ax)
@@ -1296,7 +1296,7 @@ class TabAnalysis(wx.Panel):
                 bins = hconfig[2]
                 minx = hconfig[0]
                 maxx = hconfig[1]
-            print ("\tcreating kde plot for %s, bins=%s" % (str(header), str(bins)))
+            logging.debug (f"\tcreating kde plot for {str(header)}, bins={str(bins)}")
             fig, ax = plt.subplots()
             fig, ax = core.plots.grouped_kdeplot(ax, data, header, groups=groups, hist=False, bins=bins, kde_kws={'clip':(hconfig[0], hconfig[1])})
             ax.set_xlim(minx, maxx)
@@ -1314,7 +1314,7 @@ class TabAnalysis(wx.Panel):
             return {}
         combs = itertools.combinations(cols, 2)
         for comb in sorted(combs):
-            print ("\tcreating scatter plot for %s" % (str(comb)))
+            logging.debug (f"\tcreating scatter plot for {str(comb)}")
             fig, ax = plt.subplots()
             fig, ax = core.plots.grouped_scatterplot(ax, data, comb, groups=groups, marker='o', s=10)#, facecolors='none', edgecolors='r')
             scatters[comb] = (fig,ax)
@@ -1367,7 +1367,7 @@ class TabAnalysis(wx.Panel):
             dlg.Destroy()
             return
         agg_functions = dlg.get_selected()        
-        print (agg_functions)
+        logging.debug (agg_functions)
         if data.columns.nlevels != 1:
             cols = [tuple(col.split(',')) for col in cols]
         summaries = self.flimanalyzer.get_analyzer().summarize_data(titleprefix, data, cols, self.sel_roigrouping, aggs=agg_functions)
@@ -1381,7 +1381,7 @@ class TabAnalysis(wx.Panel):
         grouped = controldata.groupby(grouping[1:])
         categorydef = self.config.get(cfg.CONFIG_CATEGORIES).get(col)
         if not categorydef:
-            print ("Using default categories")
+            logging.debug ("Using default categories")
             bins = [1.0, 2.0]
             labels = ['cat 1']
         else:
@@ -1390,9 +1390,9 @@ class TabAnalysis(wx.Panel):
         series = data[col]
         if normalizeto and len(normalizeto) > 0:
             median = grouped[col].median()
-            print (median.describe())
+            logging.debug (median.describe())
             median_of_median = median.median()
-            print ("MEDIAN_OF_MEDIAN: %s %f" % (col, median_of_median))
+            logging.debug ("MEDIAN_OF_MEDIAN: {col} {median_of_median}")
             xfold_series = series.apply(lambda x: x / median_of_median).rename('x-fold norm ' + col)
             plusminus_series = series.apply(lambda x: x - median_of_median).rename('+/- norm ' + col)
             #all_catseries.append(xfold_series)
@@ -1603,7 +1603,7 @@ class TabAnalysis(wx.Panel):
         catcol = 'Category'#currentdata.iloc[:,-1].name
         split_grouping = [catcol]
         split_grouping.extend(self.sel_roigrouping[:(self.pivot_level-1)])
-        print ("SPLIT GROUPING",split_grouping)
+        logging.debug (f"SPLIT GROUPING: {split_grouping}")
         split_data = currentdata.reset_index().groupby(split_grouping)
         for split_name,group in split_data:
             mediansplit_df = group.groupby(grouping).median().dropna()#group.reset_index().groupby(grouping).median().dropna()
@@ -1660,7 +1660,7 @@ class TabAnalysis(wx.Panel):
             split_label = '-'.join(split_name)
             split_grouping = [catcol]
             split_grouping.extend(self.sel_roigrouping[:(self.pivot_level-1)])
-            print ("SPLITGROUPING", split_grouping, "SPLITNAME", split_name, "SPLITLABEL", split_label)
+            logging.debug (f"SPLITGROUPING: {split_grouping}, SPLITNAME={split_name}, SPLITLABEL={split_label}")
             gui.dialogs.save_dataframe(self, "Save grouped medians for Cat %s: %s" % (split_label, label), median_split, "Grouped-Medians-Cat_%s-%s.txt" % (split_label,label), saveindex=False)
             
             master_split = joineddata.set_index(split_grouping).loc[split_name,:].reset_index()
@@ -1794,7 +1794,7 @@ class AppFrame(wx.Frame):
 #        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
 
     def OnLoadSettings(self, event):
-        print ("appframe.OnLoadSettings")
+        logging.debug ("appframe.OnLoadSettings")
         with wx.FileDialog(self, "Load Configuration file", wildcard="json files (*.json)|*.json",
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR) as fileDialog:
 
@@ -1828,7 +1828,7 @@ class AppFrame(wx.Frame):
 
 
     def OnSaveSettings(self, event):
-        print ("appframe.OnSaveSettings")
+        logging.debug ("appframe.OnSaveSettings")
         rootconfig = {}
         rootconfig.update(self.importtab.get_import_settings())
         rootconfig.update(self.importtab.get_preprocess_settings())
@@ -1836,7 +1836,7 @@ class AppFrame(wx.Frame):
         rootconfig.update(self.analysistab.get_analysis_settings())
         self.config.update({cfg.CONFIG_ROOT:rootconfig})
 
-        print (self.config.get())
+        logging.debug (self.config.get())
         with wx.FileDialog(self, "Save Configuration file", wildcard="json files (*.json)|*.json",
                        style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT| wx.FD_CHANGE_DIR) as fileDialog:
 
@@ -1875,7 +1875,7 @@ class AppFrame(wx.Frame):
         data = event.GetData()
         action = event.GetAction()
         title = event.GetTitle()
-        print ("appframe.OnDataWindowRequest - %s: %s" % (title, action))
+        logging.debug (f"{title}: {action}")
         if action == 'update':
             frame = self.windowframes.get(title)
             if frame:
@@ -1911,7 +1911,7 @@ class AppFrame(wx.Frame):
         
     def OnClosingDataWindow(self, data, frame):
         title = frame.GetLabel()
-        print ("appframe.OnClosingDataWindow - %s" % (title))
+        logging.debug (f"{title}")
         self.remove_window_from_menu(title)
 
     
@@ -1920,7 +1920,7 @@ class AppFrame(wx.Frame):
         title = self.unique_window_title(event.GetTitle())
         figure.canvas.set_window_title(title)
         action = event.GetAction() 
-        print ("appframe.OnPlotWindow - %s: %s" % (title, action))
+        logging.debug (f"{title}: {action}")
         if action == 'createnew':
             figure.show()
             self.append_window_to_menu(title, figure)
@@ -1937,7 +1937,7 @@ class AppFrame(wx.Frame):
 
 
     def OnClosingPlotWindow(self, event):
-        print ("appframe.OnClosingPlotWindow")
+        logging.debug ("appframe.OnClosingPlotWindow")
         self.remove_figure_from_menu(event.canvas.figure)
         
         
@@ -1962,7 +1962,7 @@ class AppFrame(wx.Frame):
 
     
     def OnCloseAll(self, event):
-        print ("appframe.OnCloseAll")
+        logging.debug ("appframe.OnCloseAll")
         # need to create copy of keys/titles before iteration because self.windowframes will change in size when windows close
         
         #titles = [t for t in self.windowframes]
@@ -1984,14 +1984,14 @@ class AppFrame(wx.Frame):
         self.rawdata = event.rawdata
 #        self.filtertab.update_rawdata(self.rawdata)        
 #        self.analysistab.update_rawdata(self.rawdata)
-        print ("###############  OLD IMPORT: datatypes\n",self.rawdata.dtypes)
+        logging.debug (f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")
         # this should not be set based on current parsers regex pattern but based on columns with 'category' as dtype
 #        self.analysistab.set_roigroupings(event.importer.get_parser().get_regexpatterns().keys())
 
 
     def OnDataUpdated(self, event):
         data,datatype = event.GetUpdatedData()
-        print ("###############  OLD appframe.OnDataUpdated - %s:" % (datatype))
+        logging.debug (f"###############  OLD appframe.OnDataUpdated - {datatype}")
 #        if datatype == 'Raw':
 #            self.rawdata = data
 #            self.filtertab.update_rawdata(data, applyfilters=True)        
@@ -2003,7 +2003,7 @@ class AppFrame(wx.Frame):
         
     def OnRangeFilterUpdated(self, event):
         rfilters = event.GetUpdatedItems()
-        print ("###############  OLD appframe.OnRangeFilterUpdated - %d Filters updated:" % len(rfilters))
+        logging.debug (f"###############  OLD appframe.OnRangeFilterUpdated - {len(rfilters)} Filters updated:")
         #for key in rfilters:
         #    rfilter = rfilters[key]
         #    print "\t %s: %s" % (key, str(rfilter.get_parameters()))
@@ -2015,17 +2015,17 @@ class AppFrame(wx.Frame):
         
         
     def OnApplyFilter(self, event):
-        print ("###############  OLD AppFrame.OnApplyFilter")
+        logging.debug ("###############  OLD AppFrame.OnApplyFilter")
         self.data = event.data
         self.analysistab.update_data(event.data)
         
         
     def OnAnalysisUpdated(self, event):
         updated = event.GetUpdatedItems()
-        print ("appframe.OnAnalysisUpdated - %d Analysis updated:" % len(updated))
+        logging.debug (f"appframe.OnAnalysisUpdated - {len(updated)} Analysis updated:")
         for key in updated:
             u = updated[key]
-            print ("\t %s: %s" % (key, str(u)))
+            logging.debug ("\t {key} {str(u))}")
 
         
     def unique_window_title(self, title):

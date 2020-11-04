@@ -6,7 +6,7 @@ Created on Sat May  5 14:53:15 2018
 @author: khs3z
 """
 
-
+import logging
 import pandas as pd
 import numpy as np
 import math
@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.font_manager import FontProperties
 import seaborn as sns
-from wx.lib.pubsub import pub
+from pubsub import pub
 from gui.events import NEW_PLOT_WINDOW
 
 
@@ -85,8 +85,8 @@ def grouped_meanbarplot(ax, data, column, title=None, groups=[], dropna=True, pi
         std = groupeddata.std()
         no_bars = len(mean)
         if pivot_level < len(groups):
-            unstack_level = range(pivot_level)
-            print ("PIVOTING:", pivot_level, unstack_level)
+            unstack_level = list(range(pivot_level))
+            logging.debug (f"PIVOTING: {pivot_level}, {unstack_level}")
             mean = mean.unstack(unstack_level)
             std = std.unstack(unstack_level)
             mean = mean.dropna(how='all', axis=0)
@@ -103,7 +103,8 @@ def grouped_meanbarplot(ax, data, column, title=None, groups=[], dropna=True, pi
 #        ticklabels = [', '.join(l) for l in ticklabels]
         ticklabels = [str(l).replace('\'','').replace('(','').replace(')','') for l in ticklabels]
         h, labels = ax.get_legend_handles_labels()
-        labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
+        #labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
+        labels = [l.split(',')[1].strip(' \)') for l in labels]
         ax.set_ylabel = ', '.join(groups[pivot_level:])
         no_legendcols = (len(groups)//30 + 1)
         chartbox = ax.get_position()
@@ -156,7 +157,7 @@ def grouped_boxplot(ax, data, column, title=None, groups=[], dropna=True, pivot_
     
     miny = min(0,data[column].min()) * 1.05
     maxy = max(0,data[column].max()) * 1.05
-    print ('title=%s' % title)
+    logging.debug (f'title={title}')
     ax.set_ylim(miny, maxy)
     if title is None:
         title = column.replace('\n', ' ').encode('utf-8')
@@ -190,7 +191,7 @@ def grouped_scatterplot(ax, data, combination,  title=None, groups=[], dropna=Tr
     fig.set_figheight(6)
     fig.set_figwidth(12)
 
-    print ("NEWKWARGS:", newkwargs)
+    logging.debug (f"NEWKWARGS: {newkwargs}")
     if len(groups) > 0:
         groups = data.groupby(groups)
         for name, group in groups:

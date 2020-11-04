@@ -6,6 +6,8 @@ Created on Fri May  4 05:16:56 2018
 @author: khs3z
 """
 
+import logging
+
 def reorder_columns(dataframe, first=[]):
     if first is None or len(first) == 0:
         first = sorted(dataframe.select_dtypes(['object']).columns.values)
@@ -14,7 +16,7 @@ def reorder_columns(dataframe, first=[]):
     newheaders.extend(sorted(set(dataframe.columns.values)-set(first)))
     if len(newheaders) == len(dataframe.columns):
         dataframe = dataframe.reindex(newheaders, axis=1)
-    print ("Reordered headers: %s" % dataframe.columns.values)
+    logging.debug (f"Reordered headers: {dataframe.columns.values}")
     return dataframe
 
 
@@ -43,14 +45,12 @@ class defaultpreprocessor():
             newheaders = self.newheaders
         oldheaders = list(data.columns.values)
         currentheaders = [c for c in oldheaders]
-#        print "OLD HEADERS", currentheaders, data.shape
         for newheader in newheaders:
             currentheaders = [c.replace(newheader, newheaders[newheader]) for c in currentheaders]
 #        for newheader in newheaders:
 #            currentheaders = currentheaders.replace(newheader, newheaders[newheader])
 #        currentheaders = currentheaders.split('\t')
         changedheaders = {oldheaders[i]:currentheaders[i] for i in range(len(oldheaders)) if oldheaders[i]!=currentheaders[i]}
-#        print "NEW HEADERS", currentheaders, data.shape
         if not preview:
             data.columns = currentheaders                
         return data, changedheaders 
@@ -84,6 +84,7 @@ class defaultpreprocessor():
             else:
                 data = data.drop(droplist, axis=1, inplace=inplace)
         return data, droplist 
+    
 """
     def drop_columns(self, data, drops=None, func='startswith', inplace=True, preview=False):
         if data is None:
