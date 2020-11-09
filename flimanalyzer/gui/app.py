@@ -107,7 +107,7 @@ class TabImport(wx.Panel):
         if sel_parser is None:
             sel_parser = next(iter(self.avail_parsers)) #self.avail_parsers.keys()[0]
         self.parser_chooser = wx.ComboBox(self, -1, value=sel_parser, choices=sorted(self.avail_parsers.keys()), style=wx.CB_READONLY)
-        self.parser_chooser.Bind(wx.EVT_CHOICE, self.OnParserChanged)
+        self.parser_chooser.Bind(wx.EVT_COMBOBOX, self.OnParserChanged)
 
         self.sel_files_label = wx.StaticText(self, wx.ID_ANY, "Selected Files: %9d" % len(flimanalyzer.get_importer().get_files()), (20,20))    
         self.files_list = wx.ListBox(self, wx.ID_ANY, style=wx.LB_EXTENDED|wx.LB_HSCROLL|wx.LB_NEEDED_SB|wx.LB_SORT)
@@ -122,6 +122,16 @@ class TabImport(wx.Panel):
         self.rgrid.SetTable(self.headertable,takeOwnership=True)
         self.rgrid.SetRowLabelSize(0)
 
+        parsername = self.parser_chooser.GetStringSelection()
+        hparser = core.parser.instantiate_parser('core.parser.' + parsername)
+        
+        fparse_label = wx.StaticText(self, wx.ID_ANY, "Parse from Filenames:")
+        self.fparsegrid = wx.grid.Grid(self, -1)
+        self.fparsegrid.SetDefaultColSize(200,True)
+        self.parsetable = DictTable(hparser.get_regexpatterns(), headers=['Category', 'Regex Pattern'])
+        self.fparsegrid.SetTable(self.parsetable,takeOwnership=True)
+        self.fparsegrid.SetRowLabelSize(0)
+        
         drop_label = wx.StaticText(self, wx.ID_ANY, "Drop Columns:")
         self.drop_col_list = wx.TextCtrl(self, wx.ID_ANY, size=(200, 100), value="\n".join(config.get(cfg.CONFIG_DROP_COLUMNS)), style=wx.TE_MULTILINE|wx.EXPAND)
 
@@ -143,7 +153,7 @@ class TabImport(wx.Panel):
 
         configsizer = wx.FlexGridSizer(2,2,5,5)
         configsizer.AddGrowableCol(1, 1)
-        colsizer = wx.FlexGridSizer(2,2,5,5)
+        colsizer = wx.FlexGridSizer(2,3,5,5)
         colsizer.AddGrowableCol(0, 2)
         colsizer.AddGrowableCol(1, 1)
         colsizer.AddGrowableRow(1, 1)
@@ -164,9 +174,11 @@ class TabImport(wx.Panel):
         configsizer.Add(parser_label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
         configsizer.Add(self.parser_chooser, 1, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
+        colsizer.Add(fparse_label, 0, wx.LEFT|wx.RIGHT|wx.TOP, 5)
         colsizer.Add(rename_label, 0, wx.LEFT|wx.RIGHT|wx.TOP, 5)
         colsizer.Add(drop_label, 0, wx.LEFT|wx.RIGHT|wx.TOP, 5)
-        colsizer.Add(self.rgrid, 2, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
+        colsizer.Add(self.fparsegrid, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
+        colsizer.Add(self.rgrid, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
         colsizer.Add(self.drop_col_list, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
         
         lbuttonsizer.Add(self.add_button, 1, wx.EXPAND|wx.ALL, 5)
@@ -279,6 +291,13 @@ class TabImport(wx.Panel):
         
     def OnParserChanged(self, event):
         logging.debug ("Parser changed")
+        parsername = self.parser_chooser.GetStringSelection()
+        hparser = core.parser.instantiate_parser('core.parser.' + parsername)
+        self.parsetable = DictTable(hparser.get_regexpatterns(), headers=['Category', 'Regex Pattern'])
+        self.fparsegrid.SetTable(self.parsetable,takeOwnership=True)
+        self.fparsegrid.SetRowLabelSize(0)
+        self.fparsegrid.Refresh()
+
         #parser_chooser = event.GetEventObject()
         #parserparams = {cfg.CONFIG_PARSERCLASS:parser_chooser.GetStringSelection()}
         ##self.config.update(parsercfg)

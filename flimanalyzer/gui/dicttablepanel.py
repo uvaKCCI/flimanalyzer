@@ -14,6 +14,10 @@ GRID_LINE_COLOUR = '#ccc'
 class DictTable(wx.grid.GridTableBase):
     def __init__(self, data=None, headers=None, sort=True):
         super(DictTable, self).__init__()
+        self.SetData(data, headers, sort)
+            
+
+    def SetData(self, data=None, headers=None, sort=True):
         if headers == None or len(headers) < 2:
             self.headerRows = 0
         else:
@@ -24,12 +28,13 @@ class DictTable(wx.grid.GridTableBase):
                 keys = sorted(data.keys())
             else:
                 keys = data.keys()
-            i=0
-            for k in keys:
-                self.data[i] = [k,data[k]]
-                i+=1
-            
+            #i=0
+            #for k in keys:
+            #    self.data[i] = [k,data[k]]
+            #    i+=1
+            self.data = [[k, data[k]] for k in keys]
 
+        
     def GetNumberRows(self):
         return len(self.data)
 
@@ -47,9 +52,9 @@ class DictTable(wx.grid.GridTableBase):
 
 
     def GetDict(self):
-        datadict = {}
-        for row in self.data:
-            datadict[row[0]] = row[1]
+        datadict = {row[0]:row[1] for row in self.data}
+        #for row in self.data:
+        #    datadict[row[0]] = row[1]
         return datadict
     
         

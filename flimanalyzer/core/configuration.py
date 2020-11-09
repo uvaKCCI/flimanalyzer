@@ -13,6 +13,7 @@ from core.filter import RangeFilter
 
 CONFIG_ROOT = 'root'
 CONFIG_IMPORT = 'import'
+CONFIG_PARSER = 'fname parser'
 CONFIG_PREPROCESS = 'preprocess'
 CONFIG_DELIMITER = 'delimiter'
 CONFIG_PARSERCLASS = 'parser'
@@ -280,6 +281,8 @@ class Config():
                 CONFIG_EXCLUDE_FILES: [],
                 CONFIG_DELIMITER:'\t',
                 CONFIG_PARSERCLASS: 'core.parser.defaultparser',
+                CONFIG_PARSER: {
+                    'FOV': '*'},
                 },
             CONFIG_PREPROCESS: {
                 CONFIG_HEADERS: {
