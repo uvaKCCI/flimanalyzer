@@ -11,7 +11,7 @@ import os
 import glob
 import pandas as pd
 
-from core.parser import  defaultparser
+from core.parser import  defaultparser, PARSER_CATEGORY
 import core.preprocessor
 
 class dataimporter():
@@ -108,7 +108,7 @@ class dataimporter():
         if parser is None:
             parser = self.parser
         rcatnames = ['Cell line', 'Category', 'FOV', 'Well', 'Cell', 'Treatment', 'Time', 'Compartment']    
-        rcatnames.extend([key for key in parser.get_regexpatterns()])
+        rcatnames.extend([entry[PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
         return sorted(set(rcatnames))
     
     

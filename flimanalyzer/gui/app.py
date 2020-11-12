@@ -26,12 +26,13 @@ import core.parser
 import core.plots
 import core.preprocessor
 import gui.dialogs
+from core.parser import  PARSER_USE, PARSER_CATEGORY, PARSER_REGEX
 from core.preprocessor import defaultpreprocessor
 from core.importer import dataimporter
 from core.filter import RangeFilter
 from gui.delimpanel import DelimiterPanel
 from gui.datapanel import PandasFrame
-from gui.dicttablepanel import DictTable
+from gui.dicttablepanel import DictTable, ListTable
 from gui.listcontrol import AnalysisListCtrl, FilterListCtrl, EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
 from gui.seriesfiltertree import SeriesFilterCtrl
 #from gui.mpanel import MatplotlibFrame
@@ -128,7 +129,7 @@ class TabImport(wx.Panel):
         fparse_label = wx.StaticText(self, wx.ID_ANY, "Parse from Filenames:")
         self.fparsegrid = wx.grid.Grid(self, -1)
         self.fparsegrid.SetDefaultColSize(200,True)
-        self.parsetable = DictTable(hparser.get_regexpatterns(), headers=['Category', 'Regex Pattern'])
+        self.parsetable = ListTable(hparser.get_regexpatterns(), headers=[PARSER_USE, PARSER_CATEGORY, PARSER_REGEX], sort=False)
         self.fparsegrid.SetTable(self.parsetable,takeOwnership=True)
         self.fparsegrid.SetRowLabelSize(0)
         
@@ -293,7 +294,7 @@ class TabImport(wx.Panel):
         logging.debug ("Parser changed")
         parsername = self.parser_chooser.GetStringSelection()
         hparser = core.parser.instantiate_parser('core.parser.' + parsername)
-        self.parsetable = DictTable(hparser.get_regexpatterns(), headers=['Category', 'Regex Pattern'])
+        self.parsetable = ListTable(hparser.get_regexpatterns(), headers=[PARSER_USE,PARSER_CATEGORY, PARSER_REGEX], sort=False)
         self.fparsegrid.SetTable(self.parsetable,takeOwnership=True)
         self.fparsegrid.SetRowLabelSize(0)
         self.fparsegrid.Refresh()
@@ -351,6 +352,8 @@ class TabImport(wx.Panel):
         if hparser is None:
             logging.warning (f"COULD NOT INSTANTIATE PARSER:{parsername}")
             return
+        parseconfig = self.parsetable.GetData()
+        hparser.set_regexpatterns(parseconfig)
         dropped = self.drop_col_list.GetValue().encode('ascii','ignore').splitlines()
         if len(dropped)==1 and dropped[0]=='':
             dropped = None

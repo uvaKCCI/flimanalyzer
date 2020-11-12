@@ -462,8 +462,8 @@ class PandasFrame(wx.Frame):
         logging.debug (usedata.head())
         if len(selgroups) > 0:
             indexgroups = [g for g in usedata.columns.values if g in self.groups and g not in selgroups]
-            logging.debug ('index groups:', indexgroups)
-            logging.debug ('pivoting', selgroups, ' in', self.groups)
+            logging.debug ('findex groups: {indexgroups}')
+            logging.debug (f'pivoting {selgroups} in {self.groups}')
             pivot_data = usedata.reset_index()
             selcolumns.extend(self.groups)
             pivot_data = pd.pivot_table(pivot_data[selcolumns], index=indexgroups, columns=selgroups)
