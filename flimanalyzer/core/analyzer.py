@@ -108,6 +108,8 @@ class dataanalyzer():
                 'Scatter Plots': None,
                 'Categorize': None,
                 'Principal Component Analysis': None,
+                'ML Feature Training': None,
+                'ML Feature Analysis': None,
                 }
         
         
@@ -226,7 +228,8 @@ class dataanalyzer():
 
         
         cols = list(cats)
-        cols.append(noncats[0])
+        if len(noncats) > 0:
+            cols.append(noncats[0])
         #print self.seriesfilter
         combineddroppedidx = None
         for seriesname in self.seriesfilter:

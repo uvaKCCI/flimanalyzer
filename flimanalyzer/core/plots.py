@@ -139,6 +139,7 @@ def grouped_boxplot(ax, data, column, title=None, groups=[], dropna=True, pivot_
     newkwargs = kwargs.copy()
     newkwargs.update({
             'column':column,
+            #'subplots': False,
             'ax':ax})
     if len(groups) > 0: 
         newkwargs.update({'by':groups})
@@ -151,11 +152,17 @@ def grouped_boxplot(ax, data, column, title=None, groups=[], dropna=True, pivot_
     cols.append(column)
     if dropna:
         data = data[cols].dropna(how='any', subset=[column])
+    else:
+        data = data[cols]
+    #data.set_index(groups, inplace=True)
+    #print (f"index.names={data.index.names}")
     fig.set_figheight(6)
     fig.set_figwidth(12)
     data.boxplot(**newkwargs)
+    #grouped = data.groupby(level=list(range(len(groups))))
+    #grouped.boxplot(ax=ax, subplots=False)
     
-    miny = min(0,data[column].min()) * 1.05
+    miny = min(0,data[column].min()) * 0.95
     maxy = max(0,data[column].max()) * 1.05
     logging.debug (f'title={title}')
     ax.set_ylim(miny, maxy)
@@ -195,8 +202,9 @@ def grouped_scatterplot(ax, data, combination,  title=None, groups=[], dropna=Tr
     if len(groups) > 0:
         groups = data.groupby(groups)
         for name, group in groups:
-            newkwargs.update({'label':name})
-            ax.scatter(group[col1], group[col2], **newkwargs)
+            if len(group[col1]) > 0 and len(group[col2] > 0):
+                newkwargs.update({'label':name})
+                ax.scatter(group[col1], group[col2], **newkwargs)
     else:        
         ax.scatter(data[col1], data[col2], **newkwargs)
     
@@ -271,16 +279,18 @@ def grouped_kdeplot(ax, data, column, title=None, groups=[], dropna=True, linest
                 for c in colors:
                     for ls in linestyles:
                         styles.append({'color':c, 'linestyle': ls})
-        print (styles)
+        logging.debug(f"styles={styles}")
         index = 0
         for name, groupdata in gs:
-            kde_args.update({
-                    'label': fix_label(name),})
-            if len(styles) > index:
-                newkwargs['color'] = styles[index]['color']
-                newkwargs['kde_kws']['linestyle'] = styles[index]['linestyle']
-            print ("NEWKWARGS:", newkwargs)     
-            sns.distplot(groupdata[column], **newkwargs)
+            if (len(groupdata[column]) > 0):
+                kde_args.update({
+                        'label': fix_label(name),})
+                if len(styles) > index:
+                    newkwargs['color'] = styles[index]['color']
+                    newkwargs['kde_kws']['linestyle'] = styles[index]['linestyle']
+                logging.debug (f"NEWKWARGS: {newkwargs}")
+                logging.debug (f"len(groupdata[column])={len(groupdata[column])}")
+                sns.distplot(groupdata[column], **newkwargs)
             index += 1
     else:        
         sns.distplot(data[column], **newkwargs)
@@ -325,11 +335,12 @@ def histogram(ax, data, column, title=None, groups=[], normalize=None, titlesuff
         groupeddata = data.groupby(groups)
         newkwargs.update({'label':list(groupeddata.groups)})
         for name,group in groupeddata:
-            groupnames.append(name)
-            pltdata.append(group[column].values)
-            totalcounts = group[column].count()            
-            if normalize is not None:
-                weights.append(np.ones_like(group[column].values)/float(totalcounts) * normalize)
+            if len(group[column]) > 0:
+                groupnames.append(name)
+                pltdata.append(group[column].values)
+                totalcounts = group[column].count()            
+                if normalize is not None:
+                    weights.append(np.ones_like(group[column].values)/float(totalcounts) * normalize)
     if normalize is not None:
         if normalize == 100:
             ax.set_ylabel('relative counts [%]')

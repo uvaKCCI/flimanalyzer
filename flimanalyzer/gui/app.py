@@ -1003,6 +1003,10 @@ class TabAnalysis(wx.Panel):
             self.show_categorized_data()
         elif atype == 'Principal Component Analysis':
             self.show_pca_data()
+        elif atype == 'ML Feature Training':
+            self.show_ml_feature_training()
+        elif atype == 'ML Feature Analysis':
+            self.show_ml_feature_analysis()
 
         
     def SaveAnalysis(self, event):
@@ -1049,15 +1053,18 @@ class TabAnalysis(wx.Panel):
         selection = self.datachoices_combo.GetStringSelection() 
         if not self.use_all_raw_and_filtered:
             if isinstance(self.availabledata.get(selection), PandasFrame):
-                logging.debug ("Using GetViewData")
+                logging.debug (f"Using GetViewData, selection={selection}")
                 return self.availabledata[selection].GetViewData(), selection
-            logging.debug (f"COULD NOT FIND {selection} in existing windows")
+            logging.debug (f"Could not find {selection} in existing windows")
             logging.debug (self.availabledata)
+    
         if selection == 'Raw data':
             if self.rawdata is not None:
+                logging.debug (f"Using selection={selection}")                
                 return self.rawdata, 'Raw'
         elif selection == 'Filtered data':
             if self.data is not None:
+                logging.debug (f"Using selection={selection}")
                 return self.data, 'Filtered'
         return None, selection
 
@@ -1268,7 +1275,7 @@ class TabAnalysis(wx.Panel):
 
         
     def create_meanbarplots(self, data, groups):
-        bars = {}
+        plots = {}
         if not gui.dialogs.check_data_msg(data):
             return {}
         cols = [c for c in self.get_checked_cols(data)]
@@ -1279,12 +1286,12 @@ class TabAnalysis(wx.Panel):
             logging.debug (f"\tcreating mean bar plot for {col}")
             fig, ax = plt.subplots()
             fig, ax = core.plots.grouped_meanbarplot(ax, data, col, groups=groups)
-            bars[col] = (fig,ax)
-        return bars
+            plots[col] = (fig,ax)
+        return plots
 
 
     def create_boxplots(self, data, groups):
-        bars = {}
+        plots = {}
         if not gui.dialogs.check_data_msg(data):
             return {}
         cols = [c for c in self.get_checked_cols(data)]
@@ -1295,8 +1302,8 @@ class TabAnalysis(wx.Panel):
             logging.debug (f"\tcreating box plot for {col}")
             fig, ax = plt.subplots()
             fig, ax = core.plots.grouped_boxplot(ax, data, col, groups=groups, grid=False, rot=90, showmeans=True, showfliers=True, whis=[5,95])#whis=float("inf")
-            bars[col] = (fig,ax)
-        return bars
+            plots[col] = (fig,ax)
+        return plots
 
 
     def create_kdeplots(self, data, groups):
@@ -1721,8 +1728,7 @@ class TabAnalysis(wx.Panel):
         event.SetEventInfo(fig, windowtitle, 'createnew')
         self.GetEventHandler().ProcessEvent(event)        
 
-                        
-        
+                                
     def save_pca_data(self):
         currentdata, label = self.get_currentdata()
         pca_results = self.create_pca(currentdata)
@@ -1732,7 +1738,49 @@ class TabAnalysis(wx.Panel):
         gui.dialogs.save_dataframe(self, 'Save PCA ', pca_data, 'PCA-%s.txt' % label, saveindex=False)
         gui.dialogs.save_dataframe(self, 'Save PCA explained variance', pca_explained_var_ratio, 'PCA-var-ratio-%s.txt' % label, saveindex=False)
         gui.dialogs.save_figure(self, 'Save PCA explained variance - Bar plot', pca_explained_histo_ax.get_figure(), 'PCA-var-ratio-bar-%s.png' % pca_explained_histo_ax.get_title())
+
     
+    def run_ml_feature_training(self, df):
+        return {"Training Results":pd.DataFrame()}
+        
+        
+    def show_ml_feature_training(self):
+        currentdata,label = self.get_currentdata()
+        tables = self.run_ml_feature_training(currentdata)
+        if tables is None:
+            return
+        for title in tables:
+            df = tables[title]
+            df = df.reset_index()
+            windowtitle = "%s: %s" % (title, label)
+            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+            event.SetEventInfo(df, 
+                               windowtitle, 
+                               'createnew', 
+                               showcolindex=False)
+            self.GetEventHandler().ProcessEvent(event)        
+    
+    
+    def run_ml_feature_analysis(self, df):
+        return {"Analysis Results":pd.DataFrame()}
+        
+        
+    def show_ml_feature_analysis(self):
+        currentdata,label = self.get_currentdata()
+        tables = self.run_ml_feature_analysis(currentdata)
+        if tables is None:
+            return
+        for title in tables:
+            df = tables[title]
+            df = df.reset_index()
+            windowtitle = "%s: %s" % (title, label)
+            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+            event.SetEventInfo(df, 
+                               windowtitle, 
+                               'createnew', 
+                               showcolindex=False)
+            self.GetEventHandler().ProcessEvent(event)        
+
     
 class AppFrame(wx.Frame):
     
