@@ -30,6 +30,8 @@ from core.parser import  PARSER_USE, PARSER_CATEGORY, PARSER_REGEX
 from core.preprocessor import defaultpreprocessor
 from core.importer import dataimporter
 from core.filter import RangeFilter
+from MLfeatureanalyzer.HeLa import HelaSingleCell
+
 from gui.delimpanel import DelimiterPanel
 from gui.datapanel import PandasFrame
 from gui.dicttablepanel import DictTable, ListTable
@@ -1740,13 +1742,15 @@ class TabAnalysis(wx.Panel):
         gui.dialogs.save_figure(self, 'Save PCA explained variance - Bar plot', pca_explained_histo_ax.get_figure(), 'PCA-var-ratio-bar-%s.png' % pca_explained_histo_ax.get_title())
 
     
-    def run_ml_feature_training(self, df):
-        return {"Training Results":pd.DataFrame()}
+    def run_ml_feature_training(self):
+        currentdata,label = self.get_currentdata()
+        if not gui.dialogs.check_data_msg(currentdata):
+            return {}, currentdata, label
+        return {"Training Results":pd.DataFrame()}, currentdata, label
         
         
     def show_ml_feature_training(self):
-        currentdata,label = self.get_currentdata()
-        tables = self.run_ml_feature_training(currentdata)
+        tables, currentdata, label = self.run_ml_feature_training()
         if tables is None:
             return
         for title in tables:
@@ -1761,13 +1765,27 @@ class TabAnalysis(wx.Panel):
             self.GetEventHandler().ProcessEvent(event)        
     
     
-    def run_ml_feature_analysis(self, df):
-        return {"Analysis Results":pd.DataFrame()}
+    def run_ml_feature_analysis(self):
+        currentdata,label = self.get_currentdata()
+        if not gui.dialogs.check_data_msg(currentdata):
+            return {}, currentdata, label
+        with wx.FileDialog(self, "Select serialized ML model file", wildcard="Serialized ML model files (*.pkl)|*.pkl",
+                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR) as fileDialog:
+
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return {}, currentdata, label
+            # Proceed loading the file chosen by the user
+            paths = fileDialog.GetPaths()
+            model_file = paths[0] # '/Users/khs3z/Documents/ARCS/UserProjects/ruofanrepo/ae/hela_norm_relu_sae_g1_6to1feature.pkl'
+            # features = ['FAD a1', 'FAD a2', 'FAD photons', 'FAD t1', 'FAD t2', 'NAD(P)H a1', 'NAD(P)H a2', 'NAD(P)H photons', 'NAD(P)H t1', 'NAD(P)H t2']
+            features = [col for col in self.get_checked_cols(currentdata)]
+            hela = HelaSingleCell('HeLa', currentdata, model_file, features)
+            hela.create_excel()
+            return {"Analysis Results":pd.DataFrame()}, currentdata, label
         
         
     def show_ml_feature_analysis(self):
-        currentdata,label = self.get_currentdata()
-        tables = self.run_ml_feature_analysis(currentdata)
+        tables, currentdata,label = self.run_ml_feature_analysis()
         if tables is None:
             return
         for title in tables:

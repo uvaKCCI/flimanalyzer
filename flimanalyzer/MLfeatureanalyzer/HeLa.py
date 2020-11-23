@@ -12,16 +12,40 @@ from torch.autograd import Variable
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 import xlsxwriter
+import string
 
-from dir import mkdir
-from columnname import getColumnName
 
+#from dir import mkdir
+#from columnname import getColumnName
+
+
+def getColumnName(columnIndex):
+    ret = ''
+    ci = columnIndex - 1
+    index = ci // 26
+    if index > 0:
+        ret += getColumnName(index)
+    ret += string.ascii_uppercase[ci % 26]
+    return ret
+
+
+def mkdir(path):
+    path = path.strip()
+    path = path.rstrip("/")
+    isexists = os.path.exists(path)
+
+    if not isexists:
+        os.makedirs(path)
+        return True
+    else:
+        return False
 
 class HelaSingleCell(object):
-    def __init__(self, cell_line, data_filename, autoencoder, t):
+    
+    def __init__(self, cell_line, data, autoencoder_file, t):
         self.cell_line = cell_line
-        self.data = pd.read_csv('../data/' + data_filename)
-        self.sae = torch.load('../ae/' + autoencoder, map_location='cpu')
+        self.data = data
+        self.sae = torch.load(autoencoder_file, map_location='cpu')
         self.t = t
 
     def create_excel(self):
