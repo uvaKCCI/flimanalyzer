@@ -11,20 +11,43 @@ import torch.utils.data
 from torch.autograd import Variable
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
+from sklearn.metrics import mean_squared_error
 import xlsxwriter
 
-from dir import mkdir
-from columnname import getColumnName
+# from dir import mkdir
+# from columnname import getColumnName
+
+
+def getColumnName(columnIndex):
+    ret = ''
+    ci = columnIndex - 1
+    index = ci // 26
+    if index > 0:
+        ret += getColumnName(index)
+    ret += string.ascii_uppercase[ci % 26]
+    return ret
+
+
+def mkdir(path):
+    path = path.strip()
+    path = path.rstrip("/")
+    isexists = os.path.exists(path)
+
+    if not isexists:
+        os.makedirs(path)
+        return True
+    else:
+        return False
 
 
 class LNCaPSingleCell(object):
-    def __init__(self, cell_line, data_filename, autoencoder, t):
+    def __init__(self, cell_line, data, autoencoder_file, t):
         self.cell_line = cell_line
-        self.data = pd.read_csv('../data/' + data_filename)
-        self.sae = torch.load('../ae/' + autoencoder, map_location='cpu')
+        self.data = data
+        self.sae = torch.load(autoencoder_file, map_location='cpu')
         self.t = t
 
-    def create_excel(self):
+    def apply_model(self):
         self.data.rename(columns={'FLIRR':'FLIRR (NAD(P)H a2[%]/FAD a1[%])'}, inplace=True)
 
         ind=list(self.data.columns)
@@ -35,28 +58,28 @@ class LNCaPSingleCell(object):
         g=self.data.loc[:,self.t]
         info=self.data.iloc[:,0:len_info]
         data_set = pd.concat([info, g],axis=1)
-        data_copy=data_set.copy()
+        self.data_copy=data_set.copy()
 
-        FOV=data_copy.loc[:,'FOV']
-        FOV_u=np.unique(FOV)
-        timepoint=data_copy.loc[:,'Treatment']
-        tp_u=np.unique(timepoint)
+        FOV=self.data_copy.loc[:,'FOV']
+        self.FOV_u=np.unique(FOV)
+        timepoint=self.data_copy.loc[:,'Treatment']
+        self.tp_u=np.unique(timepoint)
 
         # Sort timepoints for LNCaP
         k = []
-        for i in tp_u[1:]:
+        for i in self.tp_u[1:]:
             k.append(int(i[1:]))
         k = np.sort(k)
         m = []
         for j in k:
             m.append('t' + str(j))
-        tp_u = np.append(tp_u[0], m)
+        self.tp_u = np.append(self.tp_u[0], m)
 
-        print('FOV: ',FOV_u)
-        print('Timepoint: ',tp_u)
+        print('FOV: ',self.FOV_u)
+        print('Timepoint: ',self.tp_u)
 
         f=self.data.loc[:,'FLIRR (NAD(P)H a2[%]/FAD a1[%])'] # FLIRR (NAD(P)H a2[%]/FAD a1[%]) or FLIRR
-        data_set_f=pd.concat([data_set,f],axis=1)
+        self.data_set_f=pd.concat([data_set,f],axis=1)
 
         data_set=np.array(data_set)
 
@@ -72,10 +95,15 @@ class LNCaPSingleCell(object):
         # print('original:\n',data_all)
 
         data_input = Variable(data_all)
-        features, reconstructed = self.sae(data_input)
+        features, data_output = self.sae(data_input)
         params = self.sae.state_dict()
 
-        features = torch.squeeze(features)
+        self.features = torch.squeeze(features)
+
+        original = np.array(data_input)
+        reconstructed = np.array(data_output.data)
+        mse = mean_squared_error(original, reconstructed)
+
         # print('Features shape:',features.shape)
         # print('Features:\n',features.data)
         # print('Reconstructed:\n',reconstructed.data)
@@ -85,24 +113,27 @@ class LNCaPSingleCell(object):
         # print('bias:\n',params['fc1.bias'])
         # print('\n')
 
-        # Store data and plots in excels
+        return original.shape[1], mse # return the number of input FLIM parameters and the mean squared error of the autoencoder
+
+    # Store single cell plots in excels
+    def create_excel(self):
         print("\nCreating excels for single cells......")
-        for fov in FOV_u:
+        for fov in self.FOV_u:
             print('\nFoV: ',fov)
             for nb_f in range(1, 2):  # features.shape[1]+1): # (1,2)
                 n = 'feature'# + str(nb_f)
                 m = 'FLIRR'
                 fn = n + '_' + m
 
-                num_tp = tp_u.shape[0]
+                num_tp = self.tp_u.shape[0]
 
-                mask_fov = data_copy['FOV'] == fov
+                mask_fov = self.data_copy['FOV'] == fov
                 mask_fov = np.array(mask_fov)
-                mask_ctrl = data_copy['Treatment'] == tp_u[0]
-                cell_u = np.unique(data_copy['Cell'][mask_fov][mask_ctrl])
-                for tp in range(1, len(tp_u)):
-                    mask_tp = data_copy['Treatment'] == tp_u[tp]
-                    cell_uu = np.unique(data_copy['Cell'][mask_fov][mask_tp])
+                mask_ctrl = self.data_copy['Treatment'] == self.tp_u[0]
+                cell_u = np.unique(self.data_copy['Cell'][mask_fov][mask_ctrl])
+                for tp in range(1, len(self.tp_u)):
+                    mask_tp = self.data_copy['Treatment'] == self.tp_u[tp]
+                    cell_uu = np.unique(self.data_copy['Cell'][mask_fov][mask_tp])
                     cell_u = np.intersect1d(cell_u, cell_uu)
 
                 for c in range(len(cell_u)):
@@ -120,8 +151,8 @@ class LNCaPSingleCell(object):
                     x = ['#DC143C', '#7FE0F3', 'yellow', '#7FF387', '#EE82EE', '#696969', '#0000CD', '#FF8C00', '#006400',
                          '#9932CC']  # 10 timepoints
                     headings = []
-                    headings_cell = tp_u
-                    for h in range(len(tp_u)):
+                    headings_cell = self.tp_u
+                    for h in range(len(self.tp_u)):
                         headings.extend(
                             ['feature' + str(h), 'edge' + str(h), 'count' + str(h), 'percent' + str(h), 'FLIRR' + str(h),
                              'f_edge' + str(h), 'f_count' + str(h), 'f_percent' + str(h)])
@@ -130,11 +161,11 @@ class LNCaPSingleCell(object):
                     fov_cell = np.zeros((4, 1))
                     fov_cell_f = np.zeros((4, 1))
 
-                    for t in range(len(tp_u)):
-                        mask_cell = (data_copy['FOV'] == fov) & (data_copy['Cell'] == cell_u[c]) & (
-                                    data_copy['Treatment'] == tp_u[t])
-                        feature_t = np.array(features[mask_cell].data)
-                        data_t = np.array(data_set_f[mask_cell])
+                    for t in range(len(self.tp_u)):
+                        mask_cell = (self.data_copy['FOV'] == fov) & (self.data_copy['Cell'] == cell_u[c]) & (
+                                    self.data_copy['Treatment'] == self.tp_u[t])
+                        feature_t = np.array(self.features[mask_cell].data)
+                        data_t = np.array(self.data_set_f[mask_cell])
                         L1 = feature_t[:,nb_f-1] # feature # For Hela: L1=feature_t; For prostate: L1=feature_t[:,nb_f-1]
                         L2 = data_t[:, -1] # FLIRR
 
@@ -181,7 +212,7 @@ class LNCaPSingleCell(object):
                         worksheet3.write_column(getColumnName(t + 2) + '2', feature_cell, workfomat)
                         worksheet3.write_column(getColumnName(t + 2) + '6', flirr_cell, workfomat)
 
-                        tp_len = len(tp_u)
+                        tp_len = len(self.tp_u)
                         if t == tp_len - 1:
                             continue
 
@@ -191,7 +222,7 @@ class LNCaPSingleCell(object):
                         chart1.set_size({'width': 1000,
                                          'height': 700})
                         chart1.add_series({
-                            'name': str(tp_u[t + 1]),
+                            'name': str(self.tp_u[t + 1]),
                             'categories': [sheet1, 1, 8 * (t + 1) + 1, 101, 8 * (t + 1) + 1],
                             'values': [sheet1, 1, 8 * (t + 1) + 3, 101, 8 * (t + 1) + 3],
                             'line': {'color': x[t + 1]},
@@ -203,7 +234,7 @@ class LNCaPSingleCell(object):
                         })
 
                         chart1.add_series({
-                            'name': str(tp_u[0]),
+                            'name': str(self.tp_u[0]),
                             'categories': [sheet1, 1, 8 * 0 + 1, 101, 8 * 0 + 1],
                             'values': [sheet1, 1, 8 * 0 + 3, 101, 8 * 0 + 3],
                             'line': {'color': x[0]},
@@ -223,7 +254,7 @@ class LNCaPSingleCell(object):
                         worksheet2.insert_chart('D' + str(38 * t + 3), chart1, {'x_offset': 25, 'y_offset': 10})
 
                     # Single timepoint for FLIRR
-                    for j in range(len(tp_u)):
+                    for j in range(len(self.tp_u)):
                         if j == tp_len - 1:
                             continue
 
@@ -232,7 +263,7 @@ class LNCaPSingleCell(object):
                         chart2.set_size({'width': 1000,
                                          'height': 700})
                         chart2.add_series({
-                            'name': str(tp_u[j + 1]),
+                            'name': str(self.tp_u[j + 1]),
                             'categories': [sheet1, 1, 8 * (j + 1) + 5, 101, 8 * (j + 1) + 5],
                             'values': [sheet1, 1, 8 * (j + 1) + 7, 101, 8 * (j + 1) + 7],
                             'line': {'color': x[j + 1]},
@@ -244,7 +275,7 @@ class LNCaPSingleCell(object):
                         })
 
                         chart2.add_series({
-                            'name': str(tp_u[0]),
+                            'name': str(self.tp_u[0]),
                             'categories': [sheet1, 1, 6 * 0 + 5, 101, 6 * 0 + 5],
                             'values': [sheet1, 1, 6 * 0 + 7, 101, 6 * 0 + 7],
                             'line': {'color': x[0]},
@@ -268,9 +299,9 @@ class LNCaPSingleCell(object):
                                                  'subtype': 'smooth_with_markers'})
                     chart3.set_size({'width': 1000,
                                      'height': 700})
-                    for i in range(len(tp_u)):
+                    for i in range(len(self.tp_u)):
                         chart3.add_series({
-                            'name': str(tp_u[i]),
+                            'name': str(self.tp_u[i]),
                             'categories': [sheet1, 1, 8 * i + 1, 101, 8 * i + 1],
                             'values': [sheet1, 1, 8 * i + 3, 101, 8 * i + 3],
                             'line': {'color': x[i]},
@@ -294,9 +325,9 @@ class LNCaPSingleCell(object):
                                                  'subtype': 'smooth_with_markers'})
                     chart4.set_size({'width': 1000,
                                      'height': 700})
-                    for i in range(len(tp_u)):
+                    for i in range(len(self.tp_u)):
                         chart4.add_series({
-                            'name': str(tp_u[i]),
+                            'name': str(self.tp_u[i]),
                             'categories': [sheet1, 1, 8 * i + 5, 101, 8 * i + 5],
                             'values': [sheet1, 1, 8 * i + 7, 101, 8 * i + 7],
                             'line': {'color': x[i]},
@@ -320,8 +351,8 @@ class LNCaPSingleCell(object):
                         chart5.set_size({'width': 600,
                                          'height': 400})
 
-                        chart5.add_series({'values': [sheet3, a + 1, 1, a + 1, len(tp_u)],
-                                           'categories': [sheet3, 0, 1, 0, len(tp_u)]
+                        chart5.add_series({'values': [sheet3, a + 1, 1, a + 1, len(self.tp_u)],
+                                           'categories': [sheet3, 0, 1, 0, len(self.tp_u)]
                                            })
 
                         if a < 4:
