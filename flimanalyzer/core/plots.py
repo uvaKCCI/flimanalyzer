@@ -118,7 +118,9 @@ def grouped_meanbarplot(ax, data, column, title=None, groups=[], dropna=True, pi
         legend.remove()
     ax.set_yticklabels(ticklabels)
     if title is None:
-        title = column.replace('\n', ' ').encode('utf-8')
+        title = column.replace('\n', ' ') #.encode('utf-8')
+        if len(groups) > 0:
+            title = f"{title} grouped by {groups}"
     if len(title) > 0:
         ax.set_title(title)
 
@@ -167,7 +169,7 @@ def grouped_boxplot(ax, data, column, title=None, groups=[], dropna=True, pivot_
     logging.debug (f'title={title}')
     ax.set_ylim(miny, maxy)
     if title is None:
-        title = column.replace('\n', ' ').encode('utf-8')
+        title = column.replace('\n', ' ') #.encode('utf-8')
     if len(title) > 0:
         ax.set_title(title)
     plt.rcParams.update({'figure.autolayout': False})
@@ -185,12 +187,14 @@ def grouped_scatterplot(ax, data, combination,  title=None, groups=[], dropna=Tr
     
     if groups is None:
         groups = []
-    newkwargs = kwargs.copy()
     if ax is None:
         fig, ax = plt.subplots()
     else:
         fig = ax.get_figure()    
     
+    newkwargs = kwargs.copy()
+    newkwargs.update({
+        'alpha':0.5})
     cols = [c for c in groups]
     cols.extend(combination)
     if dropna:
@@ -200,8 +204,8 @@ def grouped_scatterplot(ax, data, combination,  title=None, groups=[], dropna=Tr
 
     logging.debug (f"NEWKWARGS: {newkwargs}")
     if len(groups) > 0:
-        groups = data.groupby(groups)
-        for name, group in groups:
+        grouped = data.groupby(groups)
+        for name, group in grouped:
             if len(group[col1]) > 0 and len(group[col2] > 0):
                 newkwargs.update({'label':name})
                 ax.scatter(group[col1], group[col2], **newkwargs)
@@ -211,20 +215,22 @@ def grouped_scatterplot(ax, data, combination,  title=None, groups=[], dropna=Tr
     miny = min(0,data[col1].min()) * 1.05
     maxy = max(0,data[col1].max()) * 1.05
     ax.set_xlim(miny, maxy)
-    ax.set_xlabel(col1.encode('ascii'))
+    ax.set_xlabel(col1) # col1.encode('ascii'))
     miny = min(0,data[col2].min()) * 1.05
     maxy = max(0,data[col2].max()) * 1.05
     ax.set_ylim(miny, maxy)
-    ax.set_ylabel(col2.encode('utf-8'))
+    ax.set_ylabel(col2) # col2.encode('utf-8'))
     
     if len(groups) > 0:
         h, labels = ax.get_legend_handles_labels()
         #labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
         labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
-        no_legendcols = (len(groups)//30 + 1)
+        no_legendcols = (len(grouped)//30 + 1)
         chartbox = ax.get_position()
         ax.set_position([chartbox.x0, chartbox.y0, chartbox.width* (1-0.2 * no_legendcols), chartbox.height])
         ax.legend(labels=labels, loc='upper center', bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
+        title = f"Data grouped by {groups}"
+        ax.set_title(title)
         
     plt.rcParams.update({'figure.autolayout': False})
     return fig,ax    
@@ -297,7 +303,9 @@ def grouped_kdeplot(ax, data, column, title=None, groups=[], dropna=True, linest
     ax.autoscale(enable=True, axis='y')    
     ax.set_ylim(0,None)
     if title is None:
-        title = column.replace('\n', ' ').encode('utf-8')
+        title = column.replace('\n', ' ')#.encode('utf-8')
+        if len(groups) > 0:
+            title = f"{title} grouped by {groups}"
     if len(title) > 0:
         ax.set_title(title)
 
@@ -349,7 +357,7 @@ def histogram(ax, data, column, title=None, groups=[], normalize=None, titlesuff
             
         newkwargs.update({
                 'weights':weights, 
-                'normed':False
+                'density':False
                 })
     else:
         ax.set_ylabel('counts')
@@ -358,7 +366,9 @@ def histogram(ax, data, column, title=None, groups=[], normalize=None, titlesuff
     ax.set_xlabel(column)
 
     if title is None:
-        title = column.replace('\n', ' ').encode('utf-8')
+        title = column.replace('\n', ' ')#.encode('utf-8')
+        if len(groups) > 0:
+            title = f"{title} grouped by {groups}"
     if len(title) > 0:
         ax.set_title(title)
 

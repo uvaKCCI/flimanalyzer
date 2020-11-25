@@ -1301,7 +1301,7 @@ class TabAnalysis(wx.Panel):
             wx.MessageBox('No measurements selected.', 'Warning', wx.OK)
             return {}
         for col in sorted(cols):
-            logging.debug (f"\tcreating box plot for {col}")
+            logging.debug (f"Creating box plot for {col}")
             fig, ax = plt.subplots()
             fig, ax = core.plots.grouped_boxplot(ax, data, col, groups=groups, grid=False, rot=90, showmeans=True, showfliers=True, whis=[5,95])#whis=float("inf")
             plots[col] = (fig,ax)
@@ -1325,11 +1325,11 @@ class TabAnalysis(wx.Panel):
                 maxx = None
             else:
                 bins = hconfig[2]
-                minx = hconfig[0]
-                maxx = hconfig[1]
-            logging.debug (f"\tcreating kde plot for {str(header)}, bins={str(bins)}")
+                minx = data[header].min() #hconfig[0]
+                maxx = data[header].max() #hconfig[1]
+            logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
             fig, ax = plt.subplots()
-            fig, ax = core.plots.grouped_kdeplot(ax, data, header, groups=groups, hist=False, bins=bins, kde_kws={'clip':(hconfig[0], hconfig[1])})
+            fig, ax = core.plots.grouped_kdeplot(ax, data, header, groups=groups, hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
             ax.set_xlim(minx, maxx)
             kdes[header] = (fig,ax)
         return kdes
@@ -1449,16 +1449,17 @@ class TabAnalysis(wx.Panel):
     def show_summary(self):
         currentdata,label = self.get_currentdata()
         summaries = self.create_summaries(currentdata)
-        for title in summaries:
-            df = summaries[title]
-            df = df.reset_index()
-            windowtitle = "%s: %s" % (title, label)
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(df, 
-                               windowtitle, 
-                               'createnew', 
-                               showcolindex=False)
-            self.GetEventHandler().ProcessEvent(event)        
+        if summaries is not None:
+            for title in summaries:
+                df = summaries[title]
+                df = df.reset_index()
+                windowtitle = "%s: %s" % (title, label)
+                event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                event.SetEventInfo(df, 
+                                   windowtitle, 
+                                   'createnew', 
+                                   showcolindex=False)
+                self.GetEventHandler().ProcessEvent(event)        
             
 
     def show_meanplots(self):
