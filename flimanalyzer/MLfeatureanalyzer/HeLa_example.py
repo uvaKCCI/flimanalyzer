@@ -11,4 +11,5 @@ t1 = ['FAD a1', 'FAD a2', 'FAD photons', 'FAD t1', 'FAD t2', 'NAD(P)H a1', 'NAD(
 t2 = ['FAD a1[%]', 'FAD photons', 'FAD t1', 'FAD t2', 'NAD(P)H a1[%]', 'NAD(P)H photons', 'NAD(P)H t1', 'NAD(P)H t2']
 
 hela = HelaSingleCell('HeLa', '9SR-Hela-Master-Python-Mito.csv', 'hela_norm_relu_sae_g1_6to1feature.pkl', t1)
+hela.apply_model()
 hela.create_excel()
