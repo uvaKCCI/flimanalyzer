@@ -1005,6 +1005,8 @@ class TabAnalysis(wx.Panel):
             self.show_categorized_data()
         elif atype == 'Principal Component Analysis':
             self.show_pca_data()
+        elif atype == 'Random Forest Classifier':
+            self.show_randomforest_data()
         elif atype == 'ML Feature Training':
             self.show_ml_feature_training()
         elif atype == 'ML Feature Analysis':
@@ -1382,6 +1384,23 @@ class TabAnalysis(wx.Panel):
                 return self.flimanalyzer.get_analyzer().pca(data, cols, explainedhisto=True, random_state=seed, n_components=n)
         return
     
+    
+    def create_randomforest(self, data):
+        if not gui.dialogs.check_data_msg(data):
+            return
+        cols = [c for c in self.get_checked_cols(data)]
+        if cols is None or len(cols) < 2:
+            wx.MessageBox('Select at least 2 measurements.', 'Warning', wx.OK)
+            return
+        category_cols = data.select_dtypes(['category']).columns.values
+        dlg = wx.SingleChoiceDialog(self, 'Choose feature to be used as classifier', 'Random Forest Classifier', category_cols)
+        if dlg.ShowModal() == wx.ID_OK:
+            classifier = dlg.GetStringSelection()
+            importance_df, accuracy, importance_histo = self.flimanalyzer.get_analyzer().randomforest(data, cols, classifier, importancehisto=True, n_estimators=100)
+            return importance_df, accuracy, importance_histo, classifier
+        else:
+            return
+    
 
     def create_summaries(self, data, titleprefix='Summary'):
         if not gui.dialogs.check_data_msg(data):
@@ -1743,6 +1762,42 @@ class TabAnalysis(wx.Panel):
         gui.dialogs.save_figure(self, 'Save PCA explained variance - Bar plot', pca_explained_histo_ax.get_figure(), 'PCA-var-ratio-bar-%s.png' % pca_explained_histo_ax.get_title())
 
     
+    def show_randomforest_data(self):
+        currentdata, label = self.get_currentdata()
+        results = self.create_randomforest(currentdata)
+        if results is None:
+            return
+        importance_df, accuracy, importance_histo_ax, classifier = results
+
+        windowtitle = f"Random Forest - Classify {classifier} : {label}"
+        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+        event.SetEventInfo(importance_df, 
+                           windowtitle, 
+                           'createnew', 
+                           showcolindex=False,
+                           analyzable=True)
+        self.GetEventHandler().ProcessEvent(event)  
+        
+        windowtitle = f"Random Forest - Classify {classifier} : {label}" 
+        fig = importance_histo_ax.get_figure()
+        fig.canvas.set_window_title(windowtitle)
+        event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+        event.SetEventInfo(fig, windowtitle, 'createnew')
+        self.GetEventHandler().ProcessEvent(event)        
+
+
+        
+    def save_randomforest_data(self):
+        currentdata, label = self.get_currentdata()
+        results = self.create_randomforest(currentdata)
+        if results is None:
+            return
+        #pca_data, pca_explained_var_ratio, pca_explained_histo_ax = pca_results
+        #gui.dialogs.save_dataframe(self, 'Save PCA ', pca_data, 'PCA-%s.txt' % label, saveindex=False)
+        #gui.dialogs.save_dataframe(self, 'Save PCA explained variance', pca_explained_var_ratio, 'PCA-var-ratio-%s.txt' % label, saveindex=False)
+        #gui.dialogs.save_figure(self, 'Save PCA explained variance - Bar plot', pca_explained_histo_ax.get_figure(), 'PCA-var-ratio-bar-%s.png' % pca_explained_histo_ax.get_title())
+
+
     def run_ml_feature_training(self):
         currentdata,label = self.get_currentdata()
         if not gui.dialogs.check_data_msg(currentdata):

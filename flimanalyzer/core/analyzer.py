@@ -13,6 +13,10 @@ import core.preprocessor
 import numbers
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn import metrics
+
 
 from gui.events import DataWindowEvent, EVT_DATA_TYPE
 
@@ -108,6 +112,7 @@ class dataanalyzer():
                 'Scatter Plots': None,
                 'Categorize': None,
                 'Principal Component Analysis': None,
+                'Random Forest Classifier': None,
                 'ML Feature Training': None,
                 'ML Feature Analysis': None,
                 }
@@ -343,8 +348,38 @@ class dataanalyzer():
         if explainedhisto:
             return pca_df, pca_explained_df, pca_explained_df.set_index(pca_comp_label).plot.bar()
         else:
-            return pca_df, pca_explained_df
+            return pca_df, pca_explained_df, None
         
+    
+    def randomforest(self, data, columns, classifier, importancehisto=False, **kwargs):
+        data = data.dropna(how='any', axis=0)
+        X=data[columns]  # Features
+        y=data[classifier]  # Labels
+        # Split dataset into training set and test set
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
+        #Create a Gaussian Classifier
+        clf=RandomForestClassifier(**kwargs)
+        #Train the model using the training sets y_pred=clf.predict(X_test)
+        clf.fit(X_train,y_train)
+
+        y_pred=clf.predict(X_test)
+        
+        accuracy = metrics.accuracy_score(y_test, y_pred)
+        importance_df = pd.DataFrame({'Feature': columns, 'Importance Score':clf.feature_importances_})
+        importance_df.sort_values(by='Importance Score', ascending=False, inplace=True)
+        if importancehisto:
+            importance_plot = importance_df.set_index('Feature').plot.bar()
+            fig = importance_plot.get_figure()
+            ax = fig.get_axes()[0]
+            ax.text(0.95, 0.80, f'accuracy={accuracy:.3f}', 
+                        horizontalalignment='right',
+                        verticalalignment='center',
+                        transform = ax.transAxes)
+            return importance_df, accuracy, importance_plot
+        else:
+            return importance_df, accuracy, None
+
+   
         
     def categorize_data(self, data, col, bins=[-1, 1], labels='1', normalizeto={}, grouping=[], dropna=True, use_minvalue=False, joinmaster=True, add_ascategory=True, category_colheader='Category'):
         if not grouping or len(grouping) == 0:
