@@ -28,16 +28,23 @@ git clone https://github.com/uvaKCCI/flimanalyzer.git
 ## Run the application
 
 **From the command line**
+
 On Windows and Linux, run this command
 ```
+conda activate flimenv 
 python analyzerapp.py
 ```
 
 On Mac OSX, run this command:
 ```
+conda activate flimenv
 pythonw analyzerapp.py
 ```
 
 **From Spyder**
-1. In the Spyder editor, open the `analyzerapp.py` file.
-2. Go to `Run`--> `Configuration per file...` and check the box `Execute in external system terminal`.
+1. Launch the Anaconda Navigator
+2. In the `Applications on` drop-down, select the name of the conda environment, e.g. `flimenv`. 
+3. Launch Spyder.
+4. In the Spyder editor, open the `analyzerapp.py` file.
+5. Go to `Run`--> `Configuration per file...` and check the box `Execute in external system terminal`.
+6. Go to `Run` -->`Run` or click the button with the green triangle in the Spyder toolbar.
