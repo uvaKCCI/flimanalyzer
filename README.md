@@ -13,14 +13,15 @@ Python package for analysis of Fluoresence Lifetime Imaging Microscopy (FLIM) da
 * scikit-learn
 * xlsxwriter
 * wxpython (4.0.7)
+* pypubsub
 * python.app (for Mac OSX)
 
 ## Installation:
 
 ```
-conda create -n flimenv python=3.7 pandas numpy=1.18 matplotlib seaborn pytorch scikit-learn xlsxwriter -c pytorch
+conda create -n flimenv python=3.7 pandas numpy=1.18 matplotlib seaborn pytorch scikit-learn xlsxwriter python.app -c pytorch
 conda activate flimenv
-pip install wxpython==4.0.7
+pip install wxpython==4.0.7 pypubsub
 
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 ```
