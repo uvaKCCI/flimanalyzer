@@ -1,0 +1,18 @@
+name: flimenv
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - matplotlib=3
+  - numpy=1.18
+  - pandas=1.1
+  - pip=20.3
+  - python=3.7
+  - python.app
+  - pytorch=1.7.0
+  - scikit-learn
+  - seaborn
+  - xlsxwriter
+  - pip:
+    - pypubsub
+    - wxpython==4.0.7

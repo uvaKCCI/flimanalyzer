@@ -19,12 +19,12 @@ Python package for analysis of Fluoresence Lifetime Imaging Microscopy (FLIM) da
 ## Installation:
 
 ```
-conda create -n flimenv python=3.7 pandas numpy=1.18 matplotlib seaborn pytorch scikit-learn xlsxwriter python.app -c pytorch
-conda activate flimenv
-pip install wxpython==4.0.7 pypubsub
-
 git clone https://github.com/uvaKCCI/flimanalyzer.git
+cd flimanalyzer
+conda env create -f environment.yml
 ```
+
+This will create a Conda environment `flimenv` that contains all the Python packages required to run the FLIM Analyzer application.
 
 ## Run the application
 

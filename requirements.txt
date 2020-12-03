@@ -1,3 +1,0 @@
-pandas==1.0.1
-wxPython==4.0.7
-PyPubSub==4.0.3
