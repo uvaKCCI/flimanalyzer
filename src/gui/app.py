@@ -371,14 +371,14 @@ class TabImport(wx.Panel):
         previewrows = 200
         files = self.flimanalyzer.get_importer().get_files()
         if len(files) > 0:
-            delimiter = self.delimiter_panel.get_delimiters()
+            delimiter = "|".join(self.delimiter_panel.get_delimiters())
             importer = dataimporter()
             self.configure_importer(importer)
             selected = self.files_list.GetSelections()
             if selected is None or len(selected)==0:
                 importer.set_files([files[0]])
             else:
-                logging.debug ("PREVIEWING: delimiter={delimiter}, {self.files_list.GetString(selected[0])}")
+                logging.debug (f"PREVIEWING: delimiter={delimiter}, {self.files_list.GetString(selected[0])}")
                 importer.set_files([self.files_list.GetString(selected[0])])
             rawdata, readfiles, headers = importer.import_data(delimiter=delimiter, nrows=previewrows)
             rawdata = self.calc_additional_columns(rawdata) 
