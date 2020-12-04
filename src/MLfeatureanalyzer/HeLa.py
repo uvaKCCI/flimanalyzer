@@ -44,11 +44,11 @@ def mkdir(path):
 
 class HelaSingleCell(object):
     
-    def __init__(self, cell_line, data, autoencoder_file, t):
-        self.cell_line = cell_line
+    def __init__(self, title, data, autoencoder_file, FLIM_variables):
+        self.title = title
         self.data = data
-        self.sae = torch.load(autoencoder_file, map_location='cpu')
-        self.t = t
+        self.ae = torch.load(autoencoder_file, map_location='cpu')
+        self.variables = FLIM_variables
 
     # Apply pretrained models to extract ML features
     def apply_model(self):
@@ -59,7 +59,7 @@ class HelaSingleCell(object):
         len_info = ind_tre+1
 
         # FLIM parameters
-        g=self.data.loc[:,self.t]
+        g=self.data.loc[:,self.variables]
         info=self.data.iloc[:,0:len_info]
         data_set = pd.concat([info, g],axis=1)
         self.data_copy=data_set.copy()
@@ -87,14 +87,16 @@ class HelaSingleCell(object):
         data_all = torch.FloatTensor(data_all)
 
         data_input = Variable(data_all)
-        features, data_output = self.sae(data_input)
-        params = self.sae.state_dict()
+        features, data_output = self.ae(data_input)
+        params = self.ae.state_dict()
 
         self.features = torch.squeeze(features)
 
         original = np.array(data_input)
         reconstructed = np.array(data_output.data)
         mse = mean_squared_error(original, reconstructed)
+
+        info["MLfeature"] = self.features.data
 
         # print('Features shape:',features.shape)
         # print('Features:\n',features.data)
@@ -105,7 +107,7 @@ class HelaSingleCell(object):
         # print('bias:\n',params['fc1.bias'])
         # print('\n')
 
-        return original.shape[1], mse # return the number of input FLIM parameters and the mean squared error of the autoencoder
+        return info, mse # return the ML feature values in DataFrame and the mean squared error of the autoencoder
 
     # Store single cell plots in excels
     def create_excel(self):
@@ -129,7 +131,7 @@ class HelaSingleCell(object):
                     cell_u = np.intersect1d(cell_u, cell_uu)
 
                 for c in range(len(cell_u)):
-                    mkpath = '../' + self.cell_line + '_single_cell/FOV' + fov + '/'  # direction of excels
+                    mkpath = '../' + self.title + '_single_cell/FOV' + fov + '/'  # direction of excels
                     mkdir(mkpath)
 
                     sheet1 = 'FOV ' + fov + str(cell_u[c])

@@ -3,16 +3,15 @@
 # @Time  : 10/27/20 1:38 PM
 # @Author: Jiaxin_Zhang
 
-import torch
 import torch.nn as nn
 
 
-class SAE(nn.Module):
-    def __init__(self, nb_param, hidden_size):
-        super(SAE, self).__init__()
+class AE(nn.Module):
+    def __init__(self, nb_param):
+        super(AE, self).__init__()
         self.fc1 = nn.Linear(nb_param, 6)
-        self.fc2 = nn.Linear(6, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, 6)
+        self.fc2 = nn.Linear(6, 1)
+        self.fc3 = nn.Linear(1, 6)
         self.fc4 = nn.Linear(6, nb_param)
         self.activation1 = nn.Sigmoid()
         self.activation2 = nn.ReLU()
