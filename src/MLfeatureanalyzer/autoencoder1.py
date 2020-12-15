@@ -6,9 +6,9 @@
 import torch.nn as nn
 
 
-class SAE(nn.Module):
+class AE(nn.Module):
     def __init__(self, nb_param, hidden_size):
-        super(SAE, self).__init__()
+        super(AE, self).__init__()
         self.fc1 = nn.Linear(nb_param, hidden_size)
         self.fc4 = nn.Linear(hidden_size, nb_param)
         self.activation1 = nn.Sigmoid()
