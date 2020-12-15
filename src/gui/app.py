@@ -371,7 +371,7 @@ class TabImport(wx.Panel):
         previewrows = 200
         files = self.flimanalyzer.get_importer().get_files()
         if len(files) > 0:
-            delimiter = "|".join(self.delimiter_panel.get_delimiters())
+            delimiter = self.delimiter_panel.get_delimiters()
             importer = dataimporter()
             self.configure_importer(importer)
             selected = self.files_list.GetSelections()
@@ -1471,7 +1471,11 @@ class TabAnalysis(wx.Panel):
         if summaries is not None:
             for title in summaries:
                 df = summaries[title]
+                #cols = df.select_dtypes(['category']).columns.tolist()
+                #print (f"Categories:{cols}")
                 df = df.reset_index()
+                #print (df.columns.tolist())
+                #df = df.set_index(cols)
                 windowtitle = "%s: %s" % (title, label)
                 event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
                 event.SetEventInfo(df, 

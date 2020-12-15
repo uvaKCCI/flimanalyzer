@@ -50,8 +50,11 @@ def grouped_meanbarplot_new(ax, data, column, groups=[], dropna=True, pivot_leve
         mean = pd.DataFrame(data={'all':[data[column].mean()]}, index=[column])#.to_frame()
         std = pd.DataFrame(data={'all':[data[column].std()]}, index=[column])#.to_frame()
         mean.plot.barh(ax=ax, xerr=std)#,figsize=fsize,width=0.8)
-    else:    
-        sns.barplot(data=data[column], hue=groups[0]);
+    else:
+        grouped_data = data.groupby(groups, observed=True)
+        grouped_data.plot(x=column, kind='barh', ax=ax, **kwargs)
+        # sns.barplot(data=data, x=data[column], hue=groups[0]);
+    return fig,ax
             
     
 def grouped_meanbarplot(ax, data, column, title=None, groups=[], dropna=True, pivot_level=1, **kwargs):
@@ -75,9 +78,9 @@ def grouped_meanbarplot(ax, data, column, title=None, groups=[], dropna=True, pi
         cols = [c for c in groups]
         cols.append(column)
         if dropna:
-            groupeddata = data[cols].dropna(how='any', subset=[column]).groupby(groups)
+            groupeddata = data[cols].dropna(how='any', subset=[column]).groupby(groups, observed=True)
         else:    
-            groupeddata = data[cols].groupby(groups)
+            groupeddata = data[cols].groupby(groups, observed=True)
 #        groupeddata = data[cols].groupby(groups)
 #        print data.reset_index().set_index(groups).index.unique()
         #df.columns = [' '.join(col).strip() for col in df.columns.values]

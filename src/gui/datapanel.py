@@ -345,7 +345,7 @@ class PandasFrame(wx.Frame):
         for key in self.droppedrows:
             droppedrows.extend(self.droppedrows[key])
         # *** self.dataview = self.data.drop(index=set(droppedrows))
-        self.dataview = self.data.drop(self.data.index[droppedrows])
+        self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
         colsizes = self.grid.GetColSizes()
         self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
         self.update_precision(self.precision)

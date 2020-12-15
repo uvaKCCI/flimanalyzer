@@ -279,7 +279,7 @@ class Config():
         parameters = {
             CONFIG_IMPORT: {
                 CONFIG_EXCLUDE_FILES: [],
-                CONFIG_DELIMITER:'\t',
+                CONFIG_DELIMITER:'\t,',
                 CONFIG_PARSERCLASS: 'core.parser.defaultparser',
                 CONFIG_PARSER: {
                     'FOV': '*'},

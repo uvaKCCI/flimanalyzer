@@ -288,12 +288,17 @@ class dataanalyzer():
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
                 summary = data[allcats].groupby(lambda _ : True, group_keys=False).agg(agg_functions)
             else:                
-                summary = data[allcats].groupby(groups).agg(agg_functions)
+                #data = data.copy()
+                #data.reset_index(inplace=True)
+                grouped_data = data[allcats].groupby(groups, observed=True)
+                summary = grouped_data.agg(agg_functions)
+                #summary = summary.dropna()
             if flattenindex:
                 summary.columns = ['\n'.join(col).strip() for col in summary.columns.values]    
             summaries[dftitle] = summary
         if singledf:
-            return {titleprefix:pd.concat([summaries[key] for key in summaries], axis=1)}
+            concat_df = pd.concat([summaries[key] for key in summaries], axis=1)
+            return {f"titleprefix - rows={len(data)}": concat_df}
         else:
             return summaries
 

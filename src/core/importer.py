@@ -18,7 +18,7 @@ class dataimporter():
     
     def __init__(self):
         self.files = []
-        self.defaultdelimiter = '\t'
+        self.defaultdelimiter = '\t,'
         self.data = pd.DataFrame()
         self.excluded_files = []
         self.parser = defaultparser()
@@ -115,6 +115,7 @@ class dataimporter():
     def import_data(self, delimiter=None, hparser=None, preprocessor=None, nrows=None): 
         if delimiter is None:
             delimiter = self.defaultdelimiter    
+        delimiter = "|".join(delimiter)
         if hparser is None:
             hparser = self.parser
         if preprocessor is None:
