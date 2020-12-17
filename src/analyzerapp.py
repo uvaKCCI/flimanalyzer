@@ -12,10 +12,11 @@ import argparse
 import sys
 from gui.app import FlimAnalyzerApp
 import core.parser as cp
+from analysis.absanalyzer import AbstractAnalyzer
 from core.tools import FLIMAnalyzer
 from core.configuration import Config, CONFIG_PARSERCLASS
 
-from MLfeatureanalyzer.autoencoder2 import SAE
+#from MLfeatureanalyzer.autoencoder2 import SAE
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -130,6 +131,7 @@ if __name__ == "__main__":
     args = parse_arguments()
     init_logger(args.log.upper())
     logging.info(f"FlimAnalyzer version {__version__}")
+            
     logging.debug(args)
     fa = FLIMAnalyzer()
     if args.input is None or args.output is None or args.config is None:
