@@ -9,8 +9,16 @@ Created on Wed Dec 16 14:35:56 2020
 from abc import ABC, abstractmethod
 import logging
 import importlib
+import inspect
 
-def instantiate_tool(modulename, classname, data, categories, features):
+def create_instance(clazz, data, categories, features):
+    if isinstance(clazz, str):
+        modulename, _, classname = clazz.rpartition('.')
+    elif inspect.isclass(clazz):
+        modulename = clazz.__module__
+        classname = clazz.__name__
+    else:
+        logging.error(f"Error instantiating {clazz} analysis tool.")        
     logging.debug(f"Analysis Tool modulename={modulename}, classname={classname}")
     try:
         module = importlib.import_module(modulename)
@@ -25,6 +33,7 @@ def instantiate_tool(modulename, classname, data, categories, features):
 class AbstractAnalyzer(ABC):
 
     def __init__(self, data, categories, features):
+        self.name = __name__
         self.data = data
         self.categories = categories
         self.features = features

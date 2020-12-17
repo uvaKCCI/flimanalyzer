@@ -6,6 +6,7 @@ Created on Fri May  4 19:37:11 2018
 @author: khs3z
 """
 
+import analysis
 import logging
 import numpy as np
 import pandas as pd
@@ -304,11 +305,13 @@ class dataanalyzer():
 
 
     def get_analysis_options(self):
-        return [k for k in self.analysis_functions]
+        #return [k for k in self.analysis_functions]
+        return [toolname for toolname in  analysis.available_tools]
     
     
     def get_analysis_function(self, analysis_name):
-        return self.analysis_functions.get(analysis_name)
+        #return self.analysis_functions.get(analysis_name)
+        return analysis.available_tools[analysis_name]
     
     
     def pca(self, data, columns, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
