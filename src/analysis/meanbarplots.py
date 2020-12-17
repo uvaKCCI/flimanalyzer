@@ -20,6 +20,9 @@ class MeanBarPlots(AbstractAnalyzer):
     def __str__(self):
         return self.name
     
+    def configure(self,params):
+        pass
+
     def get_required_categories(self):
         return []
     

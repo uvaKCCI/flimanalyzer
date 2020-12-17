@@ -38,6 +38,9 @@ class AbstractAnalyzer(ABC):
         self.categories = categories
         self.features = features
         
+    @abstractmethod
+    def configure(self, params):
+        pass
         
     @abstractmethod
     def get_required_categories(self):

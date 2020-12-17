@@ -16,13 +16,39 @@ def percentile(n):
     percentile_.__name__ = '%s percentile' % n
     return percentile_    
 
+class Test(AbstractAnalyzer):
+
+    def __init__(self, data, categories, features):
+        AbstractAnalyzer.__init__(self, data, categories, features)
+        self.name = "Test Tool"
+
+    def __str__(self):
+        return self.name
+
+    def configure(params):
+        pass
+    
+    def get_required_categories(self):
+        return []
+    
+    def get_required_features(self):
+        return []
+    
+    def get_configuration_dialog(self):
+        pass
+    
+    def execute(self):
+        pass
+    
+
 class SummaryStats(AbstractAnalyzer):
     
-    def __init__(self, data, categories, features, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True):
+    def __init__(self, data, categories, features, titleprefix="", aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True):
         AbstractAnalyzer.__init__(self, data, categories, features)
         self.name = "Summary Tables"
         self.aggs = aggs
         self.singledf = singledf
+        self.titleprefix = titleprefix
         self.flattenindex = flattenindex
     
     def __repr__(self):
@@ -31,6 +57,9 @@ class SummaryStats(AbstractAnalyzer):
     def __str__(self):
         return self.name
     
+    def configure(self,params):
+        self.aggs = params['agg']
+
     def get_required_categories(self):
         return []
     
@@ -50,7 +79,7 @@ class SummaryStats(AbstractAnalyzer):
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
             allcats = [x for x in self.categories]
             allcats.append(header)
-            dftitle = ": ".join([titleprefix,header.replace('\n',' ')])
+            dftitle = ": ".join([self.titleprefix,header.replace('\n',' ')])
             if self.features is None or len(self.features) == 0:
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
                 summary = self.data[allcats].groupby(lambda _ : True, group_keys=False).agg(agg_functions)

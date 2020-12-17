@@ -1422,7 +1422,20 @@ class TabAnalysis(wx.Panel):
             cols = [tuple(col.split(',')) for col in cols]
         summaries = self.flimanalyzer.get_analyzer().summarize_data(titleprefix, data, cols, self.sel_roigrouping, aggs=agg_functions)
         return summaries
-        
+    
+    """
+    def analyze(self):
+        import analysis
+        analysis_class = "s"
+        tool = analysis.absanalyzer.create_instance(analysis_class, self.current_data, categories, features)
+        dlg = tool.get_configuration_dialog()
+        if dlg:
+            tool.configure(dlg.get_config())
+        results = tool.execute()    
+        for r in results:
+            d = results[r]
+            p = results[r]
+    """    
     
     def create_categorized_data_global(self, data, col, bins=[-1, 1], labels='Cat 1', normalizeto='', grouping=[], binby='xfold'):
         if not grouping or len(grouping) == 0:
