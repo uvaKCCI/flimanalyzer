@@ -32,15 +32,15 @@ def create_instance(clazz, data, categories, features):
     
 class AbstractAnalyzer(ABC):
 
-    def __init__(self, data, categories, features):
+    def __init__(self, data, categories, features, **kwargs):
         self.name = __name__
         self.data = data
         self.categories = categories
         self.features = features
+        self.params = kwargs
         
-    @abstractmethod
-    def configure(self, params):
-        pass
+    def configure(self, **kwargs):
+        self.params.update(**kwargs)
         
     @abstractmethod
     def get_required_categories(self):
@@ -48,11 +48,10 @@ class AbstractAnalyzer(ABC):
     
     @abstractmethod
     def get_required_features(self):
-        return []
+        return ['any']
     
-    @abstractmethod
-    def get_configuration_dialog(self):
-        pass
+    def run_configuration_dialog(self, parent):
+        return {}
     
     @abstractmethod
     def execute(self):

@@ -75,7 +75,6 @@ class SelectGroupsDlg(wx.Dialog):
 
     def __init__(self, parent, title, groups=[], selected='All'):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
-        
         # 5 col gridsizer
         mainsizer = wx.BoxSizer(wx.HORIZONTAL)
         cbsizer = wx.GridSizer(5, 0, 0)
@@ -131,16 +130,16 @@ class SelectGroupsDlg(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
 
+    def _get_selected(self):
+        return [key for key in self.cboxes if self.cboxes[key].GetValue()]
+    
+    
     def get_selected(self):
-        selected = []
-        for key in self.cboxes:
-            if self.cboxes[key].GetValue():
-                selected.append(key)
-        return selected    
+        return self._get_selected()
         
         
     def OnOK(self, event):
-        if len(self.get_selected()) == 0:
+        if len(self._get_selected()) == 0:
             wx.MessageDialog(self,'Select at least one function.')
         else:    
             self.EndModal(wx.ID_OK)

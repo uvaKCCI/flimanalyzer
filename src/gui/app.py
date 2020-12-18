@@ -20,6 +20,7 @@ import wx
 import wx.lib.agw.customtreectrl as CT
 from pubsub import pub
 
+import analysis
 import core.configuration as cfg
 from core.configuration import Config
 import core.parser
@@ -982,8 +983,52 @@ class TabAnalysis(wx.Panel):
 
                 
     def ShowAnalysis(self, event):
-        atype = self.analysistype_combo.GetStringSelection()
+        currentdata,label = self.get_currentdata()
+        if not gui.dialogs.check_data_msg(currentdata):
+            return
+        categories = self.sel_roigrouping
+        features = [c for c in self.get_checked_cols(currentdata)]
+        
+        atype = self.analysistype_combo.GetStringSelection()  
         logging.debug (f"{atype}")
+        analysis_class = analysis.available_tools[atype]
+        tool = analysis.absanalyzer.create_instance(analysis_class, currentdata, categories, features)
+
+        req_features = tool.get_required_features()
+        if features is None or len(features) < len(req_features):
+            wx.MessageBox(f'Select at least {len(req_features)} measurements/features.', 'Warning', wx.OK)
+            return
+
+        parameters = tool.run_configuration_dialog(self)
+        if parameters is None:
+            return
+        results = tool.execute()
+        
+        if results is not None:
+            for title, result in results.items():
+                if isinstance(result, pd.DataFrame):
+                    #cols = df.select_dtypes(['category']).columns.tolist()
+                    #print (f"Categories:{cols}")
+                    result = result.reset_index()
+                    #print (df.columns.tolist())
+                    #df = df.set_index(cols)
+                    windowtitle = "%s: %s" % (title, label)
+                    event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                    event.SetEventInfo(result, 
+                                       windowtitle, 
+                                       'createnew', 
+                                       showcolindex=False)
+                    self.GetEventHandler().ProcessEvent(event)
+                elif isinstance(result, tuple):
+                    fig,ax = result
+                    #title = "Bar plot: %s  %s" % (ax.get_title(), label)
+                    fig.canvas.set_window_title(title)
+                    event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+                    event.SetEventInfo(fig, title, 'createnew')
+                    self.GetEventHandler().ProcessEvent(event)        
+
+       
+        """
         if atype == 'Summary Tables':
             self.show_summary()
         elif atype == 'Mean Bar Plots':
@@ -1011,7 +1056,7 @@ class TabAnalysis(wx.Panel):
             self.show_ml_feature_training()
         elif atype == 'ML Feature Analysis':
             self.show_ml_feature_analysis()
-
+        """
         
     def SaveAnalysis(self, event):
         atype = self.analysistype_combo.GetStringSelection()
@@ -1423,19 +1468,6 @@ class TabAnalysis(wx.Panel):
         summaries = self.flimanalyzer.get_analyzer().summarize_data(titleprefix, data, cols, self.sel_roigrouping, aggs=agg_functions)
         return summaries
     
-    """
-    def analyze(self):
-        import analysis
-        analysis_class = "s"
-        tool = analysis.absanalyzer.create_instance(analysis_class, self.current_data, categories, features)
-        dlg = tool.get_configuration_dialog()
-        if dlg:
-            tool.configure(dlg.get_config())
-        results = tool.execute()    
-        for r in results:
-            d = results[r]
-            p = results[r]
-    """    
     
     def create_categorized_data_global(self, data, col, bins=[-1, 1], labels='Cat 1', normalizeto='', grouping=[], binby='xfold'):
         if not grouping or len(grouping) == 0:

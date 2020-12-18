@@ -6,9 +6,11 @@ Created on Thu Dec 17 09:50:44 2020
 @author: khs3z
 """
 
-from analysis.absanalyzer import AbstractAnalyzer
 import numpy as np
 import pandas as pd
+import wx
+from analysis.absanalyzer import AbstractAnalyzer
+from gui.dialogs import SelectGroupsDlg
 
 def percentile(n):
     def percentile_(x):
@@ -16,40 +18,18 @@ def percentile(n):
     percentile_.__name__ = '%s percentile' % n
     return percentile_    
 
-class Test(AbstractAnalyzer):
 
-    def __init__(self, data, categories, features):
-        AbstractAnalyzer.__init__(self, data, categories, features)
-        self.name = "Test Tool"
-
-    def __str__(self):
-        return self.name
-
-    def configure(params):
-        pass
-    
-    def get_required_categories(self):
-        return []
-    
-    def get_required_features(self):
-        return []
-    
-    def get_configuration_dialog(self):
-        pass
-    
-    def execute(self):
-        pass
-    
 
 class SummaryStats(AbstractAnalyzer):
     
-    def __init__(self, data, categories, features, titleprefix="", aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True):
+    def __init__(self, data, categories, features, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True):
         AbstractAnalyzer.__init__(self, data, categories, features)
         self.name = "Summary Tables"
-        self.aggs = aggs
-        self.singledf = singledf
-        self.titleprefix = titleprefix
-        self.flattenindex = flattenindex
+        self.agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)}
+        self.params = {
+            'selected_aggs': aggs, 
+            'singledf': singledf, 
+            'flattenindex': flattenindex}
     
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -57,30 +37,33 @@ class SummaryStats(AbstractAnalyzer):
     def __str__(self):
         return self.name
     
-    def configure(self,params):
-        self.aggs = params['agg']
-
     def get_required_categories(self):
         return []
     
     def get_required_features(self):
-        return []
+        return ['any']
     
-    def get_configuration_dialog(self):
-        pass
+    def run_configuration_dialog(self, parent):
+        dlg = SelectGroupsDlg(parent, title='Summary: aggregation functions', groups=self.agg_functions)
+        if dlg.ShowModal() == wx.ID_CANCEL:
+            dlg.Destroy()
+            return # implicit None
+        parameters = {'selected_aggs': dlg.get_selected()}      
+        self.configure(**parameters)
+        return parameters
     
     def execute(self):
+        titleprefix = 'Summary'
         summaries = {}
-        allfunc_dict = self.analysis_functions['Summary Tables']['functions']
-        agg_functions = [self.agg_functions[f] for f in self.aggs]
+        agg_functions = [self.agg_functions[f] for f in self.params['selected_aggs']]
         if self.features is None or len(self.features) == 0:
             return summaries
         for header in self.features:
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
             allcats = [x for x in self.categories]
             allcats.append(header)
-            dftitle = ": ".join([self.titleprefix,header.replace('\n',' ')])
-            if self.features is None or len(self.features) == 0:
+            dftitle = ": ".join([titleprefix,header.replace('\n',' ')])
+            if self.categories is None or len(self.categories) == 0:
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
                 summary = self.data[allcats].groupby(lambda _ : True, group_keys=False).agg(agg_functions)
             else:                
@@ -89,11 +72,11 @@ class SummaryStats(AbstractAnalyzer):
                 grouped_data = self.data[allcats].groupby(self.categories, observed=True)
                 summary = grouped_data.agg(agg_functions)
                 #summary = summary.dropna()
-            if self.flattenindex:
+            if self.params['flattenindex']:
                 summary.columns = ['\n'.join(col).strip() for col in summary.columns.values]    
             summaries[dftitle] = summary
-        if self.singledf:
+        if self.params['singledf']:
             concat_df = pd.concat([summaries[key] for key in summaries], axis=1)
-            return {f"titleprefix - rows={len(self.data)}": concat_df}
+            return {f"{titleprefix} - rows={len(self.data)}": concat_df}
         else:
             return summaries
