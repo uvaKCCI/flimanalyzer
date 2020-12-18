@@ -15,8 +15,8 @@ import torch.optim as optim
 import torch.utils.data
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
-from ..MLfeatureanalyzer.autoencoder2 import AE
-from ..MLfeatureanalyzer.dataset import datasets
+from MLfeatureanalyzer.autoencoder2 import AE
+from MLfeatureanalyzer.dataset import datasets
 import logging
 
 
