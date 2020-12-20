@@ -37,7 +37,8 @@ class AbstractAnalyzer(ABC):
         self.data = data
         self.categories = categories
         self.features = features
-        self.params = kwargs
+        self.params = {**kwargs}
+
         
     def configure(self, **kwargs):
         self.params.update(**kwargs)

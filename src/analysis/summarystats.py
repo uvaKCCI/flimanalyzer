@@ -22,14 +22,11 @@ def percentile(n):
 
 class SummaryStats(AbstractAnalyzer):
     
-    def __init__(self, data, categories, features, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True):
-        AbstractAnalyzer.__init__(self, data, categories, features)
+    agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)}
+    
+    def __init__(self, data, categories, features, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True, **kwargs):
+        AbstractAnalyzer.__init__(self, data, categories, features, aggs=aggs, singledf=singledf, flattenindex=flattenindex)
         self.name = "Summary Tables"
-        self.agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)}
-        self.params = {
-            'selected_aggs': aggs, 
-            'singledf': singledf, 
-            'flattenindex': flattenindex}
     
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -48,14 +45,14 @@ class SummaryStats(AbstractAnalyzer):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
-        parameters = {'selected_aggs': dlg.get_selected()}      
+        parameters = {'aggs': dlg.get_selected()}      
         self.configure(**parameters)
         return parameters
     
     def execute(self):
         titleprefix = 'Summary'
         summaries = {}
-        agg_functions = [self.agg_functions[f] for f in self.params['selected_aggs']]
+        sel_functions = [self.agg_functions[f] for f in self.params['aggs']]
         if self.features is None or len(self.features) == 0:
             return summaries
         for header in self.features:
@@ -65,12 +62,12 @@ class SummaryStats(AbstractAnalyzer):
             dftitle = ": ".join([titleprefix,header.replace('\n',' ')])
             if self.categories is None or len(self.categories) == 0:
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
-                summary = self.data[allcats].groupby(lambda _ : True, group_keys=False).agg(agg_functions)
+                summary = self.data[allcats].groupby(lambda _ : True, group_keys=False).agg(sel_functions)
             else:                
                 #data = data.copy()
                 #data.reset_index(inplace=True)
                 grouped_data = self.data[allcats].groupby(self.categories, observed=True)
-                summary = grouped_data.agg(agg_functions)
+                summary = grouped_data.agg(sel_functions)
                 #summary = summary.dropna()
             if self.params['flattenindex']:
                 summary.columns = ['\n'.join(col).strip() for col in summary.columns.values]    

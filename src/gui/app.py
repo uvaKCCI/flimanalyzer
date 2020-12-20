@@ -983,9 +983,12 @@ class TabAnalysis(wx.Panel):
 
                 
     def ShowAnalysis(self, event):
+        # check that there's any data to process
         currentdata,label = self.get_currentdata()
         if not gui.dialogs.check_data_msg(currentdata):
             return
+        
+        # check that user provided required data categories and data features
         categories = self.sel_roigrouping
         features = [c for c in self.get_checked_cols(currentdata)]
         
@@ -995,15 +998,24 @@ class TabAnalysis(wx.Panel):
         tool = analysis.absanalyzer.create_instance(analysis_class, currentdata, categories, features)
 
         req_features = tool.get_required_features()
-        if features is None or len(features) < len(req_features):
-            wx.MessageBox(f'Select at least {len(req_features)} measurements/features.', 'Warning', wx.OK)
+        not_any_features = [f for f in req_features if f != 'any']
+        if features is None or len(features) < len(req_features) or not all(f in features for f in not_any_features):
+            wx.MessageBox(f'Analysis tool {tool} requires selection of at least {len(req_features)} data features, including {not_any_features}.', 'Warning', wx.OK)            
             return
 
+        req_categories = tool.get_required_categories()
+        not_any_categories = [c for c in req_categories if c != 'any']
+        if len(req_categories) > 0 and (categories is None or len(categories) < len(req_categories) or not all(c in categories for c in not_any_categories)):
+            wx.MessageBox(f'Analysis tool {tool} requires selection of ate least {len(req_categories)} groups, including {not_any_categories}.', 'Warning', wx.OK)            
+            return
+        
+        # run optional tool config dialog and execte analysis
         parameters = tool.run_configuration_dialog(self)
         if parameters is None:
             return
         results = tool.execute()
         
+        # handle results, DataFrames or Figure objects
         if results is not None:
             for title, result in results.items():
                 if isinstance(result, pd.DataFrame):

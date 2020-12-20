@@ -80,7 +80,7 @@ class SelectGroupsDlg(wx.Dialog):
         cbsizer = wx.GridSizer(5, 0, 0)
         if groups is None:
             groups = []
-        self.cboxes = {}    
+        self.cboxes = {}
         for g in groups:
             cb = wx.CheckBox(self,wx.ID_ANY,g)
             cb.SetValue((g in selected) or (selected == 'All'))

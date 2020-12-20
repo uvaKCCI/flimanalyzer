@@ -18,13 +18,8 @@ from analysis.absanalyzer import AbstractAnalyzer
 class RandomForest(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, categories, features)
+        AbstractAnalyzer.__init__(self, data, categories, features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
         self.name = "Random Forest"
-        self.params = {
-            'importancehisto':importancehisto,
-            'n_estimators': n_estimators,
-            'test_size': test_size,
-            'classifier': classifier}
     
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -45,18 +40,18 @@ class RandomForest(AbstractAnalyzer):
             parameters = {'classifier': dlg.GetStringSelection()}
             self.configure(**parameters)
             return parameters
-        return  # implicit None
+        return  # explicit None
     
     def execute(self):
         results = {}
         data = self.data.dropna(how='any', axis=0)
         data_features = [f for f in self.features if f not in self.categories]
-        X=data[data_features]  # Features
-        y=data[self.params['classifier']]  # Labels
+        X = data[data_features]  # Features
+        y = data[self.params['classifier']]  # one of the categorical columns
         # Split dataset into training set and test set
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=self.params['test_size'])
         #Create a Gaussian Classifier
-        clf=RandomForestClassifier(n_estimators=self.params['n_estimators'])
+        clf = RandomForestClassifier(n_estimators=self.params['n_estimators'])
         #Train the model using the training sets y_pred=clf.predict(X_test)
         clf.fit(X_train,y_train)
 
