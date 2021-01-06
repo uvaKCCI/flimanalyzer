@@ -3,8 +3,8 @@
 # @Time  : 12/17/20 10:44 AM
 # @Author: Jiaxin_Zhang
 
-# from analysis.absanalyzer import AbstractAnalyzer
-from absanalyzer import AbstractAnalyzer
+from analysis.absanalyzer import AbstractAnalyzer
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
