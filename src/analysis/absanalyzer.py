@@ -39,6 +39,14 @@ class AbstractAnalyzer(ABC):
         self.features = features
         self.params = {**kwargs}
 
+    def fix_label(self, label):
+        return str(label).replace('\'','').replace('(','').replace(')','')
+
+    def __repr__(self):
+        return f"{'name': {self.name}}"
+
+    def __str__(self):
+        return self.name
         
     def configure(self, **kwargs):
         self.params.update(**kwargs)

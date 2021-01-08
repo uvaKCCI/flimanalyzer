@@ -21,11 +21,11 @@ import matplotlib.pyplot as plt
 import itertools
 
 
-class ScatterPlots(AbstractAnalyzer):
+class ScatterPlot(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, **kwargs):
         AbstractAnalyzer.__init__(self, data, categories, features, **kwargs)
-        self.name = "Scatter Plots"
+        self.name = "Scatter Plot"
     
     def __repr__(self):
         return f"{'name': {self.name}}"

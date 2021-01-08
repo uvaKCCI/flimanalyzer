@@ -1006,7 +1006,7 @@ class TabAnalysis(wx.Panel):
         req_categories = tool.get_required_categories()
         not_any_categories = [c for c in req_categories if c != 'any']
         if len(req_categories) > 0 and (categories is None or len(categories) < len(req_categories) or not all(c in categories for c in not_any_categories)):
-            wx.MessageBox(f'Analysis tool {tool} requires selection of ate least {len(req_categories)} groups, including {not_any_categories}.', 'Warning', wx.OK)            
+            wx.MessageBox(f'Analysis tool {tool} requires selection of at least {len(req_categories)} groups, including {not_any_categories}.', 'Warning', wx.OK)            
             return
         
         # run optional tool config dialog and execte analysis

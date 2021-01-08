@@ -26,7 +26,7 @@ class SummaryStats(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True, **kwargs):
         AbstractAnalyzer.__init__(self, data, categories, features, aggs=aggs, singledf=singledf, flattenindex=flattenindex)
-        self.name = "Summary Tables"
+        self.name = "Summary Table"
     
     def __repr__(self):
         return f"{'name': {self.name}}"

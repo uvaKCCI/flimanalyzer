@@ -12,11 +12,11 @@ from analysis.absanalyzer import AbstractAnalyzer
 import matplotlib.pyplot as plt
 
 
-class MeanBarPlots(AbstractAnalyzer):
+class MeanBarPlot(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, **kwargs):
         AbstractAnalyzer.__init__(self, data, categories, features, **kwargs)
-        self.name = "Mean Bar Plots"
+        self.name = "Mean Bar Plot"
     
     def __repr__(self):
         return f"{'name': {self.name}}"

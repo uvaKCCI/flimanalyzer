@@ -12,11 +12,11 @@ from analysis.absanalyzer import AbstractAnalyzer
 import matplotlib.pyplot as plt
 
 
-class BoxPlots(AbstractAnalyzer):
+class BoxPlot(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, **kwargs):
         AbstractAnalyzer.__init__(self, data, categories, features, **kwargs)
-        self.name = "Box Plots"
+        self.name = "Box Plot"
     
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -24,9 +24,6 @@ class BoxPlots(AbstractAnalyzer):
     def __str__(self):
         return self.name
     
-    def configure(self,params):
-        pass
-
     def get_required_categories(self):
         return []
     
