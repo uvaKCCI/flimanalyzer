@@ -811,13 +811,13 @@ class TabAnalysis(wx.Panel):
         self.deselectall_button = wx.Button(self, wx.ID_ANY, "Deselect All")
         self.deselectall_button.Bind(wx.EVT_BUTTON, self.DeselectAll)
     
-        self.show_button = wx.Button(self, wx.ID_ANY, "Show Analysis")
-        self.show_button.Bind(wx.EVT_BUTTON, self.ShowAnalysis)
+        self.show_button = wx.Button(self, wx.ID_ANY, "Run Analysis")
+        self.show_button.Bind(wx.EVT_BUTTON, self.run_analysis)
     
-        self.save_button = wx.Button(self, wx.ID_ANY, "Save Analysis")
-        self.save_button.Bind(wx.EVT_BUTTON, self.SaveAnalysis)
+        #self.save_button = wx.Button(self, wx.ID_ANY, "Save Analysis")
+        #self.save_button.Bind(wx.EVT_BUTTON, self.SaveAnalysis)
     
-#        self.update_datachoices({'Raw data':self.rawdata, 'Filtered data':self.data}, True)
+        #self.update_datachoices({'Raw data':self.rawdata, 'Filtered data':self.data}, True)
         self.set_roigroupings(None)
         self.init_analysislist()
         
@@ -835,7 +835,7 @@ class TabAnalysis(wx.Panel):
         buttonsizer.Add(self.selectall_button, 0, wx.EXPAND|wx.ALL, 5)
         buttonsizer.Add(self.deselectall_button, 0, wx.EXPAND|wx.ALL, 5)
         buttonsizer.Add(self.show_button, 0, wx.EXPAND|wx.ALL, 5)
-        buttonsizer.Add(self.save_button, 0, wx.EXPAND|wx.ALL, 5)
+        #buttonsizer.Add(self.save_button, 0, wx.EXPAND|wx.ALL, 5)
 
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
         hsizer.Add(self.analysislist, 1, wx.EXPAND|wx.ALL, 5)
@@ -982,7 +982,7 @@ class TabAnalysis(wx.Panel):
         logging.debug (f"{self.get_ctrlgroupchoices()[groupindex]}")
 
                 
-    def ShowAnalysis(self, event):
+    def run_analysis(self, event):
         # check that there's any data to process
         currentdata,label = self.get_currentdata()
         if not gui.dialogs.check_data_msg(currentdata):
