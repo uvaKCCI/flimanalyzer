@@ -16,6 +16,9 @@ Python package for analysis of Fluoresence Lifetime Imaging Microscopy (FLIM) da
 * pypubsub
 * python.app (for Mac OSX)
 
+**Windows Installation:**
+* Install VS Code
+
 ## Installation:
 
 ```

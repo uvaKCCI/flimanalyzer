@@ -8,7 +8,6 @@ dependencies:
   - pandas=1.1
   - pip=20.3
   - python=3.7
-  - python.app
   - pytorch=1.7.0
   - scikit-learn
   - seaborn
