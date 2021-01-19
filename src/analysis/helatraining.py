@@ -67,9 +67,6 @@ class Helatraining(AbstractAnalyzer):
         FOV_u = np.unique(FOV)
         timepoint = self.data_copy.loc[:,'Treatment']
         tp_u = np.unique(timepoint)
-        print('FOV: ', FOV_u)
-        print('Timepoint: ', tp_u)
-        logging.info()
 
         f = self.data.loc[:,'FLIRR']
         self.data_set_f = pd.concat([data_set,f],axis=1)
@@ -87,9 +84,10 @@ class Helatraining(AbstractAnalyzer):
             for i in range(len(FOV_u)):
                 data_len = data_t[data_t[:, ind_fov] == FOV_u[i]]
                 cell = data_len[:, ind_cell]
+                cell = np.array(list(map(int, cell)))
+                print(cell)
                 n_c = np.unique(cell)
                 k = int(np.around(0.7 * len(n_c)))
-                # print(n_c)
 
                 mask_train = (cell <= k)
                 mask_val = (cell > k)
