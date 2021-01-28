@@ -8,6 +8,7 @@ Created on Wed Dec 16 14:18:30 2020
 
 import logging
 import numpy as np
+import pandas as pd
 from analysis.absanalyzer import AbstractAnalyzer
 import matplotlib.pyplot as plt
 
@@ -40,7 +41,21 @@ class FreqHisto(AbstractAnalyzer):
             #ax = fig.add_subplot(111)
             fig, ax = plt.subplots()
             binvalues, binedges, groupnames, fig, ax = self.histogram(ax, self.data, header, groups=self.categories, normalize=100, range=mrange, stacked=False, bins=bins, histtype='step')                
-            results[f'Frequency Histo: {header}'] = (fig,ax)
+
+            df = pd.DataFrame()
+            df['bin edge low'] = binedges[:-1]
+            df['bin edge high'] = binedges[1:]
+            if len(binvalues.shape) == 1:
+                df[groupnames[0]] = binvalues
+            else:    
+                for i in range(len(binvalues)):
+                    df[groupnames[i]] = binvalues[i]
+            df.reset_index()
+            #bindata = core.plots.bindata(binvalues,binedges, groupnames)
+            #bindata = bindata.reset_index()
+
+            results[f'Frequency Histo Plot: {header}'] = (fig,ax)
+            results[f'Frequency Histo Table: {header}'] = df
         return results
     
     
@@ -82,6 +97,7 @@ class FreqHisto(AbstractAnalyzer):
         if normalize is not None:
             if normalize == 100:
                 ax.set_ylabel('relative counts [%]')
+                groupnames = [f"{n} [rel %]" for n in groupnames]
             else:
                 ax.set_ylabel('relative counts (norm. to %.1f)' % normalize)
                 
