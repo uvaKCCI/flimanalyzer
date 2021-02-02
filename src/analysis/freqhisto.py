@@ -39,8 +39,7 @@ class FreqHisto(AbstractAnalyzer):
 #            fig, ax = MatplotlibFigure()
             #fig = plt.figure(FigureClass=MatplotlibFigure)
             #ax = fig.add_subplot(111)
-            fig, ax = plt.subplots()
-            binvalues, binedges, groupnames, fig, ax = self.histogram(ax, self.data, header, groups=self.categories, normalize=100, range=mrange, stacked=False, bins=bins, histtype='step')                
+            binvalues, binedges, groupnames, fig, ax = self.histogram(self.data, header, groups=self.categories, normalize=100, range=mrange, stacked=False, bins=bins, histtype='step')                
 
             df = pd.DataFrame()
             df['bin edge low'] = binedges[:-1]
@@ -59,15 +58,12 @@ class FreqHisto(AbstractAnalyzer):
         return results
     
     
-    def histogram(self,ax, data, column, title=None, groups=[], normalize=None, titlesuffix=None, **kwargs):
+    def histogram(self, data, column, title=None, groups=[], normalize=None, titlesuffix=None, **kwargs):
         # plt.rcParams.update({'figure.autolayout': True})
     
         if data is None or not column in data.columns.values:
             return None, None
-        if ax is None:
-            fig, ax = plt.subplots()
-        else:
-            fig = ax.get_figure()    
+        fig, ax = plt.subplots(constrained_layout=True)
         if groups is None:
             groups = []
                     
@@ -125,9 +121,9 @@ class FreqHisto(AbstractAnalyzer):
             #labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
             labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
             no_legendcols = (len(binvalues)//30 + 1)
-            chartbox = ax.get_position()
-            ax.set_position([chartbox.x0, chartbox.y0, chartbox.width* (1-0.2 * no_legendcols), chartbox.height])
-            ax.legend(labels=labels, loc='upper center', title=', '.join(groups), bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
+            #chartbox = ax.get_position()
+            #ax.set_position([chartbox.x0, chartbox.y0, chartbox.width* (1-0.2 * no_legendcols), chartbox.height])
+            ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
     
         # plt.rcParams.update({'figure.autolayout': False})    
         return  np.array(binvalues), binedges, groupnames, fig, ax,    

@@ -42,8 +42,8 @@ class BoxPlot(AbstractAnalyzer):
         if data is None or not feature in data.columns.values:
             return None, None
     
-        plt.rcParams.update({'figure.autolayout': True})
-        fig, ax = plt.subplots()
+        # plt.rcParams.update({'figure.autolayout': True})
+        fig, ax = plt.subplots(constrained_layout=True)
         
         if categories is None:
             categories = []
@@ -54,10 +54,6 @@ class BoxPlot(AbstractAnalyzer):
                 'ax':ax})
         if len(categories) > 0: 
             newkwargs.update({'by':categories})
-        if ax is None:
-            fig, ax = plt.subplots()
-        else:
-            fig = ax.get_figure()    
         
         cols = [c for c in categories]
         cols.append(feature)
@@ -81,5 +77,5 @@ class BoxPlot(AbstractAnalyzer):
             title = feature.replace('\n', ' ') #.encode('utf-8')
         if len(title) > 0:
             ax.set_title(title)
-        plt.rcParams.update({'figure.autolayout': False})
+        # plt.rcParams.update({'figure.autolayout': False})
         return fig,ax   

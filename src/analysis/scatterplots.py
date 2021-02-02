@@ -52,8 +52,7 @@ class ScatterPlot(AbstractAnalyzer):
         return results
     
     def grouped_scatterplot(self, data, combination,  title=None, categories=[], dropna=True, pivot_level=1, **kwargs):
-        plt.rcParams.update({'figure.autolayout': True})
-        fig, ax = plt.subplots()
+        #plt.rcParams.update({'figure.autolayout': True})
         col1 = combination[0]
         col2 = combination[1]
         if data is None or not col1 in data.columns.values or not col2 in data.columns.values:
@@ -61,10 +60,7 @@ class ScatterPlot(AbstractAnalyzer):
             
         if categories is None:
             categories = []
-        if ax is None:
-            fig, ax = plt.subplots()
-        else:
-            fig = ax.get_figure()    
+        fig, ax = plt.subplots(constrained_layout=True)
         
         newkwargs = kwargs.copy()
         newkwargs.update({
@@ -99,12 +95,12 @@ class ScatterPlot(AbstractAnalyzer):
             h, labels = ax.get_legend_handles_labels()
             #labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
             labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
-            no_legendcols = (len(grouped)//30 + 1)
-            chartbox = ax.get_position()
-            ax.set_position([chartbox.x0, chartbox.y0, chartbox.width* (1-0.2 * no_legendcols), chartbox.height])
-            ax.legend(labels=labels, loc='upper center', bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
+            #chartbox = ax.get_position()
+            #ax.set_position([chartbox.x0, chartbox.y0, chartbox.width* (1-0.2 * no_legendcols), chartbox.height])
+            no_legendcols = (len(categories)//30 + 1)
+            ax.legend(labels=labels, loc='upper left', title=', '.join(categories), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
             title = f"Data grouped by {categories}"
             ax.set_title(title)
             
-        plt.rcParams.update({'figure.autolayout': False})
+        #plt.rcParams.update({'figure.autolayout': False})
         return fig,ax    

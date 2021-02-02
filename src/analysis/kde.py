@@ -33,29 +33,21 @@ class KDE(AbstractAnalyzer):
             minx = self.data[header].min() #hconfig[0]
             maxx = self.data[header].max() #hconfig[1]
             logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig, ax = plt.subplots()
-            fig, ax = self.grouped_kdeplot(ax, self.data, header, groups=self.categories, hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
+            fig, ax = self.grouped_kdeplot(self.data, header, groups=self.categories, hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
             ax.set_xlim(minx, maxx)
             results[f'KDE Plot: {header}'] = (fig,ax)
         return results
     
     
-    def grouped_kdeplot(self,ax, data, column, title=None, groups=[], dropna=True, linestyles=None, pivot_level=1, **kwargs):
+    def grouped_kdeplot(self, data, column, title=None, groups=[], dropna=True, linestyles=None, pivot_level=1, **kwargs):
     
         if data is None or not column in data.columns.values:
             return None, None
-        plt.rcParams.update({'figure.autolayout': True})
+        #plt.rcParams.update({'figure.autolayout': True})
     
-        if ax is None:
-            fig, ax = plt.subplots()
-        else:
-            fig = ax.get_figure()    
+        fig, ax = plt.subplots(constrained_layout=True)
         if groups is None:
             groups = []
-        if ax is None:
-            fig, ax = plt.subplots()
-        else:
-            fig = ax.get_figure()    
     
         newkwargs = kwargs.copy()
         # ensure autoscaling of y axis
@@ -71,8 +63,7 @@ class KDE(AbstractAnalyzer):
     
         kde_args = newkwargs.get('kde_kws')
         if not kde_args:
-            kde_args = {}
-            newkwargs['kde_kws'] = kde_args
+            newkwargs['kde_kws'] = {}
         if len(groups) > 0:
             gs = data.groupby(groups)
             styles = []
@@ -97,9 +88,11 @@ class KDE(AbstractAnalyzer):
                     logging.debug (f"NEWKWARGS: {newkwargs}")
                     logging.debug (f"len(groupdata[column])={len(groupdata[column])}")
                     sns.distplot(groupdata[column], **newkwargs)
-                    labels.append(name)
+                    labels.append(",".join(name))
                 index += 1
-            fig.legend(labels=labels)
+            no_legendcols = (len(groups)//30 + 1)
+            labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
+            ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
         else:        
             sns.distplot(data[column], **newkwargs)
         ax.autoscale(enable=True, axis='y')    

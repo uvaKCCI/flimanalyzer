@@ -43,7 +43,7 @@ class MeanBarPlot(AbstractAnalyzer):
         if data is None or not feature in data.columns.values:
             return None, None
         
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(constrained_layout=True)
         if categories is None:
             categories = []
         if len(categories)==0:
@@ -84,13 +84,14 @@ class MeanBarPlot(AbstractAnalyzer):
             ticklabels = [str(l).replace('\'','').replace('(','').replace(')','') for l in ticklabels]
             h, labels = ax.get_legend_handles_labels()
             #labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
-            labels = [l.split(',')[1].strip(' \)') for l in labels]
+            labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
+
             ax.set_ylabel = ', '.join(categories[pivot_level:])
             no_legendcols = (len(categories)//30 + 1)
             chartbox = ax.get_position()
             ax.set_position([chartbox.x0, chartbox.y0, chartbox.width * (1-0.2 * no_legendcols), chartbox.height])
     #        ax.legend(loc='upper center', labels=grouplabels, bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
-            legend = ax.legend(labels=labels,  title=', '.join(categories[0:pivot_level]), loc='upper center', bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
+            legend = ax.legend(labels=labels,  title=', '.join(categories[0:pivot_level]), loc='upper left', bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
             #legend = ax.legend(labels=labels,  title=', '.join(categories[0:pivot_level]), loc='upper center')
             #ax.add_artist(legend)
         else:
@@ -104,6 +105,6 @@ class MeanBarPlot(AbstractAnalyzer):
         if len(title) > 0:
             ax.set_title(title)
     
-        fig.tight_layout()
+        #fig.tight_layout()
         #plt.rcParams.update({'figure.autolayout': False})
         return fig,ax
