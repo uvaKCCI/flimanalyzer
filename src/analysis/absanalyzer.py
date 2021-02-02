@@ -47,6 +47,12 @@ class AbstractAnalyzer(ABC):
 
     def __str__(self):
         return self.name
+
+    def get_default_parameters(self):
+        return {self.get_config_name(): self.params}
+
+    def get_config_name(self):
+        return ''.join(e for e in self.name if e.isalnum())
         
     def configure(self, **kwargs):
         self.params.update(**kwargs)

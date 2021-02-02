@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 from analysis.absanalyzer import AbstractAnalyzer
 import matplotlib.pyplot as plt
+import wx
 
 default_linestyles = ['-','--',':', '-.']
 
@@ -128,3 +129,9 @@ class FreqHisto(AbstractAnalyzer):
         # plt.rcParams.update({'figure.autolayout': False})    
         return  np.array(binvalues), binedges, groupnames, fig, ax,    
                 
+    def run_configuration_dialog(self, parent):
+        print (self.params)
+        n = ''
+        dlg = wx.TextEntryDialog(parent, f'params: {self.params}','Frequency Histogram Configuration')
+        dlg.ShowModal()
+        return {}

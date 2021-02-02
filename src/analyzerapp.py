@@ -12,6 +12,7 @@ import argparse
 import sys
 from gui.app import FlimAnalyzerApp
 import core.parser as cp
+import analysis
 from analysis.absanalyzer import AbstractAnalyzer
 from core.tools import FLIMAnalyzer
 from core.configuration import Config, CONFIG_PARSERCLASS
@@ -124,6 +125,16 @@ def init_logger(loglevel):
     logging.basicConfig(level=numeric_level,filename='flimanalyzer.log', filemode='w', format='%(levelname)s \t %(asctime)-15s - %(module)s.%(funcName)s: %(message)s')
     logging.info(f"Log level: {numeric_level}")
 
+def init_analyzers(fa):
+    tools = analysis.available_tools
+    analyzers = [analysis.absanalyzer.create_instance(tools[aname], None, None, None) for aname in tools]
+    return analyzers
+
+def init_default_config(analyzers):
+    config = {}
+    for a in analyzers:
+        config.update(a.get_default_parameters())
+    return config
 
 if __name__ == "__main__":
     with open(os.path.join("..","VERSION"), "r") as vf:
@@ -134,6 +145,9 @@ if __name__ == "__main__":
             
     logging.debug(args)
     fa = FLIMAnalyzer()
+    analyzers = init_analyzers(fa)
+    config = init_default_config(analyzers)
+    print (config)
     if args.input is None or args.output is None or args.config is None:
         interactive_run(fa)
     else:
