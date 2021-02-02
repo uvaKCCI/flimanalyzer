@@ -147,7 +147,6 @@ if __name__ == "__main__":
     fa = FLIMAnalyzer()
     analyzers = init_analyzers(fa)
     config = init_default_config(analyzers)
-    print (config)
     if args.input is None or args.output is None or args.config is None:
         interactive_run(fa)
     else:

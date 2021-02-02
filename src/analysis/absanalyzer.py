@@ -37,7 +37,8 @@ class AbstractAnalyzer(ABC):
         self.data = data
         self.categories = categories
         self.features = features
-        self.params = {**kwargs}
+        self.params = self.get_default_parameters()
+        self.params.update({**kwargs})
 
     def fix_label(self, label):
         return str(label).replace('\'','').replace('(','').replace(')','')
@@ -49,7 +50,10 @@ class AbstractAnalyzer(ABC):
         return self.name
 
     def get_default_parameters(self):
-        return {self.get_config_name(): self.params}
+        return {}
+
+    def get_parameters(self):
+        return self.params
 
     def get_config_name(self):
         return ''.join(e for e in self.name if e.isalnum())

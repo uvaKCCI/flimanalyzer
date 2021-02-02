@@ -62,8 +62,6 @@ class PCAnalysis(AbstractAnalyzer):
         return  # explicit None
     
     
-    #def pca(self, data, columns, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
-
     def execute(self):
         data = self.data.dropna(how='any', axis=0).reset_index()
         if len(self.features) == 1:

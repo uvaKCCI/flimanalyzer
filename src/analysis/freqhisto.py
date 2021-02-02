@@ -27,15 +27,57 @@ class FreqHisto(AbstractAnalyzer):
     
     def get_required_features(self):
         return ['any']
-        
+    
+    def get_default_parameters(self):
+    	return {
+    				'trp t1': [0,8000,81,['Treatment']],
+                    'trp t2': [0,8000,81,['Treatment']],
+                    'trp tm': [0,4000,81,['Treatment']],
+                    'trp a1[%]': [0,100,21,['Treatment']],
+                    'trp a2[%]': [0,100,21,['Treatment']],
+                    'trp a1[%]/a2[%]': [0,2,81,['Treatment']],
+                    'trp E%1': [0,100,21,['Treatment']],
+                    'trp E%2': [0,100,21,['Treatment']],
+                    'trp E%3': [0,100,21,['Treatment']],
+                    'trp r1': [0,100,21,['Treatment']],
+                    'trp r2': [0,100,21,['Treatment']],
+                    'trp r3': [0,100,21,['Treatment']],
+                    'trp chi': [0,4.7,81,['Treatment']],
+                    'trp photons': [0,160,81,['Treatment']],
+                    'NAD(P)H t1': [0,800,81,['Treatment']],
+                    'NAD(P)H t2': [0,400,81,['Treatment']],
+                    'NAD(P)H tm': [0,2000,81,['Treatment']],
+                    'NAD(P)H photons': [0,2000,81,['Treatment']],
+                    'NAD(P)H a2[%]': [0,100,51,['Treatment']],
+        #                    'NAD(P)H %': [0,99,34,['Treatment']],
+                    'NADPH %': [0,99,34,['Treatment']],
+                    'NADH %': [0,100,51,['Treatment']],
+                    'NAD(P)H/NADH': [0,3,31,['Treatment']],
+                    'NAD(P)H chi': [0.7,4.7,81,['Treatment']],
+                    'FAD t1': [0,4000,81,['Treatment']],
+                    'FAD t2': [1000,7000,81,['Treatment']],
+                    'FAD tm': [0,4000,81,['Treatment']],
+                    'FAD a1[%]': [0,100,51,['Treatment']],
+                    'FAD a2[%]': [0,100,21,['Treatment']],
+                    'FAD a1[%]/a2[%]': [0,16,81,['Treatment']],
+                    'FAD chi': [0.7,4.7,81,['Treatment']],
+                    'FAD photons': [0,800,81,['Treatment']],
+                    'FLIRR': [0,2.4,81,['Treatment']],
+                    'NADPH a2/FAD a1': [0,10,101,['Treatment']],
+                }
+    
     def execute(self):
         results = {}
         for header in sorted(self.features):
-            #hconfig = cols[header]
-#            hconfig = self.config[CONFIG_HISTOGRAMS].get(header)
             mrange = (self.data[header].min(), self.data[header].max())
             bins = 100
-            logging.debug (f"\tcreating frequency histogram plot for {header} with {bins} bins")     
+            try:
+                hconfig = self.params[header]
+                mrange = (hconfig[0], hconfig[1])
+                bins = hconfig[2]
+            except:
+                logging.debug(f"\tmissing binning parameters, using defaults.")
+            logging.debug (f"\tcreating frequency histogram plot for {header} with {bins} bins, range {mrange}")     
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
 #            fig, ax = MatplotlibFigure()
             #fig = plt.figure(FigureClass=MatplotlibFigure)
@@ -129,9 +171,3 @@ class FreqHisto(AbstractAnalyzer):
         # plt.rcParams.update({'figure.autolayout': False})    
         return  np.array(binvalues), binedges, groupnames, fig, ax,    
                 
-    def run_configuration_dialog(self, parent):
-        print (self.params)
-        n = ''
-        dlg = wx.TextEntryDialog(parent, f'params: {self.params}','Frequency Histogram Configuration')
-        dlg.ShowModal()
-        return {}
