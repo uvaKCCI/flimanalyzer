@@ -60,8 +60,7 @@ class FreqHisto(AbstractAnalyzer):
     
     
     def histogram(self,ax, data, column, title=None, groups=[], normalize=None, titlesuffix=None, **kwargs):
-        import matplotlib.pyplot as plt
-        plt.rcParams.update({'figure.autolayout': True})
+        # plt.rcParams.update({'figure.autolayout': True})
     
         if data is None or not column in data.columns.values:
             return None, None
@@ -130,6 +129,6 @@ class FreqHisto(AbstractAnalyzer):
             ax.set_position([chartbox.x0, chartbox.y0, chartbox.width* (1-0.2 * no_legendcols), chartbox.height])
             ax.legend(labels=labels, loc='upper center', title=', '.join(groups), bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
     
-        plt.rcParams.update({'figure.autolayout': False})    
+        # plt.rcParams.update({'figure.autolayout': False})    
         return  np.array(binvalues), binedges, groupnames, fig, ax,    
                 

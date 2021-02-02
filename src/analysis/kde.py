@@ -86,6 +86,7 @@ class KDE(AbstractAnalyzer):
                             styles.append({'color':c, 'linestyle': ls})
             logging.debug(f"styles={styles}")
             index = 0
+            labels = []
             for name, groupdata in gs:
                 if (len(groupdata[column]) > 0):
                     kde_args.update({
@@ -96,7 +97,9 @@ class KDE(AbstractAnalyzer):
                     logging.debug (f"NEWKWARGS: {newkwargs}")
                     logging.debug (f"len(groupdata[column])={len(groupdata[column])}")
                     sns.distplot(groupdata[column], **newkwargs)
+                    labels.append(name)
                 index += 1
+            fig.legend(labels=labels)
         else:        
             sns.distplot(data[column], **newkwargs)
         ax.autoscale(enable=True, axis='y')    
@@ -108,6 +111,6 @@ class KDE(AbstractAnalyzer):
         if len(title) > 0:
             ax.set_title(title)
     
-        plt.rcParams.update({'figure.autolayout': False})
+        # plt.rcParams.update({'figure.autolayout': False})
         return fig, ax,
             
