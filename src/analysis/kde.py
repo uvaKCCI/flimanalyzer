@@ -80,18 +80,19 @@ class KDE(AbstractAnalyzer):
             labels = []
             for name, groupdata in gs:
                 if (len(groupdata[column]) > 0):
+                    name_fixed = self.fix_label(name)
+                    print (name, name_fixed)
                     kde_args.update({
-                            'label': self.fix_label(name),})
+                            'label': name_fixed,})
                     if len(styles) > index:
                         newkwargs['color'] = styles[index]['color']
                         newkwargs['kde_kws']['linestyle'] = styles[index]['linestyle']
                     logging.debug (f"NEWKWARGS: {newkwargs}")
                     logging.debug (f"len(groupdata[column])={len(groupdata[column])}")
                     sns.distplot(groupdata[column], **newkwargs)
-                    labels.append(",".join(name))
+                    labels.append(name_fixed)
                 index += 1
             no_legendcols = (len(groups)//30 + 1)
-            labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
             ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
         else:        
             sns.distplot(data[column], **newkwargs)
@@ -103,7 +104,7 @@ class KDE(AbstractAnalyzer):
                 title = f"{title} grouped by {groups}"
         if len(title) > 0:
             ax.set_title(title)
-    
+        
         # plt.rcParams.update({'figure.autolayout': False})
         return fig, ax,
             

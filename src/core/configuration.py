@@ -93,7 +93,7 @@ class Config():
             return None
         if not parameters:
             parameters = self.parameters
-        if isinstance(searchkey, collections.Iterable) and not isinstance(searchkey, str) and not isinstance(searchkey, bytes) and len(searchkey) > 1:            
+        if isinstance(searchkey, collections.abc.Iterable) and not isinstance(searchkey, str) and not isinstance(searchkey, bytes) and len(searchkey) > 1:            
             parentconfig, parentkeys = self.get(searchkey[:-1], returnkeys=True)
             lastsearchkey = searchkey[-1]
         else:
@@ -121,7 +121,7 @@ class Config():
         if startin is None:
             startin = self.parameters
         if isinstance(startin, dict):
-            if isinstance(searchkey, collections.Iterable) and not isinstance(searchkey, str) and not isinstance(searchkey, bytes):
+            if isinstance(searchkey, collections.abc.Iterable) and not isinstance(searchkey, str) and not isinstance(searchkey, bytes):
                 if len(searchkey) == 0:
                     return return_value(None,[], returnkeys)
                 params, keys = self.get(searchkey[0], startin=startin, returnkeys=True)
@@ -170,7 +170,7 @@ class Config():
     def read_from_json(self, configfile, defaultonfail=True):
         try:    
             with open(configfile, 'r') as fp:
-                self.parameters = json.load(fp, object_hook=self._to_utf)
+                self.parameters = json.load(fp) #, object_hook=self._to_utf)
                 self.modified = False
                 return True
         except:
@@ -424,12 +424,14 @@ class Config():
 if __name__ == '__main__':
     config = Config()
     config.create_default()
+    cfg = config.get()
+    print (json.dumps(cfg, sort_keys=True, indent=4, separators=(',', ': ')))
     
     # Test get
     cfg, keys = config.get([CONFIG_FILTERS], returnkeys=True)
     print (keys)
     cfg = config.get([CONFIG_PARSERCLASS], returnkeys=False)
-    print (json.dumps(cfg, sort_keys=True, indent=4, separators=(',', ': ')))
+    print (json.dumps(cfg, sort_keys=True, indent=4))
     
     # get root parameter dict
     print (config.get())

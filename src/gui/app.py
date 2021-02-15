@@ -219,7 +219,7 @@ class TabImport(wx.Panel):
     def get_import_settings(self):
         importconfig = {}
         importconfig.update({cfg.CONFIG_PARSERCLASS : self.parser_chooser.GetStringSelection()})
-        importconfig.update({cfg.CONFIG_EXCLUDE_FILES : self.exclude_files_list.GetValue().encode('ascii','ignore').splitlines()})
+        importconfig.update({cfg.CONFIG_EXCLUDE_FILES : self.exclude_files_list.GetValue().splitlines()}) #.encode('ascii','ignore').splitlines()})
         importconfig.update({cfg.CONFIG_DELIMITER : self.delimiter_panel.get_delimiters()})
         #self.config[CONFIG_CALC_COLUMNS] = 'calculate columns'
         return {cfg.CONFIG_IMPORT:importconfig}    
@@ -228,7 +228,7 @@ class TabImport(wx.Panel):
     def get_preprocess_settings(self):
         preprocessconfig = {}
         preprocessconfig.update({cfg.CONFIG_HEADERS : self.rgrid.GetTable().GetDict()})
-        preprocessconfig.update({cfg.CONFIG_DROP_COLUMNS : self.drop_col_list.GetValue().encode('ascii','ignore').splitlines()})
+        preprocessconfig.update({cfg.CONFIG_DROP_COLUMNS : self.drop_col_list.GetValue().splitlines()}) #.encode('ascii','ignore').splitlines()})
         preprocessconfig.update({cfg.CONFIG_CALC_COLUMNS : self.config_calc_columns})
         return {cfg.CONFIG_PREPROCESS:preprocessconfig}    
         
@@ -2120,16 +2120,38 @@ class AppFrame(wx.Frame):
         self.remove_window_from_menu(title)
 
     
+    def OnPick(self, event):
+        if event.mouseevent.dblclick:
+    	    print ("picked:", event.artist, type(event.artist))
+    	    print (event.mouseevent)
+    	    print (matplotlib.artist.get(event.artist))
+    	
+    	
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
         title = self.unique_window_title(event.GetTitle())
         figure.canvas.set_window_title(title)
+        ax_list = figure.axes
+        for ax in ax_list:
+        	ax.set_picker(True)
+        	print (ax)
+        	for artist in ax.get_children():
+        		print (artist)
+        		artist.set_picker(True)
+        	ax.set_title(ax.get_title(), picker=True)
+        	ax.set_xlabel(ax.get_xlabel(), picker=True)
+        	ax.set_ylabel(ax.get_ylabel(), picker=True)
+        #ON_CUSTOM_LEFT  = wx.NewId()
+        #tb = figure.canvas.toolbar
+        #tb.AddTool(ON_CUSTOM_LEFT, 'Axes', wx.NullBitmap,'Set range of Axes')
+        #tb.Realize()
         action = event.GetAction() 
         logging.debug (f"{title}: {action}")
         if action == 'createnew':
             figure.show()
             self.append_window_to_menu(title, figure)
             figure.canvas.mpl_connect('close_event', self.OnClosingPlotWindow)
+            figure.canvas.mpl_connect('pick_event', self.OnPick)
 
         
 #    def OnNewPlotWindow(self, figure):

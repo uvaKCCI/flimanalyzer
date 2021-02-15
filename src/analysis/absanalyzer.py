@@ -41,7 +41,9 @@ class AbstractAnalyzer(ABC):
         self.params.update({**kwargs})
 
     def fix_label(self, label):
-        return str(label).replace('\'','').replace('(','').replace(')','')
+    	if not isinstance(label, str):
+    		label = ','.join(label)
+    	return str(label).replace('\'','').replace('(','').replace(')','')
 
     def __repr__(self):
         return f"{'name': {self.name}}"
