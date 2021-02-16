@@ -8,6 +8,7 @@ Created on Tue Jun 12 13:35:51 2018
 
 import logging
 import wx
+from wx.lib.masked import NumCtrl
 
 def check_data_msg(data):
     ok = data is not None and len(data) > 0
@@ -180,4 +181,38 @@ class ConfigureCategoriesDlg(wx.Dialog):
         self.bins = [float(f) for f in self.bin_field.GetValue().split(',')]
         # self.labels = self.label_field.GetValue().encode('ascii','ignore').split(',')
         self.labels = self.label_field.GetValue().split(',')
+        self.EndModal(wx.ID_OK)
+        
+        
+class ConfigureAxisDlg(wx.Dialog):
+    def __init__(self, parent, title, settings):
+        wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size= (650,220))
+        self.panel = wx.Panel(self,wx.ID_ANY)
+
+        self.labelname = wx.StaticText(self.panel, label="Axis label", pos=(20,20))
+        self.labelinput = wx.TextCtrl(self.panel, value=settings['label'], pos=(110,20), size=(500,-1))
+        self.minname = wx.StaticText(self.panel, label="Min value", pos=(20,60))
+        self.mininput = NumCtrl(self.panel, value=settings['min'], fractionWidth=2, pos=(110,60))
+        self.maxlabel = wx.StaticText(self.panel, label="Max value", pos=(20,100))
+        self.maxinput = NumCtrl(self.panel, value=settings['max'], fractionWidth=2, pos=(110,100))
+        self.okButton = wx.Button(self.panel, label="OK", pos=(110,160))
+        self.closeButton =wx.Button(self.panel, label="Cancel", pos=(210,160))
+        self.okButton.Bind(wx.EVT_BUTTON, self.SaveConnString)
+        self.closeButton.Bind(wx.EVT_BUTTON, self.OnQuit)
+        self.Bind(wx.EVT_CLOSE, self.OnQuit)
+        
+        self.settings = dict(settings)
+        self.Show()
+
+    def OnQuit(self, event):
+        self.settings = None
+        self.EndModal(wx.ID_CANCEL)
+
+    def get_settings(self):
+	    return self.settings
+		
+    def SaveConnString(self, event):
+        self.settings['label'] = self.labelinput.GetValue()
+        self.settings['min'] = self.mininput.GetValue()
+        self.settings['max'] = self.maxinput.GetValue()
         self.EndModal(wx.ID_OK)

@@ -43,7 +43,7 @@ from gui.seriesfiltertree import SeriesFilterCtrl
 from gui.dialogs import ConfigureCategoriesDlg
 from gui.events import DataUpdatedEvent, EVT_DATAUPDATED, EVT_DU_TYPE, DataWindowEvent, EVT_DATA, EVT_DATA_TYPE, PlotEvent, EVT_PLOT, EVT_PLOT_TYPE 
 from gui.events import REQUEST_CONFIG_UPDATE, CONFIG_UPDATED, NEW_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, NEW_PLOT_WINDOW, DATA_IMPORTED, FILTERS_UPDATED, FILTERED_DATA_UPDATED, DATA_UPDATED, ANALYSIS_BINS_UPDATED
-from gui.dialogs import SelectGroupsDlg
+from gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
 
 from wx.lib.newevent import NewEvent
 
@@ -2119,12 +2119,37 @@ class AppFrame(wx.Frame):
         logging.debug (f"{title}")
         self.remove_window_from_menu(title)
 
-    
+        	
     def OnPick(self, event):
         if event.mouseevent.dblclick:
-    	    print ("picked:", event.artist, type(event.artist))
-    	    print (event.mouseevent)
-    	    print (matplotlib.artist.get(event.artist))
+    	    #print ("picked:", event.artist, type(event.artist))
+    	    #print (event.mouseevent)
+    	    #print (matplotlib.artist.get(event.artist))
+    	    ax = event.artist.axes
+    	    fig = event.artist.get_figure()
+    	    if isinstance(event.artist,matplotlib.axis.YAxis):
+    	        dlg = ConfigureAxisDlg(self, "Set Y Axis Range", {'label': event.artist.get_label_text(), 'min':ax.get_ylim()[0], 'max': ax.get_ylim()[1]}) 
+    	        response = dlg.ShowModal()
+    	        if response == wx.ID_OK:
+    	            newsettings = dlg.get_settings()
+    	            event.artist.set_label_text(newsettings['label'], picker=True)
+    	            ax.set_ylim(newsettings['min'], newsettings['max'])
+    	            fig.canvas.draw_idle()
+    	    elif isinstance(event.artist,matplotlib.axis.XAxis):
+    	        dlg = ConfigureAxisDlg(self, "Set X Axis Range", {'label': event.artist.get_label_text(), 'min':ax.get_xlim()[0], 'max': ax.get_xlim()[1]}) 
+    	        response = dlg.ShowModal()
+    	        if response == wx.ID_OK:
+    	            newsettings = dlg.get_settings()
+    	            event.artist.set_label_text(newsettings['label'], picker=True)
+    	            ax.set_xlim(newsettings['min'], newsettings['max'])
+    	            fig.canvas.draw_idle()
+    	    elif isinstance(event.artist, matplotlib.text.Text):
+                dlg = wx.TextEntryDialog(self, 'Label','Update Label')
+                dlg.SetValue(event.artist.get_text())
+                if dlg.ShowModal() == wx.ID_OK:
+                    event.artist.set_text(dlg.GetValue())
+                    fig.canvas.draw_idle()
+                dlg.Destroy()
     	
     	
     def OnPlotWindowRequest(self, event):
@@ -2134,9 +2159,9 @@ class AppFrame(wx.Frame):
         ax_list = figure.axes
         for ax in ax_list:
         	ax.set_picker(True)
-        	print (ax)
+        	#print (ax)
         	for artist in ax.get_children():
-        		print (artist)
+        		#print (artist)
         		artist.set_picker(True)
         	ax.set_title(ax.get_title(), picker=True)
         	ax.set_xlabel(ax.get_xlabel(), picker=True)
