@@ -44,6 +44,22 @@ class AbstractAnalyzer(ABC):
     	if not isinstance(label, str):
     		label = ','.join(label)
     	return str(label).replace('\'','').replace('(','').replace(')','')
+    	
+    	
+    def _add_picker(self, figure):
+        ax_list = figure.axes
+        for ax in ax_list:
+        	ax.set_picker(True)
+        	#print (ax)
+        	for artist in ax.get_children():
+        		#print (artist)
+        		artist.set_picker(True)
+        		for c in artist.get_children():
+        			c.set_picker(True)
+        	#ax.set_title(ax.get_title(), picker=True)
+        	ax.set_xlabel(ax.get_xlabel(), picker=True)
+        	ax.set_ylabel(ax.get_ylabel(), picker=True)
+
 
     def __repr__(self):
         return f"{'name': {self.name}}"

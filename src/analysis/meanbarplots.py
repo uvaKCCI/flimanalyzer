@@ -86,7 +86,7 @@ class MeanBarPlot(AbstractAnalyzer):
             #labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
             labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
 
-            ax.set_ylabel = ', '.join(categories[pivot_level:])
+            ax.set_ylabel(', '.join(categories[pivot_level:]))
             no_legendcols = (len(categories)//30 + 1)
             chartbox = ax.get_position()
             ax.set_position([chartbox.x0, chartbox.y0, chartbox.width * (1-0.2 * no_legendcols), chartbox.height])
@@ -107,4 +107,6 @@ class MeanBarPlot(AbstractAnalyzer):
     
         #fig.tight_layout()
         #plt.rcParams.update({'figure.autolayout': False})
+        
+        self._add_picker(fig)
         return fig,ax

@@ -2122,50 +2122,55 @@ class AppFrame(wx.Frame):
         	
     def OnPick(self, event):
         if event.mouseevent.dblclick:
-    	    #print ("picked:", event.artist, type(event.artist))
+            #print ("picked:", event.artist, type(event.artist))
     	    #print (event.mouseevent)
     	    #print (matplotlib.artist.get(event.artist))
-    	    ax = event.artist.axes
-    	    fig = event.artist.get_figure()
-    	    if isinstance(event.artist,matplotlib.axis.YAxis):
-    	        dlg = ConfigureAxisDlg(self, "Set Y Axis Range", {'label': event.artist.get_label_text(), 'min':ax.get_ylim()[0], 'max': ax.get_ylim()[1]}) 
+            ax = event.artist.axes
+            fig = event.artist.get_figure()
+            if isinstance(event.artist,matplotlib.axis.YAxis):
+    	        dlg = ConfigureAxisDlg(self, "Set Y Axis", {'label': event.artist.get_label_text(), 'min':ax.get_ylim()[0], 'max': ax.get_ylim()[1]}) 
     	        response = dlg.ShowModal()
     	        if response == wx.ID_OK:
     	            newsettings = dlg.get_settings()
     	            event.artist.set_label_text(newsettings['label'], picker=True)
     	            ax.set_ylim(newsettings['min'], newsettings['max'])
     	            fig.canvas.draw_idle()
-    	    elif isinstance(event.artist,matplotlib.axis.XAxis):
-    	        dlg = ConfigureAxisDlg(self, "Set X Axis Range", {'label': event.artist.get_label_text(), 'min':ax.get_xlim()[0], 'max': ax.get_xlim()[1]}) 
+            elif isinstance(event.artist,matplotlib.axis.XAxis):
+    	        dlg = ConfigureAxisDlg(self, "Set X Axis", {'label': event.artist.get_label_text(), 'min':ax.get_xlim()[0], 'max': ax.get_xlim()[1]}) 
     	        response = dlg.ShowModal()
     	        if response == wx.ID_OK:
     	            newsettings = dlg.get_settings()
     	            event.artist.set_label_text(newsettings['label'], picker=True)
     	            ax.set_xlim(newsettings['min'], newsettings['max'])
     	            fig.canvas.draw_idle()
-    	    elif isinstance(event.artist, matplotlib.text.Text):
+            elif isinstance(event.artist, matplotlib.text.Text):
                 dlg = wx.TextEntryDialog(self, 'Label','Update Label')
                 dlg.SetValue(event.artist.get_text())
                 if dlg.ShowModal() == wx.ID_OK:
                     event.artist.set_text(dlg.GetValue())
                     fig.canvas.draw_idle()
                 dlg.Destroy()
+            elif isinstance(event.artist,matplotlib.lines.Line2D):
+                #event.artist.set_dashes((5, 2, 1, 2))
+                #event.artist.set_linewidth(2)
+                data = wx.ColourData()
+                data.SetColour(event.artist.get_color())
+                dlg = wx.ColourDialog(self, data)
+                # dlg.Bind(wx.EVT_COLOUR_CHANGED, self.OnColourChanged)
+                if (dlg.ShowModal() == wx.ID_OK):
+                    pass
+                    
+                color = dlg.GetColourData().GetColour()
+                event.artist.set_color((color.Red()/255, color.Green()/255, color.Blue()/255))
+                event.artist.set_alpha(color.Alpha()/255)
+                fig.canvas.draw_idle()
+            	
     	
     	
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
         title = self.unique_window_title(event.GetTitle())
         figure.canvas.set_window_title(title)
-        ax_list = figure.axes
-        for ax in ax_list:
-        	ax.set_picker(True)
-        	#print (ax)
-        	for artist in ax.get_children():
-        		#print (artist)
-        		artist.set_picker(True)
-        	ax.set_title(ax.get_title(), picker=True)
-        	ax.set_xlabel(ax.get_xlabel(), picker=True)
-        	ax.set_ylabel(ax.get_ylabel(), picker=True)
         #ON_CUSTOM_LEFT  = wx.NewId()
         #tb = figure.canvas.toolbar
         #tb.AddTool(ON_CUSTOM_LEFT, 'Axes', wx.NullBitmap,'Set range of Axes')

@@ -168,6 +168,8 @@ class FreqHisto(AbstractAnalyzer):
             #ax.set_position([chartbox.x0, chartbox.y0, chartbox.width* (1-0.2 * no_legendcols), chartbox.height])
             ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
     
-        # plt.rcParams.update({'figure.autolayout': False})    
+        # plt.rcParams.update({'figure.autolayout': False})   
+        self._add_picker(fig)
+ 
         return  np.array(binvalues), binedges, groupnames, fig, ax,    
                 

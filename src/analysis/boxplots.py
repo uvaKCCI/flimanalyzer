@@ -78,4 +78,7 @@ class BoxPlot(AbstractAnalyzer):
         if len(title) > 0:
             ax.set_title(title)
         # plt.rcParams.update({'figure.autolayout': False})
+        
+        self._add_picker(fig)
+
         return fig,ax   

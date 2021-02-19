@@ -103,4 +103,6 @@ class ScatterPlot(AbstractAnalyzer):
             ax.set_title(title)
             
         #plt.rcParams.update({'figure.autolayout': False})
+        
+        self._add_picker(fig)
         return fig,ax    

@@ -81,7 +81,6 @@ class KDE(AbstractAnalyzer):
             for name, groupdata in gs:
                 if (len(groupdata[column]) > 0):
                     name_fixed = self.fix_label(name)
-                    print (name, name_fixed)
                     kde_args.update({
                             'label': name_fixed,})
                     if len(styles) > index:
@@ -93,7 +92,8 @@ class KDE(AbstractAnalyzer):
                     labels.append(name_fixed)
                 index += 1
             no_legendcols = (len(groups)//30 + 1)
-            ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
+            ax.legend()
+            # ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
         else:        
             sns.distplot(data[column], **newkwargs)
         ax.autoscale(enable=True, axis='y')    
@@ -106,5 +106,6 @@ class KDE(AbstractAnalyzer):
             ax.set_title(title)
         
         # plt.rcParams.update({'figure.autolayout': False})
-        return fig, ax,
+        self._add_picker(fig)
+        return fig, ax
             
