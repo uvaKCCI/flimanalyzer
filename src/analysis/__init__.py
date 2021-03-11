@@ -12,7 +12,7 @@ import importlib
 import analysis.absanalyzer
 from analysis.absanalyzer import AbstractAnalyzer
 
-pkdir = os.path.dirname(__file__)
-for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
-    importlib.import_module('.' + name, __package__)
-available_tools = {str(analysis.absanalyzer.create_instance(cls, None, None, None)): cls for cls in AbstractAnalyzer.__subclasses__()}
+#pkdir = os.path.dirname(__file__)
+#for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
+#    importlib.import_module('.' + name, __package__)
+#available_tools = {str(analysis.absanalyzer.create_instance(cls, None, None, None)): cls for cls in AbstractAnalyzer.__subclasses__()}

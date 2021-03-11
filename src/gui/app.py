@@ -437,7 +437,7 @@ class TabImport(wx.Panel):
                               showcolindex=False, 
                               analyzable=True,
                               savemodified=True,
-                              enableclose=False)
+                              enableclose=True)
             self.GetEventHandler().ProcessEvent(event)        
             
             self.update_listlabel()
@@ -568,7 +568,7 @@ class TabFilter(wx.Panel):
         logging.debug (f"{len(rfilters)} Filters updated.")
         for key in rfilters:
             rfilter = rfilters[key]
-            logging.debug (f"\t {key}: {str(rfilter.get_parameters())}")
+            logging.debug (f"\t {key}: {str(rfilter.get_params())}")
         filtereddata, dropsbyfilter, totaldrops, droppedindex = self.apply_filters(self.filterlist.GetData(), self.seriesfilter.GetData(), dropsonly=False, onlyselected=True)
         self.update_data(filtereddata)
 
@@ -994,8 +994,16 @@ class TabAnalysis(wx.Panel):
         
         atype = self.analysistype_combo.GetStringSelection()  
         logging.debug (f"{atype}")
-        analysis_class = analysis.available_tools[atype]
+        analysis_class = analysis.absanalyzer.get_analyzer_classes()[atype]
         tool = analysis.absanalyzer.create_instance(analysis_class, currentdata, categories, features)
+
+        # run optional tool config dialog and execte analysis
+        parameters = tool.run_configuration_dialog(self)
+        print (parameters)
+        if parameters is None:
+            return
+        features = parameters['features']
+        categories = parameters['grouping']     
 
         req_features = tool.get_required_features()
         not_any_features = [f for f in req_features if f != 'any']
@@ -1009,10 +1017,6 @@ class TabAnalysis(wx.Panel):
             wx.MessageBox(f'Analysis tool {tool} requires selection of at least {len(req_categories)} groups, including {not_any_categories}.', 'Warning', wx.OK)            
             return
         
-        # run optional tool config dialog and execte analysis
-        parameters = tool.run_configuration_dialog(self)
-        if parameters is None:
-            return
         results = tool.execute()
         
         # handle results, DataFrames or Figure objects
@@ -1131,11 +1135,12 @@ class TabAnalysis(wx.Panel):
 
 
     def update_rangefilters(self, rfilters):
+        """
         logging.debug (f"{len(rfilters)} filters to update")
-        analysisconfig = self.config.get(cfg.CONFIG_HISTOGRAMS)
+        analysisconfig = self.config.get(cfg.CONFIG_RANGEFILTERS)
         for key in rfilters:
             rfilter = rfilters[key]
-            logging.debug (f"\trfilter.get_parameters: {rfilter.get_parameters()}")
+            logging.debug (f"\trfilter.get_params: {rfilter.get_params()}")
             low = rfilter.get_rangelow()
             high = rfilter.get_rangehigh()
             aconfig = analysisconfig.get(rfilter.get_name())
@@ -1148,6 +1153,8 @@ class TabAnalysis(wx.Panel):
                 analysisconfig[rfilter.get_name()][1] = high
             logging.debug (f"\tnew: {rfilter.get_name()}, {analysisconfig[rfilter.get_name()]}")
             self.analysislist.SetRow(rfilter.get_name(), analysisconfig[rfilter.get_name()])
+        """
+        pass   
 
 
     def update_analysislist(self):
@@ -1156,6 +1163,7 @@ class TabAnalysis(wx.Panel):
         if data is None:
             return
         datacols =  data.select_dtypes(include=[np.number])
+        """
         analysisconfig = self.config.get(cfg.CONFIG_HISTOGRAMS)
         if label in ['Raw', 'Filtered']:
             config = analysisconfig
@@ -1176,7 +1184,8 @@ class TabAnalysis(wx.Panel):
                 if not use_existing:    
                     config[header] = [0,1,100]
         self.analysislist.SetData(config, ['Analyze', 'Column', 'Min', 'Max', 'Bins'])        
-        
+        """
+
         
     def update_rawdata(self, rawdata):
         logging.debug ("appframe.TabAnalysis.update_rawdata")
@@ -2091,7 +2100,8 @@ class AppFrame(wx.Frame):
         if action == 'createnew':
             title = self.unique_window_title(title)
             frame = PandasFrame(self, 
-                                title, 
+                                title,
+                                self.config, 
                                 data, 
                                 showcolindex=event.ShowColIndex(), 
                                 analyzable=event.IsAnalyzable(), 
@@ -2263,7 +2273,7 @@ class AppFrame(wx.Frame):
         logging.debug (f"###############  OLD appframe.OnRangeFilterUpdated - {len(rfilters)} Filters updated:")
         #for key in rfilters:
         #    rfilter = rfilters[key]
-        #    print "\t %s: %s" % (key, str(rfilter.get_parameters()))
+        #    print "\t %s: %s" % (key, str(rfilter.get_params()))
         #dropsbyfilter, totaldrops = self.filtertab.apply_filters(rfilters, dropsonly=True, onlyselected=False)
         #self.analysistab.update_rangefilters(rfilters)
         #self.data = self.rawdata.drop(totaldrops)

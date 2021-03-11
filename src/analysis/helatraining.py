@@ -18,18 +18,101 @@ from sklearn.impute import SimpleImputer
 from MLfeatureanalyzer.autoencoder2 import AE
 from MLfeatureanalyzer.dataset import datasets
 import logging
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
+from wx.lib.masked import NumCtrl
 
+class HelatrainingConfigDlg(BasicAnalysisConfigDlg):
 
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', modelfile=''):
+        self.timeseries_opts = data.select_dtypes(include=['category']).columns.values
+        self.timeseries = timeseries
+        self.epoches = epoches
+        self.batch_size = batch_size
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.modelfile = modelfile
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2)
+		    
+    def get_option_panels(self):
+        epoches_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.epoches_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.epoches)
+        epoches_sizer.Add(wx.StaticText(self, label="Epoches"))
+        epoches_sizer.Add(self.epoches_spinner, 0, wx.ALL|wx.EXPAND, 5)
+        
+        batch_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.batchsize_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.batch_size)
+        batch_sizer.Add(wx.StaticText(self, label="Batch Size"))
+        batch_sizer.Add(self.batchsize_spinner, 0, wx.ALL|wx.EXPAND, 5)
+
+        spinner_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        spinner_sizer.Add(epoches_sizer)
+        spinner_sizer.Add(batch_sizer)
+
+        learning_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.learning_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
+        learning_sizer.Add(wx.StaticText(self, label="Learning Rate"))
+        learning_sizer.Add(self.learning_input, 0, wx.ALL|wx.EXPAND, 5)
+
+        weight_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.weight_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.weight_decay, fractionWidth=10)
+        weight_sizer.Add(wx.StaticText(self, label="Weight Decay"))
+        weight_sizer.Add(self.weight_input, 0, wx.ALL|wx.EXPAND, 5)
+
+        float_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        float_sizer.Add(learning_sizer)
+        float_sizer.Add(weight_sizer)
+
+        timeseries_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sel_timeseries = self.timeseries
+        if sel_timeseries not in self.timeseries_opts:
+            sel_timeseries = self.timeseries_opts[0]
+        self.timeseries_combobox = wx.ComboBox(self, wx.ID_ANY, value=sel_timeseries, choices=self.timeseries_opts)
+        timeseries_sizer.Add(wx.StaticText(self, label="Time Series"))
+        timeseries_sizer.Add(self.timeseries_combobox)
+
+        model_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        model_sizer.Add(wx.StaticText(self, label="Save Model to File"))
+        self.modelfiletxt = wx.StaticText(self, label=self.modelfile)
+        browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
+        browsebutton.Bind(wx.EVT_BUTTON, self.OnBrowse)
+        model_sizer.Add(self.modelfiletxt)
+        model_sizer.Add(browsebutton)
+
+        return [spinner_sizer, float_sizer, timeseries_sizer, model_sizer]
+        
+    def OnBrowse(self, event):
+        fname = self.modelfiletxt.GetLabel()
+        with wx.FileDialog(self, 'Model File', style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as fileDialog:    
+            fileDialog.SetFilename(fname)
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            fname = fileDialog.GetPath()
+            self.modelfiletxt.SetLabel(fname)                
+
+    def _get_selected(self):
+        params = super()._get_selected()
+        params['epoches'] = self.epoches_spinner.GetValue()
+        params['batch_size'] = self.batchsize_spinner.GetValue()
+        params['learning_rate'] = self.learning_input.GetValue()
+        params['weight_decay'] = self.weight_input.GetValue()
+        params['timeseries'] = self.timeseries_combobox.GetValue()
+        params['modelfile'] = self.modelfiletxt.GetLabel()
+        return params
+        
+        
 class Helatraining(AbstractAnalyzer):
 
-    def __init__(self, data, categories, features, epoches=20, learning_rate=1e-4, weight_decay=1e-7, batch_size=200):
-        AbstractAnalyzer.__init__(self, data, categories, features)
+    def __init__(self, data, categories, features, **kwargs):
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, **kwargs)
         self.name = "Hela Training"
-        self.variables = features
-        self.epoches = epoches
-        self.lr = learning_rate
-        self.wd = weight_decay
-        self.bs = batch_size
+        self.variables = self.params['features']
+        self.epoches = self.params['epoches']
+        self.timeseries = self.params['timeseries']
+        self.modelfile = self.params['modelfile']
+        self.lr = self.params['learning_rate']
+        self.wd = self.params['weight_decay']
+        self.bs = self.params['batch_size']
 
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -37,18 +120,39 @@ class Helatraining(AbstractAnalyzer):
     def __str__(self):
         return self.name
 
-    def configure(self, params):
-        pass
-
     def get_required_categories(self):
-        return ["Cell", "FOV", "Treatment"]
+        return ["any"]
 
     def get_required_features(self):
-        return ["FLIRR"]
+        return ["any"]
 
-    def get_configuration_dialog(self):
-        pass
-
+    def get_default_parameters(self):
+	    return {
+	        'epoches': 20, 
+	        'learning_rate': 1e-4, 
+	        'weight_decay': 1e-7, 
+	        'batch_size': 200,
+	        'timeseries': '',
+	        'modelfile': '',
+	    }
+	 
+    def run_configuration_dialog(self, parent):
+        dlg = HelatrainingConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+            selectedgrouping=self.params['grouping'], 
+            selectedfeatures=self.params['features'], 
+            epoches=self.params['epoches'], 
+            batch_size=self.params['batch_size'],
+            weight_decay=self.params['weight_decay'],
+            learning_rate=self.params['learning_rate'],
+            timeseries=self.params['timeseries'],
+            modelfile=self.params['modelfile'])
+        if dlg.ShowModal() == wx.ID_CANCEL:
+            dlg.Destroy()
+            return # implicit None
+        parameters = dlg.get_selected()  
+        self.configure(**parameters)
+        return parameters
+   
     def _create_datasets(self):
         # self.data.rename(columns={'FLIRR':'FLIRR (NAD(P)H a2[%]/FAD a1[%])'}, inplace=True)
 

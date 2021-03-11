@@ -9,9 +9,12 @@ import wx.grid
 import wx.lib.mixins.gridlabelrenderer as glr
 from pubsub import pub
 
+from core.configuration import CONFIG_FILTERS,CONFIG_RANGEFILTERS,CONFIG_USE
+from core.filter import RangeFilter
+from gui.listcontrol import AnalysisListCtrl, FilterListCtrl
 from gui.events import EVT_DATA_TYPE, DataWindowEvent, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, DATA_UPDATED
 import gui.dialogs
-from gui.dialogs import SelectGroupsDlg
+from gui.dialogs import SelectGroupsDlg,ConfigureFiltersDlg
 
 EVEN_ROW_COLOUR = '#CCE6FF'
 GRID_LINE_COLOUR = '#ccc'
@@ -145,8 +148,9 @@ class PandasTable(wx.grid.GridTableBase):
 
 class PandasFrame(wx.Frame):
 
-    def __init__(self, parent, title, data=None, showcolindex=False, groups=None, analyzable=True, savemodified=True, precision=3, enableclose=True):
+    def __init__(self, parent, title, config, data=None, showcolindex=False, groups=None, analyzable=True, savemodified=True, precision=3, enableclose=True):
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
+        self.config = config
         self.enableclose = enableclose
         # *****
         #data = data.copy()
@@ -185,6 +189,7 @@ class PandasFrame(wx.Frame):
             groups = list(data.select_dtypes(['category']).columns.values)
             groups = data.select_dtypes(['category']).columns.get_level_values(0).values
         self.groups = groups
+        self.numcols = data.select_dtypes(['number']).columns.get_level_values(0).values
         self.popupmenus = {}
         for group in groups:
             self.popupmenus[group] = self.create_popupmenu(group)
@@ -198,6 +203,7 @@ class PandasFrame(wx.Frame):
     def set_header_renderer(self):
         if self.grid is not None:
             categorycols = list(self.data.select_dtypes(['category']).columns.values)
+            numcols = list(self.data.select_dtypes(['number']).columns.values)
             for i in range(self.grid.GetNumberCols()):
                 collabel = self.grid.GetColLabelValue(i)
                 if collabel in categorycols:
@@ -229,14 +235,22 @@ class PandasFrame(wx.Frame):
         autosizebutton = wx.Button(self, wx.ID_ANY, 'Autosize Cols')
         autosizebutton.Bind(wx.EVT_BUTTON, self.OnAutosize)
 
-        pivotallbutton = wx.Button(self, wx.ID_ANY, 'Pivot All')
-        pivotallbutton.Bind(wx.EVT_BUTTON, self.OnPivotAll)
+        self.filtercb = wx.CheckBox(self, wx.ID_ANY, label="Filter Data")
+        self.filtercb.SetValue(self.config.get([CONFIG_FILTERS,CONFIG_USE]))
+        self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnFilterData)
 
-        pivotviewbutton = wx.Button(self, wx.ID_ANY, 'Pivot View')
+        self.filterbutton = wx.Button(self, wx.ID_ANY, 'Filter Settings...')
+        self.filterbutton.Enable(self.filtercb.GetValue())
+        self.filterbutton.Bind(wx.EVT_BUTTON, self.OnFilterSettings)
+
+        #pivotallbutton = wx.Button(self, wx.ID_ANY, 'Pivot All')
+        #pivotallbutton.Bind(wx.EVT_BUTTON, self.OnPivotAll)
+
+        pivotviewbutton = wx.Button(self, wx.ID_ANY, 'Pivot')
         pivotviewbutton.Bind(wx.EVT_BUTTON, self.OnPivotView)
 
-        viewallbutton = wx.Button(self, wx.ID_ANY, 'View All')
-        viewallbutton.Bind(wx.EVT_BUTTON, self.OnViewAll)
+        #viewallbutton = wx.Button(self, wx.ID_ANY, 'View All')
+        #viewallbutton.Bind(wx.EVT_BUTTON, self.OnViewAll)
 
         splitbutton = wx.Button(self, wx.ID_ANY, 'Split')
         splitbutton.Bind(wx.EVT_BUTTON, self.OnSplit)
@@ -254,8 +268,10 @@ class PandasFrame(wx.Frame):
         toolsizer = wx.BoxSizer(wx.VERTICAL)
         toolsizer.Add(precisionsizer, 0, wx.ALL|wx.EXPAND, 5)
         toolsizer.Add(autosizebutton, 0, wx.ALL|wx.EXPAND, 5)
-        toolsizer.Add(viewallbutton, 0, wx.ALL|wx.EXPAND, 5)
-        toolsizer.Add(pivotallbutton, 0, wx.ALL|wx.EXPAND, 5)
+        toolsizer.Add(self.filtercb, 0, wx.ALL|wx.EXPAND, 5)
+        toolsizer.Add(self.filterbutton, 0, wx.ALL|wx.EXPAND, 5)
+        #toolsizer.Add(viewallbutton, 0, wx.ALL|wx.EXPAND, 5)
+        #toolsizer.Add(pivotallbutton, 0, wx.ALL|wx.EXPAND, 5)
         toolsizer.Add(pivotviewbutton, 0, wx.ALL|wx.EXPAND, 5)
         toolsizer.Add(splitbutton, 0, wx.ALL|wx.EXPAND, 5)
         toolsizer.Add(saveallbutton, 0, wx.ALL|wx.EXPAND, 5)
@@ -267,6 +283,8 @@ class PandasFrame(wx.Frame):
         sizer.Add(toolsizer)
 
         self.SetSizer(sizer)
+        
+        self.apply_filters({f['name']:f for f in self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS])})
 
                 
         
@@ -289,6 +307,23 @@ class PandasFrame(wx.Frame):
         self.modified = modified
         
     
+    def apply_filters(self, filtercfg):
+        if len (filtercfg) == 0:
+    	    cfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+    	    filternames = [f['name'] for f in cfg]
+    	    for fname in filternames:
+    	        if self.droppedrows.get(fname) is not None:
+    	            del self.droppedrows[fname]
+        for fname in filtercfg:
+            filter = RangeFilter(params=filtercfg[fname])
+            if filter.is_selected():
+                self.droppedrows[fname] = filter.get_dropped(self.data)
+            elif self.droppedrows.get(fname) is not None:
+            	del self.droppedrows[fname]
+        self.modified = True
+        self.update_view()
+            
+            	    
     def OnDataUpdated(self, originaldata, newdata):
         if originaldata is not None and newdata is not None and self.data.__dict__ == originaldata.__dict__:
             logging.debug (f"{self.GetTitle()}")
@@ -304,7 +339,40 @@ class PandasFrame(wx.Frame):
         self.update_precision(event.GetEventObject().GetValue())
         self.grid.Refresh()
         
+    
+    def OnFilterData(self, event):
+        cb = event.GetEventObject()
+        self.filterbutton.Enable(cb.GetValue())
+        filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+        if cb.GetValue():
+            # apply
+            self.apply_filters({f['name']:f for f in filtercfg})
+        else:
+        	# clear
+            self.apply_filters({})
         
+                
+        
+    def OnFilterSettings(self, event):
+        filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+        existingfilters = {cfg['name']:cfg for cfg in filtercfg}
+        columns = self.data.select_dtypes(include=['number'], exclude=['category'])
+        rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in columns]
+
+        dlg = ConfigureFiltersDlg(self, rangefilters)
+        response = dlg.ShowModal()
+        if (response == wx.ID_OK):
+        	newfilters = {f['name']:f for f in dlg.GetData()}
+        	currentfilters = {f['name']:f for f in filtercfg}
+        	currentfilters.update(newfilters)
+        	newfilterlist = [currentfilters[key] for key in currentfilters]
+        	self.config.update({CONFIG_RANGEFILTERS:newfilterlist},keys[:-1])
+        	if self.filtercb.GetValue():
+        	    self.apply_filters(newfilters)
+        	#else:
+        	#    self.apply_filters({})    
+
+
     def OnPopupItemSelected(self, event):
         item = self.currentpopup.FindItemById(event.GetId())
         value = item.GetText()
@@ -340,12 +408,18 @@ class PandasFrame(wx.Frame):
         self.update_view()
         
         
-    def update_view(self):     
-        droppedrows = []
-        for key in self.droppedrows:
-            droppedrows.extend(self.droppedrows[key])
-        # *** self.dataview = self.data.drop(index=set(droppedrows))
-        self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
+    def update_view(self):
+        droppedrows = [self.droppedrows[key] for key in self.droppedrows if len(self.droppedrows[key])>0]
+        #droppedrows = [self.droppedrows[key] for key in self.droppedrows]
+        if len(droppedrows) == 0:
+    	    self.dataview = self.data
+        else:
+            droppedrows = np.concatenate(droppedrows)
+            if len(droppedrows) == 0:
+    	        self.dataview = self.data
+            else:	     
+                droppedrows = np.unique(droppedrows)
+                self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
         colsizes = self.grid.GetColSizes()
         self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
         self.update_precision(self.precision)
@@ -391,8 +465,21 @@ class PandasFrame(wx.Frame):
             # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
             self.modified = True
             self.update_view()
+        elif event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue():
+            filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+            existingfilters = {cfg['name']:cfg for cfg in filtercfg}
+            rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in [group]]
 
-        
+            dlg = ConfigureFiltersDlg(self, rangefilters)
+            response = dlg.ShowModal()
+            if response == wx.ID_OK:
+                newfilters = {f['name']:f for f in dlg.GetData()}
+                currentfilters = {f['name']:f for f in filtercfg}
+                currentfilters.update(newfilters)
+                newfilterlist = [currentfilters[key] for key in currentfilters]
+                self.config.update({CONFIG_RANGEFILTERS:newfilterlist},keys[:-1])
+                self.apply_filters(newfilters)
+
      
     def OnAutosize(self, event):
         font = self.grid.GetFont()
@@ -567,7 +654,7 @@ class TestApp(wx.App):
         super(TestApp,self).__init__()
         
     def OnInit(self):
-        self.frame = PandasFrame(None, "Test", self.data)    ## add two lines here
+        self.frame = PandasFrame(None, "Test", None, self.data)    ## add two lines here
         self.frame.Show(True)
         return True
     

@@ -5,13 +5,15 @@
 
 import seaborn as sns
 from analysis.absanalyzer import AbstractAnalyzer
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 import matplotlib.pyplot as plt
 
 
 class Heatmap(AbstractAnalyzer):
 
     def __init__(self, data, categories, features):
-        AbstractAnalyzer.__init__(self, data, categories, features)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features)
         self.name = "Heatmap"
 
     def __repr__(self):
@@ -26,8 +28,19 @@ class Heatmap(AbstractAnalyzer):
     def get_required_features(self):
         return ['any']
 
+    def run_configuration_dialog(self, parent):
+        selgrouping = self.params['grouping']
+        selfeatures = self.params['features']
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        if dlg.ShowModal() == wx.ID_OK:
+            results = dlg.get_selected()
+            self.params.update(results)
+            return self.params
+        else:	
+            return None
+
     def execute(self):
-        data_c = self.data[self.features]
+        data_c = self.data[self.params['features']]
         results = {}
         corr = data_c.corr()
         fig, ax = plt.subplots(constrained_layout=True)
@@ -52,8 +65,8 @@ class Heatmap(AbstractAnalyzer):
         results['Heatmap'] = (fig, ax)
 
         title = "Data ungrouped"
-        if len(self.categories) > 0:
-            title = f"Data grouped by {self.categories}"
+        if len(self.params['grouping']) > 0:
+            title = f"Data grouped by {self.params['grouping']}"
         ax.set_title(title)
 
         self._add_picker(fig)

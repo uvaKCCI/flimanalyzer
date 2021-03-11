@@ -6,7 +6,7 @@ Created on Fri May  4 19:37:11 2018
 @author: khs3z
 """
 
-import analysis
+import analysis.absanalyzer
 import logging
 import numpy as np
 import pandas as pd
@@ -210,17 +210,19 @@ class dataanalyzer():
             if (onlyselected and not rfilter.is_selected()) or not self.columns_available(data, [acol]):
                 skippedfilters.append([acol,rfilter])
             else:
-                low,high = rfilter.get_range()
-                logging.debug (f"{rfilter.is_selected()}, filtering {acol}: {low}, {high}")
-                if dropna:
-                    droppedrows = np.flatnonzero((data[acol] != data[acol]) | (data[acol] > high) | (data[acol] < low))
-                else:    
-                    droppedrows = np.flatnonzero((data[acol] > high) | (data[acol] < low))
+                #low,high = rfilter.get_range()
+                #logging.debug (f"{rfilter.is_selected()}, filtering {acol}: {low}, {high}")
+                #if dropna:
+                #    droppedrows = np.flatnonzero((data[acol] != data[acol]) | (data[acol] > high) | (data[acol] < low))
+                #else:    
+                #    droppedrows = np.flatnonzero((data[acol] > high) | (data[acol] < low))
                 #data = data[(data[acol] >= low) & (data[acol] <= high)]
+                droppedrows = rfilter.get_dropped(data)
                 usedfilters.append([acol, rfilter, droppedrows])
                 alldroppedrows.extend(droppedrows)
         
 #        alldroppedrows = sorted(np.unique(alldroppedrows), reverse=True)
+        logging.debug(f"usedfilters: {usedfilters}")
         alldroppedrows = np.unique(alldroppedrows)
         filtereddata = data
         if not dropsonly:
@@ -267,7 +269,7 @@ class dataanalyzer():
             if not droppedindex.empty:
                 filtereddata = filtereddata.set_index(droppedindex.names, drop=False).drop(droppedindex)
             filtereddata.reset_index(inplace=True, drop=True)
-        # restore colun order
+        # restore column order
         filtereddata = filtereddata[currentcols]
         #print filtereddata
         #print combineddroppedidx
@@ -306,12 +308,12 @@ class dataanalyzer():
 
     def get_analysis_options(self):
         #return [k for k in self.analysis_functions]
-        return [toolname for toolname in  analysis.available_tools]
+        return [toolname for toolname in  analysis.absanalyzer.get_analyzer_classes()]
     
     
     def get_analysis_function(self, analysis_name):
         #return self.analysis_functions.get(analysis_name)
-        return analysis.available_tools[analysis_name]
+        return analysis.absanalyzer.get_analyzer_classes()[analysis_name]
     
     
     def pca(self, data, columns, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):

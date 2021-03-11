@@ -13,12 +13,14 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from analysis.absanalyzer import AbstractAnalyzer
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 
 
 class PCAnalysis(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
-        AbstractAnalyzer.__init__(self, data, categories, features, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
         self.name = "Principal Component Analysis"
     
     def __repr__(self):
@@ -33,12 +35,20 @@ class PCAnalysis(AbstractAnalyzer):
     def get_required_features(self):
         return ['any', 'any']
     
+    def get_default_parameters(self):
+        return {
+            'keeporig':False, 
+            'keepstd':True,
+            'explainedhisto': False,
+            'n_components': None,
+            }
+            
     def run_configuration_dialog(self, parent):
         n = ''
         dlg = wx.TextEntryDialog(parent, 'Specifiy PCA components to retain:'\
                                  '\n\tleave empty:   retain all PCA components.'\
                                  '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
-                                 '\n\t1 <= n <= %d (integer):   retain first n PCA components.' % len(self.features),'PCA Configuration')
+                                 '\n\t1 <= n <= %d (integer):   retain first n PCA components.' % len(self.params['features']),'PCA Configuration')
         dlg.SetValue(n)
         while True:
             if dlg.ShowModal() != wx.ID_OK:
@@ -52,7 +62,7 @@ class PCAnalysis(AbstractAnalyzer):
                     n = int(entry)
                 except:
                     pass
-            if n is None or (n > 0 and ((isinstance(n, float) and n <1.0) or (isinstance(n, int) and n >= 1 and n <= len(self.features)))):
+            if n is None or (n > 0 and ((isinstance(n, float) and n <1.0) or (isinstance(n, int) and n >= 1 and n <= len(self.params['features'])))):
                 seed = np.random.randint(10000000)
                 parameters = {
                     'random_state': seed,
@@ -64,11 +74,12 @@ class PCAnalysis(AbstractAnalyzer):
     
     def execute(self):
         data = self.data.dropna(how='any', axis=0).reset_index()
-        if len(self.features) == 1:
+        features = self.params['features']
+        if len(features) == 1:
             # reshape 1d array
-            data_no_class = data[self.features].values.reshape((-1,1))
+            data_no_class = data[features].values.reshape((-1,1))
         else:
-            data_no_class = data[self.features].values
+            data_no_class = data[features].values
         scaler = StandardScaler()
         scaler.fit(data_no_class)
         standard_data = scaler.transform(data_no_class)
@@ -84,14 +95,14 @@ class PCAnalysis(AbstractAnalyzer):
         if self.params['keeporig'] and self.params['keepstd']:
             standard_df = pd.DataFrame(
                 data = standard_data,
-                columns = ["%s\nstandardized" % c for c in self.features])
-            pca_df = pd.concat([data.select_dtypes(include='category'), data[self.features], standard_df, pca_df] , axis=1) #.reset_index(drop=True)
+                columns = ["%s\nstandardized" % c for c in features])
+            pca_df = pd.concat([data.select_dtypes(include='category'), data[features], standard_df, pca_df] , axis=1) #.reset_index(drop=True)
         elif self.params['keeporig']:    
-            pca_df = pd.concat([data.select_dtypes(include='category'), data[self.features], pca_df] , axis=1) #.reset_index(drop=True)
+            pca_df = pd.concat([data.select_dtypes(include='category'), data[features], pca_df] , axis=1) #.reset_index(drop=True)
         elif self.params['keepstd']:
             standard_df = pd.DataFrame(
                 data = standard_data,
-                columns = ["%s\nstandardized" % f for f in self.features])
+                columns = ["%s\nstandardized" % f for f in features])
             pca_df = pd.concat([data.select_dtypes(include='category'), standard_df, pca_df] , axis=1) #.reset_index(drop=True)
         else:
             pca_df = pd.concat([data.select_dtypes(include='category'), pca_df] , axis=1) #.reset_index(drop=True)                        

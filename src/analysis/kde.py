@@ -10,6 +10,8 @@ import logging
 from analysis.absanalyzer import AbstractAnalyzer
 import matplotlib.pyplot as plt
 import seaborn as sns
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 
 default_linestyles = ['-','--',':', '-.']
 
@@ -17,7 +19,7 @@ class KDE(AbstractAnalyzer):
     
 
     def __init__(self, data, categories, features, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, categories, features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
         self.name = "KDE Plot"
         
     def get_required_categories(self):
@@ -26,14 +28,25 @@ class KDE(AbstractAnalyzer):
     def get_required_features(self):
         return ['any']
         
+    def run_configuration_dialog(self, parent):
+        selgrouping = self.params['grouping']
+        selfeatures = self.params['features']
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        if dlg.ShowModal() == wx.ID_OK:
+            results = dlg.get_selected()
+            self.params.update(results)
+            return self.params
+        else:	
+            return None
+
     def execute(self):
         results = {}
-        for header in sorted(self.features):
+        for header in sorted(self.params['features']):
             bins = 100
             minx = self.data[header].min() #hconfig[0]
             maxx = self.data[header].max() #hconfig[1]
             logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig, ax = self.grouped_kdeplot(self.data, header, groups=self.categories, hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
+            fig, ax = self.grouped_kdeplot(self.data, header, groups=self.params['grouping'], hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
             ax.set_xlim(minx, maxx)
             results[f'KDE Plot: {header}'] = (fig,ax)
         return results

@@ -14,8 +14,8 @@ GRID_LINE_COLOUR = '#ccc'
 
 
 class ListTable(wx.grid.GridTableBase):
-    def __init__(self, data=None, headers=None, sort=False):
-        super(ListTable, self).__init__()
+    def __init__(self, data=None, headers=None, sort=False, *args, **kwargs):
+        super(ListTable, self).__init__(*args, **kwargs)
         self.SetData(data, headers, sort)
             
 

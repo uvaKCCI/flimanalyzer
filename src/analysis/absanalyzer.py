@@ -10,6 +10,27 @@ from abc import ABC, abstractmethod
 import logging
 import importlib
 import inspect
+import os
+import pkgutil
+import importlib
+
+def get_analyzer_classes():
+    pkdir = os.path.dirname(__file__)
+    for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
+        importlib.import_module('.' + name, __package__)
+    available_tools = {str(create_instance(cls, None, None, None)): cls for cls in AbstractAnalyzer.__subclasses__()}
+    return available_tools
+
+def init_analyzers():
+    tools = get_analyzer_classes()
+    analyzers = [create_instance(tools[aname], None, None, None) for aname in tools]
+    return analyzers
+
+def init_default_config(analyzers):
+    config = {}
+    for a in analyzers:
+        config.update({a.name: a.get_default_parameters()})
+    return config
 
 def create_instance(clazz, data, categories, features):
     if isinstance(clazz, str):
@@ -32,11 +53,9 @@ def create_instance(clazz, data, categories, features):
     
 class AbstractAnalyzer(ABC):
 
-    def __init__(self, data, categories, features, **kwargs):
+    def __init__(self, data, **kwargs):
         self.name = __name__
         self.data = data
-        self.categories = categories
-        self.features = features
         self.params = self.get_default_parameters()
         self.params.update({**kwargs})
 

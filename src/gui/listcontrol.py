@@ -94,7 +94,7 @@ class AnalysisListCtrl(wx.ListCtrl, listmix.CheckListCtrlMixin, listmix.ListCtrl
         logging.debug ("AnalysisListCtrl.SetRow")
         idx = self.get_index_by_key(key)
         if idx is not None:
-            logging.debug ("\tUpdating index: %d" % idx)
+            logging.debug (f"Updating index {idx}: {rowdata}")
 #            self.SetStringItem(idx, 2, str(rowdata[0]))
 ##           self.SetStringItem(idx, 3, str(rowdata[1]))
             self.SetItem(idx, 2, str(rowdata[0]))
@@ -213,9 +213,11 @@ class AnalysisListCtrl(wx.ListCtrl, listmix.CheckListCtrlMixin, listmix.ListCtrl
         
 class FilterListCtrl(AnalysisListCtrl):
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, showdropped=True, fireevents=True, **kwargs):
         AnalysisListCtrl.__init__(self, *args, **kwargs)
+        self.showdropped = showdropped
         self.dropped = {}
+        self.fireevents = fireevents
         self.Bind(wx.EVT_LIST_END_LABEL_EDIT,self.EndLabelEdit) 
         self.Bind(EVT_FILTERUPDATED, self.OnFilterUpdated)
         
@@ -224,9 +226,10 @@ class FilterListCtrl(AnalysisListCtrl):
         #event = ListCtrlUpdatedEvent(EVT_FU_TYPE, self.GetId())
         #event.SetUpdatedItems(items)
         #self.GetEventHandler().ProcessEvent(event)        
-        pub.sendMessage(FILTERS_UPDATED, updateditems=items)        
+        if self.fireevents:
+            pub.sendMessage(FILTERS_UPDATED, updateditems=items)
+
         
-    
     def SetData(self, data, dropped={}, headers=[], types=[]):
         if data is None:
             self.data = {}
@@ -246,7 +249,10 @@ class FilterListCtrl(AnalysisListCtrl):
         self.enableevents = False
         for rowkey in sorted(data):
             rfilter = data[rowkey]
-            row = [" ", rowkey, rfilter.get_rangelow(), rfilter.get_rangehigh(), self.get_no_droppedrows(rowkey)]
+            if self.showdropped:
+                row = [" ", rowkey, rfilter.get_rangelow(), rfilter.get_rangehigh(), self.get_no_droppedrows(rowkey)]
+            else:
+                row = [" ", rowkey, rfilter.get_rangelow(), rfilter.get_rangehigh()]                
             self.Append(row)
             self.CheckItem(self.GetItemCount()-1, rfilter.is_selected())
 #        event = ListCtrlUpdatedEvent(EVT_FU_TYPE, self.GetId())
@@ -275,6 +281,7 @@ class FilterListCtrl(AnalysisListCtrl):
         
 
     def OnFilterUpdated(self, event):
+        print (f"{len(event.GetUpdatedItems())} updated")
         logging.debug (f"{len(event.GetUpdatedItems())} updated")
         for i in event.GetUpdatedItems():
             logging.debug (i)
@@ -305,6 +312,8 @@ class FilterListCtrl(AnalysisListCtrl):
 
 
     def UpdateDroppedRows(self, droppedrows):
+        if not self.showdropped:
+            return
         logging.debug ("FilterListCtrl.UpdateDroppedRows, %d filters" % len(droppedrows))
         droppedidx = {self.get_index_by_key(key):key for key in droppedrows}
         for idx in range(self.GetItemCount()):
@@ -367,7 +376,7 @@ class FilterListCtrl(AnalysisListCtrl):
         rowkey = self.GetItem(idx,self.get_key_col()).GetText()
         newvalue = event.GetItem().GetText()
         logging.debug ("FilterListCtrl.EndLabelEdit")
-        logging.debug ("\t%s" % str(self.data[rowkey].get_parameters()))
+        logging.debug ("\t%s" % str(self.data[rowkey].get_params()))
         if col == 2:
             if float(newvalue) == self.data[rowkey].get_rangelow():
                 logging.debug ("\tnothing to update")
@@ -378,7 +387,7 @@ class FilterListCtrl(AnalysisListCtrl):
                 logging.debug ("\tnothing to update")
                 return
             self.data[rowkey].set_rangehigh(float(newvalue))
-        logging.debug ("\t%s" % str(self.data[rowkey].get_parameters()))
+        logging.debug ("\t%s" % str(self.data[rowkey].get_params()))
         
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey:self.data[rowkey]})

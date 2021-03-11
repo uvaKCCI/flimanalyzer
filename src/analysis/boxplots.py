@@ -9,13 +9,15 @@ Created on Thu Dec 17 16:11:37 2020
 import logging
 import pandas as pd
 from analysis.absanalyzer import AbstractAnalyzer
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 import matplotlib.pyplot as plt
 
 
 class BoxPlot(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, **kwargs):
-        AbstractAnalyzer.__init__(self, data, categories, features, **kwargs)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, **kwargs)
         self.name = "Box Plot"
     
     def __repr__(self):
@@ -29,12 +31,23 @@ class BoxPlot(AbstractAnalyzer):
     
     def get_required_features(self):
         return ['any']
+
+    def run_configuration_dialog(self, parent):
+        selgrouping = self.params['grouping']
+        selfeatures = self.params['features']
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        if dlg.ShowModal() == wx.ID_OK:
+            results = dlg.get_selected()
+            self.params.update(results)
+            return self.params
+        else:	
+            return None
         
     def execute(self):
         results = {}
-        for feature in sorted(self.features):
+        for feature in sorted(self.params['features']):
             logging.debug (f"\tcreating box plot for {feature}")
-            fig,ax = self.grouped_boxplot(self.data, feature, categories=self.categories)
+            fig,ax = self.grouped_boxplot(self.data, feature, categories=self.params['grouping'])
             results[f"Box Plot {feature}"] = (fig,ax)
         return results
     

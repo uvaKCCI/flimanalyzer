@@ -7,15 +7,18 @@ Created on Wed Dec 16 14:18:30 2020
 """
 
 import logging
+import itertools
 import pandas as pd
 from analysis.absanalyzer import AbstractAnalyzer
 import matplotlib.pyplot as plt
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 
 
 class MeanBarPlot(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, **kwargs):
-        AbstractAnalyzer.__init__(self, data, categories, features, **kwargs)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, **kwargs)
         self.name = "Mean Bar Plot"
     
     def __repr__(self):
@@ -30,11 +33,33 @@ class MeanBarPlot(AbstractAnalyzer):
     def get_required_features(self):
         return ['any']
         
+    def get_default_parameters(self):
+        return {
+            'display': ['auto','auto'],
+            'grouping': [],
+            'features': [],
+            'ordering': {},
+            'orientation': 'vertical',
+            'error bar': '+/-',
+            'error type': 'Standard Deviation',
+        }
+                
+    def run_configuration_dialog(self, parent):
+        selgrouping = self.params['grouping']
+        selfeatures = self.params['features']
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        if dlg.ShowModal() == wx.ID_OK:
+            results = dlg.get_selected()
+            self.params.update(results)
+            return self.params
+        else:	
+            return None
+
     def execute(self):
         results = {}
-        for feature in sorted(self.features):
+        for feature in sorted(self.params['features']):
             logging.debug (f"\tcreating mean bar plot for {feature}")
-            fig,ax = self.grouped_meanbarplot(self.data, feature, categories=self.categories)
+            fig,ax = self.grouped_meanbarplot(self.data, feature, categories=self.params['grouping'])
             results[f"Mean Bar Plot: {feature}"] = (fig,ax)
         return results
             
@@ -50,7 +75,10 @@ class MeanBarPlot(AbstractAnalyzer):
             mean = pd.DataFrame(data={'all':[data[feature].mean()]}, index=[feature])#.to_frame()
             std = pd.DataFrame(data={'all':[data[feature].std()]}, index=[feature])#.to_frame()
             ticklabels = ''#mean.index.values
-            mean.plot.barh(ax=ax, xerr=std)#,figsize=fsize,width=0.8)
+            if self.params['orientation'] == 'horizaontal':
+                mean.plot.barh(ax=ax, xerr=std, capsize=6)#,figsize=fsize,width=0.8)
+            else:
+                mean.plot.bar(ax=ax, yerr=std, capsize=6)#,figsize=fsize,width=0.8)            
         else:    
             cols = [c for c in categories]
             cols.append(feature)
@@ -75,7 +103,10 @@ class MeanBarPlot(AbstractAnalyzer):
             bwidth = 0.8# * len(ticklabels)/no_bars 
             fig.set_figheight(1 + no_bars//8)
             fig.set_figwidth(6)
-            mean.plot.barh(ax=ax,xerr=std,width=bwidth)           
+            if self.params['orientation'] == 'horizontal':
+                mean.plot.barh(ax=ax, xerr=std, width=bwidth, capsize=0.75*bwidth)           
+            else:
+                mean.plot.bar(ax=ax, yerr=std, width=bwidth, capsize=6)           
         
         
         if len(categories) > 1:
@@ -86,7 +117,10 @@ class MeanBarPlot(AbstractAnalyzer):
             #labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
             labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
 
-            ax.set_ylabel(', '.join(categories[pivot_level:]))
+            if self.params['orientation'] == 'horizontal':
+                ax.set_ylabel(', '.join(categories[pivot_level:]))
+            else:
+                ax.set_xlabel(', '.join(categories[pivot_level:]))            
             no_legendcols = (len(categories)//30 + 1)
             chartbox = ax.get_position()
             ax.set_position([chartbox.x0, chartbox.y0, chartbox.width * (1-0.2 * no_legendcols), chartbox.height])
@@ -97,7 +131,10 @@ class MeanBarPlot(AbstractAnalyzer):
         else:
             legend = ax.legend()
             legend.remove()
-        ax.set_yticklabels(ticklabels)
+        if self.params['orientation'] == 'horizontal':
+            ax.set_yticklabels(ticklabels)
+        else:
+            ax.set_xticklabels(ticklabels)        
         if title is None:
             title = feature.replace('\n', ' ') #.encode('utf-8')
             if len(categories) > 0:

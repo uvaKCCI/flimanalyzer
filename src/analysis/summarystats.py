@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 import wx
 from analysis.absanalyzer import AbstractAnalyzer
-from gui.dialogs import SelectGroupsDlg
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 
 def percentile(n):
     def percentile_(x):
@@ -19,13 +20,36 @@ def percentile(n):
     return percentile_    
 
 
+class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
+
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', allaggs=[], selectedaggs='All'):
+        self.allaggs = allaggs
+        self.selectedaggs = selectedaggs
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', optgridrows=1, optgridcols=1)
+		    
+    def get_option_panels(self):
+        self.aggboxes = {}
+        aggsizer = wx.GridSizer(4, 0, 0)
+        for f in self.allaggs:
+            cb = wx.CheckBox(self,wx.ID_ANY,f)
+            cb.SetValue((f in self.selectedaggs) or (self.selectedaggs == 'All'))
+            self.aggboxes[f] = cb
+            aggsizer.Add(cb, 0, wx.ALL, 5)
+        return [aggsizer]
+        
+    def _get_selected(self):
+        selaggs = [key for key in self.aggboxes if self.aggboxes[key].GetValue()]
+        params = super()._get_selected()
+        params['aggs'] = selaggs
+        return params
+
 
 class SummaryStats(AbstractAnalyzer):
     
     agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)}
     
-    def __init__(self, data, categories, features, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True, **kwargs):
-        AbstractAnalyzer.__init__(self, data, categories, features, aggs=aggs, singledf=singledf, flattenindex=flattenindex)
+    def __init__(self, data, categories, features, aggs=['count', 'min', 'max', 'mean', 'std', 'median', 'percentile(25)', 'percentile(75)'], singledf=True, flattenindex=True, **kwargs):
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, aggs=aggs, singledf=singledf, flattenindex=flattenindex)
         self.name = "Summary Table"
     
     def __repr__(self):
@@ -40,12 +64,15 @@ class SummaryStats(AbstractAnalyzer):
     def get_required_features(self):
         return ['any']
     
+    def get_default_parameters(self):
+        return {'aggs': [n for n in self.agg_functions], 'singledf': True, 'flattenindex': True}
+        
     def run_configuration_dialog(self, parent):
-        dlg = SelectGroupsDlg(parent, title='Summary: aggregation functions', groups=self.agg_functions)
+        dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], allaggs=self.agg_functions, selectedaggs=self.params['aggs'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
-        parameters = {'aggs': dlg.get_selected()}      
+        parameters = dlg.get_selected()  
         self.configure(**parameters)
         return parameters
     
@@ -53,20 +80,20 @@ class SummaryStats(AbstractAnalyzer):
         titleprefix = 'Summary'
         summaries = {}
         sel_functions = [self.agg_functions[f] for f in self.params['aggs']]
-        if self.features is None or len(self.features) == 0:
+        if self.params['features'] is None or len(self.params['features']) == 0:
             return summaries
-        for header in self.features:
+        for header in self.params['features']:
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
-            allcats = [x for x in self.categories]
+            allcats = [x for x in self.params['grouping']]
             allcats.append(header)
             dftitle = ": ".join([titleprefix,header.replace('\n',' ')])
-            if self.categories is None or len(self.categories) == 0:
+            if self.params['grouping'] is None or len(self.params['grouping']) == 0:
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
                 summary = self.data[allcats].groupby(lambda _ : True, group_keys=False).agg(sel_functions)
             else:                
                 #data = data.copy()
                 #data.reset_index(inplace=True)
-                grouped_data = self.data[allcats].groupby(self.categories, observed=True)
+                grouped_data = self.data[allcats].groupby(self.params['grouping'], observed=True)
                 summary = grouped_data.agg(sel_functions)
                 #summary = summary.dropna()
             if self.params['flattenindex']:
@@ -74,6 +101,6 @@ class SummaryStats(AbstractAnalyzer):
             summaries[dftitle] = summary
         if self.params['singledf']:
             concat_df = pd.concat([summaries[key] for key in summaries], axis=1)
-            return {f"{titleprefix} - rows={len(self.data)}": concat_df}
+            return {f"{titleprefix}": concat_df}
         else:
             return summaries

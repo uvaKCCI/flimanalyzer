@@ -10,6 +10,8 @@ import logging
 import numpy as np
 import pandas as pd
 from analysis.absanalyzer import AbstractAnalyzer
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 import matplotlib.pyplot as plt
 import wx
 
@@ -19,7 +21,7 @@ class FreqHisto(AbstractAnalyzer):
     
 
     def __init__(self, data, categories, features, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, categories, features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
         self.name = "Frequency Histogram"
         
     def get_required_categories(self):
@@ -65,10 +67,21 @@ class FreqHisto(AbstractAnalyzer):
                     'FLIRR': [0,2.4,81,['Treatment']],
                     'NADPH a2/FAD a1': [0,10,101,['Treatment']],
                 }
+
+    def run_configuration_dialog(self, parent):
+        selgrouping = self.params['grouping']
+        selfeatures = self.params['features']
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        if dlg.ShowModal() == wx.ID_OK:
+            results = dlg.get_selected()
+            self.params.update(results)
+            return self.params
+        else:	
+            return None
     
     def execute(self):
         results = {}
-        for header in sorted(self.features):
+        for header in sorted(self.params['features']):
             mrange = (self.data[header].min(), self.data[header].max())
             bins = 100
             try:
@@ -82,7 +95,7 @@ class FreqHisto(AbstractAnalyzer):
 #            fig, ax = MatplotlibFigure()
             #fig = plt.figure(FigureClass=MatplotlibFigure)
             #ax = fig.add_subplot(111)
-            binvalues, binedges, groupnames, fig, ax = self.histogram(self.data, header, groups=self.categories, normalize=100, range=mrange, stacked=False, bins=bins, histtype='step')                
+            binvalues, binedges, groupnames, fig, ax = self.histogram(self.data, header, groups=self.params['grouping'], normalize=100, range=mrange, stacked=False, bins=bins, histtype='step')                
 
             df = pd.DataFrame()
             df['bin edge low'] = binedges[:-1]

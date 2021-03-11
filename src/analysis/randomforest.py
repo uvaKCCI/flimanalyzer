@@ -13,12 +13,36 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn import metrics
 from analysis.absanalyzer import AbstractAnalyzer
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 
+class RandomForestConfigDlg(BasicAnalysisConfigDlg):
 
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', classifier=''):
+        self.classifieropts = data.select_dtypes(['category']).columns.values
+        if classifier in self.classifieropts:
+            self.classifier = classifier
+        else:
+            self.classifier = self.classifieropts[0]
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', optgridrows=1, optgridcols=1)
+		    
+    def get_option_panels(self):
+        self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, value=self.classifier, choices=self.classifieropts)
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(wx.StaticText(self, id=wx.ID_ANY, label="Classifier"))
+        sizer.Add(self.classifier_selector, 0, wx.ALL, 5)
+        return [sizer]
+        
+    def _get_selected(self):
+        params = super()._get_selected()
+        params['classifier'] = self.classifier_selector.GetValue()
+        return params
+        
+        
 class RandomForest(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, categories, features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
         self.name = "Random Forest"
     
     def __repr__(self):
@@ -33,7 +57,23 @@ class RandomForest(AbstractAnalyzer):
     def get_required_features(self):
         return ['any']
     
+    def get_default_parameters(self):
+        return {
+            'classifier': '',
+            'importancehisto': True, 
+            'n_estimators': 100, 
+            'test_size': 0.3,
+        }
+        
     def run_configuration_dialog(self, parent):
+        dlg = RandomForestConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], classifier=self.params['classifier'])
+        if dlg.ShowModal() == wx.ID_CANCEL:
+            dlg.Destroy()
+            return # implicit None
+        parameters = dlg.get_selected()  
+        self.configure(**parameters)
+        return parameters
+
         category_cols = self.data.select_dtypes(['category']).columns.values
         dlg = wx.SingleChoiceDialog(parent, 'Choose feature to be used as classifier', 'Random Forest Classifier', category_cols)
         if dlg.ShowModal() == wx.ID_OK:
@@ -45,7 +85,7 @@ class RandomForest(AbstractAnalyzer):
     def execute(self):
         results = {}
         data = self.data.dropna(how='any', axis=0)
-        data_features = [f for f in self.features if f not in self.categories]
+        data_features = [f for f in self.params['features'] if f not in self.params['grouping']]
         X = data[data_features]  # Features
         y = data[self.params['classifier']]  # one of the categorical columns
         # Split dataset into training set and test set
@@ -58,7 +98,7 @@ class RandomForest(AbstractAnalyzer):
         y_pred=clf.predict(X_test)
         
         accuracy = metrics.accuracy_score(y_test, y_pred)
-        importance_df = pd.DataFrame({'Feature': self.features, 'Importance Score':clf.feature_importances_})
+        importance_df = pd.DataFrame({'Feature': self.params['features'], 'Importance Score':clf.feature_importances_})
         importance_df.sort_values(by='Importance Score', ascending=False, inplace=True)
         if self.params['importancehisto']:
             importance_plot = importance_df.set_index('Feature').plot.bar()

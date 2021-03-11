@@ -16,9 +16,12 @@ GRID_LINE_COLOUR = '#ccc'
 
 class FilterTable(wx.grid.GridTableBase):
     
-    def __init__(self, data=None, sort=True):
+    def __init__(self, data=None, sort=True, droppedrows=True):
         super(FilterTable, self).__init__()
-        self.headers = ['Use', 'Column', 'Min', 'Max', 'Dropped Rows']
+        if droppedrows:
+            self.headers = ['Use', 'Column', 'Min', 'Max', 'Dropped Rows']
+        else:
+            self.headers = ['Use', 'Column', 'Min', 'Max']
         self.names = []
         self.droppedrows = {}
         self.data = {}

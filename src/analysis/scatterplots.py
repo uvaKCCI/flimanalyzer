@@ -17,6 +17,8 @@ Created on Wed Dec 16 14:18:30 2020
 import logging
 import pandas as pd
 from analysis.absanalyzer import AbstractAnalyzer
+from gui.dialogs import BasicAnalysisConfigDlg
+import wx
 import matplotlib.pyplot as plt
 import itertools
 
@@ -24,7 +26,7 @@ import itertools
 class ScatterPlot(AbstractAnalyzer):
     
     def __init__(self, data, categories, features, **kwargs):
-        AbstractAnalyzer.__init__(self, data, categories, features, **kwargs)
+        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, **kwargs)
         self.name = "Scatter Plot"
     
     def __repr__(self):
@@ -42,12 +44,23 @@ class ScatterPlot(AbstractAnalyzer):
     def get_required_features(self):
         return ['any', 'any']
         
+    def run_configuration_dialog(self, parent):
+        selgrouping = self.params['grouping']
+        selfeatures = self.params['features']
+        dlg = BasicAnalysisConfigDlg(parent, 'Scatter Plot', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        if dlg.ShowModal() == wx.ID_OK:
+            results = dlg.get_selected()
+            self.params.update(results)
+            return self.params
+        else:	
+            return None
+
     def execute(self):
         results = {}
-        combs = itertools.combinations(self.features, 2)
+        combs = itertools.combinations(self.params['features'], 2)
         for comb in sorted(combs):
             logging.debug (f"\tcreating scatter plot for {str(comb)}")
-            fig, ax = self.grouped_scatterplot(self.data, comb, categories=self.categories, marker='o', s=10)#, facecolors='none', edgecolors='r')
+            fig, ax = self.grouped_scatterplot(self.data, comb, categories=self.params['grouping'], marker='o', s=10)#, facecolors='none', edgecolors='r')
             results[f"Scatter Plot: {comb}"] = (fig,ax)
         return results
     

@@ -7,6 +7,7 @@ Created on Fri May 18 07:53:29 2018
 """
 
 import logging
+import numpy as np
 
 class Filter:
     
@@ -50,8 +51,11 @@ class Filter:
     def is_selected(self):
         return self.selected
                   
-    def apply_filter(data):
+    def apply(self, data):
         return data
+    
+    def get_dropped(self, data):
+    	return []
         
 
 class SeriesFilter(Filter):
@@ -59,13 +63,11 @@ class SeriesFilter(Filter):
     def __init__(self, *args, **kwargs):
         super.__init__(self, args, kwargs)
         
-    def apply_filter(data):
-        return data
     
     
 class RangeFilter(Filter):
     
-    def __init__(self,name='', rangelow=0, rangehigh=100, allowedmin=None, allowedmax=None, selected=False, params=None):
+    def __init__(self,name='', rangelow=0, rangehigh=100, allowedmin=None, allowedmax=None, selected=False, dropna=True, params=None):
         if params:
             self.set_params(params)
         else:    
@@ -77,6 +79,7 @@ class RangeFilter(Filter):
             self.set_allowed(allowedmin, allowedmax)
             self.set_range(rangelow,rangehigh)
             self.selected = selected
+            self.dropna = dropna
         
     
     def get_params(self):
@@ -85,7 +88,8 @@ class RangeFilter(Filter):
                 'rangehigh':self.rangehigh, 
                 'allowedmin':self.allowedmin, 
                 'allowedmax':self.allowedmax,
-                'selected':self.selected}
+                'selected':self.selected,
+                'dropna':self.dropna}
     
     
     def set_params(self, params):
@@ -95,6 +99,7 @@ class RangeFilter(Filter):
         self.allowedmin = params.get('allowedmin',None) 
         self.allowedmax = params.get('allowedmax',None)
         self.selected = params.get('selected', True)
+        self.dropna = params.get('dropna', True)
         self.set_allowed(self.allowedmin, self.allowedmax)
         self.set_range(self.rangelow, self.rangehigh)
         
@@ -152,5 +157,24 @@ class RangeFilter(Filter):
         self.clip_range()
             
     
-    def get_parameters(self):
-        return [self.name, self.selected, self.rangelow, self.rangehigh, self.allowedmin, self.allowedmax]
+    #def get_parameters(self):
+    #    return [self.name, self.selected, self.rangelow, self.rangehigh, self.allowedmin, self.allowedmax, self.dropna]
+        
+    def apply_filter(self, data, inplace=True):
+    	droppedrows = self.get_dropped(data)
+    	filtereddata = data.drop(droppedrows, inplace=inplace)
+    	return filtereddata
+    	
+    	
+    def get_dropped(self, data):
+        if self.name not in data.columns.values:
+            return []
+        low,high = self.get_range()
+        logging.debug (f"{self.is_selected()}, filtering {self.name}: {low}, {high}")
+        droppedrows = []
+        if self.dropna:
+            droppedrows = np.flatnonzero((data[self.name] != data[self.name]) | (data[self.name] > high) | (data[self.name] < low))
+        else:    
+            droppedrows = np.flatnonzero((data[self.name] > high) | (data[self.name] < low))
+        logging.debug(f"dropped rows: {droppedrows}")    
+        return droppedrows

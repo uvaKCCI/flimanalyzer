@@ -10,9 +10,12 @@ import logging
 import json
 import collections
 from core.filter import RangeFilter
+import analysis.absanalyzer
 
+CONFIG_USE = 'use'
 CONFIG_ROOT = 'root'
 CONFIG_IMPORT = 'import'
+CONFIG_FITTING_COLUMNS = 'fitting columns'
 CONFIG_PARSER = 'fname parser'
 CONFIG_PREPROCESS = 'preprocess'
 CONFIG_DELIMITER = 'delimiter'
@@ -23,6 +26,7 @@ CONFIG_DROP_COLUMNS = 'drop columns'
 CONFIG_CALC_COLUMNS = 'calculate columns'
 CONFIG_FILTERS = 'filters'
 CONFIG_RANGEFILTERS = 'range filters'
+CONFIG_SERIESFILTERS = 'series filters'
 CONFIG_ANALYSIS ='analysis'
 CONFIG_HISTOGRAMS = 'histograms'
 CONFIG_CATEGORIES = 'categories'
@@ -56,12 +60,12 @@ class Config():
     def update(self, parameters, parentkeys=None, addmissing=True):
         updated = {}
         notfound = {}
-        logging.debug (f"Configuration.UPDATE: keys={parameters.keys()}in {parentkeys}")
+        logging.debug (f"Configuration.UPDATE: keys={parameters.keys()} in {parentkeys}")
         if parentkeys is not None:
             logging.debug (f"\tparentkeys={parentkeys}")
             parentconfig = self.get(parentkeys)
             if parentconfig is None or not isinstance(parentconfig, dict):
-                logging.debug ("\tparentconfig is None not dict")
+                logging.debug ("\tparentconfig is None or not a dictionary")
                 if addmissing:
                     params = self.parameters
                     for key in parentkeys:
@@ -199,12 +203,14 @@ class Config():
         return ((CONFIG_ROOT,CONFIG_IMPORT,CONFIG_EXCLUDE_FILES),
                        (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_DELIMITER),
                        (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_PARSERCLASS),
+                       (CONFIG_ROOT,CONFIG_IMPORT, CONFIG_FITTING_COLUMNS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_HEADERS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_DROP_COLUMNS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_CALC_COLUMNS),
                        (CONFIG_ROOT,CONFIG_ANALYSIS,CONFIG_HISTOGRAMS),
                        (CONFIG_ROOT,CONFIG_ANALYSIS,CONFIG_CATEGORIES),
-                       (CONFIG_ROOT,CONFIG_FILTERS,CONFIG_RANGEFILTERS))
+                       (CONFIG_ROOT,CONFIG_FILTERS,CONFIG_RANGEFILTERS),
+                       (CONFIG_ROOT,CONFIG_FILTERS,CONFIG_SERIESFILTERS))
                 
     
     def get_nodekeys(self):
@@ -276,6 +282,9 @@ class Config():
         
        
     def create_default(self):
+        analyzers = analysis.absanalyzer.init_analyzers()
+        analysis_config = analysis.absanalyzer.init_default_config(analyzers)
+
         parameters = {
             CONFIG_IMPORT: {
                 CONFIG_EXCLUDE_FILES: [],
@@ -284,6 +293,11 @@ class Config():
                 CONFIG_PARSER: {
                     'FOV': '*'},
                 },
+                CONFIG_FITTING_COLUMNS: [
+                    'chi',
+                    't1',
+                    't2',
+                    'tm'],
             CONFIG_PREPROCESS: {
                 CONFIG_HEADERS: {
                     'Exc1_-Ch1-_':'trp ', 
@@ -306,80 +320,10 @@ class Config():
                     'FLIRR',
                     'NADPH a2/FAD a1'],
                 },
-            CONFIG_ANALYSIS: {
-                CONFIG_HISTOGRAMS: {
-                    'trp t1': [0,8000,81,['Treatment']],
-                    'trp t2': [0,8000,81,['Treatment']],
-                    'trp tm': [0,4000,81,['Treatment']],
-                    'trp a1[%]': [0,100,21,['Treatment']],
-                    'trp a2[%]': [0,100,21,['Treatment']],
-                    'trp a1[%]/a2[%]': [0,2,81,['Treatment']],
-                    'trp E%1': [0,100,21,['Treatment']],
-                    'trp E%2': [0,100,21,['Treatment']],
-                    'trp E%3': [0,100,21,['Treatment']],
-                    'trp r1': [0,100,21,['Treatment']],
-                    'trp r2': [0,100,21,['Treatment']],
-                    'trp r3': [0,100,21,['Treatment']],
-                    'trp chi': [0,4.7,81,['Treatment']],
-                    'trp photons': [0,160,81,['Treatment']],
-                    'NAD(P)H t1': [0,800,81,['Treatment']],
-                    'NAD(P)H t2': [0,400,81,['Treatment']],
-                    'NAD(P)H tm': [0,2000,81,['Treatment']],
-                    'NAD(P)H photons': [0,2000,81,['Treatment']],
-                    'NAD(P)H a2[%]': [0,100,51,['Treatment']],
-        #                    'NAD(P)H %': [0,99,34,['Treatment']],
-                    'NADPH %': [0,99,34,['Treatment']],
-                    'NADH %': [0,100,51,['Treatment']],
-                    'NAD(P)H/NADH': [0,3,31,['Treatment']],
-                    'NAD(P)H chi': [0.7,4.7,81,['Treatment']],
-                    'FAD t1': [0,4000,81,['Treatment']],
-                    'FAD t2': [1000,7000,81,['Treatment']],
-                    'FAD tm': [0,4000,81,['Treatment']],
-                    'FAD a1[%]': [0,100,51,['Treatment']],
-                    'FAD a2[%]': [0,100,21,['Treatment']],
-                    'FAD a1[%]/a2[%]': [0,16,81,['Treatment']],
-                    'FAD chi': [0.7,4.7,81,['Treatment']],
-                    'FAD photons': [0,800,81,['Treatment']],
-                    'FLIRR': [0,2.4,81,['Treatment']],
-                    'NADPH a2/FAD a1': [0,10,101,['Treatment']],
-                    },
-                CONFIG_CATEGORIES: {
-                    'trp t1': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp t2': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp tm': [[0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 30], [str(i) for i in range(1,9)]],
-                    'trp a1[%]': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp a2[%]': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp a1[%]/a2[%]': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp E%1': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp E%2': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp E%3': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp r1': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp r2': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp r3': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp chi': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'trp photons': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NAD(P)H t1': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NAD(P)H t2': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NAD(P)H tm': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NAD(P)H photons': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NAD(P)H a2[%]': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-        #                    'NAD(P)H %': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NADPH %': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NADH %': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NADPH/NADH': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'NAD(P)H chi': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FAD t1': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FAD t2': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FAD tm': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FAD a1[%]': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FAD a2[%]': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FAD a1[%]/a2[%]': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FLIRR': [[-300, -20, -10.0, 0, 10.0, 20, 300], [str(i) for i in range(1,7)]],
-                    'FAD chi': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    'FAD photons': [[1.0, 2.0, 3.0, 4.0], [str(i) for i in range(1,4)]],
-                    }, 
-                },            
+            CONFIG_ANALYSIS: analysis_config,
+          
             CONFIG_FILTERS: {
+                CONFIG_USE: True,
                 CONFIG_RANGEFILTERS:[
                         RangeFilter('trp t1',0,2500).get_params(),
                         RangeFilter('trp t2',0,8000).get_params(),
@@ -415,6 +359,8 @@ class Config():
                         RangeFilter('FAD chi',0.7,4.7, selected=True).get_params(),
                         RangeFilter('FAD photons',0,800).get_params(),
                         RangeFilter('FAD photons/NAD(P)H photons',0,2).get_params(),
+                ],
+                CONFIG_SERIESFILTERS:[
                 ],
             },            
         }
@@ -458,4 +404,6 @@ if __name__ == '__main__':
     
     # Test get_node_keys
     print ("node keys\n", "\n".join(str(k) for k in config.get_nodekeys()), "\n")
+    
+
     

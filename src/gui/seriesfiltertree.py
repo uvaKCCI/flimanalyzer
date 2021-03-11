@@ -88,7 +88,7 @@ class SeriesFilterCtrl(CT.CustomTreeCtrl):
     def SeriesFilterChanged(self, event):
         scol = event.GetItem().GetParent().GetText()
         svalue = event.GetItem().GetText()
-        logging.debug (svalue, event.GetItem().IsChecked(), "parent=",scol)
+        logging.debug (f"{svalue}, {event.GetItem().IsChecked()}, parent={scol}")
         
         checked = self.GetData()
         logging.debug (checked)
