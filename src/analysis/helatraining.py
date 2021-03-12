@@ -132,8 +132,10 @@ class Helatraining(AbstractAnalyzer):
 	        'learning_rate': 1e-4, 
 	        'weight_decay': 1e-7, 
 	        'batch_size': 200,
-	        'timeseries': '',
+	        'timeseries': 'Treatment',
 	        'modelfile': '',
+            'grouping': ['FOV','Cell'],
+            'features': ['FLIRR','FAD a1'],
 	    }
 	 
     def run_configuration_dialog(self, parent):
@@ -149,33 +151,36 @@ class Helatraining(AbstractAnalyzer):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
-        parameters = dlg.get_selected()  
-        self.configure(**parameters)
-        return parameters
+        self.parameters = dlg.get_selected()
+        self.configure(**self.parameters)
+        return self.parameters
    
     def _create_datasets(self):
         # self.data.rename(columns={'FLIRR':'FLIRR (NAD(P)H a2[%]/FAD a1[%])'}, inplace=True)
 
-        ind = list(self.data.columns)
+        cat_columns = list(self.parameters['grouping'])
+        cat_columns.append(self.parameters['timeseries'])
+        columns = list(cat_columns)
+        columns.extend(self.parameters['features'])
+        print (f"needed columns: {columns}")
+        self.data_copy = self.data[columns].copy()
+        data_set = self.data[self.parameters['features']]
+        print (self.data_copy.head())
+        counts = self.data_copy.groupby(cat_columns).count()
+        print (counts)
+
+        ind = list(self.data_copy.columns)
         ind_cell = ind.index('Cell')
         ind_fov = ind.index('FOV')
         ind_tre = ind.index('Treatment')
         self.len_info = ind_tre+1
 
-        g = self.data.loc[:,self.variables]
-        info = self.data.iloc[:, 0:self.len_info]
-        data_set = pd.concat([info, g],axis=1)
-        self.data_copy = data_set.copy()
-
-        FOV = self.data_copy.loc[:,'FOV']
+        FOV = self.data_copy.loc[:,self.parameters['grouping'][0]]
         FOV_u = np.unique(FOV)
-        timepoint = self.data_copy.loc[:,'Treatment']
+        timepoint = self.data_copy.loc[:,self.parameters['timeseries']]
         tp_u = np.unique(timepoint)
 
-        f = self.data.loc[:,'FLIRR']
-        self.data_set_f = pd.concat([data_set,f],axis=1)
-        data_set = np.array(data_set)
-        data_set_f_np = np.array(self.data_set_f)
+        # data_set_f_np = np.array(data_set)
 
         # Split data into training and test sets
         training_set = np.zeros([1, data_set.shape[1]])
@@ -183,13 +188,19 @@ class Helatraining(AbstractAnalyzer):
 
         for t in range(len(tp_u)):
             mask_time = (timepoint == tp_u[t])
-            data_t = data_set_f_np[mask_time]
+            data_t = self.data_copy[mask_time]
 
             for i in range(len(FOV_u)):
-                data_len = data_t[data_t[:, ind_fov] == FOV_u[i]]
+                print(f"iteration {i}")
+                print(FOV_u[i])
+                print(ind_fov)
+                print(data_t.head())
+                # data_len = data_t.iloc[:, ind_fov == FOV_u[i]]
+                col = self.parameters['grouping'][0]
+                print (col)
+                data_len = data_t[data_t[col]==FOV_u[i]]
                 cell = data_len[:, ind_cell]
                 cell = np.array(list(map(int, cell)))
-                print(cell)
                 n_c = np.unique(cell)
                 k = int(np.around(0.7 * len(n_c)))
 
@@ -209,6 +220,7 @@ class Helatraining(AbstractAnalyzer):
         min_max_scaler = preprocessing.MinMaxScaler()
 
         training_set_1 = training_set.astype(float)
+        # print(training_set_1)
         training_set_1 = min_max_scaler.fit_transform(training_set_1)  # Normalization
         training_set = my_imputer.fit_transform(training_set_1)
         self.training_set = torch.FloatTensor(training_set)
