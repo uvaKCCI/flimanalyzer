@@ -20,8 +20,8 @@ default_linestyles = ['-','--',':', '-.']
 class FreqHisto(AbstractAnalyzer):
     
 
-    def __init__(self, data, categories, features, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
+    def __init__(self, data, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
+        AbstractAnalyzer.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
         self.name = "Frequency Histogram"
         
     def get_required_categories(self):
@@ -31,7 +31,8 @@ class FreqHisto(AbstractAnalyzer):
         return ['any']
     
     def get_default_parameters(self):
-    	return {
+        params = super().get_default_parameters()
+        params.update({
     				'trp t1': [0,8000,81,['Treatment']],
                     'trp t2': [0,8000,81,['Treatment']],
                     'trp tm': [0,4000,81,['Treatment']],
@@ -66,7 +67,8 @@ class FreqHisto(AbstractAnalyzer):
                     'FAD photons': [0,800,81,['Treatment']],
                     'FLIRR': [0,2.4,81,['Treatment']],
                     'NADPH a2/FAD a1': [0,10,101,['Treatment']],
-                }
+                })
+        return params      
 
     def run_configuration_dialog(self, parent):
         selgrouping = self.params['grouping']

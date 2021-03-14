@@ -18,8 +18,8 @@ default_linestyles = ['-','--',':', '-.']
 class KDE(AbstractAnalyzer):
     
 
-    def __init__(self, data, categories, features, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
+    def __init__(self, data, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
+        AbstractAnalyzer.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
         self.name = "KDE Plot"
         
     def get_required_categories(self):

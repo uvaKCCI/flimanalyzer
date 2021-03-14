@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 
 class Heatmap(AbstractAnalyzer):
 
-    def __init__(self, data, categories, features):
-        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features)
+    def __init__(self, data, **kwargs):
+        AbstractAnalyzer.__init__(self, data, **kwargs)
         self.name = "Heatmap"
 
     def __repr__(self):

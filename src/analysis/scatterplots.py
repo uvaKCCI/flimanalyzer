@@ -25,8 +25,8 @@ import itertools
 
 class ScatterPlot(AbstractAnalyzer):
     
-    def __init__(self, data, categories, features, **kwargs):
-        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, **kwargs)
+    def __init__(self, data, **kwargs):
+        AbstractAnalyzer.__init__(self, data, **kwargs)
         self.name = "Scatter Plot"
     
     def __repr__(self):
@@ -35,9 +35,6 @@ class ScatterPlot(AbstractAnalyzer):
     def __str__(self):
         return self.name
     
-    def configure(self,params):
-        pass
-
     def get_required_categories(self):
         return []
     

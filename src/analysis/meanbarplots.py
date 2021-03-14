@@ -17,8 +17,8 @@ import wx
 
 class MeanBarPlot(AbstractAnalyzer):
     
-    def __init__(self, data, categories, features, **kwargs):
-        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, **kwargs)
+    def __init__(self, data, **kwargs):
+        AbstractAnalyzer.__init__(self, data, **kwargs)
         self.name = "Mean Bar Plot"
     
     def __repr__(self):

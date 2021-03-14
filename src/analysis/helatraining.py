@@ -32,7 +32,7 @@ class HelatrainingConfigDlg(BasicAnalysisConfigDlg):
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.modelfile = modelfile
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=2)
 		    
     def get_option_panels(self):
         epoches_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -103,8 +103,8 @@ class HelatrainingConfigDlg(BasicAnalysisConfigDlg):
         
 class Helatraining(AbstractAnalyzer):
 
-    def __init__(self, data, categories, features, **kwargs):
-        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, **kwargs)
+    def __init__(self, data, **kwargs):
+        AbstractAnalyzer.__init__(self, data, **kwargs)
         self.name = "Hela Training"
         self.variables = self.params['features']
         self.epoches = self.params['epoches']
@@ -151,20 +151,20 @@ class Helatraining(AbstractAnalyzer):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
-        self.parameters = dlg.get_selected()
-        self.configure(**self.parameters)
-        return self.parameters
+        self.params = dlg.get_selected()
+        self.configure(**self.params)
+        return self.params
    
     def _create_datasets(self):
         # self.data.rename(columns={'FLIRR':'FLIRR (NAD(P)H a2[%]/FAD a1[%])'}, inplace=True)
 
-        cat_columns = list(self.parameters['grouping'])
-        cat_columns.append(self.parameters['timeseries'])
+        cat_columns = list(self.params['grouping'])
+        cat_columns.append(self.params['timeseries'])
         columns = list(cat_columns)
-        columns.extend(self.parameters['features'])
+        columns.extend(self.params['features'])
         print (f"needed columns: {columns}")
         self.data_copy = self.data[columns].copy()
-        data_set = self.data[self.parameters['features']]
+        data_set = self.data[self.params['features']]
         print (self.data_copy.head())
         counts = self.data_copy.groupby(cat_columns).count()
         print (counts)
@@ -175,9 +175,9 @@ class Helatraining(AbstractAnalyzer):
         ind_tre = ind.index('Treatment')
         self.len_info = ind_tre+1
 
-        FOV = self.data_copy.loc[:,self.parameters['grouping'][0]]
+        FOV = self.data_copy.loc[:,self.params['grouping'][0]]
         FOV_u = np.unique(FOV)
-        timepoint = self.data_copy.loc[:,self.parameters['timeseries']]
+        timepoint = self.data_copy.loc[:,self.params['timeseries']]
         tp_u = np.unique(timepoint)
 
         # data_set_f_np = np.array(data_set)
@@ -196,7 +196,7 @@ class Helatraining(AbstractAnalyzer):
                 print(ind_fov)
                 print(data_t.head())
                 # data_len = data_t.iloc[:, ind_fov == FOV_u[i]]
-                col = self.parameters['grouping'][0]
+                col = self.params['grouping'][0]
                 print (col)
                 data_len = data_t[data_t[col]==FOV_u[i]]
                 cell = data_len[:, ind_cell]

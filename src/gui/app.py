@@ -995,7 +995,7 @@ class TabAnalysis(wx.Panel):
         atype = self.analysistype_combo.GetStringSelection()  
         logging.debug (f"{atype}")
         analysis_class = analysis.absanalyzer.get_analyzer_classes()[atype]
-        tool = analysis.absanalyzer.create_instance(analysis_class, currentdata, categories, features)
+        tool = analysis.absanalyzer.create_instance(analysis_class, currentdata)
 
         # run optional tool config dialog and execte analysis
         parameters = tool.run_configuration_dialog(self)

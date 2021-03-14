@@ -24,7 +24,7 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
             self.classifier = classifier
         else:
             self.classifier = self.classifieropts[0]
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', optgridrows=1, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=1)
 		    
     def get_option_panels(self):
         self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, value=self.classifier, choices=self.classifieropts)
@@ -41,8 +41,8 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
         
 class RandomForest(AbstractAnalyzer):
     
-    def __init__(self, data, categories, features, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, grouping=categories, features=features, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
+    def __init__(self, data, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
+        AbstractAnalyzer.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
         self.name = "Random Forest"
     
     def __repr__(self):
@@ -58,12 +58,13 @@ class RandomForest(AbstractAnalyzer):
         return ['any']
     
     def get_default_parameters(self):
-        return {
+        params = super().get_default_parameters()
+        params.update({
             'classifier': '',
             'importancehisto': True, 
             'n_estimators': 100, 
-            'test_size': 0.3,
-        }
+            'test_size': 0.3,})
+        return params    
         
     def run_configuration_dialog(self, parent):
         dlg = RandomForestConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], classifier=self.params['classifier'])

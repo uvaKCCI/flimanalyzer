@@ -94,7 +94,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             permlist = list(itertools.permutations(categories,i))
             for p in permlist:
                 groupings.append(", ".join(p))
-        if selectedgrouping not in groupings:
+        if ", ".join(selectedgrouping) not in groupings:
             selectedgrouping = ['None']
         
         groupingsizer = wx.BoxSizer(wx.HORIZONTAL)

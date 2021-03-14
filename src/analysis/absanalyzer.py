@@ -18,12 +18,12 @@ def get_analyzer_classes():
     pkdir = os.path.dirname(__file__)
     for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
         importlib.import_module('.' + name, __package__)
-    available_tools = {str(create_instance(cls, None, None, None)): cls for cls in AbstractAnalyzer.__subclasses__()}
+    available_tools = {str(create_instance(cls, None)): cls for cls in AbstractAnalyzer.__subclasses__()}
     return available_tools
 
 def init_analyzers():
     tools = get_analyzer_classes()
-    analyzers = [create_instance(tools[aname], None, None, None) for aname in tools]
+    analyzers = [create_instance(tools[aname], None) for aname in tools]
     return analyzers
 
 def init_default_config(analyzers):
@@ -32,7 +32,7 @@ def init_default_config(analyzers):
         config.update({a.name: a.get_default_parameters()})
     return config
 
-def create_instance(clazz, data, categories, features):
+def create_instance(clazz, data):
     if isinstance(clazz, str):
         modulename, _, classname = clazz.rpartition('.')
     elif inspect.isclass(clazz):
@@ -44,7 +44,7 @@ def create_instance(clazz, data, categories, features):
     try:
         module = importlib.import_module(modulename)
         class_ = getattr(module, classname)
-        toolinstance = class_(data, categories, features)
+        toolinstance = class_(data)
     except Exception as err:
         logging.error(f"Error: {err}")
         logging.error(f"Error instantiating {modulename}.{classname} analysis tool.")
@@ -87,7 +87,7 @@ class AbstractAnalyzer(ABC):
         return self.name
 
     def get_default_parameters(self):
-        return {}
+        return {'grouping': [], 'features': []}
 
     def get_parameters(self):
         return self.params
