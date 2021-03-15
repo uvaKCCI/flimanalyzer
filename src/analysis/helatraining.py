@@ -156,31 +156,22 @@ class Helatraining(AbstractAnalyzer):
         return self.params
    
     def _create_datasets(self):
-        # self.data.rename(columns={'FLIRR':'FLIRR (NAD(P)H a2[%]/FAD a1[%])'}, inplace=True)
-
-        cat_columns = list(self.params['grouping'])
-        cat_columns.append(self.params['timeseries'])
+        cat_columns = list(self.parameters['grouping'])
+        cat_columns.append(self.parameters['timeseries'])
         columns = list(cat_columns)
-        columns.extend(self.params['features'])
+        columns.extend(self.parameters['features'])
         print (f"needed columns: {columns}")
         self.data_copy = self.data[columns].copy()
-        data_set = self.data[self.params['features']]
+        data_set = self.data[self.parameters['features']]
         print (self.data_copy.head())
         counts = self.data_copy.groupby(cat_columns).count()
         print (counts)
+        print(self.data_copy)
 
-        ind = list(self.data_copy.columns)
-        ind_cell = ind.index('Cell')
-        ind_fov = ind.index('FOV')
-        ind_tre = ind.index('Treatment')
-        self.len_info = ind_tre+1
-
-        FOV = self.data_copy.loc[:,self.params['grouping'][0]]
+        FOV = self.data_copy.loc[:,self.parameters['grouping'][0]]
         FOV_u = np.unique(FOV)
-        timepoint = self.data_copy.loc[:,self.params['timeseries']]
+        timepoint = self.data_copy.loc[:,self.parameters['timeseries']]
         tp_u = np.unique(timepoint)
-
-        # data_set_f_np = np.array(data_set)
 
         # Split data into training and test sets
         training_set = np.zeros([1, data_set.shape[1]])
@@ -192,35 +183,30 @@ class Helatraining(AbstractAnalyzer):
 
             for i in range(len(FOV_u)):
                 print(f"iteration {i}")
-                print(FOV_u[i])
-                print(ind_fov)
-                print(data_t.head())
-                # data_len = data_t.iloc[:, ind_fov == FOV_u[i]]
-                col = self.params['grouping'][0]
-                print (col)
+                col = self.parameters['grouping'][0]
                 data_len = data_t[data_t[col]==FOV_u[i]]
-                cell = data_len[:, ind_cell]
+                cell = data_len[self.parameters['grouping'][1]]
                 cell = np.array(list(map(int, cell)))
                 n_c = np.unique(cell)
                 k = int(np.around(0.7 * len(n_c)))
 
                 mask_train = (cell <= k)
                 mask_val = (cell > k)
-                data_t_mask = data_len[mask_train][:, :-1]
-                data_v_mask = data_len[mask_val][:, :-1]
+                data_t_mask = data_len[mask_train][self.parameters['features']]
+                data_v_mask = data_len[mask_val][self.parameters['features']]
                 training_set = np.append(training_set, data_t_mask, axis=0)
                 val_set = np.append(val_set, data_v_mask, axis=0)
                 # print('training', training_set.shape)
                 # print('val', val_set.shape)
 
-        training_set = training_set[1:, self.len_info:]
-        val_set = val_set[1:, self.len_info:]
+        training_set = training_set[1:]
+        val_set = val_set[1:]
 
         my_imputer = SimpleImputer(strategy="constant", fill_value=0)
         min_max_scaler = preprocessing.MinMaxScaler()
 
         training_set_1 = training_set.astype(float)
-        # print(training_set_1)
+        print(training_set_1)
         training_set_1 = min_max_scaler.fit_transform(training_set_1)  # Normalization
         training_set = my_imputer.fit_transform(training_set_1)
         self.training_set = torch.FloatTensor(training_set)
@@ -239,11 +225,11 @@ class Helatraining(AbstractAnalyzer):
 
 
     def _load_data(self):
-        col = self.data_copy.columns.values[self.len_info:]
         t_set = np.array(self.training_set)
         v_set = np.array(self.val_set)
-        training_frame = pd.DataFrame(t_set, index=None, columns=col)
-        val_frame = pd.DataFrame(v_set, index=None, columns=col)
+        training_frame = pd.DataFrame(t_set, index=None, columns=self.parameters['features'])
+        val_frame = pd.DataFrame(v_set, index=None, columns=self.parameters['features'])
+        print(training_frame)
 
         train_dataset = datasets(training_frame)
         val_dataset = datasets(val_frame)
