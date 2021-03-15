@@ -156,21 +156,21 @@ class Helatraining(AbstractAnalyzer):
         return self.params
    
     def _create_datasets(self):
-        cat_columns = list(self.parameters['grouping'])
-        cat_columns.append(self.parameters['timeseries'])
+        cat_columns = list(self.params['grouping'])
+        cat_columns.append(self.params['timeseries'])
         columns = list(cat_columns)
-        columns.extend(self.parameters['features'])
+        columns.extend(self.params['features'])
         print (f"needed columns: {columns}")
         self.data_copy = self.data[columns].copy()
-        data_set = self.data[self.parameters['features']]
+        data_set = self.data[self.params['features']]
         print (self.data_copy.head())
         counts = self.data_copy.groupby(cat_columns).count()
         print (counts)
         print(self.data_copy)
 
-        FOV = self.data_copy.loc[:,self.parameters['grouping'][0]]
+        FOV = self.data_copy.loc[:,self.params['grouping'][0]]
         FOV_u = np.unique(FOV)
-        timepoint = self.data_copy.loc[:,self.parameters['timeseries']]
+        timepoint = self.data_copy.loc[:,self.params['timeseries']]
         tp_u = np.unique(timepoint)
 
         # Split data into training and test sets
@@ -183,17 +183,17 @@ class Helatraining(AbstractAnalyzer):
 
             for i in range(len(FOV_u)):
                 print(f"iteration {i}")
-                col = self.parameters['grouping'][0]
+                col = self.params['grouping'][0]
                 data_len = data_t[data_t[col]==FOV_u[i]]
-                cell = data_len[self.parameters['grouping'][1]]
+                cell = data_len[self.params['grouping'][1]]
                 cell = np.array(list(map(int, cell)))
                 n_c = np.unique(cell)
                 k = int(np.around(0.7 * len(n_c)))
 
                 mask_train = (cell <= k)
                 mask_val = (cell > k)
-                data_t_mask = data_len[mask_train][self.parameters['features']]
-                data_v_mask = data_len[mask_val][self.parameters['features']]
+                data_t_mask = data_len[mask_train][self.params['features']]
+                data_v_mask = data_len[mask_val][self.params['features']]
                 training_set = np.append(training_set, data_t_mask, axis=0)
                 val_set = np.append(val_set, data_v_mask, axis=0)
                 # print('training', training_set.shape)
@@ -227,8 +227,8 @@ class Helatraining(AbstractAnalyzer):
     def _load_data(self):
         t_set = np.array(self.training_set)
         v_set = np.array(self.val_set)
-        training_frame = pd.DataFrame(t_set, index=None, columns=self.parameters['features'])
-        val_frame = pd.DataFrame(v_set, index=None, columns=self.parameters['features'])
+        training_frame = pd.DataFrame(t_set, index=None, columns=self.params['features'])
+        val_frame = pd.DataFrame(v_set, index=None, columns=self.params['features'])
         print(training_frame)
 
         train_dataset = datasets(training_frame)
