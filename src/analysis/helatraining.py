@@ -160,13 +160,9 @@ class Helatraining(AbstractAnalyzer):
         cat_columns.append(self.params['timeseries'])
         columns = list(cat_columns)
         columns.extend(self.params['features'])
-        print (f"needed columns: {columns}")
         self.data_copy = self.data[columns].copy()
         data_set = self.data[self.params['features']]
-        print (self.data_copy.head())
         counts = self.data_copy.groupby(cat_columns).count()
-        print (counts)
-        print(self.data_copy)
 
         FOV = self.data_copy.loc[:,self.params['grouping'][0]]
         FOV_u = np.unique(FOV)
@@ -182,7 +178,6 @@ class Helatraining(AbstractAnalyzer):
             data_t = self.data_copy[mask_time]
 
             for i in range(len(FOV_u)):
-                print(f"iteration {i}")
                 col = self.params['grouping'][0]
                 data_len = data_t[data_t[col]==FOV_u[i]]
                 cell = data_len[self.params['grouping'][1]]
@@ -196,8 +191,6 @@ class Helatraining(AbstractAnalyzer):
                 data_v_mask = data_len[mask_val][self.params['features']]
                 training_set = np.append(training_set, data_t_mask, axis=0)
                 val_set = np.append(val_set, data_v_mask, axis=0)
-                # print('training', training_set.shape)
-                # print('val', val_set.shape)
 
         training_set = training_set[1:]
         val_set = val_set[1:]
@@ -206,7 +199,6 @@ class Helatraining(AbstractAnalyzer):
         min_max_scaler = preprocessing.MinMaxScaler()
 
         training_set_1 = training_set.astype(float)
-        print(training_set_1)
         training_set_1 = min_max_scaler.fit_transform(training_set_1)  # Normalization
         training_set = my_imputer.fit_transform(training_set_1)
         self.training_set = torch.FloatTensor(training_set)
@@ -229,7 +221,6 @@ class Helatraining(AbstractAnalyzer):
         v_set = np.array(self.val_set)
         training_frame = pd.DataFrame(t_set, index=None, columns=self.params['features'])
         val_frame = pd.DataFrame(v_set, index=None, columns=self.params['features'])
-        print(training_frame)
 
         train_dataset = datasets(training_frame)
         val_dataset = datasets(val_frame)
@@ -293,14 +284,13 @@ class Helatraining(AbstractAnalyzer):
         print("loss_TrainingSet:",loss_train[-1])
         print("loss_TestSet:",loss_val[-1])
         print("\nTraining complete!\n")
-        torch.save(ae, self.data + '_autoencoder.pkl')
+        torch.save(ae, self.params['modelfile'])
 
         fig, ax = plt.subplots()
-        # plt.figure(figsize=(10, 4))
         ax.plot(loss_train, 'b-', label='train-loss')
         ax.plot(loss_val, 'r-', label='val-loss')
         ax.grid('on')
-        ax.ylabel('loss')
-        ax.xlabel('epoch')
+        ax.set_ylabel('loss')
+        ax.set_xlabel('epoch')
         ax.legend(['training', 'testing'], loc='upper right')
         return {'loss': (fig, ax)}
