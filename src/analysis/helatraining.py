@@ -286,11 +286,12 @@ class Helatraining(AbstractAnalyzer):
         print("\nTraining complete!\n")
         torch.save(ae, self.params['modelfile'])
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(constrained_layout=True)
         ax.plot(loss_train, 'b-', label='train-loss')
         ax.plot(loss_val, 'r-', label='val-loss')
         ax.grid('on')
         ax.set_ylabel('loss')
         ax.set_xlabel('epoch')
         ax.legend(['training', 'testing'], loc='upper right')
+	self._add_picker(fig)
         return {'loss': (fig, ax)}
