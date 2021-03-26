@@ -98,7 +98,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             selectedgrouping = ['None']
         
         groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.grouping_combobox = wx.ComboBox(self, wx.ID_ANY, value=",".join(selectedgrouping), choices=groupings)
+        self.grouping_combobox = wx.ComboBox(self, wx.ID_ANY, value=", ".join(selectedgrouping), choices=groupings)
         groupingsizer.Add(wx.StaticText(self, label="Data Grouping"))
         groupingsizer.Add(self.grouping_combobox)
         

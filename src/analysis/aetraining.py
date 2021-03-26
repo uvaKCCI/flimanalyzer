@@ -22,7 +22,7 @@ from gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
 
-class HelatrainingConfigDlg(BasicAnalysisConfigDlg):
+class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
     def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', modelfile=''):
         self.timeseries_opts = data.select_dtypes(include=['category']).columns.values
@@ -101,11 +101,11 @@ class HelatrainingConfigDlg(BasicAnalysisConfigDlg):
         return params
         
         
-class Helatraining(AbstractAnalyzer):
+class AETraining(AbstractAnalyzer):
 
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
-        self.name = "Hela Training"
+        self.name = "Autoencoder Training"
         self.variables = self.params['features']
         self.epoches = self.params['epoches']
         self.timeseries = self.params['timeseries']
@@ -139,7 +139,7 @@ class Helatraining(AbstractAnalyzer):
 	    }
 	 
     def run_configuration_dialog(self, parent):
-        dlg = HelatrainingConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', self.data, 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
             epoches=self.params['epoches'], 
@@ -293,5 +293,5 @@ class Helatraining(AbstractAnalyzer):
         ax.set_ylabel('loss')
         ax.set_xlabel('epoch')
         ax.legend(['training', 'testing'], loc='upper right')
-	self._add_picker(fig)
+        self._add_picker(fig)
         return {'loss': (fig, ax)}
