@@ -13,6 +13,7 @@ import sys
 from gui.app import FlimAnalyzerApp
 import core.parser as cp
 import analysis
+import analysis.ml.autoencoder
 from analysis.absanalyzer import AbstractAnalyzer
 from core.tools import FLIMAnalyzer
 from core.configuration import Config, CONFIG_PARSER_CLASS
@@ -138,6 +139,7 @@ if __name__ == "__main__":
     logging.debug(args)
     fa = FLIMAnalyzer()
     analyzers = analysis.absanalyzer.init_analyzers()
+    aes = analysis.ml.autoencoder.init_autoencoders()
     config = analysis.absanalyzer.init_default_config(analyzers)
     #print (config)
     if args.input is None or args.output is None or args.config is None:

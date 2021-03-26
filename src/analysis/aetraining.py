@@ -15,8 +15,9 @@ import torch.optim as optim
 import torch.utils.data
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
-from MLfeatureanalyzer.autoencoder2 import AE
+#from MLfeatureanalyzer.autoencoder2 import AE
 from MLfeatureanalyzer.dataset import datasets
+import analysis.ml.autoencoder as autoencoder
 import logging
 from gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -24,15 +25,17 @@ from wx.lib.masked import NumCtrl
 
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', modelfile=''):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile=''):
         self.timeseries_opts = data.select_dtypes(include=['category']).columns.values
         self.timeseries = timeseries
         self.epoches = epoches
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
+        self.model = model
+        self.model_opts = [a for a in autoencoder.get_autoencoder_classes()]
         self.modelfile = modelfile
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=2)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
         epoches_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -71,15 +74,26 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         timeseries_sizer.Add(wx.StaticText(self, label="Time Series"))
         timeseries_sizer.Add(self.timeseries_combobox)
 
-        model_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        model_sizer.Add(wx.StaticText(self, label="Save Model to File"))
-        self.modelfiletxt = wx.StaticText(self, label=self.modelfile)
+        sel_model = self.model
+        if sel_model not in self.model_opts:
+            sel_model = self.model_opts[0]
+        self.model_combobox = wx.ComboBox(self, wx.ID_ANY, value=sel_model, choices=self.model_opts)
+
+        self.modelfiletxt = wx.StaticText(self, label=self.modelfile)        
         browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
         browsebutton.Bind(wx.EVT_BUTTON, self.OnBrowse)
-        model_sizer.Add(self.modelfiletxt)
-        model_sizer.Add(browsebutton)
+        
+        timeseries_sizer.Add(wx.StaticText(self, label="Model Architecture"))
+        timeseries_sizer.Add(self.model_combobox)
+        timeseries_sizer.Add(wx.StaticText(self, label="Save Model to File"))
+        timeseries_sizer.Add(self.modelfiletxt)
+        timeseries_sizer.Add(browsebutton)
+        
+        top_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        top_sizer.Add(spinner_sizer)
+        top_sizer.Add(float_sizer)
 
-        return [spinner_sizer, float_sizer, timeseries_sizer, model_sizer]
+        return [top_sizer, timeseries_sizer]
         
     def OnBrowse(self, event):
         fname = self.modelfiletxt.GetLabel()
@@ -98,6 +112,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         params['weight_decay'] = self.weight_input.GetValue()
         params['timeseries'] = self.timeseries_combobox.GetValue()
         params['modelfile'] = self.modelfiletxt.GetLabel()
+        params['model'] = self.model_combobox.GetValue()
         return params
         
         
@@ -136,6 +151,7 @@ class AETraining(AbstractAnalyzer):
 	        'modelfile': '',
             'grouping': ['FOV','Cell'],
             'features': ['FLIRR','FAD a1'],
+            'model': 'Autoencoder 2'
 	    }
 	 
     def run_configuration_dialog(self, parent):
@@ -147,6 +163,7 @@ class AETraining(AbstractAnalyzer):
             weight_decay=self.params['weight_decay'],
             learning_rate=self.params['learning_rate'],
             timeseries=self.params['timeseries'],
+            model=self.params['model'],
             modelfile=self.params['modelfile'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
@@ -235,7 +252,9 @@ class AETraining(AbstractAnalyzer):
     def execute(self):
         self._create_datasets()
         self._load_data()
-        ae = AE(self.param)
+        aeclasses = autoencoder.get_autoencoder_classes()
+        ae = autoencoder.create_instance(aeclasses[self.params['model']], nb_param=self.param)
+        #ae = AE(self.param)
         ae = ae.cuda()
         criterion = nn.MSELoss().cuda()
         optimizer = optim.RMSprop(ae.parameters(), self.lr, self.wd)
