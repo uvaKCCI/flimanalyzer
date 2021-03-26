@@ -21,6 +21,7 @@ REQUEST_CONFIG_UPDATE = 'configuration.requestuodate'
 CONFIG_UPDATED = 'configuration.updated'
 
 NEW_DATA_WINDOW = 'datawindow.new'
+FOCUSED_DATA_WINDOW = 'datawindow.focus'
 CLOSING_DATA_WINDOW = 'datawindow.closing'
 REQUEST_RENAME_DATA_WINDOW = 'datawindow.requestrename'
 RENAMED_DATA_WINDOW = 'datawindow.renamed'
@@ -36,6 +37,7 @@ ANALYSIS_BINS_UPDATED = 'analysis.bins.updated'
 FILTERS_UPDATED = 'filters.updated'
 
 class DataUpdatedEvent(wx.PyCommandEvent):
+
     def __init__(self, evtType, id):
         wx.PyCommandEvent.__init__(self, evtType, id)
         self.data = None
@@ -50,23 +52,37 @@ class DataUpdatedEvent(wx.PyCommandEvent):
     def GetUpdatedData(self):
         return self.data, self.datatype
     
+"""
+class FocusWindowEvent(wx.PyCommandEvent):
 
-    
+    def __init__(self, evtType, id):
+        wx.PyCommandEvent.__init__(self, evtType, id)
+        
+    def SetEventInfo(self, frame):
+        self.frame = frame
+        
+    def GetFocus(self):
+        return self.frame
+"""        
+        
 class DataWindowEvent(wx.PyCommandEvent):
     
-    def __init_(self, evtType, id):
+    def __init__(self, evtType, id):
         wx.PyCommandEvent.__init__(self, evtType, id)
         self.data = None
+        self.config = None
         self.title = None
         self.action = None
-        self.showcolindex = None
+        self.showcolindex = True
         self.groups = None
-        self.analyzable = None
-        self.enableclose = None
+        self.analyzable = True
+        self.savemodified = True
+        self.enableclose = True
 
 
-    def SetEventInfo(self, data, title, action, showcolindex=True, groups=None, analyzable=True, savemodified=True, enableclose=True):
+    def SetEventInfo(self, data, title, action, config=None, showcolindex=True, groups=None, analyzable=True, savemodified=True, enableclose=True):
         self.data = data
+        self.config = config
         self.title = title
         self.action = action
         self.showcolindex = showcolindex
@@ -78,6 +94,10 @@ class DataWindowEvent(wx.PyCommandEvent):
         
     def GetData(self):
         return self.data
+    
+    
+    def GetConfig(self):
+        return self.config
     
     
     def GetTitle(self):

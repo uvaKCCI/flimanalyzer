@@ -11,19 +11,30 @@ import os
 import glob
 import pandas as pd
 
-from core.parser import  defaultparser, PARSER_CATEGORY
+import core.configuration as cfg
+from core.parser import  defaultparser
 import core.preprocessor
 
 class dataimporter():
     
     def __init__(self):
         self.files = []
-        self.defaultdelimiter = '\t,'
+        self.delimiter = '\t,'
         self.data = pd.DataFrame()
         self.excluded_files = []
         self.parser = defaultparser()
         self.preprocessor = None
-       
+    
+    def get_config(self):
+        config = {
+                cfg.CONFIG_EXCLUDE_FILES: self.excluded_files,
+                cfg.CONFIG_INCLUDE_FILES: self.files,
+                cfg.CONFIG_DELIMITER: self.delimiter,
+                cfg.CONFIG_PARSER: self.parser.get_config(),
+                cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
+                }
+        return config
+        
     def set_parser(self,parser):
         if parser is not None:
             self.parser = parser
@@ -38,13 +49,13 @@ class dataimporter():
         return self.preprocessor
     
         
-    def set_defaultdelimiter(self, delimiter):
+    def set_delimiter(self, delimiter):
         if delimiter is not None:
-            self.defaultdelimiter = delimiter
+            self.delimiter = delimiter
 
     
-    def get_defaultdelimiter(self):
-        return self.defaultdelimiter
+    def get_delimiter(self):
+        return self.delimiter
 
     
     def set_files(self, files, extensions=['.txt'], exclude=None, sort=True):
@@ -91,7 +102,7 @@ class dataimporter():
 
     
     def remove_files(self, rfiles):
-        logging.debug ("remove",rfiles)
+        logging.debug (f"removing {rfiles}")
         if rfiles is not None:
             self.files = [f for f in self.files if f not in rfiles]
         
@@ -108,28 +119,28 @@ class dataimporter():
         if parser is None:
             parser = self.parser
         rcatnames = ['Cell line', 'Category', 'FOV', 'Well', 'Cell', 'Treatment', 'Time', 'Compartment']    
-        rcatnames.extend([entry[PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
+        rcatnames.extend([entry[cfg.CONFIG_PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
         return sorted(set(rcatnames))
     
     
-    def import_data(self, delimiter=None, hparser=None, preprocessor=None, nrows=None): 
+    def import_data(self, delimiter=None, parser=None, preprocessor=None, nrows=None): 
         if delimiter is None:
-            delimiter = self.defaultdelimiter    
+            delimiter = self.delimiter    
         delimiter = "|".join(delimiter)
-        if hparser is None:
-            hparser = self.parser
+        if parser is None:
+            parser = self.parser
         if preprocessor is None:
             preprocessor = self.preprocessor
         dflist = []  
-        readfiles = 0
+        filenames = []
         fheaders = []
         for f in self.files:
             if not os.path.isfile(f):
                 continue
             # columns defined by parser regexpatterns will use 'category' as dtype
-            category_dtypes = {col:'object' for col in self.get_reserved_categorycols(hparser)}
+            category_dtypes = {col:'object' for col in self.get_reserved_categorycols(parser)}
             df = pd.read_table(f, delimiter=delimiter, engine='python', dtype=category_dtypes, nrows=nrows)
-            headers = hparser.parsefilename(f)
+            headers = parser.parsefilename(f)
             for key in headers:
                 df[key] = headers[key]
             if preprocessor is not None:
@@ -137,19 +148,21 @@ class dataimporter():
                 df,dl = preprocessor.drop_columns(df)
             dflist.append(df)
             fheaders.extend(list(headers.keys()))
-            readfiles+=1
+            filenames.append(f)
         if len(dflist) == 0:
-            return #None, None, None
+            return #None, filenames, None
         else:
             fheaders = set(fheaders)
             df = pd.concat(dflist)
             df.reset_index(inplace=True, drop=True)
             allheaders = list(df.columns.values)
-            logging.debug (self.get_reserved_categorycols(hparser))
-            for key in self.get_reserved_categorycols(hparser):
-                if key in allheaders:
-                    df[key] = df[key].astype('category')
-            core.preprocessor.reorder_columns(df)
-            return df, readfiles, fheaders 
+            logging.debug (self.get_reserved_categorycols(parser))
+            categories = [key for key in self.get_reserved_categorycols(parser) if key in allheaders]
+            for ckey in categories:
+                df[ckey] = df[ckey].astype('category')
+            if preprocessor is not None:
+                df = preprocessor.reorder_columns(df)
+                df,_,_ = preprocessor.calculate(df)
+            return df, filenames, fheaders 
 
     

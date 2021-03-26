@@ -9,10 +9,11 @@ import wx.grid
 import wx.lib.mixins.gridlabelrenderer as glr
 from pubsub import pub
 
+import core.configuration as cfg
 from core.configuration import CONFIG_FILTERS,CONFIG_RANGEFILTERS,CONFIG_USE
 from core.filter import RangeFilter
 from gui.listcontrol import AnalysisListCtrl, FilterListCtrl
-from gui.events import EVT_DATA_TYPE, DataWindowEvent, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, DATA_UPDATED
+from gui.events import EVT_DATA_TYPE, DataWindowEvent, FOCUSED_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, DATA_UPDATED
 import gui.dialogs
 from gui.dialogs import SelectGroupsDlg,ConfigureFiltersDlg
 
@@ -150,7 +151,11 @@ class PandasFrame(wx.Frame):
 
     def __init__(self, parent, title, config, data=None, showcolindex=False, groups=None, analyzable=True, savemodified=True, precision=3, enableclose=True):
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
-        self.config = config
+        if config is None:
+            self.config = cfg.Config()
+            self.config.create_default()
+        else:    
+            self.config = config
         self.enableclose = enableclose
         # *****
         #data = data.copy()
@@ -161,6 +166,7 @@ class PandasFrame(wx.Frame):
         self.Layout()
 
         self.Bind(wx.EVT_CLOSE, self.close_and_destroy)
+        self.Bind(wx.EVT_ACTIVATE, self.activate)
         pub.subscribe(self.OnDataWindowRenamed, RENAMED_DATA_WINDOW)
         pub.subscribe(self.OnDataUpdated, DATA_UPDATED)
         
@@ -171,7 +177,13 @@ class PandasFrame(wx.Frame):
         
         #pub.sendMessage(NEW_DATA_WINDOW, data=self.dataview, frame=self)
 
+    def activate(self, event):
+        if event.GetActive():
+            pub.sendMessage(FOCUSED_DATA_WINDOW, data=self.dataview, frame=self)
+        event.Skip()
 
+        
+        
     def SetData(self, data=None, showcolindex=False, groups=None, analyzable=True, savemodified=True, precision=3):
         self.analyzable = analyzable
         self.savemodied = savemodified

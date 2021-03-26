@@ -6,18 +6,14 @@ Created on Fri May  4 04:02:09 2018
 @author: khs3z
 """
 
+import core.configuration as cfg
 import logging
 import os
 import re
 import importlib
-
-PARSER_USE = 'Use'
-PARSER_CATEGORY = 'Category'
-PARSER_REGEX = 'Regex Pattern'
+import pkgutil
 
 def get_available_parsers(pkdir='core.parser'):
-    import pkgutil
-    import importlib
     for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
         importlib.import_module('.' + name, __package__)
     parser_classes = {cls.__name__: cls for cls in defaultparser.__subclasses__()}        
@@ -44,17 +40,14 @@ def instantiate_parser(fullname):
 class defaultparser(object):
 
     def __init__(self):
-        #self.pattern = {
-        #        'Treatment':r'[-](\d+?)',
-        #        'FOV':r'[-]\d*(\D+?)[_-]',
-        #        'Cell':r'[-].*?[_-].*?[_](\d*?)\.'}
-
         self.init_patterns()
         self.compile_patterns()
 
     def is_readonly(self):
         return True
     
+    def get_name(self):
+        return "Default Parser"
     
     def init_patterns(self):
         self.regexpatterns = []
@@ -62,10 +55,12 @@ class defaultparser(object):
     
     def compile_patterns(self):
         if self.regexpatterns is not None and len(self.regexpatterns) > 0:
-            self.compiledpatterns = {rp[PARSER_CATEGORY]:re.compile(rp[PARSER_REGEX]) for rp in self.regexpatterns if rp[PARSER_USE]}
+            self.compiledpatterns = {rp[cfg.CONFIG_PARSER_CATEGORY]:re.compile(rp[cfg.CONFIG_PARSER_REGEX]) for rp in self.regexpatterns if rp[cfg.CONFIG_PARSER_USE]}
         else:
             self.compiledpatterns = {}    
 
+    def get_config(self):
+        return {cfg.CONFIG_PARSER_CLASS:defaultparser.__name__, cfg.CONFIG_PARSER_PATTERNS:self.regexpatterns}
             
     def get_regexpatterns(self):
         return self.regexpatterns
@@ -108,21 +103,21 @@ class celltype_compartment_fov_treatment_cell_parser(defaultparser):
     
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'Cell line', PARSER_REGEX:r'.*/(.*?)/.*/'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Compartment', PARSER_REGEX:r'.*/(.*?)/'},
-                {PARSER_USE:True, PARSER_CATEGORY:'FOV', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Cell', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell line', cfg.CONFIG_PARSER_REGEX:r'.*/(.*?)/.*/'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Compartment', cfg.CONFIG_PARSER_REGEX:r'.*/(.*?)/'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
 
 
 class compartment_fov_treatment_cell_parser(defaultparser):
     
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'Compartment', PARSER_REGEX:r'.*/(.*?)/'},
-                {PARSER_USE:True, PARSER_CATEGORY:'FOV', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Cell', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Compartment', cfg.CONFIG_PARSER_REGEX:r'.*/(.*?)/'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
 
 
         
@@ -130,10 +125,10 @@ class compartment_treatment_fov_cell_parser(defaultparser):
     
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'Compartment', PARSER_REGEX:r'.*/(.*?)/'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'FOV', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Cell', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Compartment', cfg.CONFIG_PARSER_REGEX:r'.*/(.*?)/'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
 
 
 
@@ -141,9 +136,9 @@ class fov_treatment_cell_parser(defaultparser):
     
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'FOV', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Cell', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
 #                'FOV':r'[_-](.*?)[_-]',
 #                'Treatment':r'[_-].*?[_-](.*?)[_-]',
 #                'Cell':r'[_-].*?[_-].*?[_-](\d*?)\.'}
@@ -154,9 +149,9 @@ class treatment_fov_cell_parser(defaultparser):
         
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'FOV', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Cell', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
 
 
 
@@ -164,9 +159,9 @@ class treatment_fov_time_parser(defaultparser):
     
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'FOV', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Time', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Time', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
 
 
 
@@ -174,17 +169,17 @@ class treatment_time_parser(defaultparser):
     
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Time', PARSER_REGEX:r'.*/.*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Time', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](\d*?)\.'}]
 
 
 class fov_time_well_parser(defaultparser):
     
     def init_patterns(self):
         self.regexpatterns = [
-                {PARSER_USE:True, PARSER_CATEGORY:'FOV', PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Time', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {PARSER_USE:True, PARSER_CATEGORY:'Well', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](.*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Time', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Well', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](.*?)\.'}]
 
 
 

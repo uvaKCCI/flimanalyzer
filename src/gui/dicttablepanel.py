@@ -7,7 +7,6 @@ Created on Tue May  8 18:20:41 2018
 """
 
 import wx
-from core.parser import PARSER_USE
 
 EVEN_ROW_COLOUR = '#CCE6FF'
 GRID_LINE_COLOUR = '#ccc'

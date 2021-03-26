@@ -27,7 +27,7 @@ import core.parser
 import core.plots
 import core.preprocessor
 import gui.dialogs
-from core.parser import  PARSER_USE, PARSER_CATEGORY, PARSER_REGEX
+from gui.importdlg import ImportDlg
 from core.preprocessor import defaultpreprocessor
 from core.importer import dataimporter
 from core.filter import RangeFilter
@@ -42,7 +42,8 @@ from gui.seriesfiltertree import SeriesFilterCtrl
 #from core.plots import MatplotlibFigure
 from gui.dialogs import ConfigureCategoriesDlg
 from gui.events import DataUpdatedEvent, EVT_DATAUPDATED, EVT_DU_TYPE, DataWindowEvent, EVT_DATA, EVT_DATA_TYPE, PlotEvent, EVT_PLOT, EVT_PLOT_TYPE 
-from gui.events import REQUEST_CONFIG_UPDATE, CONFIG_UPDATED, NEW_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, NEW_PLOT_WINDOW, DATA_IMPORTED, FILTERS_UPDATED, FILTERED_DATA_UPDATED, DATA_UPDATED, ANALYSIS_BINS_UPDATED
+from gui.events import REQUEST_CONFIG_UPDATE, CONFIG_UPDATED
+from gui.events import FOCUSED_DATA_WINDOW, NEW_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, NEW_PLOT_WINDOW, DATA_IMPORTED, FILTERS_UPDATED, FILTERED_DATA_UPDATED, DATA_UPDATED, ANALYSIS_BINS_UPDATED
 from gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
 
 from wx.lib.newevent import NewEvent
@@ -51,6 +52,7 @@ ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
 DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
+DEFAULT_COMFIFG_FILE = 'defaults.json'
 
 class FlimAnalyzerApp(wx.App):
     
@@ -58,718 +60,16 @@ class FlimAnalyzerApp(wx.App):
         self.flimanalyzer = flimanalyzer
         if config is None or not isinstance(config, Config):
             self.config = Config()
-            self.config.create_default()
+            self.config.read_from_json(DEFAULT_COMFIFG_FILE, defaultonfail=True)
         else:
             self.config = config
         super(FlimAnalyzerApp,self).__init__()
-        self.Bind(EVT_FILTERUPDATED, self.OnFilterUpdated)
-        pub.subscribe(self.OnConfigUpdated, CONFIG_UPDATED)
 
         
     def OnInit(self):
         self.frame = AppFrame(self.flimanalyzer, self.config)
         self.frame.Show(True)
         return True
-
-
-    def OnConfigUpdated(self, source, config, updated):
-        logging.debug ("FLIMANALYZERAPP.OnConfigUpdated")
-        if source != self and updated:
-            for key in updated:
-                logging.debug (f"\tupdated key:{key}")
-        
-        
-    def OnFilterUpdated(self, event):
-        logging.debug ("FLIMANALYZERAPP: filter updated:")
-
-    
-class TabImport(wx.Panel):
-    
-    def __init__(self, parent, pwindow, flimanalyzer, config):
-        self.pwindow = pwindow
-        self.flimanalyzer = flimanalyzer
-        self.config_calc_columns = config.get(cfg.CONFIG_CALC_COLUMNS)
-        
-        #self.delimiter = config[CONFIG_DELIMITER]
-        #self.parser = config[CONFIG_PARSERCLASS]
-        #self.drop_columns = config[CONFIG_DROP_COLUMNS]
-        #self.excluded_files = config[CONFIG_EXCLUDE_FILES]
-        #self.calc_columns = config[CONFIG_CALC_COLUMNS]
-        #self.filters = config[CONFIG_FILTERS]
-        #self.headers = config[CONFIG_HEADERS]
-
-        self.rawdata = None
-        super(TabImport,self).__init__(parent)
-                
-        delimiter_label = wx.StaticText(self, wx.ID_ANY, "Column Delimiter:")
-        self.delimiter_panel = DelimiterPanel(self, config.get(cfg.CONFIG_DELIMITER))
-        
-        parser_label = wx.StaticText(self, wx.ID_ANY, "Filename Parser:")
-        #self.parser_field = wx.TextCtrl(self, wx.ID_ANY, value=self.parser)
-        self.avail_parsers = core.parser.get_available_parsers()
-        sel_parser = self.avail_parsers.get(config.get(cfg.CONFIG_PARSERCLASS))
-        if sel_parser is None:
-            sel_parser = next(iter(self.avail_parsers)) #self.avail_parsers.keys()[0]
-        self.parser_chooser = wx.ComboBox(self, -1, value=sel_parser, choices=sorted(self.avail_parsers.keys()), style=wx.CB_READONLY)
-        self.parser_chooser.Bind(wx.EVT_COMBOBOX, self.OnParserChanged)
-
-        self.sel_files_label = wx.StaticText(self, wx.ID_ANY, "Selected Files: %9d" % len(flimanalyzer.get_importer().get_files()), (20,20))    
-        self.files_list = wx.ListBox(self, wx.ID_ANY, style=wx.LB_EXTENDED|wx.LB_HSCROLL|wx.LB_NEEDED_SB|wx.LB_SORT)
-
-        exclude_label = wx.StaticText(self, wx.ID_ANY, "Exclude Files:")
-        self.exclude_files_list = wx.TextCtrl(self, wx.ID_ANY, value="\n".join(config.get(cfg.CONFIG_EXCLUDE_FILES)), style=wx.TE_MULTILINE|wx.EXPAND)
-        
-        rename_label = wx.StaticText(self, wx.ID_ANY, "Rename Columns:")
-        self.rgrid = wx.grid.Grid(self, -1)#, size=(200, 100))
-        self.rgrid.SetDefaultColSize(200,True)
-        self.headertable = DictTable(config.get(cfg.CONFIG_HEADERS), headers=['Original name', 'New name'])
-        self.rgrid.SetTable(self.headertable,takeOwnership=True)
-        self.rgrid.SetRowLabelSize(0)
-
-        parsername = self.parser_chooser.GetStringSelection()
-        hparser = core.parser.instantiate_parser('core.parser.' + parsername)
-        
-        fparse_label = wx.StaticText(self, wx.ID_ANY, "Parse from Filenames:")
-        self.fparsegrid = wx.grid.Grid(self, -1)
-        self.fparsegrid.SetDefaultColSize(200,True)
-        self.parsetable = ListTable(hparser.get_regexpatterns(), headers=[PARSER_USE, PARSER_CATEGORY, PARSER_REGEX], sort=False)
-        self.fparsegrid.SetTable(self.parsetable,takeOwnership=True)
-        self.fparsegrid.SetRowLabelSize(0)
-        
-        drop_label = wx.StaticText(self, wx.ID_ANY, "Drop Columns:")
-        self.drop_col_list = wx.TextCtrl(self, wx.ID_ANY, size=(200, 100), value="\n".join(config.get(cfg.CONFIG_DROP_COLUMNS)), style=wx.TE_MULTILINE|wx.EXPAND)
-
-        self.add_button = wx.Button(self, wx.ID_ANY, "Add Files")
-        self.add_button.Bind(wx.EVT_BUTTON, self.OnAddFiles)
-
-        self.remove_button = wx.Button(self, wx.ID_ANY, "Remove Files")
-        self.remove_button.Bind(wx.EVT_BUTTON, self.OnRemoveFiles)
-
-        self.reset_button = wx.Button(self, wx.ID_ANY, "Reset")
-        self.reset_button.Bind(wx.EVT_BUTTON, self.OnReset)
-
-        self.preview_button = wx.Button(self, wx.ID_ANY, "Preview")
-        self.preview_button.Bind(wx.EVT_BUTTON, self.OnPreview)
-
-        self.import_button = wx.Button(self, wx.ID_ANY, "Import")
-        self.import_button.Bind(wx.EVT_BUTTON, self.OnImportFiles)
-
-
-        configsizer = wx.FlexGridSizer(2,2,5,5)
-        configsizer.AddGrowableCol(1, 1)
-        colsizer = wx.FlexGridSizer(2,3,5,5)
-        colsizer.AddGrowableCol(0, 2)
-        colsizer.AddGrowableCol(1, 1)
-        colsizer.AddGrowableRow(1, 1)
-        lbuttonsizer = wx.BoxSizer(wx.VERTICAL)
-        filesizer = wx.FlexGridSizer(2,2,5,5)
-        filesizer.AddGrowableCol(0,1)
-        filesizer.AddGrowableCol(1,3)
-        filesizer.AddGrowableRow(1,1)
-        topleftsizer = wx.FlexGridSizer(2,1,5,5)
-        topleftsizer.AddGrowableCol(0, 1)
-        topleftsizer.AddGrowableRow(1, 1)
-        topsizer = wx.BoxSizer(wx.HORIZONTAL)
-        bottomsizer = wx.BoxSizer(wx.HORIZONTAL)
-        box = wx.BoxSizer(wx.VERTICAL)
-        
-        configsizer.Add(delimiter_label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
-        configsizer.Add(self.delimiter_panel, 1, wx.EXPAND|wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        configsizer.Add(parser_label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
-        configsizer.Add(self.parser_chooser, 1, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        
-        colsizer.Add(fparse_label, 0, wx.LEFT|wx.RIGHT|wx.TOP, 5)
-        colsizer.Add(rename_label, 0, wx.LEFT|wx.RIGHT|wx.TOP, 5)
-        colsizer.Add(drop_label, 0, wx.LEFT|wx.RIGHT|wx.TOP, 5)
-        colsizer.Add(self.fparsegrid, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
-        colsizer.Add(self.rgrid, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
-        colsizer.Add(self.drop_col_list, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
-        
-        lbuttonsizer.Add(self.add_button, 1, wx.EXPAND|wx.ALL, 5)
-        lbuttonsizer.Add(self.remove_button, 1, wx.EXPAND|wx.ALL, 5)
-        lbuttonsizer.Add(self.reset_button, 1, wx.EXPAND|wx.ALL, 5)
-        lbuttonsizer.Add(self.preview_button, 1, wx.EXPAND|wx.ALL, 5)
-        lbuttonsizer.Add(self.import_button, 1, wx.EXPAND|wx.ALL, 5)
-
-        filesizer.Add(exclude_label, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, 5)
-        filesizer.Add(self.sel_files_label, 2, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, 5)
-        filesizer.Add(self.exclude_files_list, 1, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
-        filesizer.Add(self.files_list, 2, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.BOTTOM, 5)
-        
-        topleftsizer.Add(configsizer, 1, wx.EXPAND|wx.ALL, 5)
-        topleftsizer.Add(colsizer, 1, wx.EXPAND|wx.ALL, 5)
-        
-        topsizer.Add(topleftsizer, 1, wx.EXPAND|wx.ALL, 5)
-        
-        bottomsizer.Add(filesizer, 1, wx.EXPAND|wx.ALL, 5)
-        bottomsizer.Add(lbuttonsizer,0, wx.ALL, 5)
-        
-        box.Add(topsizer, 1, wx.EXPAND|wx.ALL, 5)
-        box.Add(wx.StaticLine(self), 0, wx.ALL|wx.EXPAND, 5)
-        box.Add(bottomsizer, 1, wx.EXPAND|wx.ALL, 5)
-        
-        self.SetSizerAndFit(box)
-        
-        self.update_files(0)
-
-        self.rgrid.Bind(wx.EVT_SIZE, self.OnRGridSize)
-        pub.subscribe(self.OnConfigUpdated, CONFIG_UPDATED)
-    
-    
-    def get_import_settings(self):
-        importconfig = {}
-        importconfig.update({cfg.CONFIG_PARSERCLASS : self.parser_chooser.GetStringSelection()})
-        importconfig.update({cfg.CONFIG_EXCLUDE_FILES : self.exclude_files_list.GetValue().splitlines()}) #.encode('ascii','ignore').splitlines()})
-        importconfig.update({cfg.CONFIG_DELIMITER : self.delimiter_panel.get_delimiters()})
-        #self.config[CONFIG_CALC_COLUMNS] = 'calculate columns'
-        return {cfg.CONFIG_IMPORT:importconfig}    
-        
-    
-    def get_preprocess_settings(self):
-        preprocessconfig = {}
-        preprocessconfig.update({cfg.CONFIG_HEADERS : self.rgrid.GetTable().GetDict()})
-        preprocessconfig.update({cfg.CONFIG_DROP_COLUMNS : self.drop_col_list.GetValue().splitlines()}) #.encode('ascii','ignore').splitlines()})
-        preprocessconfig.update({cfg.CONFIG_CALC_COLUMNS : self.config_calc_columns})
-        return {cfg.CONFIG_PREPROCESS:preprocessconfig}    
-        
-    
-    def OnConfigUpdated(self, source, config, updated):
-        logging.debug ("appframe.TabImport.OnConfigUpdated")
-        if source != self:
-            for key in updated:
-                if key in [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT, cfg.CONFIG_PREPROCESS]:
-                    logging.debug (f"\tupdating: {key}")
-                    self.update_config_gui_elements(config)
-                else:
-                    logging.debug (f"\tignoring: {key}")
-        
-        
-    def update_config_gui_elements(self, config):
-        #self.config = config
-        #self.delimiter = rootconfig[CONFIG_DELIMITER]
-        #self.parser = rootconfig[CONFIG_PARSERCLASS]
-        #self.drop_columns = rootconfig[CONFIG_DROP_COLUMNS]
-        #self.excluded_files = rootconfig[CONFIG_EXCLUDE_FILES]
-        
-        #self.calc_columns = rootconfig[CONFIG_CALC_COLUMNS]
-        #self.filters = rootconfig[CONFIG_FILTERS]
-        #self.headers = rootconfig[CONFIG_HEADERS]
-        logging.debug ("update_config_gui_elements")
-        logging.debug (f"\t{cfg.CONFIG_IMPORT}, {config.get(cfg.CONFIG_IMPORT, returnkeys=True)}")
-        logging.debug (f"\t{cfg.CONFIG_PREPROCESS}, {config.get(cfg.CONFIG_PREPROCESS, returnkeys=True)}")
-        self.delimiter_panel.set_delimiters(config.get(cfg.CONFIG_DELIMITER))
-        parsername = config.get(cfg.CONFIG_PARSERCLASS)
-        sel_parser = self.avail_parsers.get(parsername)
-        if sel_parser is None:
-            parsername =  self.parser_chooser.GetStringSelection()
-            parsercfg = {cfg.CONFIG_PARSERCLASS: parsername}
-            config.update(parsercfg)
-            pub.sendMessage(CONFIG_UPDATED, source=self, config=config, updated=parsercfg)
-            # config[CONFIG_PARSERCLASS] = self.parser
-        else:
-            self.parser_chooser.SetStringSelection(parsername)
-        if config.get(cfg.CONFIG_EXCLUDE_FILES) is not None:    
-            self.exclude_files_list.SetValue('\n'.join(config.get(cfg.CONFIG_EXCLUDE_FILES)))
-        else:
-            self.exclude_files_list.SetValue('')            
-        if config.get(cfg.CONFIG_DROP_COLUMNS) is not None:    
-            self.drop_col_list.SetValue('\n'.join(config.get(cfg.CONFIG_DROP_COLUMNS)))
-        else:
-            self.exclude_files_list.SetValue('')            
-        self.headertable = DictTable(config.get(cfg.CONFIG_HEADERS), headers=['Original name', 'New name'])
-        self.rgrid.SetTable(self.headertable,takeOwnership=True) 
-        self.rgrid.Refresh()
-        
-        
-    def OnRGridSize(self, event):
-        self.rgrid.SetDefaultColSize(event.GetSize().GetWidth()/self.rgrid.GetTable().GetNumberCols(),True)
-        self.rgrid.Refresh()
-        
-    
-    def update_files(self, no_newfiles):
-        importer = self.flimanalyzer.get_importer()
-        files = importer.get_files()
-        self.sel_files_label.SetLabel("Selected Files: %9d" % len(files))
-        self.files_list.Set(files)
-        
-        
-    def OnParserChanged(self, event):
-        logging.debug ("Parser changed")
-        parsername = self.parser_chooser.GetStringSelection()
-        hparser = core.parser.instantiate_parser('core.parser.' + parsername)
-        self.parsetable = ListTable(hparser.get_regexpatterns(), headers=[PARSER_USE,PARSER_CATEGORY, PARSER_REGEX], sort=False)
-        self.fparsegrid.SetTable(self.parsetable,takeOwnership=True)
-        self.fparsegrid.SetRowLabelSize(0)
-        self.fparsegrid.Refresh()
-
-        #parser_chooser = event.GetEventObject()
-        #parserparams = {cfg.CONFIG_PARSERCLASS:parser_chooser.GetStringSelection()}
-        ##self.config.update(parsercfg)
-        #pub.sendMessage(CONFIG_UPDATED, source=self, config=self.config, updated=parserparams)
-
-
-    def OnAddFiles(self, event):
-        with wx.FileDialog(self, "Add Raw Data Results", wildcard="txt files (*.txt)|*.txt",
-                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE | wx.FD_CHANGE_DIR) as fileDialog:
-
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return
-            # Proceed loading the file chosen by the user
-            paths = fileDialog.GetPaths()
-            importer = self.flimanalyzer.get_importer()
-            filecount = len(importer.get_files())
-            exclude_list = self.exclude_files_list.GetValue().encode('ascii','ignore')
-            logging.debug (type(exclude_list))
-            excluded = exclude_list.splitlines()              
-            for path in paths:
-                if os.path.isdir(path):
-                    importer.add_files([path], exclude=[])
-                else:
-                    importer.add_files([path], exclude=excluded)
-            new_filecount = len(importer.get_files())
-            self.update_files(new_filecount-filecount)
-#            self.statusbar.SetStatusText("Added %d file(s)" % (new_filecount - filecount))
- 
-    
-    def OnRemoveFiles(self, event):
-        selected = self.files_list.GetSelections()
-        if selected is not None and len(selected) > 0: 
-            selectedfiles = [self.files_list.GetString(idx) for idx in selected]
-            importer = self.flimanalyzer.get_importer()
-            filecount = len(importer.get_files())
-            importer.remove_files(selectedfiles)
-            self.update_files(len(importer.get_files())-filecount)
- 
-    
-    def OnReset(self, event):
-        importer = self.flimanalyzer.get_importer()
-        filecount = len(importer.get_files())
-        self.flimanalyzer.get_importer().remove_allfiles()
-        self.update_files(len(importer.get_files())-filecount)
- 
-    
-    def configure_importer(self, importer):
-#        hparser = core.parser.instantiate_parser(self.parser_field.GetValue())
-        parsername = self.parser_chooser.GetStringSelection()
-        hparser = core.parser.instantiate_parser('core.parser.' + parsername)
-        if hparser is None:
-            logging.warning (f"COULD NOT INSTANTIATE PARSER:{parsername}")
-            return
-        parseconfig = self.parsetable.GetData()
-        hparser.set_regexpatterns(parseconfig)
-        dropped = self.drop_col_list.GetValue().encode('ascii','ignore').splitlines()
-        if len(dropped)==1 and dropped[0]=='':
-            dropped = None
-
-        preprocessor = defaultpreprocessor()
-        preprocessor.set_replacementheaders(self.headertable.GetDict())
-        preprocessor.set_dropcolumns(dropped)
-        importer.set_parser(hparser)
-        importer.set_preprocessor(preprocessor)
-
-        
-    def OnPreview(self, event):
-        previewrows = 200
-        files = self.flimanalyzer.get_importer().get_files()
-        if len(files) > 0:
-            delimiter = self.delimiter_panel.get_delimiters()
-            importer = dataimporter()
-            self.configure_importer(importer)
-            selected = self.files_list.GetSelections()
-            if selected is None or len(selected)==0:
-                importer.set_files([files[0]])
-            else:
-                logging.debug (f"PREVIEWING: delimiter={delimiter}, {self.files_list.GetString(selected[0])}")
-                importer.set_files([self.files_list.GetString(selected[0])])
-            rawdata, readfiles, headers = importer.import_data(delimiter=delimiter, nrows=previewrows)
-            rawdata = self.calc_additional_columns(rawdata) 
-#            rawdata = core.preprocessor.reorder_columns(rawdata,headers)
-            rawdata = core.preprocessor.reorder_columns(rawdata)
-
-            windowtitle = "Import Preview (single file): showing first %d rows" % len(rawdata)
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(rawdata, 
-                              windowtitle, 
-                              'createnew', 
-                              showcolindex=False, 
-                              analyzable=False,
-                              savemodified=False)
-            self.GetEventHandler().ProcessEvent(event)        
-        
-    
-    def update_listlabel(self):
-        label = "Selected Files: %9d" % len(self.flimanalyzer.get_importer().get_files())
-        if self.rawdata is not None:
-            label += "; imported %d rows, %d columns" % (self.rawdata.shape[0], self.rawdata.shape[1])
-        self.sel_files_label.SetLabel(label)    
-
-
-    def calc_additional_columns(self, data):
-        analyzer = self.flimanalyzer.get_analyzer()
-        analyzer.add_columns(self.config_calc_columns)
-        data,calculated,skipped = analyzer.calculate(data)
-        logging.debug (f"CALC:{calculated}")
-        logging.debug (f"SKIPPED: {skipped}")
-        return data
-    
-                    
-    def OnImportFiles(self, event):
-        importer = self.flimanalyzer.get_importer()
-        files = self.flimanalyzer.get_importer().get_files()
-        if len(files) == 0:
-            wx.MessageBox('Add files to be imported.', 'Error', wx.OK | wx.ICON_INFORMATION)    
-        else:
-            delimiter = self.delimiter_panel.get_delimiters()
-    #        self.statusbar.SetStatusText("Importing raw data from %d file(s)..." % len(importer.get_files()))
-            self.configure_importer(importer)
-            importer.set_files(files)
-            oldrawdata= self.rawdata
-            self.rawdata, readfiles, parsed_headers = importer.import_data(delimiter=delimiter)
-            self.rawdata = self.calc_additional_columns(self.rawdata)    
-            self.rawdata = core.preprocessor.reorder_columns(self.rawdata)            
-
-            pub.sendMessage(DATA_IMPORTED, olddata=oldrawdata, data=self.rawdata)
-            windowtitle = "Raw data"
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(self.rawdata, 
-                              windowtitle, 
-                              'update', 
-                              showcolindex=False, 
-                              analyzable=True,
-                              savemodified=True,
-                              enableclose=True)
-            self.GetEventHandler().ProcessEvent(event)        
-            
-            self.update_listlabel()
-            #if len(files) > 1:
-            #    with wx.FileDialog(self, "Save imported raw data", wildcard="txt files (*.txt)|*.txt", style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as fileDialog:    
-            #        fileDialog.SetFilename('Master.txt')
-            #        if fileDialog.ShowModal() == wx.ID_CANCEL:
-            #            return
-            #        fname = fileDialog.GetPath()   
-            #        try:
-            #            self.rawdata.to_csv(fname, index=False, sep='\t')
-            #        except IOError:
-            #            wx.MessageBox('Error saving imported raw data file %s' % fname, 'Error', wx.OK | wx.ICON_INFORMATION)
- 
-    
-       
-    
-class TabFilter(wx.Panel):
-    
-    def __init__(self, parent, pwindow, flimanalyzer, config):
-        self.flimanalyzer = flimanalyzer
-        self.pwindow = pwindow
-        self.config = config
-        wx.Panel.__init__(self, parent)
-        self.rawdata = None
-        self.data = None
-        self.summary_group = []
-        
-        self.rgrid_sel_cell = None
-
-        self.rawdatainfo = wx.StaticText(self, -1, "No raw data", (20,20))
-        self.datainfo = wx.StaticText(self, -1, "No filtered data", (20,20))
-    
-        self.selectall_button = wx.Button(self, wx.ID_ANY, "Select All")
-        self.selectall_button.Bind(wx.EVT_BUTTON, self.SelectAll)
-    
-        self.deselectall_button = wx.Button(self, wx.ID_ANY, "Deselect All")
-        self.deselectall_button.Bind(wx.EVT_BUTTON, self.DeselectAll)
-    
-        #self.filter_button = wx.Button(self, wx.ID_ANY, "Apply Filter")
-        #self.filter_button.Bind(wx.EVT_BUTTON, self.OnApplyFilter)
-    
-        self.dropinfo_button = wx.Button(self, wx.ID_ANY, "Info on Drop")
-        self.dropinfo_button.Bind(wx.EVT_BUTTON, self.InfoOnDrop)
-    
-        self.rlabel = wx.StaticText(self, wx.ID_ANY, "Row Filters:")
-        #self.init_filtergrid()
-        self.init_filterlist()
-#        self.filterlist.Bind(wx.EVT_LIST_END_LABEL_EDIT,pwindow.OnFilterUpdate)
-                
-        self.init_seriesfilter()
-        
-        buttonsizer = wx.BoxSizer(wx.VERTICAL)
-        buttonsizer.Add(self.selectall_button, 0, wx.EXPAND, 0)
-        buttonsizer.Add(self.deselectall_button, 0, wx.EXPAND, 0)
-        #buttonsizer.Add(self.filter_button, 0, wx.EXPAND, 0)
-        buttonsizer.Add(self.dropinfo_button, 0, wx.EXPAND, 0)
-
-        ssizer = wx.BoxSizer(wx.VERTICAL)
-        ssizer.Add(wx.StaticText(self, -1, "Required Series"))
-        ssizer.Add(self.seriesfilter, 3, wx.ALL|wx.EXPAND, 5)
-
-        fsizer = wx.BoxSizer(wx.HORIZONTAL)       
-        fsizer.Add(self.filterlist, 3, wx.ALL|wx.EXPAND, 5)
-        fsizer.Add(buttonsizer)
-        fsizer.Add(ssizer, 1, wx.ALL|wx.EXPAND, 5)
-
-        boxsizer = wx.BoxSizer(wx.VERTICAL) 
-        boxsizer.Add(self.rawdatainfo)
-        boxsizer.Add(self.datainfo)
-        boxsizer.Add(self.rlabel)
-        boxsizer.Add(fsizer, 1, wx.EXPAND, 0)
-        
-        boxsizer.SetSizeHints(self)
-        self.SetSizerAndFit(boxsizer)
-
-        pub.subscribe(self.OnDataImported, DATA_IMPORTED)
-        pub.subscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
-        pub.subscribe(self.OnConfigUpdated, CONFIG_UPDATED)
-
-#    def get_summarygroups(self):
-#        cats = self.flimanalyzer.get_importer().get_parser().get_regexpatterns()
-#        return ['None', 'Treatment', 'FOV,Treatment', 'Treatment,FOV', 'FOV,Cell,Treatment','Treatment,FOV,Cell']
-        
-        
-    def init_filterlist(self):
-        self.filterlist = FilterListCtrl(self, style=wx.LC_REPORT)
-        self.filterlist.InsertColumn(0, "Use")
-        self.filterlist.InsertColumn(1, "Column")
-        self.filterlist.InsertColumn(2, "Min", wx.LIST_FORMAT_RIGHT)
-        self.filterlist.InsertColumn(3, "Max", wx.LIST_FORMAT_RIGHT)
-        self.filterlist.InsertColumn(4, "Dropped", wx.LIST_FORMAT_RIGHT)
-        self.filterlist.SetEditable([False, False, True, True, False])
-        self.filterlist.Arrange()
-
-
-    def init_seriesfilter(self):
-        #self.seriesfilter = SeriesFilterCtrl(parent=self)
-        #self.seriesfilter.setdata(self.rawdata)
-        
-        self.seriesfilter = SeriesFilterCtrl(self, agwStyle=(wx.TR_DEFAULT_STYLE|0x800|0x4000|0x10000)) # hide root, autocheck child and parent
-
-
-    def update_seriesfilter(self):
-        self.seriesfilter.DeleteAllItems()
-        if self.rawdata is not None:
-            self.seriesfilter.setdata(self.rawdata)        
-
-                
-    def get_filter_settings(self):
-        cfgs = self.filterlist.GetData()
-        # convert dict to list
-        rangefilterparams = [cfgs[key].get_params() for key in cfgs]  
-        # add rangefilterparams to filterparams
-        filterparams = {cfg.CONFIG_RANGEFILTERS:rangefilterparams}
-        return {cfg.CONFIG_FILTERS:filterparams}    
-
-
-    def OnDataImported(self, olddata, data):
-        logging.debug (f"{len(data)} rows, {len(data.columns.values)} columns")
-        self.update_rawdata(data)
-
-
-    def OnFiltersUpdated(self, updateditems):
-        rfilters = updateditems
-        if rfilters is None:
-            rfilters = self.filterlist.GetData()
-        logging.debug (f"{len(rfilters)} Filters updated.")
-        for key in rfilters:
-            rfilter = rfilters[key]
-            logging.debug (f"\t {key}: {str(rfilter.get_params())}")
-        filtereddata, dropsbyfilter, totaldrops, droppedindex = self.apply_filters(self.filterlist.GetData(), self.seriesfilter.GetData(), dropsonly=False, onlyselected=True)
-        self.update_data(filtereddata)
-
-        """
-        self.data = self.rawdata.drop(totaldrops)
-        logging.debug (self.data.head())
-        if droppedindex is not None:
-            self.data.set_index(droppedindex.names, inplace=True, drop=False)
-            logging.debug (self.data.index)
-            logging.debug (droppedindex)
-            currentcols = self.data.columns.tolist()
-            droppedindex = droppedindex.intersection(self.data.index)
-            logging.debug (droppedindex)
-            if not droppedindex.empty:
-                self.data = self.data.set_index(droppedindex.names, drop=False).drop(droppedindex)
-            self.data.reset_index(inplace=True, drop=True)
-            self.data = self.data[currentcols]
-        logging.debug (self.data.head())    
-        self.update_data(self.data)
-        """
-        #pub.sendMessage(FILTERED_DATA_UPDATED, originaldata=olddata, newdata=self.data)
-        #pub.sendMessage(DATA_UPDATED, originaldata=olddata, newdata=self.data)
-        
-        #cfgs = self.filterlist.GetData()
-        ## convert dict to list
-        #rangefilterconfigs = [cfgs[key].get_params() for key in cfgs]
-        #self.config.update({cfg.CONFIG_RANGEFILTERS:rangefilterconfigs}, [cfg.CONFIG_ROOT, cfg.CONFIG_FILTERS])
-        #pub.sendMessage(REQUEST_CONFIG_UPDATE, source=self, updated={cfg.CONFIG_RANGEFILTERS:rangefilterconfigs})
-        
-
-    def OnConfigUpdated(self, source, config, updated):
-        logging.debug ("appframe.TabFilters.OnConfigUpdated")
-        if source != self and updated:
-            self.config = config
-            self.set_filterlist()
-            for key in updated:
-                logging.debug (f"\tupdated key: {key}")
-        
-                
-    def SelectAll(self, event):
-        self.filterlist.check_items(self.filterlist.GetData(),True)
-
-        
-    def DeselectAll(self, event):
-        self.filterlist.check_items(self.filterlist.GetData(),False)
-
-
-#    def init_filtergrid(self):
-#        self.rgrid = wx.grid.Grid(self, -1)
-#        self.filtertable = FilterTable(self.config[CONFIG_FILTERS])
-#        self.rgrid.SetTable(self.filtertable,takeOwnership=True)
-#        self.rgrid.SetCellAlignment(1,4,wx.ALIGN_RIGHT,wx.ALIGN_CENTRE,)
-#        self.rgrid.SetRowLabelSize(0)
-#        self.rgrid.SetColFormatBool(0)
-#        self.rgrid.SetColFormatFloat(2,precision=3)
-#        self.rgrid.SetColFormatFloat(3,precision=3)
-#        self.rgrid.SetSelectionMode(wx.grid.Grid.wxGridSelectCells)
-#        self.rgrid.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.onSingleSelect)
-#        self.rgrid.Bind(wx.grid.EVT_GRID_RANGE_SELECT, self.onDragSelection)
-               
-        
-
-#    def OnGroupChanged(self, event):
-#        groupindex = event.GetSelection()
-#        groupstr = self.get_summarygroups()[groupindex]
-#        if groupstr == 'None':
-#            self.summary_group = []
-#        else:    
-#            self.summary_group = groupstr.split(',')
-#        logging.debug (self.summary_group)
-        
-        
-#    def onSingleSelect(self, event):
-#        """
-#        Get the selection of a single cell by clicking or 
-#        moving the selection with the arrow keys
-#        """
-#        self.rgrid_sel_cell = (event.GetRow(),event.GetCol())
-#        event.Skip()
-        
-    
-#    def onDragSelection(self, event):
-#        """
-#        Gets the cells that are selected by holding the left
-#        mouse button down and dragging
-#        """
-#        if self.rgrid.GetSelectionBlockTopLeft():
-#            self.rgrid_sel_cell = self.rgrid.GetSelectionBlockTopLeft()[0]
-#            bottom_right = self.rgrid.GetSelectionBlockBottomRight()[0]
-    
-    def update_rawdata(self, rawdata, applyfilters=True):
-        self.rawdata = rawdata
-        label = "Raw Data:"
-        if self.rawdata is not None:
-            label += " %d rows, %d columns" % (self.rawdata.shape[0], self.rawdata.shape[1])
-        self.rawdatainfo.SetLabel(label)
-        #self.update_data(None)
-
-        categories = list(self.rawdata.select_dtypes(['category']).columns.values)
-        logging.debug (f'COLUMNS WITH CATEGORY AS DTYPE: {categories}')
-        if 'Category' in categories:
-            logging.debug (f"CATEGORY VALUES: {sorted(self.rawdata['Category'].unique())}")
-        self.update_seriesfilter()
-        self.set_filterlist()
-        if applyfilters:
-            self.apply_filters(self.filterlist.GetData(), self.seriesfilter.GetData(), dropsonly=False)
-        
-         
-    def update_data(self, data):
-        olddata = self.data
-        self.data = data
-        label = "Filtered Data:"
-        if self.data is not None:
-            label += " %d rows, %d columns" % (self.data.shape[0], self.data.shape[1])
-        logging.debug (f"{self.data.shape[0]} rows")
-        self.datainfo.SetLabel(label)    
-        pub.sendMessage(FILTERED_DATA_UPDATED, originaldata=olddata, newdata=self.data)
-        pub.sendMessage(DATA_UPDATED, originaldata=olddata, newdata=self.data)        
-
-        windowtitle = "Filtered data"
-        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-        event.SetEventInfo(self.data, 
-                          windowtitle, 
-                          'update', 
-                          showcolindex=False, 
-                          analyzable=True,
-                          savemodified=True,
-                          enableclose=False)
-        self.GetEventHandler().ProcessEvent(event)        
-
-    
-    def set_filterlist(self, dropped={}):
-        data = self.rawdata
-        if data is None:
-            return
-        datacols =  data.select_dtypes(include=[np.number])
-        datacols.columns.values.tolist()
-        rangefiltercfgs = self.config.get(cfg.CONFIG_RANGEFILTERS)
-        filternames = [fc['name'] for fc in rangefiltercfgs]
-        for key in datacols.columns.values.tolist():
-            if key not in filternames:
-                logging.debug (f"key {key} not found. Creating default.")   
-                rangefiltercfgs.append(RangeFilter(key,0,100, selected=False).get_params())
-            else:
-                logging.debug (f"key {key} found.")
-        currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in rangefiltercfgs if rfcfg['name'] in datacols.columns.values.tolist()}        
-        self.filterlist.SetData(currentfilters, dropped, ['Use', 'Column', 'Min', 'Max', 'Dropped'])        
-
-
-    def apply_filters(self, rangefilters, seriesfilter, onlyselected=True, setall=False, dropsonly=False):
-        if rangefilters is None:
-            return
-        analyzer = self.flimanalyzer.get_analyzer()
-        analyzer.set_rangefilters(rangefilters)
-        analyzer.set_seriesfilter(seriesfilter)
-        #self.data = self.rawdata.copy()
-        filtereddata, usedfilters, skippedfilters, no_droppedrows, droppedindex = analyzer.apply_filter(self.rawdata,dropna=True,onlyselected=onlyselected,inplace=False, dropsonly=dropsonly)
-        logging.debug (f"dropsonly={dropsonly}")
-        logging.debug (f"\trawdata: rawdata.shape[0]={self.rawdata.shape[0]}, dropped overall {no_droppedrows} rows")
-        logging.debug (f"\tdata: data.shape[0]={filtereddata.shape[0]}")
-        
-        droppedrows = {f[0]:f[2] for f in usedfilters}
-        if setall:
-            self.filterlist.SetDroppedRows(droppedrows)
-        else:    
-            self.filterlist.UpdateDroppedRows(droppedrows)
-        """
-        if not dropsonly:
-            # wx.PostEvent(self.pwindow, ApplyFilterEvent(data=self.data))
-            self.update_data(data)
-        """    
-        return filtereddata, droppedrows, self.filterlist.get_total_dropped_rows(), droppedindex
-        
-        
-    def InfoOnDrop(self, event):
-        if self.rawdata is None:
-            wx.MessageBox('No data imported.', 'Error', wx.OK | wx.ICON_INFORMATION)
-            return
-        selidx = self.filterlist.GetFirstSelected()
-        if selidx == -1:
-            wx.MessageBox('Select a single row in the Filters table.', 'Error', wx.OK | wx.ICON_INFORMATION)  
-            return
-        # get selected row in Filters table
-        rowkey = self.filterlist.GetItem(selidx,self.filterlist.get_key_col()).GetText()    
-        rows = self.filterlist.GetDroppedRows(rowkey)
-        rowdata = self.rawdata.iloc[rows]
-        rpatterns = self.flimanalyzer.get_importer().get_reserved_categorycols()
-        cols = [c for c in rpatterns if c in rowdata.columns.values]
-        cols.extend(['Directory','File',rowkey])
-        rowdata = core.preprocessor.reorder_columns(rowdata[cols])
-        windowtitle = "%s, dropped rows: %d" % (rowkey, len(rows))
-        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-        event.SetEventInfo(rowdata, 
-                          windowtitle, 
-                          'createnew', 
-                          showcolindex=False, 
-                          analyzable=False,
-                          savemodified=False)
-        self.GetEventHandler().ProcessEvent(event)        
-                                    
-
 
 
 class TabAnalysis(wx.Panel):
@@ -999,7 +299,7 @@ class TabAnalysis(wx.Panel):
 
         # run optional tool config dialog and execte analysis
         parameters = tool.run_configuration_dialog(self)
-        print (parameters)
+        logging.debug(parameters)
         if parameters is None:
             return
         features = parameters['features']
@@ -1043,37 +343,7 @@ class TabAnalysis(wx.Panel):
                     event.SetEventInfo(fig, title, 'createnew')
                     self.GetEventHandler().ProcessEvent(event)        
 
-       
-        """
-        if atype == 'Summary Tables':
-            self.show_summary()
-        elif atype == 'Mean Bar Plots':
-            if len(self.sel_roigrouping) < 10:
-                self.show_meanplots()
-        elif atype == 'Box Plots':
-            if len(self.sel_roigrouping) < 10:
-                self.show_boxplots()
-        elif atype == 'Frequency Histograms':
-            if len(self.sel_roigrouping) < 10:
-                self.show_freqhisto()
-        elif atype == 'KDE Plots':
-            if len(self.sel_roigrouping) < 10:
-                self.show_kdeplots()
-        elif atype == 'Scatter Plots':
-            if len(self.sel_roigrouping) < 10:
-                self.show_scatterplots()
-        elif atype == 'Categorize':
-            self.show_categorized_data()
-        elif atype == 'Principal Component Analysis':
-            self.show_pca_data()
-        elif atype == 'Random Forest Classifier':
-            self.show_randomforest_data()
-        elif atype == 'ML Feature Training':
-            self.show_ml_feature_training()
-        elif atype == 'ML Feature Analysis':
-            self.show_ml_feature_analysis()
-        """
-        
+ 
     def SaveAnalysis(self, event):
         atype = self.analysistype_combo.GetStringSelection()
         logging.debug (f"{atype}")
@@ -1314,182 +584,7 @@ class TabAnalysis(wx.Panel):
 #        numcols = [datacols.columns.values.tolist()[index] for index in selindices]
 #        return numcols
     
-        
-    def create_freq_histograms(self, data, label, groups):
-        histos = {}
-        if not gui.dialogs.check_data_msg(data):
-            return {}
-        cols = self.get_checked_cols(data)
-        if cols is None or len(cols) == 0:
-            wx.MessageBox('No Measurements selected.', 'Warning', wx.OK)
-            return {}
-        for header in sorted(cols):
-            hconfig = cols[header]
-#            hconfig = self.config[CONFIG_HISTOGRAMS].get(header)
-            mrange = (data[header].min(), data[header].max())
-            if hconfig is None:
-                bins = 100
-            else:
-                if self.datachoices_combo.GetStringSelection() == self.get_datachoices()[1]:
-                    mrange = (hconfig[0],hconfig[1])
-                bins = hconfig[2]
-            logging.debug (f"\tcreating frequency histogram plot for {header} with {bins} bins")     
-            #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
-#            fig, ax = MatplotlibFigure()
-            #fig = plt.figure(FigureClass=MatplotlibFigure)
-            #ax = fig.add_subplot(111)
-            fig, ax = plt.subplots()
-            binvalues, binedges, groupnames, fig, ax = core.plots.histogram(ax, data, header, titlesuffix=label, groups=groups, normalize=100, range=mrange, stacked=False, bins=bins, histtype='step')                
-            histos[header] = (binvalues, binedges, groupnames, fig,ax)
-        return histos
-
-        
-    def create_meanbarplots(self, data, groups):
-        plots = {}
-        if not gui.dialogs.check_data_msg(data):
-            return {}
-        cols = [c for c in self.get_checked_cols(data)]
-        if cols is None or len(cols) == 0:
-            wx.MessageBox('No measurements selected.', 'Warning', wx.OK)
-            return {}
-        for col in sorted(cols):
-            logging.debug (f"\tcreating mean bar plot for {col}")
-            fig, ax = plt.subplots()
-            fig, ax = core.plots.grouped_meanbarplot(ax, data, col, groups=groups)
-            plots[col] = (fig,ax)
-        return plots
-
-
-    def create_boxplots(self, data, groups):
-        plots = {}
-        if not gui.dialogs.check_data_msg(data):
-            return {}
-        cols = [c for c in self.get_checked_cols(data)]
-        if cols is None or len(cols) == 0:
-            wx.MessageBox('No measurements selected.', 'Warning', wx.OK)
-            return {}
-        for col in sorted(cols):
-            logging.debug (f"Creating box plot for {col}")
-            fig, ax = plt.subplots()
-            fig, ax = core.plots.grouped_boxplot(ax, data, col, groups=groups, grid=False, rot=90, showmeans=True, showfliers=True, whis=[5,95])#whis=float("inf")
-            plots[col] = (fig,ax)
-        return plots
-
-
-    def create_kdeplots(self, data, groups):
-        kdes = {}
-        if not gui.dialogs.check_data_msg(data):
-            return {}
-        cols = self.get_checked_cols(data)
-        if cols is None or len(cols) < 1:
-            wx.MessageBox('Select at least 1 measurements.', 'Warning', wx.OK)
-            return {}
-        for header in sorted(cols):
-            hconfig = cols[header]
-#            hconfig = self.config[CONFIG_HISTOGRAMS].get(header)
-            if hconfig is None:
-                bins = 100
-                minx = None
-                maxx = None
-            else:
-                bins = hconfig[2]
-                minx = data[header].min() #hconfig[0]
-                maxx = data[header].max() #hconfig[1]
-            logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig, ax = plt.subplots()
-            fig, ax = core.plots.grouped_kdeplot(ax, data, header, groups=groups, hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
-            ax.set_xlim(minx, maxx)
-            kdes[header] = (fig,ax)
-        return kdes
-
-
-    def create_scatterplots(self, data, groups):
-        scatters = {}
-        if not gui.dialogs.check_data_msg(data):
-            return {}
-        cols = [c for c in self.get_checked_cols(data)]
-        if cols is None or len(cols) < 2:
-            wx.MessageBox('Select at least 2 measurements.', 'Warning', wx.OK)
-            return {}
-        combs = itertools.combinations(cols, 2)
-        for comb in sorted(combs):
-            logging.debug (f"\tcreating scatter plot for {str(comb)}")
-            fig, ax = plt.subplots()
-            fig, ax = core.plots.grouped_scatterplot(ax, data, comb, groups=groups, marker='o', s=10)#, facecolors='none', edgecolors='r')
-            scatters[comb] = (fig,ax)
-        return scatters
-
-    
-    def create_pca(self, data):
-        if not gui.dialogs.check_data_msg(data):
-            return
-        cols = [c for c in self.get_checked_cols(data)]
-        if cols is None or len(cols) < 2:
-            wx.MessageBox('Select at least 2 measurements.', 'Warning', wx.OK)
-            return
-        n = ''
-        dlg = wx.TextEntryDialog(self, 'Specifiy PCA components to retain:'\
-                                 '\n\tleave empty:   retain all PCA components.'\
-                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
-                                 '\n\t1 <= n <= %d (integer):   retain first n PCA components.' % len(cols),'PCA Configuration')
-        dlg.SetValue(n)
-        while True:
-            if dlg.ShowModal() != wx.ID_OK:
-                break
-            entry = dlg.GetValue()
-            if entry == '':
-                n = None
-            else:    
-                try:
-                    n = float(entry)
-                    n = int(entry)
-                except:
-                    pass
-            if n is None or (n > 0 and ((isinstance(n, float) and n <1.0) or (isinstance(n, int) and n >= 1 and n <= len(cols)))):
-                seed = np.random.randint(10000000)
-                return self.flimanalyzer.get_analyzer().pca(data, cols, explainedhisto=True, random_state=seed, n_components=n)
-        return
-    
-    
-    def create_randomforest(self, data):
-        if not gui.dialogs.check_data_msg(data):
-            return
-        cols = [c for c in self.get_checked_cols(data)]
-        if cols is None or len(cols) < 2:
-            wx.MessageBox('Select at least 2 measurements.', 'Warning', wx.OK)
-            return
-        category_cols = data.select_dtypes(['category']).columns.values
-        dlg = wx.SingleChoiceDialog(self, 'Choose feature to be used as classifier', 'Random Forest Classifier', category_cols)
-        if dlg.ShowModal() == wx.ID_OK:
-            classifier = dlg.GetStringSelection()
-            importance_df, accuracy, importance_histo = self.flimanalyzer.get_analyzer().randomforest(data, cols, classifier, importancehisto=True, n_estimators=100)
-            return importance_df, accuracy, importance_histo, classifier
-        else:
-            return
-    
-
-    def create_summaries(self, data, titleprefix='Summary'):
-        if not gui.dialogs.check_data_msg(data):
-            return {}
-        # create list of col dictionary headers
-        cols = [c for c in self.get_checked_cols(data)]
-        if cols is None or len(cols) == 0:
-            wx.MessageBox('No Measurements selected.', 'Warning', wx.OK)
-            return {}
-        
-        agg_functions = sorted([funcname for funcname in self.flimanalyzer.get_analyzer().get_analysis_function('Summary Tables')['functions']])
-        dlg = SelectGroupsDlg(self, title='Summary: aggregation functions', groups=agg_functions) 
-        if dlg.ShowModal() == wx.ID_CANCEL:
-            dlg.Destroy()
-            return
-        agg_functions = dlg.get_selected()        
-        logging.debug (agg_functions)
-        if data.columns.nlevels != 1:
-            cols = [tuple(col.split(',')) for col in cols]
-        summaries = self.flimanalyzer.get_analyzer().summarize_data(titleprefix, data, cols, self.sel_roigrouping, aggs=agg_functions)
-        return summaries
-    
-    
+            
     def create_categorized_data_global(self, data, col, bins=[-1, 1], labels='Cat 1', normalizeto='', grouping=[], binby='xfold'):
         if not grouping or len(grouping) == 0:
             return
@@ -1521,157 +616,7 @@ class TabAnalysis(wx.Panel):
             catseries = pd.cut(series, bins=bins, labels=labels).rename('cat ' + col)            
         return catseries
     
-    
-    def save_summary(self):
-        currentdata,label = self.get_currentdata()        
-        summaries = self.create_summaries(currentdata)
-        if summaries is not None and len(summaries) > 0:
-            for title in summaries:
-                summary_df = summaries[title].reset_index()
-                gui.dialogs.save_dataframe(self, "Save summary data", summary_df, '%s-%s.txt' % (title,label), saveindex=False)
-       
         
-    def show_summary(self):
-        currentdata,label = self.get_currentdata()
-        summaries = self.create_summaries(currentdata)
-        if summaries is not None:
-            for title in summaries:
-                df = summaries[title]
-                #cols = df.select_dtypes(['category']).columns.tolist()
-                #print (f"Categories:{cols}")
-                df = df.reset_index()
-                #print (df.columns.tolist())
-                #df = df.set_index(cols)
-                windowtitle = "%s: %s" % (title, label)
-                event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-                event.SetEventInfo(df, 
-                                   windowtitle, 
-                                   'createnew', 
-                                   showcolindex=False)
-                self.GetEventHandler().ProcessEvent(event)        
-            
-
-    def show_meanplots(self):
-        currentdata, label = self.get_currentdata()
-        bars = self.create_meanbarplots(currentdata,self.sel_roigrouping)
-        for b in sorted(bars):
-            fig,ax = bars[b]
-            title = "Bar plot: %s  %s" % (ax.get_title(), label)
-            fig.canvas.set_window_title(title)
-            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, title, 'createnew')
-            self.GetEventHandler().ProcessEvent(event)        
-        
-        
-    def save_meanplots(self):
-        currentdata, label = self.get_currentdata()
-        bars = self.create_meanbarplots(currentdata,self.sel_roigrouping)
-        if len(bars) == 0:
-            return
-        for b in sorted(bars):
-            fig,ax = bars[b]
-            gui.dialogs.save_figure(self, 'Save Mean Bar Plot', fig, 'Bar-%s-%s.png' % (ax.get_title(), label), legend=ax.get_legend())
-                
-     
-    def show_boxplots(self):
-        currentdata, label = self.get_currentdata()
-        bars = self.create_boxplots(currentdata, self.sel_roigrouping)
-        for b in sorted(bars):
-            fig,ax = bars[b]
-            title = "Box plot: %s - %s" % (ax.get_title(), label)
-            fig.canvas.set_window_title(title)
-            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, title, 'createnew')
-            self.GetEventHandler().ProcessEvent(event)        
-        
-        
-    def save_boxplots(self):
-        currentdata, label = self.get_currentdata()
-        bars = self.create_boxplots(currentdata,self.sel_roigrouping)
-        if len(bars) == 0:
-            return
-        for b in sorted(bars):
-            fig,ax = bars[b]
-            gui.dialogs.save_figure(self, 'Save Box Plot', fig, 'Box-%s-%s.png' % (ax.get_title(), label), legend=ax.get_legend())
-                
-     
-    def show_scatterplots(self):
-        currentdata, label = self.get_currentdata()
-        splots = self.create_scatterplots(currentdata, self.sel_roigrouping)
-        for sp in sorted(splots):
-            fig,ax = splots[sp]
-            title = "Scatter plot: %s - %s" % (ax.get_title(), label)
-            fig.canvas.set_window_title(title)
-            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, title, 'createnew')
-            self.GetEventHandler().ProcessEvent(event)        
-        
-        
-    def save_scatterplots(self):
-        currentdata, label = self.get_currentdata()
-        splots = self.create_scatterplots(currentdata,self.sel_roigrouping)
-        if len(splots) == 0:
-            return
-        for sp in sorted(splots):
-            fig,ax = splots[sp]
-            gui.dialogs.save_figure(self, 'Save Scatter Plot', fig, 'Scatter-%s-%s.png' % (ax.get_title(), label), legend=ax.get_legend())
-                
-     
-    def show_kdeplots(self):
-        currentdata, label = self.get_currentdata()
-        kdes = self.create_kdeplots(currentdata, self.sel_roigrouping)
-        if kdes is None:
-            return
-        for kde in kdes:
-            fig, ax = kdes[kde]
-            title = "KDE: %s - %s" % (ax.get_title(), label)
-            fig.canvas.set_window_title(title)
-            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, title, 'createnew')
-            self.GetEventHandler().ProcessEvent(event)        
-
-
-    def save_kdeplots(self):
-        currentdata, label = self.get_currentdata()
-        kdeplots = self.create_kdeplots(currentdata, self.sel_roigrouping)
-        if len(kdeplots) == 0:
-            return
-        for kde in sorted(kdeplots):
-            fig,ax = kdeplots[kde]
-            gui.dialogs.save_figure(self, 'Save Scatter Plot', fig, 'Scatter-%s-%s.png' % (ax.get_title(), label), legend=ax.get_legend())
-                
-     
-    def show_freqhisto(self):
-        currentdata, label = self.get_currentdata()
-        histos = self.create_freq_histograms(currentdata, label,self.sel_roigrouping)
-        if histos is None:
-            return
-        for h in histos:
-            binvalues, binedges, groupnames, fig, ax = histos[h]
-            title = "Histogram: %s - %s" % (ax.get_title(), label)
-            fig.canvas.set_window_title(title)
-            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, title, 'createnew')
-            self.GetEventHandler().ProcessEvent(event)        
-#            fig.show()
-            
-#            frame = MatplotlibFrame(self, title, fig, ax)
-#            frame.Show()
-        
-        
-    def save_freqhisto(self):
-        currentdata, label = self.get_currentdata()
-        histos = self.create_freq_histograms(currentdata, label, self.sel_roigrouping)
-        if histos is None:
-            return
-        for h in histos:
-            binvalues, binedges, groupnames, fig, ax = histos[h]
-            gui.dialogs.save_figure(self, 'Save Frequency Histogram Figure', fig, 'Histo-%s.png' % ax.get_title())
-            bindata = core.plots.bindata(binvalues,binedges, groupnames)
-            bindata = bindata.reset_index()
-            gui.dialogs.save_dataframe(self, 'Save Frequency Histogram Data Table', bindata, 'Histo-%s.txt' % ax.get_title(), saveindex=False)
-                
-    
     def create_categorized_data(self,category_colheader='Category'):
         currentdata, label = self.get_currentdata()
         cols = self.get_checked_cols(currentdata)
@@ -1786,144 +731,6 @@ class TabAnalysis(wx.Panel):
             
             master_split = joineddata.set_index(split_grouping).loc[split_name,:].reset_index()
             gui.dialogs.save_dataframe(self, "Save master data for Cat %s: %s" % (split_label, label), master_split, "Master-Cat_%s-%s.txt" % (split_label,label), saveindex=False)
-                
-             
-    def show_pca_data(self):
-        currentdata, label = self.get_currentdata()
-        pca_results = self.create_pca(currentdata)
-        if pca_results is None:
-            return
-        pca_data, pca_explained_var_ratio, pca_explained_histo_ax = pca_results
-
-        windowtitle = "PCA var ratio: %s" % label
-        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-        event.SetEventInfo(pca_explained_var_ratio, 
-                           windowtitle, 
-                           'createnew', 
-                           showcolindex=False,
-                           analyzable=False)
-        self.GetEventHandler().ProcessEvent(event)        
-
-        pca_data = pca_data.reset_index()
-        windowtitle = "PCA: %s" % label
-        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-        event.SetEventInfo(pca_data, 
-                           windowtitle, 
-                           'createnew', 
-                           showcolindex=False)
-        self.GetEventHandler().ProcessEvent(event)   
-        
-        windowtitle = "PCA var ratio - Bar plot: %s" % label
-        fig = pca_explained_histo_ax.get_figure()
-        fig.canvas.set_window_title(windowtitle)
-        event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-        event.SetEventInfo(fig, windowtitle, 'createnew')
-        self.GetEventHandler().ProcessEvent(event)        
-
-                                
-    def save_pca_data(self):
-        currentdata, label = self.get_currentdata()
-        pca_results = self.create_pca(currentdata)
-        if pca_results is None:
-            return
-        pca_data, pca_explained_var_ratio, pca_explained_histo_ax = pca_results
-        gui.dialogs.save_dataframe(self, 'Save PCA ', pca_data, 'PCA-%s.txt' % label, saveindex=False)
-        gui.dialogs.save_dataframe(self, 'Save PCA explained variance', pca_explained_var_ratio, 'PCA-var-ratio-%s.txt' % label, saveindex=False)
-        gui.dialogs.save_figure(self, 'Save PCA explained variance - Bar plot', pca_explained_histo_ax.get_figure(), 'PCA-var-ratio-bar-%s.png' % pca_explained_histo_ax.get_title())
-
-    
-    def show_randomforest_data(self):
-        currentdata, label = self.get_currentdata()
-        results = self.create_randomforest(currentdata)
-        if results is None:
-            return
-        importance_df, accuracy, importance_histo_ax, classifier = results
-
-        windowtitle = f"Random Forest - Classify {classifier} : {label}"
-        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-        event.SetEventInfo(importance_df, 
-                           windowtitle, 
-                           'createnew', 
-                           showcolindex=False,
-                           analyzable=True)
-        self.GetEventHandler().ProcessEvent(event)  
-        
-        windowtitle = f"Random Forest - Classify {classifier} : {label}" 
-        fig = importance_histo_ax.get_figure()
-        fig.canvas.set_window_title(windowtitle)
-        event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-        event.SetEventInfo(fig, windowtitle, 'createnew')
-        self.GetEventHandler().ProcessEvent(event)        
-
-
-        
-    def save_randomforest_data(self):
-        currentdata, label = self.get_currentdata()
-        results = self.create_randomforest(currentdata)
-        if results is None:
-            return
-        #pca_data, pca_explained_var_ratio, pca_explained_histo_ax = pca_results
-        #gui.dialogs.save_dataframe(self, 'Save PCA ', pca_data, 'PCA-%s.txt' % label, saveindex=False)
-        #gui.dialogs.save_dataframe(self, 'Save PCA explained variance', pca_explained_var_ratio, 'PCA-var-ratio-%s.txt' % label, saveindex=False)
-        #gui.dialogs.save_figure(self, 'Save PCA explained variance - Bar plot', pca_explained_histo_ax.get_figure(), 'PCA-var-ratio-bar-%s.png' % pca_explained_histo_ax.get_title())
-
-
-    def run_ml_feature_training(self):
-        currentdata,label = self.get_currentdata()
-        if not gui.dialogs.check_data_msg(currentdata):
-            return {}, currentdata, label
-        return {"Training Results":pd.DataFrame()}, currentdata, label
-        
-        
-    def show_ml_feature_training(self):
-        tables, currentdata, label = self.run_ml_feature_training()
-        if tables is None:
-            return
-        for title in tables:
-            df = tables[title]
-            df = df.reset_index()
-            windowtitle = "%s: %s" % (title, label)
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(df, 
-                               windowtitle, 
-                               'createnew', 
-                               showcolindex=False)
-            self.GetEventHandler().ProcessEvent(event)        
-    
-    
-    def run_ml_feature_analysis(self):
-        currentdata,label = self.get_currentdata()
-        if not gui.dialogs.check_data_msg(currentdata):
-            return {}, currentdata, label
-        with wx.FileDialog(self, "Select serialized ML model file", wildcard="Serialized ML model files (*.pkl)|*.pkl",
-                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR) as fileDialog:
-
-            if fileDialog.ShowModal() == wx.ID_CANCEL:
-                return {}, currentdata, label
-            # Proceed loading the file chosen by the user
-            paths = fileDialog.GetPaths()
-            model_file = paths[0] # '/Users/khs3z/Documents/ARCS/UserProjects/ruofanrepo/ae/hela_norm_relu_sae_g1_6to1feature.pkl'
-            # features = ['FAD a1', 'FAD a2', 'FAD photons', 'FAD t1', 'FAD t2', 'NAD(P)H a1', 'NAD(P)H a2', 'NAD(P)H photons', 'NAD(P)H t1', 'NAD(P)H t2']
-            features = [col for col in self.get_checked_cols(currentdata)]
-            hela = HelaSingleCell('HeLa', currentdata, model_file, features)
-            hela.create_excel()
-            return {"Analysis Results":pd.DataFrame()}, currentdata, label
-        
-        
-    def show_ml_feature_analysis(self):
-        tables, currentdata,label = self.run_ml_feature_analysis()
-        if tables is None:
-            return
-        for title in tables:
-            df = tables[title]
-            df = df.reset_index()
-            windowtitle = "%s: %s" % (title, label)
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(df, 
-                               windowtitle, 
-                               'createnew', 
-                               showcolindex=False)
-            self.GetEventHandler().ProcessEvent(event)        
 
     
 class AppFrame(wx.Frame):
@@ -1935,16 +742,24 @@ class AppFrame(wx.Frame):
         else:
             self.config = cfg.Config()
             self.config.create_default()
+        self.analyzers = analysis.absanalyzer.get_analyzer_classes()
         #self.rawdata = None
         #self.data = None
         #self.filtereddata = None
         self.windowframes = {}
+        self.window_zorder = []
         
         super(AppFrame,self).__init__(None, wx.ID_ANY,title="FLIM Data Analyzer")#, size=(600, 500))
                 
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
+        loadmenuitem = filemenu.Append(wx.NewId(), "&Open...","Open single data file")
+        importmenuitem = filemenu.Append(wx.NewId(), "Import...","Impoort and concatenate mutliple data files")
         exitmenuitem = filemenu.Append(wx.NewId(), "Exit","Exit the application")
+        self.analysismenu = wx.Menu()
+        for analyzername in self.analyzers:
+            analyzeritem = self.analysismenu.Append(wx.NewId(), analyzername)
+            self.Bind(wx.EVT_MENU, self.OnRunAnalysis, analyzeritem)
         self.windowmenu = wx.Menu()
         closeallitem = self.windowmenu.Append(wx.NewId(), "Close all windows")
         self.windowmenu.AppendSeparator()
@@ -1953,8 +768,11 @@ class AppFrame(wx.Frame):
         savesettingsitem = settingsmenu.Append(wx.NewId(), "Save settings...")
         menubar.Append(filemenu, "&File")
         menubar.Append(settingsmenu, "&Settings")
+        menubar.Append(self.analysismenu, "&Analysis")
         menubar.Append(self.windowmenu, "&Window")
         self.SetMenuBar(menubar)        
+        self.Bind(wx.EVT_MENU, self.OnLoadData, loadmenuitem)
+        self.Bind(wx.EVT_MENU, self.OnImportData, importmenuitem)
         self.Bind(wx.EVT_MENU, self.OnExit, exitmenuitem)
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
@@ -1966,13 +784,9 @@ class AppFrame(wx.Frame):
         nb = wx.Notebook(self)
  
         # Create the tab windows
-        self.importtab = TabImport(nb, self, self.flimanalyzer, self.config)
-        self.filtertab = TabFilter(nb, self, self.flimanalyzer, self.config)
         self.analysistab = TabAnalysis(nb, self, self.flimanalyzer, self.config)
  
         # Add the windows to tabs and name them.
-        nb.AddPage(self.importtab, "Import")
-        nb.AddPage(self.filtertab, "Filter")
         nb.AddPage(self.analysistab, "Analyze")
         
 #        self.update_tabs()
@@ -1995,6 +809,7 @@ class AppFrame(wx.Frame):
 #        pub.subscribe(self.OnNewDataWindow, NEW_DATA_WINDOW)
         #pub.subscribe(self.OnDataImported, DATA_IMPORTED)
         #pub.subscribe(self.OnFilteredDataUpdated, FILTERED_DATA_UPDATED)
+        pub.subscribe(self.OnDataWindowFocused, FOCUSED_DATA_WINDOW)
         pub.subscribe(self.OnClosingDataWindow, CLOSING_DATA_WINDOW)
         pub.subscribe(self.OnRequestRenameDataWindow, REQUEST_RENAME_DATA_WINDOW)
         #pub.subscribe(self.OnNewPlotWindow, NEW_PLOT_WINDOW)
@@ -2006,6 +821,80 @@ class AppFrame(wx.Frame):
 #        self.windowframes[frame.GetLabel()] = frame
 #        mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
 #        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
+
+    def OnDataWindowFocused(self, data, frame):
+        title = frame.GetTitle()
+        self.window_zorder = [w for w in self.window_zorder if w != title]
+        self.window_zorder.append(title)
+
+        
+    def OnLoadData(self, event):
+        dlg = ImportDlg(self, "Open File", self.config, parsefname=False, preprocess=False, singlefile=True)
+        if dlg.ShowModal() == wx.ID_OK:
+            config = dlg.get_config()
+            config.write_to_json(f'/Users/khs3z/Desktop/import.json')
+
+            importer = dataimporter()
+            importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
+            importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
+            importer.set_parser(None)
+            importer.set_preprocessor(None) 
+            data, filenames, fheaders = importer.import_data()
+
+            pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
+            windowtitle = os.path.basename(filenames[0])
+            if len(filenames) != 1:
+                windowtitlw = "Imported Data"
+            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+            event.SetEventInfo(data, 
+                              windowtitle,
+                              'update',
+                              config=None, 
+                              showcolindex=False, 
+                              analyzable=True,
+                              savemodified=True,
+                              enableclose=True)
+            self.GetEventHandler().ProcessEvent(event)  
+
+
+    def OnImportData(self, event):
+        dlg = ImportDlg(self, "Import File(s)", self.config)
+        if dlg.ShowModal() == wx.ID_OK:
+            config = dlg.get_config()
+
+            parsername = config.get([cfg.CONFIG_PARSER_CLASS])
+            parser = core.parser.instantiate_parser('core.parser.' + parsername)
+            if parser is None:
+                logging.warning (f"Could not instantiate parser {parsername}")
+                return
+            parser.set_regexpatterns(config.get([cfg.CONFIG_PARSER_PATTERNS]))
+            
+            preprocessor = defaultpreprocessor()
+            preprocessor.set_replacementheaders(config.get([cfg.CONFIG_HEADERS]))
+            preprocessor.set_dropcolumns(config.get([cfg.CONFIG_DROP_COLUMNS]))
+
+            importer = dataimporter()
+            importer.set_parser(parser)
+            importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
+            importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
+            importer.set_preprocessor(preprocessor)
+            data, filenames, fheaders = importer.import_data()
+
+            #pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
+            windowtitle = os.path.basename(filenames[0])
+            if len(filenames) != 1:
+                windowtitlw = "Imported Data"
+            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+            event.SetEventInfo(data, 
+                              windowtitle,
+                              'update',
+                              config=None, 
+                              showcolindex=False, 
+                              analyzable=True,
+                              savemodified=True,
+                              enableclose=True)
+            self.GetEventHandler().ProcessEvent(event)        
+
 
     def OnLoadSettings(self, event):
         logging.debug ("appframe.OnLoadSettings")
@@ -2043,13 +932,6 @@ class AppFrame(wx.Frame):
 
     def OnSaveSettings(self, event):
         logging.debug ("appframe.OnSaveSettings")
-        rootconfig = {}
-        rootconfig.update(self.importtab.get_import_settings())
-        rootconfig.update(self.importtab.get_preprocess_settings())
-        rootconfig.update(self.filtertab.get_filter_settings())
-        rootconfig.update(self.analysistab.get_analysis_settings())
-        self.config.update({cfg.CONFIG_ROOT:rootconfig})
-
         logging.debug (self.config.get())
         with wx.FileDialog(self, "Save Configuration file", wildcard="json files (*.json)|*.json",
                        style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT| wx.FD_CHANGE_DIR) as fileDialog:
@@ -2059,10 +941,82 @@ class AppFrame(wx.Frame):
             configfile = fileDialog.GetPath()
             self.config.write_to_json(configfile)
         
-    
+    def get_currentdata(self):
+        if len(self.window_zorder) == 0:
+           return
+        return self.windowframes[self.window_zorder[-1]].GetViewData()
+        
+        
+    def OnRunAnalysis(self, event):
+        data = self.get_currentdata()
+        if data is None:
+             wx.MessageBox('No data available')
+             return
+        itemid = event.GetId()
+        menu = event.GetEventObject()
+        mitem = menu.FindItemById(itemid)
+        analyzername = mitem.GetItemLabelText()
+        logging.debug(f"{event.GetId()}, {analyzername}")
+        
+        # check that there's any data to process
+        if not gui.dialogs.check_data_msg(data):
+            return
+        
+        # check that user provided required data categories and data features
+        #categories = self.sel_roigrouping
+        #features = [c for c in self.get_checked_cols(self.currentdata)]
+        
+        analysis_class = analysis.absanalyzer.get_analyzer_classes()[analyzername]
+        tool = analysis.absanalyzer.create_instance(analysis_class, data)
+
+        # run optional tool config dialog and execte analysis
+        parameters = tool.run_configuration_dialog(self)
+        logging.debug(parameters)
+        if parameters is None:
+            return
+        features = parameters['features']
+        categories = parameters['grouping']     
+
+        req_features = tool.get_required_features()
+        not_any_features = [f for f in req_features if f != 'any']
+        if features is None or len(features) < len(req_features) or not all(f in features for f in not_any_features):
+            wx.MessageBox(f'Analysis tool {tool} requires selection of at least {len(req_features)} data features, including {not_any_features}.', 'Warning', wx.OK)            
+            return
+
+        req_categories = tool.get_required_categories()
+        not_any_categories = [c for c in req_categories if c != 'any']
+        if len(req_categories) > 0 and (categories is None or len(categories) < len(req_categories) or not all(c in categories for c in not_any_categories)):
+            wx.MessageBox(f'Analysis tool {tool} requires selection of at least {len(req_categories)} groups, including {not_any_categories}.', 'Warning', wx.OK)            
+            return
+        
+        results = tool.execute()
+        
+        # handle results, DataFrames or Figure objects
+        if results is not None:
+            for title, result in results.items():
+                if isinstance(result, pd.DataFrame):
+                    result = result.reset_index()
+                    event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                    event.SetEventInfo(result, 
+                                       title,
+                                       'createnew', 
+                                       showcolindex=False)
+                    self.GetEventHandler().ProcessEvent(event)
+                elif isinstance(result, tuple):
+                    fig,ax = result
+                    fig.canvas.set_window_title(title)
+                    event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+                    event.SetEventInfo(fig, title, 'createnew')
+                    self.GetEventHandler().ProcessEvent(event)                
+        
+        
     def append_window_to_menu(self, title, window):
         self.windowframes[title] = window
         mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
+        if isinstance(window, PandasFrame):
+            self.window_zorder = [w for w in self.window_zorder if w != title]
+            self.window_zorder.append(title)
+        logging.debug(f"append window {self.window_zorder}")
         self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
         
         
@@ -2070,7 +1024,12 @@ class AppFrame(wx.Frame):
         for mitem in self.windowmenu.GetMenuItems():
             if mitem.GetItemLabelText() == title:
                 self.windowmenu.Remove(mitem.GetId())
+                window = self.windowframes[title] 
                 del self.windowframes[title]
+                if isinstance(window, PandasFrame):
+                    title = window.GetTitle()
+                    self.window_zorder = [w for w in self.window_zorder if w != title]
+                logging.debug(f"remove window {self.window_zorder}")
                 return True
         return False
     
@@ -2087,6 +1046,7 @@ class AppFrame(wx.Frame):
     
     def OnDataWindowRequest(self, event):
         data = event.GetData()
+        config = event.GetConfig()
         action = event.GetAction()
         title = event.GetTitle()
         logging.debug (f"{title}: {action}")
@@ -2095,13 +1055,14 @@ class AppFrame(wx.Frame):
             if frame:
                 frame = self.windowframes[title]
                 frame.SetData(data)
+                # frame.SetConfog(config)
             else:
                 action = 'createnew'
         if action == 'createnew':
             title = self.unique_window_title(title)
             frame = PandasFrame(self, 
                                 title,
-                                self.config, 
+                                config, 
                                 data, 
                                 showcolindex=event.ShowColIndex(), 
                                 analyzable=event.IsAnalyzable(), 
@@ -2112,7 +1073,7 @@ class AppFrame(wx.Frame):
             self.append_window_to_menu(title, frame)
             pub.sendMessage(NEW_DATA_WINDOW, data=data, frame=frame)
 
-
+    
     def OnRequestRenameDataWindow(self, original, new, data):
         title = self.unique_window_title(new)
         for mitem in self.windowmenu.GetMenuItems():
@@ -2213,11 +1174,16 @@ class AppFrame(wx.Frame):
         menu = event.GetEventObject()
         mitem = menu.FindItemById(itemid)
         if self.windowframes.get(mitem.GetItemLabelText()):
-            window = self.windowframes[mitem.GetItemLabelText()]
+            wintitle = mitem.GetItemLabelText()
+            window = self.windowframes[wintitle]
             if isinstance(window,wx.Frame):
                 window.Raise()
+                if isinstance(window, PandasFrame) and self.window_zorder[-1] != wintitle:
+                    self.window_zorder = [w for w in self.window_zorder if w != wintitle]
+                    self.window_zorder.append(wintitle)
             elif isinstance(window,matplotlib.figure.Figure):
                 window.canvas.manager.show()
+        logging.debug(f"select window {self.window_zorder}")
 
         
     def OnExit(self, event):
@@ -2245,10 +1211,11 @@ class AppFrame(wx.Frame):
                     window.canvas.manager.destroy()
                 else:
                     window.Close()
+        self.window_zorder = []
         
     
     def OnImport(self, event):
-        self.rawdata = event.rawdata
+        #self.rawdata = event.rawdata
 #        self.filtertab.update_rawdata(self.rawdata)        
 #        self.analysistab.update_rawdata(self.rawdata)
         logging.debug (f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")

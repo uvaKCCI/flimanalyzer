@@ -10,23 +10,33 @@ import logging
 import json
 import collections
 from core.filter import RangeFilter
-import analysis.absanalyzer
+from core.importer import dataimporter
+from core.preprocessor import defaultpreprocessor
+from analysis.absanalyzer import init_analyzers, init_default_config
 
 CONFIG_USE = 'use'
 CONFIG_ROOT = 'root'
 CONFIG_IMPORT = 'import'
+CONFIG_CATEGORY_COLUMNS = 'category cols'
 CONFIG_FITTING_COLUMNS = 'fitting columns'
 CONFIG_PARSER = 'fname parser'
+CONFIG_PARSER_CLASS = 'Class'
+CONFIG_PARSER_PATTERNS = 'Patterns'
+CONFIG_PARSER_USE = 'Use'
+CONFIG_PARSER_CATEGORY = 'Category'
+CONFIG_PARSER_REGEX = 'Regex'
+
 CONFIG_PREPROCESS = 'preprocess'
 CONFIG_DELIMITER = 'delimiter'
-CONFIG_PARSERCLASS = 'parser'
-CONFIG_HEADERS = 'headers'
+CONFIG_HEADERS = 'rename'
+CONFIG_INCLUDE_FILES = 'include files'
 CONFIG_EXCLUDE_FILES = 'exclude files'
-CONFIG_DROP_COLUMNS = 'drop columns'
-CONFIG_CALC_COLUMNS = 'calculate columns'
+CONFIG_DROP_COLUMNS = 'drop'
+CONFIG_CALC_COLUMNS = 'calculate'
 CONFIG_FILTERS = 'filters'
 CONFIG_RANGEFILTERS = 'range filters'
 CONFIG_SERIESFILTERS = 'series filters'
+CONFIG_DATA_DISPLAY = 'display'
 CONFIG_ANALYSIS ='analysis'
 CONFIG_HISTOGRAMS = 'histograms'
 CONFIG_CATEGORIES = 'categories'
@@ -37,6 +47,7 @@ class Config():
     
     def __init__(self):
         self.parameters = {}
+        self.filename = None
         self.modified = False
         
         
@@ -150,7 +161,7 @@ class Config():
                                 keys.insert(0,key)
     #                            print "found ", searchkey, "in", keys  
                                 return return_value(subconfig, keys, returnkeys)
-        return return_value(None,[], returnkeys)
+        return return_value(None, [], returnkeys)
     
     
     def _to_utf(self, data, ignore_dicts = False):
@@ -176,22 +187,24 @@ class Config():
             with open(configfile, 'r') as fp:
                 self.parameters = json.load(fp) #, object_hook=self._to_utf)
                 self.modified = False
+                self.filename = configfile
                 return True
         except:
             if defaultonfail:
-                self.parameters = self.create_default()
+                self.create_default()
+                self.modified = False
+                self.filename = None
             return False
             
     
     def write_to_json(self, configfile):
-        with open(configfile, 'w') as fp:
-            #config = dict(self.config)
-            #filters = self.get(searchkey=CONFIG_FILTERS)
-            #for key in filters:
-            #    #print filters[key]
-            #    filters[key] = filters[key].get_params_asdict()
-            json.dump(self.parameters, fp, sort_keys=True, indent=4)
-            self.modified = False
+        try:
+            with open(configfile, 'w') as fp:
+                json.dump(self.parameters, fp, sort_keys=True, indent=4)
+                self.modified = False
+                self.filename = configfile
+        except:
+            logging.error(f'Config file could not be saved to {configile}')    
             
     
     def is_not_None(self,searchkeys):
@@ -222,8 +235,11 @@ class Config():
         keys = []
         if startin is None:
             startin = self.parameters
+        else:
+            startin = self.get(startin)    
         if isinstance(startin, dict):   
             for key in startin:
+                print (key)
                 keys.append([key])
                 childrenkeys = self.get_keys(startin[key])
                 for c in childrenkeys:
@@ -282,48 +298,20 @@ class Config():
         
        
     def create_default(self):
-        analyzers = analysis.absanalyzer.init_analyzers()
-        analysis_config = analysis.absanalyzer.init_default_config(analyzers)
+        import_config = dataimporter().get_config()
+        preprocess_config = defaultpreprocessor().get_config()
+        analyzers = init_analyzers()
+        analysis_config = init_default_config(analyzers)
+        datadisplay = [{'name': aname, 'min': 'auto', 'max': 'auto', 'bins': 100} for aname in ['trp t1','trp t2','trp tm']]
 
         parameters = {
-            CONFIG_IMPORT: {
-                CONFIG_EXCLUDE_FILES: [],
-                CONFIG_DELIMITER:'\t,',
-                CONFIG_PARSERCLASS: 'core.parser.defaultparser',
-                CONFIG_PARSER: {
-                    'FOV': '*'},
-                },
-                CONFIG_FITTING_COLUMNS: [
-                    'chi',
-                    't1',
-                    't2',
-                    'tm'],
-            CONFIG_PREPROCESS: {
-                CONFIG_HEADERS: {
-                    'Exc1_-Ch1-_':'trp ', 
-                    'Exc1_-Ch2-_':'NAD(P)H ', 
-                    'Exc2_-Ch3-_':'FAD '},
-                CONFIG_DROP_COLUMNS: [
-                    'Exc1_',
-                    'Exc2_',
-                    'Exc3_',], 
-                CONFIG_CALC_COLUMNS: [
-                    'NAD(P)H tm', 'NAD(P)H a2[%]/a1[%]', 
-                    'NADPH %','NADPH/NADH', #'NAD(P)H %','NAD(P)H/NADH', 
-                    'NADH %',  
-                    'trp tm', 
-                    'trp E%1', 'trp E%2', 'trp E%3', 
-                    'trp r1', 'trp r2', 'trp r3', 
-                    'trp a1[%]/a2[%]', 
-                    'FAD tm', 'FAD a1[%]/a2[%]', 'FAD photons/NAD(P)H photons',
-                    'NAD(P)H tm/FAD tm',
-                    'FLIRR',
-                    'NADPH a2/FAD a1'],
-                },
+            CONFIG_IMPORT: import_config,
+            CONFIG_PREPROCESS: preprocess_config,  
+            CONFIG_DATA_DISPLAY: datadisplay,        
             CONFIG_ANALYSIS: analysis_config,
           
             CONFIG_FILTERS: {
-                CONFIG_USE: True,
+                CONFIG_USE: False,
                 CONFIG_RANGEFILTERS:[
                         RangeFilter('trp t1',0,2500).get_params(),
                         RangeFilter('trp t2',0,8000).get_params(),

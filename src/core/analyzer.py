@@ -12,116 +12,44 @@ import numpy as np
 import pandas as pd
 import core.preprocessor
 import numbers
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn import metrics
 
 
 from gui.events import DataWindowEvent, EVT_DATA_TYPE
 
-
-TRP_RZERO = 2.1
-ONE_SIXTH = 1.0/6 
-
-def percentile(n):
-    def percentile_(x):
-        return np.nanpercentile(x, n)
-    percentile_.__name__ = '%s percentile' % n
-    return percentile_    
-
-
-
-def nadph_perc(nadph_t2):
-    return ((nadph_t2 - 1500) / (4400-1500)) * 100
-
-def nadh_perc(nadph_perc):
-    return 100.0 - nadph_perc
-
-def tm(a1perc, t1, a2perc, t2):
-    return ((a1perc * t1) + (a2perc * t2))/100
-    
-def trp_Eperc_1(trp_tm, const=3100):
-    if const != 0:
-        return (1.0 - (trp_tm / const)) * 100
-    else:
-        return np.NaN
- 
-def trp_Eperc_2(trp_t1, trp_t2):
-    if trp_t2 != 0:
-        return (1.0 - (trp_t1 / trp_t2)) * 100
-    else:
-        return np.NaN
-
-def trp_Eperc_3(trp_t1, const=3100):
-    if const != 0:
-        return (1.0 - (trp_t1 / const)) * 100
-    else:
-        return np.NaN
-
-def trp_r(trp_Eperc):
-    # 0<= Eperc < 100
-    if trp_Eperc != 0:
-        t = (100.0/trp_Eperc - 1)
-        if t >= 0:
-            return TRP_RZERO * t ** ONE_SIXTH
-    return np.NaN
-    
-def ratio(v1, v2):
-    if (v2 != 0):
-        # force float values
-        return float(v1) / v2
-    else:
-        return np.NaN
-
-
 class dataanalyzer():
     
     def __init__(self):
-        self.additional_columns = []
-        self.functions = {
-                'NADPH %': [nadph_perc,['NAD(P)H t2']],
-                'NAD(P)H tm': [tm,['NAD(P)H a1[%]','NAD(P)H t1','NAD(P)H a2[%]','NAD(P)H t2']],
-                'NAD(P)H a2[%]/a1[%]': [ratio, ['NAD(P)H a2[%]', 'NAD(P)H a1[%]']],
-                'NADH %': [nadh_perc,['NADPH %']],
-                'NADPH/NADH': [ratio, ['NADPH %', 'NADH %']],
-                'trp tm': [tm,['trp a1[%]','trp t1','trp a2[%]','trp t2']],
-                'trp E%1': [trp_Eperc_1,['trp tm']],
-                'trp E%2': [trp_Eperc_2,['trp t1','trp t2']],
-                'trp E%3': [trp_Eperc_3,['trp t1']],
-                'trp r1': [trp_r,['trp E%1']],
-                'trp r2': [trp_r,['trp E%2']],
-                'trp r3': [trp_r,['trp E%3']],
-                'trp a1[%]/a2[%]': [ratio, ['trp a1[%]', 'trp a2[%]']],
-                'FAD tm': [tm,['FAD a1[%]','FAD t1','FAD a2[%]','FAD t2']],
-                'FAD a1[%]/a2[%]': [ratio, ['FAD a1[%]', 'FAD a2[%]']],
-                'FAD photons/NAD(P)H photons': [ratio, ['FAD photons', 'NAD(P)H photons']],
-                'NAD(P)H tm/FAD tm': [ratio,['NAD(P)H tm','FAD tm']],
-                'FLIRR': [ratio, ['NAD(P)H a2[%]', 'FAD a1[%]']],
-                'NADPH a2/FAD a1': [ratio, ['NAD(P)H a2', 'FAD a1']],
-                }
+        #self.additional_columns = []
+        #self.functions = {
+        #        'NADPH %': [nadph_perc.__name__,['NAD(P)H t2']],
+        #        'NAD(P)H tm': [tm.__name__,['NAD(P)H a1[%]','NAD(P)H t1','NAD(P)H a2[%]','NAD(P)H t2']],
+        #        'NAD(P)H a2[%]/a1[%]': [ratio.__name__, ['NAD(P)H a2[%]', 'NAD(P)H a1[%]']],
+        #       'NADH %': [nadh_perc.__name__,['NADPH %']],
+        #        'NADPH/NADH': [ratio.__name__, ['NADPH %', 'NADH %']],
+        #        'trp tm': [tm.__name__,['trp a1[%]','trp t1','trp a2[%]','trp t2']],
+        #        'trp E%1': [trp_Eperc_1.__name__,['trp tm']],
+        #        'trp E%2': [trp_Eperc_2.__name__,['trp t1','trp t2']],
+        #        'trp E%3': [trp_Eperc_3.__name__,['trp t1']],
+        #        'trp r1': [trp_r.__name__,['trp E%1']],
+        #        'trp r2': [trp_r.__name__,['trp E%2']],
+        #        'trp r3': [trp_r.__name__,['trp E%3']],
+        #        'trp a1[%]/a2[%]': [ratio.__name__, ['trp a1[%]', 'trp a2[%]']],
+        #        'FAD tm': [tm.__name__,['FAD a1[%]','FAD t1','FAD a2[%]','FAD t2']],
+        #        'FAD a1[%]/a2[%]': [ratio.__name__, ['FAD a1[%]', 'FAD a2[%]']],
+        #        'FAD photons/NAD(P)H photons': [ratio.__name__, ['FAD photons', 'NAD(P)H photons']],
+        #        'NAD(P)H tm/FAD tm': [ratio.__name__,['NAD(P)H tm','FAD tm']],
+        #        'FLIRR': [ratio.__name__, ['NAD(P)H a2[%]', 'FAD a1[%]']],
+        #        'NADPH a2/FAD a1': [ratio.__name__, ['NAD(P)H a2', 'FAD a1']],
+        #        }
         self.rangefilters = {}
         self.filters = {}
-        self.analysis_functions = {
-                'Summary Tables': {
-                        'functions': {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)},},
-                'Mean Bar Plots': None, 
-                'Box Plots': None,
-                'KDE Plots': None,
-                'Frequency Histograms': None,
-                'Scatter Plots': None,
-                'Categorize': None,
-                'Principal Component Analysis': None,
-                'Random Forest Classifier': None,
-                'ML Feature Training': None,
-                'ML Feature Analysis': None,
-                }
         
-        
-    def add_functions(self, newfuncs):
-        if newfuncs is not None:
-            self.functions.update(newfuncs)
+    def get_config(self):
+        return dict(self.functions)
+                
+    #def add_functions(self, newfuncs):
+    #    if newfuncs is not None:
+    #        self.functions.update(newfuncs)
 
 
     def add_filters(self, newfilters):
@@ -153,13 +81,13 @@ class dataanalyzer():
         return self.rangefilters
     
     
-    def add_columns(self, ncols):
-        if ncols is not None:
-            self.additional_columns.extend(ncols)
+    #def add_columns(self, ncols):
+    #    if ncols is not None:
+    #        self.additional_columns.extend(ncols)
     
     
-    def get_additional_columns(self):
-        return self.additional_columns
+    #def get_additional_columns(self):
+    #    return self.additional_columns
     
     
     def columns_available(self, data, args):
@@ -167,30 +95,8 @@ class dataanalyzer():
             if not isinstance(arg, numbers.Number) and data.get(arg) is None:
                 return False
         return True
-    
-    
-    def calculate(self, data, inplace=True):
-        calculated = []
-        skipped = []
-        if not inplace:
-            data = data.copy()
-        for acol in self.additional_columns:
-            #if acol == 'NADH tm':
-                #(NADH-a1% * NADH-t1) + (NADH-a2% * NADH-t2)/100
-            if acol in self.functions:
-                #NAD(P)H % = (('NAD(P)H t2') - 1500 / (4400-1500)) *100
-                func = np.vectorize(self.functions[acol][0])
-                colargs = self.functions[acol][1]
-                if not self.columns_available(data, colargs):
-                    skipped.append(self.functions[acol])
-                    continue
-                data[acol] = func(*np.transpose(data[colargs].values))
-                calculated.append(self.functions[acol])
-            else:
-                skipped.append(self.functions[acol])
-        return data, calculated, skipped
 
-
+    
     def apply_filter(self, data, dropna=True, onlyselected=True, inplace=True, dropsonly=False):
         # store current col order
         currentcols = data.columns.tolist()
@@ -276,36 +182,6 @@ class dataanalyzer():
         return filtereddata, usedfilters, skippedfilters, len(alldroppedrows), combineddroppedidx    
 
 
-    def summarize_data(self, titleprefix, data, cols, groups=None, aggs=['count', 'min', 'max', 'mean', 'std', 'median', percentile(25), percentile(75)], singledf=True, flattenindex=True):
-        summaries = {}
-        allfunc_dict = self.analysis_functions['Summary Tables']['functions']
-        agg_functions = [allfunc_dict[f] for f in aggs]
-        if cols is None or len(cols) == 0:
-            return summaries
-        for header in cols:
-            #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
-            allcats = [x for x in groups]
-            allcats.append(header)
-            dftitle = ": ".join([titleprefix,header.replace('\n',' ')])
-            if groups is None or len(groups) == 0:
-                # create fake group by --> creates 'index' column that needs to removed from aggregate results
-                summary = data[allcats].groupby(lambda _ : True, group_keys=False).agg(agg_functions)
-            else:                
-                #data = data.copy()
-                #data.reset_index(inplace=True)
-                grouped_data = data[allcats].groupby(groups, observed=True)
-                summary = grouped_data.agg(agg_functions)
-                #summary = summary.dropna()
-            if flattenindex:
-                summary.columns = ['\n'.join(col).strip() for col in summary.columns.values]    
-            summaries[dftitle] = summary
-        if singledf:
-            concat_df = pd.concat([summaries[key] for key in summaries], axis=1)
-            return {f"titleprefix - rows={len(data)}": concat_df}
-        else:
-            return summaries
-
-
     def get_analysis_options(self):
         #return [k for k in self.analysis_functions]
         return [toolname for toolname in  analysis.absanalyzer.get_analyzer_classes()]
@@ -316,78 +192,7 @@ class dataanalyzer():
         return analysis.absanalyzer.get_analyzer_classes()[analysis_name]
     
     
-    def pca(self, data, columns, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
-        data = data.dropna(how='any', axis=0)
-        if len(columns) == 1:
-            # reshape 1d array
-            data_no_class = data[columns].values.reshape((-1,1))
-        else:
-            data_no_class = data[columns].values
-        scaler = StandardScaler()
-        scaler.fit(data_no_class)
-        standard_data = scaler.transform(data_no_class)
-        standard_data
-                
-        pca = PCA(**kwargs)
-        principalComponents = pca.fit_transform(standard_data)
 
-        pca_df = pd.DataFrame(
-            data = principalComponents,
-            columns = ['Principal component %d' % x for x in range(1,principalComponents.shape[1]+1)])
-        if keeporig and keepstd:
-            standard_df = pd.DataFrame(
-                data = standard_data,
-                columns = ["%s\nstandard" % c for c in columns])
-            pca_df = pd.concat([data.select_dtypes(include='category'), data[columns], standard_df, pca_df] , axis = 1).reset_index(drop=True)
-        elif keeporig:    
-            pca_df = pd.concat([data.select_dtypes(include='category'), data[columns], pca_df] , axis = 1).reset_index(drop=True)
-        elif keepstd:
-            standard_df = pd.DataFrame(
-                data = standard_data,
-                columns = ["%s\nstandard" % c for c in columns])
-            pca_df = pd.concat([data.select_dtypes(include='category'), standard_df, pca_df] , axis = 1).reset_index(drop=True)
-        else:
-            pca_df = pd.concat([data.select_dtypes(include='category'), pca_df] , axis = 1).reset_index(drop=True)                        
-
-        pca_comp_label = 'PCA component'
-        explained_label = 'explained var ratio'
-        pca_explained_df = pd.DataFrame(data={
-                pca_comp_label: range(1,len(pca.explained_variance_ratio_)+1), 
-                explained_label: pca.explained_variance_ratio_})
-
-        if explainedhisto:
-            return pca_df, pca_explained_df, pca_explained_df.set_index(pca_comp_label).plot.bar()
-        else:
-            return pca_df, pca_explained_df, None
-        
-    
-    def randomforest(self, data, columns, classifier, importancehisto=False, **kwargs):
-        data = data.dropna(how='any', axis=0)
-        X=data[columns]  # Features
-        y=data[classifier]  # Labels
-        # Split dataset into training set and test set
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3)
-        #Create a Gaussian Classifier
-        clf=RandomForestClassifier(**kwargs)
-        #Train the model using the training sets y_pred=clf.predict(X_test)
-        clf.fit(X_train,y_train)
-
-        y_pred=clf.predict(X_test)
-        
-        accuracy = metrics.accuracy_score(y_test, y_pred)
-        importance_df = pd.DataFrame({'Feature': columns, 'Importance Score':clf.feature_importances_})
-        importance_df.sort_values(by='Importance Score', ascending=False, inplace=True)
-        if importancehisto:
-            importance_plot = importance_df.set_index('Feature').plot.bar()
-            fig = importance_plot.get_figure()
-            ax = fig.get_axes()[0]
-            ax.text(0.95, 0.80, f'accuracy={accuracy:.3f}', 
-                        horizontalalignment='right',
-                        verticalalignment='center',
-                        transform = ax.transAxes)
-            return importance_df, accuracy, importance_plot
-        else:
-            return importance_df, accuracy, None
 
    
         
