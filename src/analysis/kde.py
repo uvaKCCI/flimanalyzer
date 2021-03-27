@@ -58,7 +58,7 @@ class KDE(AbstractAnalyzer):
             return None, None
         #plt.rcParams.update({'figure.autolayout': True})
     
-        fig, ax = plt.subplots(constrained_layout=True)
+        fig, ax = plt.subplots()# (constrained_layout=True)
         if groups is None:
             groups = []
     

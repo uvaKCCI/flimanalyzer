@@ -40,13 +40,13 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
     def get_option_panels(self):
         epoches_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.epoches_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.epoches)
-        epoches_sizer.Add(wx.StaticText(self, label="Epoches"))
-        epoches_sizer.Add(self.epoches_spinner, 0, wx.ALL|wx.EXPAND, 5)
+        epoches_sizer.Add(wx.StaticText(self, label="Epoches"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        epoches_sizer.Add(self.epoches_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         batch_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.batchsize_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.batch_size)
-        batch_sizer.Add(wx.StaticText(self, label="Batch Size"))
-        batch_sizer.Add(self.batchsize_spinner, 0, wx.ALL|wx.EXPAND, 5)
+        batch_sizer.Add(wx.StaticText(self, label="Batch Size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        batch_sizer.Add(self.batchsize_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         spinner_sizer = wx.BoxSizer(wx.HORIZONTAL)
         spinner_sizer.Add(epoches_sizer)
@@ -54,13 +54,13 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
         learning_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.learning_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
-        learning_sizer.Add(wx.StaticText(self, label="Learning Rate"))
-        learning_sizer.Add(self.learning_input, 0, wx.ALL|wx.EXPAND, 5)
+        learning_sizer.Add(wx.StaticText(self, label="Learning Rate"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        learning_sizer.Add(self.learning_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         weight_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.weight_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.weight_decay, fractionWidth=10)
-        weight_sizer.Add(wx.StaticText(self, label="Weight Decay"))
-        weight_sizer.Add(self.weight_input, 0, wx.ALL|wx.EXPAND, 5)
+        weight_sizer.Add(wx.StaticText(self, label="Weight Decay"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        weight_sizer.Add(self.weight_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         float_sizer = wx.BoxSizer(wx.HORIZONTAL)
         float_sizer.Add(learning_sizer)
@@ -71,8 +71,8 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         if sel_timeseries not in self.timeseries_opts:
             sel_timeseries = self.timeseries_opts[0]
         self.timeseries_combobox = wx.ComboBox(self, wx.ID_ANY, value=sel_timeseries, choices=self.timeseries_opts)
-        timeseries_sizer.Add(wx.StaticText(self, label="Time Series"))
-        timeseries_sizer.Add(self.timeseries_combobox)
+        timeseries_sizer.Add(wx.StaticText(self, label="Time Series"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(self.timeseries_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         sel_model = self.model
         if sel_model not in self.model_opts:
@@ -83,11 +83,11 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
         browsebutton.Bind(wx.EVT_BUTTON, self.OnBrowse)
         
-        timeseries_sizer.Add(wx.StaticText(self, label="Model Architecture"))
-        timeseries_sizer.Add(self.model_combobox)
-        timeseries_sizer.Add(wx.StaticText(self, label="Save Model to File"))
-        timeseries_sizer.Add(self.modelfiletxt)
-        timeseries_sizer.Add(browsebutton)
+        timeseries_sizer.Add(wx.StaticText(self, label="Model Architecture"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(self.model_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(wx.StaticText(self, label="Save Model to File"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(self.modelfiletxt, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(browsebutton, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
         top_sizer.Add(spinner_sizer)

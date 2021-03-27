@@ -29,8 +29,8 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
     def get_option_panels(self):
         self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, value=self.classifier, choices=self.classifieropts)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(wx.StaticText(self, id=wx.ID_ANY, label="Classifier"))
-        sizer.Add(self.classifier_selector, 0, wx.ALL, 5)
+        sizer.Add(wx.StaticText(self, id=wx.ID_ANY, label="Classifier"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(self.classifier_selector, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         return [sizer]
         
     def _get_selected(self):

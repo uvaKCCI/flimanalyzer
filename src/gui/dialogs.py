@@ -99,8 +99,8 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         
         groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.grouping_combobox = wx.ComboBox(self, wx.ID_ANY, value=", ".join(selectedgrouping), choices=groupings)
-        groupingsizer.Add(wx.StaticText(self, label="Data Grouping"))
-        groupingsizer.Add(self.grouping_combobox)
+        groupingsizer.Add(wx.StaticText(self, label="Data Grouping"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        groupingsizer.Add(self.grouping_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.optionsizer = wx.GridSizer(optgridcols, optgridrows, 0)
         for p in self.get_option_panels():

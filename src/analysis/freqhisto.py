@@ -17,11 +17,61 @@ import wx
 
 default_linestyles = ['-','--',':', '-.']
 
+class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
+
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', bins=20, stacked=False, cumulative=False, histtype='step', datatable=False):
+        self.bins = bins
+        self.stacked = stacked
+        self.cumulative = cumulative
+        self.histtype = histtype
+        self.datatable = datatable
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
+		    
+    def get_option_panels(self):
+        binsizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        self.bins_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.bins)
+        binsizer.Add(wx.StaticText(self, label="Bins"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        binsizer.Add(self.bins_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        histtype_opts = ['bar', 'barstacked', 'step', 'stepfilled']
+        sel_histtype = self.histtype
+        if sel_histtype not in histtype_opts:
+            sel_histtype = histtype_opts[0]
+        self.histtype_combobox = wx.ComboBox(self, wx.ID_ANY, value=sel_histtype, choices=histtype_opts)
+        binsizer.Add(wx.StaticText(self, label="Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        binsizer.Add(self.histtype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        self.stacked_cb = wx.CheckBox(self,wx.ID_ANY, label="Stacked")
+        self.stacked_cb.SetValue(self.stacked)
+        binsizer.Add(self.stacked_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        self.cumulative_cb = wx.CheckBox(self,wx.ID_ANY, label="Cumulative")
+        self.cumulative_cb.SetValue(self.cumulative)
+        binsizer.Add(self.cumulative_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        self.showdata_cb = wx.CheckBox(self,wx.ID_ANY, label="Binned data table")
+        self.showdata_cb.SetValue(self.datatable)
+        binsizer.Add(self.showdata_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        return [binsizer]
+        
+
+    def _get_selected(self):
+        params = super()._get_selected()
+        params['bins'] = self.bins_spinner.GetValue()
+        params['stacked'] = self.stacked_cb.GetValue()
+        params['cumulative'] = self.cumulative_cb.GetValue()
+        params['histtype'] = self.histtype_combobox.GetValue()
+        params['datatable'] = self.showdata_cb.GetValue()
+        return params
+
+
 class FreqHisto(AbstractAnalyzer):
     
 
-    def __init__(self, data, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3):
-        AbstractAnalyzer.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size)
+    def __init__(self, data, **kwargs):
+        AbstractAnalyzer.__init__(self, data, **kwargs)
         self.name = "Frequency Histogram"
         
     def get_required_categories(self):
@@ -32,6 +82,12 @@ class FreqHisto(AbstractAnalyzer):
     
     def get_default_parameters(self):
         params = super().get_default_parameters()
+        params['bins'] = 100
+        params['density'] = False
+        params['cumulative'] = False
+        params['histtype'] = 'step' # 'bar', 'barstacked', 'step', 'stepfilled'
+        params['stacked'] = False
+        params['datatable'] = False
         params.update({
     				'trp t1': [0,8000,81,['Treatment']],
                     'trp t2': [0,8000,81,['Treatment']],
@@ -73,7 +129,14 @@ class FreqHisto(AbstractAnalyzer):
     def run_configuration_dialog(self, parent):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = FreqHistoConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures,
+            bins=self.params['bins'],
+            stacked=self.params['stacked'],
+            cumulative=self.params['cumulative'],
+            histtype=self.params['histtype'],
+            datatable=self.params['datatable'])
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -83,9 +146,14 @@ class FreqHisto(AbstractAnalyzer):
     
     def execute(self):
         results = {}
+        density = self.params['density']
+        histtype = self.params['histtype']
+        cumulative = self.params['cumulative']
+        self.stacked = self.params['stacked']
+        self.datatable = self.params['datatable']
+        bins = self.params['bins']
         for header in sorted(self.params['features']):
             mrange = (self.data[header].min(), self.data[header].max())
-            bins = 100
             try:
                 hconfig = self.params[header]
                 mrange = (hconfig[0], hconfig[1])
@@ -97,22 +165,31 @@ class FreqHisto(AbstractAnalyzer):
 #            fig, ax = MatplotlibFigure()
             #fig = plt.figure(FigureClass=MatplotlibFigure)
             #ax = fig.add_subplot(111)
-            binvalues, binedges, groupnames, fig, ax = self.histogram(self.data, header, groups=self.params['grouping'], normalize=100, range=mrange, stacked=False, bins=bins, histtype='step')                
-
-            df = pd.DataFrame()
-            df['bin edge low'] = binedges[:-1]
-            df['bin edge high'] = binedges[1:]
-            if len(binvalues.shape) == 1:
-                df[groupnames[0]] = binvalues
-            else:    
-                for i in range(len(binvalues)):
-                    df[groupnames[i]] = binvalues[i]
-            df.reset_index()
-            #bindata = core.plots.bindata(binvalues,binedges, groupnames)
-            #bindata = bindata.reset_index()
+            binvalues, binedges, groupnames, fig, ax = self.histogram(self.data, header, groups=self.params['grouping'], 
+                normalize=100, 
+                range=mrange, 
+                bins=bins, 
+                histtype=histtype, 
+                cumulative=cumulative, 
+                density=density,
+                stacked=self.stacked,
+                alpha=0.5)                
 
             results[f'Frequency Histo Plot: {header}'] = (fig,ax)
-            results[f'Frequency Histo Table: {header}'] = df
+            
+            if self.datatable:
+                df = pd.DataFrame()
+                df['bin edge low'] = binedges[:-1]
+                df['bin edge high'] = binedges[1:]
+                if len(binvalues.shape) == 1:
+                    df[groupnames[0]] = binvalues
+                else:    
+                    for i in range(len(binvalues)):
+                        df[groupnames[i]] = binvalues[i]
+                df.reset_index()
+                #bindata = core.plots.bindata(binvalues,binedges, groupnames)
+                #bindata = bindata.reset_index()
+                results[f'Frequency Histo Table: {header}'] = df
         return results
     
     
@@ -138,25 +215,30 @@ class FreqHisto(AbstractAnalyzer):
             if normalize is not None:
                 weights = np.ones_like(data[column].values)/float(totalcounts) * normalize
         else:
-            groupeddata = data.groupby(groups)
+            groupeddata = data.groupby(groups, observed=True)
             newkwargs.update({'label':list(groupeddata.groups)})
             for name,group in groupeddata:
                 if len(group[column]) > 0:
                     groupnames.append(name)
                     pltdata.append(group[column].values)
-                    totalcounts = group[column].count()            
+                    totalcount = len(data)
+                    if not self.stacked:
+                        totalcounts = group[column].count()            
                     if normalize is not None:
                         weights.append(np.ones_like(group[column].values)/float(totalcounts) * normalize)
         if normalize is not None:
+            slabel = ""
+            if not self.stacked:
+               slabel = "in each group "
             if normalize == 100:
-                ax.set_ylabel('relative counts [%]')
+                ax.set_ylabel(f'relative counts {slabel}[%]')
                 groupnames = [f"{n} [rel %]" for n in groupnames]
             else:
                 ax.set_ylabel('relative counts (norm. to %.1f)' % normalize)
                 
             newkwargs.update({
                     'weights':weights, 
-                    'density':False
+                    #'density':False,
                     })
         else:
             ax.set_ylabel('counts')

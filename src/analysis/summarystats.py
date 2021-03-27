@@ -73,7 +73,6 @@ class SummaryStats(AbstractAnalyzer):
         return params
         
     def run_configuration_dialog(self, parent):
-        print (self.params)
         dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], allaggs=self.agg_functions, selectedaggs=self.params['aggs'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()

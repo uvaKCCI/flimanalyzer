@@ -787,7 +787,7 @@ class AppFrame(wx.Frame):
         self.analysistab = TabAnalysis(nb, self, self.flimanalyzer, self.config)
  
         # Add the windows to tabs and name them.
-        nb.AddPage(self.analysistab, "Analyze")
+        #nb.AddPage(self.analysistab, "Analyze")
         
 #        self.update_tabs()
  
@@ -968,12 +968,15 @@ class AppFrame(wx.Frame):
         
         analysis_class = analysis.absanalyzer.get_analyzer_classes()[analyzername]
         tool = analysis.absanalyzer.create_instance(analysis_class, data)
+        parameters = self.config.get([cfg.CONFIG_ANALYSIS, analyzername])
+        tool.configure(**parameters)
 
         # run optional tool config dialog and execte analysis
         parameters = tool.run_configuration_dialog(self)
-        logging.debug(parameters)
         if parameters is None:
             return
+        self.config.update(parameters, [cfg.CONFIG_ANALYSIS, analyzername])
+        logging.debug(parameters)
         features = parameters['features']
         categories = parameters['grouping']     
 
