@@ -13,16 +13,29 @@ import torch.nn as nn
 import torch.nn.parallel
 import torch.optim as optim
 import torch.utils.data
+from torch.utils.data.dataset import Dataset
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
-#from MLfeatureanalyzer.autoencoder2 import AE
-from MLfeatureanalyzer.dataset import datasets
 import analysis.ml.autoencoder as autoencoder
 import logging
 from gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
 
+
+class datasets(Dataset):
+    def __init__(self, data):
+        self.data_arr = np.asarray(data)
+        self.data_len = len(self.data_arr)
+
+    def __getitem__(self, index):
+        single_data = self.data_arr[index]
+        return single_data
+
+    def __len__(self):
+        return self.data_len
+        
+        
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
     def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile=''):

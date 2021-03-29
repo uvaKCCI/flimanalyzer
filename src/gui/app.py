@@ -6,12 +6,13 @@ Created on Mon May  7 21:00:30 2018
 @author: khs3z
 """
 
-import logging
-import os
-import numpy as np
 import matplotlib
 matplotlib.use('WXAgg')
 import matplotlib.pyplot as plt
+
+import logging
+import os
+import numpy as np
 import itertools
 import pandas as pd
 import json
@@ -31,7 +32,6 @@ from gui.importdlg import ImportDlg
 from core.preprocessor import defaultpreprocessor
 from core.importer import dataimporter
 from core.filter import RangeFilter
-from MLfeatureanalyzer.HeLa import HelaSingleCell
 
 from gui.delimpanel import DelimiterPanel
 from gui.datapanel import PandasFrame

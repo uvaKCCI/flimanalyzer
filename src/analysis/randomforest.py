@@ -15,27 +15,49 @@ from sklearn import metrics
 from analysis.absanalyzer import AbstractAnalyzer
 from gui.dialogs import BasicAnalysisConfigDlg
 import wx
+from wx.lib.masked import NumCtrl
+
 
 class RandomForestConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', classifier=''):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', classifier='', importancehisto=True, n_estimators=100, test_size=0.3):
         self.classifieropts = data.select_dtypes(['category']).columns.values
         if classifier in self.classifieropts:
             self.classifier = classifier
         else:
             self.classifier = self.classifieropts[0]
+        self.importancehisto = importancehisto
+        self.n_estimators = n_estimators
+        self.test_size = test_size
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=1)
 		    
     def get_option_panels(self):
-        self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, value=self.classifier, choices=self.classifieropts)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, value=self.classifier, choices=self.classifieropts)
         sizer.Add(wx.StaticText(self, id=wx.ID_ANY, label="Classifier"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.classifier_selector, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        self.n_estimators_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.n_estimators)
+        sizer.Add(wx.StaticText(self, label="N-estimator"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(self.n_estimators_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        self.test_size_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.test_size, fractionWidth=10)
+        sizer.Add(wx.StaticText(self, label="Test size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(self.test_size_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        self.importancehisto_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Importance histogram")
+        self.importancehisto_cb.SetValue(self.importancehisto)
+        sizer.Add(self.importancehisto_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
         return [sizer]
         
     def _get_selected(self):
         params = super()._get_selected()
         params['classifier'] = self.classifier_selector.GetValue()
+        params['importancehisto'] = self.importancehisto_cb.GetValue()
+        params['n_estimators'] = self.n_estimators_spinner.GetValue()
+        params['test_size'] = self.test_size_input.GetValue()
         return params
         
         
@@ -61,13 +83,19 @@ class RandomForest(AbstractAnalyzer):
         params = super().get_default_parameters()
         params.update({
             'classifier': '',
-            'importancehisto': True, 
             'n_estimators': 100, 
-            'test_size': 0.3,})
+            'test_size': 0.3,
+            'importancehisto': True})
         return params    
         
     def run_configuration_dialog(self, parent):
-        dlg = RandomForestConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], classifier=self.params['classifier'])
+        dlg = RandomForestConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+           selectedgrouping=self.params['grouping'], 
+           selectedfeatures=self.params['features'], 
+           classifier=self.params['classifier'],
+           n_estimators=self.params['n_estimators'],
+           test_size=self.params['test_size'],
+           importancehisto=self.params['importancehisto'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
@@ -99,7 +127,9 @@ class RandomForest(AbstractAnalyzer):
         y_pred=clf.predict(X_test)
         
         accuracy = metrics.accuracy_score(y_test, y_pred)
-        importance_df = pd.DataFrame({'Feature': self.params['features'], 'Importance Score':clf.feature_importances_})
+        featurecol = 'Feature'
+        importance_df = pd.DataFrame({featurecol: self.params['features'], 'Importance Score':clf.feature_importances_})
+        importance_df[featurecol] = importance_df[featurecol].astype('category')
         importance_df.sort_values(by='Importance Score', ascending=False, inplace=True)
         if self.params['importancehisto']:
             importance_plot = importance_df.set_index('Feature').plot.bar()

@@ -18,7 +18,6 @@ from analysis.absanalyzer import AbstractAnalyzer
 from core.tools import FLIMAnalyzer
 from core.configuration import Config, CONFIG_PARSER_CLASS
 
-#from MLfeatureanalyzer.autoencoder2 import SAE
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
