@@ -41,7 +41,7 @@ class MeanBarPlot(AbstractAnalyzer):
             'ordering': {},
             'orientation': 'vertical',
             'error bar': '+/-',
-            'error type': 'Standard Deviation',
+            'error type': 'std',
         }
                 
     def run_configuration_dialog(self, parent):
@@ -75,7 +75,7 @@ class MeanBarPlot(AbstractAnalyzer):
             mean = pd.DataFrame(data={'all':[data[feature].mean()]}, index=[feature])#.to_frame()
             std = pd.DataFrame(data={'all':[data[feature].std()]}, index=[feature])#.to_frame()
             ticklabels = ''#mean.index.values
-            if self.params['orientation'] == 'horizaontal':
+            if self.params['orientation'] == 'horizontal':
                 mean.plot.barh(ax=ax, xerr=std, capsize=6)#,figsize=fsize,width=0.8)
             else:
                 mean.plot.bar(ax=ax, yerr=std, capsize=6)#,figsize=fsize,width=0.8)            

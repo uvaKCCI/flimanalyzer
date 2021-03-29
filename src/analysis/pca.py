@@ -15,6 +15,67 @@ from sklearn.preprocessing import StandardScaler
 from analysis.absanalyzer import AbstractAnalyzer
 from gui.dialogs import BasicAnalysisConfigDlg
 import wx
+from wx.lib.masked import NumCtrl
+
+
+class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
+
+    def __init__(self, parent, title, data, 
+            selectedgrouping=['None'], 
+            selectedfeatures='All', 
+            keeporig=False, 
+            keepstd=True,
+            explainedhisto=False,
+            n_components=None):
+
+        self.allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
+        self.keeporig = keeporig
+        self.keepstd = keepstd
+        self.explainedhisto = explainedhisto
+        self.n_components = n_components
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
+		    
+    def get_option_panels(self):
+        helptxt = f'Specifiy PCA components to retain:'\
+                                 '\n\tleave empty:   retain all PCA components.'\
+                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
+                                 '\n\t1 <= n <= {len(self.allfeatures)} (integer):   retain first n PCA components.'
+        
+        helpsizer = wx.BoxSizer(wx.HORIZONTAL)
+        helpsizer.Add(wx.StaticText(self, label=helptxt), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        self.n_components_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=float(len(self.allfeatures)), value=self.n_components, fractionWidth=3)
+        sizer.Add(wx.StaticText(self, label="N-components"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(self.n_components_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        self.keeporig_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Include original data")
+        self.keeporig_cb.SetValue(self.keeporig)
+        sizer.Add(self.keeporig_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        self.keepstd_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Include standardized data")
+        self.keepstd_cb.SetValue(self.keepstd)
+        sizer.Add(self.keepstd_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        self.explainedhisto_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Explained histogram")
+        self.explainedhisto_cb.SetValue(self.explainedhisto)
+        sizer.Add(self.explainedhisto_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        return [helpsizer, sizer]
+        
+    def _get_selected(self):
+        n_comps = self.n_components_input.GetValue()
+        if n_comps >= 1.0:
+           # convert float to int
+           n_comps = int(n_comps)
+        params = super()._get_selected()
+        params['keeporig'] = self.keeporig_cb.GetValue()
+        params['keepstd'] = self.keepstd_cb.GetValue()
+        params['n_components'] = n_comps
+        params['explainedhisto'] = self.explainedhisto_cb.GetValue()
+
+        return params
 
 
 class PCAnalysis(AbstractAnalyzer):
@@ -36,14 +97,30 @@ class PCAnalysis(AbstractAnalyzer):
         return ['any', 'any']
     
     def get_default_parameters(self):
-        return {
+        params = super().get_default_parameters()
+        params.update({
             'keeporig':False, 
             'keepstd':True,
             'explainedhisto': False,
-            'n_components': None,
-            }
+            'n_components': 0.999,
+            })
+        return params
             
     def run_configuration_dialog(self, parent):
+        dlg = PCAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+            selectedgrouping=self.params['grouping'], 
+            selectedfeatures=self.params['features'], 
+            keeporig=self.params['keeporig'], 
+            keepstd=self.params['keepstd'],
+            explainedhisto=self.params['explainedhisto'],
+            n_components=self.params['n_components'])
+        if dlg.ShowModal() == wx.ID_CANCEL:
+            dlg.Destroy()
+            return # implicit None
+        self.params = dlg.get_selected()
+        self.configure(**self.params)
+        return self.params    
+    
         n = ''
         dlg = wx.TextEntryDialog(parent, 'Specifiy PCA components to retain:'\
                                  '\n\tleave empty:   retain all PCA components.'\
@@ -85,7 +162,7 @@ class PCAnalysis(AbstractAnalyzer):
         standard_data = scaler.transform(data_no_class)
         standard_data
         
-        pca_params = {k: self.params[k] for k in self.params if k not in ['keeporig', 'keepstd', 'explainedhisto']}
+        pca_params = {k: self.params[k] for k in self.params if k not in ['keeporig', 'keepstd', 'explainedhisto', 'features', 'grouping']}
         pca = PCA(**pca_params)
         principalComponents = pca.fit_transform(standard_data)
         
@@ -111,7 +188,9 @@ class PCAnalysis(AbstractAnalyzer):
         pca_explained_df = pd.DataFrame(data={
                 pca_comp_label: range(1,len(pca.explained_variance_ratio_)+1), 
                 explained_label: pca.explained_variance_ratio_})
+        pca_explained_df[pca_comp_label] = pca_explained_df[pca_comp_label].astype('category')
 
+        
         results = {
             'PCA': pca_df,
             'PCA explained': pca_explained_df}
