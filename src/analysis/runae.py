@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# @Time  : 12/17/20 10:44 AM
+# @Time  : 03/30/21 10:44 AM
 # @Author: Jiaxin_Zhang
 
 import os
@@ -51,11 +51,6 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
 
     def _get_selected(self):
         params = super()._get_selected()
-        # params['epoches'] = self.epoches_spinner.GetValue()
-        # params['batch_size'] = self.batchsize_spinner.GetValue()
-        # params['learning_rate'] = self.learning_input.GetValue()
-        # params['weight_decay'] = self.weight_input.GetValue()
-        # params['timeseries'] = self.timeseries_combobox.GetValue()
         params['modelfile'] = self.modelfiletxt.GetLabel()
         return params
 
@@ -66,12 +61,7 @@ class RunAE(AbstractAnalyzer):
         AbstractAnalyzer.__init__(self, data, **kwargs)
         self.name = "Autoencoder Running"
         self.variables = self.params['features']
-        # self.epoches = self.params['epoches']
-        # self.timeseries = self.params['timeseries']
         self.modelfile = self.params['modelfile']
-        # self.lr = self.params['learning_rate']
-        # self.wd = self.params['weight_decay']
-        # self.bs = self.params['batch_size']
 
     def __repr__(self):
         return f"{'name': {self.name}}"
