@@ -59,7 +59,7 @@ class RunAE(AbstractAnalyzer):
 
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
-        self.name = "Autoencoder: Run"
+        self.name = "Autoencoder Running"
         self.variables = self.params['features']
         self.modelfile = self.params['modelfile']
 
