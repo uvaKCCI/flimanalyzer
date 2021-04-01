@@ -133,7 +133,7 @@ class AETraining(AbstractAnalyzer):
 
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
-        self.name = "Autoencoder Training"
+        self.name = "Autoencoder: Train"
         self.variables = self.params['features']
         self.epoches = self.params['epoches']
         self.timeseries = self.params['timeseries']

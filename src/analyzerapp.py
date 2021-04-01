@@ -137,9 +137,9 @@ if __name__ == "__main__":
             
     logging.debug(args)
     fa = FLIMAnalyzer()
-    analyzers = analysis.absanalyzer.init_analyzers()
-    aes = analysis.ml.autoencoder.init_autoencoders()
-    config = analysis.absanalyzer.init_default_config(analyzers)
+    #analyzers = analysis.absanalyzer.init_analyzers()
+    #aes = analysis.ml.autoencoder.init_autoencoders()
+    #config = analysis.absanalyzer.init_default_config(analyzers)
     #print (config)
     if args.input is None or args.output is None or args.config is None:
         interactive_run(fa)

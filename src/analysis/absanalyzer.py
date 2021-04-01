@@ -8,11 +8,11 @@ Created on Wed Dec 16 14:35:56 2020
 
 from abc import ABC, abstractmethod
 import logging
-import importlib
 import inspect
 import os
 import pkgutil
 import importlib
+import wx
 
 def get_analyzer_classes():
     pkdir = os.path.dirname(__file__)
@@ -58,7 +58,12 @@ class AbstractAnalyzer(ABC):
         self.data = data
         self.params = self.get_default_parameters()
         self.params.update({**kwargs})
-
+        
+        
+    def get_icon(self):
+        return wx.ArtProvider.GetBitmap(wx.ART_EXECUTABLE_FILE)
+        
+        
     def fix_label(self, label):
     	if not isinstance(label, str):
     		label = ','.join(label)

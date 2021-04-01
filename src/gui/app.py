@@ -750,6 +750,15 @@ class AppFrame(wx.Frame):
         self.window_zorder = []
         
         super(AppFrame,self).__init__(None, wx.ID_ANY,title="FLIM Data Analyzer")#, size=(600, 500))
+
+        tb = wx.ToolBar( self, -1 ) 
+        self.ToolBar = tb
+        fileopen_tool = tb.AddTool(wx.NewId(),"Open File", wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN), shortHelp="Open file")
+        self.Bind(wx.EVT_TOOL, self.OnLoadData, fileopen_tool)
+        fileimport_tool = tb.AddTool(wx.NewId(),"Import Files", wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN), shortHelp="Import files")
+        self.Bind(wx.EVT_TOOL, self.OnImportData, fileimport_tool)
+        
+        tb.AddSeparator()
                 
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
@@ -757,9 +766,12 @@ class AppFrame(wx.Frame):
         importmenuitem = filemenu.Append(wx.NewId(), "Import...","Impoort and concatenate mutliple data files")
         exitmenuitem = filemenu.Append(wx.NewId(), "Exit","Exit the application")
         self.analysismenu = wx.Menu()
-        for analyzername in self.analyzers:
+        for analyzername in sorted(self.analyzers):
+            analyzer = analysis.absanalyzer.create_instance(self.analyzers[analyzername], None)
             analyzeritem = self.analysismenu.Append(wx.NewId(), analyzername)
             self.Bind(wx.EVT_MENU, self.OnRunAnalysis, analyzeritem)
+            analysis_tool = tb.AddTool(wx.NewId(),analyzername, analyzer.get_icon(), shortHelp=analyzername)
+            self.Bind(wx.EVT_TOOL, self.OnRunAnalysis, analysis_tool)
         self.windowmenu = wx.Menu()
         closeallitem = self.windowmenu.Append(wx.NewId(), "Close all windows")
         self.windowmenu.AppendSeparator()
@@ -777,14 +789,18 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
+        
+        tb.Realize()
+
+        self.SetSize((650, 250))
+        self.Centre()
+        self.Show(True) 
  
         # Create a panel and notebook (tabs holder)
-#        panel = wx.Panel(self)
-#        nb = wx.Notebook(panel)
-        nb = wx.Notebook(self)
+        #nb = wx.Notebook(self)
  
         # Create the tab windows
-        self.analysistab = TabAnalysis(nb, self, self.flimanalyzer, self.config)
+        # self.analysistab = TabAnalysis(nb, self, self.flimanalyzer, self.config)
  
         # Add the windows to tabs and name them.
         #nb.AddPage(self.analysistab, "Analyze")
@@ -792,11 +808,11 @@ class AppFrame(wx.Frame):
 #        self.update_tabs()
  
         # Set noteboook in a sizer to create the layout
-        sizer = wx.BoxSizer()
-        sizer.Add(nb, 1, wx.EXPAND)
+        #sizer = wx.BoxSizer()
+        #sizer.Add(nb, 1, wx.EXPAND)
         
-        sizer.SetSizeHints(self)
-        self.SetSizerAndFit(sizer)
+        #sizer.SetSizeHints(self)
+        #self.SetSizerAndFit(sizer)
         
 
         self.Bind(EVT_IMPORT, self.OnImport)
@@ -940,12 +956,13 @@ class AppFrame(wx.Frame):
                 return
             configfile = fileDialog.GetPath()
             self.config.write_to_json(configfile)
+   
         
     def get_currentdata(self):
         if len(self.window_zorder) == 0:
            return
         return self.windowframes[self.window_zorder[-1]].GetViewData()
-        
+   
         
     def OnRunAnalysis(self, event):
         data = self.get_currentdata()
@@ -953,9 +970,14 @@ class AppFrame(wx.Frame):
              wx.MessageBox('No data available')
              return
         itemid = event.GetId()
-        menu = event.GetEventObject()
-        mitem = menu.FindItemById(itemid)
-        analyzername = mitem.GetItemLabelText()
+        evtobj = event.GetEventObject()
+        print (type(evtobj))
+        analyzername = ''
+        if isinstance(evtobj, wx._core.ToolBar):
+            analyzername = evtobj.FindById(itemid).GetLabel()
+        else:
+            analyzername = evtobj.FindItemById(itemid).GetItemLabelText()
+        print(analyzername)
         logging.debug(f"{event.GetId()}, {analyzername}")
         
         # check that there's any data to process
