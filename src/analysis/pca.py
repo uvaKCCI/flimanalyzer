@@ -93,6 +93,9 @@ class PCAnalysis(AbstractAnalyzer):
     def get_required_categories(self):
         return []
     
+    def get_icon(self):
+        return wx.Bitmap("resources/pca.png")
+        
     def get_required_features(self):
         return ['any', 'any']
     

@@ -80,6 +80,9 @@ class FreqHisto(AbstractAnalyzer):
     def get_required_features(self):
         return ['any']
     
+    def get_icon(self):
+        return wx.Bitmap("resources/histogram.png")
+        
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params['bins'] = 100

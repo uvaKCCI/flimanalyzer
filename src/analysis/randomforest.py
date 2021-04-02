@@ -73,6 +73,9 @@ class RandomForest(AbstractAnalyzer):
     def __str__(self):
         return self.name
     
+    def get_icon(self):
+        return wx.Bitmap("resources/randomforest.png")
+        
     def get_required_categories(self):
         return ['any']
     

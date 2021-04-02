@@ -59,7 +59,7 @@ class RunAE(AbstractAnalyzer):
 
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
-        self.name = "Autoencoder Running"
+        self.name = "Autoencoder: Run"
         self.variables = self.params['features']
         self.modelfile = self.params['modelfile']
 
@@ -69,6 +69,9 @@ class RunAE(AbstractAnalyzer):
     def __str__(self):
         return self.name
 
+    def get_icon(self):
+        return wx.Bitmap("resources/aerun.png")
+        
     def get_required_categories(self):
         return ["any"]
 
