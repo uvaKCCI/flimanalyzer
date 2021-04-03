@@ -971,13 +971,11 @@ class AppFrame(wx.Frame):
              return
         itemid = event.GetId()
         evtobj = event.GetEventObject()
-        print (type(evtobj))
         analyzername = ''
         if isinstance(evtobj, wx._core.ToolBar):
             analyzername = evtobj.FindById(itemid).GetLabel()
         else:
             analyzername = evtobj.FindItemById(itemid).GetItemLabelText()
-        print(analyzername)
         logging.debug(f"{event.GetId()}, {analyzername}")
         
         # check that there's any data to process

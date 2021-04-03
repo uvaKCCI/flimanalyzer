@@ -352,17 +352,20 @@ class PandasFrame(wx.Frame):
         self.grid.Refresh()
         
     
-    def OnFilterData(self, event):
-        cb = event.GetEventObject()
-        self.filterbutton.Enable(cb.GetValue())
+    def updateusefilter(self, enabled):
+        self.config.update({CONFIG_USE:enabled}, parentkeys=[CONFIG_FILTERS])
+        self.filterbutton.Enable(enabled)
         filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-        if cb.GetValue():
+        if enabled:
             # apply
             self.apply_filters({f['name']:f for f in filtercfg})
         else:
         	# clear
             self.apply_filters({})
-        
+    
+    def OnFilterData(self, event):
+        cb = event.GetEventObject()
+        self.updateusefilter(cb.GetValue())        
                 
         
     def OnFilterSettings(self, event):
@@ -370,19 +373,22 @@ class PandasFrame(wx.Frame):
         existingfilters = {cfg['name']:cfg for cfg in filtercfg}
         columns = self.data.select_dtypes(include=['number'], exclude=['category'])
         rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in columns]
-
-        dlg = ConfigureFiltersDlg(self, rangefilters)
+        config = {}
+        config[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
+        config[CONFIG_RANGEFILTERS] = rangefilters
+              
+        dlg = ConfigureFiltersDlg(self, config)
         response = dlg.ShowModal()
         if (response == wx.ID_OK):
-        	newfilters = {f['name']:f for f in dlg.GetData()}
-        	currentfilters = {f['name']:f for f in filtercfg}
-        	currentfilters.update(newfilters)
-        	newfilterlist = [currentfilters[key] for key in currentfilters]
-        	self.config.update({CONFIG_RANGEFILTERS:newfilterlist},keys[:-1])
-        	if self.filtercb.GetValue():
-        	    self.apply_filters(newfilters)
-        	#else:
-        	#    self.apply_filters({})    
+            config = dlg.GetData()
+            rfcfg = config.get(CONFIG_RANGEFILTERS)
+            newfilters = {f['name']:f for f in rfcfg}
+            currentfilters = {f['name']:f for f in filtercfg}
+            currentfilters.update(newfilters)
+            newfilterlist = [currentfilters[key] for key in currentfilters]
+            self.config.update({CONFIG_RANGEFILTERS:newfilterlist}, parentkeys=keys[:-1])
+            self.filtercb.SetValue(config[CONFIG_USE])
+            self.updateusefilter(self.filtercb.GetValue())
 
 
     def OnPopupItemSelected(self, event):
@@ -481,11 +487,16 @@ class PandasFrame(wx.Frame):
             filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
             existingfilters = {cfg['name']:cfg for cfg in filtercfg}
             rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in [group]]
+            config = {}
+            config[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
+            config[CONFIG_RANGEFILTERS] = rangefilters
 
-            dlg = ConfigureFiltersDlg(self, rangefilters)
+            dlg = ConfigureFiltersDlg(self, config, showusefilter=False)
             response = dlg.ShowModal()
             if response == wx.ID_OK:
-                newfilters = {f['name']:f for f in dlg.GetData()}
+                config = dlg.GetData()
+                rfcfg = config.get(CONFIG_RANGEFILTERS)
+                newfilters = {f['name']:f for f in rfcfg}
                 currentfilters = {f['name']:f for f in filtercfg}
                 currentfilters.update(newfilters)
                 newfilterlist = [currentfilters[key] for key in currentfilters]

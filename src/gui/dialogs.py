@@ -11,6 +11,7 @@ import itertools
 import wx.grid
 from wx.lib.masked import NumCtrl
 from core.filter import RangeFilter
+import core.configuration as cfg
 from gui.listcontrol import FilterListCtrl
 from gui.dicttablepanel import ListTable
 
@@ -261,17 +262,21 @@ class SelectGroupsDlg(wx.Dialog):
 
 
 class ConfigureFiltersDlg(wx.Dialog):
-    def __init__(self, parent, cfgdata=None):
-        wx.Dialog.__init__(self, parent, wx.ID_ANY, "Filter Settings", size= (650,400))
-        self.panel = wx.Panel(self,wx.ID_ANY)
-        self.filtertable = ListTable(cfgdata, headers=["selected", "name", "rangelow", "rangehigh"], sort=False)
-        self.filtergrid = wx.grid.Grid(self.panel, -1)
-        self.filtergrid.SetDefaultColSize(200,True)
-        self.filtergrid.SetTable(self.filtertable,takeOwnership=True)
-        self.filtergrid.SetRowLabelSize(0)
-        
 
-        self.filterlist = FilterListCtrl(self.panel, showdropped=False, fireevents=False, style=wx.LC_REPORT, pos=(110,100), size=(500,-1))
+    def __init__(self, parent, config=None, showusefilter=True):
+        wx.Dialog.__init__(self, parent, wx.ID_ANY, "Filter Settings", size= (650,400))
+        
+        self.showusefilter = showusefilter
+        cfgdata = config.get(cfg.CONFIG_RANGEFILTERS)
+        self.panel = wx.Panel(self,wx.ID_ANY)
+        filtersizer = wx.BoxSizer(wx.VERTICAL)
+        
+        if self.showusefilter:
+            self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="User Filters")
+            self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
+            filtersizer.Add(self.filtercb, 0, wx.ALL, 5)        
+
+        self.filterlist = FilterListCtrl(self.panel, showdropped=False, fireevents=False, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
         self.filterlist.InsertColumn(0, "Use")
         self.filterlist.InsertColumn(1, "Column")
         self.filterlist.InsertColumn(2, "Min", wx.LIST_FORMAT_RIGHT)
@@ -281,7 +286,8 @@ class ConfigureFiltersDlg(wx.Dialog):
         #self.filterlist.SetEditable([False, False, True, True, False])
         self.filterlist.Arrange()
         currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in cfgdata}        
-        self.filterlist.SetData(currentfilters, headers=['Use', 'Column', 'Min', 'Max'])        
+        self.filterlist.SetData(currentfilters, headers=['Use', 'Column', 'Min', 'Max'])
+        filtersizer.Add(self.filterlist, 1, wx.ALL|wx.EXPAND, 5)
         
         loadbutton = wx.Button(self.panel, label="Load")
         loadbutton.Bind(wx.EVT_BUTTON, self.OnLoad)
@@ -298,8 +304,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         buttonsizer.Add(cancelbutton, 0, wx.ALL|wx.EXPAND, 5)
         
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        #sizer.Add(self.filtergrid, 1, wx.EXPAND)
-        sizer.Add(self.filterlist, 1, wx.EXPAND)
+        sizer.Add(filtersizer, 1, wx.ALL|wx.EXPAND, 5)
         sizer.Add(wx.StaticLine(self.panel,style=wx.LI_VERTICAL), 0, wx.ALL|wx.EXPAND, 5)
         sizer.Add(buttonsizer)
         
@@ -313,10 +318,11 @@ class ConfigureFiltersDlg(wx.Dialog):
         pass
         
     def OnOK(self, event):
-        #self.config = self.filtertable.GetData()
         cfgs = self.filterlist.GetData()
-        # convert dict to list
-        self.config = [cfgs[key].get_params() for key in cfgs]  
+        self.config = {}
+        if self.showusefilter:
+            self.config[cfg.CONFIG_USE] = self.filtercb.GetValue()
+        self.config[cfg.CONFIG_RANGEFILTERS] = [cfgs[key].get_params() for key in cfgs]  
         self.EndModal(wx.ID_OK)
 
     def OnQuit(self, event):
@@ -362,6 +368,7 @@ class ConfigureCategoriesDlg(wx.Dialog):
         
         
 class ConfigureAxisDlg(wx.Dialog):
+
     def __init__(self, parent, title, settings):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size= (650,220))
         self.panel = wx.Panel(self,wx.ID_ANY)
