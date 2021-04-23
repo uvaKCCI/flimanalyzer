@@ -38,7 +38,7 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
         sel_histtype = self.histtype
         if sel_histtype not in histtype_opts:
             sel_histtype = histtype_opts[0]
-        self.histtype_combobox = wx.ComboBox(self, wx.ID_ANY, value=sel_histtype, choices=histtype_opts)
+        self.histtype_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_histtype, choices=histtype_opts)
         binsizer.Add(wx.StaticText(self, label="Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         binsizer.Add(self.histtype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
@@ -178,7 +178,7 @@ class FreqHisto(AbstractAnalyzer):
                 stacked=self.stacked,
                 alpha=0.5)                
 
-            results[f'Frequency Histo Plot: {header}'] = (fig,ax)
+            results[f'Frequency Histo Plot: {header}'] = fig
             
             if self.datatable:
                 df = pd.DataFrame()

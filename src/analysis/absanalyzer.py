@@ -116,6 +116,6 @@ class AbstractAnalyzer(ABC):
     
     @abstractmethod
     def execute(self):
-        pass   
+        return {}   
 
 

@@ -50,9 +50,9 @@ class KDE(AbstractAnalyzer):
             minx = self.data[header].min() #hconfig[0]
             maxx = self.data[header].max() #hconfig[1]
             logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig, ax = self.grouped_kdeplot(self.data, header, groups=self.params['grouping'], hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
+            fig,ax = self.grouped_kdeplot(self.data, header, groups=self.params['grouping'], hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
             ax.set_xlim(minx, maxx)
-            results[f'KDE Plot: {header}'] = (fig,ax)
+            results[f'KDE Plot: {header}'] = fig
         return results
     
     
@@ -124,5 +124,5 @@ class KDE(AbstractAnalyzer):
         
         # plt.rcParams.update({'figure.autolayout': False})
         self._add_picker(fig)
-        return fig, ax
+        return fig,ax
             

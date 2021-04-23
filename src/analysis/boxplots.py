@@ -12,6 +12,7 @@ from analysis.absanalyzer import AbstractAnalyzer
 from gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class BoxPlot(AbstractAnalyzer):
@@ -48,28 +49,25 @@ class BoxPlot(AbstractAnalyzer):
         
     def execute(self):
         results = {}
+        categories = self.data.select_dtypes('category').columns.values
+        data = self.data.copy()
+        for c in categories:
+            data[c] = data[c].astype('str') 
+
         for feature in sorted(self.params['features']):
             logging.debug (f"\tcreating box plot for {feature}")
-            fig,ax = self.grouped_boxplot(self.data, feature, categories=self.params['grouping'])
-            results[f"Box Plot {feature}"] = (fig,ax)
+            fig = self.grouped_boxplot(data, feature, categories=self.params['grouping'])
+            results[f"Box Plot {feature}"] = fig
         return results
     
     def grouped_boxplot(self, data, feature, title=None, categories=[], dropna=True, pivot_level=1, **kwargs):
         if data is None or not feature in data.columns.values:
-            return None, None
-    
-        # plt.rcParams.update({'figure.autolayout': True})
-        fig, ax = plt.subplots(constrained_layout=True)
+            return None
         
+        fig, ax = plt.subplots()
+            
         if categories is None:
             categories = []
-        newkwargs = kwargs.copy()
-        newkwargs.update({
-                'column':feature,
-                #'subplots': False,
-                'ax':ax})
-        if len(categories) > 0: 
-            newkwargs.update({'by':categories})
         
         cols = [c for c in categories]
         cols.append(feature)
@@ -77,24 +75,35 @@ class BoxPlot(AbstractAnalyzer):
             data = data[cols].dropna(how='any', subset=[feature])
         else:
             data = data[cols]
+            
+        if len(categories) == 0:
+            #data.boxplot(**newkwargs)
+            g = sns.catplot(data=data, y=feature, kind="box") #, height=6, aspect=.7)
+        elif len(categories) == 1:
+            g = sns.catplot(data=data, x=categories[0], y=feature, kind="box", color='blue') #, height=6, aspect=.7)
+        elif len(categories) == 2:
+            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], kind="box") #, height=6, aspect=.7)
+        elif len(categories) == 3:
+            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], col=categories[2], kind="box") #, height=6, aspect=.7)
+        elif len(categories) > 3:
+            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], col=categories[2], row=categories[3], kind="box") #, height=6, aspect=.7)
+        fig = g.fig
+           
         #data.set_index(groups, inplace=True)
         #print (f"index.names={data.index.names}")
-        fig.set_figheight(6)
-        fig.set_figwidth(12)
-        data.boxplot(**newkwargs)
+        #fig.set_figheight(6)
+        #fig.set_figwidth(12)
+        #data.boxplot(**newkwargs)
         #grouped = data.groupby(level=list(range(len(groups))))
         #grouped.boxplot(ax=ax, subplots=False)
         
         miny = min(0,data[feature].min()) * 0.95
         maxy = max(0,data[feature].max()) * 1.05
         logging.debug (f'title={title}')
+        ax = fig.get_axes()[0]
         ax.set_ylim(miny, maxy)
-        if title is None:
-            title = feature.replace('\n', ' ') #.encode('utf-8')
-        if len(title) > 0:
-            ax.set_title(title)
         # plt.rcParams.update({'figure.autolayout': False})
         
         self._add_picker(fig)
 
-        return fig,ax   
+        return fig   

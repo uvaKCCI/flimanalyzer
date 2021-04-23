@@ -83,14 +83,14 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         sel_timeseries = self.timeseries
         if sel_timeseries not in self.timeseries_opts:
             sel_timeseries = self.timeseries_opts[0]
-        self.timeseries_combobox = wx.ComboBox(self, wx.ID_ANY, value=sel_timeseries, choices=self.timeseries_opts)
+        self.timeseries_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_timeseries, choices=self.timeseries_opts)
         timeseries_sizer.Add(wx.StaticText(self, label="Time Series"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         timeseries_sizer.Add(self.timeseries_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         sel_model = self.model
         if sel_model not in self.model_opts:
             sel_model = self.model_opts[0]
-        self.model_combobox = wx.ComboBox(self, wx.ID_ANY, value=sel_model, choices=self.model_opts)
+        self.model_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_model, choices=self.model_opts)
 
         self.modelfiletxt = wx.StaticText(self, label=self.modelfile)        
         browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
@@ -329,4 +329,4 @@ class AETraining(AbstractAnalyzer):
         ax.set_xlabel('epoch')
         ax.legend(['training', 'testing'], loc='upper right')
         self._add_picker(fig)
-        return {'loss': (fig, ax)}
+        return {'loss': fig}

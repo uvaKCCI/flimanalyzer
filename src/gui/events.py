@@ -80,7 +80,7 @@ class DataWindowEvent(wx.PyCommandEvent):
         self.enableclose = True
 
 
-    def SetEventInfo(self, data, title, action, config=None, showcolindex=True, groups=None, analyzable=True, savemodified=True, enableclose=True):
+    def SetEventInfo(self, data, title, action, config=None, showcolindex=False, groups=None, analyzable=True, savemodified=True, enableclose=True):
         self.data = data
         self.config = config
         self.title = title

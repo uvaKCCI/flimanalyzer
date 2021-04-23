@@ -65,7 +65,7 @@ class Heatmap(AbstractAnalyzer):
             horizontalalignment='right'
         )
         fig = ax.get_figure()
-        results['Heatmap'] = (fig, ax)
+        results['Heatmap'] = fig
 
         title = "Data ungrouped"
         if len(self.params['grouping']) > 0:

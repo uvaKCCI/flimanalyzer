@@ -60,8 +60,8 @@ class ScatterPlot(AbstractAnalyzer):
         combs = itertools.combinations(self.params['features'], 2)
         for comb in sorted(combs):
             logging.debug (f"\tcreating scatter plot for {str(comb)}")
-            fig, ax = self.grouped_scatterplot(self.data, comb, categories=self.params['grouping'], marker='o', s=10)#, facecolors='none', edgecolors='r')
-            results[f"Scatter Plot: {comb}"] = (fig,ax)
+            fig = self.grouped_scatterplot(self.data, comb, categories=self.params['grouping'], marker='o', s=10)#, facecolors='none', edgecolors='r')
+            results[f"Scatter Plot: {comb}"] = fig
         return results
     
     def grouped_scatterplot(self, data, combination,  title=None, categories=[], dropna=True, pivot_level=1, **kwargs):
@@ -118,4 +118,4 @@ class ScatterPlot(AbstractAnalyzer):
         #plt.rcParams.update({'figure.autolayout': False})
         
         self._add_picker(fig)
-        return fig,ax    
+        return fig   

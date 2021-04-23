@@ -99,7 +99,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             selectedgrouping = ['None']
         
         groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.grouping_combobox = wx.ComboBox(self, wx.ID_ANY, value=", ".join(selectedgrouping), choices=groupings)
+        self.grouping_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=", ".join(selectedgrouping), choices=groupings)
         groupingsizer.Add(wx.StaticText(self, label="Data Grouping"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         groupingsizer.Add(self.grouping_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
@@ -274,6 +274,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         if self.showusefilter:
             self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="User Filters")
             self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
+            self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
             filtersizer.Add(self.filtercb, 0, wx.ALL, 5)        
 
         self.filterlist = FilterListCtrl(self.panel, showdropped=False, fireevents=False, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
@@ -316,6 +317,11 @@ class ConfigureFiltersDlg(wx.Dialog):
     
     def OnLoad(self, event):
         pass
+        
+    def OnUseFilters(self, event):
+        enable = event.GetEventObject().GetValue()
+        self.filterlist.Enable(enable)
+        
         
     def OnOK(self, event):
         cfgs = self.filterlist.GetData()

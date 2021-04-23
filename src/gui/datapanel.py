@@ -72,7 +72,6 @@ class PandasTable(wx.grid.GridTableBase):
         self.floatcols = [col for col in self.colheaders if col in self.data.select_dtypes(include=[np.float]).columns.values]    
         self.intcols = [col for col in self.colheaders if col in self.data.select_dtypes(include=[np.int]).columns.values]    
         
-        
     def GetData(self):
         return self.data
     

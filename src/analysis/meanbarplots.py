@@ -62,8 +62,8 @@ class MeanBarPlot(AbstractAnalyzer):
         results = {}
         for feature in sorted(self.params['features']):
             logging.debug (f"\tcreating mean bar plot for {feature}")
-            fig,ax = self.grouped_meanbarplot(self.data, feature, categories=self.params['grouping'])
-            results[f"Mean Bar Plot: {feature}"] = (fig,ax)
+            fig = self.grouped_meanbarplot(self.data, feature, categories=self.params['grouping'])
+            results[f"Mean Bar Plot: {feature}"] = fig
         return results
             
     def grouped_meanbarplot(self, data, feature, title=None, categories=[], dropna=True, pivot_level=1, **kwargs):
@@ -149,4 +149,4 @@ class MeanBarPlot(AbstractAnalyzer):
         #plt.rcParams.update({'figure.autolayout': False})
         
         self._add_picker(fig)
-        return fig,ax
+        return fig

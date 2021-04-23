@@ -34,7 +34,7 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
     def get_option_panels(self):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, value=self.classifier, choices=self.classifieropts)
+        self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.classifier, choices=self.classifieropts)
         sizer.Add(wx.StaticText(self, id=wx.ID_ANY, label="Classifier"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.classifier_selector, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
@@ -142,7 +142,7 @@ class RandomForest(AbstractAnalyzer):
                         horizontalalignment='right',
                         verticalalignment='center',
                         transform = ax.transAxes)
-            results['Importance Score Plot'] = (fig,ax)
+            results['Importance Score Plot'] = fig
         # results['Accuracy'] = accuracy
         results['Importance Score Data'] = importance_df
         return results

@@ -46,9 +46,9 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
 class SummaryStats(AbstractAnalyzer):
     
-    agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)}
+    agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'sem':'sem', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)}
     
-    def __init__(self, data, aggs=['count', 'min', 'max', 'mean', 'std', 'median', 'percentile(25)', 'percentile(75)'], singledf=True, flattenindex=True, **kwargs):
+    def __init__(self, data, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)'], singledf=True, flattenindex=True, **kwargs):
         AbstractAnalyzer.__init__(self, data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
         self.name = "Summary Table"
     
@@ -71,7 +71,7 @@ class SummaryStats(AbstractAnalyzer):
         params = super().get_default_parameters()
         params.update({
             'aggs': [n for n in self.agg_functions], 
-            'singledf': True, 
+            'singledf': False, 
             'flattenindex': True})
         return params
         
@@ -106,9 +106,9 @@ class SummaryStats(AbstractAnalyzer):
                 #summary = summary.dropna()
             if self.params['flattenindex']:
                 summary.columns = ['\n'.join(col).strip() for col in summary.columns.values]    
-            summaries[dftitle] = summary
+            summaries[dftitle] = summary.reset_index()
         if self.params['singledf']:
             concat_df = pd.concat([summaries[key] for key in summaries], axis=1)
-            return {f"{titleprefix}": concat_df}
+            return {f"{titleprefix}": concat_df.reset_index()}
         else:
             return summaries

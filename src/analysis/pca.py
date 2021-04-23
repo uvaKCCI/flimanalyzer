@@ -198,6 +198,7 @@ class PCAnalysis(AbstractAnalyzer):
             'PCA': pca_df,
             'PCA explained': pca_explained_df}
         if self.params['explainedhisto']:
-            results['PCA Plot'] = pca_explained_df.set_index(pca_comp_label).plot.bar()
+            plot = pca_explained_df.set_index(pca_comp_label).plot.bar()
+            results['PCA Plot'] = plot.get_figure()
         return results
             

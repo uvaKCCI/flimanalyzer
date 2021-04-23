@@ -765,6 +765,11 @@ class AppFrame(wx.Frame):
         loadmenuitem = filemenu.Append(wx.NewId(), "&Open...","Open single data file")
         importmenuitem = filemenu.Append(wx.NewId(), "Import...","Impoort and concatenate mutliple data files")
         exitmenuitem = filemenu.Append(wx.NewId(), "Exit","Exit the application")
+        settingsmenu = wx.Menu()
+        loadsettingsitem = settingsmenu.Append(wx.NewId(), "Load settings...")
+        savesettingsitem = settingsmenu.Append(wx.NewId(), "Save settings...")
+        datamenu = wx.Menu()
+        setfiltersitem = datamenu.Append(wx.NewId(), "Set filters...")
         self.analysismenu = wx.Menu()
         for analyzername in sorted(self.analyzers):
             analyzer = analysis.absanalyzer.create_instance(self.analyzers[analyzername], None)
@@ -775,11 +780,9 @@ class AppFrame(wx.Frame):
         self.windowmenu = wx.Menu()
         closeallitem = self.windowmenu.Append(wx.NewId(), "Close all windows")
         self.windowmenu.AppendSeparator()
-        settingsmenu = wx.Menu()
-        loadsettingsitem = settingsmenu.Append(wx.NewId(), "Load settings...")
-        savesettingsitem = settingsmenu.Append(wx.NewId(), "Save settings...")
         menubar.Append(filemenu, "&File")
         menubar.Append(settingsmenu, "&Settings")
+        menubar.Append(datamenu, "&Data")
         menubar.Append(self.analysismenu, "&Analysis")
         menubar.Append(self.windowmenu, "&Window")
         self.SetMenuBar(menubar)        
@@ -788,6 +791,7 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnExit, exitmenuitem)
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
+        self.Bind(wx.EVT_MENU, self.OnSetFilters, setfiltersitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
         
         tb.Realize()
@@ -963,6 +967,14 @@ class AppFrame(wx.Frame):
            return
         return self.windowframes[self.window_zorder[-1]].GetViewData()
    
+   
+    def OnSetFilters(self, event):
+        data = self.get_currentdata()
+        if data is None:
+             wx.MessageBox('No data available')
+             return
+        pass
+        
         
     def OnRunAnalysis(self, event):
         data = self.get_currentdata()
@@ -1018,15 +1030,15 @@ class AppFrame(wx.Frame):
         if results is not None:
             for title, result in results.items():
                 if isinstance(result, pd.DataFrame):
-                    result = result.reset_index()
+                    # result = result.reset_index()
                     event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
                     event.SetEventInfo(result, 
                                        title,
                                        'createnew', 
                                        showcolindex=False)
                     self.GetEventHandler().ProcessEvent(event)
-                elif isinstance(result, tuple):
-                    fig,ax = result
+                elif isinstance(result, matplotlib.figure.Figure):
+                    fig = result
                     fig.canvas.set_window_title(title)
                     event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
                     event.SetEventInfo(fig, title, 'createnew')

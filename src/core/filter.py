@@ -25,10 +25,7 @@ class Filter:
         
     def set_parameter_item(self, key, value):
         self.parameters[key] = value
-    
-    def get_paramter_item(self, key):
-        return self.parameters.get(key)
-    
+        
     def set_name(self, newname):
         if newname is not None and len(newname) > 0:
             self.name = newname
