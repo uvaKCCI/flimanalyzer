@@ -84,7 +84,7 @@ class RelativeChange(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/summary.png")
+        return wx.Bitmap("resources/relchange.png")
         
     def get_required_categories(self):
         return []
