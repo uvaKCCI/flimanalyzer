@@ -1,3 +1,3 @@
 # FLIM Analyzer
 
-[Settings Menu](settings/_index.md)
+[Settings Menu](settings)
