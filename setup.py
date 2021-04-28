@@ -10,12 +10,15 @@ setuptools.setup(
     name="flimanalyzer", # Replace with your own username
     version=version,
     author="Karsten Siller",
-    author_email="khs3z@virginia.edu",
-    description="A small example package",
+    author_email="khsiller@gmail.com.",
+    description="FLIM Analyzer",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/pypa/sampleproject",
     packages=setuptools.find_packages(),
+    entry_points = {
+        "console_scripts": ['flimanalyzer = flim.analyzerapp:main']
+        },    
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

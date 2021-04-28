@@ -1,1 +1,0 @@
-import numpy as npimport mathx = math.PIprint(x)
