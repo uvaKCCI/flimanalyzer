@@ -17,8 +17,8 @@ formats:
 python:
    version: 3.7
    install:
-   - method: setuptools
-      path: .
+      - method: setuptools
+        path: .
 
 conda:
   environment: environment.yml
