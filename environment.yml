@@ -12,6 +12,6 @@ dependencies:
   - scikit-learn
   - seaborn
   - xlsxwriter
+  - wxpython
   - pip:
     - pypubsub
-    - wxpython==4.0.7
