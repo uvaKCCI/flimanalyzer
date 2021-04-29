@@ -14,7 +14,7 @@ dependencies:
   - xlsxwriter
   - wxpython
   - Sphinx==3.5.4
-  - sphinx-rtd-theme==0.5.2
   - pip:
     - pypubsub
+    - sphinx-rtd-theme==0.5.2
     - myst-parser==0.13.7
