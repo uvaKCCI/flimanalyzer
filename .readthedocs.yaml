@@ -19,7 +19,6 @@ python:
    install:
       - method: setuptools
         path: .
-      - requirements: docs/requirements.txt
 
 conda:
-  environment: environment.yml
+   environment: docs/environment.yml
