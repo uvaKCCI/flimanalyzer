@@ -1,7 +1,7 @@
 name: docs
 channels:
   - pytorch
-  - defaults
+  - conda-forge
 dependencies:
   - matplotlib=3
   - numpy=1.18
@@ -13,8 +13,9 @@ dependencies:
   - seaborn
   - xlsxwriter
   - wxpython
-  - Sphinx==3.5.4
+  - sphinx==3.5.4
+  - sphinx_rtd_theme==0.4.2
+  - myst-parser==0.13.7
   - pip:
     - pypubsub
-    - sphinx-rtd-theme==0.5.2
     - myst-parser==0.13.7
