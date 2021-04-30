@@ -16,7 +16,8 @@ from flim.analysis.absanalyzer import AbstractAnalyzer
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
-
+from importlib_resources import files
+import flim.resources
 
 class RandomForestConfigDlg(BasicAnalysisConfigDlg):
 
@@ -74,7 +75,8 @@ class RandomForest(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/randomforest.png")
+        source = files(flim.resources).joinpath('randomforest.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return ['any']

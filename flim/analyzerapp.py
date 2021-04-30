@@ -10,6 +10,7 @@ import os
 import logging
 import argparse
 import sys
+import flim
 from flim.gui.app import FlimAnalyzerApp
 import flim.core.parser as cp
 import flim.analysis
@@ -129,12 +130,12 @@ def init_logger(loglevel):
 
 
 def main():
-    with open(os.path.join(os.path.dirname(__file__),"..","VERSION"), "r") as vf:
-        __version__ = vf.read().strip()
-    #__version__ = '0.1.0'
+    #with open(os.path.join(os.path.dirname(__file__),"..","VERSION"), "r") as vf:
+    #    __version__ = vf.read().strip()
+
     args = parse_arguments()
     init_logger(args.log.upper())
-    logging.info(f"FlimAnalyzer version {__version__}")
+    logging.info(f"FlimAnalyzer version {flim.__version__}")
             
     logging.debug(args)
     fa = FLIMAnalyzer()

@@ -15,7 +15,8 @@ from matplotlib.ticker import FixedLocator, FixedFormatter
 import seaborn as sns
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
-
+from importlib_resources import files
+import flim.resources
 
 class LinePlot(AbstractAnalyzer):
     
@@ -30,7 +31,8 @@ class LinePlot(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/lineplot.png")
+        source = files(flim.resources).joinpath('lineplot.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return []

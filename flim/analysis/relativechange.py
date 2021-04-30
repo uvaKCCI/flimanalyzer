@@ -12,7 +12,8 @@ import wx
 from flim.analysis.absanalyzer import AbstractAnalyzer
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
-
+from importlib_resources import files
+import flim.resources
 
 class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
 
@@ -84,7 +85,8 @@ class RelativeChange(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/relchange.png")
+        source = files(flim.resources).joinpath('relchange.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return []

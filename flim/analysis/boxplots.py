@@ -13,7 +13,8 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from importlib_resources import files
+import flim.resources
 
 class BoxPlot(AbstractAnalyzer):
     
@@ -28,7 +29,8 @@ class BoxPlot(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/boxplot.png")
+        source = files(flim.resources).joinpath('boxplot.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return []

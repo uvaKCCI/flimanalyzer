@@ -21,7 +21,8 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
 import itertools
-
+from importlib_resources import files
+import flim.resources
 
 class ScatterPlot(AbstractAnalyzer):
     
@@ -36,7 +37,8 @@ class ScatterPlot(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/scatter.png")
+        source = files(flim.resources).joinpath('scatter.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return []

@@ -18,7 +18,8 @@ import wx
 from wx.lib.masked import NumCtrl
 
 from flim.analysis.absanalyzer import AbstractAnalyzer
-
+import flim.resources
+from importlib_resources import files, as_file
 
 
 class AERunningConfigDlg(BasicAnalysisConfigDlg):
@@ -70,7 +71,8 @@ class RunAE(AbstractAnalyzer):
         return self.name
 
     def get_icon(self):
-        return wx.Bitmap("resources/aerun.png")
+        source = files(flim.resources).joinpath('aerun.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return ["any"]

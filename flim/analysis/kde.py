@@ -12,6 +12,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
+from importlib_resources import files
+import flim.resources
 
 default_linestyles = ['-','--',':', '-.']
 
@@ -26,8 +28,8 @@ class KDE(AbstractAnalyzer):
         return []
     
     def get_icon(self):
-        return wx.Bitmap("resources/kde.png")
-        
+        source = files(flim.resources).joinpath('kde.png')
+        return wx.Bitmap(str(source))
 
     def get_required_features(self):
         return ['any']

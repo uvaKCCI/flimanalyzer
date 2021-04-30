@@ -21,7 +21,8 @@ import logging
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
-
+from importlib_resources import files
+import flim.resources
 
 class datasets(Dataset):
     def __init__(self, data):
@@ -149,8 +150,9 @@ class AETraining(AbstractAnalyzer):
         return self.name
 
     def get_icon(self):
-        return wx.Bitmap("resources/aetrain.png")
-        
+        source = files(flim.resources).joinpath('aetrain.png')
+        return wx.Bitmap(str(source))        
+
     def get_required_categories(self):
         return ["any"]
 

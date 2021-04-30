@@ -1,5 +1,6 @@
 *.pyc
 *.log
+flimanalyzer.egg-info
 build
 _build
 dist

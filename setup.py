@@ -1,10 +1,10 @@
 import setuptools
+import flim
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-with open("VERSION", "r") as vf:
-    version = vf.read()
+version = flim.__version__
 
 setuptools.setup(
     name="flimanalyzer", # Replace with your own username
@@ -16,6 +16,8 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/pypa/sampleproject",
     packages=setuptools.find_packages(),
+    package_data = {'':['resources']},
+    include_package_data = True,
     entry_points = {
         "console_scripts": ['flimanalyzer = flim.analyzerapp:main']
         },    

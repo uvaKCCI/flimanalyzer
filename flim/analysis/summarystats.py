@@ -12,6 +12,9 @@ import wx
 from flim.analysis.absanalyzer import AbstractAnalyzer
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
+from importlib_resources import files
+import flim.resources
+
 
 def percentile(n):
     def percentile_(x):
@@ -59,7 +62,8 @@ class SummaryStats(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/summary.png")
+        source = files(flim.resources).joinpath('summary.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return []

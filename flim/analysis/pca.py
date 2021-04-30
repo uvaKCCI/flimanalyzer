@@ -16,7 +16,8 @@ from flim.analysis.absanalyzer import AbstractAnalyzer
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
-
+from importlib_resources import files
+import flim.resources
 
 class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 
@@ -94,7 +95,8 @@ class PCAnalysis(AbstractAnalyzer):
         return []
     
     def get_icon(self):
-        return wx.Bitmap("resources/pca.png")
+        source = files(flim.resources).joinpath('pca.png')
+        return wx.Bitmap(str(source))
         
     def get_required_features(self):
         return ['any', 'any']

@@ -14,6 +14,8 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
 import wx
+from importlib_resources import files
+import flim.resources
 
 default_linestyles = ['-','--',':', '-.']
 
@@ -81,7 +83,8 @@ class FreqHisto(AbstractAnalyzer):
         return ['any']
     
     def get_icon(self):
-        return wx.Bitmap("resources/histogram.png")
+        source = files(flim.resources).joinpath('histogram.png')
+        return wx.Bitmap(str(source))
         
     def get_default_parameters(self):
         params = super().get_default_parameters()

@@ -13,7 +13,8 @@ from flim.analysis.absanalyzer import AbstractAnalyzer
 import matplotlib.pyplot as plt
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
-
+from importlib_resources import files
+import flim.resources
 
 class MeanBarPlot(AbstractAnalyzer):
     
@@ -28,7 +29,8 @@ class MeanBarPlot(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        return wx.Bitmap("resources/meanbar.png")
+        source = files(flim.resources).joinpath('meanbar.png')
+        return wx.Bitmap(str(source))
         
     def get_required_categories(self):
         return []
