@@ -99,7 +99,7 @@ class KDE(AbstractAnalyzer):
             labels = []
             for name, groupdata in gs:
                 if (len(groupdata[column]) > 0):
-                    name_fixed = self.fix_label(name)
+                    name_fixed = self._fix_label(name)
                     kde_args.update({
                             'label': name_fixed,})
                     if len(styles) > index:

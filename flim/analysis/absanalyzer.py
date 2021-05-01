@@ -61,16 +61,37 @@ class AbstractAnalyzer(ABC):
         
         
     def get_icon(self):
+        """Returns icon for this analysis.
+
+        Returns:
+            wx.Bitmap: The bitmap of the icon.
+
+        """
         return wx.ArtProvider.GetBitmap(wx.ART_EXECUTABLE_FILE)
         
         
-    def fix_label(self, label):
+    def _fix_label(self, label):
+        """Removes special characters from label string.
+        
+        Args:
+            label (str): the label to be fixed.
+             
+        Returns:
+            str: modified label.
+
+        """
     	if not isinstance(label, str):
     		label = ','.join(label)
     	return str(label).replace('\'','').replace('(','').replace(')','')
     	
     	
     def _add_picker(self, figure):
+        """Enables picker to figure's axes, their children and grandchildren
+        
+        Args:
+            figure (Figure): the figure for which the pickers will be enabled. 
+        """
+        
         ax_list = figure.axes
         for ax in ax_list:
         	ax.set_picker(True)
@@ -101,21 +122,57 @@ class AbstractAnalyzer(ABC):
         return ''.join(e for e in self.name if e.isalnum())
         
     def configure(self, **kwargs):
+        """Updates the configuration with the passed arguments.
+        
+        The configuration is updated not replaced, i.e values of matching keys are 
+        overwritten, values of non-matching keys remain unaltered.
+        
+        Args:
+            kwargs: the new key:value pairs.  
+        """
         self.params.update(**kwargs)
         
     @abstractmethod
     def get_required_categories(self):
+        """Returns the category column names that are required in the data to be analyzed. 
+        
+        Category columns use 'category' as dtype in Pandas dataframe.
+        
+        Returns:
+            list(str): List of column names.
+        """
         return []
     
     @abstractmethod
     def get_required_features(self):
+        """Returns the non-category column names that are required in the data to be analyzed. 
+        
+        Non-category columns are all those columns that do not use 'category' as dtype in Pandas dataframe.
+
+        Returns:
+            list(str): List of column names.
+        """
         return ['any']
     
     def run_configuration_dialog(self, parent):
+        """Executes the anaylzer's configuration dialog.
+        
+        The dialog is initialized with values of the analyzer's Config object.
+        
+        Returns:
+            dict: The specified key:value pairs.
+        """    
         return {}
     
     @abstractmethod
     def execute(self):
+        """Executes the analysis using the analyzer's set data and configuration.
+        
+        Returns:
+           dict: Dictionary of pandas.DataFrame and/or matplotlib.pyplot.Figure objects.
+                 Keys represent window titles, values represent the DataFrame or Fugure 
+                 objects.
+        """
         return {}   
 
 
