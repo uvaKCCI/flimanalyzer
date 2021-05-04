@@ -272,7 +272,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         filtersizer = wx.BoxSizer(wx.VERTICAL)
         
         if self.showusefilter:
-            self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="User Filters")
+            self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="Use Filters")
             self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
             self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
             filtersizer.Add(self.filtercb, 0, wx.ALL, 5)        

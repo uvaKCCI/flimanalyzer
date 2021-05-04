@@ -1,10 +1,15 @@
 User Guide
 ==========
 
+.. image:: /images/app.png
+  :width: 100%
+  :alt: Alternative text
+  
 .. toctree::
-         :maxdepth: 2
-         :glob:
+    :maxdepth: 2
 
-         *
-         
+    files
+    settings
+    data 
+    analysis        
 

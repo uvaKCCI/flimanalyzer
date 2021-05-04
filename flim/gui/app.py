@@ -7,7 +7,7 @@ Created on Mon May  7 21:00:30 2018
 """
 
 import matplotlib
-matplotlib.use('WXAgg')
+#matplotlib.use('WXAgg')
 import matplotlib.pyplot as plt
 
 import logging
