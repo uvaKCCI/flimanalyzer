@@ -881,7 +881,7 @@ class AppFrame(wx.Frame):
             config = dlg.get_config()
 
             parsername = config.get([cfg.CONFIG_PARSER_CLASS])
-            parser = core.parser.instantiate_parser('core.parser.' + parsername)
+            parser = flim.core.parser.instantiate_parser('flim.core.parser.' + parsername)
             if parser is None:
                 logging.warning (f"Could not instantiate parser {parsername}")
                 return

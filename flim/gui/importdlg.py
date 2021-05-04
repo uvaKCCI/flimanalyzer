@@ -47,7 +47,7 @@ class ImportDlg(wx.Dialog):
         
         if parsefname:
             parser_label = wx.StaticText(self, wx.ID_ANY, "Filename Parser:")
-            self.avail_parsers = core.parser.get_available_parsers()
+            self.avail_parsers = flim.core.parser.get_available_parsers()
             sel_parser = self.avail_parsers.get(config.get(cfg.CONFIG_PARSER_CLASS))
             if sel_parser is None:
                 sel_parser = next(iter(self.avail_parsers)) #self.avail_parsers.keys()[0]
@@ -55,7 +55,7 @@ class ImportDlg(wx.Dialog):
             self.parser_chooser.Bind(wx.EVT_COMBOBOX, self.OnParserChanged)
             
             parsername = self.parser_chooser.GetStringSelection()
-            hparser = core.parser.instantiate_parser('core.parser.' + parsername)
+            hparser = flim.core.parser.instantiate_parser('flim.core.parser.' + parsername)
             
             fparse_label = wx.StaticText(self, wx.ID_ANY, "Parse from Filenames:")
             self.fparsegrid = wx.grid.Grid(self, -1)
@@ -195,7 +195,7 @@ class ImportDlg(wx.Dialog):
         importer.set_delimiter(self.delimiter_panel.get_delimiters())
         if self.parsefname:
             parsername = self.parser_chooser.GetStringSelection()
-            parser = core.parser.instantiate_parser('core.parser.' + parsername)
+            parser = flim.core.parser.instantiate_parser('flim.core.parser.' + parsername)
             if parser is None:
                 logging.warning (f"COULD NOT INSTANTIATE PARSER:{parsername}")
                 return
@@ -228,7 +228,7 @@ class ImportDlg(wx.Dialog):
     def OnParserChanged(self, event):
         logging.debug ("Parser changed")
         parsername = self.parser_chooser.GetStringSelection()
-        hparser = core.parser.instantiate_parser('core.parser.' + parsername)
+        hparser = flim.core.parser.instantiate_parser('flim.core.parser.' + parsername)
         self.parsetable = ListTable(hparser.get_regexpatterns(), headers=[cfg.CONFIG_PARSER_USE,cfg.CONFIG_PARSER_CATEGORY, cfg.CONFIG_PARSER_REGEX], sort=False)
         self.fparsegrid.SetTable(self.parsetable,takeOwnership=True)
         self.fparsegrid.SetRowLabelSize(0)

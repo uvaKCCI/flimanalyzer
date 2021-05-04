@@ -197,7 +197,7 @@ class defaultpreprocessor():
                 #NAD(P)H % = (('NAD(P)H t2') - 1500 / (4400-1500)) *100
                 funcname = self.functions[acol][0]
                 funcargs = self.functions[acol][1]
-                funcobj = getattr(core.preprocessor,funcname) # self.functions[acol][0]
+                funcobj = getattr(flim.core.preprocessor,funcname) # self.functions[acol][0]
                 func = np.vectorize(funcobj)
                 if not self.columns_available(data, funcargs):
                     skipped.append(self.functions[acol])

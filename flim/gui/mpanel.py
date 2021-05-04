@@ -7,12 +7,7 @@ Created on Wed May 23 18:21:33 2018
 """
 
 import wx
-#import matplotlib
-#matplotlib.use('WXAgg')
-
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
-#from matplotlib.backends.backend_wx import NavigationToolbar2Wx
-#from matplotlib.figure import Figure
 
 class MatplotlibPanel(wx.Panel):
     

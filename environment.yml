@@ -12,6 +12,7 @@ dependencies:
   - scikit-learn
   - seaborn
   - xlsxwriter
+  - networkx=2.5.1
   - wxpython
   - pip:
     - pypubsub
