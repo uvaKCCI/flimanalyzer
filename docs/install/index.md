@@ -22,9 +22,9 @@ The code Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://gi
 
 Run the following commands to create a `flimenv` Conda environment based on the `environemnt.yml` file:
 ```
-conda env create -f environment.yml
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
+conda env create -f environment.yml
 python setup.py install
 ```
 Installations on Windows and MacOS require a couple additional steps.

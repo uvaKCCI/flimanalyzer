@@ -12,6 +12,7 @@ Welcome to FLIM Analyzer's documentation!
    intro/*
    install/*
    userguide/index
+   programming/index
    codedocs/index
 
 

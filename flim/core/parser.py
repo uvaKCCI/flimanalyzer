@@ -76,14 +76,16 @@ class defaultparser(object):
         fname = fname.replace("\\",'/')
         for entry in self.regexpatterns:    
             # convert \ in windows style path to / in POSIX style
-            if entry[PARSER_USE]:
-                match = re.search(entry[PARSER_REGEX], fname)
+            print (entry)
+            print (cfg.CONFIG_USE)
+            if entry[lower(cfg.CONFIG_USE)]:
+                match = re.search(entry[cfg.CONFIG_PARSER_REGEX], fname)
                 if match is not None:
                     matchstr = match.group(1)
                     if match.group(1) == '':
-                        components[entry[PARSER_CATEGORY]] = '?'
+                        components[entry[cfg.CONFIG_PARSER_CATEGORY]] = '?'
                     else:
-                        components[entry[PARSER_CATEGORY]] = str(matchstr)
+                        components[entry[cfg.CONFIG_PARSER_CATEGORY]] = str(matchstr)
         return components       
 
 
