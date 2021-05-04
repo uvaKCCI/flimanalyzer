@@ -15,6 +15,12 @@ import importlib
 import wx
 
 def get_analyzer_classes():
+    """Creates labels and class objects for all AbstractAnalyzer subclasses in this package.
+    
+    Returns:
+        dict: key-value pairs of analyzer labels and associated classes. 
+    """
+    
     pkdir = os.path.dirname(__file__)
     for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
         importlib.import_module('.' + name, __package__)
@@ -22,17 +28,39 @@ def get_analyzer_classes():
     return available_tools
 
 def init_analyzers():
+    """Initializes an analyzer instance for each individual AbstractAnalyzer subclass in this package.
+    
+    Returns:
+        list: analyzer object instances.
+    """    
     tools = get_analyzer_classes()
     analyzers = [create_instance(tools[aname], None) for aname in tools]
     return analyzers
 
 def init_default_config(analyzers):
+    """Creates a single configuration with default settings for a given group of Analyzer objects.
+    
+    Args:
+        list: analyzer objects.
+    
+    Returns:
+        dict: configuration parameters.
+    """
     config = {}
     for a in analyzers:
         config.update({a.name: a.get_default_parameters()})
     return config
 
 def create_instance(clazz, data):
+    """Creates analyzer instance.
+    
+    Args:
+        clazz (class): analyzer class to instantiate.
+        data (pandas.DataFrame): DataFrame to be used by analyzer instance
+    
+    Returns:
+        analyzer object (AbstractAnalyzer subclass)
+    """     
     if isinstance(clazz, str):
         modulename, _, classname = clazz.rpartition('.')
     elif inspect.isclass(clazz):
@@ -50,10 +78,18 @@ def create_instance(clazz, data):
         logging.error(f"Error instantiating {modulename}.{classname} analysis tool.")
         toolinstance = None
     return toolinstance        
-    
+
+
 class AbstractAnalyzer(ABC):
+    """Abstract class used to template analysis classes."""
 
     def __init__(self, data, **kwargs):
+        """Initializes AbstractAnalyzer class with data and configuration parameters
+        
+        Args:
+            data (pandas.DatFrame): DataFrame to be analyzed.
+            kwargs: configuration parameters
+        """
         self.name = __name__
         self.data = data
         self.params = self.get_default_parameters()
@@ -80,9 +116,9 @@ class AbstractAnalyzer(ABC):
             str: modified label.
 
         """
-    	if not isinstance(label, str):
-    		label = ','.join(label)
-    	return str(label).replace('\'','').replace('(','').replace(')','')
+        if not isinstance(label, str):
+            label = ','.join(label)
+        return str(label).replace('\'','').replace('(','').replace(')','')
     	
     	
     def _add_picker(self, figure):

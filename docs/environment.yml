@@ -18,4 +18,4 @@ dependencies:
   - myst-parser==0.13.7
   - pip:
     - pypubsub
-    - myst-parser==0.13.7
+    - importlib_resources
