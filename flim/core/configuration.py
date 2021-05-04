@@ -14,7 +14,7 @@ from flim.core.importer import dataimporter
 from flim.core.preprocessor import defaultpreprocessor
 from flim.analysis.absanalyzer import init_analyzers, init_default_config
 
-CONFIG_USE = 'use'
+CONFIG_USE = 'Use'
 CONFIG_ROOT = 'root'
 CONFIG_IMPORT = 'import'
 CONFIG_CATEGORY_COLUMNS = 'category cols'

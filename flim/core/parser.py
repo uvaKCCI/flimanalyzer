@@ -76,9 +76,7 @@ class defaultparser(object):
         fname = fname.replace("\\",'/')
         for entry in self.regexpatterns:    
             # convert \ in windows style path to / in POSIX style
-            print (entry)
-            print (cfg.CONFIG_USE)
-            if entry[lower(cfg.CONFIG_USE)]:
+            if entry[cfg.CONFIG_USE]:
                 match = re.search(entry[cfg.CONFIG_PARSER_REGEX], fname)
                 if match is not None:
                     matchstr = match.group(1)
