@@ -2,9 +2,6 @@
 
 The FLIMAnalyzer software provides several built-in tools to analyze data. The tools are available in the `Analysis` menu or the application toolbar.
 
-| Tool Icon             |  Analysis Type | Description
-:-------------------------:|:-------------------------:|:-----:|
-![](/images/analysis/summary.png)  | [Summary Statistics](#summary-statistics) | Calculates counts, min, max, mean, median, StDev, S.E.M, <br>25t percentile, and 75 percentile of grouped data.
 ![](/images/analysis/relchange.png)  | [Relative Change](#relative-change) | Converts input data to fold-change values relative to<br> mean/median of reference group.
 ![](/images/analysis/meanbar.png)  | [Mean Barplot](#mean-barplot) | Creates bar plot based on mean +/- StDev (or S.E.M)<br> of grouped data.
 ![](/images/analysis/boxplot.png)  | [Boxplot](#boxplot) | Creates box plot of grouped data.
