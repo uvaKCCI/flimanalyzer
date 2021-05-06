@@ -47,8 +47,8 @@ def noninteractive_run(fa, args):
     else:
         config = Config()
         config.create_default()
-        config.update({CONFIG_PARSERCLASS:args.parser})        
-    hparser = cp.instantiate_parser(config.get(CONFIG_PARSERCLASS))
+        config.update({CONFIG_PARSER_CLASS:args.parser})        
+    hparser = cp.instantiate_parser(config.get(CONFIG_PARSER_CLASS))
     if hparser is None:
         logging.debug ("Error instantiating filename parser %s" % args.parser)
         return

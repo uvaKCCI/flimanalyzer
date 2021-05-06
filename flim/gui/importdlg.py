@@ -164,7 +164,7 @@ class ImportDlg(wx.Dialog):
             parsercfg = {cfg.CONFIG_PARSER_CLASS: parsername}
             config.update(parsercfg)
             pub.sendMessage(CONFIG_UPDATED, source=self, config=config, updated=parsercfg)
-            # config[CONFIG_PARSERCLASS] = self.parser
+            # config[CONFIG_PARSER_CLASS] = self.parser
         else:
             self.parser_chooser.SetStringSelection(parsername)
         if config.get(cfg.CONFIG_EXCLUDE_FILES) is not None:    

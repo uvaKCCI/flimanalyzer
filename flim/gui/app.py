@@ -622,7 +622,7 @@ class TabAnalysis(wx.Panel):
         grouping = self.sel_roigrouping
 
         results = {}
-        if not gui.dialogs.check_data_msg(currentdata):
+        if not flim.gui.dialogs.check_data_msg(currentdata):
             return results, currentdata, label
         if cols is None or len(cols) != 1:
             wx.MessageBox('A single measurement needs to be selected.', 'Warning', wx.OK)
@@ -717,18 +717,18 @@ class TabAnalysis(wx.Panel):
         if results is None:
             return
         col, cat_med, mediansplits, joineddata, label = results
-        gui.dialogs.save_dataframe(self, "Save Master file with new categories", joineddata, "Master-allcategories-%s.txt" % label, saveindex=False)
-        gui.dialogs.save_dataframe(self, "Save categorization summary", cat_med, "Categorized-%s-%s.txt" % (col,label), saveindex=False)
+        flim.gui.dialogs.save_dataframe(self, "Save Master file with new categories", joineddata, "Master-allcategories-%s.txt" % label, saveindex=False)
+        flim.gui.dialogs.save_dataframe(self, "Save categorization summary", cat_med, "Categorized-%s-%s.txt" % (col,label), saveindex=False)
         for split_name in sorted(mediansplits):
             median_split = mediansplits[split_name]
             split_label = '-'.join(split_name)
             split_grouping = [catcol]
             split_grouping.extend(self.sel_roigrouping[:(self.pivot_level-1)])
             logging.debug (f"SPLITGROUPING: {split_grouping}, SPLITNAME={split_name}, SPLITLABEL={split_label}")
-            gui.dialogs.save_dataframe(self, "Save grouped medians for Cat %s: %s" % (split_label, label), median_split, "Grouped-Medians-Cat_%s-%s.txt" % (split_label,label), saveindex=False)
+            flim.gui.dialogs.save_dataframe(self, "Save grouped medians for Cat %s: %s" % (split_label, label), median_split, "Grouped-Medians-Cat_%s-%s.txt" % (split_label,label), saveindex=False)
             
             master_split = joineddata.set_index(split_grouping).loc[split_name,:].reset_index()
-            gui.dialogs.save_dataframe(self, "Save master data for Cat %s: %s" % (split_label, label), master_split, "Master-Cat_%s-%s.txt" % (split_label,label), saveindex=False)
+            flim.gui.dialogs.save_dataframe(self, "Save master data for Cat %s: %s" % (split_label, label), master_split, "Master-Cat_%s-%s.txt" % (split_label,label), saveindex=False)
 
     
 class AppFrame(wx.Frame):

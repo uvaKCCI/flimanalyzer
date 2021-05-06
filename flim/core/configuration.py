@@ -215,7 +215,7 @@ class Config():
     def _get_required_keys(self):
         return ((CONFIG_ROOT,CONFIG_IMPORT,CONFIG_EXCLUDE_FILES),
                        (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_DELIMITER),
-                       (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_PARSERCLASS),
+                       (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_PARSER_CLASS),
                        (CONFIG_ROOT,CONFIG_IMPORT, CONFIG_FITTING_COLUMNS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_HEADERS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_DROP_COLUMNS),
@@ -364,7 +364,7 @@ if __name__ == '__main__':
     # Test get
     cfg, keys = config.get([CONFIG_FILTERS], returnkeys=True)
     print (keys)
-    cfg = config.get([CONFIG_PARSERCLASS], returnkeys=False)
+    cfg = config.get([CONFIG_PARSER_CLASS], returnkeys=False)
     print (json.dumps(cfg, sort_keys=True, indent=4))
     
     # get root parameter dict
@@ -377,10 +377,10 @@ if __name__ == '__main__':
     print (pcfg)
 
     # Test update
-    updated, notfound = config.update({CONFIG_PARSERCLASS: 'my.parser'}, [CONFIG_ROOT, CONFIG_IMPORT])
+    updated, notfound = config.update({CONFIG_PARSER_CLASS: 'my.parser'}, [CONFIG_ROOT, CONFIG_IMPORT])
     print (f"updated: {updated}")
     print (f"not found: {notfound}")
-    print (config.get(CONFIG_PARSERCLASS, returnkeys=True))
+    print (config.get(CONFIG_PARSER_CLASS, returnkeys=True))
     
     # Test validate
     missing,invalid = config.validate()

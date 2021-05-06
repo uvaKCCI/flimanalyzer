@@ -625,9 +625,9 @@ class PandasFrame(wx.Frame):
         original = self.GetTitle()
         buttonlabel = event.GetEventObject().GetLabel()
         if buttonlabel == "Save All":
-            fname = gui.dialogs.save_dataframe(self, "Save entire data.", self.data, original +'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex)
+            fname = flim.gui.dialogs.save_dataframe(self, "Save entire data.", self.data, original +'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex)
         elif buttonlabel == "Save View":
-            fname = gui.dialogs.save_dataframe(self, "Save current data view", self.dataview, original +'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex)
+            fname = flim.gui.dialogs.save_dataframe(self, "Save current data view", self.dataview, original +'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex)
         else:
             return
         if fname:
@@ -637,7 +637,7 @@ class PandasFrame(wx.Frame):
     
     def OnSaveView(self, event):
         original = self.GetTitle()
-        fname = gui.dialogs.save_dataframe(self, "Save current data view", self.dataview, original +'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex)
+        fname = flim.gui.dialogs.save_dataframe(self, "Save current data view", self.dataview, original +'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex)
         if fname:
             pub.sendMessage(REQUEST_RENAME_DATA_WINDOW, original=original, new=fname, data=self.data)
             self.modified = False
@@ -657,7 +657,7 @@ class PandasFrame(wx.Frame):
             dlg = wx.MessageDialog(self, "The current view of the data has not been saved.\n\nDo you want to save the data?\n", self.GetLabel(), style=wx.YES_NO|wx.CANCEL)
             answer= dlg.ShowModal()
             if answer == wx.ID_YES:
-                if gui.dialogs.save_dataframe(self, "Save current data view", self.dataview, self.GetName()+'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex):
+                if flim.gui.dialogs.save_dataframe(self, "Save current data view", self.dataview, self.GetName()+'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex):
                     self.modified = False
                 else:
                     # either user pressed 'Cancel' or saving failed

@@ -2,10 +2,10 @@
 
 The FLIMAnalyzer software processes data provided in text files organized in spreadsheet format. Data can be loaded from a single text file or imported and concatenated from a series of individual files through the `Files` menu or application toolbar. 
 
-| Tool Icon             |  File Operation | Description
-|:-------------------------:|:-------------------------:|:-----:|
-|![](/images/files/open.png)  | [Open Data File](#open-data-file) | Opens a single text file. All columns are retained as-is.
-|![](/images/files/import.png)  | [Import Data Files](#import-data-files) | Imports as one or multiple text files. Additional column values can be parsed from raw data files names, columns may be renamed or dropped.
+| Tool Icon |  File Operation | Description |
+|:---------:|:---------------:|:-----------:|
+|![](/images/files/open.png)  | [Open Data File](#open-data-file) | Opens a single text file. All columns are retained as-is. |
+|![](/images/files/import.png)  | [Import Data Files](#import-data-files) | Imports one or multiple text files. Additional column values can be<br> parsed from raw data files names, columns may be renamed or dropped. |
 
 ## Open Data File
 
@@ -32,9 +32,9 @@ Additional configurable options for the `File Import` function:
 1. Go to `File > Import` or click on the `Import File` icon (second from the left of the application toolbar.
 2. In the `Import File` dialog window, check the appropriate column value delimiting character, e.g.  `,`,`;`,`<tab>`,`<space>`, or enter a character sequence in the `Others` text field. This is the same as for the `Open File` function.
 3. **Optional:** Choose a parser from the dropdown menu.  Selection of `no_parser` means that filenames will be ignored for parsing of any additional data. When choosing a specific parser, the content in the `Parse from Filenames` table changes, see (4).
-4. **Optional:** Select/Deselect `Use` checkbox to parse/ignore labels from the name of each filename. Adjust the `Catgeory` value which will be used as column header to collect the parsed label, and modify the `Regex` expression used to extract the desired filename portion. 
+4. **Optional:** Select/Deselect `Use` checkbox to parse/ignore identifiers from the name of each file. Adjust the values in the `Category` column which will be used as new column headers for the parsed file identifiers, and modify the `Regex` expression used to extract the desired filename portion. 
 
-    **Example:** Choosing the built-in `fov_treatmnent_cell` parser will extract the following values for `FOV`, `Treatment`, `Cell` from a group of data files and these values to the imported data table:
+    **Example:** Choosing the built-in `fov_treatmnent_cell` parser will extract the following values for `FOV`, `Treatment`, `Cell` from a group of data files and adds these values to the imported data table:
 
     | File | FOV | Treatment | Cell |
     |:----:|:---:|:---------:|:----:|
