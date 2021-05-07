@@ -4,7 +4,6 @@ flimanalyzer.egg-info
 build
 _build
 dist
-data
 .vscode
 *.egg-info
 .DS_Store
