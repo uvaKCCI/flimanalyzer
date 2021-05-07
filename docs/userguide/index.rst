@@ -9,7 +9,7 @@ User Guide
     :maxdepth: 2
 
     files
-    settings
     data 
     analysis        
+    settings
 
