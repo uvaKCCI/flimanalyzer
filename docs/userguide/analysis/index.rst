@@ -10,6 +10,6 @@ User Guide
 
     appmenu
     data 
-    analysis/*        
+    analysis        
     settings
 
