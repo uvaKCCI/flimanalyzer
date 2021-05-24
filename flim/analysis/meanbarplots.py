@@ -20,7 +20,7 @@ class MeanBarPlot(AbstractAnalyzer):
     
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
-        self.name = "Mean Bar Plot"
+        self.name = "Bar Plot"
     
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -29,7 +29,7 @@ class MeanBarPlot(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        source = files(flim.resources).joinpath('meanbar.png')
+        source = files(flim.resources).joinpath('barplot.png')
         return wx.Bitmap(str(source))
         
     def get_required_categories(self):

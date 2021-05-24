@@ -9,7 +9,7 @@ User Guide
     :maxdepth: 2
 
     appmenu
-    data 
-    analysis/*        
+    data/index 
+    analysis/index        
     settings
 
