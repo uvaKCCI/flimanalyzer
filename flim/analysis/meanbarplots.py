@@ -16,7 +16,7 @@ import wx
 from importlib_resources import files
 import flim.resources
 
-class MeanBarPlot(AbstractAnalyzer):
+class BarPlot(AbstractAnalyzer):
     
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
@@ -44,9 +44,9 @@ class MeanBarPlot(AbstractAnalyzer):
             'grouping': [],
             'features': [],
             'ordering': {},
-            'orientation': 'vertical',
-            'error bar': '+/-',
-            'error type': 'std',
+            'orientation': 'vertical', # 'horizontal'
+            'error bar': '+/-', # '+', 'None'
+            'error type': 'std', # 's.e.m'
         }
                 
     def run_configuration_dialog(self, parent):
@@ -95,23 +95,26 @@ class MeanBarPlot(AbstractAnalyzer):
     #        print data.reset_index().set_index(groups).index.unique()
             #df.columns = [' '.join(col).strip() for col in df.columns.values]
             mean = groupeddata.mean()
-            std = groupeddata.std()
+            if self.params['error type'] == 'std':
+                error = groupeddata.std()
+            else:
+                error = groupeddata.sem()
             no_bars = len(mean)
             if pivot_level < len(categories):
                 unstack_level = list(range(pivot_level))
                 logging.debug (f"PIVOTING: {pivot_level}, {unstack_level}")
                 mean = mean.unstack(unstack_level)
-                std = std.unstack(unstack_level)
+                error = error.unstack(unstack_level)
                 mean = mean.dropna(how='all', axis=0)
-                std = std.dropna(how='all', axis=0)
+                error = error.dropna(how='all', axis=0)
             ticklabels = mean.index.values
             bwidth = 0.8# * len(ticklabels)/no_bars 
             fig.set_figheight(1 + no_bars//8)
             fig.set_figwidth(6)
             if self.params['orientation'] == 'horizontal':
-                mean.plot.barh(ax=ax, xerr=std, width=bwidth, capsize=0.75*bwidth)           
+                mean.plot.barh(ax=ax, xerr=error, width=bwidth, capsize=0.75*bwidth)           
             else:
-                mean.plot.bar(ax=ax, yerr=std, width=bwidth, capsize=6)           
+                mean.plot.bar(ax=ax, yerr=error, width=bwidth, capsize=6)           
         
         
         if len(categories) > 1:

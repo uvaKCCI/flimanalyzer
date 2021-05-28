@@ -24,7 +24,11 @@ The `Relative Change` analysis tool converts input data to fold-change values re
 
 5. The analysis results are shown in new data table, with each row representing one particular data group and aggregated numbers shown in individual columns.
 
-    **Example Results:** `Data Grouping` - Treatment, FOV
-    ![](/images/analysis/relchange-result-grouping.png)
+## Example Output
+
+**Example Results:** `Data Grouping` - Treatment, FOV
+![](/images/analysis/relchange-result-grouping.png)
     
-    You can confirm the conversion by running a [Summary Table Analysis](/userguide/analysis/summarystats) on the **Relative-mean** table using the same data grouping, i.e `Treatment, FOV` for this example. The mean for each `Treatment:Ctrl` group should equal 1.0.
+```{note}
+You can confirm the conversion by running a [Summary Table Analysis](/userguide/analysis/summarystats) on the **Relative-mean** (or **Relative-median**) table using the same data grouping, i.e `Treatment, FOV` for this example. The mean (or median) for each `Treatment:Ctrl` group should equal 1.0.
+```

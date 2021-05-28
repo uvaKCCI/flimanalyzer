@@ -21,8 +21,10 @@ The `Summary Table` tool calculates counts, min, max, mean, median (50th percent
 
 5. The analysis results are shown in new data table, with each row representing one particular data group and aggregated numbers shown in individual columns.
 
-    **Example Results:** `Data Grouping` - None
-    ![](/images/analysis/summary-result1-nogrouping.png)
+## Example Outputs
 
-    **Example Results:** `Data Grouping` - Treatment, FOV
-    ![](/images/analysis/summary-result1-grouping.png)
+**Example Results:** `Data Grouping` - None
+![](/images/analysis/summary-result1-nogrouping.png)
+
+**Example Results:** `Data Grouping` - Treatment, FOV
+![](/images/analysis/summary-result1-grouping.png)

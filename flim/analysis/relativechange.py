@@ -54,7 +54,7 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         self.method_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_method, choices=self.method_options)
         sizer.Add(wx.StaticText(self, label="Method"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.method_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-
+        
         return [sizer]
         
     def _get_selected(self):
