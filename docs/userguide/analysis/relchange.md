@@ -4,7 +4,7 @@ The `Relative Change` analysis tool converts input data to fold-change values re
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selectd table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
     ![](/images/data/dataframe.png)
 
 2. Start the Relative Change tool by clicking on the icon in the toolbar or via the `Analysis` > `Relative Change` menu.
@@ -16,7 +16,7 @@ The `Relative Change` analysis tool converts input data to fold-change values re
     
     ![](/images/analysis/relchange-config-grouping.png)
 
-4. Select the analysis features, data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
+4. Select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
 
     In the example, input data is grouped by `Treatment` (implicit as specified **Reference Group**) and `FOV`.  For each data group and data feature, the **mean** value of the `Treatment:Ctrl` group is calculated, aka the mean reference values. Each row value is then expressed as fold-change relative to its group's and data features' mean reference values.
 

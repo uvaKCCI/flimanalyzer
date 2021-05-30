@@ -10,6 +10,7 @@ User Guide
 
     appmenu
     data/index 
-    analysis/index        
+    analysis/index  
+    plots/index      
     settings
 

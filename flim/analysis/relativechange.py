@@ -33,29 +33,30 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         self.sel_refvalue = refvalue
         if self.sel_refvalue not in self.refval_options:
             self.sel_refvalue = self.refval_options[0]
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
         self.aggboxes = {}
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-
         self.refgrp_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refgroup, choices=self.categories)
         self.refgrp_combobox.Bind(wx.EVT_COMBOBOX, self.OnRefGroupChanged)
-        sizer.Add(wx.StaticText(self, label="Reference Group"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        sizer.Add(self.refgrp_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        rgsizer = wx.BoxSizer(wx.HORIZONTAL)
+        rgsizer.Add(wx.StaticText(self, label="Reference Group "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        rgsizer.Add(self.refgrp_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         dummy = [a for c in self.categories for a in self.data[c].unique()]
         self.refval_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refvalue, choices=dummy)
         self.refval_combobox.SetItems(self.refval_options)
         self.refval_combobox.SetValue(self.sel_refvalue)
-        sizer.Add(wx.StaticText(self, label="Reference Value"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        sizer.Add(self.refval_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        rvsizer = wx.BoxSizer(wx.HORIZONTAL)
+        rvsizer.Add(wx.StaticText(self, label="Reference Value "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        rvsizer.Add(self.refval_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         self.method_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_method, choices=self.method_options)
-        sizer.Add(wx.StaticText(self, label="Method"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        sizer.Add(self.method_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        msizer = wx.BoxSizer(wx.HORIZONTAL)
+        msizer.Add(wx.StaticText(self, label="Method "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        msizer.Add(self.method_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        return [sizer]
+        return [rgsizer, rvsizer, msizer]
         
     def _get_selected(self):
         params = super()._get_selected()
