@@ -47,11 +47,11 @@ sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flima
 On Windows,run this command
 ```
 conda activate flimenv 
-python flimanalyzer.exe
+flimanalyzer.exe
 ```
 
 On Mac OSX and Linux, run this command:
 ```
 conda activate flimenv
-python flimanalyzer
+flimanalyzer
 ```
