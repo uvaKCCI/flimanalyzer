@@ -34,9 +34,11 @@ This will create a Conda environment `flimenv` that contains all the Python pack
 
 Activate the Conda environment, install the MacOS specific python.app package, and patch the shebang of the flimanalyzer console script.
 
+```
 conda activate flimenv
 conda install python.app
 sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flimanalyzer)
+```
 
 ## Run the application
 
