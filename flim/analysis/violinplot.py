@@ -16,11 +16,11 @@ import seaborn as sns
 from importlib_resources import files
 import flim.resources
 
-class BoxPlot(AbstractAnalyzer):
+class SwarmPlot(AbstractAnalyzer):
     
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
-        self.name = "Box Plot"
+        self.name = "Violin Plot"
     
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -29,7 +29,10 @@ class BoxPlot(AbstractAnalyzer):
         return self.name
     
     def get_icon(self):
-        source = files(flim.resources).joinpath('boxplot.png')
+        try:
+           source = files(flim.resources).joinpath('violinplot.png')
+        except:
+           return 
         return wx.Bitmap(str(source))
         
     def get_required_categories(self):
@@ -57,9 +60,9 @@ class BoxPlot(AbstractAnalyzer):
             data[c] = data[c].astype('str') 
 
         for feature in sorted(self.params['features']):
-            logging.debug (f"\tcreating box plot for {feature}")
+            logging.debug (f"\tcreating {self.name} for {feature}")
             fig = self._grouped_plot(data, feature, categories=self.params['grouping'])
-            results[f"Box Plot {feature}"] = fig
+            results[f"{self.name} {feature}"] = fig
         return results
     
     def _grouped_plot(self, data, feature, title=None, categories=[], dropna=True, pivot_level=1, **kwargs):
@@ -80,15 +83,15 @@ class BoxPlot(AbstractAnalyzer):
             
         if len(categories) == 0:
             #data.boxplot(**newkwargs)
-            g = sns.catplot(data=data, y=feature, kind="box") #, height=6, aspect=.7)
+            g = sns.catplot(data=data, y=feature, kind="violin") #, height=6, aspect=.7)
         elif len(categories) == 1:
-            g = sns.catplot(data=data, x=categories[0], y=feature, kind="box", color='blue') #, height=6, aspect=.7)
+            g = sns.catplot(data=data, x=categories[0], y=feature, kind="violin", color='blue') #, height=6, aspect=.7)
         elif len(categories) == 2:
-            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], kind="box") #, height=6, aspect=.7)
+            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], kind="violin") #, height=6, aspect=.7)
         elif len(categories) == 3:
-            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], col=categories[2], kind="box") #, height=6, aspect=.7)
+            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], col=categories[2], kind="violin") #, height=6, aspect=.7)
         elif len(categories) > 3:
-            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], col=categories[2], row=categories[3], kind="box") #, height=6, aspect=.7)
+            g = sns.catplot(data=data, x=categories[0], y=feature, hue=categories[1], col=categories[2], row=categories[3], kind="violin") #, height=6, aspect=.7)
         fig = g.fig
            
         #data.set_index(groups, inplace=True)
