@@ -123,9 +123,11 @@ class RelativeChange(AbstractAnalyzer):
         method = self.params['method']
         allcategories = list(self.data.select_dtypes(['category']).columns.values)
         features = self.params['features']
-        grouping = self.params['grouping']
+        grouping = list(self.params['grouping'])
         refgroup = self.params['reference_group']
         refvalue = self.params['reference_value']
+        if refgroup not in grouping:
+            grouping.insert(0, refgroup)
         cols = allcategories + features
         data = self.data[cols]
 

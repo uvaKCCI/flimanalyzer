@@ -32,6 +32,7 @@ class dataimporter():
                 cfg.CONFIG_DELIMITER: self.delimiter,
                 cfg.CONFIG_PARSER: self.parser.get_config(),
                 cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
+                cfg.CONFIG_FITTING_COLUMNS: [],
                 }
         return config
         

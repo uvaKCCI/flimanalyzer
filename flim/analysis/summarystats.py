@@ -25,25 +25,37 @@ def percentile(n):
 
 class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', allaggs=[], selectedaggs='All'):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', allaggs=[], selectedaggs='All', singledf=False):
         self.allaggs = allaggs
         self.selectedaggs = selectedaggs
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=1)
+        self.singledf = singledf
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
         self.aggboxes = {}
+        ssizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.dfoutput_opts = ['Single table', 'One table per feature']
+        if self.singledf:
+            sel_dfoutput = self.dfoutput_opts[0]
+        else:
+            sel_dfoutput = self.dfoutput_opts[1]
+        self.dfoutput_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_dfoutput, choices=self.dfoutput_opts)
+        ssizer.Add(wx.StaticText(self, label="Output "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        ssizer.Add(self.dfoutput_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
         aggsizer = wx.GridSizer(4, 0, 0)
         for f in self.allaggs:
             cb = wx.CheckBox(self,wx.ID_ANY,f)
             cb.SetValue((f in self.selectedaggs) or (self.selectedaggs == 'All'))
             self.aggboxes[f] = cb
             aggsizer.Add(cb, 0, wx.ALL, 5)
-        return [aggsizer]
+        return [ssizer,aggsizer]
         
     def _get_selected(self):
         selaggs = [key for key in self.aggboxes if self.aggboxes[key].GetValue()]
         params = super()._get_selected()
         params['aggs'] = selaggs
+        params['singledf'] = self.dfoutput_combobox.GetValue() == self.dfoutput_opts[0]
         return params
 
 
@@ -80,7 +92,7 @@ class SummaryStats(AbstractAnalyzer):
         return params
         
     def run_configuration_dialog(self, parent):
-        dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], allaggs=self.agg_functions, selectedaggs=self.params['aggs'])
+        dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], allaggs=self.agg_functions, selectedaggs=self.params['aggs'], singledf=self.params['singledf'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
@@ -108,11 +120,15 @@ class SummaryStats(AbstractAnalyzer):
                 grouped_data = self.data[allcats].groupby(self.params['grouping'], observed=True)
                 summary = grouped_data.agg(sel_functions)
                 #summary = summary.dropna()
+                summary.reset_index(inplace=True)
             if self.params['flattenindex']:
                 summary.columns = ['\n'.join(col).strip() for col in summary.columns.values]    
-            summaries[dftitle] = summary.reset_index()
+            summaries[dftitle] = summary #.reset_index()
         if self.params['singledf']:
-            concat_df = pd.concat([summaries[key] for key in summaries], axis=1)
-            return {f"{titleprefix}": concat_df.reset_index()}
+            if len(self.params['grouping']) > 0:
+                concat_df = pd.concat([summaries[key].set_index(self.params['grouping']) for key in summaries], axis=1).reset_index()
+            else:
+                concat_df = pd.concat([summaries[key] for key in summaries], axis=1)            
+            return {f"{titleprefix}": concat_df}
         else:
             return summaries

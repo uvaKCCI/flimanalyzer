@@ -17,6 +17,8 @@ The `Summary Table` tool calculates counts, min, max, mean, median (50th percent
 
     ![](/images/analysis/summary-config-nogrouping.png)
 
+The `Output` option lets you decide whether all computed summary values are combined into a `single table` or separated by feature, e.g. `one table per feature`.
+
 4. Click `OK`.
 
 5. The analysis results are shown in new data table, with each row representing one particular data group and aggregated numbers shown in individual columns.

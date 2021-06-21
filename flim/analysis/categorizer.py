@@ -94,7 +94,7 @@ class Categorizer(AbstractAnalyzer):
         return []
     
     def get_icon(self):
-        source = files(flim.resources).joinpath('pca.png')
+        source = files(flim.resources).joinpath('categorize.png')
         return wx.Bitmap(str(source))
         
     def get_required_features(self):

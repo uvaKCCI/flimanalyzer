@@ -39,7 +39,6 @@ CONFIG_SERIESFILTERS = 'series filters'
 CONFIG_DATA_DISPLAY = 'display'
 CONFIG_ANALYSIS ='analysis'
 CONFIG_HISTOGRAMS = 'histograms'
-CONFIG_CATEGORIES = 'categories'
 CONFIG_SCATTER = 'scatter'
 
 
@@ -215,13 +214,11 @@ class Config():
     def _get_required_keys(self):
         return ((CONFIG_ROOT,CONFIG_IMPORT,CONFIG_EXCLUDE_FILES),
                        (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_DELIMITER),
-                       (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_PARSER_CLASS),
-                       (CONFIG_ROOT,CONFIG_IMPORT, CONFIG_FITTING_COLUMNS),
+                       (CONFIG_ROOT,CONFIG_IMPORT,CONFIG_FITTING_COLUMNS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_HEADERS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_DROP_COLUMNS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_CALC_COLUMNS),
                        (CONFIG_ROOT,CONFIG_ANALYSIS,CONFIG_HISTOGRAMS),
-                       (CONFIG_ROOT,CONFIG_ANALYSIS,CONFIG_CATEGORIES),
                        (CONFIG_ROOT,CONFIG_FILTERS,CONFIG_RANGEFILTERS),
                        (CONFIG_ROOT,CONFIG_FILTERS,CONFIG_SERIESFILTERS))
                 
@@ -302,6 +299,8 @@ class Config():
         preprocess_config = defaultpreprocessor().get_config()
         analyzers = init_analyzers()
         analysis_config = init_default_config(analyzers)
+        analysis_config[CONFIG_HISTOGRAMS] = []
+
         datadisplay = [{'name': aname, 'min': 'auto', 'max': 'auto', 'bins': 100} for aname in ['trp t1','trp t2','trp tm']]
 
         parameters = {

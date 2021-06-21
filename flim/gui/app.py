@@ -794,7 +794,7 @@ class AppFrame(wx.Frame):
         
         tb.Realize()
 
-        self.SetSize((650, 250))
+        self.SetSize((800, 250))
         self.Centre()
         self.Show(True) 
  
@@ -850,7 +850,6 @@ class AppFrame(wx.Frame):
         dlg = ImportDlg(self, "Open File", self.config, parsefname=False, preprocess=False, singlefile=True)
         if dlg.ShowModal() == wx.ID_OK:
             config = dlg.get_config()
-            config.write_to_json(f'/Users/khs3z/Desktop/import.json')
 
             importer = dataimporter()
             importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
