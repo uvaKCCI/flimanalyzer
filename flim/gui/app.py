@@ -252,10 +252,10 @@ class TabAnalysis(wx.Panel):
         logging.debug (f"{self.get_analysistypes()[groupindex]}")
 
     
-    def OnDataWindowRenamed(self, original, new, data):
+    def OnDataWindowRenamed(self, original, new, frame):
         logging.debug (f"{original} --> {new}")
         if original in self.windows:
-            frame = self.windows[original]
+            #frame = self.windows[original]
             if frame.is_analyzable():
                 renameselected = self.datachoices_combo.GetStringSelection() == original
                 self.update_datachoices({original:frame}, add=False)
@@ -747,7 +747,7 @@ class AppFrame(wx.Frame):
         self.windowframes = {}
         self.window_zorder = []
         
-        super(AppFrame,self).__init__(None, wx.ID_ANY,title="FLIM Data Analyzer")#, size=(600, 500))
+        super(AppFrame,self).__init__(None, wx.ID_ANY,title=f"FLIM Data Analyzer {flim.__version__}")#, size=(600, 500))
 
         tb = wx.ToolBar( self, -1 ) 
         self.ToolBar = tb
@@ -1106,14 +1106,15 @@ class AppFrame(wx.Frame):
             pub.sendMessage(NEW_DATA_WINDOW, data=data, frame=frame)
 
     
-    def OnRequestRenameDataWindow(self, original, new, data):
+    def OnRequestRenameDataWindow(self, original, new, frame):
         title = self.unique_window_title(new)
+        self.window_zorder = [title if t==original else t for t in self.window_zorder]
         for mitem in self.windowmenu.GetMenuItems():
             if mitem.GetItemLabelText() == original:
                 mitem.SetItemLabel(title)
                 del self.windowframes[original]
-                self.windowframes[title] = data
-                pub.sendMessage(RENAMED_DATA_WINDOW, original=original, new=title, data=data)
+                self.windowframes[title] = frame
+                pub.sendMessage(RENAMED_DATA_WINDOW, original=original, new=title, frame=frame)
                 return
         
         

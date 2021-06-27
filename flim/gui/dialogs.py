@@ -8,6 +8,7 @@ Created on Tue Jun 12 13:35:51 2018
 
 import logging
 import itertools
+from collections import OrderedDict
 import wx.grid
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
@@ -79,43 +80,61 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
             
 class BasicAnalysisConfigDlg(wx.Dialog):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2):
+    def __init__(self, parent, title, data, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         # 5 col gridsizer
+        self.enablegrouping = enablegrouping
+        self.enablefeatures = enablefeatures
         
         allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
-        
-        groupings = ['None']
-        if data.select_dtypes(['category']).columns.nlevels == 1:
-            categories = [c for c in list(data.select_dtypes(['category']).columns.values)]
-        else:
-            categories = [c for c in list(ata.select_dtypes(['category']).columns.get_level_values(0).values)]
-        logging.debug (f"groupings: {groupings}")
-        for i in range(1,len(categories)+1):
-            permlist = list(itertools.permutations(categories,i))
-            for p in permlist:
-                groupings.append(", ".join(p))
-        if ", ".join(selectedgrouping) not in groupings:
-            selectedgrouping = ['None']
-        
-        groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.grouping_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=", ".join(selectedgrouping), choices=groupings)
-        groupingsizer.Add(wx.StaticText(self, label="Data Grouping"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        groupingsizer.Add(self.grouping_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        
+        # ordered dict with label:columm items; column headers are converted to single line labels
+        self.allfeatures = OrderedDict((" ".join(c.split("\n")),c) for c in allfeatures)
+        if isinstance(selectedfeatures,str):
+            self.selectedfeatures = {selectedfeatures:selectedfeatures}
+        else:    
+            self.selectedfeatures = {" ".join(c.split("\n")):c for c in selectedfeatures}
+ 
+        sizer = wx.BoxSizer(wx.VERTICAL)
+
         self.optionsizer = wx.GridSizer(optgridcols, optgridrows, 0)
         for p in self.get_option_panels():
             self.optionsizer.Add(p)
         
-        cbsizer = wx.GridSizer(4, 0, 0)
-        if allfeatures is None:
-            allfeatures = []
-        self.cboxes = {}
-        for f in allfeatures:
-            cb = wx.CheckBox(self,wx.ID_ANY,f)
-            cb.SetValue((f in selectedfeatures) or (selectedfeatures == 'All'))
-            self.cboxes[f] = cb
-            cbsizer.Add(cb, 0, wx.ALL, 5)
+        sizer.Add(self.optionsizer, 0, wx.ALIGN_LEFT, 5)
+        sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
+        
+        if self.enablegrouping:
+            groupings = ['None']
+            if data.select_dtypes(['category']).columns.nlevels == 1:
+                categories = [c for c in list(data.select_dtypes(['category']).columns.values)]
+            else:
+                categories = [c for c in list(ata.select_dtypes(['category']).columns.get_level_values(0).values)]
+            logging.debug (f"groupings: {groupings}")
+            for i in range(1,len(categories)+1):
+                permlist = list(itertools.permutations(categories,i))
+                for p in permlist:
+                    groupings.append(", ".join(p))
+            if ", ".join(selectedgrouping) not in groupings:
+                selectedgrouping = ['None']
+            groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
+            self.grouping_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=", ".join(selectedgrouping), choices=groupings)
+            groupingsizer.Add(wx.StaticText(self, label="Data Grouping"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+            groupingsizer.Add(self.grouping_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+            sizer.Add(groupingsizer, 0, wx.ALIGN_LEFT, 5)
+            sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
+        
+        if self.enablefeatures:
+            cbsizer = wx.GridSizer(4, 0, 0)
+            if self.allfeatures is None:
+                self.allfeatures = {}
+            self.cboxes = {}
+            for f in self.allfeatures:
+                cb = wx.CheckBox(self,wx.ID_ANY,f)
+                cb.SetValue((f in self.selectedfeatures) or ('All' in self.selectedfeatures))
+                self.cboxes[f] = cb
+                cbsizer.Add(cb, 0, wx.ALL, 5)
+            sizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
+            sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
 
         buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.selectAllButton = wx.Button(self, label="Select All")
@@ -131,13 +150,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.cancelButton.Bind(wx.EVT_BUTTON, self.OnQuit)
         buttonsizer.Add(self.cancelButton, 0, wx.ALL, 10)
         
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.optionsizer, 0, wx.ALIGN_LEFT, 5)
-        sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
-        sizer.Add(groupingsizer, 0, wx.ALIGN_LEFT, 5)
-        sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
-        sizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
-        sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
         sizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 5)
         self.SetSizer(sizer)
         
@@ -166,13 +178,20 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
 
     def _get_selected(self):
-        valuestr = self.grouping_combobox.GetValue()
-        if valuestr == 'None':
-            grouping = []
-        else:     
-            grouping = valuestr.split(', ')
-        selfeatures = [key for key in self.cboxes if self.cboxes[key].GetValue()]
-        return {'grouping': grouping, 'features': selfeatures}
+        params = {}
+        if self.enablegrouping:
+            valuestr = self.grouping_combobox.GetValue()
+            if valuestr != 'None':
+                params['grouping'] = valuestr.split(', ')
+            else:
+                params['grouping'] = [] 
+        else:
+            params['grouping'] = []     
+        if self.enablefeatures:    
+            params['features'] = [self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()]
+        else:
+            params['features'] = []
+        return params
     
     
     def get_selected(self):

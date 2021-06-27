@@ -61,9 +61,9 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
 class SummaryStats(AbstractAnalyzer):
     
-    agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'sem':'sem', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75)}
+    agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'sem':'sem', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75), 'sum':'sum'}
     
-    def __init__(self, data, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)'], singledf=True, flattenindex=True, **kwargs):
+    def __init__(self, data, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)', 'sum'], singledf=True, flattenindex=True, **kwargs):
         AbstractAnalyzer.__init__(self, data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
         self.name = "Summary Table"
     
@@ -87,7 +87,7 @@ class SummaryStats(AbstractAnalyzer):
         params = super().get_default_parameters()
         params.update({
             'aggs': [n for n in self.agg_functions], 
-            'singledf': False, 
+            'singledf': True, 
             'flattenindex': True})
         return params
         

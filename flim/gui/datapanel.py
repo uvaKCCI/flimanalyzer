@@ -341,8 +341,8 @@ class PandasFrame(wx.Frame):
             self.SetData(data=newdata, showcolindex=self.showcolindex, analyzable=self.analyzable, savemodified=self.savemodied, precision=self.precision)
         
         
-    def OnDataWindowRenamed(self, original, new, data):
-        if original == self.GetTitle() and self.data.shape == data.shape:
+    def OnDataWindowRenamed(self, original, new, frame):
+        if original == self.GetTitle() and self.data.shape == frame.data.shape:
             self.SetTitle(new)
         
         
@@ -631,16 +631,16 @@ class PandasFrame(wx.Frame):
         else:
             return
         if fname:
-            pub.sendMessage(REQUEST_RENAME_DATA_WINDOW, original=original, new=os.path.basename(fname), data=self.data)
             self.modified = False
+            pub.sendMessage(REQUEST_RENAME_DATA_WINDOW, original=original, new=os.path.basename(fname), frame=self)
         
     
     def OnSaveView(self, event):
         original = self.GetTitle()
         fname = flim.gui.dialogs.save_dataframe(self, "Save current data view", self.dataview, original +'.txt', wildcard="txt files (*.txt)|*.txt", saveindex=self.showcolindex)
         if fname:
-            pub.sendMessage(REQUEST_RENAME_DATA_WINDOW, original=original, new=fname, data=self.data)
             self.modified = False
+            pub.sendMessage(REQUEST_RENAME_DATA_WINDOW, original=original, new=fname, frame=self)
         
     
     def close_and_destroy(self, event):

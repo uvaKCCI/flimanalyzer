@@ -2,6 +2,10 @@
 
 The `Relative Change` analysis tool converts input data to fold-change values relative to mean/median of reference group. This can be used to create data plots that depict trends relative to a specific reference group and value.
 
+**Menu Access:** `Analysis` > `Relative Change`
+
+**Toolbar Icon:** ![](/images/analysis/relchange.png)
+
 ## Running the Analysis
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.

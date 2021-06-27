@@ -5,6 +5,7 @@ Created on Fri May  4 02:42:45 2018
 """
 
 import logging
+import flim
 from flim.core.importer import dataimporter
 from flim.core.parser import defaultparser
 from flim.core.preprocessor import defaultpreprocessor
@@ -23,7 +24,7 @@ class FLIMAnalyzer():
         self.analyzer = danalyzer
         self.data = pd.DataFrame()
 #        self.outputgenerator = outputgenerator()
-        logging.debug(f"Initialized {__name__}.FlimAnalyzer with {importer}, {preprocessor}, {danalyzer}")
+        logging.debug(f"Initialized {__name__}.FlimAnalyzer version {flim.__version__} with {importer}, {preprocessor}, {danalyzer}")
         
 
     def get_data(self):
