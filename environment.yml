@@ -1,4 +1,4 @@
-name: flimenv
+name: flimenv-0.2.0
 channels:
   - pytorch
   - defaults

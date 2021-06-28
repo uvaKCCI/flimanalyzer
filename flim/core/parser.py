@@ -33,6 +33,7 @@ def instantiate_parser(fullname):
         parserinstance = class_()
     except Exception:
         logging.error(f"Error instantiating {fullname} parser.")
+        logging.error(Exception)
         parserinstance = None
     return parserinstance    
     
@@ -116,8 +117,8 @@ class compartment_fov_treatment_cell_parser(defaultparser):
         self.regexpatterns = [
                 {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Compartment', cfg.CONFIG_PARSER_REGEX:r'.*/(.*?)/'},
                 {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'FOV', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-](.*?)[_-]'},
-                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
-                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell', PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Treatment', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-](.*?)[_-]'},
+                {cfg.CONFIG_PARSER_USE:True, cfg.CONFIG_PARSER_CATEGORY:'Cell', cfg.CONFIG_PARSER_REGEX:r'.*/.*?[_-].*?[_-].*?[_-](\d*?)\.'}]
 
 
         

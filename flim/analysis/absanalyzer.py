@@ -57,6 +57,7 @@ def create_instance(clazz, data):
     Args:
         clazz (class): analyzer class to instantiate.
         data (pandas.DataFrame): DataFrame to be used by analyzer instance
+        # data_choices (dict): available dataframes. Keys are window names/labels, values are associated dataframes
     
     Returns:
         analyzer object (AbstractAnalyzer subclass)
@@ -72,7 +73,7 @@ def create_instance(clazz, data):
     try:
         module = importlib.import_module(modulename)
         class_ = getattr(module, classname)
-        toolinstance = class_(data)
+        toolinstance = class_(data) #, data_choices=data_choices)
     except Exception as err:
         logging.error(f"Error: {err}")
         logging.error(f"Error instantiating {modulename}.{classname} analysis tool.")
@@ -167,6 +168,7 @@ class AbstractAnalyzer(ABC):
             kwargs: the new key:value pairs.  
         """
         self.params.update(**kwargs)
+        print (self.params)
         
     @abstractmethod
     def get_required_categories(self):

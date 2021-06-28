@@ -80,11 +80,12 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
             
 class BasicAnalysisConfigDlg(wx.Dialog):
 
-    def __init__(self, parent, title, data, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2):
+    def __init__(self, parent, title, data, data_choices=[], enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         # 5 col gridsizer
         self.enablegrouping = enablegrouping
         self.enablefeatures = enablefeatures
+        self.data_choices = data_choices
         
         allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
         # ordered dict with label:columm items; column headers are converted to single line labels
@@ -108,7 +109,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             if data.select_dtypes(['category']).columns.nlevels == 1:
                 categories = [c for c in list(data.select_dtypes(['category']).columns.values)]
             else:
-                categories = [c for c in list(ata.select_dtypes(['category']).columns.get_level_values(0).values)]
+                categories = [c for c in list(data.select_dtypes(['category']).columns.get_level_values(0).values)]
             logging.debug (f"groupings: {groupings}")
             for i in range(1,len(categories)+1):
                 permlist = list(itertools.permutations(categories,i))

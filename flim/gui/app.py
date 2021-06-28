@@ -975,6 +975,7 @@ class AppFrame(wx.Frame):
         
     def OnRunAnalysis(self, event):
         data = self.get_currentdata()
+        data_choices = {title:frame.GetViewData() for title,frame in self.windowframes.items() if isinstance(frame, PandasFrame)}
         if data is None:
              wx.MessageBox('No data available')
              return
@@ -996,9 +997,9 @@ class AppFrame(wx.Frame):
         #features = [c for c in self.get_checked_cols(self.currentdata)]
         
         analysis_class = flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
-        tool = flim.analysis.absanalyzer.create_instance(analysis_class, data)
+        tool = flim.analysis.absanalyzer.create_instance(analysis_class, data) #, data_choices=data_choices)
         parameters = self.config.get([cfg.CONFIG_ANALYSIS, analyzername])
-        tool.configure(**parameters)
+        tool.configure(data_choices=data_choices, **parameters)
 
         # run optional tool config dialog and execte analysis
         parameters = tool.run_configuration_dialog(self)
