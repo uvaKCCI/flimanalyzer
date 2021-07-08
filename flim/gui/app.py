@@ -999,10 +999,10 @@ class AppFrame(wx.Frame):
         analysis_class = flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
         tool = flim.analysis.absanalyzer.create_instance(analysis_class, data) #, data_choices=data_choices)
         parameters = self.config.get([cfg.CONFIG_ANALYSIS, analyzername])
-        tool.configure(data_choices=data_choices, **parameters)
+        tool.configure(**parameters)
 
         # run optional tool config dialog and execte analysis
-        parameters = tool.run_configuration_dialog(self)
+        parameters = tool.run_configuration_dialog(self, data_choices=data_choices)
         if parameters is None:
             return
         self.config.update(parameters, [cfg.CONFIG_ANALYSIS, analyzername])

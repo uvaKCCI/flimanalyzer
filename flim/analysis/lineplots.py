@@ -55,7 +55,7 @@ class LinePlot(AbstractAnalyzer):
             'col': '',
         }
                 
-    def run_configuration_dialog(self, parent):
+    def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
         dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)

@@ -104,7 +104,7 @@ class RelativeChange(AbstractAnalyzer):
             })
         return params
         
-    def run_configuration_dialog(self, parent):
+    def run_configuration_dialog(self, parent, data_choices={}):
         dlg = RelativeChangeConfigDlg(parent, f'Configuration: {self.name}', self.data, 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 

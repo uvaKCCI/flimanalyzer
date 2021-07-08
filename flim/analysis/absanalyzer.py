@@ -192,7 +192,7 @@ class AbstractAnalyzer(ABC):
         """
         return ['any']
     
-    def run_configuration_dialog(self, parent):
+    def run_configuration_dialog(self, parent, data_choices={}):
         """Executes the anaylzer's configuration dialog.
         
         The dialog is initialized with values of the analyzer's Config object.

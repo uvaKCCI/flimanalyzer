@@ -149,7 +149,7 @@ class Categorizer(AbstractAnalyzer):
         })
         return params
             
-    def run_configuration_dialog(self, parent):
+    def run_configuration_dialog(self, parent, data_choices={}):
         for k in self.params:
             print (k, self.params[k])
         dlg = CategorizerConfigDlg(parent, f'Configuration: {self.name}', self.data, 

@@ -80,7 +80,7 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
             
 class BasicAnalysisConfigDlg(wx.Dialog):
 
-    def __init__(self, parent, title, data, data_choices=[], enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2):
+    def __init__(self, parent, title, data, data_choices={}, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         # 5 col gridsizer
         self.enablegrouping = enablegrouping

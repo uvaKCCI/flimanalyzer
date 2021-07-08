@@ -104,7 +104,7 @@ class BarPlot(AbstractAnalyzer):
             'error type': 'std', # 's.e.m'
         }
                 
-    def run_configuration_dialog(self, parent):
+    def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
         ordering = self.params['ordering']

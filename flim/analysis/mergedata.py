@@ -21,27 +21,38 @@ import flim.resources
 
 class MergerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, data_choices=[], 
+    def __init__(self, parent, title, data, data_choices={}, 
             how='left', left_on=None, right_on=None, left_index=False, right_index=False):
-        self.how = how
-        if left_on not in data_choices:
-        	self.left_on = data_choices[0]
+        self.how_choices = {'<< merge left':'left', 'merge right >>':'right', 'merge inner':'inner', 'merge outer':'outer'}
+        howvalues = list(self.how_choices.values())
+        if how in howvalues:
+            keypos = howvalues.index(how)
+            self.how = list(self.how_choices.keys())[keypos]
+        else:   
+            self.how = list(self.how_choices.keys())[0]
+        print (f'how={how}, self.how={self.how}')
+        dc = list(data_choices.keys())
+        print (dc)
+        if left_on not in dc:
+        	self.left_on = dc[0]
         else:
             self.left_on = left_on
-        if right_on not in data_choices:
-        	self.right_on = data_choices[1]
+        if right_on not in dc:
+        	self.right_on = dc[1]
         else:
             self.right_on = right_on
         self.left_index = left_index
         self.right_index = right_index
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices, enablegrouping=False, enablefeatures=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):
         fsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.left_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.left_on, choices=list(self.data_choices.keys()))
+        self.how_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.how, choices=list(self.how_choices.keys()))        
         self.right_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.right_on, choices=list(self.data_choices.keys()))
         fsizer.Add(wx.StaticText(self, label="Table 1"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.left_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        fsizer.Add(self.how_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(wx.StaticText(self, label="Table 2"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.right_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         
@@ -49,18 +60,18 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
         
     def _get_selected(self):
         params = super()._get_selected()
-        params['how'] = 'left'
+        params['how'] = self.how_choices[self.how_combobox.GetValue()]
         params['left_index'] = []
         params['right_index'] = []
+        params['input'] = [self.left_combobox.GetValue(), self.right_combobox.GetValue()]
         print (params)
         return params
 
 
 class Merger(AbstractAnalyzer):
     
-    def __init__(self, data, data_choices={}, **kwargs):
-        AbstractAnalyzer.__init__(self, data, categories={}, data_choices=data_choices, default='unassigned')
-        self.data_choices = data_choices
+    def __init__(self, data, **kwargs):
+        AbstractAnalyzer.__init__(self, data, categories={}, default='unassigned')
         self.name = "Merge Data"
     
     def __repr__(self):
@@ -85,14 +96,25 @@ class Merger(AbstractAnalyzer):
             'how': '',
             'left_index': [],
             'right_index': [],
+            'input': [],
         })
         return params
             
-    def run_configuration_dialog(self, parent):
-        for k in self.params:
-            print (k, self.params[k])
+    def run_configuration_dialog(self, parent, data_choices={}):
+        input = self.params['input']
+        if isinstance(input,list) and len(input) > 0:
+            left_on = input[0]
+        else:
+            left_on=''
+        if isinstance(input,list) and len(input) > 1:
+            right_on = input[1]
+        else:
+            right_on=''
+                
         dlg = MergerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
-            data_choices=self.data_choices,
+            data_choices=data_choices,
+            left_on=left_on,
+            right_on=right_on,
             how=self.params['how'], 
             left_index=self.params['left_index'], 
             right_index=self.params['right_index'],)

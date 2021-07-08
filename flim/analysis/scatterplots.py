@@ -46,7 +46,7 @@ class ScatterPlot(AbstractAnalyzer):
     def get_required_features(self):
         return ['any', 'any']
         
-    def run_configuration_dialog(self, parent):
+    def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
         dlg = BasicAnalysisConfigDlg(parent, 'Scatter Plot', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
