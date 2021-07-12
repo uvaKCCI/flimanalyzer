@@ -43,10 +43,8 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
         mins = [c['criteria']['min'] for c in self.categories]
         maxs = [c['criteria']['max'] for c in self.categories]
         values = [c['value'] for c in self.categories]
-        print (values)
         bins = mins
         bins.append(maxs[-1])
-        print (bins)
         if len(self.selectedfeatures) > 0:
             selectedfeature = list(self.selectedfeatures.keys())[0] 
         else:
@@ -54,7 +52,7 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
 
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.header_field = wx.TextCtrl(self, value=self.header, size=(500,-1))
-        hsizer.Add(wx.StaticText(self, label="Category column header"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        hsizer.Add(wx.StaticText(self, label="Category column"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         hsizer.Add(self.header_field, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
                 
         fsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -94,7 +92,6 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
         params['categories']  = [{'value':values[i],'criteria':{'feature':feature, 'min':float(bins[i]), 'max':float(bins[i+1])}} for i in range(len(values))]
         params['default'] = self.default_field.GetValue()
         params['merge_input'] = self.mergeinput_cb.GetValue()
-        print (params)
         return params
 
 
@@ -150,8 +147,6 @@ class Categorizer(AbstractAnalyzer):
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
-        for k in self.params:
-            print (k, self.params[k])
         dlg = CategorizerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
@@ -174,12 +169,9 @@ class Categorizer(AbstractAnalyzer):
         mins = [c['criteria']['min'] for c in categories]
         maxs = [c['criteria']['max'] for c in categories]
         values = [v['value'] for v in categories]
-        print (values)
         bins = mins
         bins.append(maxs[-1])
-        print (bins)
         feature = categories[0]['criteria']['feature']
-        print (feature)
 
         catcols = self.data.select_dtypes('category').columns.values
 

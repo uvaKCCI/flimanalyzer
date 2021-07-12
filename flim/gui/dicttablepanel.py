@@ -61,7 +61,6 @@ class ListTable(wx.grid.GridTableBase):
     
     
     def GetValueAsBool(self, row, col):
-#        print "GetValueAsBool",row, col
         if col==0:
             return self.data[row][col]
         else:
@@ -69,7 +68,6 @@ class ListTable(wx.grid.GridTableBase):
        
         
     def SetValueAsBool(self, row, col, value):
-#        print "SetValueAsBool",row, col, "value=",value
         if col==0:
             self.data[row][col] = value
 

@@ -281,7 +281,6 @@ class FilterListCtrl(AnalysisListCtrl):
         
 
     def OnFilterUpdated(self, event):
-        print (f"{len(event.GetUpdatedItems())} updated")
         logging.debug (f"{len(event.GetUpdatedItems())} updated")
         for i in event.GetUpdatedItems():
             logging.debug (i)

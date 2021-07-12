@@ -132,9 +132,7 @@ class AbstractAnalyzer(ABC):
         ax_list = figure.axes
         for ax in ax_list:
         	ax.set_picker(True)
-        	#print (ax)
         	for artist in ax.get_children():
-        		#print (artist)
         		artist.set_picker(True)
         		for c in artist.get_children():
         			c.set_picker(True)
@@ -150,7 +148,7 @@ class AbstractAnalyzer(ABC):
         return self.name
 
     def get_default_parameters(self):
-        return {'grouping': [], 'features': []}
+        return {'grouping': [], 'features': [], 'input': {}}
 
     def get_parameters(self):
         return self.params
@@ -168,7 +166,6 @@ class AbstractAnalyzer(ABC):
             kwargs: the new key:value pairs.  
         """
         self.params.update(**kwargs)
-        print (self.params)
         
     @abstractmethod
     def get_required_categories(self):

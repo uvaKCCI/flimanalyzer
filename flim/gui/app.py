@@ -961,9 +961,15 @@ class AppFrame(wx.Frame):
         
     def get_currentdata(self):
         if len(self.window_zorder) == 0:
-           return
-        return self.windowframes[self.window_zorder[-1]].GetViewData()
+           return None,None
+        title = self.window_zorder[-1]
+        dataview = self.windowframes[title].GetViewData()
+        return title, dataview
    
+    def get_alldata(self):
+        if len(self.window_zorder) == 0:
+           return {}
+        return {title:frame.GetViewData() for title,frame in self.windowframes.items() if isinstance(frame, PandasFrame)}    
    
     def OnSetFilters(self, event):
         data = self.get_currentdata()
@@ -974,11 +980,11 @@ class AppFrame(wx.Frame):
         
         
     def OnRunAnalysis(self, event):
-        data = self.get_currentdata()
-        data_choices = {title:frame.GetViewData() for title,frame in self.windowframes.items() if isinstance(frame, PandasFrame)}
+        title,data = self.get_currentdata()
         if data is None:
              wx.MessageBox('No data available')
              return
+        data_choices = self.get_alldata()
         itemid = event.GetId()
         evtobj = event.GetEventObject()
         analyzername = ''
@@ -999,6 +1005,10 @@ class AppFrame(wx.Frame):
         analysis_class = flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
         tool = flim.analysis.absanalyzer.create_instance(analysis_class, data) #, data_choices=data_choices)
         parameters = self.config.get([cfg.CONFIG_ANALYSIS, analyzername])
+        input = parameters.get('input')
+        input = {t:data_choices[title] for t in input if t in data_choices}
+        if len(input) == 0:
+            input = {title:data}
         tool.configure(**parameters)
 
         # run optional tool config dialog and execte analysis

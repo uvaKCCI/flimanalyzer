@@ -41,7 +41,8 @@ class LinePlot(AbstractAnalyzer):
         return ['any']
         
     def get_default_parameters(self):
-        return {
+        params = super().get_default_parameters()
+        params.update({
             'display': ['auto','auto'],
             'grouping': [],
             'features': [],
@@ -53,7 +54,8 @@ class LinePlot(AbstractAnalyzer):
             'hue': '',
             'style': '',
             'col': '',
-        }
+        })
+        return params
                 
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
@@ -70,9 +72,7 @@ class LinePlot(AbstractAnalyzer):
         results = {}
         categories = self.data.select_dtypes('category').columns.values
         categories = [c for c in categories if len(self.data[c].unique()) > 1]
-        #print (f"categories={categories}")
         ticklabels = [', '.join(row) for row in self.data[categories].values]
-        #print (f"ticklabels={ticklabels}")
         fig, ax = plt.subplots()
         
         data = self.data.copy()

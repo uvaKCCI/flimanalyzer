@@ -160,7 +160,8 @@ class AETraining(AbstractAnalyzer):
         return ["any"]
 
     def get_default_parameters(self):
-	    return {
+        params = super().get_default_parameters()
+        params.update({
 	        'epoches': 20, 
 	        'learning_rate': 1e-4, 
 	        'weight_decay': 1e-7, 
@@ -170,7 +171,8 @@ class AETraining(AbstractAnalyzer):
             'grouping': ['FOV','Cell'],
             'features': ['FLIRR','FAD a1'],
             'model': 'Autoencoder 2'
-	    }
+        })
+        return params
 	 
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', self.data, 

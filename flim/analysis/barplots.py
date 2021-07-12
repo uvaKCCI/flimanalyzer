@@ -94,7 +94,8 @@ class BarPlot(AbstractAnalyzer):
         return ['any']
         
     def get_default_parameters(self):
-        return {
+        params = super().get_default_parameters()
+        params.update({
             'display': ['auto','auto'],
             'grouping': [],
             'features': [],
@@ -102,7 +103,8 @@ class BarPlot(AbstractAnalyzer):
             'orientation': 'vertical', # 'horizontal'
             'error bar': '+/-', # '+', 'None'
             'error type': 'std', # 's.e.m'
-        }
+        })
+        return params
                 
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
@@ -137,7 +139,7 @@ class BarPlot(AbstractAnalyzer):
         #plt.rcParams.update({'figure.autolayout': True})
         if data is None or not feature in data.columns.values:
             return None, None
-        fig, ax = plt.subplots(constrained_layout=True)
+        fig, ax = plt.subplots() #constrained_layout=True)
         capsize = 6
         if categories is None:
             categories = []
@@ -187,16 +189,12 @@ class BarPlot(AbstractAnalyzer):
             if self.params['error bar'] == '+':
                 error = error.transpose()
                 dim = error.shape
-                print (error)
                 zeros = np.zeros_like(error)
-                print (error.shape, zeros.shape)
                 C = np.empty((error.shape[0]+zeros.shape[0], error.shape[1]))
                 C[::2,:] = zeros
                 C[1::2,:] = error
                 error = C
                 error = error.reshape([dim[0],2,dim[1]])              
-                print (error)
-                print (error.shape)
             ticklabels = mean.index.values
             bwidth = 0.8# * len(ticklabels)/no_bars 
             fig.set_figheight(1 + no_bars//8)

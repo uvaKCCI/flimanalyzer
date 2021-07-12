@@ -92,7 +92,6 @@ class BoxPlot(AbstractAnalyzer):
         fig = g.fig
            
         #data.set_index(groups, inplace=True)
-        #print (f"index.names={data.index.names}")
         #fig.set_figheight(6)
         #fig.set_figwidth(12)
         #data.boxplot(**newkwargs)

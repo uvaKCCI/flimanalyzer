@@ -23,6 +23,7 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
 
     def __init__(self, parent, title, data, data_choices={}, 
             how='left', left_on=None, right_on=None, left_index=False, right_index=False):
+        self.data_choices = data_choices
         self.how_choices = {'<< merge left':'left', 'merge right >>':'right', 'merge inner':'inner', 'merge outer':'outer'}
         howvalues = list(self.how_choices.values())
         if how in howvalues:
@@ -30,9 +31,7 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
             self.how = list(self.how_choices.keys())[keypos]
         else:   
             self.how = list(self.how_choices.keys())[0]
-        print (f'how={how}, self.how={self.how}')
         dc = list(data_choices.keys())
-        print (dc)
         if left_on not in dc:
         	self.left_on = dc[0]
         else:
@@ -63,8 +62,7 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
         params['how'] = self.how_choices[self.how_combobox.GetValue()]
         params['left_index'] = []
         params['right_index'] = []
-        params['input'] = [self.left_combobox.GetValue(), self.right_combobox.GetValue()]
-        print (params)
+        params['input'] = {self.left_combobox.GetValue(): self.data_choices[self.left_combobox.GetValue()], self.right_combobox.GetValue(): self.data_choices[self.right_combobox.GetValue()]}
         return params
 
 
@@ -88,7 +86,7 @@ class Merger(AbstractAnalyzer):
         return wx.Bitmap(str(source))
         
     def get_required_features(self):
-        return ['any']
+        return []
     
     def get_default_parameters(self):
         params = super().get_default_parameters()
@@ -96,18 +94,19 @@ class Merger(AbstractAnalyzer):
             'how': '',
             'left_index': [],
             'right_index': [],
-            'input': [],
+            'input': {},
         })
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
         input = self.params['input']
-        if isinstance(input,list) and len(input) > 0:
-            left_on = input[0]
+        # left_on and right_on are str representing dataframe window titles
+        if isinstance(input,dict) and len(input) > 0:
+            left_on = list(input.keys())[0]
         else:
             left_on=''
-        if isinstance(input,list) and len(input) > 1:
-            right_on = input[1]
+        if isinstance(input,dict) and len(input) > 1:
+            right_on = list(input.keys())[1]
         else:
             right_on=''
                 
@@ -127,5 +126,20 @@ class Merger(AbstractAnalyzer):
         
     def execute(self):
         results = {}
+        input = self.params['input'] 
+        data = list(input.values())
+        left = data[0]
+        right = data[1]
+        how = self.params['how']
+        left_on = [c for c in list(left.select_dtypes(['category']).columns.values)]
+        right_on = [c for c in list(right.select_dtypes(['category']).columns.values)]
+        left_on = [c for c in left_on if c in right_on]
+        right_on = [c for c in right_on if c in left_on]
+        merged_df = pd.merge(left, right, how=how, left_on=left_on, right_on=right_on)
+        neworder = [c for c in list(merged_df.select_dtypes(['category']).columns.values)]
+        noncategories = [c for c in merged_df.columns.values if c not in neworder]
+        neworder.extend(noncategories)
+        merged_df = merged_df[neworder]
+        results['Merged'] = merged_df
         return results
             
