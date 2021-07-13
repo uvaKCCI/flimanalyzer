@@ -25,6 +25,7 @@ Python package for analysis of Fluoresence Lifetime Imaging Microscopy (FLIM) da
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
 conda env create -f environment.yml
+conda activate flimenv
 python setup.py install
 ```
 

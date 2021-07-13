@@ -58,12 +58,12 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.delta_cb.SetValue(self.delta)
         sizer.Add(self.delta_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.deltamax_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta max")
-        self.deltamax_cb.SetValue(self.deltamax)
+        self.deltamax_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta min")
+        self.deltamax_cb.SetValue(self.deltamin)
         sizer.Add(self.deltamax_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.deltamin_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta max")
-        self.deltamin_cb.SetValue(self.deltamin)
+        self.deltamin_cb.SetValue(self.deltamax)
         sizer.Add(self.deltamin_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.mergeinput_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Merge input")
