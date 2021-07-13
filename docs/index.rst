@@ -14,7 +14,6 @@ Welcome to FLIM Analyzer's documentation!
    userguide/index
    programming/index
    codedocs/index
-   test/*
 
 
 Indices and tables

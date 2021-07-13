@@ -794,7 +794,7 @@ class AppFrame(wx.Frame):
         
         tb.Realize()
 
-        self.SetSize((800, 250))
+        self.SetSize((850, 250))
         self.Centre()
         self.Show(True) 
  

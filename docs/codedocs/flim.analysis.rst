@@ -71,7 +71,7 @@ flim.analysis.lineplots module
 flim.analysis.meanbarplots module
 ---------------------------------
 
-.. automodule:: flim.analysis.meanbarplots
+.. automodule:: flim.analysis.barplots
    :members:
    :undoc-members:
    :show-inheritance:

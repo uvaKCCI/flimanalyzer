@@ -19,6 +19,15 @@ Most analysis tools allow the grouping of data by categorical column values to s
    * - .. image:: /images/analysis/relchange.png 
      - `Relative Change <relchange.html>`_
      - Converts input data to fold-change values relative to mean/median of reference group.
+   * - .. image:: /images/analysis/seriesanalysis.png 
+     - `Series Analysis <seriesanalysis.html>`_
+     - Performs an analysis of a data series spread across multiple table columns. 
+   * - .. image:: /images/analysis/categorize.png 
+     - `Categorize Data <categorize.html>`_
+     - categorizes data based on thresholded value bins in a specified table column. 
+   * - .. image:: /images/analysis/merge.png 
+     - `Merge Data <merge.html>`_
+     - Merges two data tables based on shared category columns. 
    * - .. image:: /images/analysis/barplot.png 
      - `Barplot <barplot.html>`_
      - Creates bar plot based on mean +/- StDev (or S.E.M)<br> of grouped data.
@@ -28,9 +37,15 @@ Most analysis tools allow the grouping of data by categorical column values to s
    * - .. image:: /images/analysis/lineplot.png 
      - `Lineplot <lineplot.html>`_
      - Creates line plot of grouped data. 
+   * - .. image:: /images/analysis/swarmplot.png 
+     - `Swarmplot <swarmplot.html>`_
+     - Creates swarm plot of grouped data. 
+   * - .. image:: /images/analysis/violinplot.png 
+     - `Violinplot <violinplot.html>`_
+     - Creates violin plot of grouped data. 
    * - .. image:: /images/analysis/scatter.png 
      - `Scatter Plot <scatter.html>`_
-     - Creates scatter plot for pairs of selected features in grouped<br> data. 
+     - Creates scatter plot for pairs of selected features in grouped data. 
    * - .. image:: /images/analysis/histogram.png 
      - `Frequency Histogram <histogram.html>`_
      - Creates frequency histogram of grouped data. 
@@ -39,13 +54,13 @@ Most analysis tools allow the grouping of data by categorical column values to s
      - Creates kernel density estimate (kde) plot of grouped data.
    * - .. image:: /images/analysis/heatmap.png 
      - `Heatmap <heatmap.html>`_
-     - Creates heatmap for matrix of data features based on <br>mean of grouped data. 
+     - Creates heatmap for matrix of data features based on mean of grouped data. 
    * - .. image:: /images/analysis/randomforest.png 
      - `Random Forest <randomforest.html>`_
-     - Performs a random forest classification analysis for grouped<br> data. 
+     - Performs a random forest classification analysis for grouped data. 
    * - .. image:: /images/analysis/pca.png 
-     - `Principal Component Analysis </pca.html>`_
-     - Performs a principal component analysis for grouped<br> data. 
+     - `Principal Component Analysis <pca.html>`_
+     - Performs a principal component analysis for grouped data. 
    * - .. image:: /images/analysis/aetrain.png 
      - `Autoencoder Training <aetrain.html>`_
      - Trains an autoencoder model on selected data features. 
@@ -60,9 +75,14 @@ Most analysis tools allow the grouping of data by categorical column values to s
     
     summarystats
     relchange
+    seriesanalysis
+    categorize
+    merge
     barplot
     boxplot
     lineplot
+    swarmplot
+    violinplot
     scatter
     histogram
     kde
