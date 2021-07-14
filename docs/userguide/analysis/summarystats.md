@@ -8,7 +8,7 @@ The `Summary Table` tool calculates counts, min, max, mean, median (50th percent
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selectd table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
     ![](/images/data/dataframe.png)
 
 2. Start the Summary Table tool by clicking on the icon in the toolbar or via the `Analysis` > `Summary Table` menu.

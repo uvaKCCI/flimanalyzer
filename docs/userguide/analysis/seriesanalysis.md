@@ -17,18 +17,15 @@ The `Series Analysis` tool performs an analysis of a data series spread across m
 
 3. In the `Configuration: Series Analysis` dialog, select the analysis parameters to calculate and select the data columns to be considered for the series analysis.
 
-    * **Series min:** calculate minimal value row of selected data feature columns.
-    * **Series max:** calculate maximal value row of selected data feature columns.
-    * **Series max-min:** calculate difference of `Series max` and `Series min`.
-    * **Series mean:** calculate mean value row of selected data feature columns.
-    * **Series median:** calculate median value row of selected data feature columns.
-    * **Step delta:** calculate difference between selected neighboring data feature columns (step-by-step). 
-    * **Step delta min:** calculate minimal value of all delta step values.
-    * **Step delta max:** calculate maximal value of all delta step values.
-    * **Merge input:** copy selected series columns from input table into analysis table.
-
-
-    In the example, we select all treatments for the `rel FAD a[%]` data.  
+    * **Series min:** Calculate minimal value row of selected data feature columns.
+    * **Series max:** Calculate maximal value row of selected data feature columns.
+    * **Series max-min:** Calculate difference of `Series max` and `Series min`.
+    * **Series mean:** Calculate mean value row of selected data feature columns.
+    * **Series median:** Calculate median value row of selected data feature columns.
+    * **Step delta:** Calculate difference between selected neighboring data feature columns (step-by-step). 
+    * **Step delta min:** Calculate minimal value of all delta step values.
+    * **Step delta max:** Calculate maximal value of all delta step values.
+    * **Merge input:** Copy selected series columns from input table into analysis table.
 
     ![](/images/analysis/seriesanalysis-config.png)
 

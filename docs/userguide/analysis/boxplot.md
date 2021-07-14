@@ -8,7 +8,7 @@ The `Box Plot` tool creates box plots based on mean +/- StDev (or S.E.M) of grou
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selectd table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
     ![](/images/data/dataframe.png)
 
 2. Start the Bar Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `Box Plot` menu.
