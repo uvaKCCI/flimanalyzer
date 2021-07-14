@@ -133,9 +133,8 @@ class Merger(AbstractAnalyzer):
         how = self.params['how']
         left_on = [c for c in list(left.select_dtypes(['category']).columns.values)]
         right_on = [c for c in list(right.select_dtypes(['category']).columns.values)]
-        left_on = [c for c in left_on if c in right_on]
-        right_on = [c for c in right_on if c in left_on]
-        merged_df = pd.merge(left, right, how=how, left_on=left_on, right_on=right_on)
+        on = list(set(left_on).intersection(set(right_on)))
+        merged_df = pd.merge(left, right, how=how, on=on)
         neworder = [c for c in list(merged_df.select_dtypes(['category']).columns.values)]
         noncategories = [c for c in merged_df.columns.values if c not in neworder]
         neworder.extend(noncategories)
