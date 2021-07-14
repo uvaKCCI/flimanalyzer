@@ -76,7 +76,7 @@ class dataimporter():
         return self.excluded_files
         
     
-    def add_files(self, files, extensions=['.txt'], exclude=None, sort=True):
+    def add_files(self, files, extensions=['.txt','.csv'], exclude=None, sort=True):
         if files is None:
             return None,0
         if exclude is None:
@@ -119,7 +119,7 @@ class dataimporter():
     def get_reserved_categorycols(self, parser=None):
         if parser is None:
             parser = self.parser
-        rcatnames = ['Cell line', 'Category', 'FOV', 'Well', 'Cell', 'Treatment', 'Time', 'Compartment']    
+        rcatnames = ['Cell line', 'Category', 'FOV', 'Well', 'Cell', 'Treatment', 'Time', 'Compartment', 'New Cat', 'Origin']    
         rcatnames.extend([entry[cfg.CONFIG_PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
         return sorted(set(rcatnames))
     

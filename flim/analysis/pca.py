@@ -167,7 +167,7 @@ class PCAnalysis(AbstractAnalyzer):
         standard_data = scaler.transform(data_no_class)
         standard_data
         
-        pca_params = {k: self.params[k] for k in self.params if k not in ['keeporig', 'keepstd', 'explainedhisto', 'features', 'grouping']}
+        pca_params = {k: self.params[k] for k in self.params if k in ['n_components']}
         pca = PCA(**pca_params)
         principalComponents = pca.fit_transform(standard_data)
         

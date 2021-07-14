@@ -236,13 +236,14 @@ class ImportDlg(wx.Dialog):
 
 
     def OnAddFiles(self, event):
-        with wx.FileDialog(self, "Add Raw Data Results", wildcard="txt files (*.txt)|*.txt",
+        with wx.FileDialog(self, "Add Raw Data Results", wildcard="txt files (*.txt)|*.txt|csv files (*.csv)|*.csv",
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE | wx.FD_CHANGE_DIR) as fileDialog:
 
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             # Proceed loading the file chosen by the user
             paths = fileDialog.GetPaths()
+            print (paths)
             excluded = []
             if self.excludefiles:
                 exclude_list = self.exclude_files_list.GetValue() #.encode('ascii','ignore')
