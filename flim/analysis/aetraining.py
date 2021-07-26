@@ -262,10 +262,10 @@ class AETraining(AbstractAnalyzer):
         train_dataset = datasets(training_frame)
         val_dataset = datasets(val_frame)
         self.train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                                        batch_size=self.bs,
+                                                        batch_size=self.params['batch_size'],
                                                         shuffle=True)
         self.val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
-                                                    batch_size=self.bs,
+                                                    batch_size=self.params['batch_size'],
                                                     shuffle=True)
         return self.train_loader
 
@@ -275,9 +275,9 @@ class AETraining(AbstractAnalyzer):
         aeclasses = autoencoder.get_autoencoder_classes()
         ae = autoencoder.create_instance(aeclasses[self.params['model']], nb_param=self.param)
         #ae = AE(self.param)
-        ae = ae.cuda()
-        criterion = nn.MSELoss().cuda()
-        optimizer = optim.RMSprop(ae.parameters(), self.lr, self.wd)
+        ae = ae#.cuda()
+        criterion = nn.MSELoss()#.cuda()
+        optimizer = optim.RMSprop(ae.parameters(), self.params['learning_rate'], self.params['weight_decay'])
 
         loss_train = []
         loss_val = []
@@ -286,11 +286,11 @@ class AETraining(AbstractAnalyzer):
                             format="%(asctime)s - %(levelname)s - %(message)s", filemode='w')
 
         # Train the autoencoder
-        for epoch in range(1, self.epoches + 1):
+        for epoch in range(1, self.params['epoches'] + 1):
             cum_loss = 0
 
             for (i, inputs) in enumerate(self.train_loader):
-                inputs = inputs.cuda()
+                inputs = inputs#.cuda()
                 encoder_out, decoder_out = ae(inputs)
 
                 loss = criterion(decoder_out, inputs)
@@ -308,7 +308,7 @@ class AETraining(AbstractAnalyzer):
             cum_loss = 0
 
             for (i, inputs) in enumerate(self.val_loader):
-                inputs = inputs.cuda()
+                inputs = inputs#.cuda()
                 encoder_out, decoder_out = ae(inputs)
 
                 loss = criterion(decoder_out, inputs)
