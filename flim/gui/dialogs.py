@@ -8,6 +8,7 @@ Created on Tue Jun 12 13:35:51 2018
 
 import logging
 import itertools
+import re
 from collections import OrderedDict
 import wx.grid
 from wx.lib.masked import NumCtrl
@@ -217,6 +218,7 @@ class SelectGroupsDlg(wx.Dialog):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         # 5 col gridsizer
         mainsizer = wx.BoxSizer(wx.HORIZONTAL)
+
         cbsizer = wx.GridSizer(5, 0, 0)
         if groups is None:
             groups = []
@@ -431,3 +433,43 @@ class ConfigureAxisDlg(wx.Dialog):
         self.settings['min'] = self.mininput.GetValue()
         self.settings['max'] = self.maxinput.GetValue()
         self.EndModal(wx.ID_OK)
+
+class RenameGroupsDlg(wx.Dialog):
+    def __init__(self, parent, title):
+        wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size=(450,120))
+        mainsizer = wx.BoxSizer(wx.VERTICAL)
+
+        patternsizer = wx.BoxSizer(wx.HORIZONTAL)
+        patternlabel = wx.StaticText(self, label="Pattern match")
+        patternsizer.Add(patternlabel, 0, wx.ALL|wx.EXPAND, 5)
+        self.patterntxt = wx.TextCtrl(self, value='\s?[1-9a-zA-Z]{0}0+')
+        patternsizer.Add(self.patterntxt, 0, wx.ALL|wx.EXPAND, 5)
+        replacelabel = wx.StaticText(self, label="Replacement")
+        patternsizer.Add(replacelabel, 0, wx.ALL|wx.EXPAND, 5)
+        self.replacetxt = wx.TextCtrl(self, value='')
+        patternsizer.Add(self.replacetxt, 0, wx.ALL|wx.EXPAND, 5)
+        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.okButton = wx.Button(self, label="OK", pos=(110,160))
+        buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
+        self.closeButton =wx.Button(self, label="Cancel", pos=(210,160))
+        buttonsizer.Add(self.closeButton, 0, wx.ALL, 10)
+        self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
+        self.closeButton.Bind(wx.EVT_BUTTON, self.OnQuit)
+        self.Bind(wx.EVT_CLOSE, self.OnQuit)
+
+        self.SetSizer(mainsizer)
+        mainsizer.Add(patternsizer, 0, wx.ALIGN_CENTER, 10)
+        mainsizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 10)
+        
+        self.Show()
+
+    def OnOK(self, event):
+        try:
+            re.compile(self.patterntxt.GetLineText(0))
+        except re.error:
+            wx.MessageDialog(self,'Invalid regex pattern')
+        else:    
+            self.EndModal(wx.ID_OK)
+
+    def OnQuit(self, event):
+        self.EndModal(wx.ID_CANCEL)

@@ -6,4 +6,5 @@ _build
 dist
 .vscode
 *.egg-info
+9SR-HeLa-master.txt
 .DS_Store

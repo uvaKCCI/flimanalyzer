@@ -2,6 +2,7 @@ import logging
 import pandas as pd
 import numpy as np
 import os
+import re
 import collections
 
 import wx
@@ -15,7 +16,7 @@ from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import AnalysisListCtrl, FilterListCtrl
 from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent, FOCUSED_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, DATA_UPDATED
 import flim.gui.dialogs
-from flim.gui.dialogs import SelectGroupsDlg,ConfigureFiltersDlg
+from flim.gui.dialogs import SelectGroupsDlg,ConfigureFiltersDlg, RenameGroupsDlg
 
 EVEN_ROW_COLOUR = '#CCE6FF'
 GRID_LINE_COLOUR = '#ccc'
@@ -239,6 +240,8 @@ class PandasFrame(wx.Frame):
         self.grid.SetColLabelSize(wx.grid.GRID_AUTOSIZE)
         self.grid.EnableDragColSize(True)
         self.grid.Bind(wx.grid.EVT_GRID_LABEL_RIGHT_CLICK, self.OnLabelClick)
+
+        self.grid.Bind(wx.grid.EVT_GRID_LABEL_LEFT_DCLICK, self.OnLabelDClick)
         
         precisionspinner = wx.SpinCtrl(self, wx.ID_ANY, value=str(self.precision), min=1, max=10, style=wx.TE_PROCESS_ENTER, size=(50, -1))
         precisionspinner.Bind(wx.EVT_SPINCTRL, self.OnPrecisionChange)
@@ -457,8 +460,22 @@ class PandasFrame(wx.Frame):
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         menu.InsertSeparator(2)
         return menu
-
     
+    def OnLabelDClick(self, event):
+        group = self.grid.GetColLabelValue(event.GetCol())
+        if event.GetRow() == -1 and group in self.groups:
+            dlg = RenameGroupsDlg(self, title="%s: Pattern Rename" % group)
+            if dlg.ShowModal() == wx.ID_CANCEL:
+                dlg.Destroy()
+                return
+            pattern = dlg.patterntxt.GetLineText(0)
+            replacement = dlg.replacetxt.GetLineText(0)
+            
+            self.dataview[group] = self.dataview[group].apply(
+                lambda x: re.sub(pattern, replacement, str(x)))
+            self.modified = True
+            self.update_view()
+
     def OnLabelClick(self, event):
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
