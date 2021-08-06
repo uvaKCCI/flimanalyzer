@@ -471,8 +471,9 @@ class PandasFrame(wx.Frame):
             pattern = dlg.patterntxt.GetLineText(0)
             replacement = dlg.replacetxt.GetLineText(0)
             
-            self.dataview[group] = self.dataview[group].apply(
+            self.data[group] = self.data[group].apply(
                 lambda x: re.sub(pattern, replacement, str(x)))
+            print(type(self.data[group].iat[0]))
             self.modified = True
             self.update_view()
 
