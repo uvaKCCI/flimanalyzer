@@ -304,17 +304,17 @@ class ConfigureFiltersDlg(wx.Dialog):
             self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
             filtersizer.Add(self.filtercb, 0, wx.ALL, 5)        
 
-        self.filterlist = FilterListCtrl(self.panel, showdropped=False, fireevents=False, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
+        self.filterlist = FilterListCtrl(self.panel, showdropped=True, fireevents=False, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
         self.filterlist.InsertColumn(0, "Use")
         self.filterlist.InsertColumn(1, "Column")
         self.filterlist.InsertColumn(2, "Min", wx.LIST_FORMAT_RIGHT)
         self.filterlist.InsertColumn(3, "Max", wx.LIST_FORMAT_RIGHT)
-        self.filterlist.SetEditable([False, False, True, True])
-        #self.filterlist.InsertColumn(4, "Dropped", wx.LIST_FORMAT_RIGHT)
-        #self.filterlist.SetEditable([False, False, True, True, False])
+        #self.filterlist.SetEditable([False, False, True, True])
+        self.filterlist.InsertColumn(4, "Dropped", wx.LIST_FORMAT_RIGHT)
+        self.filterlist.SetEditable([False, False, True, True, False])
         self.filterlist.Arrange()
         currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in cfgdata}        
-        self.filterlist.SetData(currentfilters, headers=['Use', 'Column', 'Min', 'Max'])
+        self.filterlist.SetData(currentfilters, dropped=self.GetParent().droppedrows, headers=['Use', 'Column', 'Min', 'Max'])
         filtersizer.Add(self.filterlist, 1, wx.ALL|wx.EXPAND, 5)
         
         loadbutton = wx.Button(self.panel, label="Load")

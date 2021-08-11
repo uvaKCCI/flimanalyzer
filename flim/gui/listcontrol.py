@@ -286,10 +286,8 @@ class FilterListCtrl(AnalysisListCtrl):
             logging.debug (i)
         event.Skip()
 
-
     def GetDroppedRows(self, rowkey):
         return self.dropped.get(rowkey)
-
 
     def SetDroppedRows(self, droppedrows):
         if droppedrows is None:

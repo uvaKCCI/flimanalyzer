@@ -298,7 +298,7 @@ class PandasFrame(wx.Frame):
 
         self.SetSizer(sizer)
         
-        self.apply_filters({f['name']:f for f in self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS])})
+        #self.apply_filters({f['name']:f for f in self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS])})
 
                 
         
