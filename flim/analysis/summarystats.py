@@ -63,9 +63,11 @@ class SummaryStats(AbstractAnalyzer):
     
     agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'sem':'sem', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75), 'sum':'sum'}
     
-    def __init__(self, data, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)', 'sum'], singledf=True, flattenindex=True, **kwargs):
-        AbstractAnalyzer.__init__(self, data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
+    def __init__(self, *args, **kwargs):# , data, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)', 'sum'], singledf=True, flattenindex=True, **kwargs):
+        AbstractAnalyzer.__init__(self, *args, **kwargs) #aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
         self.name = "Summary Table"
+        self.params = self.get_default_parameters()
+        #self.params.update({'aggs':aggs, 'singledf':singledf, 'flattenindex':flattenindex})
     
     def __repr__(self):
         return f"{'name': {self.name}}"

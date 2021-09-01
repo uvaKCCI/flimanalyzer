@@ -7,6 +7,7 @@ Created on Wed Dec 16 14:35:56 2020
 """
 
 from abc import ABC, abstractmethod
+from prefect import Task
 import logging
 import inspect
 import os
@@ -81,20 +82,21 @@ def create_instance(clazz, data):
     return toolinstance        
 
 
-class AbstractAnalyzer(ABC):
+class AbstractAnalyzer(Task):
     """Abstract class used to template analysis classes."""
 
-    def __init__(self, data, **kwargs):
+    def __init__(self, *args, **kwargs):
         """Initializes AbstractAnalyzer class with data and configuration parameters
         
         Args:
             data (pandas.DatFrame): DataFrame to be analyzed.
             kwargs: configuration parameters
         """
+        super().__init__(*args, **kwargs)
         self.name = __name__
-        self.data = data
+        #self.data = data
         self.params = self.get_default_parameters()
-        self.params.update({**kwargs})
+        #self.params.update({**kwargs})
         
         
     def get_icon(self):
@@ -155,7 +157,10 @@ class AbstractAnalyzer(ABC):
 
     def get_config_name(self):
         return ''.join(e for e in self.name if e.isalnum())
-        
+    
+    def get_required_inputs(self):
+        return [pd.DataFrame] 
+           
     def configure(self, **kwargs):
         """Updates the configuration with the passed arguments.
         
@@ -178,6 +183,16 @@ class AbstractAnalyzer(ABC):
         """
         return []
     
+    def get_required_input(self):
+        """Returns the input types that are required in the data to be analyzed. 
+        
+        Category columns use 'category' as dtype in Pandas dataframe.
+        
+        Returns:
+            list(str): List of column names.
+        """
+        return [pd.DataFrame]
+
     @abstractmethod
     def get_required_features(self):
         """Returns the non-category column names that are required in the data to be analyzed. 
@@ -208,6 +223,29 @@ class AbstractAnalyzer(ABC):
                  Keys represent window titles, values represent the DataFrame or Fugure 
                  objects.
         """
-        return {}   
+        return {}  
+    
+    def run(self, data=[], input_select=None, **kwargs):
+        if isinstance(data,dict):
+            print (f'data keys={data.keys()}')
+            if input_select is None or isinstance(input_select[0], int):
+                data = list(data.values())
+            else:
+                # convert to list of data
+                data = [data[k] for k in input_select]
+                # convert to list of int
+                input_select = range(len(input_select))
+        if isinstance(data,list):
+            if input_select is None:
+            	self.data = data 
+            elif len(input_select) == 1 and max(input_select) < len(data):
+                self.data = data[input_select[0]]
+            else:
+                self.data = [data[i] for i in input_select if i < len(data)]
+        else:
+            self.data = data
+        print (self.data)
+        self.configure(**kwargs)
+        return self.execute() 
 
 

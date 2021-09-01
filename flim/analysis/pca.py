@@ -81,8 +81,8 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 
 class PCAnalysis(AbstractAnalyzer):
     
-    def __init__(self, data, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
-        AbstractAnalyzer.__init__(self, data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
+    def __init__(self, *args, **kwargs): #, data, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
+        AbstractAnalyzer.__init__(self, *args, **kwargs) #data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
         self.name = "Principal Component Analysis"
     
     def __repr__(self):

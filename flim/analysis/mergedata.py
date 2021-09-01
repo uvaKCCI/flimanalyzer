@@ -88,6 +88,16 @@ class Merger(AbstractAnalyzer):
     def get_required_features(self):
         return []
     
+    def get_required_input(self):
+        """Returns the input types that are required in the data to be analyzed. 
+        
+        Category columns use 'category' as dtype in Pandas dataframe.
+        
+        Returns:
+            list(str): List of column names.
+        """
+        return [pd.DataFrame, pd.DataFrame]
+
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update({
