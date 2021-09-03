@@ -473,6 +473,7 @@ class PandasFrame(wx.Frame):
             
             self.data[group] = self.data[group].apply(
                 lambda x: re.sub(pattern, replacement, str(x)))
+            self.data[group] = self.data[group].astype('category')
             self.modified = True
             self.update_view()
 

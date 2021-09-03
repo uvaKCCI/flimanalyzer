@@ -7,3 +7,4 @@ dist
 .vscode
 *.egg-info
 .DS_Store
+dask-worker-space
