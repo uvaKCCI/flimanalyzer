@@ -213,8 +213,9 @@ class AnalysisListCtrl(wx.ListCtrl, listmix.CheckListCtrlMixin, listmix.ListCtrl
         
 class FilterListCtrl(AnalysisListCtrl):
     
-    def __init__(self, *args, showdropped=True, fireevents=True, **kwargs):
+    def __init__(self, *args, dataframe=None, showdropped=True, fireevents=True, **kwargs):
         AnalysisListCtrl.__init__(self, *args, **kwargs)
+        self.dataframe = dataframe
         self.showdropped = showdropped
         self.dropped = {}
         self.fireevents = fireevents
@@ -230,11 +231,12 @@ class FilterListCtrl(AnalysisListCtrl):
             pub.sendMessage(FILTERS_UPDATED, updateditems=items)
 
         
-    def SetData(self, data, dropped={}, headers=[], types=[]):
+    def SetData(self, data, dataframe=None, dropped={}, headers=[], types=[]):
         if data is None:
             self.data = {}
         else:
             self.data = data
+        self.dataframe = dataframe
         if headers  is None:
             headers = []
         if types is None:
@@ -371,6 +373,7 @@ class FilterListCtrl(AnalysisListCtrl):
         idx = event.GetIndex()
         col = event.GetColumn()
         rowkey = self.GetItem(idx,self.get_key_col()).GetText()
+        filter = self.data[rowkey]
         newvalue = event.GetItem().GetText()
         logging.debug ("FilterListCtrl.EndLabelEdit")
         logging.debug ("\t%s" % str(self.data[rowkey].get_params()))
@@ -384,8 +387,12 @@ class FilterListCtrl(AnalysisListCtrl):
                 logging.debug ("\tnothing to update")
                 return
             self.data[rowkey].set_rangehigh(float(newvalue))
+        if filter.is_selected():
+            self.dropped[rowkey] = filter.get_dropped(self.dataframe)
+        elif self.dropped.get(rowkey) is not None:
+            del self.dropped[rowkey]
         logging.debug ("\t%s" % str(self.data[rowkey].get_params()))
-        
+        self.UpdateDroppedRows(self.dropped)
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey:self.data[rowkey]})
             # wx.PostEvent(self.pwindow, FilterUpdatedEvent(data=self.data[rowkey]))
@@ -394,7 +401,15 @@ class FilterListCtrl(AnalysisListCtrl):
     def OnCheckItem(self, index, flag):
         logging.debug ('OnCheckItem')
         rowkey = self.GetItem(index, self.get_key_col()).GetText()
-        self.data[rowkey].select(flag)
+        filter = self.data[rowkey]
+        filter.select(flag)
+        if filter.is_selected():
+            self.dropped[rowkey] = filter.get_dropped(self.dataframe)
+        elif self.dropped.get(rowkey) is not None:
+            del self.dropped[rowkey]
+        logging.debug ("\t%s" % str(self.data[rowkey].get_params()))
+        self.UpdateDroppedRows(self.dropped)
+
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey:self.data[rowkey]})
         

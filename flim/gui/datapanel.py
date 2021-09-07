@@ -379,7 +379,7 @@ class PandasFrame(wx.Frame):
         config[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
         config[CONFIG_RANGEFILTERS] = rangefilters
               
-        dlg = ConfigureFiltersDlg(self, config)
+        dlg = ConfigureFiltersDlg(self, config, self.data)
         response = dlg.ShowModal()
         if (response == wx.ID_OK):
             config = dlg.GetData()
@@ -432,15 +432,22 @@ class PandasFrame(wx.Frame):
         droppedrows = [self.droppedrows[key] for key in self.droppedrows if len(self.droppedrows[key])>0]
         #droppedrows = [self.droppedrows[key] for key in self.droppedrows]
         if len(droppedrows) == 0:
-    	    self.dataview = self.data
+            self.data['Filter'] = pd.Series(['keep' for row in range(len(self.data))], dtype='category')
+            self.dataview = self.data
         else:
             droppedrows = np.concatenate(droppedrows)
             if len(droppedrows) == 0:
-    	        self.dataview = self.data
+                self.data['Filter'] = pd.Series(['keep' for row in range(len(self.data))], dtype='category')
+                self.dataview = self.data
             else:	     
                 droppedrows = np.unique(droppedrows)
-                self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
+                self.data['Filter'] = pd.Series(['discard' if row in droppedrows else 'keep' for row in range(len(self.data))], dtype='category')
+                #self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
+                self.dataview = self.data
+        self.groups = self.data.select_dtypes(['category']).columns.get_level_values(0).values
+
         colsizes = self.grid.GetColSizes()
+        #self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
         self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
         self.update_precision(self.precision)
         self.grid.SetColSizes(colsizes)

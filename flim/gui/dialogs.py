@@ -14,7 +14,7 @@ import wx.grid
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
 import flim.core.configuration as cfg
-from flim.gui.listcontrol import FilterListCtrl
+from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
 from flim.gui.dicttablepanel import ListTable
 
 def check_data_msg(data):
@@ -290,21 +290,25 @@ class SelectGroupsDlg(wx.Dialog):
 
 class ConfigureFiltersDlg(wx.Dialog):
 
-    def __init__(self, parent, config=None, showusefilter=True):
+    def __init__(self, parent, config=None, dataframe=None, showusefilter=True):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, "Filter Settings", size= (650,400))
         
+        self.dataframe = dataframe
         self.showusefilter = showusefilter
         cfgdata = config.get(cfg.CONFIG_RANGEFILTERS)
         self.panel = wx.Panel(self,wx.ID_ANY)
-        filtersizer = wx.BoxSizer(wx.VERTICAL)
+        filtersizer = wx.BoxSizer(wx.HORIZONTAL)
         
         if self.showusefilter:
             self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="Use Filters")
             self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
             self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
             filtersizer.Add(self.filtercb, 0, wx.ALL, 5)        
-
-        self.filterlist = FilterListCtrl(self.panel, showdropped=True, fireevents=False, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
+        filtersizer.Add(wx.StaticText(self.panel, label="Total dropped"), 0, wx.ALL, 5)
+        self.total_dropped_label = wx.StaticText(self.panel, label="???")
+        filtersizer.Add(self.total_dropped_label, 0, wx.ALL, 5)
+        
+        self.filterlist = FilterListCtrl(self.panel, dataframe=self.dataframe, showdropped=True, fireevents=True, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
         self.filterlist.InsertColumn(0, "Use")
         self.filterlist.InsertColumn(1, "Column")
         self.filterlist.InsertColumn(2, "Min", wx.LIST_FORMAT_RIGHT)
@@ -314,7 +318,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.filterlist.SetEditable([False, False, True, True, False])
         self.filterlist.Arrange()
         currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in cfgdata}        
-        self.filterlist.SetData(currentfilters, dropped=self.GetParent().droppedrows, headers=['Use', 'Column', 'Min', 'Max'])
+        self.filterlist.SetData(currentfilters, dataframe=self.dataframe, dropped=self.GetParent().droppedrows, headers=['Use', 'Column', 'Min', 'Max'])
         filtersizer.Add(self.filterlist, 1, wx.ALL|wx.EXPAND, 5)
         
         loadbutton = wx.Button(self.panel, label="Load")
@@ -335,10 +339,15 @@ class ConfigureFiltersDlg(wx.Dialog):
         sizer.Add(filtersizer, 1, wx.ALL|wx.EXPAND, 5)
         sizer.Add(wx.StaticLine(self.panel,style=wx.LI_VERTICAL), 0, wx.ALL|wx.EXPAND, 5)
         sizer.Add(buttonsizer)
-        
         self.panel.SetSizer(sizer)
+        
+        pub.ubscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
         self.Show()
 
+    def OnFiltersUpdated(self, items,totaldropped):
+        print (items)
+        print (totaldropped)
+        
     def GetData(self):
         return self.config
     
