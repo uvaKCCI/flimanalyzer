@@ -11,6 +11,7 @@ import itertools
 import re
 from collections import OrderedDict
 import wx.grid
+from pubsub import pub
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
 import flim.core.configuration as cfg
@@ -292,11 +293,11 @@ class ConfigureFiltersDlg(wx.Dialog):
 
     def __init__(self, parent, config=None, dataframe=None, showusefilter=True):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, "Filter Settings", size= (650,400))
-        
         self.dataframe = dataframe
         self.showusefilter = showusefilter
         cfgdata = config.get(cfg.CONFIG_RANGEFILTERS)
         self.panel = wx.Panel(self,wx.ID_ANY)
+        dlgsizer = wx.BoxSizer(wx.VERTICAL)
         filtersizer = wx.BoxSizer(wx.HORIZONTAL)
         
         if self.showusefilter:
@@ -319,7 +320,8 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.filterlist.Arrange()
         currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in cfgdata}        
         self.filterlist.SetData(currentfilters, dataframe=self.dataframe, dropped=self.GetParent().droppedrows, headers=['Use', 'Column', 'Min', 'Max'])
-        filtersizer.Add(self.filterlist, 1, wx.ALL|wx.EXPAND, 5)
+        dlgsizer.Add(filtersizer)
+        dlgsizer.Add(self.filterlist, 1, wx.ALL|wx.EXPAND, 5)
         
         loadbutton = wx.Button(self.panel, label="Load")
         loadbutton.Bind(wx.EVT_BUTTON, self.OnLoad)
@@ -336,17 +338,19 @@ class ConfigureFiltersDlg(wx.Dialog):
         buttonsizer.Add(cancelbutton, 0, wx.ALL|wx.EXPAND, 5)
         
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sizer.Add(filtersizer, 1, wx.ALL|wx.EXPAND, 5)
+        sizer.Add(dlgsizer, 1, wx.ALL|wx.EXPAND, 5)
         sizer.Add(wx.StaticLine(self.panel,style=wx.LI_VERTICAL), 0, wx.ALL|wx.EXPAND, 5)
         sizer.Add(buttonsizer)
         self.panel.SetSizer(sizer)
         
-        pub.ubscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
+        pub.subscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
         self.Show()
 
-    def OnFiltersUpdated(self, items,totaldropped):
-        print (items)
-        print (totaldropped)
+    def OnFiltersUpdated(self, updateditems):
+        print (updateditems)
+        #totaldropped param was causing problems with pubsub
+        #due to multiple signatures for FILTERS_UPDATED event
+        #print (totaldropped)
         
     def GetData(self):
         return self.config

@@ -431,6 +431,7 @@ class PandasFrame(wx.Frame):
     def update_view(self):
         droppedrows = [self.droppedrows[key] for key in self.droppedrows if len(self.droppedrows[key])>0]
         #droppedrows = [self.droppedrows[key] for key in self.droppedrows]
+        #TODO move Filter category together with other categories
         if len(droppedrows) == 0:
             self.data['Filter'] = pd.Series(['keep' for row in range(len(self.data))], dtype='category')
             self.dataview = self.data
@@ -496,12 +497,14 @@ class PandasFrame(wx.Frame):
                 return
             selitems = dlg.get_selected()
             notselected = [i for i in items if i not in selitems]
+            print(notselected)
             dlg.Destroy()
             for value in selitems:
                 if self.droppedrows.get((group,value)) is not None:
                     del self.droppedrows[(group,value)]
             for value in notselected:        
                 self.droppedrows[(group,value)] = np.flatnonzero(self.data[group] == value)
+            print(self.droppedrows)
             # ****
             # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
             self.modified = True
