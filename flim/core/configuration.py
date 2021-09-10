@@ -34,6 +34,7 @@ CONFIG_EXCLUDE_FILES = 'exclude files'
 CONFIG_DROP_COLUMNS = 'drop'
 CONFIG_CALC_COLUMNS = 'calculate'
 CONFIG_FILTERS = 'filters'
+CONFIG_SHOW_DROPPED = 'show dropped'
 CONFIG_RANGEFILTERS = 'range filters'
 CONFIG_SERIESFILTERS = 'series filters'
 CONFIG_DATA_DISPLAY = 'display'
@@ -187,7 +188,7 @@ class Config():
                 self.parameters = json.load(fp) #, object_hook=self._to_utf)
                 self.modified = False
                 self.filename = configfile
-                return True
+            return True
         except:
             if defaultonfail:
                 self.create_default()
@@ -311,6 +312,7 @@ class Config():
           
             CONFIG_FILTERS: {
                 CONFIG_USE: False,
+                CONFIG_SHOW_DROPPED: True,
                 CONFIG_RANGEFILTERS:[
                         RangeFilter('trp t1',0,2500).get_params(),
                         RangeFilter('trp t2',0,8000).get_params(),

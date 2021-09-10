@@ -16,6 +16,7 @@ from flim.core.filter import RangeFilter
 import flim.core.configuration as cfg
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
 from flim.gui.dicttablepanel import ListTable
+from pubsub import pub
 
 def check_data_msg(data):
     ok = data is not None and len(data) > 0
@@ -290,35 +291,42 @@ class SelectGroupsDlg(wx.Dialog):
 
 class ConfigureFiltersDlg(wx.Dialog):
 
-    def __init__(self, parent, config=None, dataframe=None, showusefilter=True):
+    def __init__(self, parent, config=None, dataframe=None, dropped={}, showusefilter=True):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, "Filter Settings", size= (650,400))
         
         self.dataframe = dataframe
+        self.dropped = dropped
         self.showusefilter = showusefilter
         cfgdata = config.get(cfg.CONFIG_RANGEFILTERS)
         self.panel = wx.Panel(self,wx.ID_ANY)
-        filtersizer = wx.BoxSizer(wx.HORIZONTAL)
+        cbsizer = wx.BoxSizer(wx.HORIZONTAL)
+        filtersizer = wx.BoxSizer(wx.VERTICAL)
         
         if self.showusefilter:
             self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="Use Filters")
             self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
             self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
-            filtersizer.Add(self.filtercb, 0, wx.ALL, 5)        
-        filtersizer.Add(wx.StaticText(self.panel, label="Total dropped"), 0, wx.ALL, 5)
-        self.total_dropped_label = wx.StaticText(self.panel, label="???")
-        filtersizer.Add(self.total_dropped_label, 0, wx.ALL, 5)
+            cbsizer.Add(self.filtercb, 0, wx.ALL|wx.EXPAND, 5)        
+            self.showdropcb = wx.CheckBox(self.panel, wx.ID_ANY, label="Show Dropped")
+            self.showdropcb.SetValue(config.get(cfg.CONFIG_SHOW_DROPPED))
+            cbsizer.Add(self.showdropcb, 0, wx.ALL|wx.EXPAND, 5)        
+            filtersizer.Add(cbsizer, 0, wx.ALL|wx.EXPAND, 5)
+        self.dropped_label = wx.StaticText(self.panel, label=f'Dropped from view: ??? (of {len(self.dataframe):,})')
+        self.remaining_label = wx.StaticText(self.panel, label=f'Remaining: ??? (of {len(self.dataframe):,})')
+        filtersizer.Add(self.dropped_label, 0, wx.ALL|wx.EXPAND, 5)
+        filtersizer.Add(self.remaining_label, 0, wx.ALL|wx.EXPAND, 5)
+        #filtersizer.Add(labelsizer)
         
-        self.filterlist = FilterListCtrl(self.panel, dataframe=self.dataframe, showdropped=True, fireevents=True, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
+        self.filterlist = FilterListCtrl(self.panel, showdropped=True, fireevents=True, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
         self.filterlist.InsertColumn(0, "Use")
         self.filterlist.InsertColumn(1, "Column")
         self.filterlist.InsertColumn(2, "Min", wx.LIST_FORMAT_RIGHT)
         self.filterlist.InsertColumn(3, "Max", wx.LIST_FORMAT_RIGHT)
         #self.filterlist.SetEditable([False, False, True, True])
-        self.filterlist.InsertColumn(4, "Dropped", wx.LIST_FORMAT_RIGHT)
+        self.filterlist.InsertColumn(4, "Dropped view", wx.LIST_FORMAT_RIGHT)
         self.filterlist.SetEditable([False, False, True, True, False])
         self.filterlist.Arrange()
         currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in cfgdata}        
-        self.filterlist.SetData(currentfilters, dataframe=self.dataframe, dropped=self.GetParent().droppedrows, headers=['Use', 'Column', 'Min', 'Max'])
         filtersizer.Add(self.filterlist, 1, wx.ALL|wx.EXPAND, 5)
         
         loadbutton = wx.Button(self.panel, label="Load")
@@ -340,13 +348,18 @@ class ConfigureFiltersDlg(wx.Dialog):
         sizer.Add(wx.StaticLine(self.panel,style=wx.LI_VERTICAL), 0, wx.ALL|wx.EXPAND, 5)
         sizer.Add(buttonsizer)
         self.panel.SetSizer(sizer)
+
+        pub.subscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
+        self.filterlist.SetData(currentfilters, dataframe=self.dataframe, dropped=self.dropped, headers=['Use', 'Column', 'Min', 'Max', "Dropped view"])
         
-        pub.ubscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
         self.Show()
 
-    def OnFiltersUpdated(self, items,totaldropped):
-        print (items)
-        print (totaldropped)
+    def OnFiltersUpdated(self, updateditems, totaldropped, viewdropped, viewlength):
+        remaining = viewlength-viewdropped
+        self.dropped_label.SetLabel(f'Dropped from view: {viewdropped:,} (of {viewlength:,})')
+        self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
+        logging.debug (f'Updated: {[name for name in updateditems]}')
+        logging.debug (f'Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
         
     def GetData(self):
         return self.config
@@ -356,6 +369,8 @@ class ConfigureFiltersDlg(wx.Dialog):
         
     def OnUseFilters(self, event):
         enable = event.GetEventObject().GetValue()
+        self.dropped_label.Enable(enable)
+        self.remaining_label.Enable(enable)
         self.filterlist.Enable(enable)
         
         
@@ -364,6 +379,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.config = {}
         if self.showusefilter:
             self.config[cfg.CONFIG_USE] = self.filtercb.GetValue()
+            self.config[cfg.CONFIG_SHOW_DROPPED] = self.showdropcb.GetValue()
         self.config[cfg.CONFIG_RANGEFILTERS] = [cfgs[key].get_params() for key in cfgs]  
         self.EndModal(wx.ID_OK)
 

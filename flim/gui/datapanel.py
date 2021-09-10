@@ -11,7 +11,7 @@ import wx.lib.mixins.gridlabelrenderer as glr
 from pubsub import pub
 
 import flim.core.configuration as cfg
-from flim.core.configuration import CONFIG_FILTERS,CONFIG_RANGEFILTERS,CONFIG_USE
+from flim.core.configuration import CONFIG_FILTERS,CONFIG_RANGEFILTERS,CONFIG_USE,CONFIG_SHOW_DROPPED
 from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import AnalysisListCtrl, FilterListCtrl
 from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent, FOCUSED_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, DATA_UPDATED
@@ -321,7 +321,7 @@ class PandasFrame(wx.Frame):
         self.modified = modified
         
     
-    def apply_filters(self, filtercfg):
+    def apply_filters(self, filtercfg, showdiscarded=False):
         if len (filtercfg) == 0:
     	    cfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
     	    filternames = [f['name'] for f in cfg]
@@ -335,7 +335,7 @@ class PandasFrame(wx.Frame):
             elif self.droppedrows.get(fname) is not None:
             	del self.droppedrows[fname]
         self.modified = True
-        self.update_view()
+        self.update_view(showdiscarded=showdiscarded)
             
             	    
     def OnDataUpdated(self, originaldata, newdata):
@@ -354,13 +354,13 @@ class PandasFrame(wx.Frame):
         self.grid.Refresh()
         
     
-    def updateusefilter(self, enabled):
+    def updateusefilter(self, enabled, showdiscarded=False):
         self.config.update({CONFIG_USE:enabled}, parentkeys=[CONFIG_FILTERS])
         self.filterbutton.Enable(enabled)
         filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
         if enabled:
             # apply
-            self.apply_filters({f['name']:f for f in filtercfg})
+            self.apply_filters({f['name']:f for f in filtercfg}, showdiscarded=showdiscarded)
         else:
         	# clear
             self.apply_filters({})
@@ -369,28 +369,36 @@ class PandasFrame(wx.Frame):
         cb = event.GetEventObject()
         self.updateusefilter(cb.GetValue())        
                 
+    def _existing_rangefilters(self, filterlist, columns=None):
+        existingfilters = {rfilter['name']:rfilter for rfilter in filterlist}
+        if columns is None:
+            columns = self.data.select_dtypes(include=['number'], exclude=['category'])
+        elif not isinstance(columns,list):
+            columns = [columns]
+        rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in columns]
+        return rangefilters
         
     def OnFilterSettings(self, event):
-        filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-        existingfilters = {cfg['name']:cfg for cfg in filtercfg}
-        columns = self.data.select_dtypes(include=['number'], exclude=['category'])
-        rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in columns]
-        config = {}
-        config[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
-        config[CONFIG_RANGEFILTERS] = rangefilters
-              
-        dlg = ConfigureFiltersDlg(self, config, self.data)
+        rfilterlist,keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+        filterconfig = self.config.get([CONFIG_FILTERS]).copy() 
+        #filterconfig[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
+        filterconfig[CONFIG_RANGEFILTERS] = self._existing_rangefilters(rfilterlist)
+        
+        # need to make sure we pass copy of dropped rows so we can cancel without affecting droppedrows     
+        dlg = ConfigureFiltersDlg(self, filterconfig, self.data, self.droppedrows.copy())
         response = dlg.ShowModal()
         if (response == wx.ID_OK):
-            config = dlg.GetData()
-            rfcfg = config.get(CONFIG_RANGEFILTERS)
+            filterconfig = dlg.GetData()
+            rfcfg = filterconfig.get(CONFIG_RANGEFILTERS)
             newfilters = {f['name']:f for f in rfcfg}
-            currentfilters = {f['name']:f for f in filtercfg}
+            currentfilters = {f['name']:f for f in rfilterlist}
             currentfilters.update(newfilters)
             newfilterlist = [currentfilters[key] for key in currentfilters]
             self.config.update({CONFIG_RANGEFILTERS:newfilterlist}, parentkeys=keys[:-1])
-            self.filtercb.SetValue(config[CONFIG_USE])
-            self.updateusefilter(self.filtercb.GetValue())
+            self.config.update({CONFIG_SHOW_DROPPED:filterconfig[CONFIG_SHOW_DROPPED]}, parentkeys=keys[:-1])
+            self.config.update({CONFIG_USE:filterconfig[CONFIG_USE]}, parentkeys=keys[:-1])
+            self.filtercb.SetValue(filterconfig[CONFIG_USE])
+            self.updateusefilter(self.filtercb.GetValue(), showdiscarded=filterconfig[CONFIG_SHOW_DROPPED])
 
 
     def OnPopupItemSelected(self, event):
@@ -427,25 +435,31 @@ class PandasFrame(wx.Frame):
                 self.modified = True
         self.update_view()
         
-        
-    def update_view(self):
-        droppedrows = [self.droppedrows[key] for key in self.droppedrows if len(self.droppedrows[key])>0]
-        #droppedrows = [self.droppedrows[key] for key in self.droppedrows]
+    def _flatten_array(self, arraylist):
+        arraylist = [a for a in arraylist if len(a) > 0]
+        if len(arraylist) > 0:
+            arraylist = np.concatenate(arraylist)
+        return np.unique(arraylist)
+           
+    def update_view(self, showdiscarded=False):
+    	# get RangeFilter names and rows dropped by them 
+        filterlist,_ = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+        rfilters = self._existing_rangefilters(filterlist)
+        rfilter_names = [rfilter['name'] for rfilter in rfilters]
+        rfilterdropped = self._flatten_array([self.droppedrows[fname] for fname in rfilter_names if fname in self.droppedrows])
+        # get rows dropped by category filters
+        catdropped = self._flatten_array([self.droppedrows[fname] for fname in self.droppedrows if fname not in rfilter_names])
+        # all dropped rows are the unique elements of the union of rfilterdropped andcatdropped
+        droppedrows = self._flatten_array([rfilterdropped, catdropped])
+        #rfilterseries = pd.Series(['discard' if row in rfilterdropped else 'keep' for row in range(len(self.data))], dtype='category')
+        #self.data['Range Filter'] = rfilterseries
         if len(droppedrows) == 0:
-            self.data['Filter'] = pd.Series(['keep' for row in range(len(self.data))], dtype='category')
             self.dataview = self.data
         else:
-            droppedrows = np.concatenate(droppedrows)
-            if len(droppedrows) == 0:
-                self.data['Filter'] = pd.Series(['keep' for row in range(len(self.data))], dtype='category')
-                self.dataview = self.data
-            else:	     
-                droppedrows = np.unique(droppedrows)
-                self.data['Filter'] = pd.Series(['discard' if row in droppedrows else 'keep' for row in range(len(self.data))], dtype='category')
-                #self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
-                self.dataview = self.data
+            self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
+            #self.dataview = self.data
         self.groups = self.data.select_dtypes(['category']).columns.get_level_values(0).values
-
+        
         colsizes = self.grid.GetColSizes()
         #self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
         self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
@@ -453,7 +467,17 @@ class PandasFrame(wx.Frame):
         self.grid.SetColSizes(colsizes)
         self.set_header_renderer()
         self.grid.Refresh()        
-         
+
+        if showdiscarded:
+            rangediscarded = np.setdiff1d(rfilterdropped, catdropped)
+            windowtitle = f'{self.GetTitle()} - Discarded'
+            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+            event.SetEventInfo(self.data.iloc[rangediscarded,:], 
+                              windowtitle, 
+                              'createnew', 
+                              showcolindex=False, 
+                              analyzable=True)
+            self.GetEventHandler().ProcessEvent(event)               
         
     def create_popupmenu(self, colheader):
         menu = wx.Menu()
@@ -507,20 +531,18 @@ class PandasFrame(wx.Frame):
             self.modified = True
             self.update_view()
         elif event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue():
-            filtercfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-            existingfilters = {cfg['name']:cfg for cfg in filtercfg}
-            rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in [group]]
-            config = {}
-            config[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
-            config[CONFIG_RANGEFILTERS] = rangefilters
+            rfilterlist,keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+            filterconfig = self.config.get([CONFIG_FILTERS]).copy() 
+            # set single RangeFilter config for current column (group)
+            filterconfig[CONFIG_RANGEFILTERS] = self._existing_rangefilters(rfilterlist, columns=[group])
 
-            dlg = ConfigureFiltersDlg(self, config, showusefilter=False)
+            dlg = ConfigureFiltersDlg(self, filterconfig, self.data, self.droppedrows.copy(), showusefilter=False)
             response = dlg.ShowModal()
             if response == wx.ID_OK:
                 config = dlg.GetData()
                 rfcfg = config.get(CONFIG_RANGEFILTERS)
                 newfilters = {f['name']:f for f in rfcfg}
-                currentfilters = {f['name']:f for f in filtercfg}
+                currentfilters = {f['name']:f for f in rfilterlist}
                 currentfilters.update(newfilters)
                 newfilterlist = [currentfilters[key] for key in currentfilters]
                 self.config.update({CONFIG_RANGEFILTERS:newfilterlist},keys[:-1])
