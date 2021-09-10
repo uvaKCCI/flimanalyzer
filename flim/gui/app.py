@@ -52,7 +52,7 @@ ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
 DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
-DEFAULT_COMFIFG_FILE = 'defaults.json'
+DEFAULT_CONFIFG_FILE = 'defaults.json'
 
 class FlimAnalyzerApp(wx.App):
     
@@ -60,7 +60,7 @@ class FlimAnalyzerApp(wx.App):
         self.flimanalyzer = flimanalyzer
         if config is None or not isinstance(config, Config):
             self.config = Config()
-            self.config.read_from_json(DEFAULT_COMFIFG_FILE, defaultonfail=True)
+            self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
         else:
             self.config = config
         super(FlimAnalyzerApp,self).__init__()
@@ -1089,7 +1089,7 @@ class AppFrame(wx.Frame):
     
     def OnDataWindowRequest(self, event):
         data = event.GetData()
-        config = event.GetConfig()
+        config = self.config #event.GetConfig()
         action = event.GetAction()
         title = event.GetTitle()
         logging.debug (f"{title}: {action}")
