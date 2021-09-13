@@ -301,7 +301,6 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.panel = wx.Panel(self,wx.ID_ANY)
         cbsizer = wx.BoxSizer(wx.HORIZONTAL)
         filtersizer = wx.BoxSizer(wx.VERTICAL)
-        
         if self.showusefilter:
             self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="Use Filters")
             self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
@@ -328,7 +327,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.filterlist.Arrange()
         currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in cfgdata}        
 
-        filtersizer.Add(self.filterlist, 1, wx.ALL|wx.EXPAND, 5)
+        filtersizer.Add(self.filterlist, 0, wx.ALL|wx.EXPAND, 5)
         
         loadbutton = wx.Button(self.panel, label="Load")
         loadbutton.Bind(wx.EVT_BUTTON, self.OnLoad)
@@ -345,8 +344,9 @@ class ConfigureFiltersDlg(wx.Dialog):
         buttonsizer.Add(cancelbutton, 0, wx.ALL|wx.EXPAND, 5)
         
         sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(filtersizer)
         sizer.Add(wx.StaticLine(self.panel,style=wx.LI_VERTICAL), 0, wx.ALL|wx.EXPAND, 5)
-        sizer.Add(buttonsizer)
+        sizer.Add(buttonsizer, 0, wx.ALL|wx.EXPAND, 5)
         self.panel.SetSizer(sizer)
 
         pub.subscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
@@ -356,8 +356,8 @@ class ConfigureFiltersDlg(wx.Dialog):
 
     def OnFiltersUpdated(self, updateditems, totaldropped, viewdropped, viewlength):
         remaining = viewlength-viewdropped
-        self.dropped_label.SetLabel(f'Dropped from view: {viewdropped:,} (of {viewlength:,})')
-        self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
+        #self.dropped_label.SetLabel(f'Dropped from view: {viewdropped:,} (of {viewlength:,})')
+        #self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
         logging.debug (f'Updated: {[name for name in updateditems]}')
         logging.debug (f'Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
         
