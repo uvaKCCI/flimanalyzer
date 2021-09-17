@@ -443,7 +443,7 @@ class PandasFrame(wx.Frame):
            
     def update_view(self, showdiscarded=False):
     	# get RangeFilter names and rows dropped by them 
-        filterlist,_ = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+        filterlist,keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
         rfilters = self._existing_rangefilters(filterlist)
         rfilter_names = [rfilter['name'] for rfilter in rfilters]
         rfilterdropped = self._flatten_array([self.droppedrows[fname] for fname in rfilter_names if fname in self.droppedrows])
@@ -469,12 +469,16 @@ class PandasFrame(wx.Frame):
         self.grid.Refresh()        
 
         if showdiscarded:
+            newcfg = cfg.Config()
+            newcfg.update(self.config.parameters)
+            newcfg.update({CONFIG_RANGEFILTERS:list()}, parentkeys=keys[:-1])
             rangediscarded = np.setdiff1d(rfilterdropped, catdropped)
             windowtitle = f'{self.GetTitle()} - Discarded'
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(self.data.iloc[rangediscarded,:], 
                               windowtitle, 
                               'createnew', 
+                              
                               showcolindex=False, 
                               analyzable=True)
             self.GetEventHandler().ProcessEvent(event)               
@@ -520,14 +524,12 @@ class PandasFrame(wx.Frame):
                 return
             selitems = dlg.get_selected()
             notselected = [i for i in items if i not in selitems]
-            print(notselected)
             dlg.Destroy()
             for value in selitems:
                 if self.droppedrows.get((group,value)) is not None:
                     del self.droppedrows[(group,value)]
             for value in notselected:        
                 self.droppedrows[(group,value)] = np.flatnonzero(self.data[group] == value)
-            print(self.droppedrows)
             # ****
             # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
             self.modified = True
