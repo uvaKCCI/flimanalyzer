@@ -160,12 +160,12 @@ class FreqHisto(AbstractAnalyzer):
         bins = self.params['bins']
         for header in sorted(self.params['features']):
             mrange = (self.data[header].min(), self.data[header].max())
-            try:
+            '''try:
                 hconfig = self.params[header]
                 mrange = (hconfig[0], hconfig[1])
                 bins = hconfig[2]
             except:
-                logging.debug(f"\tmissing binning parameters, using defaults.")
+                logging.debug(f"\tmissing binning parameters, using defaults.")'''
             logging.debug (f"\tcreating frequency histogram plot for {header} with {bins} bins, range {mrange}")     
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
 #            fig, ax = MatplotlibFigure()
