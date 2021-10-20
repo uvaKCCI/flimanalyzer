@@ -5,6 +5,7 @@
 
 from flim.analysis.absanalyzer import AbstractAnalyzer
 
+import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -110,8 +111,10 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         return [top_sizer, timeseries_sizer]
         
     def OnBrowse(self, event):
-        fname = self.modelfiletxt.GetLabel()
+        fpath = self.modelfiletxt.GetLabel()
+        _,fname = os.path.split(fpath)
         with wx.FileDialog(self, 'Model File', style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as fileDialog:    
+            fileDialog.SetPath(fpath)
             fileDialog.SetFilename(fname)
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
