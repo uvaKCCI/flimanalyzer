@@ -38,7 +38,7 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.seriesmin_cb.SetValue(self.seriesmin)
         sizer.Add(self.seriesmin_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.seriesmax_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Seriese max")
+        self.seriesmax_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Series max")
         self.seriesmax_cb.SetValue(self.seriesmax)
         sizer.Add(self.seriesmax_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
