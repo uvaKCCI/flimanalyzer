@@ -13,7 +13,6 @@ from flim.analysis.absanalyzer import AbstractAnalyzer
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
-import wx
 from importlib_resources import files
 import flim.resources
 
@@ -21,56 +20,50 @@ default_linestyles = ['-','--',':', '-.']
 
 class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', bins=20, stacked=False, cumulative=False, histtype='step', datatable=False):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', bins=20, stacked=False, cumulative=False, histtype='step', datatable=False, featuresettings={}, settingspecs={}):
         self.bins = bins
         self.stacked = stacked
         self.cumulative = cumulative
         self.histtype = histtype
         self.datatable = datatable
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
-		    
-    def get_option_panels(self):
-        binsizer = wx.BoxSizer(wx.HORIZONTAL)
+
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1, enablefeatsettings=True, featuresettings=featuresettings, settingspecs=settingspecs)
         
-        self.bins_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.bins)
-        binsizer.Add(wx.StaticText(self, label="Bins"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        binsizer.Add(self.bins_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+    def get_option_panels(self):
+        optsizer = wx.BoxSizer(wx.HORIZONTAL)
 
         histtype_opts = ['bar', 'barstacked', 'step', 'stepfilled']
         sel_histtype = self.histtype
         if sel_histtype not in histtype_opts:
             sel_histtype = histtype_opts[0]
         self.histtype_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_histtype, choices=histtype_opts)
-        binsizer.Add(wx.StaticText(self, label="Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        binsizer.Add(self.histtype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        optsizer.Add(wx.StaticText(self, label="Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        optsizer.Add(self.histtype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         self.stacked_cb = wx.CheckBox(self,wx.ID_ANY, label="Stacked")
         self.stacked_cb.SetValue(self.stacked)
-        binsizer.Add(self.stacked_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        optsizer.Add(self.stacked_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         self.cumulative_cb = wx.CheckBox(self,wx.ID_ANY, label="Cumulative")
         self.cumulative_cb.SetValue(self.cumulative)
-        binsizer.Add(self.cumulative_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        optsizer.Add(self.cumulative_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.showdata_cb = wx.CheckBox(self,wx.ID_ANY, label="Binned data table")
         self.showdata_cb.SetValue(self.datatable)
-        binsizer.Add(self.showdata_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        optsizer.Add(self.showdata_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        return [binsizer]
+        return [optsizer]
         
 
     def _get_selected(self):
         params = super()._get_selected()
-        params['bins'] = self.bins_spinner.GetValue()
         params['stacked'] = self.stacked_cb.GetValue()
         params['cumulative'] = self.cumulative_cb.GetValue()
         params['histtype'] = self.histtype_combobox.GetValue()
         params['datatable'] = self.showdata_cb.GetValue()
         return params
 
-
 class FreqHisto(AbstractAnalyzer):
-    
 
     def __init__(self, data, **kwargs):
         AbstractAnalyzer.__init__(self, data, **kwargs)
@@ -94,6 +87,7 @@ class FreqHisto(AbstractAnalyzer):
         params['histtype'] = 'step' # 'bar', 'barstacked', 'step', 'stepfilled'
         params['stacked'] = False
         params['datatable'] = False
+        params['featuresettings'] = {}
         params.update({
     				'trp t1': [0,8000,81,['Treatment']],
                     'trp t2': [0,8000,81,['Treatment']],
@@ -135,6 +129,13 @@ class FreqHisto(AbstractAnalyzer):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
+        histmax = self.data.iloc[:, 1:].max(axis=1).max()
+        #defines how to get input for values
+        binspecs = {
+            'bins':[wx.SpinCtrl, {'min':1,'max':500,'initial':100}],
+            'min':[wx.SpinCtrlDouble, {'min':0,'max':histmax,'initial':0, 'inc':0.1}],
+            'max':[wx.SpinCtrlDouble, {'min':0,'max':histmax,'initial':histmax, 'inc':0.1}]
+            }
         dlg = FreqHistoConfigDlg(parent, f'Configuration: {self.name}', self.data, 
             selectedgrouping=selgrouping, 
             selectedfeatures=selfeatures,
@@ -142,7 +143,9 @@ class FreqHisto(AbstractAnalyzer):
             stacked=self.params['stacked'],
             cumulative=self.params['cumulative'],
             histtype=self.params['histtype'],
-            datatable=self.params['datatable'])
+            datatable=self.params['datatable'],
+            featuresettings=self.params['featuresettings'],
+            settingspecs=binspecs)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -157,15 +160,16 @@ class FreqHisto(AbstractAnalyzer):
         cumulative = self.params['cumulative']
         self.stacked = self.params['stacked']
         self.datatable = self.params['datatable']
-        bins = self.params['bins']
+        bins = 100
         for header in sorted(self.params['features']):
             mrange = (self.data[header].min(), self.data[header].max())
-            '''try:
-                hconfig = self.params[header]
-                mrange = (hconfig[0], hconfig[1])
-                bins = hconfig[2]
+            try:
+                hconfig = self.params['featuresettings'][header]
+                mrange = (hconfig['min'], hconfig['max'])
+                bins = hconfig['bins']
             except:
-                logging.debug(f"\tmissing binning parameters, using defaults.")'''
+                logging.debug("\tmissing binning parameters, using defaults.")
+                self.params['featuresettings'][header] = {'min':mrange[0], 'max':mrange[1], 'bins':100}
             logging.debug (f"\tcreating frequency histogram plot for {header} with {bins} bins, range {mrange}")     
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
 #            fig, ax = MatplotlibFigure()

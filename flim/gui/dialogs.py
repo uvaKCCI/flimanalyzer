@@ -17,7 +17,6 @@ from flim.core.filter import RangeFilter
 import flim.core.configuration as cfg
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
 from flim.gui.dicttablepanel import ListTable
-from pubsub import pub
 
 def check_data_msg(data):
     ok = data is not None and len(data) > 0
@@ -83,13 +82,16 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
             
 class BasicAnalysisConfigDlg(wx.Dialog):
 
-    def __init__(self, parent, title, data, data_choices={}, chooseinput=False, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2):
+    def __init__(self, parent, title, data, data_choices={}, chooseinput=False, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2, enablefeatsettings=False, featuresettings={}, settingspecs={}):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         # 5 col gridsizer
         self.chooseinput = chooseinput
         self.enablegrouping = enablegrouping
         self.enablefeatures = enablefeatures
         self.data_choices = data_choices
+        self.enablefeatsettings = enablefeatsettings
+        self.featuresettings = featuresettings
+        self.settingspecs = settingspecs
         
         allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
         # ordered dict with label:columm items; column headers are converted to single line labels
@@ -138,6 +140,9 @@ class BasicAnalysisConfigDlg(wx.Dialog):
                 cb.SetValue((f in self.selectedfeatures) or ('All' in self.selectedfeatures))
                 self.cboxes[f] = cb
                 cbsizer.Add(cb, 0, wx.ALL, 5)
+                
+                if self.enablefeatsettings:
+                    cb.Bind(wx.EVT_RIGHT_UP, self.OnClickFeature)
             sizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
             sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
 
@@ -171,7 +176,21 @@ class BasicAnalysisConfigDlg(wx.Dialog):
     def OnSelectAll(self, event):
         for key in self.cboxes:
             self.cboxes[key].SetValue(True)
-
+        
+    
+    def OnClickFeature(self, event):
+        cbox = event.GetEventObject()
+        for feature in self.cboxes.keys():
+            if self.cboxes[feature] == cbox:
+                default = None
+                if feature in self.featuresettings:
+                    default = self.featuresettings[feature]
+                dlg = ConfigureFeatureDlg(self, title=f"{feature} config", feature=feature, settings=self.settingspecs, defaults=default)
+                if dlg.ShowModal() == wx.ID_OK:
+                    self.featuresettings[feature] = dlg.get_settings()
+                    
+                break
+        
 
     def OnDeselectAll(self, event):
         for key in self.cboxes:
@@ -191,9 +210,11 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             else:
                 params['grouping'] = [] 
         else:
-            params['grouping'] = []     
-        if self.enablefeatures:    
+            params['grouping'] = []
+        if self.enablefeatures:
             params['features'] = [self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()]
+            if self.enablefeatsettings:
+                params['featuresettings'] = self.featuresettings
         else:
             params['features'] = []
         if self.chooseinput:
@@ -498,3 +519,49 @@ class RenameGroupsDlg(wx.Dialog):
 
     def OnQuit(self, event):
         self.EndModal(wx.ID_CANCEL)
+
+#Feature-level analysis customization
+class ConfigureFeatureDlg(wx.Dialog):
+    def __init__(self, parent, title, feature, settings, defaults):
+        wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size=(200*min(len(settings), 3),120))
+        
+        mainsizer = wx.BoxSizer(wx.VERTICAL)
+        optsizer = wx.WrapSizer(wx.HORIZONTAL)
+        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
+        
+        self.settings = settings #dict of option name -> [input handler class, handler args]
+        self.insettings = dict(self.settings)
+        self.inputs = dict()
+        
+        for name,specs in self.settings.items():
+            opt_handler = specs[0](self,wx.ID_ANY,**specs[1])
+            self.inputs[name] = opt_handler
+            if defaults is not None:
+                self.inputs[name].SetValue(defaults[name])
+            optsizer.Add(wx.StaticText(self, label=name), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+            optsizer.Add(opt_handler, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        self.okButton = wx.Button(self, label="OK", pos=(110,160))
+        buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
+        self.closeButton =wx.Button(self, label="Cancel", pos=(210,160))
+        buttonsizer.Add(self.closeButton, 0, wx.ALL, 10)
+        self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
+        self.closeButton.Bind(wx.EVT_BUTTON, self.OnQuit)
+        self.Bind(wx.EVT_CLOSE, self.OnQuit)
+
+        self.SetSizer(mainsizer)
+        mainsizer.Add(optsizer, 0, wx.ALIGN_LEFT, 10)
+        mainsizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 10)
+    
+    def OnOK(self, event):
+        self.insettings = {setting:self.inputs[setting].GetValue() for setting in self.settings}
+        #for setting in self.settings:
+        #   self.insettings[setting] = self.inputs[setting].GetValue()
+        self.EndModal(wx.ID_OK)
+
+    def OnQuit(self, event):
+        self.EndModal(wx.ID_CANCEL)
+    
+    def get_settings(self):
+        return self.insettings #dict of option name -> option value
+    
