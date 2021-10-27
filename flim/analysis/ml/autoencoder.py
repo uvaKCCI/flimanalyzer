@@ -54,7 +54,7 @@ class AbsAutoencoder(nn.Module):
     
        
 class Autoencoder_One(AbsAutoencoder):
-    def __init__(self, nb_param=2, hidden_size=2):
+    def __init__(self, nb_param=2, hidden_size=6):
         super(Autoencoder_One, self).__init__()
         self.name = "Autoencoder 1" 
         self.fc1 = nn.Linear(nb_param, hidden_size)
@@ -70,13 +70,13 @@ class Autoencoder_One(AbsAutoencoder):
 
         
 class Autoencoder_Two(AbsAutoencoder):
-    def __init__(self, nb_param=2):
+    def __init__(self, nb_param=2, hidden_size_1=10, hidden_size_2=1):
         super(Autoencoder_Two, self).__init__()
         self.name = "Autoencoder 2" 
-        self.fc1 = nn.Linear(nb_param, 6)
-        self.fc2 = nn.Linear(6, 1)
-        self.fc3 = nn.Linear(1, 6)
-        self.fc4 = nn.Linear(6, nb_param)
+        self.fc1 = nn.Linear(nb_param, hidden_size_1)
+        self.fc2 = nn.Linear(hidden_size_1, hidden_size_2)
+        self.fc3 = nn.Linear(hidden_size_2, hidden_size_1)
+        self.fc4 = nn.Linear(hidden_size_1, nb_param)
         self.activation1 = nn.Sigmoid()
         self.activation2 = nn.ReLU()
         self.activation3 = nn.LeakyReLU()

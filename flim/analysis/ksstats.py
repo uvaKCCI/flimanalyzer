@@ -115,6 +115,8 @@ class KSStats(AbstractAnalyzer):
             for c in comb:
                 data1 = compgroups[c[0]][column]
                 data2 = compgroups[c[1]][column]
+                if len(data1)==0 or len(data2)==0:
+                    continue
                 ks = stats.ks_2samp(data1, data2)
                 row = [v for v in groupval]
                 row.extend([c[0], c[1], len(data1), len(data2), ks.pvalue, ks.statistic])
