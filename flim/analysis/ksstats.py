@@ -13,14 +13,18 @@ import wx
 from importlib_resources import files
 import flim.resources
 import pandas as pd
+import numpy as np
 from scipy import stats
 from itertools import combinations
 
+calpha = {0.10:1.22, 0.05:1.36, 0.025:1.48, 0.01:1.63, 0.005:1.73, 0.001:1.95}
+
 class KSStatsConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', comparison='Treatment'):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', comparison='Treatment', alpha=0.05):
         self.data = data
         self.comparison = comparison
+        self.alpha = alpha
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
@@ -30,21 +34,31 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
         if sel_comparison not in comparison_opts:
             sel_comparison = comparison_opts[0]
         self.comparison_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_comparison, choices=comparison_opts)
+
+        alpha_opts = [str(c) for c in calpha]
+        sel_alpha = str(self.alpha)
+        if sel_alpha not in alpha_opts:
+            sel_alpha = alpha_opts[0]
+        self.alpha_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_alpha, choices=alpha_opts)
+
         osizer.Add(wx.StaticText(self, label="Comparison "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         osizer.Add(self.comparison_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        osizer.Add(wx.StaticText(self, label="alpha "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        osizer.Add(self.alpha_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         return [osizer]
         
     def _get_selected(self):
         params = super()._get_selected()
         params['comparison'] = self.comparison_combobox.GetValue()
+        params['alpha'] = float(self.alpha_combobox.GetValue())
         return params
                 
         
 class KSStats(AbstractAnalyzer):
     
-    def __init__(self, data, comparison='Treatment', **kwargs):
-        AbstractAnalyzer.__init__(self, data, comparison=comparison, **kwargs)
+    def __init__(self, data, comparison='Treatment', alpha='0.05', **kwargs):
+        AbstractAnalyzer.__init__(self, data, comparison=comparison, alpha=alpha, **kwargs)
         self.name = 'KS-Statistics'
         
     def get_required_categories(self):
@@ -61,6 +75,7 @@ class KSStats(AbstractAnalyzer):
         params = super().get_default_parameters()
         params.update({
             'comparison': 'Treatment',
+            'alpha': 0.05,
         })
         return params
 
@@ -70,7 +85,8 @@ class KSStats(AbstractAnalyzer):
             self.data, 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'],
-            comparison=self.params['comparison'])
+            comparison=self.params['comparison'],
+            alpha=self.params['alpha'])
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -81,14 +97,15 @@ class KSStats(AbstractAnalyzer):
     def execute(self):
         results = {}
         comparison = self.params['comparison']
+        alpha = self.params['alpha']
         for header in sorted(self.params['features']):
             logging.debug (f"Calculating ks-statistics for {str(header)}")
-            result = self.feature_kststats(self.data, header, groups=self.params['grouping'], comparison=comparison)
+            result = self.feature_kststats(self.data, header, groups=self.params['grouping'], comparison=comparison, alpha=alpha)
             results[f'KS-stats: {header}'] = result
         return results
     
         
-    def feature_kststats(self, data, column, groups=[], comparison='', dropna=True):
+    def feature_kststats(self, data, column, groups=[], comparison='', alpha=0.5, dropna=True):
         if data is None or not column in data.columns.values:
             return None, None
         if len(groups) == 0:
@@ -99,8 +116,8 @@ class KSStats(AbstractAnalyzer):
             groupvals = [name for name,_ in data.groupby(groups)]
             cols = [c for c in groups]
         allcategories = [c for c in cols]
-        allcategories.extend([f'{comparison} 1', f'{comparison} 2'])
-        cols.extend([f'{comparison} 1', f'{comparison} 2', f'n ({comparison} 1)', f'n ({comparison} 2)', 'p-values', 'statistic'])
+        allcategories.extend([f'{comparison} 1', f'{comparison} 2', f'{comparison} 1 & 2', 'dissimilar'])
+        cols.extend([f'{comparison} 1', f'{comparison} 2', f'{comparison} 1 & 2',  'dissimilar', f'n ({comparison} 1)', f'n ({comparison} 2)', 'p-values', 'statistic', 'critical D'])
         rdata = []        
         for groupval in groupvals:
             if len(groups) == 0:
@@ -118,8 +135,9 @@ class KSStats(AbstractAnalyzer):
                 if len(data1)==0 or len(data2)==0:
                     continue
                 ks = stats.ks_2samp(data1, data2)
+                critical_d = calpha[alpha] * np.sqrt((len(data1)+len(data2))/(len(data1)*len(data2)))
                 row = [v for v in groupval]
-                row.extend([c[0], c[1], len(data1), len(data2), ks.pvalue, ks.statistic])
+                row.extend([c[0], c[1], f'{c[0]}-{c[1]}', 'Yes' if ks.statistic > critical_d else 'No', len(data1), len(data2), ks.pvalue, ks.statistic, critical_d])
                 rdata.append(row)
         result = pd.DataFrame(rdata, columns=cols)
         for ckey in allcategories:

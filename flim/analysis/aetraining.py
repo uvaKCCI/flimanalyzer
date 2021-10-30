@@ -220,9 +220,6 @@ class AETraining(AbstractAnalyzer):
         cat_columns.append(self.params['timeseries'])
         columns = list(allcat_columns) # list(cat_columns)
         columns.extend(self.params['features'])
-        print (f'allcat_columns: {allcat_columns}')
-        print (f'cat_columns: {cat_columns}')
-        print (f'columns: {columns}')
 
         g = self.data[columns].groupby(grouping)
         cat_groups = sorted(g.groups.keys())
@@ -289,10 +286,6 @@ class AETraining(AbstractAnalyzer):
         val_df['Label'] = ['validate'] * len(val_df)
         val_set = val_df[self.params['features']].to_numpy(dtype=np.float32)
         val_labels = val_df[lcols].to_numpy()
-        print ('train_labels',training_labels[:3])
-        print ('val_labels',val_labels[:3])
-        print(train_df.head())
-        print(val_df.head())
 
         my_imputer = SimpleImputer(strategy="constant", fill_value=0)
         min_max_scaler = preprocessing.MinMaxScaler()
@@ -406,17 +399,13 @@ class AETraining(AbstractAnalyzer):
         
         lcols = [n for n in self.data.select_dtypes('category').columns]
         lcols.append('AE Label')
-        print (labels[0])
         labels = [l.split('|') for l in labels]
-        label_df = pd.DataFrame(labels, columns=lcols)
+        label_df = pd.DataFrame(labels, columns=lcols, dtype='category')
 
-        decoded_df = pd.DataFrame(decoded, columns=self.params['features'])
-        decoded_df['Label'] = [','.join(l) for l in labels]
-        decoded_df['Label'] = decoded_df['Label'].astype('category')
-
-        encoded_df = pd.DataFrame(encoded[:,0:encod.shape[1]], columns=[f'AE encoded {i}' for i in range(encod.shape[1])])
-        encoded_df['Label'] = [','.join(l) for l in labels]
-        encoded_df['Label'] = encoded_df['Label'].astype('category')
+        decoded_cols = [f'Recon {s}' for s in self.params['features']]
+        decoded_df = pd.concat([label_df, pd.DataFrame(decoded, columns=decoded_cols)], axis=1)
+        encoded_cols = [f'AE encoded {i}' for i in range(encod.shape[1])]
+        encoded_df = pd.concat([label_df, pd.DataFrame(encoded[:,0:encod.shape[1]], columns=encoded_cols)], axis=1)
         
         logging.debug(f'loss_TrainingSet: {loss_train[-1]}')
         logging.debug(f'loss_TestSet: {loss_val[-1]}')
@@ -431,4 +420,4 @@ class AETraining(AbstractAnalyzer):
         ax.set_xlabel('epoch')
         ax.legend(['training', 'testing'], loc='upper right')
         self._add_picker(fig)
-        return {'loss': fig, 'AE Train-Val Data': decoded_df, 'AE encoded': encoded_df, 'Labels': label_df}
+        return {'loss': fig, 'AE Train-Val Decoded': decoded_df, 'AE encoded': encoded_df}
