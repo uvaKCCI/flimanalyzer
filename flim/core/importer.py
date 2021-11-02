@@ -15,6 +15,8 @@ import flim.core.configuration as cfg
 from flim.core.parser import  defaultparser
 import flim.core.preprocessor
 
+DEFAULT_EXT = ['.txt','.csv']
+
 class dataimporter():
     
     def __init__(self):
@@ -59,7 +61,7 @@ class dataimporter():
         return self.delimiter
 
     
-    def set_files(self, files, extensions=['.txt'], exclude=None, sort=True):
+    def set_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
         if exclude is None:
             exclude = self.excluded_files
         self.files = []
@@ -76,7 +78,7 @@ class dataimporter():
         return self.excluded_files
         
     
-    def add_files(self, files, extensions=['.txt','.csv'], exclude=None, sort=True):
+    def add_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
         if files is None:
             return None,0
         if exclude is None:
@@ -119,7 +121,7 @@ class dataimporter():
     def get_reserved_categorycols(self, parser=None):
         if parser is None:
             parser = self.parser
-        rcatnames = ['Cell line', 'Category', 'FOV', 'Well', 'Cell', 'Treatment', 'Time', 'Compartment', 'New Cat', 'Origin']    
+        rcatnames = ['Cell line', 'Category', 'Cat', 'FOV', 'Well', 'Cell', 'Treatment', 'Treatment 1', 'Treatment 2', 'Treatment 1 & 2', 'Time', 'Compartment', 'New Cat', 'Origin', 'AE Label']    
         rcatnames.extend([entry[cfg.CONFIG_PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
         return sorted(set(rcatnames))
     

@@ -105,7 +105,7 @@ class KSStats(AbstractAnalyzer):
         return results
     
         
-    def feature_kststats(self, data, column, groups=[], comparison='', alpha=0.5, dropna=True):
+    def feature_kststats(self, data, column, groups=[], comparison='', alpha=0.05, dropna=True):
         if data is None or not column in data.columns.values:
             return None, None
         if len(groups) == 0:
@@ -115,9 +115,10 @@ class KSStats(AbstractAnalyzer):
             groups = [g for g in groups if g != comparison]
             groupvals = [name for name,_ in data.groupby(groups)]
             cols = [c for c in groups]
+        dissimilar_label =  f'dissimilar (<{alpha})'
         allcategories = [c for c in cols]
-        allcategories.extend([f'{comparison} 1', f'{comparison} 2', f'{comparison} 1 & 2', 'dissimilar'])
-        cols.extend([f'{comparison} 1', f'{comparison} 2', f'{comparison} 1 & 2',  'dissimilar', f'n ({comparison} 1)', f'n ({comparison} 2)', 'p-values', 'statistic', 'critical D'])
+        allcategories.extend([f'{comparison} 1', f'{comparison} 2', f'{comparison} 1 & 2', dissimilar_label])
+        cols.extend([f'{comparison} 1', f'{comparison} 2', f'{comparison} 1 & 2', dissimilar_label, f'n ({comparison} 1)', f'n ({comparison} 2)', 'p-values', 'statistic', f'critical D ({alpha})'])
         rdata = []        
         for groupval in groupvals:
             if len(groups) == 0:
@@ -137,7 +138,8 @@ class KSStats(AbstractAnalyzer):
                 ks = stats.ks_2samp(data1, data2)
                 critical_d = calpha[alpha] * np.sqrt((len(data1)+len(data2))/(len(data1)*len(data2)))
                 row = [v for v in groupval]
-                row.extend([c[0], c[1], f'{c[0]}-{c[1]}', 'Yes' if ks.statistic > critical_d else 'No', len(data1), len(data2), ks.pvalue, ks.statistic, critical_d])
+                dissimilar = ks.statistic > critical_d and ks.pvalue < alpha 
+                row.extend([c[0], c[1], f'{c[0]}-{c[1]}', f'Yes' if dissimilar else 'No', len(data1), len(data2), ks.pvalue, ks.statistic, critical_d])
                 rdata.append(row)
         result = pd.DataFrame(rdata, columns=cols)
         for ckey in allcategories:

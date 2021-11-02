@@ -226,10 +226,12 @@ class AETraining(AbstractAnalyzer):
         random.seed()
         train_cat = random.sample(cat_groups, k=int(np.around(0.7*len(cat_groups))))
         val_cat = [c for c in cat_groups if c not in train_cat]
-        logging.debug ('Groups for training: {sorted(train_cat)}')
-        logging.debug ('Groups for validation: {sorted(val_cat)}')
+        logging.debug (f'Groups for training: {sorted(train_cat)}')
+        logging.debug (f'Groups for validation: {sorted(val_cat)}')
         train_df = pd.concat([g.get_group(group) for group in g.groups if group in train_cat] )
         val_df = pd.concat([g.get_group(group) for group in g.groups if group not in train_cat] )
+        logging.debug(train_df.describe())
+        logging.debug(val_df.describe())
 
         """"
         self.data_copy = self.data[columns].copy()
@@ -310,6 +312,8 @@ class AETraining(AbstractAnalyzer):
         v_set = np.array(self.val_set)
         training_frame = pd.DataFrame(t_set, index=None, columns=self.params['features'])
         val_frame = pd.DataFrame(v_set, index=None, columns=self.params['features'])
+        print (training_frame.describe())
+        print (val_frame.describe())
 
         train_dataset = datasets(training_frame, labels=training_labels)
         val_dataset = datasets(val_frame, labels=val_labels)
@@ -323,7 +327,7 @@ class AETraining(AbstractAnalyzer):
         self.val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
                                                     batch_size=self.params['batch_size'],
                                                     shuffle=True)
-        return self.train_loader
+        return self.train_loader, self.val_loader
 
     def execute(self):
         logging.info('Training started.')
@@ -351,7 +355,7 @@ class AETraining(AbstractAnalyzer):
                 batchinputs = item[0]#.cuda()
                 batchlabels = item[1]
                 encoder_out, decoder_out = ae(batchinputs)
-                if epoch == self.params['epoches']-1:
+                if epoch == self.params['epoches']:
                     end = start + len(batchinputs) 
                     labels[start:end] = batchlabels
                     batchout = decoder_out.detach().numpy()
