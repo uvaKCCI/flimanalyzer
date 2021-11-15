@@ -1,6 +1,8 @@
 *.pyc
 *.log
 flimanalyzer.egg-info
+data
+KS_test.ipynb
 build
 _build
 dist

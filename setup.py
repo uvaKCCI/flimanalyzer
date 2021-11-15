@@ -10,11 +10,11 @@ setuptools.setup(
     name="flimanalyzer", # Replace with your own username
     version=version,
     author="Karsten Siller",
-    author_email="khsiller@gmail.com.",
+    author_email="khsiller@gmail.com",
     description="FLIM Analyzer",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pypa/sampleproject",
+    url="https://github.com/uvaKCCI/flimanalyzer",
     packages=setuptools.find_packages(),
     package_data = {'':['resources']},
     include_package_data = True,

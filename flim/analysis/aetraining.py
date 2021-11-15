@@ -5,6 +5,8 @@
 
 from flim.analysis.absanalyzer import AbstractAnalyzer
 
+import os
+import random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -25,13 +27,19 @@ from importlib_resources import files
 import flim.resources
 
 class datasets(Dataset):
-    def __init__(self, data):
+
+    def __init__(self, data, labels=[]):
         self.data_arr = np.asarray(data)
         self.data_len = len(self.data_arr)
+        self.labels = labels
+        #self.transform = transforms.Compose([transforms.ToTensor()])
 
     def __getitem__(self, index):
         single_data = self.data_arr[index]
-        return single_data
+        item_label = self.labels[index]
+        #labels = [c for c in self.categories[index]]
+        #labels.append(self.label)
+        return single_data, '|'.join(item_label)
 
     def __len__(self):
         return self.data_len
@@ -39,7 +47,7 @@ class datasets(Dataset):
         
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile=''):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile='', device='cpu'):
         self.timeseries_opts = data.select_dtypes(include=['category']).columns.values
         self.timeseries = timeseries
         self.epoches = epoches
@@ -49,6 +57,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.model = model
         self.model_opts = [a for a in autoencoder.get_autoencoder_classes()]
         self.modelfile = modelfile
+        self.device = device
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
@@ -62,7 +71,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         batch_sizer.Add(wx.StaticText(self, label="Batch Size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         batch_sizer.Add(self.batchsize_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        spinner_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        spinner_sizer = wx.BoxSizer(wx.VERTICAL)
         spinner_sizer.Add(epoches_sizer)
         spinner_sizer.Add(batch_sizer)
 
@@ -76,9 +85,14 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         weight_sizer.Add(wx.StaticText(self, label="Weight Decay"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         weight_sizer.Add(self.weight_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        float_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        float_sizer = wx.BoxSizer(wx.VERTICAL)
         float_sizer.Add(learning_sizer)
         float_sizer.Add(weight_sizer)
+
+        device_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.device_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.device, choices=['cpu', 'cuda'])
+        device_sizer.Add(wx.StaticText(self, label="Device"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        device_sizer.Add(self.device_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         timeseries_sizer = wx.BoxSizer(wx.HORIZONTAL)
         sel_timeseries = self.timeseries
@@ -106,12 +120,15 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
         top_sizer.Add(spinner_sizer)
         top_sizer.Add(float_sizer)
+        top_sizer.Add(device_sizer)
 
         return [top_sizer, timeseries_sizer]
         
     def OnBrowse(self, event):
-        fname = self.modelfiletxt.GetLabel()
+        fpath = self.modelfiletxt.GetLabel()
+        _,fname = os.path.split(fpath)
         with wx.FileDialog(self, 'Model File', style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as fileDialog:    
+            fileDialog.SetPath(fpath)
             fileDialog.SetFilename(fname)
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
@@ -127,6 +144,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         params['timeseries'] = self.timeseries_combobox.GetValue()
         params['modelfile'] = self.modelfiletxt.GetLabel()
         params['model'] = self.model_combobox.GetValue()
+        params['device'] = self.device_combobox.GetValue()
         return params
         
         
@@ -142,6 +160,7 @@ class AETraining(AbstractAnalyzer):
         self.lr = self.params['learning_rate']
         self.wd = self.params['weight_decay']
         self.bs = self.params['batch_size']
+        self.device = self.params['device']
 
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -157,20 +176,21 @@ class AETraining(AbstractAnalyzer):
         return ["any"]
 
     def get_required_features(self):
-        return ["any"]
+        return ["any","any"]
 
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update({
 	        'epoches': 20, 
 	        'learning_rate': 1e-4, 
-	        'weight_decay': 1e-7, 
-	        'batch_size': 200,
+	        'weight_decay': 1e-8, 
+	        'batch_size': 128,
 	        'timeseries': 'Treatment',
 	        'modelfile': '',
             'grouping': ['FOV','Cell'],
             'features': ['FLIRR','FAD a1'],
-            'model': 'Autoencoder 2'
+            'model': 'Autoencoder 2',
+            'device': 'cpu'
         })
         return params
 	 
@@ -184,7 +204,8 @@ class AETraining(AbstractAnalyzer):
             learning_rate=self.params['learning_rate'],
             timeseries=self.params['timeseries'],
             model=self.params['model'],
-            modelfile=self.params['modelfile'])
+            modelfile=self.params['modelfile'],
+            device=self.params['device'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
@@ -193,107 +214,158 @@ class AETraining(AbstractAnalyzer):
         return self.params
    
     def _create_datasets(self):
-        cat_columns = list(self.params['grouping'])
+        allcat_columns = [n for n in self.data.select_dtypes('category').columns]
+        grouping = [n for n in self.params['grouping'] if n != self.params['timeseries']]
+        cat_columns = list(grouping)
         cat_columns.append(self.params['timeseries'])
-        columns = list(cat_columns)
+        columns = list(allcat_columns) # list(cat_columns)
         columns.extend(self.params['features'])
+
+        g = self.data[columns].groupby(grouping)
+        cat_groups = sorted(g.groups.keys())
+        random.seed()
+        train_cat = random.sample(cat_groups, k=int(np.around(0.7*len(cat_groups))))
+        val_cat = [c for c in cat_groups if c not in train_cat]
+        logging.debug (f'Groups for training: {sorted(train_cat)}')
+        logging.debug (f'Groups for validation: {sorted(val_cat)}')
+        train_df = pd.concat([g.get_group(group) for group in g.groups if group in train_cat] )
+        val_df = pd.concat([g.get_group(group) for group in g.groups if group not in train_cat] )
+        logging.debug(train_df.describe())
+        logging.debug(val_df.describe())
+
+        """"
         self.data_copy = self.data[columns].copy()
         data_set = self.data[self.params['features']]
         counts = self.data_copy.groupby(cat_columns).count()
 
-        FOV = self.data_copy.loc[:,self.params['grouping'][0]]
+        FOV = self.data_copy.loc[:,grouping[0]]
         FOV_u = np.unique(FOV)
         timepoint = self.data_copy.loc[:,self.params['timeseries']]
         tp_u = np.unique(timepoint)
 
         # Split data into training and test sets
         training_set = np.zeros([1, data_set.shape[1]])
+        training_labels = np.zeros([1, len(allcat_columns)])
         val_set = np.zeros([1, data_set.shape[1]])
+        val_labels = np.zeros([1, len(allcat_columns)])
 
+        
+        
+        print (f'tp_u={tp_u}')
+        print (f'FOV_u={FOV_u}')
         for t in range(len(tp_u)):
             mask_time = (timepoint == tp_u[t])
             data_t = self.data_copy[mask_time]
 
             for i in range(len(FOV_u)):
-                col = self.params['grouping'][0]
+                col = grouping[0]
                 data_len = data_t[data_t[col]==FOV_u[i]]
-                cell = data_len[self.params['grouping'][1]]
+                cell = data_len[grouping[1]]
                 cell = np.array(list(map(int, cell)))
                 n_c = np.unique(cell)
                 k = int(np.around(0.7 * len(n_c)))
+                print (tp_u[t], FOV_u[i], 'cell', k, 'out of', n_c)
 
                 mask_train = (cell <= k)
                 mask_val = (cell > k)
                 data_t_mask = data_len[mask_train][self.params['features']]
                 data_v_mask = data_len[mask_val][self.params['features']]
                 training_set = np.append(training_set, data_t_mask, axis=0)
+                training_labels = np.append(training_labels, data_len[mask_train][allcat_columns], axis=0)
                 val_set = np.append(val_set, data_v_mask, axis=0)
+                val_labels = np.append(val_labels, data_len[mask_val][allcat_columns], axis=0)
 
         training_set = training_set[1:]
+        training_labels = training_labels[1:]
         val_set = val_set[1:]
+        val_labels = val_labels[1:]
+        """
+        lcols = list(allcat_columns)
+        lcols.append('Label')
+        train_df['Label'] = ['train'] * len(train_df)
+        training_set = train_df[self.params['features']].to_numpy(dtype=np.float32)
+        training_labels = train_df[lcols].to_numpy()
+        val_df['Label'] = ['validate'] * len(val_df)
+        val_set = val_df[self.params['features']].to_numpy(dtype=np.float32)
+        val_labels = val_df[lcols].to_numpy()
 
         my_imputer = SimpleImputer(strategy="constant", fill_value=0)
         min_max_scaler = preprocessing.MinMaxScaler()
 
-        training_set_1 = training_set.astype(float)
-        training_set_1 = min_max_scaler.fit_transform(training_set_1)  # Normalization
+        #training_set = training_set.astype(float)
+        training_set_1 = min_max_scaler.fit_transform(training_set)  # Normalization
         training_set = my_imputer.fit_transform(training_set_1)
         self.training_set = torch.FloatTensor(training_set)
-        self.param = self.training_set.size(1)
-        print('Training set shape:', self.training_set.size())
-        logging.basicConfig(filename='my.log', level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
-        logging.info("Training set contains %d rows, %d columns" % (self.training_set.size(0), (self.training_set.size(1))))
+        self.no_columns = self.training_set.size(1)
+        logging.debug(f'Training set shape: {self.training_set.size()}')
+        logging.debug(f'Training set contains {self.training_set.size(0)} rows, {self.training_set.size(1)} columns')
 
 
-        val_set_1 = val_set.astype(float)
-        val_set_1 = min_max_scaler.fit_transform(val_set_1)  # Normalization
+        #val_set = val_set.astype(float)
+        val_set_1 = min_max_scaler.fit_transform(val_set)  # Normalization
         val_set = my_imputer.fit_transform(val_set_1)
         self.val_set = torch.FloatTensor(val_set)
-        print('Val set shape:', self.val_set.size())
-        logging.info("Test set contains %d rows, %d columns" % (self.val_set.size(0), (self.val_set.size(1))))
+        logging.debug(f'Val set shape: {self.val_set.size()}')
+        logging.debug("Test set contains %d rows, %d columns" % (self.val_set.size(0), (self.val_set.size(1))))
 
-
-    def _load_data(self):
         t_set = np.array(self.training_set)
         v_set = np.array(self.val_set)
         training_frame = pd.DataFrame(t_set, index=None, columns=self.params['features'])
         val_frame = pd.DataFrame(v_set, index=None, columns=self.params['features'])
+        print (training_frame.describe())
+        print (val_frame.describe())
 
-        train_dataset = datasets(training_frame)
-        val_dataset = datasets(val_frame)
+        train_dataset = datasets(training_frame, labels=training_labels)
+        val_dataset = datasets(val_frame, labels=val_labels)
+        for i,item in enumerate(train_dataset):
+            if i>10:
+                break
+            logging.debug(item)
         self.train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                         batch_size=self.params['batch_size'],
                                                         shuffle=True)
         self.val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
                                                     batch_size=self.params['batch_size'],
                                                     shuffle=True)
-        return self.train_loader
+        return self.train_loader, self.val_loader
 
     def execute(self):
+        logging.info('Training started.')
         self._create_datasets()
-        self._load_data()
         aeclasses = autoencoder.get_autoencoder_classes()
-        ae = autoencoder.create_instance(aeclasses[self.params['model']], nb_param=self.param)
-        #ae = AE(self.param)
-        ae = ae#.cuda()
+        device = self.params['device']
+        if self.params['device'] == 'cuda' and not torch.cuda.is_available():
+            device = 'cpu'
+            logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
+        ae = autoencoder.create_instance(aeclasses[self.params['model']], nb_param=self.no_columns).to(device)
         criterion = nn.MSELoss()#.cuda()
         optimizer = optim.RMSprop(ae.parameters(), self.params['learning_rate'], self.params['weight_decay'])
 
         loss_train = []
         loss_val = []
 
-        logging.basicConfig(filename='AEloss.log', level=logging.DEBUG,
-                            format="%(asctime)s - %(levelname)s - %(message)s", filemode='w')
-
         # Train the autoencoder
+        labels = ['?'] * len(self.data)
+        decoded = np.zeros((len(self.data),len(self.params['features'])))
+        encoded = np.zeros((len(self.data),len(self.params['features'])))
         for epoch in range(1, self.params['epoches'] + 1):
             cum_loss = 0
+            start = 0
+            for (i, item) in enumerate(self.train_loader):
+                batchinputs = item[0]#.cuda()
+                batchlabels = item[1]
+                encoder_out, decoder_out = ae(batchinputs)
+                if epoch == self.params['epoches']:
+                    end = start + len(batchinputs) 
+                    labels[start:end] = batchlabels
+                    batchout = decoder_out.detach().numpy()
+                    decoded[start:end, 0:batchout.shape[1]] = batchout
+                    encod = encoder_out.detach().numpy()
+                    encoded[start:end, 0:encod.shape[1]] = encod
+                    # print (f'encod.shape={encod.shape}, encoded.shape={encoded.shape}, outdated.shape={decoded.shape}')
+                    start = end
 
-            for (i, inputs) in enumerate(self.train_loader):
-                inputs = inputs#.cuda()
-                encoder_out, decoder_out = ae(inputs)
-
-                loss = criterion(decoder_out, inputs)
+                loss = criterion(decoder_out, batchinputs)
                 cum_loss += loss.data.item()
 
                 optimizer.zero_grad()
@@ -301,28 +373,47 @@ class AETraining(AbstractAnalyzer):
                 optimizer.step()
 
                 if (i + 1) % 100 == 0:
-                    print('Train-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
-                    logging.info('Train-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
-
+                    logging.debug('Train-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
+                
             loss_train.append(cum_loss / (i + 1))
+            
             cum_loss = 0
+            for (i, item) in enumerate(self.val_loader):
+                batchinputs = item[0]#.cuda()
+                batchlabels = item[1]
+                encoder_out, decoder_out = ae(batchinputs)
+                if epoch == self.params['epoches']-1:
+                    end = start + len(batchinputs) 
+                    labels[start:end] = batchlabels
+                    batchout = decoder_out.detach().numpy()
+                    decoded[start:end, 0:batchout.shape[1]] = batchout
+                    encod = encoder_out.detach().numpy()
+                    encoded[start:end, 0:encod.shape[1]] = encod
+                    start = end
 
-            for (i, inputs) in enumerate(self.val_loader):
-                inputs = inputs#.cuda()
-                encoder_out, decoder_out = ae(inputs)
-
-                loss = criterion(decoder_out, inputs)
+                loss = criterion(decoder_out, batchinputs)
                 cum_loss += loss.data.item()
 
-            print('Validation-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
-            logging.info('Validation-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
+            #np.savetxt(f'valoutput{i}.csv',decoder_out.detach().numpy(),delimiter=',')
+            
+            if (i + 1) % 100 == 0:
+                logging.debug('Validation-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
 
             loss_val.append(cum_loss / (i + 1))
+        
+        lcols = [n for n in self.data.select_dtypes('category').columns]
+        lcols.append('AE Label')
+        labels = [l.split('|') for l in labels]
+        label_df = pd.DataFrame(labels, columns=lcols, dtype='category')
 
-        print("\n")
-        print("loss_TrainingSet:",loss_train[-1])
-        print("loss_TestSet:",loss_val[-1])
-        print("\nTraining complete!\n")
+        decoded_cols = [f'Recon {s}' for s in self.params['features']]
+        decoded_df = pd.concat([label_df, pd.DataFrame(decoded, columns=decoded_cols)], axis=1)
+        encoded_cols = [f'AE encoded {i}' for i in range(encod.shape[1])]
+        encoded_df = pd.concat([label_df, pd.DataFrame(encoded[:,0:encod.shape[1]], columns=encoded_cols)], axis=1)
+        
+        logging.debug(f'loss_TrainingSet: {loss_train[-1]}')
+        logging.debug(f'loss_TestSet: {loss_val[-1]}')
+        logging.info('Training complete.')
         torch.save(ae, self.params['modelfile'])
 
         fig, ax = plt.subplots(constrained_layout=True)
@@ -333,4 +424,4 @@ class AETraining(AbstractAnalyzer):
         ax.set_xlabel('epoch')
         ax.legend(['training', 'testing'], loc='upper right')
         self._add_picker(fig)
-        return {'loss': fig}
+        return {'loss': fig, 'AE Train-Val Decoded': decoded_df, 'AE encoded': encoded_df}
