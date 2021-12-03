@@ -188,12 +188,15 @@ class Config():
                 self.parameters = json.load(fp) #, object_hook=self._to_utf)
                 self.modified = False
                 self.filename = configfile
+            logging.info(f'Configuration loaded from {configfile}.')    
             return True
         except:
+            logging.error(f'Config file {configfile} could not be found or read.')    
             if defaultonfail:
                 self.create_default()
                 self.modified = False
                 self.filename = None
+                logging.info(f'Created default configuration.')    
             return False
             
     
@@ -203,8 +206,9 @@ class Config():
                 json.dump(self.parameters, fp, sort_keys=True, indent=4)
                 self.modified = False
                 self.filename = configfile
+            logging.info(f'Configuration saved as {configfile}.')    
         except:
-            logging.error(f'Config file could not be saved to {configile}')    
+            logging.error(f'Config file could not be saved to {configfile}')    
             
     
     def is_not_None(self,searchkeys):

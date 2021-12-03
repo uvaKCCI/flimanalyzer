@@ -312,8 +312,8 @@ class AETraining(AbstractAnalyzer):
         v_set = np.array(self.val_set)
         training_frame = pd.DataFrame(t_set, index=None, columns=self.params['features'])
         val_frame = pd.DataFrame(v_set, index=None, columns=self.params['features'])
-        print (training_frame.describe())
-        print (val_frame.describe())
+        #print (training_frame.describe())
+        #print (val_frame.describe())
 
         train_dataset = datasets(training_frame, labels=training_labels)
         val_dataset = datasets(val_frame, labels=val_labels)
@@ -382,7 +382,7 @@ class AETraining(AbstractAnalyzer):
                 batchinputs = item[0]#.cuda()
                 batchlabels = item[1]
                 encoder_out, decoder_out = ae(batchinputs)
-                if epoch == self.params['epoches']-1:
+                if epoch == self.params['epoches']:
                     end = start + len(batchinputs) 
                     labels[start:end] = batchlabels
                     batchout = decoder_out.detach().numpy()
