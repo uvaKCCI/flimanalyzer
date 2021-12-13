@@ -155,13 +155,13 @@ class PCAnalysis(AbstractAnalyzer):
     
     
     def execute(self):
-        data = self.data.dropna(how='any', axis=0).reset_index()
+        #data = self.data.dropna(how='any', axis=0).reset_index()
         features = self.params['features']
         if len(features) == 1:
             # reshape 1d array
-            data_no_class = data[features].values.reshape((-1,1))
+            data_no_class = data[features].dropna(how='any', axis=0).reset_index().values.reshape((-1,1))
         else:
-            data_no_class = data[features].values
+            data_no_class = data[features].dropna(how='any', axis=0).reset_index().values
         scaler = StandardScaler()
         scaler.fit(data_no_class)
         standard_data = scaler.transform(data_no_class)
