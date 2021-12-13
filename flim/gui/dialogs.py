@@ -169,13 +169,15 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         
         
     def OnSelectAll(self, event):
-        for key in self.cboxes:
-            self.cboxes[key].SetValue(True)
+        if self.cboxes:
+            for key in self.cboxes:
+                self.cboxes[key].SetValue(True)
 
 
     def OnDeselectAll(self, event):
-        for key in self.cboxes:
-            self.cboxes[key].SetValue(False)
+        if self.cboxes:
+            for key in self.cboxes:
+                self.cboxes[key].SetValue(False)
 
 
     def OnQuit(self, event):
