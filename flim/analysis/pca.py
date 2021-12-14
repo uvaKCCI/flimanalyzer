@@ -158,7 +158,6 @@ class PCAnalysis(AbstractAnalyzer):
         data = self.data
         features = self.params['features']
         data_no_na = data[features].dropna(how='any', axis=0).reset_index()
-        print(len(data), features, len(data_no_na))
         if len(features) == 1:
             # reshape 1d array
             data_no_class = data_no_na.values.reshape((-1,1))
