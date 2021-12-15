@@ -127,10 +127,11 @@ class AESimulate(AbstractAnalyzer):
             return None
 
     def execute(self):
+        cats = list(self.data.select_dtypes(['category']).columns.values)
         data_feat = self.data[self.params['features']]
+        feat_cols = list(data_feat.columns)
         
         rng = random.default_rng()
-        noise = rng.standard_normal(size=data_feat.shape)
         # load an AE model
         device = self.params['device']
         if self.params['device'] == 'cuda' and not torch.cuda.is_available():
@@ -139,19 +140,19 @@ class AESimulate(AbstractAnalyzer):
         ae = torch.load(self.params['modelfile'], map_location = device)
 
         data_feat = data_feat.astype(float)
-        data_feat = data_feat.add(noise)
         my_imputer = SimpleImputer(strategy="constant",fill_value=0)
         min_max_scaler = preprocessing.MinMaxScaler()
         
-        sim_df = pd.DataFrame(data=np.empty((
-            self.params['sets']*data_feat.shape[0], 
-            data_feat.shape[1])), columns=data_feat.columns)
-        raw_min = np.asarray(np.amin(data_feat, axis=0))
-        raw_max = np.asarray(np.amax(data_feat, axis=0))
-        start = 0
+        sim_df = pd.DataFrame(columns=(cats+feat_cols))
+        idx = sim_df.index
         
         for simset in range(1, self.params['sets']+1):
-            sdata_feat = min_max_scaler.fit_transform(data_feat) # Normalization
+            noise = rng.standard_normal(size=data_feat.shape)
+            sdata_feat = data_feat.add(noise)
+            raw_min = np.asarray(np.amin(sdata_feat, axis=0))
+            raw_max = np.asarray(np.amax(sdata_feat, axis=0))
+
+            sdata_feat = min_max_scaler.fit_transform(sdata_feat) # Normalization
             sdata_feat = my_imputer.fit_transform(sdata_feat)
             
             sdata_feat = torch.FloatTensor(sdata_feat)
@@ -171,8 +172,11 @@ class AESimulate(AbstractAnalyzer):
             recon_data = reconstructed.detach().numpy()
             raw_range = (raw_max-raw_min).reshape((1, -1))
             sim_data = recon_data*(raw_range) + raw_min
-            sim_df.iloc[start:start+sim_data.shape[0], :] = sim_data
-            start += len(sim_data)
+            
+            temp = pd.DataFrame(columns=(cats+feat_cols))
+            temp[cats] = self.data[cats]
+            temp[feat_cols] = sim_data
+            sim_df = pd.concat([sim_df, temp])
         
         return {'Simulated': sim_df}
     
