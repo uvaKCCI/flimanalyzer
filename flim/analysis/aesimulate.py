@@ -130,6 +130,12 @@ class AESimulate(AbstractAnalyzer):
         cats = list(self.data.select_dtypes(['category']).columns.values)
         data_feat = self.data[self.params['features']]
         feat_cols = list(data_feat.columns)
+        fc_lower = [x.lower() for x in feat_cols]
+
+        FAD_feats = [feat_cols[r] for r in range(len(fc_lower)) 
+            if ("fad" in fc_lower[r] and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
+        NADPH_feats = [feat_cols[r] for r in range(len(fc_lower)) 
+            if (("nadph" in fc_lower[r] or "nad(p)h" in fc_lower[r]) and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
         
         rng = random.default_rng()
         # load an AE model
@@ -177,6 +183,20 @@ class AESimulate(AbstractAnalyzer):
             temp[cats] = self.data[cats]
             temp[feat_cols] = sim_data
             sim_df = pd.concat([sim_df, temp])
+
+        FADtot = sim_df[FAD_feats[0]]+sim_df[FAD_feats[1]]
+        FAD0 = sim_df[FAD_feats[0]]/FADtot*100
+        FAD1 = sim_df[FAD_feats[1]]/FADtot*100
+        NADPHtot = sim_df[NADPH_feats[0]]+sim_df[NADPH_feats[1]]
+        NADPH0 = sim_df[NADPH_feats[0]]/NADPHtot*100
+        NADPH1 = sim_df[NADPH_feats[1]]/NADPHtot*100
+        calcdf = pd.DataFrame(({
+            FAD_feats[0]+"%": FAD0,
+            FAD_feats[1]+"%": FAD1,
+            NADPH_feats[0]+"%": NADPH0,
+            NADPH_feats[1]+"%": NADPH1,
+        }))
+        sim_df = pd.concat([sim_df, calcdf], axis=1)
         
         return {'Simulated': sim_df}
     

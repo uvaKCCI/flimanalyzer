@@ -32,6 +32,7 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         
         fsizer = wx.BoxSizer(wx.VERTICAL)
         label = wx.StaticText(self, wx.ID_ANY, "Select datasets to concatenate:")
+        self.catsel = wx.CheckBox(self, wx.ID_ANY, "Horizontal Concatenate ")
         self.cfggrid = wx.grid.Grid(self, -1)
         self.cfggrid.SetDefaultColSize(500,True)
         self.cfgtable = ListTable(cfgdata, headers=['Select', 'Dataset'], sort=False)
@@ -39,6 +40,7 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         self.cfggrid.SetRowLabelSize(0)
         self.cfggrid.SetColSize(0, -1)
         
+        fsizer.Add(self.catsel, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.cfggrid, 1, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
@@ -49,6 +51,7 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         params = super()._get_selected()
         cfgdata = self.cfgtable.GetData()
         params['input'] = {row['Dataset']:self.data_choices[row['Dataset']] for row in cfgdata if row['Select']}
+        params['type'] = self.catsel.GetValue()
         return params
 
     def OnSelectAll(self, event):
@@ -89,6 +92,7 @@ class Concatenator(AbstractAnalyzer):
         params = super().get_default_parameters()
         params.update({
             'input': {},
+            'type': False
         })
         return params
             
@@ -116,9 +120,14 @@ class Concatenator(AbstractAnalyzer):
         
     def execute(self):
         results = {}
-        input = self.params['input'] 
+        input = self.params['input']
+        cattype = self.params['type']
+        if cattype: #horizontal
+            caxis = 1
+        else:
+            caxis = 0
         data = list(input.values())
-        concat_df = pd.concat(data, axis=0, copy=True)
+        concat_df = pd.concat(data, axis=caxis, copy=True)
         results['Concatenated'] = concat_df
         return results
             
