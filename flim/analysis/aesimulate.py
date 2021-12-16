@@ -150,9 +150,9 @@ class AESimulate(AbstractAnalyzer):
         min_max_scaler = preprocessing.MinMaxScaler()
         
         sim_df = pd.DataFrame(columns=(cats+feat_cols))
-        idx = sim_df.index
+        maxcell = np.amax(self.data['Cell'].astype(int).to_numpy())
         
-        for simset in range(1, self.params['sets']+1):
+        for simset in range(0, self.params['sets']):
             noise = rng.standard_normal(size=data_feat.shape)
             sdata_feat = data_feat.add(noise)
             raw_min = np.asarray(np.amin(sdata_feat, axis=0))
@@ -181,6 +181,7 @@ class AESimulate(AbstractAnalyzer):
             
             temp = pd.DataFrame(columns=(cats+feat_cols))
             temp[cats] = self.data[cats]
+            temp['Cell'] = temp['Cell'].astype(int) + maxcell*simset
             temp[feat_cols] = sim_data
             sim_df = pd.concat([sim_df, temp])
 
@@ -197,6 +198,10 @@ class AESimulate(AbstractAnalyzer):
             NADPH_feats[1]+"%": NADPH1,
         }))
         sim_df = pd.concat([sim_df, calcdf], axis=1)
+        outfeats = feat_cols+list(calcdf.columns.values)
+        outfeats.sort() #ensure feature vectors will be applied correctly
+        sim_df = sim_df[cats+outfeats]
+        sim_df['Cell'] = sim_df['Cell'].astype(str).astype('category')
         
         return {'Simulated': sim_df}
     
