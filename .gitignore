@@ -2,6 +2,7 @@
 *.log
 flimanalyzer.egg-info
 data
+papers
 KS_test.ipynb
 build
 _build
