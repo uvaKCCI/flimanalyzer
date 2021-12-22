@@ -174,10 +174,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         
         
     def OnSelectAll(self, event):
-        for key in self.cboxes:
-            self.cboxes[key].SetValue(True)
-        
-    
+        if self.cboxes:
+            for key in self.cboxes:
+                self.cboxes[key].SetValue(True)
+            
     def OnClickFeature(self, event):
         cbox = event.GetEventObject()
         for feature in self.cboxes.keys():
@@ -191,10 +191,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
                     
                 break
         
-
     def OnDeselectAll(self, event):
-        for key in self.cboxes:
-            self.cboxes[key].SetValue(False)
+        if self.cboxes:
+            for key in self.cboxes:
+                self.cboxes[key].SetValue(False)
 
 
     def OnQuit(self, event):
