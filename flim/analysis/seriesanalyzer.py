@@ -19,15 +19,16 @@ import numpy as np
 
 class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', seriesmin=True, seriesmax=True, seriesrange=True, seriesmean=True, seriesmedian=True, delta=True, deltamin=True, deltamax=True, mergeinput=False):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', seriesmin=True, seriesmax=True, seriesrange=True, seriesmean=True, seriesmedian=True, delta=True, deltamin=True, deltamax=True, deltasum=True, mergeinput=False):
         self.seriesmin = seriesmin
         self.seriesmax = seriesmax
         self.seriesrange = seriesrange
         self.seriesmean = seriesmean
         self.seriesmedian = seriesmedian
         self.delta = delta
-        self.deltamax = deltamax
         self.deltamin = deltamin
+        self.deltamax = deltamax
+        self.deltasum = deltasum
         self.mergeinput = mergeinput
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, enablegrouping=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
@@ -66,6 +67,10 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.deltamin_cb.SetValue(self.deltamax)
         sizer.Add(self.deltamin_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
+        self.deltasum_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta sum")
+        self.deltasum_cb.SetValue(self.deltasum)
+        sizer.Add(self.deltasum_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
         self.mergeinput_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Merge input")
         self.mergeinput_cb.SetValue(self.mergeinput)
         sizer.Add(self.mergeinput_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
@@ -82,6 +87,7 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         params['delta'] = self.delta_cb.GetValue()
         params['delta_min'] = self.deltamin_cb.GetValue()
         params['delta_max'] = self.deltamax_cb.GetValue()
+        params['delta_sum'] = self.deltasum_cb.GetValue()        
         params['merge_input'] = self.mergeinput_cb.GetValue()        
         return params
         
@@ -119,6 +125,7 @@ class SeriesAnalyzer(AbstractAnalyzer):
             'delta': True, 
             'delta_min':True,
             'delta_max':True,
+            'delta_sum':True,
             'merge_input':False,
             })
         return params
@@ -134,6 +141,7 @@ class SeriesAnalyzer(AbstractAnalyzer):
         delta = self.params['delta']
         deltamin = self.params['delta_min']
         deltamax = self.params['delta_max']
+        deltasum = self.params['delta_sum']
         mergeinput = self.params['merge_input']
         dlg = SeriesAnalyzerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
         	selectedgrouping=selgrouping, 
@@ -146,6 +154,7 @@ class SeriesAnalyzer(AbstractAnalyzer):
         	delta=delta,
         	deltamin=deltamin,
         	deltamax=deltamax,
+        	deltasum=deltasum,
         	mergeinput=mergeinput)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
@@ -179,7 +188,7 @@ class SeriesAnalyzer(AbstractAnalyzer):
             df[f'{label}\nSeries mean'] = self.data[features].mean(axis=1)
         if self.params['series_median']:
             df[f'{label}\nSeries median'] = self.data[features].median(axis=1)
-        if self.params['delta'] or self.params['delta_max'] or self.params['delta_min']:
+        if self.params['delta'] or self.params['delta_max'] or self.params['delta_min'] or self.params['delta_sum']:
             dfdelta = self.data[features].diff(axis=1)
             uniquef.insert(0,'None')
             colheaders = [f'{label}\ndelta {uniquef[i]}:{uniquef[i+1]}' for i in range(len(uniquef)-1)]
@@ -187,9 +196,11 @@ class SeriesAnalyzer(AbstractAnalyzer):
             if self.params['delta']:
                 df = df.join(dfdelta.iloc[:,1:])
             if self.params['delta_min']:
-                df[f'{label}\nDelta min'] = dfdelta.iloc[:,1:].min(axis=1)
+                df[f'{label}\ndelta min'] = dfdelta.iloc[:,1:].min(axis=1)
             if self.params['delta_max']:
-                df[f'{label}\nDelta max'] = dfdelta.iloc[:,1:].max(axis=1)
+                df[f'{label}\ndelta max'] = dfdelta.iloc[:,1:].max(axis=1)
+            if self.params['delta_sum']:
+                df[f'{label}\ndelta sum'] = dfdelta.iloc[:,1:].sum(axis=1)
         results["Series Analysis"] = df
         return results
             

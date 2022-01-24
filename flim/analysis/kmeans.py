@@ -151,6 +151,7 @@ class KMeansClustering(AbstractAnalyzer):
 
     def execute(self):
         data = self.data[self.params['features']]
+        data = data.dropna(how='any', axis=0).reset_index()
         features = self.params['features']
         if len(features) == 1:
             # reshape 1d array
