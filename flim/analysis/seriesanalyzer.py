@@ -34,53 +34,86 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, enablegrouping=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
+        self.boxes = {}
+        nestsizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer = wx.GridSizer(5,0,0)
 
         self.seriesmin_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Series min")
         self.seriesmin_cb.SetValue(self.seriesmin)
+        self.boxes['series_min'] = self.seriesmin_cb
         sizer.Add(self.seriesmin_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         self.seriesmax_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Series max")
         self.seriesmax_cb.SetValue(self.seriesmax)
+        self.boxes['series_max'] = self.seriesmax_cb
         sizer.Add(self.seriesmax_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         self.seriesrange_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Series max-min")
         self.seriesrange_cb.SetValue(self.seriesrange)
+        self.boxes['series_range'] = self.seriesrange_cb
         sizer.Add(self.seriesrange_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.seriesmean_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Series mean")
         self.seriesmean_cb.SetValue(self.seriesmean)
+        self.boxes['series_mean'] = self.seriesmean_cb
         sizer.Add(self.seriesmean_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.seriesmedian_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Series median")
         self.seriesmedian_cb.SetValue(self.seriesmedian)
+        self.boxes['series_median'] = self.seriesmedian_cb
         sizer.Add(self.seriesmedian_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.delta_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta")
         self.delta_cb.SetValue(self.delta)
+        self.boxes['delta'] = self.delta_cb
         sizer.Add(self.delta_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.deltamax_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta min")
-        self.deltamax_cb.SetValue(self.deltamin)
+        self.deltamax_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta max")
+        self.deltamax_cb.SetValue(self.deltamax)
+        self.boxes['delta_max'] = self.deltamax_cb
         sizer.Add(self.deltamax_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        self.deltamin_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta max")
-        self.deltamin_cb.SetValue(self.deltamax)
+        self.deltamin_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta min")
+        self.deltamin_cb.SetValue(self.deltamin)
+        self.boxes['delta_min'] = self.deltamin_cb
         sizer.Add(self.deltamin_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.deltasum_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta sum")
         self.deltasum_cb.SetValue(self.deltasum)
+        self.boxes['delta_sum'] = self.deltasum_cb
         sizer.Add(self.deltasum_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
       
         self.deltacum_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Cumulative delta")
-        self.deltacum_cb.SetValue(self.deltamax)
+        self.deltacum_cb.SetValue(self.deltacum)
+        self.boxes['delta_cum'] = self.deltacum_cb
         sizer.Add(self.deltacum_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.mergeinput_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Merge input")
         self.mergeinput_cb.SetValue(self.mergeinput)
+        self.boxes['merge_input'] = self.mergeinput_cb
         sizer.Add(self.mergeinput_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        selectsizer = wx.BoxSizer(wx.VERTICAL)
+        self.selectAllButton = wx.Button(self, label="Select All")
+        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
+        selectsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
+        self.deselectAllButton = wx.Button(self, label="Deselect All")
+        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
+        selectsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
+        nestsizer.Add(sizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
+        nestsizer.Add(selectsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
         
-        return [sizer]
+        return [nestsizer]
+
+    def OnSelectAll(self, event):
+        if self.boxes:
+            for key in self.boxes:
+                self.boxes[key].SetValue(True)
+        
+    def OnDeselectAll(self, event):
+        if self.boxes:
+            for key in self.boxes:
+                self.boxes[key].SetValue(False)
         
     def _get_selected(self):
         params = super()._get_selected()
