@@ -172,7 +172,7 @@ class KMeansClustering(AbstractAnalyzer):
         cat_cols = list(self.data.select_dtypes(['category']).columns.values)
         cat_df = self.data[cat_cols].copy()
         predict_df = pd.DataFrame(data, columns=features)
-        labelcol = 'Cluster Label'
+        labelcol = 'Cluster'
         predict_df[labelcol] = [f'Cluster {l + 1}' for l in predict.labels_]
         predict_df[labelcol] = predict_df[labelcol].astype('category')
         predict_df = pd.concat([cat_df, predict_df], axis=1)        
