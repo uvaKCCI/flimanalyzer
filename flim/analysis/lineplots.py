@@ -111,7 +111,7 @@ class LinePlot(AbstractAnalyzer):
             elif len(categories) == 3:
                 sns.lineplot(ax=ax, data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'])
             elif len(categories) >3 :
-                g = sns.relplot(ax=ax, data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], col=categories[3], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'], kind="line")
+                g = sns.relplot(data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], col=categories[3], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'], kind="line")
                 fig = g.fig
 
             #if dropna:
