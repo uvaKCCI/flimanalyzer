@@ -80,10 +80,12 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         
         self.deltasum_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Step delta sum")
         self.deltasum_cb.SetValue(self.deltasum)
+        self.boxes['delta_sum'] = self.deltasum_cb
         sizer.Add(self.deltasum_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
       
         self.deltacum_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Cumulative delta")
-        self.deltacum_cb.SetValue(self.deltamax)
+        self.deltacum_cb.SetValue(self.deltacum)
+        self.boxes['delta_cum'] = self.deltacum_cb
         sizer.Add(self.deltacum_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.mergeinput_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Merge input")
