@@ -338,7 +338,7 @@ class TabAnalysis(wx.Panel):
                 elif isinstance(result, tuple):
                     fig,ax = result
                     #title = "Bar plot: %s  %s" % (ax.get_title(), label)
-                    fig.canvas.set_window_title(title)
+                    fig.canvas.manager.set_window_title(title)
                     event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
                     event.SetEventInfo(fig, title, 'createnew')
                     self.GetEventHandler().ProcessEvent(event)        
@@ -914,7 +914,7 @@ class AppFrame(wx.Frame):
 
 
     def OnLoadSettings(self, event):
-        logging.debug ("appframe.OnLoadSettings")
+        logging.debug ("Loading settings.")
         with wx.FileDialog(self, "Load Configuration file", wildcard="json files (*.json)|*.json",
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR) as fileDialog:
 
@@ -1047,7 +1047,8 @@ class AppFrame(wx.Frame):
                     self.GetEventHandler().ProcessEvent(event)
                 elif isinstance(result, matplotlib.figure.Figure):
                     fig = result
-                    fig.canvas.set_window_title(title)
+                    #fig.canvas.set_window_title(title)
+                    fig.canvas.manager.set_window_title(title)
                     event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
                     event.SetEventInfo(fig, title, 'createnew')
                     self.GetEventHandler().ProcessEvent(event)                
@@ -1185,7 +1186,8 @@ class AppFrame(wx.Frame):
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
         title = self.unique_window_title(event.GetTitle())
-        figure.canvas.set_window_title(title)
+        #figure.canvas.set_window_title(title)
+        figure.canvas.manager.set_window_title(title)
         #ON_CUSTOM_LEFT  = wx.NewId()
         #tb = figure.canvas.toolbar
         #tb.AddTool(ON_CUSTOM_LEFT, 'Axes', wx.NullBitmap,'Set range of Axes')
