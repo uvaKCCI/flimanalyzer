@@ -43,14 +43,35 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
         ssizer.Add(wx.StaticText(self, label="Output "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         ssizer.Add(self.dfoutput_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        aggsizer = wx.GridSizer(4, 0, 0)
+        nestsizer = wx.BoxSizer(wx.HORIZONTAL)
+        aggsizer = wx.GridSizer(5, 0, 0)
         for f in self.allaggs:
             cb = wx.CheckBox(self,wx.ID_ANY,f)
             cb.SetValue((f in self.selectedaggs) or (self.selectedaggs == 'All'))
             self.aggboxes[f] = cb
             aggsizer.Add(cb, 0, wx.ALL, 5)
-        return [ssizer,aggsizer]
+
+        selectsizer = wx.BoxSizer(wx.VERTICAL)
+        self.selectAllButton = wx.Button(self, label="Select All")
+        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
+        selectsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
+        self.deselectAllButton = wx.Button(self, label="Deselect All")
+        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
+        selectsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
+        nestsizer.Add(aggsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
+        nestsizer.Add(selectsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
+        return [ssizer,nestsizer]
+    
+    def OnSelectAll(self, event):
+        if self.aggboxes:
+            for key in self.aggboxes:
+                self.aggboxes[key].SetValue(True)
         
+    def OnDeselectAll(self, event):
+        if self.aggboxes:
+            for key in self.aggboxes:
+                self.aggboxes[key].SetValue(False)
+    
     def _get_selected(self):
         selaggs = [key for key in self.aggboxes if self.aggboxes[key].GetValue()]
         params = super()._get_selected()
