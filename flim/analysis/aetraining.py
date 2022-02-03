@@ -25,21 +25,22 @@ import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
 import flim.resources
+from collections import defaultdict
+from sklearn.preprocessing import LabelEncoder
+
 
 class datasets(Dataset):
 
     def __init__(self, data, labels=[]):
-        self.data_arr = np.asarray(data)
-        self.data_len = len(self.data_arr)
-        self.labels = labels
+        self.data = np.asarray(data)
+        self.data_len = len(self.data)
+        self.labels = np.asarray(labels)
         #self.transform = transforms.Compose([transforms.ToTensor()])
 
     def __getitem__(self, index):
-        single_data = self.data_arr[index]
+        single_item = self.data[index]
         item_label = self.labels[index]
-        #labels = [c for c in self.categories[index]]
-        #labels.append(self.label)
-        return single_data, '|'.join(item_label)
+        return single_item, item_label
 
     def __len__(self):
         return self.data_len
@@ -47,7 +48,7 @@ class datasets(Dataset):
         
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile='', device='cpu'):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile='', device='cpu', rescale=False):
         self.timeseries_opts = data.select_dtypes(include=['category']).columns.values
         self.timeseries = timeseries
         self.epoches = epoches
@@ -58,6 +59,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.model_opts = [a for a in autoencoder.get_autoencoder_classes()]
         self.modelfile = modelfile
         self.device = device
+        self.rescale = rescale
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
@@ -91,8 +93,14 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
         device_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.device_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.device, choices=['cpu', 'cuda'])
+        self.rescale_checkbox = wx.CheckBox(self, wx.ID_ANY, label="Rescale decoded")
+        self.rescale_checkbox.SetValue(self.rescale)
         device_sizer.Add(wx.StaticText(self, label="Device"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         device_sizer.Add(self.device_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        rescale_sizer = wx.BoxSizer(wx.VERTICAL)
+        rescale_sizer.Add(device_sizer)
+        rescale_sizer.Add(self.rescale_checkbox)
 
         timeseries_sizer = wx.BoxSizer(wx.HORIZONTAL)
         sel_timeseries = self.timeseries
@@ -106,7 +114,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         if sel_model not in self.model_opts:
             sel_model = self.model_opts[0]
         self.model_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_model, choices=self.model_opts)
-
+        
         self.modelfiletxt = wx.StaticText(self, label=self.modelfile)        
         browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
         browsebutton.Bind(wx.EVT_BUTTON, self.OnBrowse)
@@ -120,7 +128,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
         top_sizer.Add(spinner_sizer)
         top_sizer.Add(float_sizer)
-        top_sizer.Add(device_sizer)
+        top_sizer.Add(rescale_sizer)
 
         return [top_sizer, timeseries_sizer]
         
@@ -145,6 +153,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         params['modelfile'] = self.modelfiletxt.GetLabel()
         params['model'] = self.model_combobox.GetValue()
         params['device'] = self.device_combobox.GetValue()
+        params['rescale'] = self.rescale_checkbox.GetValue()
         return params
         
         
@@ -161,6 +170,7 @@ class AETraining(AbstractAnalyzer):
         self.wd = self.params['weight_decay']
         self.bs = self.params['batch_size']
         self.device = self.params['device']
+        self.rescale = self.params['rescale']
 
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -190,7 +200,8 @@ class AETraining(AbstractAnalyzer):
             'grouping': ['FOV','Cell'],
             'features': ['FLIRR','FAD a1'],
             'model': 'Autoencoder 2',
-            'device': 'cpu'
+            'device': 'cpu',
+            'rescale': False,
         })
         return params
 	 
@@ -205,7 +216,8 @@ class AETraining(AbstractAnalyzer):
             timeseries=self.params['timeseries'],
             model=self.params['model'],
             modelfile=self.params['modelfile'],
-            device=self.params['device'])
+            device=self.params['device'],
+            rescale=self.params['rescale'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
@@ -216,12 +228,16 @@ class AETraining(AbstractAnalyzer):
     def _create_datasets(self):
         allcat_columns = [n for n in self.data.select_dtypes('category').columns]
         grouping = [n for n in self.params['grouping'] if n != self.params['timeseries']]
-        cat_columns = list(grouping)
-        cat_columns.append(self.params['timeseries'])
         columns = list(allcat_columns) # list(cat_columns)
         columns.extend(self.params['features'])
 
-        g = self.data[columns].groupby(grouping)
+        # encode labels of all category columns
+        label_encoders = defaultdict(LabelEncoder)
+        data = self.data.loc[:,columns]
+        data.loc[:,allcat_columns] = data.loc[:,allcat_columns].apply(lambda x: label_encoders[x.name].fit_transform(x))
+        
+        # define logical groups first, then split into train and validation set.
+        g = data[columns].groupby(grouping)
         cat_groups = sorted(g.groups.keys())
         random.seed()
         train_cat = random.sample(cat_groups, k=int(np.around(0.7*len(cat_groups))))
@@ -233,111 +249,42 @@ class AETraining(AbstractAnalyzer):
         logging.debug(train_df.describe())
         logging.debug(val_df.describe())
 
-        """"
-        self.data_copy = self.data[columns].copy()
-        data_set = self.data[self.params['features']]
-        counts = self.data_copy.groupby(cat_columns).count()
-
-        FOV = self.data_copy.loc[:,grouping[0]]
-        FOV_u = np.unique(FOV)
-        timepoint = self.data_copy.loc[:,self.params['timeseries']]
-        tp_u = np.unique(timepoint)
-
-        # Split data into training and test sets
-        training_set = np.zeros([1, data_set.shape[1]])
-        training_labels = np.zeros([1, len(allcat_columns)])
-        val_set = np.zeros([1, data_set.shape[1]])
-        val_labels = np.zeros([1, len(allcat_columns)])
-
-        
-        
-        print (f'tp_u={tp_u}')
-        print (f'FOV_u={FOV_u}')
-        for t in range(len(tp_u)):
-            mask_time = (timepoint == tp_u[t])
-            data_t = self.data_copy[mask_time]
-
-            for i in range(len(FOV_u)):
-                col = grouping[0]
-                data_len = data_t[data_t[col]==FOV_u[i]]
-                cell = data_len[grouping[1]]
-                cell = np.array(list(map(int, cell)))
-                n_c = np.unique(cell)
-                k = int(np.around(0.7 * len(n_c)))
-                print (tp_u[t], FOV_u[i], 'cell', k, 'out of', n_c)
-
-                mask_train = (cell <= k)
-                mask_val = (cell > k)
-                data_t_mask = data_len[mask_train][self.params['features']]
-                data_v_mask = data_len[mask_val][self.params['features']]
-                training_set = np.append(training_set, data_t_mask, axis=0)
-                training_labels = np.append(training_labels, data_len[mask_train][allcat_columns], axis=0)
-                val_set = np.append(val_set, data_v_mask, axis=0)
-                val_labels = np.append(val_labels, data_len[mask_val][allcat_columns], axis=0)
-
-        training_set = training_set[1:]
-        training_labels = training_labels[1:]
-        val_set = val_set[1:]
-        val_labels = val_labels[1:]
-        """
-        lcols = list(allcat_columns)
-        lcols.append('Label')
-        train_df['Label'] = ['train'] * len(train_df)
-        training_set = train_df[self.params['features']].to_numpy(dtype=np.float32)
-        training_labels = train_df[lcols].to_numpy()
-        val_df['Label'] = ['validate'] * len(val_df)
-        val_set = val_df[self.params['features']].to_numpy(dtype=np.float32)
-        val_labels = val_df[lcols].to_numpy()
-
+        # normalize data, create dataloaders
         my_imputer = SimpleImputer(strategy="constant", fill_value=0)
-        min_max_scaler = preprocessing.MinMaxScaler()
-
-        #training_set = training_set.astype(float)
-        training_set_1 = min_max_scaler.fit_transform(training_set)  # Normalization
-        training_set = my_imputer.fit_transform(training_set_1)
-        self.training_set = torch.FloatTensor(training_set)
-        self.no_columns = self.training_set.size(1)
-        logging.debug(f'Training set shape: {self.training_set.size()}')
-        logging.debug(f'Training set contains {self.training_set.size(0)} rows, {self.training_set.size(1)} columns')
-
-
-        #val_set = val_set.astype(float)
-        val_set_1 = min_max_scaler.fit_transform(val_set)  # Normalization
-        val_set = my_imputer.fit_transform(val_set_1)
-        self.val_set = torch.FloatTensor(val_set)
-        logging.debug(f'Val set shape: {self.val_set.size()}')
-        logging.debug("Test set contains %d rows, %d columns" % (self.val_set.size(0), (self.val_set.size(1))))
-
-        t_set = np.array(self.training_set)
-        v_set = np.array(self.val_set)
-        training_frame = pd.DataFrame(t_set, index=None, columns=self.params['features'])
-        val_frame = pd.DataFrame(v_set, index=None, columns=self.params['features'])
-        #print (training_frame.describe())
-        #print (val_frame.describe())
-
-        train_dataset = datasets(training_frame, labels=training_labels)
-        val_dataset = datasets(val_frame, labels=val_labels)
-        for i,item in enumerate(train_dataset):
-            if i>10:
-                break
-            logging.debug(item)
-        self.train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+        train_scaler = preprocessing.MinMaxScaler()
+        training_set = train_df[self.params['features']].to_numpy(dtype=np.float32)
+        training_set = train_scaler.fit_transform(training_set)
+        training_set = my_imputer.fit_transform(training_set)
+        train_labels = train_df[allcat_columns]
+        train_dataset = datasets(training_set, labels=train_labels)
+        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                         batch_size=self.params['batch_size'],
                                                         shuffle=True)
-        self.val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
-                                                    batch_size=self.params['batch_size'],
-                                                    shuffle=True)
-        return self.train_loader, self.val_loader
+        logging.debug(f'Training set shape: {training_set.shape}')
+
+        val_scaler = preprocessing.MinMaxScaler()
+        val_set = val_df[self.params['features']].to_numpy(dtype=np.float32)
+        val_set = val_scaler.fit_transform(val_set)
+        val_set = my_imputer.fit_transform(val_set)
+        val_labels = val_df[allcat_columns]
+        val_dataset = datasets(val_set, labels=val_labels)
+        val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
+                                                        batch_size=self.params['batch_size'],
+                                                        shuffle=True)
+        logging.debug(f'Val set shape: {val_set.shape}')
+                                                        
+        return train_loader, val_loader, train_scaler, val_scaler, label_encoders
 
     def execute(self):
         logging.info('Training started.')
-        self._create_datasets()
+        train_loader, val_loader, train_scaler, val_scaler, label_encoders = self._create_datasets()
         aeclasses = autoencoder.get_autoencoder_classes()
         device = self.params['device']
         if self.params['device'] == 'cuda' and not torch.cuda.is_available():
             device = 'cpu'
             logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
-        ae = autoencoder.create_instance(aeclasses[self.params['model']], nb_param=self.no_columns).to(device)
+        no_features = len(self.params['features'])    
+        ae = autoencoder.create_instance(aeclasses[self.params['model']], nb_param=no_features).to(device)
         criterion = nn.MSELoss()#.cuda()
         optimizer = optim.RMSprop(ae.parameters(), self.params['learning_rate'], self.params['weight_decay'])
 
@@ -345,25 +292,25 @@ class AETraining(AbstractAnalyzer):
         loss_val = []
 
         # Train the autoencoder
-        labels = ['?'] * len(self.data)
-        decoded = np.zeros((len(self.data),len(self.params['features'])))
-        encoded = np.zeros((len(self.data),len(self.params['features'])))
+        labels = []
+        decoded = []#np.zeros((len(self.data),len(self.params['features'])))
+        encoded = []#np.zeros((len(self.data),len(self.params['features'])))
         for epoch in range(1, self.params['epoches'] + 1):
             cum_loss = 0
-            start = 0
-            for (i, item) in enumerate(self.train_loader):
-                batchinputs = item[0]#.cuda()
-                batchlabels = item[1]
+            train_samples = 0
+            for i, (batchinputs,batchlabels) in enumerate(train_loader):
                 encoder_out, decoder_out = ae(batchinputs)
                 if epoch == self.params['epoches']:
-                    end = start + len(batchinputs) 
-                    labels[start:end] = batchlabels
+                    length = len(batchlabels)
+                    # use int 0 to label as 'train'
+                    labelarray = np.array(length*[0]).reshape(length,1)
+                    labelarray = np.concatenate([batchlabels,labelarray], axis=1)
+                    labels.append(labelarray)
                     batchout = decoder_out.detach().numpy()
-                    decoded[start:end, 0:batchout.shape[1]] = batchout
+                    decoded.append(batchout)
                     encod = encoder_out.detach().numpy()
-                    encoded[start:end, 0:encod.shape[1]] = encod
-                    # print (f'encod.shape={encod.shape}, encoded.shape={encoded.shape}, outdated.shape={decoded.shape}')
-                    start = end
+                    encoded.append(encod)
+                    train_samples += len(batchinputs) 
 
                 loss = criterion(decoder_out, batchinputs)
                 cum_loss += loss.data.item()
@@ -374,42 +321,56 @@ class AETraining(AbstractAnalyzer):
 
                 if (i + 1) % 100 == 0:
                     logging.debug('Train-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
-                
             loss_train.append(cum_loss / (i + 1))
             
             cum_loss = 0
-            for (i, item) in enumerate(self.val_loader):
+            for (i, item) in enumerate(val_loader):
                 batchinputs = item[0]#.cuda()
                 batchlabels = item[1]
                 encoder_out, decoder_out = ae(batchinputs)
                 if epoch == self.params['epoches']:
-                    end = start + len(batchinputs) 
-                    labels[start:end] = batchlabels
+                    length = len(batchlabels)
+                    # use int 1 to label as 'validation'
+                    labelarray = np.array(length*[1]).reshape(length,1)
+                    labelarray = np.concatenate([batchlabels,labelarray], axis=1)
+                    labels.append(labelarray)
                     batchout = decoder_out.detach().numpy()
-                    decoded[start:end, 0:batchout.shape[1]] = batchout
+                    decoded.append(batchout)
                     encod = encoder_out.detach().numpy()
-                    encoded[start:end, 0:encod.shape[1]] = encod
-                    start = end
+                    encoded.append(encod)
 
                 loss = criterion(decoder_out, batchinputs)
                 cum_loss += loss.data.item()
 
-            #np.savetxt(f'valoutput{i}.csv',decoder_out.detach().numpy(),delimiter=',')
-            
             if (i + 1) % 100 == 0:
                 logging.debug('Validation-epoch %d. Iteration %05d, Avg-Loss: %.4f' % (epoch, i + 1, cum_loss / (i + 1)))
-
             loss_val.append(cum_loss / (i + 1))
         
-        lcols = [n for n in self.data.select_dtypes('category').columns]
-        lcols.append('AE Label')
-        labels = [l.split('|') for l in labels]
-        label_df = pd.DataFrame(labels, columns=lcols, dtype='category')
+        logging.debug(f'train_samples={train_samples}')
 
-        decoded_cols = [f'Recon {s}' for s in self.params['features']]
-        decoded_df = pd.concat([label_df, pd.DataFrame(decoded, columns=decoded_cols)], axis=1)
-        encoded_cols = [f'AE encoded {i}' for i in range(encod.shape[1])]
-        encoded_df = pd.concat([label_df, pd.DataFrame(encoded[:,0:encod.shape[1]], columns=encoded_cols)], axis=1)
+        encoded = np.concatenate(encoded)
+        decoded = np.concatenate(decoded)
+        if self.params['rescale']:
+            decoded_train = train_scaler.inverse_transform(decoded[:train_samples])
+            decoded_val = val_scaler.inverse_transform(decoded[train_samples:])
+            decoded = np.concatenate([decoded_train, decoded_val])
+        lcols = [n for n in self.data.select_dtypes('category').columns]
+        lcols.append('Autoencoder')
+        # create train/validation labels
+        labels = np.concatenate(labels)
+        label_df = pd.DataFrame(labels, columns=lcols)#, dtype='category')
+        label_encoders['Autoencoder'].fit(['training','validation'])
+        label_df = label_df.apply(lambda x: label_encoders[x.name].inverse_transform(x))
+        label_df = label_df.astype('category')
+
+        decoded_cols = [f'AE Recon {s}' for s in self.params['features']]
+        decoded_df = pd.concat([label_df, pd.DataFrame(decoded, columns=decoded_cols, dtype=np.float32)], axis=1)
+        encoded_cols = [f'AE Encoded {i}' for i in range(encod.shape[1])]
+        encoded_df = pd.concat([label_df, pd.DataFrame(encoded[:,0:encod.shape[1]], columns=encoded_cols, dtype=np.float32)], axis=1)
+        
+        epoch_list = [str(e) for e in range(1,self.params['epoches']+1)]
+        loss_df = pd.DataFrame({'Epoch':epoch_list, 'Training Loss':loss_train, 'Validation Loss':loss_val})
+        loss_df['Epoch'] = loss_df['Epoch'].astype('category')
         
         logging.debug(f'loss_TrainingSet: {loss_train[-1]}')
         logging.debug(f'loss_TestSet: {loss_val[-1]}')
@@ -424,4 +385,4 @@ class AETraining(AbstractAnalyzer):
         ax.set_xlabel('epoch')
         ax.legend(['training', 'testing'], loc='upper right')
         self._add_picker(fig)
-        return {'loss': fig, 'AE Train-Val Decoded': decoded_df, 'AE encoded': encoded_df}
+        return {'Plot: AE Loss': fig, 'AE Loss': loss_df, 'AE Train-Val Decoded': decoded_df, 'AE Train-Val Encoded': encoded_df}

@@ -118,7 +118,10 @@ class AbstractAnalyzer(ABC):
 
         """
         if not isinstance(label, str):
-            label = ','.join(label)
+            if isinstance(label, list):
+                label = ','.join(str(label))
+            else:
+                label = str(label)
         return str(label).replace('\'','').replace('(','').replace(')','')
     	
     	

@@ -72,14 +72,14 @@ class LinePlot(AbstractAnalyzer):
         results = {}
         categories = self.data.select_dtypes('category').columns.values
         categories = [c for c in categories if len(self.data[c].unique()) > 1]
-        ticklabels = [', '.join(row) for row in self.data[categories].values]
+        ticklabels = [', '.join(str(row)) for row in self.data[categories].values]
         fig, ax = plt.subplots()
         
         data = self.data.copy()
         for c in categories:
             data[c] = data[c].astype('str') 
         for feature in sorted(self.params['features']):
-            logging.debug (f"\tcreating mean bar plot for {feature}")
+            logging.debug (f"\tcreating line plot for {feature}")
             fig = self.grouped_lineplot(data, feature, categories=self.params['grouping'], ax=ax, fig=fig)
         #x_formatter = FixedFormatter(ticklabels)
         #x_locator = FixedLocator(range(len(ticklabels)))

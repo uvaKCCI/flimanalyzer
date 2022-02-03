@@ -247,7 +247,7 @@ class SelectGroupsDlg(wx.Dialog):
             groups = []
         self.cboxes = {}
         for g in groups:
-            cb = wx.CheckBox(self,wx.ID_ANY,g)
+            cb = wx.CheckBox(self,wx.ID_ANY,str(g))
             cb.SetValue((g in selected) or (selected == 'All'))
             self.cboxes[g] = cb
             cbsizer.Add(cb, 0, wx.ALL, 5)

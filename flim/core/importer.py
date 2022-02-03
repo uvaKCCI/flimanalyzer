@@ -10,10 +10,11 @@ import logging
 import os
 import glob
 import pandas as pd
+import numpy as np
 
 import flim.core.configuration as cfg
 from flim.core.parser import  defaultparser
-import flim.core.preprocessor
+import flim.core.preprocessor as pp
 
 DEFAULT_EXT = ['.txt','.csv']
 
@@ -158,12 +159,21 @@ class dataimporter():
             fheaders = set(fheaders)
             df = pd.concat(dflist)
             df.reset_index(inplace=True, drop=True)
+            #if 'ROI' not in df.columns.values:
+            #    df['ROI'] = np.arange(1,len(df)+1) 
+            #print ('done')
             allheaders = list(df.columns.values)
             logging.debug (self.get_reserved_categorycols(parser))
             categories = [key for key in self.get_reserved_categorycols(parser) if key in allheaders]
+            df['ROI'] = df.groupby(categories).cumcount() + 1
+            df['ROI'] = [str(roi) for roi in df['ROI']]
+            categories.append('ROI')
             for ckey in categories:
                 df[ckey] = df[ckey].astype('category')
-            if preprocessor is not None:
+            if preprocessor is None:
+                dp = pp.defaultpreprocessor()
+                df = dp.reorder_columns(df)
+            else:
                 df = preprocessor.reorder_columns(df)
                 df,_,_ = preprocessor.calculate(df)
             return df, filenames, fheaders 
