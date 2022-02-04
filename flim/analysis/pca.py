@@ -22,6 +22,7 @@ import flim.resources
 class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 
     def __init__(self, parent, title, data, 
+            description=None,
             selectedgrouping=['None'], 
             selectedfeatures='All', 
             keeporig=False, 
@@ -34,17 +35,9 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
         self.keepstd = keepstd
         self.explainedhisto = explainedhisto
         self.n_components = n_components
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
 		    
-    def get_option_panels(self):
-        helptxt = f'Specifiy PCA components to retain:'\
-                                 '\n\tleave empty:   retain all PCA components.'\
-                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
-                                 '\n\t1 <= n <= {len(self.allfeatures)} (integer):   retain first n PCA components.'
-        
-        helpsizer = wx.BoxSizer(wx.HORIZONTAL)
-        helpsizer.Add(wx.StaticText(self, label=helptxt), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        
+    def get_option_panels(self):        
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self.n_components_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=float(len(self.allfeatures)), value=self.n_components, fractionWidth=3)
@@ -63,7 +56,7 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
         self.explainedhisto_cb.SetValue(self.explainedhisto)
         sizer.Add(self.explainedhisto_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        return [helpsizer, sizer]
+        return [sizer]
         
     def _get_selected(self):
         n_comps = self.n_components_input.GetValue()
@@ -85,6 +78,11 @@ class PCAnalysis(AbstractAnalyzer):
         AbstractAnalyzer.__init__(self, data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
         self.name = "Principal Component Analysis"
     
+    def get_description(self):
+        return 'Specifiy PCA components to retain:'\
+                                 '\n\tleave empty:   retain all PCA components.'\
+                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
+                                 '\n\t1 <= n <= # features (integer):   retain first n PCA components.'
     def __repr__(self):
         return f"{'name': {self.name}}"
     
@@ -112,7 +110,8 @@ class PCAnalysis(AbstractAnalyzer):
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = PCAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = PCAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data,
+            description=self.get_description(), 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
             keeporig=self.params['keeporig'], 
@@ -125,35 +124,7 @@ class PCAnalysis(AbstractAnalyzer):
         self.params = dlg.get_selected()
         self.configure(**self.params)
         return self.params    
-    
-        n = ''
-        dlg = wx.TextEntryDialog(parent, 'Specifiy PCA components to retain:'\
-                                 '\n\tleave empty:   retain all PCA components.'\
-                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
-                                 '\n\t1 <= n <= %d (integer):   retain first n PCA components.' % len(self.params['features']),'PCA Configuration')
-        dlg.SetValue(n)
-        while True:
-            if dlg.ShowModal() != wx.ID_OK:
-                return
-            entry = dlg.GetValue()
-            if entry == '':
-                n = None
-            else:    
-                try:
-                    n = float(entry)
-                    n = int(entry)
-                except:
-                    pass
-            if n is None or (n > 0 and ((isinstance(n, float) and n <1.0) or (isinstance(n, int) and n >= 1 and n <= len(self.params['features'])))):
-                seed = np.random.randint(10000000)
-                parameters = {
-                    'random_state': seed,
-                    'n_components': n}
-                self.configure(**parameters)
-                return parameters
-        return  # explicit None
-    
-    
+        
     def execute(self):
         data = self.data
         features = self.params['features']

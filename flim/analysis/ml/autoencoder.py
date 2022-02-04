@@ -59,9 +59,9 @@ class Autoencoder_One(AbsAutoencoder):
         self.name = "Autoencoder 1" 
         self.fc1 = nn.Linear(nb_param, hidden_size)
         self.fc4 = nn.Linear(hidden_size, nb_param)
-        self.activation1 = nn.Sigmoid()
+        #self.activation1 = nn.Sigmoid()
         self.activation2 = nn.ReLU()
-        self.activation3 = nn.LeakyReLU()
+        #self.activation3 = nn.LeakyReLU()
         
     def forward(self, x):
         encoder_out = self.activation2(self.fc1(x))
@@ -77,9 +77,9 @@ class Autoencoder_Two(AbsAutoencoder):
         self.fc2 = nn.Linear(hidden_size_1, hidden_size_2)
         self.fc3 = nn.Linear(hidden_size_2, hidden_size_1)
         self.fc4 = nn.Linear(hidden_size_1, nb_param)
-        self.activation1 = nn.Sigmoid()
+        #self.activation1 = nn.Sigmoid()
         self.activation2 = nn.ReLU()
-        self.activation3 = nn.LeakyReLU()
+        #self.activation3 = nn.LeakyReLU()
 
         
     def forward(self, x):

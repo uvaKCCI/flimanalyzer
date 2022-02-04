@@ -48,7 +48,7 @@ class datasets(Dataset):
         
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile='', device='cpu', rescale=False):
+    def __init__(self, parent, title, data, description=None, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile='', device='cpu', rescale=False):
         self.timeseries_opts = data.select_dtypes(include=['category']).columns.values
         self.timeseries = timeseries
         self.epoches = epoches
@@ -60,7 +60,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.modelfile = modelfile
         self.device = device
         self.rescale = rescale
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
         epoches_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -114,10 +114,11 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         if sel_model not in self.model_opts:
             sel_model = self.model_opts[0]
         self.model_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_model, choices=self.model_opts)
+        self.model_combobox.Bind(wx.EVT_COMBOBOX, self._update_model_info)
         
         self.modelfiletxt = wx.StaticText(self, label=self.modelfile)        
         browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
-        browsebutton.Bind(wx.EVT_BUTTON, self.OnBrowse)
+        browsebutton.Bind(wx.EVT_BUTTON, self._on_browse)
         
         timeseries_sizer.Add(wx.StaticText(self, label="Model Architecture"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         timeseries_sizer.Add(self.model_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
@@ -132,7 +133,18 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
         return [top_sizer, timeseries_sizer]
         
-    def OnBrowse(self, event):
+    def _update_model_info(self, event):
+        modelname = self.model_combobox.GetValue()
+        batch_size = self.batchsize_spinner.GetValue()
+        print (modelname)
+        aeclasses = autoencoder.get_autoencoder_classes()
+        sel_features = [self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()]
+        ae = autoencoder.create_instance(aeclasses[modelname], nb_param=len(sel_features))
+        from torchinfo import summary
+        print (summary(ae, input_size=(batch_size,len(sel_features)), verbose=2))
+        print (ae)
+            
+    def _on_browse(self, event):
         fpath = self.modelfiletxt.GetLabel()
         _,fname = os.path.split(fpath)
         with wx.FileDialog(self, 'Model File', style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT) as fileDialog:    
@@ -206,7 +218,8 @@ class AETraining(AbstractAnalyzer):
         return params
 	 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', self.data,
+            description=self.get_description(), 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
             epoches=self.params['epoches'], 

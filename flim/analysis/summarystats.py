@@ -25,11 +25,11 @@ def percentile(n):
 
 class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', allaggs=[], selectedaggs='All', singledf=False):
+    def __init__(self, parent, title, data, description=None, selectedgrouping=['None'], selectedfeatures='All', allaggs=[], selectedaggs='All', singledf=False):
         self.allaggs = allaggs
         self.selectedaggs = selectedaggs
         self.singledf = singledf
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
         self.aggboxes = {}
@@ -88,6 +88,9 @@ class SummaryStats(AbstractAnalyzer):
         AbstractAnalyzer.__init__(self, data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
         self.name = "Summary Table"
     
+    def get_description(self):
+        return "Calculates counts, min, max, mean, median (50th percentile), 25th percentile, and 75th percentile, StDev, S.E.M, of grouped data."
+        
     def __repr__(self):
         return f"{'name': {self.name}}"
     
@@ -113,7 +116,14 @@ class SummaryStats(AbstractAnalyzer):
         return params
         
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=self.params['grouping'], selectedfeatures=self.params['features'], allaggs=self.agg_functions, selectedaggs=self.params['aggs'], singledf=self.params['singledf'])
+        dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', 
+            self.data, 
+            description=self.get_description(), 
+            selectedgrouping=self.params['grouping'], 
+            selectedfeatures=self.params['features'], 
+            allaggs=self.agg_functions, 
+            selectedaggs=self.params['aggs'], 
+            singledf=self.params['singledf'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None

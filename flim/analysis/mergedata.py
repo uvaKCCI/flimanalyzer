@@ -21,7 +21,7 @@ import flim.resources
 
 class MergerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, data_choices={}, 
+    def __init__(self, parent, title, data, description=None, data_choices={}, 
             how='left', left_on=None, right_on=None, left_index=False, right_index=False):
         self.data_choices = data_choices
         self.how_choices = {'<< merge left':'left', 'merge right >>':'right', 'merge inner':'inner', 'merge outer':'outer'}
@@ -42,7 +42,7 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
             self.right_on = right_on
         self.left_index = left_index
         self.right_index = right_index
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):
         fsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -110,7 +110,11 @@ class Merger(AbstractAnalyzer):
         else:
             right_on=''
                 
-        dlg = MergerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = MergerConfigDlg(
+            parent, 
+            f'Configuration: {self.name}', 
+            self.data,
+            description = self.get_description(), 
             data_choices=data_choices,
             left_on=left_on,
             right_on=right_on,

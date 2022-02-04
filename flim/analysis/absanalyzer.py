@@ -96,7 +96,15 @@ class AbstractAnalyzer(ABC):
         self.params = self.get_default_parameters()
         self.params.update({**kwargs})
         
-        
+    def get_description(self):
+        """Returns a description for this analyzing module. This may include instructions on how to use the parameters.
+
+        Returns:
+            String: the description.
+
+        """
+        return self.name
+            
     def get_icon(self):
         """Returns icon for this analysis.
 
@@ -126,7 +134,7 @@ class AbstractAnalyzer(ABC):
     	
     	
     def _add_picker(self, figure):
-        """Enables picker to figure's axes, their children and grandchildren
+        """Enables picker to figure's axes, their children and grandchildren.
         
         Args:
             figure (Figure): the figure for which the pickers will be enabled. 

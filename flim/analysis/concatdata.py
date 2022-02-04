@@ -25,7 +25,7 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         self.data_choices = data_choices
         self.data_selected = data_selected
 
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):
         cfgdata = [{'Select':name in self.data_selected, 'Dataset': name} for name in self.data_choices]

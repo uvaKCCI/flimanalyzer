@@ -82,9 +82,10 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
             
 class BasicAnalysisConfigDlg(wx.Dialog):
 
-    def __init__(self, parent, title, data, data_choices={}, chooseinput=False, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2, enablefeatsettings=False, featuresettings={}, settingspecs={}):
+    def __init__(self, parent, title, data, description=None, data_choices={}, chooseinput=False, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2, enablefeatsettings=False, featuresettings={}, settingspecs={}):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         # 5 col gridsizer
+        self.description = description
         self.chooseinput = chooseinput
         self.enablegrouping = enablegrouping
         self.enablefeatures = enablefeatures
@@ -102,6 +103,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             self.selectedfeatures = {" ".join(c.split("\n")):c for c in selectedfeatures}
  
         sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        if description and len(description) > 0:
+            sizer.Add(wx.StaticText(self, label=description), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+            sizer.Add(wx.StaticLine(self,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
 
         self.optionsizer = wx.GridSizer(optgridcols, optgridrows, 0)
         for p in self.get_option_panels():

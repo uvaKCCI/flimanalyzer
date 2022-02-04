@@ -1,6 +1,7 @@
 name: flimenv-0.3.0
 channels:
   - pytorch
+  - conda-forge
   - defaults
 dependencies:
   - matplotlib>3.4
@@ -9,6 +10,7 @@ dependencies:
   - pip=20.3
   - python=3.7
   - pytorch=1.7.0
+  - torchinfo=1.6.3
   - scikit-learn
   - seaborn
   - xlsxwriter
