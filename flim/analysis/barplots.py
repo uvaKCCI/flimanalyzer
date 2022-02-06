@@ -32,8 +32,8 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         sel_orientation = self.orientation
         if sel_orientation not in orientation_opts:
             sel_orientation = orientation_opts[0]
-        self.orientation_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_orientation, choices=orientation_opts)
-        osizer.Add(wx.StaticText(self, label="Orientation "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.orientation_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_orientation, choices=orientation_opts)
+        osizer.Add(wx.StaticText(self.panel, label="Orientation "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         osizer.Add(self.orientation_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         bsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -41,9 +41,9 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         sel_ebar = self.ebar
         if sel_ebar not in ebar_opts:
             sel_ebar = ebar_opts[0]
-        self.ebar_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_ebar, choices=ebar_opts)
+        self.ebar_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_ebar, choices=ebar_opts)
         self.ebar_combobox.Bind(wx.EVT_COMBOBOX, self.OnErroBarChange)
-        bsizer.Add(wx.StaticText(self, label="Error Bar"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        bsizer.Add(wx.StaticText(self.panel, label="Error Bar"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         bsizer.Add(self.ebar_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         tsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -51,9 +51,9 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         sel_etype = self.etype
         if sel_etype not in sel_etype:
             sel_etype = sel_etype[0]
-        self.etype_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_etype, choices=etype_opts)
+        self.etype_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_etype, choices=etype_opts)
         self.etype_combobox.Enable(sel_ebar != 'None')
-        tsizer.Add(wx.StaticText(self, label="Error Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        tsizer.Add(wx.StaticText(self.panel, label="Error Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         tsizer.Add(self.etype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         return [osizer, bsizer, tsizer]

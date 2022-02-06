@@ -31,15 +31,15 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         cfgdata = [{'Select':name in self.data_selected, 'Dataset': name} for name in self.data_choices]
         
         fsizer = wx.BoxSizer(wx.VERTICAL)
-        label = wx.StaticText(self, wx.ID_ANY, "Select datasets to concatenate:")
-        self.cfggrid = wx.grid.Grid(self, -1)
+        label = wx.StaticText(self.panel, wx.ID_ANY, "Select datasets to concatenate:")
+        self.cfggrid = wx.grid.Grid(self.panel, -1)
         self.cfggrid.SetDefaultColSize(500,True)
         self.cfgtable = ListTable(cfgdata, headers=['Select', 'Dataset'], sort=False)
         self.cfggrid.SetTable(self.cfgtable,takeOwnership=True)
         self.cfggrid.SetRowLabelSize(0)
         self.cfggrid.SetColSize(0, -1)
         
-        fsizer.Add(label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
+        fsizer.Add(label, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.cfggrid, 1, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         return [fsizer]

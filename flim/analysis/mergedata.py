@@ -46,13 +46,13 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
 		    
     def get_option_panels(self):
         fsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.left_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.left_on, choices=list(self.data_choices.keys()))
-        self.how_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.how, choices=list(self.how_choices.keys()))        
-        self.right_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.right_on, choices=list(self.data_choices.keys()))
-        fsizer.Add(wx.StaticText(self, label="Table 1"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.left_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.left_on, choices=list(self.data_choices.keys()))
+        self.how_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.how, choices=list(self.how_choices.keys()))        
+        self.right_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.right_on, choices=list(self.data_choices.keys()))
+        fsizer.Add(wx.StaticText(self.panel, label="Table 1"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.left_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.how_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        fsizer.Add(wx.StaticText(self, label="Table 2"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        fsizer.Add(wx.StaticText(self.panel, label="Table 2"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.right_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         
         return [fsizer]
@@ -72,6 +72,10 @@ class Merger(AbstractAnalyzer):
         AbstractAnalyzer.__init__(self, data, categories={}, default='unassigned')
         self.name = "Merge Data"
     
+    def get_description(self):
+        return "Merges two data tables based on shared index. "\
+        + "The index is determined using category column headers found in both tables."
+        
     def __repr__(self):
         return f"{'name': {self.name}}"
     

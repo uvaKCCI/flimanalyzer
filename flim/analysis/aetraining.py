@@ -61,16 +61,17 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.device = device
         self.rescale = rescale
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
+        self._update_model_info(None)
 		    
     def get_option_panels(self):
         epoches_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.epoches_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.epoches)
-        epoches_sizer.Add(wx.StaticText(self, label="Epoches"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.epoches_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=500,initial=self.epoches)
+        epoches_sizer.Add(wx.StaticText(self.panel, label="Epoches"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         epoches_sizer.Add(self.epoches_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         batch_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.batchsize_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.batch_size)
-        batch_sizer.Add(wx.StaticText(self, label="Batch Size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.batchsize_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=500,initial=self.batch_size)
+        batch_sizer.Add(wx.StaticText(self.panel, label="Batch Size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         batch_sizer.Add(self.batchsize_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         spinner_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -78,13 +79,13 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         spinner_sizer.Add(batch_sizer)
 
         learning_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.learning_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
-        learning_sizer.Add(wx.StaticText(self, label="Learning Rate"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.learning_input = NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
+        learning_sizer.Add(wx.StaticText(self.panel, label="Learning Rate"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         learning_sizer.Add(self.learning_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         weight_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.weight_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.weight_decay, fractionWidth=10)
-        weight_sizer.Add(wx.StaticText(self, label="Weight Decay"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.weight_input = NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.weight_decay, fractionWidth=10)
+        weight_sizer.Add(wx.StaticText(self.panel, label="Weight Decay"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         weight_sizer.Add(self.weight_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         float_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -92,57 +93,85 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         float_sizer.Add(weight_sizer)
 
         device_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.device_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.device, choices=['cpu', 'cuda'])
-        self.rescale_checkbox = wx.CheckBox(self, wx.ID_ANY, label="Rescale decoded")
+        self.device_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.device, choices=['cpu', 'cuda'])
+        self.rescale_checkbox = wx.CheckBox(self.panel, wx.ID_ANY, label="Rescale decoded")
         self.rescale_checkbox.SetValue(self.rescale)
-        device_sizer.Add(wx.StaticText(self, label="Device"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        device_sizer.Add(wx.StaticText(self.panel, label="Device"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         device_sizer.Add(self.device_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         rescale_sizer = wx.BoxSizer(wx.VERTICAL)
         rescale_sizer.Add(device_sizer)
         rescale_sizer.Add(self.rescale_checkbox)
 
-        timeseries_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        sel_timeseries = self.timeseries
-        if sel_timeseries not in self.timeseries_opts:
-            sel_timeseries = self.timeseries_opts[0]
-        self.timeseries_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_timeseries, choices=self.timeseries_opts)
-        timeseries_sizer.Add(wx.StaticText(self, label="Time Series"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        timeseries_sizer.Add(self.timeseries_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-
-        sel_model = self.model
-        if sel_model not in self.model_opts:
-            sel_model = self.model_opts[0]
-        self.model_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_model, choices=self.model_opts)
-        self.model_combobox.Bind(wx.EVT_COMBOBOX, self._update_model_info)
-        
-        self.modelfiletxt = wx.StaticText(self, label=self.modelfile)        
-        browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
-        browsebutton.Bind(wx.EVT_BUTTON, self._on_browse)
-        
-        timeseries_sizer.Add(wx.StaticText(self, label="Model Architecture"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        timeseries_sizer.Add(self.model_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        timeseries_sizer.Add(wx.StaticText(self, label="Save Model to File"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        timeseries_sizer.Add(self.modelfiletxt, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        timeseries_sizer.Add(browsebutton, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        
         top_sizer = wx.BoxSizer(wx.HORIZONTAL)
         top_sizer.Add(spinner_sizer)
         top_sizer.Add(float_sizer)
         top_sizer.Add(rescale_sizer)
 
-        return [top_sizer, timeseries_sizer]
+        timeseries_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sel_timeseries = self.timeseries
+        if sel_timeseries not in self.timeseries_opts:
+            sel_timeseries = self.timeseries_opts[0]
+        self.timeseries_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_timeseries, choices=self.timeseries_opts)
+        timeseries_sizer.Add(wx.StaticText(self.panel, label="Time Series"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(self.timeseries_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        sel_model = self.model
+        if sel_model not in self.model_opts:
+            sel_model = self.model_opts[0]
+        self.model_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_model, choices=self.model_opts)
+        self.model_combobox.Bind(wx.EVT_COMBOBOX, self._update_model_info)
+        
+        self.modelfiletxt = wx.StaticText(self.panel, label=self.modelfile)        
+        browsebutton = wx.Button(self.panel, wx.ID_ANY, 'Choose...')
+        browsebutton.Bind(wx.EVT_BUTTON, self._on_browse)
+        
+        timeseries_sizer.Add(wx.StaticText(self.panel, label="Model Architecture"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(self.model_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(wx.StaticText(self.panel, label="Save Model"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(self.modelfiletxt, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(browsebutton, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        descr_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.model_descr = wx.TextCtrl(self.panel, value="None", size=(400,100), style=wx.TE_MULTILINE|wx.TE_READONLY|wx.SUNKEN_BORDER)
+        self.model_layers = wx.TextCtrl(self.panel, value='None', size=(400,100), style=wx.TE_MULTILINE|wx.TE_READONLY|wx.SUNKEN_BORDER)
+        descr_sizer.Add(self.model_descr, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        descr_sizer.Add(self.model_layers, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        #descr_sizer.Add(wx.StaticText(self, label="Weight Decay"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        #descr_sizer.Add(self.weight_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        all_sizer = wx.BoxSizer(wx.VERTICAL)
+        all_sizer.Add(top_sizer)
+        all_sizer.Add(timeseries_sizer)
+        all_sizer.Add(descr_sizer)
+        
+        return [all_sizer]
+        
+    def _on_feature_selection(self, event):
+        self._update_model_info(None)
+    
+    def _on_select_all(self, event):
+        super()._on_select_all(event)
+        self._update_model_info(None)
+        
+    def _on_deselect_all(self, event):
+        super()._on_deselect_all(event)
+        self._update_model_info(None)
         
     def _update_model_info(self, event):
         modelname = self.model_combobox.GetValue()
         batch_size = self.batchsize_spinner.GetValue()
-        print (modelname)
         aeclasses = autoencoder.get_autoencoder_classes()
         sel_features = [self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()]
         ae = autoencoder.create_instance(aeclasses[modelname], nb_param=len(sel_features))
-        from torchinfo import summary
-        print (summary(ae, input_size=(batch_size,len(sel_features)), verbose=2))
-        print (ae)
+        if ae:
+            descr = ae.get_description()
+            layer_txt = '\n'.join(str(ae).split('\n')[1:-1]) # strip first and last line
+        else:  
+            descr = 'No input features or model defined'
+            layer_txt = descr
+        self.model_descr.Replace(0, self.model_descr.GetLastPosition(), descr) 
+        self.model_layers.Replace(0, self.model_layers.GetLastPosition(), layer_txt)
             
     def _on_browse(self, event):
         fpath = self.modelfiletxt.GetLabel()
@@ -184,6 +213,12 @@ class AETraining(AbstractAnalyzer):
         self.device = self.params['device']
         self.rescale = self.params['rescale']
 
+    def get_description(self):
+        descr = "Train and save a new autoencoder model using selectable input features. " \
+        + "Training and validation datasets are randomly split based on the specified Data Grouping. " \
+        + "Device selection supports modeling on CPU or GPU (cuda) if available."
+        return descr
+        
     def __repr__(self):
         return f"{'name': {self.name}}"
 

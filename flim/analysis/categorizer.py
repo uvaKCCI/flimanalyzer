@@ -51,32 +51,32 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
             selectedfeature = list(self.allfeatures.keys())[0]
 
         hsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.header_field = wx.TextCtrl(self, value=self.header, size=(500,-1))
-        hsizer.Add(wx.StaticText(self, label="Category column"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.header_field = wx.TextCtrl(self.panel, value=self.header, size=(500,-1))
+        hsizer.Add(wx.StaticText(self.panel, label="Category column"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         hsizer.Add(self.header_field, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
                 
         fsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.feature_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=selectedfeature, choices=list(self.allfeatures.keys()))
-        fsizer.Add(wx.StaticText(self, label="Feature to categorize"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.feature_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=selectedfeature, choices=list(self.allfeatures.keys()))
+        fsizer.Add(wx.StaticText(self.panel, label="Feature to categorize"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.feature_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
 
         bsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.bin_field = wx.TextCtrl(self, value=','.join([str(b) for b in bins]), size=(500,-1))
-        bsizer.Add(wx.StaticText(self, label="Category bins "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.bin_field = wx.TextCtrl(self.panel, value=','.join([str(b) for b in bins]), size=(500,-1))
+        bsizer.Add(wx.StaticText(self.panel, label="Category bins "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         bsizer.Add(self.bin_field, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         
         vsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.value_field = wx.TextCtrl(self, value=','.join(values), size=(500,-1))
-        vsizer.Add(wx.StaticText(self, label="Category labels"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.value_field = wx.TextCtrl(self.panel, value=','.join(values), size=(500,-1))
+        vsizer.Add(wx.StaticText(self.panel, label="Category labels"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         vsizer.Add(self.value_field, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
                 
         dsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.default_field = wx.TextCtrl(self, value=self.default, size=(500,-1))
-        dsizer.Add(wx.StaticText(self, label="Default value"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.default_field = wx.TextCtrl(self.panel, value=self.default, size=(500,-1))
+        dsizer.Add(wx.StaticText(self.panel, label="Default value"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         dsizer.Add(self.default_field, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
                 
         msizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.mergeinput_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Merge input")
+        self.mergeinput_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Merge input")
         self.mergeinput_cb.SetValue(self.mergeinput)
         msizer.Add(self.mergeinput_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         

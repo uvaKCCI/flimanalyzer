@@ -49,28 +49,28 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
     def get_option_panels(self):
         option_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.n_spinner = wx.SpinCtrl(self, wx.ID_ANY, initial=self.n_clusters, min=2, max=20)
-        option_sizer.Add(wx.StaticText(self, label="Number of Clusters"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.n_spinner = wx.SpinCtrl(self.panel, wx.ID_ANY, initial=self.n_clusters, min=2, max=20)
+        option_sizer.Add(wx.StaticText(self.panel, label="Number of Clusters"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         option_sizer.Add(self.n_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.init_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.init, choices=INIT_OPTIONS)
-        option_sizer.Add(wx.StaticText(self, label="Initialization"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.init_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.init, choices=INIT_OPTIONS)
+        option_sizer.Add(wx.StaticText(self.panel, label="Initialization"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         option_sizer.Add(self.init_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.algo_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.algorithm, choices=ALGO_OPTIONS)
-        option_sizer.Add(wx.StaticText(self, label="Algorithm"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.algo_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.algorithm, choices=ALGO_OPTIONS)
+        option_sizer.Add(wx.StaticText(self.panel, label="Algorithm"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         option_sizer.Add(self.algo_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.n_init_spinner = wx.SpinCtrl(self, wx.ID_ANY, initial=self.n_init, min=1, max=50)
-        option_sizer.Add(wx.StaticText(self, label="Runs"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.n_init_spinner = wx.SpinCtrl(self.panel, wx.ID_ANY, initial=self.n_init, min=1, max=50)
+        option_sizer.Add(wx.StaticText(self.panel, label="Runs"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         option_sizer.Add(self.n_init_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.miter_spinner = wx.SpinCtrl(self, wx.ID_ANY, initial=self.max_iter, min=100, max=1000)
-        option_sizer.Add(wx.StaticText(self, label="Max Iterations"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.miter_spinner = wx.SpinCtrl(self.panel, wx.ID_ANY, initial=self.max_iter, min=100, max=1000)
+        option_sizer.Add(wx.StaticText(self.panel, label="Max Iterations"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         option_sizer.Add(self.miter_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.tol_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value='%.1e' % self.tolerance, choices=TOLERANCE_OPTONS)
-        option_sizer.Add(wx.StaticText(self, label="Tolerance"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.tol_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value='%.1e' % self.tolerance, choices=TOLERANCE_OPTONS)
+        option_sizer.Add(wx.StaticText(self.panel, label="Tolerance"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         option_sizer.Add(self.tol_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         return [option_sizer]

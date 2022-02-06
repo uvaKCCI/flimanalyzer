@@ -36,19 +36,19 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
         sel_histtype = self.histtype
         if sel_histtype not in histtype_opts:
             sel_histtype = histtype_opts[0]
-        self.histtype_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_histtype, choices=histtype_opts)
-        optsizer.Add(wx.StaticText(self, label="Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.histtype_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_histtype, choices=histtype_opts)
+        optsizer.Add(wx.StaticText(self.panel, label="Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         optsizer.Add(self.histtype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.stacked_cb = wx.CheckBox(self,wx.ID_ANY, label="Stacked")
+        self.stacked_cb = wx.CheckBox(self.panel,wx.ID_ANY, label="Stacked")
         self.stacked_cb.SetValue(self.stacked)
         optsizer.Add(self.stacked_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.cumulative_cb = wx.CheckBox(self,wx.ID_ANY, label="Cumulative")
+        self.cumulative_cb = wx.CheckBox(self.panel,wx.ID_ANY, label="Cumulative")
         self.cumulative_cb.SetValue(self.cumulative)
         optsizer.Add(self.cumulative_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        self.showdata_cb = wx.CheckBox(self,wx.ID_ANY, label="Binned data table")
+        self.showdata_cb = wx.CheckBox(self.panel,wx.ID_ANY, label="Binned data table")
         self.showdata_cb.SetValue(self.datatable)
         optsizer.Add(self.showdata_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         

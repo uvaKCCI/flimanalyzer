@@ -33,17 +33,17 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
         sel_comparison = self.comparison
         if sel_comparison not in comparison_opts:
             sel_comparison = comparison_opts[0]
-        self.comparison_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_comparison, choices=comparison_opts)
+        self.comparison_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_comparison, choices=comparison_opts)
 
         alpha_opts = [str(c) for c in calpha]
         sel_alpha = str(self.alpha)
         if sel_alpha not in alpha_opts:
             sel_alpha = alpha_opts[0]
-        self.alpha_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_alpha, choices=alpha_opts)
+        self.alpha_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_alpha, choices=alpha_opts)
 
-        osizer.Add(wx.StaticText(self, label="Comparison "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        osizer.Add(wx.StaticText(self.panel, label="Comparison "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         osizer.Add(self.comparison_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        osizer.Add(wx.StaticText(self, label="alpha "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        osizer.Add(wx.StaticText(self.panel, label="alpha "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         osizer.Add(self.alpha_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         return [osizer]

@@ -40,19 +40,19 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
     def get_option_panels(self):        
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.n_components_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=float(len(self.allfeatures)), value=self.n_components, fractionWidth=3)
-        sizer.Add(wx.StaticText(self, label="N-components"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.n_components_input = NumCtrl(self.panel, wx.ID_ANY, min=0.0, max=float(len(self.allfeatures)), value=self.n_components, fractionWidth=3)
+        sizer.Add(wx.StaticText(self.panel, label="N-components"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.n_components_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.keeporig_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Include original data")
+        self.keeporig_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Include original data")
         self.keeporig_cb.SetValue(self.keeporig)
         sizer.Add(self.keeporig_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        self.keepstd_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Include standardized data")
+        self.keepstd_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Include standardized data")
         self.keepstd_cb.SetValue(self.keepstd)
         sizer.Add(self.keepstd_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        self.explainedhisto_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Explained histogram")
+        self.explainedhisto_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Explained histogram")
         self.explainedhisto_cb.SetValue(self.explainedhisto)
         sizer.Add(self.explainedhisto_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
@@ -162,7 +162,7 @@ class PCAnalysis(AbstractAnalyzer):
         pca_comp_label = 'PCA component'
         explained_label = 'explained var ratio'
         pca_explained_df = pd.DataFrame(data={
-                pca_comp_label: range(1,len(pca.explained_variance_ratio_)+1), 
+                pca_comp_label: [str(c) for c in range(1,len(pca.explained_variance_ratio_)+1)], 
                 explained_label: pca.explained_variance_ratio_})
         pca_explained_df[pca_comp_label] = pca_explained_df[pca_comp_label].astype('category')
 

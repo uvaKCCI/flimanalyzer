@@ -39,23 +39,23 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
             sel_dfoutput = self.dfoutput_opts[0]
         else:
             sel_dfoutput = self.dfoutput_opts[1]
-        self.dfoutput_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=sel_dfoutput, choices=self.dfoutput_opts)
-        ssizer.Add(wx.StaticText(self, label="Output "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.dfoutput_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_dfoutput, choices=self.dfoutput_opts)
+        ssizer.Add(wx.StaticText(self.panel, label="Output "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         ssizer.Add(self.dfoutput_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         nestsizer = wx.BoxSizer(wx.HORIZONTAL)
         aggsizer = wx.GridSizer(5, 0, 0)
         for f in self.allaggs:
-            cb = wx.CheckBox(self,wx.ID_ANY,f)
+            cb = wx.CheckBox(self.panel, wx.ID_ANY,f)
             cb.SetValue((f in self.selectedaggs) or (self.selectedaggs == 'All'))
             self.aggboxes[f] = cb
             aggsizer.Add(cb, 0, wx.ALL, 5)
 
         selectsizer = wx.BoxSizer(wx.VERTICAL)
-        self.selectAllButton = wx.Button(self, label="Select All")
+        self.selectAllButton = wx.Button(self.panel, label="Select All")
         self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
         selectsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
-        self.deselectAllButton = wx.Button(self, label="Deselect All")
+        self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
         self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
         selectsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
         nestsizer.Add(aggsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)

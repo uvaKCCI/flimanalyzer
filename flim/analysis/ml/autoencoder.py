@@ -10,6 +10,8 @@ import inspect
 import logging
 import torch
 import torch.nn as nn
+from abc import abstractmethod
+
 
 def get_autoencoder_classes():
     pkdir = os.path.dirname(__file__)
@@ -52,6 +54,10 @@ class AbsAutoencoder(nn.Module):
     def get_name(self):
         return self.name
     
+    @abstractmethod
+    def get_description(self):
+        return None
+    
        
 class Autoencoder_One(AbsAutoencoder):
     def __init__(self, nb_param=2, hidden_size=6):
@@ -67,6 +73,9 @@ class Autoencoder_One(AbsAutoencoder):
         encoder_out = self.activation2(self.fc1(x))
         decoder_out = self.fc4(encoder_out)
         return encoder_out, decoder_out
+        
+    def get_description(self):
+        return "This Autoencoder can be used to simulate new data based on an existing dataset."
 
         
 class Autoencoder_Two(AbsAutoencoder):
@@ -88,3 +97,6 @@ class Autoencoder_Two(AbsAutoencoder):
         y_out = self.activation2(self.fc3(encoder_out))
         decoder_out = self.fc4(y_out)
         return encoder_out, decoder_out
+        
+    def get_description(self):
+        return "This Autoencoder is used for dimensionality reduction of the feature space of an existing dataset."
