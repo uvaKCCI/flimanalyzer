@@ -9,11 +9,13 @@ Created on Thu Dec 17 09:50:44 2020
 import numpy as np
 import pandas as pd
 import wx
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
+
 
 class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
 
@@ -37,23 +39,23 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
 		    
     def get_option_panels(self):
         self.aggboxes = {}
-        self.refgrp_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refgroup, choices=self.categories)
+        self.refgrp_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refgroup, choices=self.categories)
         self.refgrp_combobox.Bind(wx.EVT_COMBOBOX, self.OnRefGroupChanged)
         rgsizer = wx.BoxSizer(wx.HORIZONTAL)
-        rgsizer.Add(wx.StaticText(self, label="Reference Group "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        rgsizer.Add(wx.StaticText(self.panel, label="Reference Group "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         rgsizer.Add(self.refgrp_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         dummy = [a for c in self.categories for a in self.data[c].unique()]
-        self.refval_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refvalue, choices=dummy)
+        self.refval_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refvalue, choices=dummy)
         self.refval_combobox.SetItems(self.refval_options)
         self.refval_combobox.SetValue(self.sel_refvalue)
         rvsizer = wx.BoxSizer(wx.HORIZONTAL)
-        rvsizer.Add(wx.StaticText(self, label="Reference Value "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        rvsizer.Add(wx.StaticText(self.panel, label="Reference Value "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         rvsizer.Add(self.refval_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.method_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_method, choices=self.method_options)
+        self.method_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_method, choices=self.method_options)
         msizer = wx.BoxSizer(wx.HORIZONTAL)
-        msizer.Add(wx.StaticText(self, label="Method "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        msizer.Add(wx.StaticText(self.panel, label="Method "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         msizer.Add(self.method_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         return [rgsizer, rvsizer, msizer]
@@ -73,10 +75,12 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         self.refval_combobox.SetValue(self.sel_refvalue)
         
 
-class RelativeChange(AbstractAnalyzer):
+
+@plugin(plugintype='Analysis')
+class RelativeChange(AbstractPlugin):
      
     def __init__(self, data, **kwargs):
-        AbstractAnalyzer.__init__(self, data, **kwargs)
+        AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Relative Change"
     
     def __repr__(self):
@@ -120,6 +124,8 @@ class RelativeChange(AbstractAnalyzer):
         return parameters
     
     def execute(self):
+        for k,v in self.params.items():
+            print (k,v)
         method = self.params['method']
         allcategories = list(self.data.select_dtypes(['category']).columns.values)
         features = self.params['features']

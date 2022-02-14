@@ -10,10 +10,13 @@ import logging
 import os
 import glob
 import pandas as pd
+import numpy as np
 
 import flim.core.configuration as cfg
 from flim.core.parser import  defaultparser
-import flim.core.preprocessor
+import flim.core.preprocessor as pp
+
+DEFAULT_EXT = ['.txt','.csv']
 
 class dataimporter():
     
@@ -59,7 +62,7 @@ class dataimporter():
         return self.delimiter
 
     
-    def set_files(self, files, extensions=['.txt'], exclude=None, sort=True):
+    def set_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
         if exclude is None:
             exclude = self.excluded_files
         self.files = []
@@ -76,7 +79,7 @@ class dataimporter():
         return self.excluded_files
         
     
-    def add_files(self, files, extensions=['.txt','.csv'], exclude=None, sort=True):
+    def add_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
         if files is None:
             return None,0
         if exclude is None:
@@ -119,7 +122,7 @@ class dataimporter():
     def get_reserved_categorycols(self, parser=None):
         if parser is None:
             parser = self.parser
-        rcatnames = ['Cell line', 'Category', 'FOV', 'Well', 'Cell', 'Treatment', 'Time', 'Compartment', 'New Cat', 'Origin']    
+        rcatnames = ['Cell line', 'Category', 'Cat', 'FOV', 'Well', 'Cell', 'Treatment', 'Treatment 1', 'Treatment 2', 'Treatment 1 & 2', 'Time', 'Compartment', 'New Cat', 'Origin', 'AE Label']    
         rcatnames.extend([entry[cfg.CONFIG_PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
         return sorted(set(rcatnames))
     
@@ -156,12 +159,21 @@ class dataimporter():
             fheaders = set(fheaders)
             df = pd.concat(dflist)
             df.reset_index(inplace=True, drop=True)
+            #if 'ROI' not in df.columns.values:
+            #    df['ROI'] = np.arange(1,len(df)+1) 
+            #print ('done')
             allheaders = list(df.columns.values)
             logging.debug (self.get_reserved_categorycols(parser))
             categories = [key for key in self.get_reserved_categorycols(parser) if key in allheaders]
+            df['ROI'] = df.groupby(categories).cumcount() + 1
+            df['ROI'] = [str(roi) for roi in df['ROI']]
+            categories.append('ROI')
             for ckey in categories:
                 df[ckey] = df[ckey].astype('category')
-            if preprocessor is not None:
+            if preprocessor is None:
+                dp = pp.defaultpreprocessor()
+                df = dp.reorder_columns(df)
+            else:
                 df = preprocessor.reorder_columns(df)
                 df,_,_ = preprocessor.calculate(df)
             return df, filenames, fheaders 

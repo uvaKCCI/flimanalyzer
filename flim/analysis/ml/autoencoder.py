@@ -10,6 +10,8 @@ import inspect
 import logging
 import torch
 import torch.nn as nn
+from abc import abstractmethod
+
 
 def get_autoencoder_classes():
     pkdir = os.path.dirname(__file__)
@@ -52,34 +54,41 @@ class AbsAutoencoder(nn.Module):
     def get_name(self):
         return self.name
     
+    @abstractmethod
+    def get_description(self):
+        return None
+    
        
 class Autoencoder_One(AbsAutoencoder):
-    def __init__(self, nb_param=2, hidden_size=2):
+    def __init__(self, nb_param=2, hidden_size=6):
         super(Autoencoder_One, self).__init__()
         self.name = "Autoencoder 1" 
         self.fc1 = nn.Linear(nb_param, hidden_size)
         self.fc4 = nn.Linear(hidden_size, nb_param)
-        self.activation1 = nn.Sigmoid()
+        #self.activation1 = nn.Sigmoid()
         self.activation2 = nn.ReLU()
-        self.activation3 = nn.LeakyReLU()
+        #self.activation3 = nn.LeakyReLU()
         
     def forward(self, x):
         encoder_out = self.activation2(self.fc1(x))
         decoder_out = self.fc4(encoder_out)
         return encoder_out, decoder_out
+        
+    def get_description(self):
+        return "This Autoencoder can be used to simulate new data based on an existing dataset."
 
         
 class Autoencoder_Two(AbsAutoencoder):
-    def __init__(self, nb_param=2):
+    def __init__(self, nb_param=2, hidden_size_1=10, hidden_size_2=1):
         super(Autoencoder_Two, self).__init__()
         self.name = "Autoencoder 2" 
-        self.fc1 = nn.Linear(nb_param, 6)
-        self.fc2 = nn.Linear(6, 1)
-        self.fc3 = nn.Linear(1, 6)
-        self.fc4 = nn.Linear(6, nb_param)
-        self.activation1 = nn.Sigmoid()
+        self.fc1 = nn.Linear(nb_param, hidden_size_1)
+        self.fc2 = nn.Linear(hidden_size_1, hidden_size_2)
+        self.fc3 = nn.Linear(hidden_size_2, hidden_size_1)
+        self.fc4 = nn.Linear(hidden_size_1, nb_param)
+        #self.activation1 = nn.Sigmoid()
         self.activation2 = nn.ReLU()
-        self.activation3 = nn.LeakyReLU()
+        #self.activation3 = nn.LeakyReLU()
 
         
     def forward(self, x):
@@ -88,3 +97,6 @@ class Autoencoder_Two(AbsAutoencoder):
         y_out = self.activation2(self.fc3(encoder_out))
         decoder_out = self.fc4(y_out)
         return encoder_out, decoder_out
+        
+    def get_description(self):
+        return "This Autoencoder is used for dimensionality reduction of the feature space of an existing dataset."

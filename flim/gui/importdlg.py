@@ -214,7 +214,7 @@ class ImportDlg(wx.Dialog):
             parsername = self.parser_chooser.GetStringSelection()
             importer.set_preprocessor(preprocessor)
         else:
-            importer.set_preprocessor(None)                
+            importer.set_preprocessor(None)  
         importer.set_files(files)
 
 
@@ -243,7 +243,6 @@ class ImportDlg(wx.Dialog):
                 return
             # Proceed loading the file chosen by the user
             paths = fileDialog.GetPaths()
-            print (paths)
             excluded = []
             if self.excludefiles:
                 exclude_list = self.exclude_files_list.GetValue() #.encode('ascii','ignore')
@@ -298,12 +297,13 @@ class ImportDlg(wx.Dialog):
        
 
     def OnOpenFile(self, event):
-        with wx.FileDialog(self, "Add Raw Data Results", wildcard="txt files (*.txt)|*.txt",
+        with wx.FileDialog(self, "Add Raw Data Results", wildcard="txt files (*.txt)|*.txt|csv files (*.csv)|*.csv",
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             # Proceed loading the file chosen by the user
             files = fileDialog.GetPaths()
+            self.importer.set_delimiter('\t,')
             self.configure_importer(self.importer, files)
             self.config.update(self.importer.get_config(), [cfg.CONFIG_IMPORT])
             self.EndModal(wx.ID_OK)

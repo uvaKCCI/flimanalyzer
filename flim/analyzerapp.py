@@ -15,7 +15,7 @@ from flim.gui.app import FlimAnalyzerApp
 import flim.core.parser as cp
 import flim.analysis
 #import flim.analysis.ml.autoencoder
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.core.tools import FLIMAnalyzer
 from flim.core.configuration import Config, CONFIG_PARSER_CLASS
 

@@ -7,21 +7,25 @@ Created on Wed Dec 16 14:18:30 2020
 """
 
 import logging
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 import matplotlib.pyplot as plt
 import seaborn as sns
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
+from prefect import Task
+from flim.plugin import plugin
+
 
 default_linestyles = ['-','--',':', '-.']
 
-class KDE(AbstractAnalyzer):
+@plugin(plugintype='Plot')
+class KDE(AbstractPlugin, Task):
     
 
-    def __init__(self, data, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
-        AbstractAnalyzer.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
+    def __init__(self, data, **kwargs):#classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
+        AbstractPlugin.__init__(self, data, **kwargs)#classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
         self.name = "KDE Plot"
         
     def get_required_categories(self):

@@ -8,18 +8,21 @@ Created on Thu Dec 17 16:11:37 2020
 
 import logging
 import pandas as pd
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
 import seaborn as sns
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
 
-class SwarmPlot(AbstractAnalyzer):
+
+@plugin(plugintype='Plot')
+class SwarmPlot(AbstractPlugin):
     
     def __init__(self, data, **kwargs):
-        AbstractAnalyzer.__init__(self, data, **kwargs)
+        AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Violin Plot"
     
     def __repr__(self):

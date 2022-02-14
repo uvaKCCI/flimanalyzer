@@ -17,7 +17,7 @@ This tool creates violin plots of grouped data.
 
     In the example, input data is grouped by `Treatment` and `FOV`.  
 
-    ![](/images/analysis/violinplot-config-grouping.png)
+    ![](/images/analysis/swarmplot-config-grouping.png)
 
 4. Click `OK`.
 

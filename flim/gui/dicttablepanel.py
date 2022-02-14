@@ -7,6 +7,7 @@ Created on Tue May  8 18:20:41 2018
 """
 
 import wx
+import wx.grid
 
 EVEN_ROW_COLOUR = '#CCE6FF'
 GRID_LINE_COLOUR = '#ccc'

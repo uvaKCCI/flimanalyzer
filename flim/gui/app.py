@@ -21,7 +21,10 @@ import wx
 import wx.lib.agw.customtreectrl as CT
 from pubsub import pub
 
+import flim.plugin as plugin
+from flim.plugin import PLUGINS
 import flim.analysis
+import flim.workflow
 import flim.core.configuration as cfg
 from flim.core.configuration import Config
 import flim.core.parser
@@ -52,7 +55,7 @@ ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
 DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
-DEFAULT_COMFIFG_FILE = 'defaults.json'
+DEFAULT_CONFIFG_FILE = 'defaults.json'
 
 class FlimAnalyzerApp(wx.App):
     
@@ -60,7 +63,7 @@ class FlimAnalyzerApp(wx.App):
         self.flimanalyzer = flimanalyzer
         if config is None or not isinstance(config, Config):
             self.config = Config()
-            self.config.read_from_json(DEFAULT_COMFIFG_FILE, defaultonfail=True)
+            self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
         else:
             self.config = config
         super(FlimAnalyzerApp,self).__init__()
@@ -338,12 +341,29 @@ class TabAnalysis(wx.Panel):
                 elif isinstance(result, tuple):
                     fig,ax = result
                     #title = "Bar plot: %s  %s" % (ax.get_title(), label)
-                    fig.canvas.set_window_title(title)
+                    fig.canvas.manager.set_window_title(title)
                     event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
                     event.SetEventInfo(fig, title, 'createnew')
                     self.GetEventHandler().ProcessEvent(event)        
 
  
+    def run_workflow(self, event):
+        title,data = self.get_currentdata()
+        if data is None:
+             wx.MessageBox('No data available')
+             return
+        data_choices = self.get_alldata()
+        itemid = event.GetId()
+        evtobj = event.GetEventObject()
+        workflowname = ''
+        if isinstance(evtobj, wx._core.ToolBar):
+            workflowname = evtobj.FindById(itemid).GetLabel()
+        else:
+            workflowname = evtobj.FindItemById(itemid).GetItemLabelText()
+        logging.debug(f"{event.GetId()}, {workflowname}")
+        print(f"{event.GetId()}, {workflowname}")
+
+
     def SaveAnalysis(self, event):
         atype = self.analysistype_combo.GetStringSelection()
         logging.debug (f"{atype}")
@@ -740,7 +760,8 @@ class AppFrame(wx.Frame):
         else:
             self.config = cfg.Config()
             self.config.create_default()
-        self.analyzers = flim.analysis.absanalyzer.get_analyzer_classes()
+        #self.analyzers = flim.analysis.absanalyzer.get_analyzer_classes()
+        #self.workflows = flim.workflow.basicflow.get_workflow_classes()
         #self.rawdata = None
         #self.data = None
         #self.filtereddata = None
@@ -761,40 +782,33 @@ class AppFrame(wx.Frame):
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
         loadmenuitem = filemenu.Append(wx.NewId(), "&Open...","Open single data file")
-        importmenuitem = filemenu.Append(wx.NewId(), "Import...","Impoort and concatenate mutliple data files")
+        importmenuitem = filemenu.Append(wx.NewId(), "Import...","Import and concatenate mutliple data files")
         exitmenuitem = filemenu.Append(wx.NewId(), "Exit","Exit the application")
         settingsmenu = wx.Menu()
         loadsettingsitem = settingsmenu.Append(wx.NewId(), "Load settings...")
         savesettingsitem = settingsmenu.Append(wx.NewId(), "Save settings...")
-        datamenu = wx.Menu()
-        setfiltersitem = datamenu.Append(wx.NewId(), "Set filters...")
-        self.analysismenu = wx.Menu()
-        for analyzername in sorted(self.analyzers):
-            analyzer = flim.analysis.absanalyzer.create_instance(self.analyzers[analyzername], None)
-            analyzeritem = self.analysismenu.Append(wx.NewId(), analyzername)
-            self.Bind(wx.EVT_MENU, self.OnRunAnalysis, analyzeritem)
-            analysis_tool = tb.AddTool(wx.NewId(),analyzername, analyzer.get_icon(), shortHelp=analyzername)
-            self.Bind(wx.EVT_TOOL, self.OnRunAnalysis, analysis_tool)
+        
         self.windowmenu = wx.Menu()
         closeallitem = self.windowmenu.Append(wx.NewId(), "Close all windows")
         self.windowmenu.AppendSeparator()
+
         menubar.Append(filemenu, "&File")
         menubar.Append(settingsmenu, "&Settings")
-        menubar.Append(datamenu, "&Data")
-        menubar.Append(self.analysismenu, "&Analysis")
+        for plugintype in PLUGINS:
+            menubar.Append(self._create_plugin_menu(plugintype, toolbar=tb), f"&{plugintype}")
         menubar.Append(self.windowmenu, "&Window")
+                 
         self.SetMenuBar(menubar)        
         self.Bind(wx.EVT_MENU, self.OnLoadData, loadmenuitem)
         self.Bind(wx.EVT_MENU, self.OnImportData, importmenuitem)
         self.Bind(wx.EVT_MENU, self.OnExit, exitmenuitem)
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
-        self.Bind(wx.EVT_MENU, self.OnSetFilters, setfiltersitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
         
         tb.Realize()
 
-        self.SetSize((850, 250))
+        self.SetSize((950, 250))
         self.Centre()
         self.Show(True) 
  
@@ -833,6 +847,18 @@ class AppFrame(wx.Frame):
         #pub.subscribe(self.OnNewPlotWindow, NEW_PLOT_WINDOW)
         
     
+    def _create_plugin_menu(self, menuname, toolbar=None):
+        menu = wx.Menu()
+        plugins = PLUGINS[menuname]
+        for pname,pclass in plugins.items():
+            plg = plugin.create_instance(pclass, None)
+            menuitem = menu.Append(wx.NewId(), pname)
+            self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
+            if toolbar:
+                tool = toolbar.AddTool(wx.NewId(),pname, plg.get_icon(), shortHelp=pname)
+                self.Bind(wx.EVT_TOOL, self.on_run_plugin, tool)
+        return menu
+
 #    def OnNewDataWindow(self, data, frame):
 #        title = frame.GetLabel()
 #        print "appframe.OnNewDataWindow - %s" % (title)
@@ -914,7 +940,7 @@ class AppFrame(wx.Frame):
 
 
     def OnLoadSettings(self, event):
-        logging.debug ("appframe.OnLoadSettings")
+        logging.debug ("Loading settings.")
         with wx.FileDialog(self, "Load Configuration file", wildcard="json files (*.json)|*.json",
                        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR) as fileDialog:
 
@@ -979,7 +1005,7 @@ class AppFrame(wx.Frame):
         pass
         
         
-    def OnRunAnalysis(self, event):
+    def on_run_plugin(self, event):
         title,data = self.get_currentdata()
         if data is None:
              wx.MessageBox('No data available')
@@ -987,12 +1013,12 @@ class AppFrame(wx.Frame):
         data_choices = self.get_alldata()
         itemid = event.GetId()
         evtobj = event.GetEventObject()
-        analyzername = ''
+        pluginname = ''
         if isinstance(evtobj, wx._core.ToolBar):
-            analyzername = evtobj.FindById(itemid).GetLabel()
+            pluginname = evtobj.FindById(itemid).GetLabel()
         else:
-            analyzername = evtobj.FindItemById(itemid).GetItemLabelText()
-        logging.debug(f"{event.GetId()}, {analyzername}")
+            pluginname = evtobj.FindItemById(itemid).GetItemLabelText()
+        logging.debug(f"{event.GetId()}, {pluginname}")
         
         # check that there's any data to process
         if not flim.gui.dialogs.check_data_msg(data):
@@ -1002,9 +1028,10 @@ class AppFrame(wx.Frame):
         #categories = self.sel_roigrouping
         #features = [c for c in self.get_checked_cols(self.currentdata)]
         
-        analysis_class = flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
-        tool = flim.analysis.absanalyzer.create_instance(analysis_class, data) #, data_choices=data_choices)
-        parameters = self.config.get([cfg.CONFIG_ANALYSIS, analyzername])
+        plugin_class = next(plugin.get_plugin_class(pluginname))#flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
+        tool = plugin.create_instance(plugin_class, data) #, data_choices=data_choices)
+        _,parentkeys = self.config.get_parent([cfg.CONFIG_PLUGINS, pluginname], returnkeys=True)
+        parameters, keys = self.config.get([cfg.CONFIG_PLUGINS, pluginname], returnkeys=True)
         input = parameters.get('input')
         input = {t:data_choices[title] for t in input if t in data_choices}
         if len(input) == 0:
@@ -1015,7 +1042,8 @@ class AppFrame(wx.Frame):
         parameters = tool.run_configuration_dialog(self, data_choices=data_choices)
         if parameters is None:
             return
-        self.config.update(parameters, [cfg.CONFIG_ANALYSIS, analyzername])
+        self.config.update(parameters, keys)
+        logging.debug (f'Updating keys={keys}')
         logging.debug(parameters)
         features = parameters['features']
         categories = parameters['grouping']     
@@ -1047,12 +1075,13 @@ class AppFrame(wx.Frame):
                     self.GetEventHandler().ProcessEvent(event)
                 elif isinstance(result, matplotlib.figure.Figure):
                     fig = result
-                    fig.canvas.set_window_title(title)
+                    #fig.canvas.set_window_title(title)
+                    fig.canvas.manager.set_window_title(title)
                     event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
                     event.SetEventInfo(fig, title, 'createnew')
                     self.GetEventHandler().ProcessEvent(event)                
         
-        
+
     def append_window_to_menu(self, title, window):
         self.windowframes[title] = window
         mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
@@ -1089,7 +1118,7 @@ class AppFrame(wx.Frame):
     
     def OnDataWindowRequest(self, event):
         data = event.GetData()
-        config = event.GetConfig()
+        config = self.config #event.GetConfig()
         action = event.GetAction()
         title = event.GetTitle()
         logging.debug (f"{title}: {action}")
@@ -1185,7 +1214,8 @@ class AppFrame(wx.Frame):
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
         title = self.unique_window_title(event.GetTitle())
-        figure.canvas.set_window_title(title)
+        #figure.canvas.set_window_title(title)
+        figure.canvas.manager.set_window_title(title)
         #ON_CUSTOM_LEFT  = wx.NewId()
         #tb = figure.canvas.toolbar
         #tb.AddTool(ON_CUSTOM_LEFT, 'Axes', wx.NullBitmap,'Set range of Axes')

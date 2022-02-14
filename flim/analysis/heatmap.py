@@ -4,21 +4,21 @@
 # @Author: Jiaxin_Zhang
 
 import seaborn as sns
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
 
-class Heatmap(AbstractAnalyzer):
+
+@plugin(plugintype='Plot')
+class Heatmap(AbstractPlugin):
 
     def __init__(self, data, **kwargs):
-        AbstractAnalyzer.__init__(self, data, **kwargs)
+        AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Heatmap"
-
-    def __repr__(self):
-        return f"{'name': {self.name}}"
 
     def __str__(self):
         return self.name

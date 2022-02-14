@@ -12,16 +12,19 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
+
 
 class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 
     def __init__(self, parent, title, data, 
+            description=None,
             selectedgrouping=['None'], 
             selectedfeatures='All', 
             keeporig=False, 
@@ -34,36 +37,28 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
         self.keepstd = keepstd
         self.explainedhisto = explainedhisto
         self.n_components = n_components
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
 		    
-    def get_option_panels(self):
-        helptxt = f'Specifiy PCA components to retain:'\
-                                 '\n\tleave empty:   retain all PCA components.'\
-                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
-                                 '\n\t1 <= n <= {len(self.allfeatures)} (integer):   retain first n PCA components.'
-        
-        helpsizer = wx.BoxSizer(wx.HORIZONTAL)
-        helpsizer.Add(wx.StaticText(self, label=helptxt), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        
+    def get_option_panels(self):        
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.n_components_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=float(len(self.allfeatures)), value=self.n_components, fractionWidth=3)
-        sizer.Add(wx.StaticText(self, label="N-components"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.n_components_input = NumCtrl(self.panel, wx.ID_ANY, min=0.0, max=float(len(self.allfeatures)), value=self.n_components, fractionWidth=3)
+        sizer.Add(wx.StaticText(self.panel, label="N-components"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.n_components_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.keeporig_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Include original data")
+        self.keeporig_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Include original data")
         self.keeporig_cb.SetValue(self.keeporig)
         sizer.Add(self.keeporig_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        self.keepstd_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Include standardized data")
+        self.keepstd_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Include standardized data")
         self.keepstd_cb.SetValue(self.keepstd)
         sizer.Add(self.keepstd_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        self.explainedhisto_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Explained histogram")
+        self.explainedhisto_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Explained histogram")
         self.explainedhisto_cb.SetValue(self.explainedhisto)
         sizer.Add(self.explainedhisto_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        return [helpsizer, sizer]
+        return [sizer]
         
     def _get_selected(self):
         n_comps = self.n_components_input.GetValue()
@@ -79,14 +74,20 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
         return params
 
 
-class PCAnalysis(AbstractAnalyzer):
+@plugin(plugintype='Analysis')
+class PCAnalysis(AbstractPlugin):
     
-    def __init__(self, *args, **kwargs): #, data, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
-        AbstractAnalyzer.__init__(self, *args, **kwargs) #data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
+    def __init__(self, data, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
+        AbstractPlugin.__init__(self, data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
         self.name = "Principal Component Analysis"
     
+    def get_description(self):
+        return 'Specifiy PCA components to retain:'\
+                                 '\n\tleave empty:   retain all PCA components.'\
+                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
+                                 '\n\t1 <= n <= # features (integer):   retain first n PCA components.'
     def __repr__(self):
-        return f"{'name': {self.name}}"
+        return f"name: {self.name}"
     
     def __str__(self):
         return self.name
@@ -112,7 +113,8 @@ class PCAnalysis(AbstractAnalyzer):
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = PCAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = PCAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data,
+            description=self.get_description(), 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
             keeporig=self.params['keeporig'], 
@@ -125,47 +127,19 @@ class PCAnalysis(AbstractAnalyzer):
         self.params = dlg.get_selected()
         self.configure(**self.params)
         return self.params    
-    
-        n = ''
-        dlg = wx.TextEntryDialog(parent, 'Specifiy PCA components to retain:'\
-                                 '\n\tleave empty:   retain all PCA components.'\
-                                 '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
-                                 '\n\t1 <= n <= %d (integer):   retain first n PCA components.' % len(self.params['features']),'PCA Configuration')
-        dlg.SetValue(n)
-        while True:
-            if dlg.ShowModal() != wx.ID_OK:
-                return
-            entry = dlg.GetValue()
-            if entry == '':
-                n = None
-            else:    
-                try:
-                    n = float(entry)
-                    n = int(entry)
-                except:
-                    pass
-            if n is None or (n > 0 and ((isinstance(n, float) and n <1.0) or (isinstance(n, int) and n >= 1 and n <= len(self.params['features'])))):
-                seed = np.random.randint(10000000)
-                parameters = {
-                    'random_state': seed,
-                    'n_components': n}
-                self.configure(**parameters)
-                return parameters
-        return  # explicit None
-    
-    
+        
     def execute(self):
-        data = self.data.dropna(how='any', axis=0).reset_index()
+        data = self.data
         features = self.params['features']
+        data_no_na = data[features].dropna(how='any', axis=0).reset_index()
         if len(features) == 1:
             # reshape 1d array
-            data_no_class = data[features].values.reshape((-1,1))
+            data_no_class = data_no_na.values.reshape((-1,1))
         else:
-            data_no_class = data[features].values
+            data_no_class = data_no_na[features].values
         scaler = StandardScaler()
         scaler.fit(data_no_class)
         standard_data = scaler.transform(data_no_class)
-        standard_data
         
         pca_params = {k: self.params[k] for k in self.params if k in ['n_components']}
         pca = PCA(**pca_params)
@@ -191,7 +165,7 @@ class PCAnalysis(AbstractAnalyzer):
         pca_comp_label = 'PCA component'
         explained_label = 'explained var ratio'
         pca_explained_df = pd.DataFrame(data={
-                pca_comp_label: range(1,len(pca.explained_variance_ratio_)+1), 
+                pca_comp_label: [str(c) for c in range(1,len(pca.explained_variance_ratio_)+1)], 
                 explained_label: pca.explained_variance_ratio_})
         pca_explained_df[pca_comp_label] = pca_explained_df[pca_comp_label].astype('category')
 

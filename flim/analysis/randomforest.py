@@ -12,12 +12,14 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn import metrics
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
+
 
 class RandomForestConfigDlg(BasicAnalysisConfigDlg):
 
@@ -35,19 +37,19 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
     def get_option_panels(self):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.classifier_selector = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.classifier, choices=self.classifieropts)
-        sizer.Add(wx.StaticText(self, id=wx.ID_ANY, label="Classifier"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.classifier_selector = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.classifier, choices=self.classifieropts)
+        sizer.Add(wx.StaticText(self.panel, id=wx.ID_ANY, label="Classifier"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.classifier_selector, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.n_estimators_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=500,initial=self.n_estimators)
-        sizer.Add(wx.StaticText(self, label="N-estimator"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.n_estimators_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=500,initial=self.n_estimators)
+        sizer.Add(wx.StaticText(self.panel, label="N-estimator"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.n_estimators_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.test_size_input = NumCtrl(self,wx.ID_ANY, min=0.0, max=1.0, value=self.test_size, fractionWidth=10)
-        sizer.Add(wx.StaticText(self, label="Test size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.test_size_input = NumCtrl(self.panel, wx.ID_ANY, min=0.0, max=1.0, value=self.test_size, fractionWidth=10)
+        sizer.Add(wx.StaticText(self.panel, label="Test size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.test_size_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.importancehisto_cb = wx.CheckBox(self, id=wx.ID_ANY, label="Importance histogram")
+        self.importancehisto_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Importance histogram")
         self.importancehisto_cb.SetValue(self.importancehisto)
         sizer.Add(self.importancehisto_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
@@ -62,10 +64,11 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
         return params
         
         
-class RandomForest(AbstractAnalyzer):
+@plugin(plugintype='Analysis')
+class RandomForest(AbstractPlugin):
     
     def __init__(self, data, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
-        AbstractAnalyzer.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
+        AbstractPlugin.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
         self.name = "Random Forest"
     
     def __repr__(self):

@@ -12,7 +12,9 @@ import collections
 from flim.core.filter import RangeFilter
 from flim.core.importer import dataimporter
 from flim.core.preprocessor import defaultpreprocessor
-from flim.analysis.absanalyzer import init_analyzers, init_default_config
+#from flim.analysis.absanalyzer import init_analyzers, init_default_config
+#from flim.workflow.basicflow import init_workflows, init_default_wfconfig
+from flim.plugin import init_plugins_configs, PLUGINS
 
 CONFIG_USE = 'Use'
 CONFIG_ROOT = 'root'
@@ -34,12 +36,15 @@ CONFIG_EXCLUDE_FILES = 'exclude files'
 CONFIG_DROP_COLUMNS = 'drop'
 CONFIG_CALC_COLUMNS = 'calculate'
 CONFIG_FILTERS = 'filters'
+CONFIG_SHOW_DROPPED = 'show dropped'
 CONFIG_RANGEFILTERS = 'range filters'
 CONFIG_SERIESFILTERS = 'series filters'
 CONFIG_DATA_DISPLAY = 'display'
 CONFIG_ANALYSIS ='analysis'
 CONFIG_HISTOGRAMS = 'histograms'
 CONFIG_SCATTER = 'scatter'
+CONFIG_WORKFLOW ='workflow'
+CONFIG_PLUGINS = 'plugins'
 
 
 class Config():
@@ -130,6 +135,7 @@ class Config():
                 return cfg, keys
             else:
                 return cfg
+                
         if searchkey is None: # and startin is None:
             return return_value(self.parameters, None , returnkeys)
         if startin is None:
@@ -187,12 +193,15 @@ class Config():
                 self.parameters = json.load(fp) #, object_hook=self._to_utf)
                 self.modified = False
                 self.filename = configfile
-                return True
+            logging.info(f'Configuration loaded from {configfile}.')    
+            return True
         except:
+            logging.error(f'Config file {configfile} could not be found or read.')    
             if defaultonfail:
                 self.create_default()
                 self.modified = False
                 self.filename = None
+                logging.info(f'Created default configuration.')    
             return False
             
     
@@ -202,8 +211,9 @@ class Config():
                 json.dump(self.parameters, fp, sort_keys=True, indent=4)
                 self.modified = False
                 self.filename = configfile
+            logging.info(f'Configuration saved as {configfile}.')    
         except:
-            logging.error(f'Config file could not be saved to {configile}')    
+            logging.error(f'Config file could not be saved to {configfile}')    
             
     
     def is_not_None(self,searchkeys):
@@ -218,7 +228,7 @@ class Config():
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_HEADERS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_DROP_COLUMNS),
                        (CONFIG_ROOT,CONFIG_PREPROCESS,CONFIG_CALC_COLUMNS),
-                       (CONFIG_ROOT,CONFIG_ANALYSIS,CONFIG_HISTOGRAMS),
+                       (CONFIG_ROOT,CONFIG_PLUGINS),
                        (CONFIG_ROOT,CONFIG_FILTERS,CONFIG_RANGEFILTERS),
                        (CONFIG_ROOT,CONFIG_FILTERS,CONFIG_SERIESFILTERS))
                 
@@ -232,13 +242,15 @@ class Config():
         keys = []
         if startin is None:
             startin = self.parameters
-        else:
-            startin = self.get(startin)    
+        #else:
+        #    startin = self.get(startin)    
         if isinstance(startin, dict):   
             for key in startin:
-                print (key)
+                #print (key)
                 keys.append([key])
+                #print (startin[key])
                 childrenkeys = self.get_keys(startin[key])
+                #print (f'childrenkeys={childrenkeys}')
                 for c in childrenkeys:
                     keylist = [key]
                     keylist.extend(c)
@@ -297,20 +309,18 @@ class Config():
     def create_default(self):
         import_config = dataimporter().get_config()
         preprocess_config = defaultpreprocessor().get_config()
-        analyzers = init_analyzers()
-        analysis_config = init_default_config(analyzers)
-        analysis_config[CONFIG_HISTOGRAMS] = []
-
         datadisplay = [{'name': aname, 'min': 'auto', 'max': 'auto', 'bins': 100} for aname in ['trp t1','trp t2','trp tm']]
+        plugins_config = init_plugins_configs()
 
         parameters = {
             CONFIG_IMPORT: import_config,
             CONFIG_PREPROCESS: preprocess_config,  
-            CONFIG_DATA_DISPLAY: datadisplay,        
-            CONFIG_ANALYSIS: analysis_config,
+            CONFIG_DATA_DISPLAY: datadisplay,
+            CONFIG_PLUGINS: plugins_config,        
           
             CONFIG_FILTERS: {
                 CONFIG_USE: False,
+                CONFIG_SHOW_DROPPED: True,
                 CONFIG_RANGEFILTERS:[
                         RangeFilter('trp t1',0,2500).get_params(),
                         RangeFilter('trp t2',0,8000).get_params(),
@@ -357,12 +367,15 @@ class Config():
 if __name__ == '__main__':
     config = Config()
     config.create_default()
+
+    """"
     cfg = config.get()
     print (json.dumps(cfg, sort_keys=True, indent=4, separators=(',', ': ')))
     
     # Test get
     cfg, keys = config.get([CONFIG_FILTERS], returnkeys=True)
     print (keys)
+
     cfg = config.get([CONFIG_PARSER_CLASS], returnkeys=False)
     print (json.dumps(cfg, sort_keys=True, indent=4))
     
@@ -385,12 +398,15 @@ if __name__ == '__main__':
     missing,invalid = config.validate()
     print (f"missing keys: {missing}")
     print (f"invalid keys: {invalid}")
-    
+    """
     # Test get_keys
     print ("keys\n", "\n".join(str(k) for k in config.get_keys()), "\n")
     
     # Test get_node_keys
     print ("node keys\n", "\n".join(str(k) for k in config.get_nodekeys()), "\n")
+    
+    _,keys = config.get(searchkey='Principal Component Analysis',returnkeys=True)
+    print (keys)
     
 
     

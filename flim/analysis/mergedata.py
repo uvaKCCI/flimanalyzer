@@ -12,16 +12,18 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
+
 
 class MergerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, data_choices={}, 
+    def __init__(self, parent, title, data, description=None, data_choices={}, 
             how='left', left_on=None, right_on=None, left_index=False, right_index=False):
         self.data_choices = data_choices
         self.how_choices = {'<< merge left':'left', 'merge right >>':'right', 'merge inner':'inner', 'merge outer':'outer'}
@@ -42,17 +44,17 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
             self.right_on = right_on
         self.left_index = left_index
         self.right_index = right_index
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):
         fsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.left_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.left_on, choices=list(self.data_choices.keys()))
-        self.how_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.how, choices=list(self.how_choices.keys()))        
-        self.right_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.right_on, choices=list(self.data_choices.keys()))
-        fsizer.Add(wx.StaticText(self, label="Table 1"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.left_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.left_on, choices=list(self.data_choices.keys()))
+        self.how_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.how, choices=list(self.how_choices.keys()))        
+        self.right_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.right_on, choices=list(self.data_choices.keys()))
+        fsizer.Add(wx.StaticText(self.panel, label="Table 1"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.left_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.how_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        fsizer.Add(wx.StaticText(self, label="Table 2"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        fsizer.Add(wx.StaticText(self.panel, label="Table 2"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.right_combobox, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         
         return [fsizer]
@@ -66,12 +68,18 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
         return params
 
 
-class Merger(AbstractAnalyzer):
+
+@plugin(plugintype='Data')
+class Merger(AbstractPlugin):
     
     def __init__(self, data, **kwargs):
-        AbstractAnalyzer.__init__(self, data, categories={}, default='unassigned')
+        AbstractPlugin.__init__(self, data, **kwargs) #categories={}, default='unassigned', **kwargs)
         self.name = "Merge Data"
     
+    def get_description(self):
+        return "Merges two data tables based on shared index. "\
+        + "The index is determined using category column headers found in both tables."
+        
     def __repr__(self):
         return f"{'name': {self.name}}"
     
@@ -86,18 +94,8 @@ class Merger(AbstractAnalyzer):
         return wx.Bitmap(str(source))
         
     def get_required_features(self):
-        return []
-    
-    def get_required_input(self):
-        """Returns the input types that are required in the data to be analyzed. 
-        
-        Category columns use 'category' as dtype in Pandas dataframe.
-        
-        Returns:
-            list(str): List of column names.
-        """
         return [pd.DataFrame, pd.DataFrame]
-
+    
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update({
@@ -120,7 +118,11 @@ class Merger(AbstractAnalyzer):
         else:
             right_on=''
                 
-        dlg = MergerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = MergerConfigDlg(
+            parent, 
+            f'Configuration: {self.name}', 
+            self.data,
+            description = self.get_description(), 
             data_choices=data_choices,
             left_on=left_on,
             right_on=right_on,
@@ -144,7 +146,13 @@ class Merger(AbstractAnalyzer):
         left_on = [c for c in list(left.select_dtypes(['category']).columns.values)]
         right_on = [c for c in list(right.select_dtypes(['category']).columns.values)]
         on = list(set(left_on).intersection(set(right_on)))
+        #left.set_index(on, inplace=True)
+        #print (left.index)
+        #right.set_index(on, inplace=True)
+        #print (right.index)
         merged_df = pd.merge(left, right, how=how, on=on)
+        merged_df[on] = merged_df[on].astype('category')
+        #merged_df = pd.merge(left, right, how=how, left_index=True, right_index=True)
         neworder = [c for c in list(merged_df.select_dtypes(['category']).columns.values)]
         noncategories = [c for c in merged_df.columns.values if c not in neworder]
         neworder.extend(noncategories)

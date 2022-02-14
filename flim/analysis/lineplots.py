@@ -9,7 +9,7 @@ Created on Wed Dec 16 14:18:30 2020
 import logging
 import itertools
 import pandas as pd
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator, FixedFormatter
 import seaborn as sns
@@ -17,11 +17,14 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
 
-class LinePlot(AbstractAnalyzer):
+
+@plugin(plugintype='Plot')
+class LinePlot(AbstractPlugin):
     
     def __init__(self, data, **kwargs):
-        AbstractAnalyzer.__init__(self, data, **kwargs)
+        AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Line Plot"
     
     def __repr__(self):
@@ -72,14 +75,14 @@ class LinePlot(AbstractAnalyzer):
         results = {}
         categories = self.data.select_dtypes('category').columns.values
         categories = [c for c in categories if len(self.data[c].unique()) > 1]
-        ticklabels = [', '.join(row) for row in self.data[categories].values]
+        ticklabels = [', '.join(str(row)) for row in self.data[categories].values]
         fig, ax = plt.subplots()
         
         data = self.data.copy()
         for c in categories:
             data[c] = data[c].astype('str') 
         for feature in sorted(self.params['features']):
-            logging.debug (f"\tcreating mean bar plot for {feature}")
+            logging.debug (f"\tcreating line plot for {feature}")
             fig = self.grouped_lineplot(data, feature, categories=self.params['grouping'], ax=ax, fig=fig)
         #x_formatter = FixedFormatter(ticklabels)
         #x_locator = FixedLocator(range(len(ticklabels)))
@@ -111,8 +114,9 @@ class LinePlot(AbstractAnalyzer):
             elif len(categories) == 3:
                 sns.lineplot(ax=ax, data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'])
             elif len(categories) >3 :
-                g = sns.relplot(ax=ax, data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], col=categories[3], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'], kind="line")
+                g = sns.relplot(data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], col=categories[3], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'], kind="line")
                 fig = g.fig
+
             #if dropna:
             #    groupeddata = data[cols].dropna(how='any', subset=[feature]).groupby(categories, observed=True)
             #else:    

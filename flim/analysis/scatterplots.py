@@ -16,18 +16,21 @@ Created on Wed Dec 16 14:18:30 2020
 
 import logging
 import pandas as pd
-from flim.analysis.absanalyzer import AbstractAnalyzer
+from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
 import itertools
 from importlib_resources import files
 import flim.resources
+from flim.plugin import plugin
 
-class ScatterPlot(AbstractAnalyzer):
+
+@plugin(plugintype='Plot')
+class ScatterPlot(AbstractPlugin):
     
     def __init__(self, data, **kwargs):
-        AbstractAnalyzer.__init__(self, data, **kwargs)
+        AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Scatter Plot"
     
     def __repr__(self):

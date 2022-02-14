@@ -6,7 +6,7 @@ Created on Fri May  4 19:37:11 2018
 @author: khs3z
 """
 
-import flim.analysis.absanalyzer
+#import flim.plugin
 import logging
 import numpy as np
 import pandas as pd
