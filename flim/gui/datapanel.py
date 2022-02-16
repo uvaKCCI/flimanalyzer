@@ -197,9 +197,6 @@ class PandasFrame(wx.Frame):
         self.dataview = data
         self.showcolindex = showcolindex
         # get all columns that define categories; these are the columns with view filters
-        print(groups)
-        print(data.select_dtypes(['category']).columns.values)
-        print(data.select_dtypes(['category']).columns.get_level_values(0).values)
         if groups is None:
             groups = list(data.select_dtypes(['category']).columns.values)
             groups = data.select_dtypes(['category']).columns.get_level_values(0).values
@@ -494,6 +491,9 @@ class PandasFrame(wx.Frame):
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         for chitem in self.data[colheader].unique():
             mitem = menu.AppendCheckItem(-1,str(chitem))
+            print(chitem)
+            if mitem == None:
+                break
             mitem.Check(True)
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         menu.InsertSeparator(2)
