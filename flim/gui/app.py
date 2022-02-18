@@ -1144,21 +1144,21 @@ class AppFrame(wx.Frame):
             ax = event.artist.axes
             fig = event.artist.get_figure()
             if isinstance(event.artist,matplotlib.axis.YAxis):
-    	        dlg = ConfigureAxisDlg(self, "Set Y Axis", {'label': event.artist.get_label_text(), 'min':ax.get_ylim()[0], 'max': ax.get_ylim()[1]}) 
-    	        response = dlg.ShowModal()
-    	        if response == wx.ID_OK:
-    	            newsettings = dlg.get_settings()
-    	            event.artist.set_label_text(newsettings['label'], picker=True)
-    	            ax.set_ylim(newsettings['min'], newsettings['max'])
-    	            fig.canvas.draw_idle()
+                dlg = ConfigureAxisDlg(self, "Set Y Axis", {'label': event.artist.get_label_text(), 'min':ax.get_ylim()[0], 'max': ax.get_ylim()[1]}) 
+                response = dlg.ShowModal()
+                if response == wx.ID_OK:
+                    newsettings = dlg.get_settings()
+                    event.artist.set_label_text(newsettings['label'], picker=True)
+                    ax.set_ylim(newsettings['min'], newsettings['max'])
+                    fig.canvas.draw_idle()
             elif isinstance(event.artist,matplotlib.axis.XAxis):
-    	        dlg = ConfigureAxisDlg(self, "Set X Axis", {'label': event.artist.get_label_text(), 'min':ax.get_xlim()[0], 'max': ax.get_xlim()[1]}) 
-    	        response = dlg.ShowModal()
-    	        if response == wx.ID_OK:
-    	            newsettings = dlg.get_settings()
-    	            event.artist.set_label_text(newsettings['label'], picker=True)
-    	            ax.set_xlim(newsettings['min'], newsettings['max'])
-    	            fig.canvas.draw_idle()
+                dlg = ConfigureAxisDlg(self, "Set X Axis", {'label': event.artist.get_label_text(), 'min':ax.get_xlim()[0], 'max': ax.get_xlim()[1]}) 
+                response = dlg.ShowModal()
+                if response == wx.ID_OK:
+                    newsettings = dlg.get_settings()
+                    event.artist.set_label_text(newsettings['label'], picker=True)
+                    ax.set_xlim(newsettings['min'], newsettings['max'])
+                    fig.canvas.draw_idle()
             elif isinstance(event.artist, matplotlib.text.Text):
                 dlg = wx.TextEntryDialog(self, 'Label','Update Label')
                 dlg.SetValue(event.artist.get_text())

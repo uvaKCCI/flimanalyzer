@@ -323,17 +323,17 @@ class PandasFrame(wx.Frame):
     
     def apply_filters(self, filtercfg, showdiscarded=False):
         if len (filtercfg) == 0:
-    	    cfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-    	    filternames = [f['name'] for f in cfg]
-    	    for fname in filternames:
-    	        if self.droppedrows.get(fname) is not None:
-    	            del self.droppedrows[fname]
+            cfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
+            filternames = [f['name'] for f in cfg]
+            for fname in filternames:
+                if self.droppedrows.get(fname) is not None:
+                    del self.droppedrows[fname]
         for fname in filtercfg:
             filter = RangeFilter(params=filtercfg[fname])
             if filter.is_selected():
                 self.droppedrows[fname] = filter.get_dropped(self.data)
             elif self.droppedrows.get(fname) is not None:
-            	del self.droppedrows[fname]
+                del self.droppedrows[fname]
         self.modified = True
         self.update_view(showdiscarded=showdiscarded)
             
@@ -491,6 +491,8 @@ class PandasFrame(wx.Frame):
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         for chitem in self.data[colheader].unique():
             mitem = menu.AppendCheckItem(-1,str(chitem))
+            if mitem == None:
+                break
             mitem.Check(True)
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         menu.InsertSeparator(2)

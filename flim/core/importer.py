@@ -165,9 +165,9 @@ class dataimporter():
             allheaders = list(df.columns.values)
             logging.debug (self.get_reserved_categorycols(parser))
             categories = [key for key in self.get_reserved_categorycols(parser) if key in allheaders]
-            df['ROI'] = df.groupby(categories).cumcount() + 1
+            '''df['ROI'] = df.groupby(categories).cumcount() + 1
             df['ROI'] = [str(roi) for roi in df['ROI']]
-            categories.append('ROI')
+            categories.append('ROI')'''
             for ckey in categories:
                 df[ckey] = df[ckey].astype('category')
             if preprocessor is None:
