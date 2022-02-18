@@ -491,7 +491,6 @@ class PandasFrame(wx.Frame):
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         for chitem in self.data[colheader].unique():
             mitem = menu.AppendCheckItem(-1,str(chitem))
-            print(chitem)
             if mitem == None:
                 break
             mitem.Check(True)
