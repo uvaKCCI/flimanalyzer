@@ -28,6 +28,7 @@ import flim.resources
 import numpy as np
 
 from prefect import Task, Flow
+from prefect.executors import DaskExecutor
 
 
 class AbsWorkFlow(AbstractPlugin):
@@ -89,6 +90,7 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
     def __init__(self, data, *args, **kwargs):
         super().__init__(data, *args, **kwargs)
         self.name = "Horst's Magic Button"
+        self.executor = DaskExecutor(address="tcp://172.18.75.87:8786")
 
     def execute(self):
         
@@ -102,7 +104,7 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
         kdetask = KDE(None)
         #cats = list(self.data.select_dtypes('category').columns.values)
         allfeatures = [c for c in self.data.select_dtypes(include=np.number)]
-        with Flow('FLIM Flow') as flow:
+        with Flow('FLIM Flow', executor=self.executor) as flow:
             input = inputtask(data=self.data)
             sresult = stask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=allfeatures,aggs=['max','mean','median','count'])
             relchresult = relchangetask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'], features=allfeatures, reference_group='Treatment', reference_value='ctrl')

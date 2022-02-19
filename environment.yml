@@ -5,6 +5,10 @@ channels:
   - defaults
 dependencies:
   - matplotlib>3.4
+  - graphviz=2.50.0
+  - python-graphviz-0.16
+  - dask=2021
+  - mkl=2021
   - numpy=1.18
   - pandas=1.1
   - pip=20.3
@@ -17,7 +21,7 @@ dependencies:
   - seaborn
   - xlsxwriter
   - networkx=2.5.1
-  - wxpython
+  - wxpython=4.0.4
   - pip:
     - pypubsub
     - importlib-resources
