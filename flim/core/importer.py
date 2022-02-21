@@ -159,15 +159,15 @@ class dataimporter():
             fheaders = set(fheaders)
             df = pd.concat(dflist)
             df.reset_index(inplace=True, drop=True)
-            #if 'ROI' not in df.columns.values:
-            #    df['ROI'] = np.arange(1,len(df)+1) 
-            #print ('done')
             allheaders = list(df.columns.values)
             logging.debug (self.get_reserved_categorycols(parser))
             categories = [key for key in self.get_reserved_categorycols(parser) if key in allheaders]
-            df['ROI'] = df.groupby(categories).cumcount() + 1
-            df['ROI'] = [str(roi) for roi in df['ROI']]
-            categories.append('ROI')
+            
+            #if 'ROI' not in df.columns.values:
+            #    df['ROI'] = df.groupby(categories).cumcount() + 1
+            #    df['ROI'] = [str(roi) for roi in df['ROI']]
+            #    categories.append('ROI')
+            
             for ckey in categories:
                 df[ckey] = df[ckey].astype('category')
             if preprocessor is None:

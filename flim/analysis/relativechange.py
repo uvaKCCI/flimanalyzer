@@ -124,8 +124,6 @@ class RelativeChange(AbstractPlugin):
         return parameters
     
     def execute(self):
-        for k,v in self.params.items():
-            print (k,v)
         method = self.params['method']
         allcategories = list(self.data.select_dtypes(['category']).columns.values)
         features = self.params['features']

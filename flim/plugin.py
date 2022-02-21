@@ -241,7 +241,6 @@ class AbstractPlugin(Task):
                 self.data = [data[i] for i in input_select if i < len(data)]
         else:
             self.data = data
-        print (self.data)
         self.configure(**kwargs)
         return self.execute() 
                     

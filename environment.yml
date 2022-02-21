@@ -6,7 +6,8 @@ channels:
 dependencies:
   - matplotlib>3.4
   - graphviz=2.50.0
-  - python-graphviz-0.16
+  - python-graphviz=0.16
+  - pygraphviz=1.7
   - dask=2021
   - mkl=2021
   - numpy=1.18

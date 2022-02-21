@@ -27,15 +27,17 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import flim.resources
 import numpy as np
 
-from prefect import Task, Flow
+from prefect import Task, Flow, Parameter
 from prefect.executors import DaskExecutor
+from prefect.executors.base import Executor
 
 
 class AbsWorkFlow(AbstractPlugin):
 
-    def __init__(self, data, *args, **kwargs):
+    def __init__(self, data, *args, executor=None, **kwargs):
         super().__init__(data, *args, **kwargs)
         self.name = "Abstract FLIM Workflow"
+        self.set_executor(executor)
 
     def __repr__(self):
         return f"{'name: {self.name}'}"
@@ -52,8 +54,40 @@ class AbsWorkFlow(AbstractPlugin):
         params.update({
             'grouping': self.get_required_categories(),
             'features': self.get_required_features(),
+            'executor': {
+                'class': 'prefect.executors.local.LocalExecutor',
+                'args': {},
+                }
         })
-        return params        
+        return params
+        
+    def set_executor(self, executor=None, **kwargs):
+        modulename = '<unresolved'
+        classname = '<unresolved'
+        if executor is None:
+            # use default, ignore kwargs
+            executor = self.params['executor']['class']
+            kwargs = self.params['executor']['args']
+        elif isinstance(executor, dict):
+            kwargs = executor.get('args', {})
+            executor = executor.get('class', 'prefect.executors.local.LocalExecutor')
+        if isinstance(executor, str):
+            modulename, _, classname = executor.rpartition('.')
+            try:
+                module = importlib.import_module(modulename)
+                class_ = getattr(module, classname)
+                self.executor = class_(**kwargs)
+            except Exception as err:
+                logging.error(f"Error: {err}")
+                logging.error(f"Error instantiating {modulename}.{classname} plugin tool.")
+                self.executor = LocalExecutor()
+        elif issubclass(self.executor, Executor):
+            modulename = clazz.__module__
+            classname = clazz.__name__
+            self.executor = executor
+        logging.debug(f"Executor modulename={modulename}, classname={classname}")
+        assert issubclass(self.executor.__class__, Executor)
+                
     def get_required_categories(self):
         return ['Treatment', 'FOV', 'Cell']
 
@@ -82,15 +116,20 @@ class InputTask(Task):
         self.name = "Input"
         
     def run(self, data):
-        return {'Input': data}
+        print (f'{self.name}: type(data)={type(data)}')
+        if isinstance(data, dict):
+            return data
+        else: 
+            return {'Input': data}
+
         
 @plugin(plugintype="Workflow")        
 class BasicFLIMWorkFlow(AbsWorkFlow):
 
-    def __init__(self, data, *args, **kwargs):
-        super().__init__(data, *args, **kwargs)
+    def __init__(self, data, *args, executor=None, **kwargs):
+        super().__init__(data, *args, executor=executor, **kwargs)
         self.name = "Horst's Magic Button"
-        self.executor = DaskExecutor(address="tcp://172.18.75.87:8786")
+        #self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
 
     def execute(self):
         
@@ -106,10 +145,12 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
         allfeatures = [c for c in self.data.select_dtypes(include=np.number)]
         with Flow('FLIM Flow', executor=self.executor) as flow:
             input = inputtask(data=self.data)
+            #input = Parameter('input', default = self.data)
             sresult = stask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=allfeatures,aggs=['max','mean','median','count'])
             relchresult = relchangetask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'], features=allfeatures, reference_group='Treatment', reference_value='ctrl')
-            lineplotresult = lineplottask(data=relchresult, input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR'])
-            srelresult = stask(data=relchresult, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=['rel FLIRR'],aggs=['max','mean','median','count'])
+            reltable = inputtask(data=relchresult)
+            lineplotresult = lineplottask(data=reltable, input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR'])
+            srelresult = stask(data=reltable, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=['rel FLIRR'],aggs=['max','mean','median','count'])
             pivotresult = pivottask(data=srelresult, input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean'])
 
             #pcaresult = pcatask(data=input, input_select=[0], features=['FLIRR', 'trp t1'], keeporig=True)
@@ -121,24 +162,27 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
         task_refs = flow.get_tasks()
         state = flow.run()
         vgraph = flow.visualize(filename="workflow", format="svg", flow_state=state)
-        print (vgraph.source)
+        import graphviz
+        #print (graphviz.Source(vgraph.source, format='svg').pipe())
+        #print (vgraph.source)
         task_results = [state.result[tr]._result.value for tr in task_refs]
         results = {f'{k}-{str(id(v))}': v for d in task_results for k, v in d.items()}
         
-        dotstring = vgraph.source
         import networkx as nx
         import networkx.drawing.nx_pydot
+        import networkx.drawing.nx_agraph
         import pydot
         import matplotlib.pyplot as plt
-        pydotgraph = pydot.graph_from_dot_data(dotstring)[0]
+        pydotgraph = pydot.graph_from_dot_data(vgraph.source)[0]
+        node_labels = {n.get_name():n.get_label() for n in pydotgraph.get_nodes()}
         svg_string = pydotgraph.create_svg()
         #print (svg_string)
         g = networkx.drawing.nx_pydot.from_pydot(pydotgraph)        
         fig, ax = plt.subplots()
         #pos = nx.multipartite_layout(g, subset_key="layer")
-        pos = nx.drawing.nx_pydot.graphviz_layout(g)
-        nx.draw(g, pos=pos, ax=ax, with_labels = True)
+        pos = nx.drawing.nx_agraph.graphviz_layout(g, prog='dot')
+        nx.draw(g, pos=pos, ax=ax, labels=node_labels, with_labels = True)
         results['Workflow Graph'] = fig
         
         return results
-
+        

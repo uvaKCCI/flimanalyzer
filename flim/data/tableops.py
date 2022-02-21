@@ -21,7 +21,7 @@ class Pivot(AbstractPlugin):
         return self.name
     
     def get_icon(self):
-        source = files(flim.resources).joinpath('barplot.png')
+        source = files(flim.resources).joinpath('pivot.png')
         return wx.Bitmap(str(source))
         
     def get_required_categories(self):
