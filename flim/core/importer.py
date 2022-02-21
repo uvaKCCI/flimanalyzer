@@ -122,7 +122,7 @@ class dataimporter():
     def get_reserved_categorycols(self, parser=None):
         if parser is None:
             parser = self.parser
-        rcatnames = ['Cell line', 'Category', 'Cat', 'FOV', 'Well', 'Cell', 'Treatment', 'Treatment 1', 'Treatment 2', 'Treatment 1 & 2', 'Time', 'Compartment', 'New Cat', 'Origin', 'AE Label']    
+        rcatnames = ['Cell line', 'Category', 'Cat', 'FOV', 'Well', 'Cell', 'Treatment', 'Treatment 1', 'Treatment 2', 'Treatment 1 & 2', 'Time', 'Compartment', 'New Cat', 'Origin', 'AE Label', 'Cluster']    
         rcatnames.extend([entry[cfg.CONFIG_PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
         return sorted(set(rcatnames))
     

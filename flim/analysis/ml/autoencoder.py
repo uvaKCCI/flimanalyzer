@@ -100,3 +100,45 @@ class Autoencoder_Two(AbsAutoencoder):
         
     def get_description(self):
         return "This Autoencoder is used for dimensionality reduction of the feature space of an existing dataset."
+
+class VAE(AbsAutoencoder):
+    def __init__(self, nb_param=2, hidden_size=6):
+        super(VAE, self).__init__()
+        self.name = "Variational Autoencoder"
+        self.hidden_size = hidden_size
+        self.fc1 = nn.Linear(nb_param, hidden_size*2)
+        self.fc4 = nn.Linear(hidden_size, nb_param)
+        self.activation1 = nn.Sigmoid()
+        self.activation2 = nn.ReLU()
+        self.activation3 = nn.LeakyReLU()#negative_slope=0.5)
+
+    def reparameterize(self, mu, log_var):
+        """
+        :param mu: mean from the encoder's latent space
+        :param log_var: log variance from the encoder's latent space
+        """
+        std = torch.exp(0.5*log_var) # standard deviation
+        eps = torch.randn_like(std) # `randn_like` as we need the same size
+        sample = mu + (eps * std) # sampling as if coming from the input space
+        return sample
+
+    def forward(self, x):
+        x = self.activation2(self.fc1(x))
+        encoder_out = x.view(-1, 2, self.hidden_size)
+    
+        mu = encoder_out[:, 0, :] # the first feature values as mean
+        log_var = encoder_out[:, 1, :] # the other feature values as variance
+        # get the latent vector through reparameterization
+        z = self.reparameterize(mu, log_var)
+
+        decoder_out = self.fc4(z)
+        return z, decoder_out #, mu, log_var
+
+    def get_description(self):
+        return "[TEST]This Autoencoder is used for creating continuous augmented data"
+
+
+'''vae = VAE()
+vae = vae#.cuda()
+criterion = nn.MSELoss()#.cuda()
+optimizer = optim.RMSprop(vae.parameters(), lr = 1e-4, weight_decay = 1.5e-9)'''
