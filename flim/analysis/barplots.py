@@ -79,8 +79,8 @@ class BarPlot(AbstractPlugin):
         AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Bar Plot"
     
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
     
     def __str__(self):
         return self.name

@@ -77,8 +77,8 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class PCAnalysis(AbstractPlugin):
     
-    def __init__(self, data, keeporig=False, keepstd=True, explainedhisto=False, **kwargs):
-        AbstractPlugin.__init__(self, data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, **kwargs)
+    def __init__(self, data, keeporig=False, keepstd=True, explainedhisto=False, n_components=0.999, **kwargs):
+        AbstractPlugin.__init__(self, data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, n_components=n_components, **kwargs)
         self.name = "Principal Component Analysis"
     
     def get_description(self):
@@ -86,8 +86,8 @@ class PCAnalysis(AbstractPlugin):
                                  '\n\tleave empty:   retain all PCA components.'\
                                  '\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance.'\
                                  '\n\t1 <= n <= # features (integer):   retain first n PCA components.'
-    def __repr__(self):
-        return f"name: {self.name}"
+    #def __repr__(self):
+    #    return f"name: {self.name}"
     
     def __str__(self):
         return self.name
@@ -127,7 +127,13 @@ class PCAnalysis(AbstractPlugin):
         self.params = dlg.get_selected()
         self.configure(**self.params)
         return self.params    
-        
+    
+    def output_definition(self):
+        if self.params['explainedhisto']:
+            return {'PCA Values': None, 'PCA explained': None, 'PCA Plot': None}
+        else:
+            return {'PCA Values': None, 'PCA explained': None}            
+
     def execute(self):
         data = self.data
         features = self.params['features']
@@ -171,8 +177,8 @@ class PCAnalysis(AbstractPlugin):
 
         
         results = {
-            'PCA': pca_df,
-            'PCA explained': pca_explained_df}
+            'PCA Values': pca_df,
+            'PCA Explained': pca_explained_df}
         if self.params['explainedhisto']:
             plot = pca_explained_df.set_index(pca_comp_label).plot.bar()
             results['PCA Plot'] = plot.get_figure()

@@ -221,8 +221,8 @@ class AETraining(AbstractPlugin):
         + "Device selection supports modeling on CPU or GPU (cuda) if available."
         return descr
         
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
 
     def __str__(self):
         return self.name

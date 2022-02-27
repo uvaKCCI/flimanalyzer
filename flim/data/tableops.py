@@ -12,10 +12,10 @@ class Pivot(AbstractPlugin):
 
     def __init__(self, data, **kwargs):
         super().__init__(data, **kwargs)
-        self.name = "Pivot Data"
+        self.name = "Pivot"
     
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
     
     def __str__(self):
         return self.name

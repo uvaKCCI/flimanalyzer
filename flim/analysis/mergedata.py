@@ -80,8 +80,8 @@ class Merger(AbstractPlugin):
         return "Merges two data tables based on shared index. "\
         + "The index is determined using category column headers found in both tables."
         
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
     
     def __str__(self):
         return self.name

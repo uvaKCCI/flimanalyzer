@@ -208,7 +208,7 @@ class AbstractPlugin(Task):
 
 
     def __repr__(self):
-        return f'<{type(self).__name__}: {self.name}>'
+        return f'<{type(self).__name__}>: {self.name}'
 
     def __str__(self):
         return self.name
@@ -221,40 +221,7 @@ class AbstractPlugin(Task):
 
     def get_config_name(self):
         return ''.join(e for e in self.name if e.isalnum())
-        
-    def run(self, data=[], input_select=None, **kwargs):
-        if isinstance(data,dict):
-            print (f'data keys={data.keys()}')
-            if input_select is None or isinstance(input_select[0], int):
-                data = list(data.values())
-            else:
-                # convert to list of data
-                data = [data[k] for k in input_select]
-                # convert to list of int
-                input_select = range(len(input_select))
-        if isinstance(data,list):
-            if input_select is None:
-            	self.data = data 
-            elif len(input_select) == 1 and max(input_select) < len(data):
-                self.data = data[input_select[0]]
-            else:
-                self.data = [data[i] for i in input_select if i < len(data)]
-        else:
-            self.data = data
-        self.configure(**kwargs)
-        return self.execute() 
-                    
-    def configure(self, **kwargs):
-        """Updates the configuration with the passed arguments.
-        
-        The configuration is updated not replaced, i.e values of matching keys are 
-        overwritten, values of non-matching keys remain unaltered.
-        
-        Args:
-            kwargs: the new key:value pairs.  
-        """
-        self.params.update(**kwargs)
-        
+
     @abstractmethod
     def get_required_categories(self):
         """Returns the category column names that are required in the data to be analyzed. 
@@ -286,7 +253,21 @@ class AbstractPlugin(Task):
             dict: The specified key:value pairs.
         """    
         return {}
-    
+
+    def output_definition(self):
+        return {f'Data: {self.name}':None}
+        
+    def configure(self, **kwargs):
+        """Updates the configuration with the passed arguments.
+        
+        The configuration is updated not replaced, i.e values of matching keys are 
+        overwritten, values of non-matching keys remain unaltered.
+        
+        Args:
+            kwargs: the new key:value pairs.  
+        """
+        self.params.update(**kwargs)
+        
     @abstractmethod
     def execute(self):
         """Executes the analysis using the analyzer's set data and configuration.
@@ -298,5 +279,50 @@ class AbstractPlugin(Task):
         """
         return {} 
 
+    def run(self, data=[], input_select=None, **kwargs):
+        if isinstance(data,dict):
+            print (f'data keys={data.keys()}')
+            if input_select is None or isinstance(input_select[0], int):
+                data = list(data.values())
+            else:
+                # convert to list of data
+                data = [data[k] for k in input_select]
+                # convert to list of int
+                input_select = range(len(input_select))
+        if isinstance(data,list):
+            if input_select is None:
+            	self.data = data 
+            elif len(input_select) == 1 and max(input_select) < len(data):
+                self.data = data[input_select[0]]
+            else:
+                self.data = [data[i] for i in input_select if i < len(data)]
+        else:
+            self.data = data
+        self.configure(**kwargs)
+        return self.execute() 
+
+
+class DataBucket(AbstractPlugin):
+
+    def __init__(self, data, *args,**kwargs):
+        super().__init__(data, *args, **kwargs)
+        self.name = 'Data'
+        
+    def output_definition(self):
+        return {self.name: None}
+        
+    def configure(self, **kwargs):
+        pass
+        
+    def execute(self):
+        print (f'{self.name}: type(self.data)={type(self.data)}')
+        return {self.name:self.data}
+    
+    def run(self, name=None, data=[], input_select=None, **kwargs):
+        if name is not None:
+            self.name = name
+        return super().run(data=data, input_select=input_select, **kwargs)
+        
+        
 # auto run on import to populate the PLUGIN dictionary
 discover_plugin_classes()

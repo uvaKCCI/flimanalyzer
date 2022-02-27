@@ -105,8 +105,8 @@ class Categorizer(AbstractPlugin):
         AbstractPlugin.__init__(self, data, categories={}, default='unassigned')
         self.name = "Categorize Data"
     
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
     
     def __str__(self):
         return self.name

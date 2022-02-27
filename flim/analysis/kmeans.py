@@ -106,8 +106,8 @@ class KMeansClustering(AbstractPlugin):
         AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "K-means Clustering"
 
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
 
     def __str__(self):
         return self.name

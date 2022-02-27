@@ -33,8 +33,8 @@ class ScatterPlot(AbstractPlugin):
         AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Scatter Plot"
     
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
     
     def __str__(self):
         return self.name
@@ -60,6 +60,10 @@ class ScatterPlot(AbstractPlugin):
         else:	
             return None
 
+    def output_definition(self):
+        combs = itertools.combinations(self.params['features'], 2)
+        return {f'Scatter: {c}': None for c in sorted(combs)}
+    
     def execute(self):
         results = {}
         combs = itertools.combinations(self.params['features'], 2)

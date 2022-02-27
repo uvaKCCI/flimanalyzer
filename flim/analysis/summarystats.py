@@ -88,14 +88,16 @@ class SummaryStats(AbstractPlugin):
     agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'sem':'sem', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75), 'sum':'sum'}
     
     def __init__(self, data, *args, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)', 'sum'], singledf=True, flattenindex=True, **kwargs):
-        AbstractPlugin.__init__(self, data, *args, **kwargs) #data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
-        self.name = "Summary Table"
+        AbstractPlugin.__init__(self, data, *args, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs) #data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
+        self.name = "Summarize"
+        self.titleprefix = 'Summary'
+
     
     def get_description(self):
         return "Calculates counts, min, max, mean, median (50th percentile), 25th percentile, and 75th percentile, StDev, S.E.M, of grouped data."
         
-    def __repr__(self):
-        return f"name: {self.name}"
+    #def __repr__(self):
+    #    return f"name: {self.name}"
     
     def __str__(self):
         return self.name
@@ -118,6 +120,12 @@ class SummaryStats(AbstractPlugin):
             'flattenindex': True})
         return params
         
+    def output_definition(self):
+        if self.params['singledf']:
+           return {self._create_df_title(None): None}
+        else:
+           return {self._create_df_title(f): None for f in sorted(self.params['features'])}
+
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', 
             self.data, 
@@ -134,8 +142,13 @@ class SummaryStats(AbstractPlugin):
         self.configure(**parameters)
         return parameters
     
+    def _create_df_title(self, feature):
+        if feature:
+            return ": ".join([self.titleprefix,feature.replace('\n',' ')])
+        else:
+            return 'Summary'
+        
     def execute(self):
-        titleprefix = 'Summary'
         summaries = {}
         sel_functions = [self.agg_functions[f] for f in self.params['aggs']]
         if self.params['features'] is None or len(self.params['features']) == 0:
@@ -144,7 +157,7 @@ class SummaryStats(AbstractPlugin):
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
             allcats = [x for x in self.params['grouping']]
             allcats.append(header)
-            dftitle = ": ".join([titleprefix,header.replace('\n',' ')])
+            dftitle = self._create_df_title(header)
             if self.params['grouping'] is None or len(self.params['grouping']) == 0:
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
                 summary = self.data[allcats].groupby(lambda _ : True, group_keys=False).agg(sel_functions)
@@ -163,6 +176,6 @@ class SummaryStats(AbstractPlugin):
                 concat_df = pd.concat([summaries[key].set_index(self.params['grouping']) for key in summaries], axis=1).reset_index()
             else:
                 concat_df = pd.concat([summaries[key] for key in summaries], axis=1)            
-            return {f"{titleprefix}": concat_df}
+            return {self._create_df_title(None): concat_df}
         else:
             return summaries

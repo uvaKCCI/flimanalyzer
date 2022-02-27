@@ -77,8 +77,8 @@ class RunAE(AbstractPlugin):
         self.modelfile = self.params['modelfile']
         self.device = self.params['device']
 
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
 
     def __str__(self):
         return self.name

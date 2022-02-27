@@ -71,8 +71,8 @@ class RandomForest(AbstractPlugin):
         AbstractPlugin.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
         self.name = "Random Forest"
     
-    def __repr__(self):
-        return f"{'name': {self.name}}"
+    #def __repr__(self):
+    #    return f"{'name': {self.name}}"
     
     def __str__(self):
         return self.name
