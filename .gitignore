@@ -1,5 +1,6 @@
 *.pyc
 *.log
+*.svg
 flimanalyzer.egg-info
 data
 papers
