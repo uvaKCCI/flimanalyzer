@@ -20,11 +20,13 @@ import numpy as np
 
 class BarPlotConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', orientation='vertical', ordering=[], ebar='+/-', etype='std'):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', orientation='vertical', ordering=[], ebar='+/-', etype='std', dropna=True, stacked=False):
         self.orientation = orientation
         self.ordering = ordering
         self.ebar = ebar
         self.etype = etype
+        self.stacked = stacked
+        self.dropna = dropna
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
@@ -36,6 +38,14 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         self.orientation_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_orientation, choices=orientation_opts)
         osizer.Add(wx.StaticText(self.panel, label="Orientation "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         osizer.Add(self.orientation_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        ssizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.stacked_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Stack")
+        self.stacked_cb.SetValue(self.stacked)
+        self.dropna_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Drop N/A")
+        self.dropna_cb.SetValue(self.dropna)
+        ssizer.Add(self.stacked_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        ssizer.Add(self.dropna_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         bsizer = wx.BoxSizer(wx.HORIZONTAL)
         ebar_opts = ['+/-', '+', 'None']
@@ -57,12 +67,14 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         tsizer.Add(wx.StaticText(self.panel, label="Error Type"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         tsizer.Add(self.etype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        return [osizer, bsizer, tsizer]
+        return [osizer, ssizer, bsizer, tsizer]
         
     def _get_selected(self):
         params = super()._get_selected()
         params['ordering'] = []
         params['orientation'] = self.orientation_combobox.GetValue()
+        params['stacked'] = self.stacked_cb.GetValue()
+        params['dropna'] = self.dropna_cb.GetValue()
         params['error bar'] = self.ebar_combobox.GetValue()
         params['error type'] = self.etype_combobox.GetValue()
         return params
@@ -103,6 +115,8 @@ class BarPlot(AbstractPlugin):
             'features': [],
             'ordering': {},
             'orientation': 'vertical', # 'horizontal'
+            'stacked': False,
+            'dropna': True,
             'error bar': '+/-', # '+', 'None'
             'error type': 'std', # 's.e.m'
         })
@@ -115,11 +129,15 @@ class BarPlot(AbstractPlugin):
         orientation = self.params['orientation']
         etype = self.params['error type']
         ebar = self.params['error bar']
+        stacked = self.params['stacked']
+        dropna = self.params['dropna']
         dlg = BarPlotConfigDlg(parent, f'Configuration: {self.name}', self.data, 
         	selectedgrouping=selgrouping, 
         	selectedfeatures=selfeatures, 
         	ordering=ordering, 
         	orientation=orientation,
+        	stacked=stacked,
+        	dropna=dropna,
         	ebar=ebar,
         	etype=etype)
         if dlg.ShowModal() == wx.ID_OK:
@@ -131,46 +149,61 @@ class BarPlot(AbstractPlugin):
 
     def execute(self):
         results = {}
-        for feature in sorted(self.params['features']):
-            logging.debug (f"\tcreating mean bar plot for {feature}")
-            fig = self.grouped_meanbarplot(self.data, feature, categories=self.params['grouping'])
-            results[f"Mean Bar Plot: {feature}"] = fig
+        features = self.params['features']
+        grouping = self.params['grouping']
+        stacked = self.params['stacked']
+        dropna = self.params['dropna']
+        if self.params['stacked']:
+            logging.debug (f"\tcreating stacked mean bar plot for {features}")
+            # pass and stack all features
+            fig, current = self.grouped_meanbarplot(self.data, features, categories=grouping, dropna=dropna, stacked=stacked)
+            results[f"Mean Bar Plot: {'|'.join(features)}"] = fig            
+        else:    
+            # pass one feature per plot
+            for feature in sorted(features):
+                logging.debug (f"\tcreating mean bar plot for {feature}")
+                fig,_ = self.grouped_meanbarplot(self.data, [feature], categories=grouping, dropna=dropna, stacked=stacked)
+                results[f"Mean Bar Plot: {feature}"] = fig
         return results
-            
-    def grouped_meanbarplot(self, data, feature, title=None, categories=[], dropna=True, pivot_level=1, **kwargs):
+    
+    
+    def grouped_meanbarplot(self, data, feature, ax=None, title=None, stacked=False, categories=[], dropna=True, pivot_level=1, **kwargs):
         #plt.rcParams.update({'figure.autolayout': True})
-        if data is None or not feature in data.columns.values:
+        a = all(e in data.columns.values for e in feature)
+        if data is None or not a:
             return None, None
-        fig, ax = plt.subplots() #constrained_layout=True)
+        if ax is None:
+            fig, ax = plt.subplots() #constrained_layout=True)
+        else:
+            fig = ax.get_figure()
         capsize = 6
         if categories is None:
             categories = []
         if len(categories)==0:
-            mean = pd.DataFrame(data={'all':[data[feature].mean()]}, index=[feature])#.to_frame()
+            mean = pd.DataFrame(columns=feature)
+            mean.loc[0] = data[feature].mean()
             if self.params['error bar'] != 'None':
+                error = pd.DataFrame(columns=feature)
                 if self.params['error type'] == 'std':
-                    error = pd.DataFrame(data={'all':[data[feature].std()]}, index=[feature])#.to_frame()
+                    error.loc[0] = data[feature].std()
                 else:
-                    error = pd.DataFrame(data={'all':[data[feature].sem()]}, index=[feature])#.to_frame()            
+                    error.loc[0] = data[feature].sem()
             else:
                 error = None
             if self.params['error bar'] == '+':
                 error = [[[0.0] * len(error), error.to_numpy().flatten()]]
             ticklabels = ''#mean.index.values
             if self.params['orientation'] == 'horizontal':
-                mean.plot.barh(ax=ax, xerr=error, capsize=capsize)#,figsize=fsize,width=0.8)
+                mean.plot.barh(ax=ax, xerr=error, stacked=stacked, capsize=capsize)#,figsize=fsize,width=0.8)
             else:
-                mean.plot.bar(ax=ax, yerr=error, capsize=capsize)#,figsize=fsize,width=0.8)            
+                mean.plot.bar(ax=ax, yerr=error, stacked=stacked, capsize=capsize)#,figsize=fsize,width=0.8)            
         else:    
             cols = [c for c in categories]
-            cols.append(feature)
+            cols.extend(feature)
             if dropna:
-                groupeddata = data[cols].dropna(how='any', subset=[feature]).groupby(categories, observed=True)
+                groupeddata = data[cols].dropna(how='any', subset=feature).groupby(categories, observed=True)
             else:    
                 groupeddata = data[cols].groupby(categories, observed=True)
-    #        groupeddata = data[cols].groupby(groups)
-    #        print data.reset_index().set_index(groups).index.unique()
-            #df.columns = [' '.join(col).strip() for col in df.columns.values]
             mean = groupeddata.mean()
             if self.params['error bar'] != 'None':
                 if self.params['error type'] == 'std':
@@ -179,10 +212,10 @@ class BarPlot(AbstractPlugin):
                     error = groupeddata.sem()
             else:
                 error = None
-            no_bars = len(mean)
-            if pivot_level < len(categories):
+            num_bars = len(mean)
+            if not stacked and pivot_level < len(categories):
                 unstack_level = list(range(pivot_level))
-                logging.debug (f"PIVOTING: {pivot_level}, {unstack_level}")
+                logging.debug (f"Unstacking: {pivot_level}, {unstack_level}")
                 mean = mean.unstack(unstack_level)
                 mean = mean.dropna(how='all', axis=0)
                 if error is not None:
@@ -198,29 +231,34 @@ class BarPlot(AbstractPlugin):
                 error = C
                 error = error.reshape([dim[0],2,dim[1]])              
             ticklabels = mean.index.values
-            bwidth = 0.8# * len(ticklabels)/no_bars 
-            fig.set_figheight(1 + no_bars//8)
+            bwidth = 0.8# * len(ticklabels)/num_bars 
+            fig.set_figheight(1 + num_bars//8)
             fig.set_figwidth(6)
             if self.params['orientation'] == 'horizontal':
-                mean.plot.barh(ax=ax, xerr=error, width=bwidth, capsize=capsize)           
+                mean.plot.barh(ax=ax, xerr=error, width=bwidth, stacked=stacked, capsize=capsize)           
             else:
-                mean.plot.bar(ax=ax, yerr=error, width=bwidth, capsize=capsize)           
+                mean.plot.bar(ax=ax, yerr=error, width=bwidth, stacked=stacked, capsize=capsize)           
         
-        if len(categories) > 1:
+        if len(categories) > 1 or stacked:
             ticklabels = [str(l).replace('\'','').replace('(','').replace(')','') for l in ticklabels]
             h, labels = ax.get_legend_handles_labels()
-            labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
-            labels = [', '.join(label.split(',')[1:]) for label in labels]
+            if stacked:
+                ltitle = ''
+                labels = feature
+            elif len(categories) > 1:    
+                ltitle = ', '.join(categories[0:pivot_level])
+                labels = [l.replace('\'','').replace('(','').replace(')','') for l in labels]
+                labels = [', '.join(label.split(',')[1:]) for label in labels]
 
-            if self.params['orientation'] == 'horizontal':
-                ax.set_ylabel(', '.join(categories[pivot_level:]))
-            else:
-                ax.set_xlabel(', '.join(categories[pivot_level:]))            
+                if self.params['orientation'] == 'horizontal':
+                    ax.set_ylabel(', '.join(categories[pivot_level:]))
+                else:
+                    ax.set_xlabel(', '.join(categories[pivot_level:]))            
             no_legendcols = (len(categories)//30 + 1)
             chartbox = ax.get_position()
             ax.set_position([chartbox.x0, chartbox.y0, chartbox.width * (1-0.2 * no_legendcols), chartbox.height])
     #        ax.legend(loc='upper center', labels=grouplabels, bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
-            legend = ax.legend(labels=labels,  title=', '.join(categories[0:pivot_level]), loc='upper left', bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
+            legend = ax.legend(labels=labels,  title=ltitle, loc='upper left', bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
             #legend = ax.legend(labels=labels,  title=', '.join(categories[0:pivot_level]), loc='upper center')
             #ax.add_artist(legend)
         else:
@@ -231,7 +269,7 @@ class BarPlot(AbstractPlugin):
         else:
             ax.set_xticklabels(ticklabels)        
         if title is None:
-            title = feature.replace('\n', ' ') #.encode('utf-8')
+            title = '|'.join(feature).replace('\n', ' ') #.encode('utf-8')
             if len(categories) > 0:
                 title = f"{title} grouped by {categories}"
         if len(title) > 0:
@@ -241,4 +279,4 @@ class BarPlot(AbstractPlugin):
         #plt.rcParams.update({'figure.autolayout': False})
         
         self._add_picker(fig)
-        return fig
+        return fig, mean.to_numpy().flatten()

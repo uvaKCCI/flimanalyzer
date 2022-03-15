@@ -72,7 +72,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         epoches_sizer.Add(self.epoches_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         batch_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.batchsize_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=500,initial=self.batch_size)
+        self.batchsize_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=4096,initial=self.batch_size)
         batch_sizer.Add(wx.StaticText(self.panel, label="Batch Size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         batch_sizer.Add(self.batchsize_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 

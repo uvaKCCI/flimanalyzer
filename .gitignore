@@ -2,6 +2,7 @@ dask-worker-space/
 *.pyc
 *.log
 *.svg
+*.model
 flimanalyzer.egg-info
 build
 _build

@@ -1032,6 +1032,8 @@ class AppFrame(wx.Frame):
         tool = plugin.create_instance(plugin_class, data) #, data_choices=data_choices)
         _,parentkeys = self.config.get_parent([cfg.CONFIG_PLUGINS, pluginname], returnkeys=True)
         parameters, keys = self.config.get([cfg.CONFIG_PLUGINS, pluginname], returnkeys=True)
+        for k,v in parameters.items():
+            print (k,v)
         input = parameters.get('input')
         input = {t:data_choices[title] for t in input if t in data_choices}
         if len(input) == 0:
