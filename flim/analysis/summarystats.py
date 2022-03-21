@@ -53,21 +53,21 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
         selectsizer = wx.BoxSizer(wx.VERTICAL)
         self.selectAllButton = wx.Button(self.panel, label="Select All")
-        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
+        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnOptSelectAll)
         selectsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
         self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
-        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
+        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnOptDeselectAll)
         selectsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
         nestsizer.Add(aggsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
         nestsizer.Add(selectsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
         return [ssizer,nestsizer]
     
-    def OnSelectAll(self, event):
+    def OnOptSelectAll(self, event):
         if self.aggboxes:
             for key in self.aggboxes:
                 self.aggboxes[key].SetValue(True)
         
-    def OnDeselectAll(self, event):
+    def OnOptDeselectAll(self, event):
         if self.aggboxes:
             for key in self.aggboxes:
                 self.aggboxes[key].SetValue(False)
