@@ -1,4 +1,6 @@
+from calendar import c
 import logging
+import itertools
 import wx
 import os
 import flim.core
@@ -22,7 +24,7 @@ class ImportDlg(wx.Dialog):
         self.preprocess = preprocess
         self.excludefiles = excludefiles
         
-        configsizer = wx.FlexGridSizer(2,2,5,5)
+        configsizer = wx.FlexGridSizer(3,2,5,5)
         configsizer.AddGrowableCol(1, 1)
         colsizer = wx.FlexGridSizer(2,3,5,5)
         colsizer.AddGrowableCol(0, 2)
@@ -66,6 +68,13 @@ class ImportDlg(wx.Dialog):
 
             configsizer.Add(parser_label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
             configsizer.Add(self.parser_chooser, 1, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+            #Combined col labels
+            combo_label = wx.StaticText(self, wx.ID_ANY, "Column Combos:")
+            self.combo_panel = wx.Panel(self, wx.ID_ANY)
+            wx.CheckBox(self.combo_panel, wx.ID_ANY)
+            configsizer.Add(combo_label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
+            configsizer.Add(self.combo_panel, 1, wx.ALL|wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL, 5)
 
         if preprocess:
             rename_label = wx.StaticText(self, wx.ID_ANY, "Rename Columns:")
@@ -200,6 +209,15 @@ class ImportDlg(wx.Dialog):
                 logging.warning (f"COULD NOT INSTANTIATE PARSER:{parsername}")
                 return
             parser.set_regexpatterns(self.parsetable.GetData())
+
+            comboscb = self.combo_panel.GetChildren()[0]
+            if comboscb.GetValue():
+                catlist = [pattern[cfg.CONFIG_PARSER_CATEGORY] for pattern in self.parsetable.GetData()]
+                combolist = [combo for combo in itertools.combinations(catlist, 2)]
+                importer.set_column_combos(combolist)
+            else:
+                importer.set_column_combos(None)
+            
             importer.set_parser(parser)
         else:
             importer.set_parser(None)

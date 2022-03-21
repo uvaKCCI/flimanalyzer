@@ -231,8 +231,8 @@ class FilterListCtrl(AnalysisListCtrl):
         non_rfilters = [name for name in dropped if name not in rfilter_names]
         odropped = [dropped[n] for n in non_rfilters]
         if len(odropped) > 1:
-        	odropped = np.concatenate(odropped)
-        	self.otherdropped = np.unique(odropped)
+            odropped = np.concatenate(odropped)
+            self.otherdropped = np.unique(odropped)
         else:
             self.otherdropped = []
             

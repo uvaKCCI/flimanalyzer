@@ -579,7 +579,7 @@ class PandasFrame(wx.Frame):
             if col not in numericcols.columns.values and (isinstance(colseries, (str, bytes, collections.Iterable))):
                 # handle strings, categories, objects
                 logging.debug (f"AUTOSIZE col {col}")
-                rowidx = colseries.map(len).idxmax()
+                rowidx = colseries.astype(str).map(len).idxmax()
                 valuestr = colseries[rowidx]
             else:
                 # handle numbers; using numpy min/max is orders of magnitude faster than grid.AutoSize 
