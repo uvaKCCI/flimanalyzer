@@ -281,7 +281,7 @@ class AbstractPlugin(Task):
 
     def run(self, data=[], input_select=None, **kwargs):
         if isinstance(data,dict):
-            print (f'data keys={data.keys()}')
+            print (f'Run {self.name} -- data keys={data.keys()}')
             if input_select is None or isinstance(input_select[0], int):
                 data = list(data.values())
             else:
@@ -304,7 +304,7 @@ class AbstractPlugin(Task):
 
 class DataBucket(AbstractPlugin):
 
-    def __init__(self, data, *args,**kwargs):
+    def __init__(self, data, *args, **kwargs):
         super().__init__(data, *args, **kwargs)
         self.name = 'Data'
         
@@ -315,7 +315,7 @@ class DataBucket(AbstractPlugin):
         pass
         
     def execute(self):
-        print (f'{self.name}: type(self.data)={type(self.data)}')
+        print (f'Executing {self.name} -- type(self.data)={type(self.data)}')
         return {self.name:self.data}
     
     def run(self, name=None, data=[], input_select=None, **kwargs):

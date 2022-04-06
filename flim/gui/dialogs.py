@@ -136,6 +136,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             sizer.Add(groupingsizer, 0, wx.ALIGN_LEFT, 5)
             sizer.Add(wx.StaticLine(self.panel,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
         
+        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.enablefeatures:
             cbsizer = wx.GridSizer(4, 0, 0)
             if self.allfeatures is None:
@@ -152,13 +153,13 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             sizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
             sizer.Add(wx.StaticLine(self.panel,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
 
-        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.selectAllButton = wx.Button(self.panel, label="Select All")
-        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
-        buttonsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
-        self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
-        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
-        buttonsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
+            self.selectAllButton = wx.Button(self.panel, label="Select All")
+            self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
+            buttonsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
+            self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
+            self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
+            buttonsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
+        
         self.okButton = wx.Button(self.panel, label="OK", pos=(110,160))
         self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
         buttonsizer.Add(self.okButton, 0, wx.ALL, 10)

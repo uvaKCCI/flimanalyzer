@@ -57,7 +57,7 @@ class WorkflowGraph():
         if not ax:
             fig, ax = plt.subplots() 
         pos = nx.drawing.nx_agraph.graphviz_layout(self.graph, prog='dot', args='-Grankdir="LR"')
-        nx.draw_networkx_nodes(self.graph, pos, ax=ax, nodelist=self.output_nodes, node_color='yellow', node_shape='s')
+        nx.draw_networkx_nodes(self.graph, pos, ax=ax, nodelist=self.output_nodes, node_color='blue', node_shape='s')
         nx.draw_networkx_nodes(self.graph, pos, ax=ax, nodelist=self.plugin_nodes, node_color='red', node_shape='o')
         nx.draw_networkx_edges(self.graph, pos, ax=ax)
         nx.draw_networkx_labels(self.graph, pos, ax=ax, labels=self.node_labels)

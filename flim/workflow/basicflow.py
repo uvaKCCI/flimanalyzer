@@ -184,7 +184,7 @@ class StdFLIMWorkflow(AbsWorkFlow):
         aetraintask = AETraining(None)
         simtask = AESimulate(None)
         
-        with Flow('FLIM Flow', executor=self.executor, ) as flow:
+        with Flow(f'{self.name}', executor=self.executor, ) as flow:
             #input = Parameter('input', default=self.data)
             modelfile = Parameter('modelfile', default='AETrain.model')
             train_features = Parameter('train_features', default=[
@@ -204,8 +204,12 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 model='Autoencoder 1',
                 modelfile=modelfile))
 
-            simresults = results_to_tasks(simtask(data=aeresults, input_select=[0], grouping=['FOV', 'Cell'], features=train_features, sets=sim_sets))
-            aetrainresults = results_to_tasks(aetraintask(data=input, input_select=[0], features=sel_features, sets=sim_sets))
+            simresults = results_to_tasks(simtask(data=input, input_select=[0], 
+                grouping=['FOV', 'Cell'], 
+                features=train_features, 
+                modelfile=modelfile, 
+                sets=sim_sets))
+            #aetrainresults = results_to_tasks(aetraintask(data=input, input_select=[0], features=sel_features, sets=sim_sets))
             
         state = flow.run()
         task_refs = flow.get_tasks()
@@ -246,7 +250,7 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
         barplottask = BarPlot(None)
         kdetask = KDE(None)
         #cats = list(self.data.select_dtypes('category').columns.values)
-        with Flow('FLIM Flow', executor=self.executor, ) as flow:
+        with Flow(f'{self.name}', executor=self.executor, ) as flow:
             #input = Parameter('input', default=self.data)
             
             input = datatask(name='Input', data=self.data, input_select=[0])
