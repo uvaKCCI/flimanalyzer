@@ -152,6 +152,7 @@ class KMeansClustering(AbstractAnalyzer):
     def execute(self):
         data = self.data[self.params['features']]
         data = data.dropna(how='any', axis=0).reset_index()
+        oldidx = data['index']
         features = self.params['features']
         if len(features) == 1:
             # reshape 1d array
@@ -160,7 +161,7 @@ class KMeansClustering(AbstractAnalyzer):
             data_no_class = data[features].values
         scaler = StandardScaler()
         scaler.fit(data_no_class)
-        standard_data = scaler.transform(data_no_class)      
+        standard_data = scaler.transform(data_no_class)
         kmeans = KMeans(
             n_clusters=self.params['n_clusters'], 
             init=self.params['init'], 
@@ -171,12 +172,14 @@ class KMeansClustering(AbstractAnalyzer):
             random_state=0)
         predict = kmeans.fit(standard_data)
         cat_cols = list(self.data.select_dtypes(['category']).columns.values)
-        cat_df = self.data[cat_cols].copy()
+        cat_df = self.data.iloc[oldidx].reset_index() #match cat_df index w/ index of used prediction data
+        cat_df = cat_df[cat_cols].copy()
+
         predict_df = pd.DataFrame(data, columns=features)
         labelcol = 'Cluster'
         predict_df[labelcol] = [f'Cluster {l + 1}' for l in predict.labels_]
         predict_df[labelcol] = predict_df[labelcol].astype('category')
-        predict_df = pd.concat([cat_df, predict_df], axis=1)        
+        predict_df = pd.concat([cat_df, predict_df], axis=1)
         neworder = [c for c in list(predict_df.select_dtypes(['category']).columns.values)]
         noncategories = [c for c in predict_df.columns.values if c not in neworder]
         neworder.extend(noncategories)
