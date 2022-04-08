@@ -16,16 +16,17 @@ import wx
 from importlib_resources import files
 import flim.resources
 import numpy as np
+import matplotlib.ticker as mtick
 
 
 class BarPlotConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', orientation='vertical', ordering=[], ebar='+/-', etype='std', dropna=True, stacked=False):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', orientation='vertical', ordering=[], ebar='+/-', etype='std', dropna=True, bartype='single'):
         self.orientation = orientation
         self.ordering = ordering
         self.ebar = ebar
         self.etype = etype
-        self.stacked = stacked
+        self.sel_bartype = bartype
         self.dropna = dropna
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
@@ -40,11 +41,14 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         osizer.Add(self.orientation_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         ssizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.stacked_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Stack")
-        self.stacked_cb.SetValue(self.stacked)
+        bartype_opts = ['single', 'stacked', '100% stacked']
+        sel_bartype = self.sel_bartype
+        if sel_bartype not in bartype_opts:
+            sel_bartype = bartype_opts[0]
+        self.bartype_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_bartype, choices=bartype_opts)
         self.dropna_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Drop N/A")
         self.dropna_cb.SetValue(self.dropna)
-        ssizer.Add(self.stacked_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        ssizer.Add(self.bartype_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         ssizer.Add(self.dropna_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         bsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -73,7 +77,7 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         params = super()._get_selected()
         params['ordering'] = []
         params['orientation'] = self.orientation_combobox.GetValue()
-        params['stacked'] = self.stacked_cb.GetValue()
+        params['bar type'] = self.bartype_combobox.GetValue()
         params['dropna'] = self.dropna_cb.GetValue()
         params['error bar'] = self.ebar_combobox.GetValue()
         params['error type'] = self.etype_combobox.GetValue()
@@ -114,7 +118,7 @@ class BarPlot(AbstractAnalyzer):
             'features': [],
             'ordering': {},
             'orientation': 'vertical', # 'horizontal'
-            'stacked': False,
+            'bar type': 'single', # 'stacked', '100% stacked' 
             'dropna': True,
             'error bar': '+/-', # '+', 'None'
             'error type': 'std', # 's.e.m'
@@ -128,14 +132,14 @@ class BarPlot(AbstractAnalyzer):
         orientation = self.params['orientation']
         etype = self.params['error type']
         ebar = self.params['error bar']
-        stacked = self.params['stacked']
+        bartype = self.params['bar type']
         dropna = self.params['dropna']
         dlg = BarPlotConfigDlg(parent, f'Configuration: {self.name}', self.data, 
         	selectedgrouping=selgrouping, 
         	selectedfeatures=selfeatures, 
         	ordering=ordering, 
         	orientation=orientation,
-        	stacked=stacked,
+        	bartype=bartype,
         	dropna=dropna,
         	ebar=ebar,
         	etype=etype)
@@ -150,23 +154,25 @@ class BarPlot(AbstractAnalyzer):
         results = {}
         features = self.params['features']
         grouping = self.params['grouping']
-        stacked = self.params['stacked']
+        bartype = self.params['bar type']
         dropna = self.params['dropna']
-        if self.params['stacked']:
+        stacked = bartype != 'single'
+        if stacked:
             logging.debug (f"\tcreating stacked mean bar plot for {features}")
             # pass and stack all features
-            fig = self.grouped_meanbarplot(self.data, features, categories=grouping, dropna=dropna, stacked=stacked)
+            fig = self.grouped_meanbarplot(self.data, features, categories=grouping, dropna=dropna, bartype=bartype)
             results[f"Mean Bar Plot: {'|'.join(features)}"] = fig            
         else:    
             # pass one feature per plot
             for feature in sorted(features):
                 logging.debug (f"\tcreating mean bar plot for {feature}")
-                fig = self.grouped_meanbarplot(self.data, [feature], categories=grouping, dropna=dropna, stacked=stacked)
+                fig = self.grouped_meanbarplot(self.data, [feature], categories=grouping, dropna=dropna, bartype=bartype)
                 results[f"Mean Bar Plot: {feature}"] = fig
         return results
     
     
-    def grouped_meanbarplot(self, data, feature, ax=None, title=None, stacked=False, categories=[], dropna=True, pivot_level=1, **kwargs):
+    def grouped_meanbarplot(self, data, feature, ax=None, title=None, bartype='single', categories=[], dropna=True, pivot_level=1, **kwargs):
+        stacked = not bartype == 'single'
         #plt.rcParams.update({'figure.autolayout': True})
         a = all(e in data.columns.values for e in feature)
         if data is None or not a:
@@ -189,6 +195,12 @@ class BarPlot(AbstractAnalyzer):
                     error.loc[0] = data[feature].sem()
             else:
                 error = None
+            if bartype == '100% stacked':
+                # sum all columns, than devide means[all columns] by sum (row-by-row) and convert to percent
+                sum = mean.abs().sum(axis=1)
+                mean = mean.div(sum, axis=0) * 100.0
+                if error is not  None:
+                    error = error.div(sum, axis=0)
             if self.params['error bar'] == '+':
                 error = [[[0.0] * len(error), error.to_numpy().flatten()]]
             ticklabels = ''#mean.index.values
@@ -211,6 +223,12 @@ class BarPlot(AbstractAnalyzer):
                     error = groupeddata.sem()
             else:
                 error = None
+            if bartype == '100% stacked':
+                # sum all columns, than devide means[all columns]  by sum (row-by-row)
+                sum = mean.abs().sum(axis=1)
+                mean = mean.div(sum, axis=0) * 100.0
+                if error is not  None:
+                    error = error.div(sum, axis=0)
             num_bars = len(mean)
             if not stacked and pivot_level < len(categories):
                 unstack_level = list(range(pivot_level))
@@ -255,6 +273,8 @@ class BarPlot(AbstractAnalyzer):
                     ax.set_xlabel(', '.join(categories[pivot_level:]))            
             no_legendcols = (len(categories)//30 + 1)
             chartbox = ax.get_position()
+            if bartype == '100% stacked':
+                ax.yaxis.set_major_formatter(mtick.PercentFormatter())
             ax.set_position([chartbox.x0, chartbox.y0, chartbox.width * (1-0.2 * no_legendcols), chartbox.height])
     #        ax.legend(loc='upper center', labels=grouplabels, bbox_to_anchor= (1 + (0.2 * no_legendcols), 1.0), fontsize='small', ncol=no_legendcols)
             legend = ax.legend(labels=labels,  title=ltitle, loc='upper left', bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
