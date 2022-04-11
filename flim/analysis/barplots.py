@@ -200,14 +200,15 @@ class BarPlot(AbstractAnalyzer):
                 sum = mean.abs().sum(axis=1)
                 mean = mean.div(sum, axis=0) * 100.0
                 if error is not  None:
-                    error = error.div(sum, axis=0)
+                    error = error.div(sum, axis=0) * 100.0
             if self.params['error bar'] == '+':
-                error = [[[0.0] * len(error), error.to_numpy().flatten()]]
+                error_vals = error.to_numpy().flatten()
+                error = [[np.zeros_like(error_vals), error_vals]]
             ticklabels = ''#mean.index.values
             if self.params['orientation'] == 'horizontal':
-                mean.plot.barh(ax=ax, xerr=error, stacked=stacked, capsize=capsize)#,figsize=fsize,width=0.8)
+                mean.plot.barh(ax=ax, xerr=error, stacked=stacked, capsize=capsize, barsabove=True)#,figsize=fsize,width=0.8)
             else:
-                mean.plot.bar(ax=ax, yerr=error, stacked=stacked, capsize=capsize)#,figsize=fsize,width=0.8)            
+                mean.plot.bar(ax=ax, yerr=error, stacked=stacked, capsize=capsize, barsabove=True)#,figsize=fsize,width=0.8)            
         else:    
             cols = [c for c in categories]
             cols.extend(feature)
@@ -227,8 +228,8 @@ class BarPlot(AbstractAnalyzer):
                 # sum all columns, than devide means[all columns]  by sum (row-by-row)
                 sum = mean.abs().sum(axis=1)
                 mean = mean.div(sum, axis=0) * 100.0
-                if error is not  None:
-                    error = error.div(sum, axis=0)
+                if error is not None:
+                    error = error.div(sum, axis=0) * 100.0
             num_bars = len(mean)
             if not stacked and pivot_level < len(categories):
                 unstack_level = list(range(pivot_level))

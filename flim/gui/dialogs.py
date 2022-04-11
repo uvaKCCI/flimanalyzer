@@ -187,7 +187,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         
         
     def _on_feature_selection(self, event):
-        print ('_on_feature_selection')
+        pass
         
                 
     def OnClickFeature(self, event):
