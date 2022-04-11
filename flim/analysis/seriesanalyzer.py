@@ -240,7 +240,7 @@ class SeriesAnalyzer(AbstractAnalyzer):
             df[f'{label}\nSeries mean'] = self.data[features].mean(axis=1)
         if self.params['series_median']:
             df[f'{label}\nSeries median'] = self.data[features].median(axis=1)
-        if self.params['delta'] or self.params['delta_max'] or self.params['delta_min'] or self.params['delta_sum']:
+        if self.params['delta'] or self.params['delta_max'] or self.params['delta_min'] or self.params['delta_sum'] or self.params['delta_cum']:
             dfdelta = self.data[features].diff(axis=1)
             dfcum = dfdelta.cumsum(axis=1)
             dfnorm = dfdelta.divide(dfcum.iloc[:, -1], axis=0)
