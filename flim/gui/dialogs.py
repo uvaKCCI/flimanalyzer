@@ -489,8 +489,8 @@ class ConfigureAxisDlg(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
     def get_settings(self):
-	    return self.settings
-		
+        return self.settings
+
     def SaveConnString(self, event):
         self.settings['label'] = self.labelinput.GetValue()
         self.settings['min'] = self.mininput.GetValue()
