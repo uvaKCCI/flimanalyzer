@@ -25,9 +25,10 @@ import flim.resources
 
 class TablePanel(wx.Panel):
 
-    def __init__(self, parent, header, values): 
+    def __init__(self, parent, category, values, sort): 
         super().__init__(parent)
-        self.catdf = pd.DataFrame({f'{header}_orig': values, header: list(values)})
+        self.category = category
+        self.catdf = pd.DataFrame({f'{category}_orig': values, category: values})
         table = PandasTable(self.catdf)
         self.grid = wx.grid.Grid(self, -1, size=(400,200))
         self.grid.SetTable(table, takeOwnership=True)
@@ -66,10 +67,8 @@ class TablePanel(wx.Panel):
             rows.extend([gridcoords.GetRow() for gridcoords in sel_cells])
         if len(rows) == 0:
             cursor_row = self.grid.GetGridCursorRow()
-            #print (f'cursor row:{cursor_row}')
             rows.append(cursor_row)
         rows = sorted(set(rows))
-        #print (f'sel rows:{rows}')
         
         # split blocks of consecutive indices
         rows = [[e[1] for e in list(g)] for k, g in groupby(enumerate(rows), lambda ix:(ix[1]-ix[0]))]
@@ -107,24 +106,26 @@ class TablePanel(wx.Panel):
             move_block = self.catdf.iloc[rows,:]
             self.catdf = pd.concat([self.catdf.iloc[:min(rows)], below_line, move_block, self.catdf.iloc[max(rows)+2:]]).reset_index(drop=True)
         self.update_grid([r+1 for r in flat_list])
+        
+    def get_params(self):
+        return {self.category: {
+            'values': [v for v in self.catdf[self.category].values],
+            'sort': 'custom',}}
       
 class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
 
     def __init__(self, parent, title, data, categories={}, inplace=False):
         self.categories = categories
         self.inplace = inplace
-        self.data = data
 
         super().__init__(parent, title, data, enablegrouping=False, enablefeatures=False, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
-        allcats = self.data.select_dtypes('category').columns.values
-        catvalues = {cat:self.data[cat].unique() for cat in allcats}
-        
         nb = wx.Notebook(self.panel)
-        for cat in allcats:
-            tabpanel = TablePanel(nb, cat, catvalues[cat])
-            nb.AddPage(tabpanel, cat)        
+        self.tabpanels = {}
+        for cat in self.categories:
+            self.tabpanels[cat] = TablePanel(nb, cat, self.categories[cat]['values'], self.categories[cat]['sort'])
+            nb.AddPage(self.tabpanels[cat], cat)        
         
         fsizer = wx.BoxSizer(wx.VERTICAL)
         label = wx.StaticText(self.panel, wx.ID_ANY, "Category columns")
@@ -138,6 +139,11 @@ class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
         params = super()._get_selected()
         #cfgdata = self.cfgtable.GetData()
         #params['input'] = {row['Dataset']:self.data_choices[row['Dataset']] for row in cfgdata if row['Select']}
+        catparams = {}
+        for cat in self.categories:
+            catparams.update(self.tabpanels[cat].get_params())
+        params['categories'] = catparams
+        params['inplace'] = self.inplace # leave unchanged
         return params
 
     def OnSelectAll(self, event):
@@ -176,19 +182,42 @@ class CategoryOrder(AbstractPlugin):
     def get_required_features(self):
         return []
     
+    def _sort_category(values, sort_algo):
+        return values
+        
+    def _update_category_params(self, data, catparams={}):
+        if data is not None:
+            allcats = data.select_dtypes('category').columns.values
+            for cat in allcats:
+                values = list(data[cat].unique())
+                if cat in catparams:
+                    sort_algo = catparams[cat].get('sort')
+                    if sort_algo == 'custom':
+                        defined = list(catparams[cat].get('values'))
+                        missing = [v for v in values if v not in defined]
+                        values = defined + missing
+                    else:
+                        values = _sort_categories(values, sort_algo)
+                missing = [v for v in values if (cat not in catparams or v not in catparams[cat].get('values', []))]
+                catparams[cat] = {
+                    'values': values,
+                    'sort': 'custom',
+                    }
+        return catparams
+    
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update({
-            'categories': {},
+            'categories': self._update_category_params(None),
             'inplace': False,
         })
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
-        categories = self.params['categories']
+        categories = self._update_category_params(self.data, self.params['categories'])
         inplace = self.params['inplace']
                 
-        dlg = CategoryOrderConfigDlg(parent, f'Order Category Values', 
+        dlg = CategoryOrderConfigDlg(parent, f'Order Category Values',
             self.data, 
             categories=categories,
             inplace=inplace)
@@ -200,10 +229,19 @@ class CategoryOrder(AbstractPlugin):
         return self.params    
         
     def execute(self):
+        if not self.params['inplace']:
+            self.data = self.data.copy()
         results = {}
         #input = self.params['input'] 
         #data = list(input.values())
         #concat_df = pd.concat(data, axis=0, copy=True)
         #results['Concatenated'] = concat_df
+        catparams = self.params['categories']
+        for cat in catparams:
+            self.data[cat] = pd.Categorical(self.data[cat], 
+                      categories=catparams[cat]['values'],
+                      ordered=True)
+        self.data.sort_values(by=list(catparams.keys()), inplace=True)
+        results['Reordered'] = self.data
         return results
             
