@@ -256,6 +256,9 @@ class AETraining(AbstractPlugin):
         })
         return params
 	 
+    def output_definition(self):
+        return {'AE Loss': None, 'AE Train-Val Decoded': None, 'AE Train-Val Encoded': None, 'Plot: AE Loss': None, }
+
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', self.data,
             description=self.get_description(), 
@@ -436,4 +439,4 @@ class AETraining(AbstractPlugin):
         ax.legend(['training', 'testing'], loc='upper right')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         self._add_picker(fig)
-        return {'Plot: AE Loss': fig, 'AE Loss': loss_df, 'AE Train-Val Decoded': decoded_df, 'AE Train-Val Encoded': encoded_df}
+        return {'AE Loss': loss_df, 'AE Train-Val Decoded': decoded_df, 'AE Train-Val Encoded': encoded_df, 'Plot: AE Loss': fig, }

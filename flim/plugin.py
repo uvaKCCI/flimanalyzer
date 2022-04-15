@@ -281,23 +281,30 @@ class AbstractPlugin(Task):
 
     def run(self, data=[], input_select=None, **kwargs):
         if isinstance(data,dict):
-            print (f'Run {self.name} -- data keys={data.keys()}')
             if input_select is None or isinstance(input_select[0], int):
+                print ('1')
                 data = list(data.values())
             else:
+                print ('2')
                 # convert to list of data
                 data = [data[k] for k in input_select]
                 # convert to list of int
                 input_select = range(len(input_select))
+        print (f'Running {self.name} with data {type(data)}')
         if isinstance(data,list):
             if input_select is None:
-            	self.data = data 
+            	self.data = data
+            	print ('a') 
             elif len(input_select) == 1 and max(input_select) < len(data):
                 self.data = data[input_select[0]]
+                print ('b', type(self.data)) 
             else:
                 self.data = [data[i] for i in input_select if i < len(data)]
+                print ('c') 
         else:
             self.data = data
+            print ('d') 
+        print (f'Running {self.name} with self.data {type(self.data)}')
         self.configure(**kwargs)
         return self.execute() 
 
@@ -315,7 +322,7 @@ class DataBucket(AbstractPlugin):
         pass
         
     def execute(self):
-        print (f'Executing {self.name} -- type(self.data)={type(self.data)}')
+        logging.debug (f'Executing {self.name} -- type(self.data)={type(self.data)}')
         return {self.name:self.data}
     
     def run(self, name=None, data=[], input_select=None, **kwargs):

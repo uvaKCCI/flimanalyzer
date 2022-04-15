@@ -114,6 +114,9 @@ class RunAE(AbstractPlugin):
         self.configure(**self.params)
         return self.params
 
+    def output_definition(self):
+        return {'Reconstructed': None, 'Features': None}
+
     def execute(self):
         data_feat = self.data[self.params['features']]
 

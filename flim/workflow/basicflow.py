@@ -17,6 +17,7 @@ from importlib_resources import files
 import wx
 from flim.plugin import AbstractPlugin, DataBucket
 from flim.data.tableops import Pivot
+from flim.data.filterdata import Filter
 from flim.analysis.aetraining import AETraining
 from flim.analysis.aesimulate import AESimulate
 from flim.analysis.summarystats import SummaryStats
@@ -151,8 +152,9 @@ def results_to_tasks(task_in):
 
 def results_to_tasks(task_in):
     datatask = DataBucket(None)
-    print (task_in.output_definition())
+    print (f'task_in.output_definition()={task_in.output_definition()}')
     out_tasks = {k:datatask(name=k, data=task_in, input_select=[i]) for i, k in enumerate(task_in.output_definition())}
+    print (f'out_tasks={out_tasks}')
     return out_tasks
     
 @task
@@ -174,7 +176,16 @@ class StdFLIMWorkflow(AbsWorkFlow):
 
     def get_required_features(self):
         return ['any']
-        
+
+    def get_default_parameters(self):
+        params = super().get_default_parameters()
+        params.update({
+            'features': [
+                'FAD a1','FAD a1[%]', 'FAD a2', 'FAD a2[%]', 'FAD t1', 'FAD t2', 'FAD photons', 
+                'NAD(P)H a1', 'NAD(P)H a1[%]', 'NAD(P)H a2', 'NAD(P)H a2[%]', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'],
+        })
+        return params
+                
     def execute(self):
         sel_features = self.params['features']
         all_features = [c for c in self.data.select_dtypes(include=np.number)]
@@ -183,6 +194,9 @@ class StdFLIMWorkflow(AbsWorkFlow):
         datatask = DataBucket(None)
         aetraintask = AETraining(None)
         simtask = AESimulate(None)
+        filtertask = Filter(None)
+        stask = SummaryStats(None)#, log_stdout=True)
+        
         
         with Flow(f'{self.name}', executor=self.executor, ) as flow:
             #input = Parameter('input', default=self.data)
@@ -195,12 +209,14 @@ class StdFLIMWorkflow(AbsWorkFlow):
             input = datatask(name='Input', data=self.data, input_select=[0])
             
             aeresults = results_to_tasks(aetraintask(data=input, input_select=[0], 
+                grouping=['FOV', 'Cell'],
                 features=train_features, 
                 epochs=20,
                 learning_rate=0.0001,
                 weight_decay=0.00000001,
                 batch_size=128,
                 timeseries='Treatment',
+                rescale=True,
                 model='Autoencoder 1',
                 modelfile=modelfile))
 
@@ -209,18 +225,29 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 features=train_features, 
                 modelfile=modelfile, 
                 sets=sim_sets))
+                
+            filterresults = results_to_tasks(filtertask(data=simresults['Simulated'], input_select=[0]))
+
+            summaryresults = results_to_tasks(stask(data=simresults['Simulated'], input_select=[0], 
+                features=train_features, 
+                aggs=['min', 'max', 'median', 'count']))
+                
+            summaryresults2 = results_to_tasks(stask(data=filterresults['Filtered'], input_select=[0], 
+                features=train_features, 
+                aggs=['min', 'max', 'median', 'count']))
             #aetrainresults = results_to_tasks(aetraintask(data=input, input_select=[0], features=sel_features, sets=sim_sets))
             
+        flow.visualize()
         state = flow.run()
         task_refs = flow.get_tasks()
         task_results = [state.result[tr]._result.value for tr in task_refs]
         output_results = [state.result[tr]._result.value for tr in task_refs if isinstance(tr, DataBucket)]
-        plugin_results = [state.result[tr]._result.value for tr in task_refs if state.result[tr]._result.value not in output_results]
+        plugin_results = [state.result[tr]._result.value for tr in task_refs if not isinstance(tr, DataBucket)] #state.result[tr]._result.value not in output_results]
         results = {f'{k}-{str(id(v))}': v for d in output_results if isinstance(d, dict) for k, v in d.items() }
         
         wg = WorkflowGraph(flow)
         fig,_ = wg.get_plot()
-        results['Workflow Graph'] = fig
+        results[f'{self.name} Graph'] = fig
 
         return results
         
@@ -256,7 +283,7 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
             input = datatask(name='Input', data=self.data, input_select=[0])
 
             reltable = results_to_tasks(relchangetask(data=input, input_select=[0], grouping=['FOV', 'Cell'], features=sel_features, reference_group='Treatment', reference_value='ctrl', method='mean'))
-            srelresult = results_to_tasks(stask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Cell', 'FOV', 'Treatment'],features=[f'rel {f}' for f in sel_features],aggs=['mean'], singledf=False))
+            srelresult = results_to_tasks(stask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Cell', 'FOV', 'Treatment'],features=[f'rel {f}' for f in sel_features], aggs=['mean'], singledf=False))
             #pivotresult = results_to_tasks(pivottask(data=srelresult['Data: Summarize'], input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean']))
             lineplotresult = results_to_tasks(lineplottask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR']))
 
@@ -273,7 +300,7 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
             #barplot = results_to_tasks(barplottask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'], features=['FLIRR']))
             #kdeplot = results_to_tasks(kdetask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR']))
             #sresult2 = results_to_tasks(stask(data=sresult['Data: Summarize'], input_select=[0], grouping=['FOV'], features=['FLIRR\nmean'], aggs=['max']))
-            #sresult3 = results_to_tasks(stask(data=pcaresult['PCA'], input_select=[0], grouping=[], features=['Principal component 1'], aggs=['max']))
+            #sresult3 = results_to_tasks(stask(data=pcaresult, input_select=[0], grouping=[], features=['Principal component 1'], aggs=['max']))
             #sresult4 = results_to_tasks(stask(data=pcaresult['PCA explained'], input_select=[0], grouping=['PCA component'], features=['explained var ratio'], aggs=['max']))
         state = flow.run()
         task_refs = flow.get_tasks()
@@ -284,6 +311,6 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
         
         wg = WorkflowGraph(flow)
         fig,_ = wg.get_plot()
-        results['Workflow Graph'] = fig
+        results[f'{self.name} Graph'] = fig
 
         return results

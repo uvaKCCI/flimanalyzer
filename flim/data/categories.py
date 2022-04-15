@@ -135,28 +135,13 @@ class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
         return [fsizer]
         
     def _get_selected(self):
-        #self.cfggrid.EnableEditing(False)
         params = super()._get_selected()
-        #cfgdata = self.cfgtable.GetData()
-        #params['input'] = {row['Dataset']:self.data_choices[row['Dataset']] for row in cfgdata if row['Select']}
         catparams = {}
         for cat in self.categories:
             catparams.update(self.tabpanels[cat].get_params())
         params['categories'] = catparams
         params['inplace'] = self.inplace # leave unchanged
         return params
-
-    def OnSelectAll(self, event):
-        col = 0
-        for row in range(self.cfgtable.GetNumberRows()):
-            self.cfgtable.SetValue(row, col, True)
-        self.cfggrid.ForceRefresh()
-
-    def OnDeselectAll(self, event):
-        col = 0
-        for row in range(self.cfgtable.GetNumberRows()):
-            self.cfgtable.SetValue(row, col, False)
-        self.cfggrid.ForceRefresh()
 
 
 @plugin(plugintype='Data')

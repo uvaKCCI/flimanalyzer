@@ -114,7 +114,9 @@ class AESimulate(AbstractPlugin):
         })
         return params
 
-
+    def output_definition(self):
+        return {'Simulated': None}
+        
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = AESimConfigDlg(parent, f'Configuration: {self.name}', self.data,
                             selectedgrouping=self.params['grouping'],
