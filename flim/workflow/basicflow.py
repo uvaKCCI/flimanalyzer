@@ -18,8 +18,14 @@ import wx
 from flim.plugin import AbstractPlugin, DataBucket
 from flim.data.tableops import Pivot
 from flim.data.filterdata import Filter
+from flim.data.concatdata import Concatenator
+from flim.analysis.aerun import RunAE
 from flim.analysis.aetraining import AETraining
 from flim.analysis.aesimulate import AESimulate
+from flim.analysis.barplots import BarPlot
+from flim.analysis.heatmap import Heatmap
+from flim.analysis.kmeans import KMeansClustering
+from flim.analysis.seriesanalyzer import SeriesAnalyzer
 from flim.analysis.summarystats import SummaryStats
 from flim.analysis.relativechange import RelativeChange
 from flim.analysis.pca import PCAnalysis
@@ -44,6 +50,8 @@ import networkx.drawing.nx_agraph
 import networkx.classes.function
 import pydot
 import matplotlib.pyplot as plt
+
+from abc import ABC, abstractmethod
 
 
 class AbsWorkFlow(AbstractPlugin):
@@ -119,8 +127,26 @@ class AbsWorkFlow(AbstractPlugin):
         else:	
             return None
 
+    @abstractmethod
+    def construct_flow(self):
+        return Flow()
+        
     def execute(self):
-        return {}
+        flow = self.construct_flow()
+        
+        flow.visualize()
+        state = flow.run()
+        task_refs = flow.get_tasks()
+        task_results = [state.result[tr]._result.value for tr in task_refs]
+        output_results = [tr for tr in list(task_results) if not isinstance(tr, dict)]
+        plugin_results = [tr for tr in list(task_results) if isinstance(tr, dict)] #state.result[tr]._result.value not in output_results]
+        results = {f'{k}-{str(id(v))}': v for d in plugin_results if isinstance(d, dict) for k, v in d.items() }
+        
+        wg = WorkflowGraph(flow)
+        fig,_ = wg.get_plot()
+        results[f'{self.name} Graph'] = fig
+
+        return results
 
 
 def get_task_graph(task):
@@ -150,11 +176,25 @@ def results_to_tasks(task_in):
     return out_tasks
 """
 
+def _get_input_label(self, data):
+        if data == pd.DataFrame or isinstance(data, pd.DataFrame):
+            return 'Table'
+        elif isinstance(data, matplotlib.figure.Figure):
+            return 'Plot'
+        elif isinstance(data, str) and os.path.isabs(data):
+            return 'File'
+        else:
+            return 'Data'
+
 def results_to_tasks(task_in):
-    datatask = DataBucket(None)
-    print (f'task_in.output_definition()={task_in.output_definition()}')
-    out_tasks = {k:datatask(name=k, data=task_in, input_select=[i]) for i, k in enumerate(task_in.output_definition())}
-    print (f'out_tasks={out_tasks}')
+    #datatask = DataBucket(None)
+    #print (f'task_in.output_definition()={task_in.output_definition()}')
+    out_tasks = {}
+    for i, output_name in enumerate(task_in.output_definition()):
+        datatask = DataBucket(task_in, name=output_name)
+        out_tasks[output_name] = datatask(name=output_name, data=task_in, input_select=[i])
+    # out_tasks = {k:datatask(name=k, data=task_in, input_select=[i]) for i, k in enumerate(task_in.output_definition())}
+    # print (f'out_tasks={out_tasks}')
     return out_tasks
     
 @task
@@ -186,31 +226,46 @@ class StdFLIMWorkflow(AbsWorkFlow):
         })
         return params
                 
-    def execute(self):
+    def construct_flow(self):
         sel_features = self.params['features']
         all_features = [c for c in self.data.select_dtypes(include=np.number)]
         
         #listtask = List()
-        datatask = DataBucket(None)
-        aetraintask = AETraining(None)
+        datatask = DataBucket(None, name='Input')
+        aetraintask_10 = AETraining(None)
+        aetraintask_14 = AETraining(None)
         simtask = AESimulate(None)
+        aeruntask = RunAE(None)
         filtertask = Filter(None)
         stask = SummaryStats(None)#, log_stdout=True)
-        
+        heatmaptask = Heatmap(None)
+        concattask = Concatenator(None)
+        pivottask = Pivot(None)
+        seriestask = SeriesAnalyzer(None)
+        bartask = BarPlot(None, bar_type='100% stacked', features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'])
+        kmeanstask = KMeansClustering(None)
         
         with Flow(f'{self.name}', executor=self.executor, ) as flow:
             #input = Parameter('input', default=self.data)
-            modelfile = Parameter('modelfile', default='AETrain.model')
-            train_features = Parameter('train_features', default=[
+            modelfile_10 = Parameter('modelfile: 10', default='AETrain-10.model')
+            modelfile_14 = Parameter('modelfile: 14', default='AETrain-14.model')
+
+            train_features_10 = Parameter('features: 10', default=[
                 'FAD a1', 'FAD a2', 'FAD t1', 'FAD t2', 'FAD photons', 
                 'NAD(P)H a1','NAD(P)H a2', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
+            train_features_14 = Parameter('features: 14', default=[
+                'FAD a1', 'FAD a1%', 'FAD a2', 'FAD a2%', 'FAD t1', 'FAD t2', 'FAD photons', 
+                'NAD(P)H a1','NAD(P)H a1%', 'NAD(P)H a2','NAD(P)H a2%', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
+
             sim_sets = Parameter('sim_sets', default=4) 
             
             input = datatask(name='Input', data=self.data, input_select=[0])
             
-            aeresults = results_to_tasks(aetraintask(data=input, input_select=[0], 
+            filterresults1 = results_to_tasks(filtertask(data=input, input_select=[0]))
+
+            aeresults = results_to_tasks(aetraintask_10(data=filterresults1['Table: Filtered'], input_select=[0], 
                 grouping=['FOV', 'Cell'],
-                features=train_features, 
+                features=train_features_10, 
                 epochs=20,
                 learning_rate=0.0001,
                 weight_decay=0.00000001,
@@ -218,39 +273,139 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 timeseries='Treatment',
                 rescale=True,
                 model='Autoencoder 1',
-                modelfile=modelfile))
+                modelfile=modelfile_10))
 
-            simresults = results_to_tasks(simtask(data=input, input_select=[0], 
+            simresults = results_to_tasks(simtask(data=filterresults1['Table: Filtered'], input_select=[0], 
                 grouping=['FOV', 'Cell'], 
-                features=train_features, 
-                modelfile=modelfile, 
+                features=train_features_10, 
+                modelfile=aeresults['Model File'], 
                 sets=sim_sets))
                 
-            filterresults = results_to_tasks(filtertask(data=simresults['Simulated'], input_select=[0]))
+            filterresults2 = results_to_tasks(filtertask(data=simresults['Table: Simulated'], input_select=[0]))
+            
+            aeresults2 = results_to_tasks(aetraintask_14(data=filterresults2['Table: Filtered'], input_select=[0], 
+                grouping=['FOV', 'Cell'],
+                features=train_features_14, 
+                epochs=20,
+                learning_rate=0.00015,
+                weight_decay=0.00000001,
+                batch_size=500,
+                timeseries='Treatment',
+                rescale=True,
+                model='Autoencoder 2',
+                modelfile=modelfile_14))
 
-            summaryresults = results_to_tasks(stask(data=simresults['Simulated'], input_select=[0], 
-                features=train_features, 
+            aerunresults = results_to_tasks(aeruntask(data=filterresults1['Table: Filtered'], input_select=[0],
+                grouping=['FOV', 'Cell'],
+                features=self.params['features'],
+                modelfile=aeresults2['Model File']))
+            
+            concatresults = results_to_tasks(concattask(data=None, input_select=[0],
+                input={'1': filterresults1['Table: Filtered'], '2': aerunresults['Table: Features']},
+                type=True))
+                
+            summaryresults3 = results_to_tasks(stask(data=concatresults['Table: Concatenated'], input_select=[0], 
+                grouping=['Cell', 'FOV', 'Treatment'],
+                features=['FLIRR', 'Feature 1'], 
+                aggs=['mean']))
+
+            pivotresult = results_to_tasks(pivottask(data=summaryresults3['Table: Summary'], input_select=[0], 
+                grouping=['Treatment'],
+                features=['FLIRR\nmean', 'Feature 1\nmean']))
+
+            seriesresult_F1 = results_to_tasks(seriestask(data=pivotresult['Table: Pivoted'], input_select=[0], 
+                features=['Feature 1\nmean\nCtrl', 'Feature 1\nmean\ndox30', 'Feature 1\nmean\ndox45', 'Feature 1\nmean\ndox60'],
+                series_min=False,
+                series_max=False,
+                series_range=False,
+                series_mean=False,
+                series_median=False,
+                delta=True, 
+                delta_min=False,
+                delta_max=False,
+                delta_sum=False,
+                delta_cum=False,
+                merge_input=False,))
+
+            barresult_F1 = results_to_tasks(bartask(data=seriesresult_F1['Table: Series Analysis'], input_select=[0], 
+                grouping=['FOV', 'Cell'],
+                features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'],
+                ordering={},
+                orientation='vertical', # 'horizontal'
+                bar_type='100% stacked', # 'single', 'stacked'
+                dropna=True,
+                error_bar='+/-', # '+', 'None'
+                error_type='s.e.m',)) # 'std'
+
+            kmeansresult_F1 = results_to_tasks(kmeanstask(data=seriesresult_F1['Table: Series Analysis'], input_select=[0], 
+                grouping=['Cell', 'FOV', 'Treatment'],
+                features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'],
+                n_clusters=2,
+                init='k-means++',
+                algorithm='auto',
+                n_init=4,
+                max_iter=300,
+                tolerance=1e-4,))
+
+            seriesresult_FLIRR = results_to_tasks(seriestask(data=pivotresult['Table: Pivoted'], input_select=[0], 
+                features=['FLIRR\nmean\nCtrl', 'FLIRR\nmean\ndox30', 'FLIRR\nmean\ndox45', 'FLIRR\nmean\ndox60'],
+                series_min=False,
+                series_max=False,
+                series_range=False,
+                series_mean=False,
+                series_median=False,
+                delta=True, 
+                delta_min=False,
+                delta_max=False,
+                delta_sum=False,
+                delta_cum=False,
+                merge_input=False,))
+
+            barresult_FLIRR = results_to_tasks(bartask(data=seriesresult_FLIRR['Table: Series Analysis'], input_select=[0], 
+                grouping=['FOV', 'Cell'],
+                features=['FLIRR\nmean\ndelta Ctrl:dox30', 'FLIRR\nmean\ndelta dox30:dox45', 'FLIRR\nmean\ndelta dox45:dox60'],
+                ordering={},
+                orientation='vertical', # 'horizontal'
+                bar_type='100% stacked', # 'single', 'stacked'
+                dropna=True,
+                error_bar='+/-', # '+', 'None'
+                error_type='s.e.m',)) # 'std'
+
+            kmeansresult_FLIRR = results_to_tasks(kmeanstask(data=seriesresult_FLIRR['Table: Series Analysis'], input_select=[0], 
+                grouping=['Cell', 'FOV', 'Treatment'],
+                features=['FLIRR\nmean\ndelta Ctrl:dox30', 'FLIRR\nmean\ndelta dox30:dox45', 'FLIRR\nmean\ndelta dox45:dox60'],
+                n_clusters=2,
+                init='k-means++',
+                algorithm='auto',
+                n_init=4,
+                max_iter=300,
+                tolerance=1e-4,))
+
+
+            heatmap_inputresults = results_to_tasks(heatmaptask(data=filterresults1['Table: Filtered'], input_select=[0],
+                grouping=['Treatment','FOV', 'Cell'],
+                features=self.params['features'],))
+                
+            heatmap_simrawresults = results_to_tasks(heatmaptask(data=simresults['Table: Simulated'], input_select=[0],
+                grouping=['Treatment','FOV', 'Cell'],
+                features=train_features_14,))
+
+            heatmap_simfilteredresults = results_to_tasks(heatmaptask(data=filterresults2['Table: Filtered'], input_select=[0],
+                grouping=['Treatment','FOV', 'Cell'],
+                features=train_features_14,))
+
+            summaryresults = results_to_tasks(stask(data=simresults['Table: Simulated'], input_select=[0], 
+                features=train_features_10, 
                 aggs=['min', 'max', 'median', 'count']))
                 
-            summaryresults2 = results_to_tasks(stask(data=filterresults['Filtered'], input_select=[0], 
-                features=train_features, 
+            summaryresults2 = results_to_tasks(stask(data=filterresults2['Table: Filtered'], input_select=[0], 
+                features=train_features_10, 
                 aggs=['min', 'max', 'median', 'count']))
             #aetrainresults = results_to_tasks(aetraintask(data=input, input_select=[0], features=sel_features, sets=sim_sets))
-            
-        flow.visualize()
-        state = flow.run()
-        task_refs = flow.get_tasks()
-        task_results = [state.result[tr]._result.value for tr in task_refs]
-        output_results = [state.result[tr]._result.value for tr in task_refs if isinstance(tr, DataBucket)]
-        plugin_results = [state.result[tr]._result.value for tr in task_refs if not isinstance(tr, DataBucket)] #state.result[tr]._result.value not in output_results]
-        results = {f'{k}-{str(id(v))}': v for d in output_results if isinstance(d, dict) for k, v in d.items() }
         
-        wg = WorkflowGraph(flow)
-        fig,_ = wg.get_plot()
-        results[f'{self.name} Graph'] = fig
+        return flow
 
-        return results
-        
+                
 @plugin(plugintype="Workflow")        
 class BasicFLIMWorkFlow(AbsWorkFlow):
 
@@ -262,12 +417,12 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
     def get_required_features(self):
         return ['FLIRR', 'any']
         
-    def execute(self):
+    def construct_flow(self):
         sel_features = self.params['features']
         all_features = [c for c in self.data.select_dtypes(include=np.number)]
         
         #listtask = List()
-        datatask = DataBucket(None)
+        datatask = DataBucket(None, name='Input')
         stask = SummaryStats(None, features=[f'rel {f}' for f in sel_features], singledf=False)#, log_stdout=True)
         pcatask = PCAnalysis(None, explainedhisto=True)#, log_stdout=True)
         scattertask = ScatterPlot(None, features=sel_features)
@@ -283,9 +438,9 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
             input = datatask(name='Input', data=self.data, input_select=[0])
 
             reltable = results_to_tasks(relchangetask(data=input, input_select=[0], grouping=['FOV', 'Cell'], features=sel_features, reference_group='Treatment', reference_value='ctrl', method='mean'))
-            srelresult = results_to_tasks(stask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Cell', 'FOV', 'Treatment'],features=[f'rel {f}' for f in sel_features], aggs=['mean'], singledf=False))
+            srelresult = results_to_tasks(stask(data=reltable['Table: Relative Change'], input_select=[0], grouping=['Cell', 'FOV', 'Treatment'],features=[f'rel {f}' for f in sel_features], aggs=['mean'], singledf=False))
             #pivotresult = results_to_tasks(pivottask(data=srelresult['Data: Summarize'], input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean']))
-            lineplotresult = results_to_tasks(lineplottask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR']))
+            lineplotresult = results_to_tasks(lineplottask(data=reltable['Table: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR']))
 
             #sresult = results_to_tasks(stask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=allfeatures,aggs=['max','mean','median','count']))
             #listtask = to_list(scattertask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=sel_features))
@@ -302,15 +457,5 @@ class BasicFLIMWorkFlow(AbsWorkFlow):
             #sresult2 = results_to_tasks(stask(data=sresult['Data: Summarize'], input_select=[0], grouping=['FOV'], features=['FLIRR\nmean'], aggs=['max']))
             #sresult3 = results_to_tasks(stask(data=pcaresult, input_select=[0], grouping=[], features=['Principal component 1'], aggs=['max']))
             #sresult4 = results_to_tasks(stask(data=pcaresult['PCA explained'], input_select=[0], grouping=['PCA component'], features=['explained var ratio'], aggs=['max']))
-        state = flow.run()
-        task_refs = flow.get_tasks()
-        task_results = [state.result[tr]._result.value for tr in task_refs]
-        output_results = [state.result[tr]._result.value for tr in task_refs if isinstance(tr, DataBucket)]
-        plugin_results = [state.result[tr]._result.value for tr in task_refs if state.result[tr]._result.value not in output_results]
-        results = {f'{k}-{str(id(v))}': v for d in output_results if isinstance(d, dict) for k, v in d.items() }
-        
-        wg = WorkflowGraph(flow)
-        fig,_ = wg.get_plot()
-        results[f'{self.name} Graph'] = fig
+        return flow
 
-        return results

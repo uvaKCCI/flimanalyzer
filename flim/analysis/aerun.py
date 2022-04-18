@@ -115,7 +115,7 @@ class RunAE(AbstractPlugin):
         return self.params
 
     def output_definition(self):
-        return {'Reconstructed': None, 'Features': None}
+        return {'Table: Reconstructed': None, 'Table: Features': None}
 
     def execute(self):
         data_feat = self.data[self.params['features']]
@@ -152,4 +152,4 @@ class RunAE(AbstractPlugin):
         len_features = 1 if len(features_data.shape) == 1 else features_data.shape[1]
         recon_df = pd.DataFrame(recon_data,columns=[f'Recon Feature {i}' for i in range(1,recon_data.shape[1]+1)])
         features_df = pd.DataFrame(features_data,columns=[f'Feature {i}' for i in range(1,len_features+1)])
-        return {'Reconstructed': recon_df, 'Features': features_df}
+        return {'Table: Reconstructed': recon_df, 'Table: Features': features_df}

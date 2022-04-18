@@ -9,19 +9,19 @@ Created on Wed Dec 16 14:18:30 2020
 import logging
 import itertools
 import pandas as pd
-from flim.plugin import AbstractPlugin
 import matplotlib.pyplot as plt
-from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
-import flim.resources
 import numpy as np
-from flim.plugin import plugin
+
+import flim.resources
+from flim.plugin import AbstractPlugin, plugin
+from flim.gui.dialogs import BasicAnalysisConfigDlg
 
 
 class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', seriesmin=True, seriesmax=True, seriesrange=True, seriesmean=True, seriesmedian=True, delta=True, deltamin=True, deltamax=True, deltasum=True, deltacum=True, mergeinput=False):
+    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', seriesmin=True, seriesmax=True, seriesrange=True, seriesmean=True, seriesmedian=True, delta=True, deltamin=True, deltamax=True, deltasum=True, deltacum=True, deltanorm=True, mergeinput=False):
         self.seriesmin = seriesmin
         self.seriesmax = seriesmax
         self.seriesrange = seriesrange
@@ -32,6 +32,7 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.deltamax = deltamax
         self.deltasum = deltasum
         self.deltacum = deltacum
+        self.deltanorm = deltanorm
         self.mergeinput = mergeinput
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, enablegrouping=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
@@ -89,6 +90,11 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.deltacum_cb.SetValue(self.deltacum)
         self.boxes['delta_cum'] = self.deltacum_cb
         sizer.Add(self.deltacum_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        self.deltanorm_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Normalized delta")
+        self.deltanorm_cb.SetValue(self.deltanorm)
+        self.boxes['delta_norm'] = self.deltanorm_cb
+        sizer.Add(self.deltanorm_cb, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         self.mergeinput_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Merge input")
         self.mergeinput_cb.SetValue(self.mergeinput)
@@ -97,22 +103,22 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
 
         selectsizer = wx.BoxSizer(wx.VERTICAL)
         self.selectAllButton = wx.Button(self.panel, label="Select All")
-        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
+        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnOptSelectAll)
         selectsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
         self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
-        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
+        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnOptDeselectAll)
         selectsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
         nestsizer.Add(sizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
         nestsizer.Add(selectsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
         
         return [nestsizer]
 
-    def OnSelectAll(self, event):
+    def OnOptSelectAll(self, event):
         if self.boxes:
             for key in self.boxes:
                 self.boxes[key].SetValue(True)
         
-    def OnDeselectAll(self, event):
+    def OnOptDeselectAll(self, event):
         if self.boxes:
             for key in self.boxes:
                 self.boxes[key].SetValue(False)
@@ -129,6 +135,7 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         params['delta_max'] = self.deltamax_cb.GetValue()
         params['delta_sum'] = self.deltasum_cb.GetValue()
         params['delta_cum'] = self.deltacum_cb.GetValue()
+        params['delta_norm'] = self.deltanorm_cb.GetValue()
         params['merge_input'] = self.mergeinput_cb.GetValue()        
         return params
         
@@ -140,8 +147,8 @@ class SeriesAnalyzer(AbstractPlugin):
         AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Series Analysis"
     
-    #def __repr__(self):
-    #    return f"{'name': {self.name}}"
+    def __repr__(self):
+        return f"{'name': {self.name}}"
     
     def __str__(self):
         return self.name
@@ -169,10 +176,14 @@ class SeriesAnalyzer(AbstractPlugin):
             'delta_max':True,
             'delta_sum':True,
             'delta_cum':True,
+            'delta_norm':True,
             'merge_input':False,
             })
         return params
                 
+    def output_definition(self):
+        return {'Table: Series Analysis': pd.DataFrame}
+        
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
@@ -186,6 +197,7 @@ class SeriesAnalyzer(AbstractPlugin):
         deltamax = self.params['delta_max']
         deltasum = self.params['delta_sum']
         deltacum = self.params['delta_cum']
+        deltanorm = self.params['delta_norm']
         mergeinput = self.params['merge_input']
         dlg = SeriesAnalyzerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
         	selectedgrouping=selgrouping, 
@@ -199,7 +211,8 @@ class SeriesAnalyzer(AbstractPlugin):
         	deltamin=deltamin,
         	deltamax=deltamax,
         	deltasum=deltasum,
-          deltacum=deltacum,
+            deltacum=deltacum,
+            deltanorm=deltanorm,
         	mergeinput=mergeinput)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
@@ -215,6 +228,7 @@ class SeriesAnalyzer(AbstractPlugin):
         features = self.params['features']
         sfeatures = [f.split("\n") for f in features]
         common = set(sfeatures[0]).intersection(*sfeatures[1:])
+        common = [f for f in sfeatures[0] if f in common]  # needed to ensure maintaining propper order
         uniquef = ['\n'.join([f for f in s if f not in common]) for s in sfeatures]
         label = '\n'.join(common)
         if self.params['merge_input']:
@@ -233,25 +247,29 @@ class SeriesAnalyzer(AbstractPlugin):
             df[f'{label}\nSeries mean'] = self.data[features].mean(axis=1)
         if self.params['series_median']:
             df[f'{label}\nSeries median'] = self.data[features].median(axis=1)
-        if self.params['delta'] or self.params['delta_max'] or self.params['delta_min'] or self.params['delta_sum']:
+        if self.params['delta'] or self.params['delta_max'] or self.params['delta_min'] or self.params['delta_sum'] or self.params['delta_cum'] or self.params['delta_norm']:
             dfdelta = self.data[features].diff(axis=1)
             dfcum = dfdelta.cumsum(axis=1)
+            dfnorm = dfdelta.divide(dfcum.iloc[:, -1], axis=0)
             uniquef.insert(0,'None')
             dcolheaders = [f'{label}\ndelta {uniquef[i]}:{uniquef[i+1]}' for i in range(len(uniquef)-1)]
             ccolheaders = [f'{label}\ncumulative delta {uniquef[1]}:{uniquef[i+1]}' for i in range(len(uniquef)-1)]
+            ncolheaders = [f'{label}\nnormalized delta {uniquef[i]}:{uniquef[i+1]}' for i in range(len(uniquef)-1)]
             dfdelta.columns = dcolheaders
             dfcum.columns = ccolheaders
+            dfnorm.columns = ncolheaders
             if self.params['delta']:
                 df = df.join(dfdelta.iloc[:,1:])
             if self.params['delta_cum']:
                 df = df.join(dfcum.iloc[:,1:])
+            if self.params['delta_norm']:
+                df = df.join(dfnorm.iloc[:,1:])
             if self.params['delta_min']:
                 df[f'{label}\ndelta min'] = dfdelta.iloc[:,1:].min(axis=1)
             if self.params['delta_max']:
                 df[f'{label}\ndelta max'] = dfdelta.iloc[:,1:].max(axis=1)
             if self.params['delta_sum']:
                 df[f'{label}\ndelta sum'] = dfdelta.iloc[:,1:].sum(axis=1)
-        results["Series Analysis"] = df
+        results["Table: Series Analysis"] = df
         return results
             
-

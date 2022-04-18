@@ -33,6 +33,9 @@ class Heatmap(AbstractPlugin):
     def get_required_features(self):
         return ['any']
 
+    def output_definition(self):
+        return {'Plot: Heatmap': None}
+
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
@@ -67,7 +70,7 @@ class Heatmap(AbstractPlugin):
             horizontalalignment='right'
         )
         fig = ax.get_figure()
-        results['Heatmap'] = fig
+        results['Plot: Heatmap'] = fig
 
         title = "Data ungrouped"
         if len(self.params['grouping']) > 0:

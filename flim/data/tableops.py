@@ -38,6 +38,9 @@ class Pivot(AbstractPlugin):
         })
         return params
                 
+    def output_definition(self):
+        return {'Table: Pivoted': pd.DataFrame}
+        
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
@@ -65,5 +68,5 @@ class Pivot(AbstractPlugin):
         pivot_data.columns = ['\n'.join(col).strip() for col in pivot_data.columns.values]    
         
         pivot_data = pivot_data.reset_index()
-        results = {'Pivoted Data': pivot_data}
+        results = {'Table: Pivoted': pivot_data}
         return results

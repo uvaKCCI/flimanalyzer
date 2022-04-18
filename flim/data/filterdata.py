@@ -68,7 +68,7 @@ class Filter(AbstractPlugin):
     
     def __init__(self, data, **kwargs):
         AbstractPlugin.__init__(self, data, **kwargs) #categories={}, default='unassigned')
-        self.name = "Filter Data"
+        self.name = "Filter"
         default_filters = [
                         RangeFilter('trp t1',0,2500).get_params(),
                         RangeFilter('trp t2',0,8000).get_params(),
@@ -138,7 +138,6 @@ class Filter(AbstractPlugin):
             updated_params = [fparam for fparam in filter_params if fparam['name'] in number_cols]
             existing_names = [fparam['name'] for fparam in filter_params]
             missing_names = [n for n in number_cols if n not in existing_names]
-            print (f'missing={missing_names}')
             # create defaults for missing filters 
             for col in missing_names:
                 fparams = self.default_filters.get(col, RangeFilter(col).get_params())
@@ -156,11 +155,11 @@ class Filter(AbstractPlugin):
         return params
             
     def output_definition(self):
-        return {'Filtered': None}
+        return {'Table: Filtered': None}
         
     def run_configuration_dialog(self, parent, data_choices={}):
         filter_params = self._update_filter_params(self.data, self.params['range filters'])
-        print (filter_params)
+        logging.debug (filter_params)
         inplace = self.params['inplace']
                 
         dlg = FilterConfigDlg(parent, f'Configuration: {self.name}',
@@ -196,10 +195,10 @@ class Filter(AbstractPlugin):
             arraylist = np.concatenate(arraylist)
         droppedrows = np.unique(arraylist)
 
-        print (f'droppedrows={droppedrows}')
+        logging.debug (f'droppedrows={droppedrows}')
         if len(droppedrows) != 0:
             data = data.drop(data.index[droppedrows]).reset_index(drop=True)
         results = {}
-        results['Filtered'] = data
+        results['Table: Filtered'] = data
         return results
             

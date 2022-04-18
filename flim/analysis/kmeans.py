@@ -13,16 +13,13 @@ from torch.autograd import Variable
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import flim.analysis.ml.autoencoder as autoencoder
 import wx
 from wx.lib.masked import NumCtrl
-
-from flim.plugin import AbstractPlugin
-import flim.resources
 from importlib_resources import files, as_file
-from flim.plugin import plugin
 
+from flim.plugin import plugin, AbstractPlugin
+import flim.resources
+from flim.gui.dialogs import BasicAnalysisConfigDlg
 
 ALGO_OPTIONS = ['auto', 'full', 'elkan']
 INIT_OPTIONS = ['k-means++', 'random']
@@ -49,7 +46,7 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
                                         selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 
     def get_option_panels(self):
-        option_sizer = wx.GridSizer(0, 6, 5, 5)
+        option_sizer = wx.BoxSizer(wx.HORIZONTAL)
 
         self.n_spinner = wx.SpinCtrl(self.panel, wx.ID_ANY, initial=self.n_clusters, min=2, max=20)
         option_sizer.Add(wx.StaticText(self.panel, label="Number of Clusters"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
@@ -106,8 +103,8 @@ class KMeansClustering(AbstractPlugin):
         AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "K-means Clustering"
 
-    #def __repr__(self):
-    #    return f"{'name': {self.name}}"
+    def __repr__(self):
+        return f"{'name': {self.name}}"
 
     def __str__(self):
         return self.name
@@ -155,6 +152,7 @@ class KMeansClustering(AbstractPlugin):
     def execute(self):
         data = self.data[self.params['features']]
         data = data.dropna(how='any', axis=0).reset_index()
+        oldidx = data['index']
         features = self.params['features']
         if len(features) == 1:
             # reshape 1d array
@@ -163,7 +161,7 @@ class KMeansClustering(AbstractPlugin):
             data_no_class = data[features].values
         scaler = StandardScaler()
         scaler.fit(data_no_class)
-        standard_data = scaler.transform(data_no_class)      
+        standard_data = scaler.transform(data_no_class)
         kmeans = KMeans(
             n_clusters=self.params['n_clusters'], 
             init=self.params['init'], 
@@ -174,12 +172,14 @@ class KMeansClustering(AbstractPlugin):
             random_state=0)
         predict = kmeans.fit(standard_data)
         cat_cols = list(self.data.select_dtypes(['category']).columns.values)
-        cat_df = self.data[cat_cols].copy()
+        cat_df = self.data.iloc[oldidx].reset_index() #match cat_df index w/ index of used prediction data
+        cat_df = cat_df[cat_cols].copy()
+
         predict_df = pd.DataFrame(data, columns=features)
         labelcol = 'Cluster'
         predict_df[labelcol] = [f'Cluster {l + 1}' for l in predict.labels_]
         predict_df[labelcol] = predict_df[labelcol].astype('category')
-        predict_df = pd.concat([cat_df, predict_df], axis=1)        
+        predict_df = pd.concat([cat_df, predict_df], axis=1)
         neworder = [c for c in list(predict_df.select_dtypes(['category']).columns.values)]
         noncategories = [c for c in predict_df.columns.values if c not in neworder]
         neworder.extend(noncategories)

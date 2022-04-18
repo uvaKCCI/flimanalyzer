@@ -10,6 +10,7 @@ import os
 import random
 import numpy as np
 import pandas as pd
+import matplotlib.figure
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import torch
@@ -257,7 +258,7 @@ class AETraining(AbstractPlugin):
         return params
 	 
     def output_definition(self):
-        return {'AE Loss': None, 'AE Train-Val Decoded': None, 'AE Train-Val Encoded': None, 'Plot: AE Loss': None, }
+        return {'Table: AE Loss': pd.DataFrame, 'Table: AE Decoded': pd.DataFrame, 'Table: AE Encoded': pd.DataFrame, 'Plot: AE Loss': matplotlib.figure.Figure, 'Model File': str}
 
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', self.data,
@@ -439,4 +440,4 @@ class AETraining(AbstractPlugin):
         ax.legend(['training', 'testing'], loc='upper right')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         self._add_picker(fig)
-        return {'AE Loss': loss_df, 'AE Train-Val Decoded': decoded_df, 'AE Train-Val Encoded': encoded_df, 'Plot: AE Loss': fig, }
+        return {'Table: AE Loss': loss_df, 'Table: AE Decoded': decoded_df, 'Table: AE Encoded': encoded_df, 'Plot: AE Loss': fig, 'Model File': self.params['modelfile']}

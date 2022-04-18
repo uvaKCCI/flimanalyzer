@@ -19,17 +19,11 @@ from flim.plugin import plugin
 
 
 @plugin(plugintype='Plot')
-class SwarmPlot(AbstractPlugin):
+class ViolinPlot(AbstractPlugin):
     
     def __init__(self, data, **kwargs):
         AbstractPlugin.__init__(self, data, **kwargs)
         self.name = "Violin Plot"
-    
-    #def __repr__(self):
-    #    return f"{'name': {self.name}}"
-    
-    def __str__(self):
-        return self.name
     
     def get_icon(self):
         try:

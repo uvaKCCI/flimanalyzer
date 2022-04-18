@@ -107,6 +107,9 @@ class RelativeChange(AbstractPlugin):
             'reference_value': 'Ctrl',
             })
         return params
+
+    def output_definition(self):
+        return {'Table: Relatve Change': pd.DataFrame}
         
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = RelativeChangeConfigDlg(parent, f'Configuration: {self.name}', self.data, 
@@ -153,5 +156,5 @@ class RelativeChange(AbstractPlugin):
         columnlabels = [col if col in allcategories else f'rel {col}' for col in reldf.columns.values]
         reldf.columns = columnlabels
                  
-        title = f'Relative-{method}'
+        title = f'Table: Relative Change'#-{method}'
         return {title:reldf}

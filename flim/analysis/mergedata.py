@@ -94,7 +94,7 @@ class Merger(AbstractPlugin):
         return wx.Bitmap(str(source))
         
     def get_required_features(self):
-        return [pd.DataFrame, pd.DataFrame]
+        return []
     
     def get_default_parameters(self):
         params = super().get_default_parameters()

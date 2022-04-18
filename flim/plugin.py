@@ -12,6 +12,9 @@ import pkgutil
 import importlib
 from abc import ABC, abstractmethod
 from prefect import Task
+import pandas as pd
+import matplotlib.figure
+import os
 
 
 PLUGINS = {}
@@ -130,7 +133,7 @@ def create_instance(clazz, data):
 class AbstractPlugin(Task):
     """Abstract class used to template analysis classes."""
 
-    def __init__(self, data, *args, **kwargs):#data, **kwargs):
+    def __init__(self, data, *args, input_select=None, **kwargs):#data, **kwargs):
         """Initializes AbstractPlugin class with data and configuration parameters
         
         Args:
@@ -141,8 +144,8 @@ class AbstractPlugin(Task):
         self.params = self.get_default_parameters()
         superkwargs = {k:v for k,v in kwargs.items() if k not in self.params}
         super().__init__(*args, **superkwargs)
-        self.name = __name__
-        self.data = data
+        #self.name = __name__
+        self.set_input(data, input_select)
         # update tool-specific kwargs
         self.params.update({k:v for k,v in kwargs.items() if k in self.params})        
         
@@ -151,6 +154,34 @@ class AbstractPlugin(Task):
         #self.params = self.get_default_parameters()
         #self.params.update({**kwargs})
         
+    def set_input(self, data, input_select):
+        input_labels = None
+        if isinstance(data,dict):
+            input_labels = list(data.keys())
+            if input_select is None or isinstance(input_select[0], int):
+                data = list(data.values())
+            else:
+                # convert to list of data
+                data = [data[k] for k in input_select]
+                # convert to list of int
+                input_select = range(len(input_select))
+        if isinstance(data,list):
+            if input_labels is None:
+                input_labels = ['Data'] * len(data)
+            if input_select is None:
+            	self.data = data
+            	self.input_labels = input_labels
+            elif len(input_select) == 1 and max(input_select) < len(data):
+                self.data = data[input_select[0]]
+                self.input_labels = input_labels[input_select[0]]
+            else:
+                self.data = [data[i] for i in input_select if i < len(data)]
+                self.input_labels = [input_labels[i] for i in input_select if i < len(input_labels)]
+        else:
+            self.data = data
+            self.input_label = 'Data'
+        logging.debug (f'Setting input for {self.name} to {type(data)}')
+
     def get_description(self):
         """Returns a description for this analyzing module. This may include instructions on how to use the parameters.
 
@@ -254,8 +285,11 @@ class AbstractPlugin(Task):
         """    
         return {}
 
+    def input_definition(self):
+        return [pd.DataFrame]
+        
     def output_definition(self):
-        return {f'Data: {self.name}':None}
+        return {f'Data: {self.name}':pd.DataFrame}
         
     def configure(self, **kwargs):
         """Updates the configuration with the passed arguments.
@@ -280,41 +314,23 @@ class AbstractPlugin(Task):
         return {} 
 
     def run(self, data=[], input_select=None, **kwargs):
-        if isinstance(data,dict):
-            if input_select is None or isinstance(input_select[0], int):
-                print ('1')
-                data = list(data.values())
-            else:
-                print ('2')
-                # convert to list of data
-                data = [data[k] for k in input_select]
-                # convert to list of int
-                input_select = range(len(input_select))
-        print (f'Running {self.name} with data {type(data)}')
-        if isinstance(data,list):
-            if input_select is None:
-            	self.data = data
-            	print ('a') 
-            elif len(input_select) == 1 and max(input_select) < len(data):
-                self.data = data[input_select[0]]
-                print ('b', type(self.data)) 
-            else:
-                self.data = [data[i] for i in input_select if i < len(data)]
-                print ('c') 
-        else:
-            self.data = data
-            print ('d') 
-        print (f'Running {self.name} with self.data {type(self.data)}')
+        self.set_input(data, input_select)
         self.configure(**kwargs)
         return self.execute() 
 
 
 class DataBucket(AbstractPlugin):
 
-    def __init__(self, data, *args, **kwargs):
-        super().__init__(data, *args, **kwargs)
-        self.name = 'Data'
-        
+    def __init__(self, data, *args, name='Data Bucket', **kwargs):
+        super().__init__(data, *args, name=name, **kwargs)
+        #self.name = self._get_input_label(data)
+    
+    def _get_input_label(self, data):
+        if data is not None:
+            return type(data).__name__
+        else:
+            return 'Data'
+         
     def output_definition(self):
         return {self.name: None}
         
@@ -322,8 +338,9 @@ class DataBucket(AbstractPlugin):
         pass
         
     def execute(self):
+        self.name = self._get_input_label(self.data)
         logging.debug (f'Executing {self.name} -- type(self.data)={type(self.data)}')
-        return {self.name:self.data}
+        return self.data
     
     def run(self, name=None, data=[], input_select=None, **kwargs):
         if name is not None:

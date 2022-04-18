@@ -12,13 +12,13 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from flim.plugin import plugin 
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
 import flim.resources
-from flim.plugin import plugin
 
 
 class CategorizerConfigDlg(BasicAnalysisConfigDlg):

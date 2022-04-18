@@ -130,9 +130,9 @@ class PCAnalysis(AbstractPlugin):
     
     def output_definition(self):
         if self.params['explainedhisto']:
-            return {'PCA Values': None, 'PCA explained': None, 'PCA Plot': None}
+            return {'Table: PCA Components': None, 'Table: PCA explained': None, 'Plot: PCA Explained': None}
         else:
-            return {'PCA Values': None, 'PCA explained': None}            
+            return {'Table: PCA Components': None, 'Table: PCA explained': None}            
 
     def execute(self):
         data = self.data
@@ -177,10 +177,10 @@ class PCAnalysis(AbstractPlugin):
 
         
         results = {
-            'PCA Values': pca_df,
-            'PCA Explained': pca_explained_df}
+            'Table: PCA Components': pca_df,
+            'Table: PCA Explained': pca_explained_df}
         if self.params['explainedhisto']:
             plot = pca_explained_df.set_index(pca_comp_label).plot.bar()
-            results['PCA Plot'] = plot.get_figure()
+            results['Plot: PCA Explained'] = plot.get_figure()
         return results
             

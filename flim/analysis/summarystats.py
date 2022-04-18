@@ -144,9 +144,9 @@ class SummaryStats(AbstractPlugin):
     
     def _create_df_title(self, feature):
         if feature:
-            return ": ".join([self.titleprefix,feature.replace('\n',' ')])
+            return 'Table: ' + ': '.join([self.titleprefix,feature.replace('\n',' ')])
         else:
-            return 'Summary'
+            return 'Table: Summary'
         
     def execute(self):
         summaries = {}

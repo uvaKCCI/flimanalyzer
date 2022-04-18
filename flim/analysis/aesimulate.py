@@ -6,9 +6,6 @@ Created on Wed Dec 16 14:18:30 2020
 @author: khs3z
 """
 
-from flim.plugin import AbstractPlugin
-from flim.plugin import plugin
-
 import logging
 import os
 import numpy as np
@@ -20,13 +17,15 @@ from torch.autograd import Variable
 import matplotlib.pyplot as plt
 from sklearn.impute import SimpleImputer
 from sklearn import preprocessing
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import flim.analysis.ml.autoencoder as autoencoder
 import wx
 from wx.lib.masked import NumCtrl
-
-import flim.resources
 from importlib_resources import files, as_file
+
+from flim.plugin import AbstractPlugin
+from flim.plugin import plugin
+from flim.gui.dialogs import BasicAnalysisConfigDlg
+import flim.analysis.ml.autoencoder as autoencoder
+import flim.resources
 
 
 class AESimConfigDlg(BasicAnalysisConfigDlg):
@@ -115,7 +114,7 @@ class AESimulate(AbstractPlugin):
         return params
 
     def output_definition(self):
-        return {'Simulated': None}
+        return {'Table: Simulated': None}
         
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = AESimConfigDlg(parent, f'Configuration: {self.name}', self.data,
@@ -208,5 +207,5 @@ class AESimulate(AbstractPlugin):
         sim_df = sim_df[cats+outfeats]
         sim_df['Cell'] = sim_df['Cell'].astype(str).astype('category')
         
-        return {'Simulated': sim_df}
+        return {'Table: Simulated': sim_df}
     
