@@ -18,6 +18,8 @@ import os
 
 
 PLUGINS = {}
+ALL_FEATURES = 'all_features'
+
 
 def plugin(plugintype):
     """Register an instantiated plugin to the PLUGINS dict."""

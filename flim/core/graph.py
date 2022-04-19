@@ -8,6 +8,9 @@ Created on Sat Feb  26 14:03:11 2022
 
 from flim.plugin import DataBucket
 
+import io
+import matplotlib.image as mpimg
+
 import graphviz
 import networkx as nx
 import networkx.drawing.nx_pydot
@@ -22,6 +25,7 @@ class WorkflowGraph():
     def __init__(self, flow):
         self.flow = flow
         self.graph = None
+        self.pydotgraph = None
         
     def _clean_label(self, l):
         return l.lstrip().rstrip().replace('"', '')
@@ -33,10 +37,10 @@ class WorkflowGraph():
         output_ids = [id(tr) for tr in task_refs if isinstance(tr, DataBucket)]
         plugin_ids = [id(tr) for tr in task_refs if not isinstance(tr, DataBucket)]
         
-        pydotgraph = pydot.graph_from_dot_data(vgraph.source)[0]
-        g = networkx.drawing.nx_pydot.from_pydot(pydotgraph)
+        self.pydotgraph = pydot.graph_from_dot_data(vgraph.source)[0]
+        g = networkx.drawing.nx_pydot.from_pydot(self.pydotgraph)
 
-        self.node_labels = {n.get_name():self._clean_label(n.get_label()) for n in pydotgraph.get_nodes()}
+        self.node_labels = {n.get_name():self._clean_label(n.get_label()) for n in self.pydotgraph.get_nodes()}
         self.output_nodes = [n for n in networkx.classes.function.nodes(g) if int(n) in output_ids]
         self.plugin_nodes = [n for n in networkx.classes.function.nodes(g) if int(n) in plugin_ids]
         #output_node_labels = {n.get_name():n.get_label() for n in pydotgraph.get_nodes() if int(n.get_name()) in output_ids}
@@ -47,7 +51,7 @@ class WorkflowGraph():
         #print (f'plugin_nodes={self.plugin_nodes}')
         #print (f'output_node_labels={output_node_labels}')
         #print (f'plugin_node_labels={plugin_node_labels}')
-
+        
         self.graph = g        
         return self.graph
         
@@ -56,11 +60,26 @@ class WorkflowGraph():
             self.create_graph()
         if not ax:
             fig, ax = plt.subplots() 
+
+        # render the `pydot` by calling `dot`, no file saved to disk
+        png_str = self.pydotgraph.create_png(prog='dot')
+        # treat the DOT output as an image file
+        sio = io.BytesIO()
+        sio.write(png_str)
+        sio.seek(0)
+        img = mpimg.imread(sio)
+        # plot the image
+        print (type(ax))
+        ax.imshow(img, aspect='equal')
+
+        """
         pos = nx.drawing.nx_agraph.graphviz_layout(self.graph, prog='dot', args='-Grankdir="LR"')
         nx.draw_networkx_nodes(self.graph, pos, ax=ax, nodelist=self.output_nodes, node_color='blue', node_shape='s')
         nx.draw_networkx_nodes(self.graph, pos, ax=ax, nodelist=self.plugin_nodes, node_color='red', node_shape='o')
         nx.draw_networkx_edges(self.graph, pos, ax=ax)
         nx.draw_networkx_labels(self.graph, pos, ax=ax, labels=self.node_labels)
+        """
+        
         return fig, ax
         
         

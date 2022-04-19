@@ -15,15 +15,17 @@ import pkgutil
 import importlib
 from importlib_resources import files
 import wx
-from flim.plugin import AbstractPlugin, DataBucket
+from flim.plugin import AbstractPlugin, DataBucket, ALL_FEATURES
 from flim.data.tableops import Pivot
 from flim.data.filterdata import Filter
 from flim.data.concatdata import Concatenator
+from flim.data.mergedata import Merger
 from flim.analysis.aerun import RunAE
 from flim.analysis.aetraining import AETraining
 from flim.analysis.aesimulate import AESimulate
 from flim.analysis.barplots import BarPlot
 from flim.analysis.heatmap import Heatmap
+from flim.analysis.kde import KDE
 from flim.analysis.kmeans import KMeansClustering
 from flim.analysis.seriesanalyzer import SeriesAnalyzer
 from flim.analysis.summarystats import SummaryStats
@@ -32,7 +34,6 @@ from flim.analysis.pca import PCAnalysis
 from flim.analysis.scatterplots import ScatterPlot
 from flim.analysis.barplots import BarPlot
 from flim.analysis.lineplots import LinePlot
-from flim.analysis.kde import KDE
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 from flim.core.graph import WorkflowGraph
 import flim.resources
@@ -244,6 +245,8 @@ class StdFLIMWorkflow(AbsWorkFlow):
         seriestask = SeriesAnalyzer(None)
         bartask = BarPlot(None, bar_type='100% stacked', features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'])
         kmeanstask = KMeansClustering(None)
+        kdetask = KDE(None)
+        mergetask = Merger(None)
         
         with Flow(f'{self.name}', executor=self.executor, ) as flow:
             #input = Parameter('input', default=self.data)
@@ -341,12 +344,22 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 grouping=['Cell', 'FOV', 'Treatment'],
                 features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'],
                 n_clusters=2,
+                cluster_prefix='F1 Cluster',
                 init='k-means++',
                 algorithm='auto',
                 n_init=4,
                 max_iter=300,
                 tolerance=1e-4,))
 
+            kderesults_FLIRR = results_to_tasks(kdetask(data=kmeansresult_F1['Table: K-Means'], input_select=[0], 
+                grouping=['F1 Cluster'],
+                features=ALL_FEATURES,))
+            
+            summaryresults_F1 = results_to_tasks(stask(data=kmeansresult_F1['Table: K-Means'], input_select=[0], 
+                grouping=['F1 Cluster'],
+                features=ALL_FEATURES, 
+                aggs=['count', 'mean']))
+                
             seriesresult_FLIRR = results_to_tasks(seriestask(data=pivotresult['Table: Pivoted'], input_select=[0], 
                 features=['FLIRR\nmean\nCtrl', 'FLIRR\nmean\ndox30', 'FLIRR\nmean\ndox45', 'FLIRR\nmean\ndox60'],
                 series_min=False,
@@ -375,12 +388,26 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 grouping=['Cell', 'FOV', 'Treatment'],
                 features=['FLIRR\nmean\ndelta Ctrl:dox30', 'FLIRR\nmean\ndelta dox30:dox45', 'FLIRR\nmean\ndelta dox45:dox60'],
                 n_clusters=2,
+                cluster_prefix='FLIRR Cluster',
                 init='k-means++',
                 algorithm='auto',
                 n_init=4,
                 max_iter=300,
                 tolerance=1e-4,))
 
+            kderesults_FLIRR = results_to_tasks(kdetask(data=kmeansresult_FLIRR['Table: K-Means'], input_select=[0], 
+                grouping=['FLIRR Cluster'],
+                features=ALL_FEATURES,))
+            
+            summaryresults_FLIRR = results_to_tasks(stask(data=kmeansresult_FLIRR['Table: K-Means'], input_select=[0], 
+                grouping=['FLIRR Cluster'],
+                features=ALL_FEATURES,
+                aggs=['count', 'mean']))
+                
+            mergeresulsts_FLIRR = results_to_tasks(mergetask(data=None, input_select=[0],
+                input={'left':seriesresult_FLIRR['Table: Series Analysis'], 'right': kmeansresult_FLIRR['Table: K-Means']},
+                how='left', 
+                features=['FLIRR\nmean\nCtrl', 'FLIRR\nmean\ndox30', 'FLIRR\nmean\ndox45', 'FLIRR\nmean\ndox60'],))
 
             heatmap_inputresults = results_to_tasks(heatmaptask(data=filterresults1['Table: Filtered'], input_select=[0],
                 grouping=['Treatment','FOV', 'Cell'],

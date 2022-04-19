@@ -31,12 +31,14 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
             selectedgrouping=['None'], 
             selectedfeatures='All', 
             n_clusters=2,
+            cluster_prefix='Cluster',
             init='k-means++',
             algorithm='auto',
             n_init=4,
             max_iter=300,
             tolerance=1e-4):
         self.n_clusters = n_clusters
+        self.cluster_prefix = cluster_prefix
         self.init = init
         self.max_iter = max_iter
         self.n_init = n_init
@@ -87,6 +89,7 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
 
     def _get_selected(self):
         params = super()._get_selected()
+        params['cluster_prefix'] = 'Cluster' #self.prefix_editor.GetValue()
         params['n_clusters'] = self.n_spinner.GetValue()
         params['init'] = self.init_combobox.GetValue()
         params['algorithm'] = self.algo_combobox.GetValue()
@@ -101,7 +104,7 @@ class KMeansClustering(AbstractPlugin):
 
     def __init__(self, data, **kwargs):
         AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "K-means Clustering"
+        self.name = "K-Means"
 
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -123,6 +126,7 @@ class KMeansClustering(AbstractPlugin):
         params = super().get_default_parameters()
         params.update({
             'n_clusters': 2,
+            'cluster_prefix': 'Cluster',
             'init': 'k-means++',
             'algorithm': 'auto',
             'n_init': 4,
@@ -131,11 +135,16 @@ class KMeansClustering(AbstractPlugin):
         })
         return params
 
+    def output_definition(self):
+        return {'Table: K-Means': pd.DataFrame}
+        
+        
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = KMeansClusteringConfigDlg(parent, f'Configuration: {self.name}', self.data,
                                   selectedgrouping=self.params['grouping'],
                                   selectedfeatures=self.params['features'],
                                   n_clusters=self.params['n_clusters'],
+                                  cluster_prefix=self.params['cluster_prefix'],
                                   init=self.params['init'],
                                   algorithm=self.params['algorithm'],
                                   n_init=self.params['n_init'],
@@ -163,7 +172,7 @@ class KMeansClustering(AbstractPlugin):
         scaler.fit(data_no_class)
         standard_data = scaler.transform(data_no_class)
         kmeans = KMeans(
-            n_clusters=self.params['n_clusters'], 
+            n_clusters=self.params['n_clusters'],
             init=self.params['init'], 
             algorithm=self.params['algorithm'],
             n_init=self.params['n_init'], 
@@ -176,8 +185,8 @@ class KMeansClustering(AbstractPlugin):
         cat_df = cat_df[cat_cols].copy()
 
         predict_df = pd.DataFrame(data, columns=features)
-        labelcol = 'Cluster'
-        predict_df[labelcol] = [f'Cluster {l + 1}' for l in predict.labels_]
+        labelcol = self.params['cluster_prefix']
+        predict_df[labelcol] = [f'{labelcol} {l + 1}' for l in predict.labels_]
         predict_df[labelcol] = predict_df[labelcol].astype('category')
         predict_df = pd.concat([cat_df, predict_df], axis=1)
         neworder = [c for c in list(predict_df.select_dtypes(['category']).columns.values)]
@@ -206,4 +215,4 @@ class KMeansClustering(AbstractPlugin):
         ]
         print (results)
         """
-        return {'K-means Clustering': predict_df}
+        return {'Table: K-Means': predict_df}

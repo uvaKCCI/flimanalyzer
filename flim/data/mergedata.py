@@ -105,7 +105,10 @@ class Merger(AbstractPlugin):
             'input': {},
         })
         return params
-            
+    
+    def output_definition(self):
+        return {'Table: Merged': pd. DataFrame}
+        
     def run_configuration_dialog(self, parent, data_choices={}):
         input = self.params['input']
         # left_on and right_on are str representing dataframe window titles
@@ -157,6 +160,6 @@ class Merger(AbstractPlugin):
         noncategories = [c for c in merged_df.columns.values if c not in neworder]
         neworder.extend(noncategories)
         merged_df = merged_df[neworder]
-        results['Merged'] = merged_df
+        results['Table: Merged'] = merged_df
         return results
             

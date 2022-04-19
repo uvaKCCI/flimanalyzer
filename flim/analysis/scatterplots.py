@@ -62,7 +62,7 @@ class ScatterPlot(AbstractPlugin):
 
     def output_definition(self):
         combs = itertools.combinations(self.params['features'], 2)
-        return {f'Scatter: {c}': None for c in sorted(combs)}
+        return {f'Scatter: {c}': pd.DataFrame for c in sorted(combs)}
     
     def execute(self):
         results = {}

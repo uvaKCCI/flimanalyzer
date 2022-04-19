@@ -14,7 +14,7 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
-from flim.plugin import plugin
+from flim.plugin import plugin, ALL_FEATURES
 
 
 
@@ -27,7 +27,7 @@ def percentile(n):
 
 class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, description=None, selectedgrouping=['None'], selectedfeatures='All', allaggs=[], selectedaggs='All', singledf=False):
+    def __init__(self, parent, title, data, description=None, selectedgrouping=['None'], selectedfeatures=ALL_FEATURES, allaggs=[], selectedaggs='All', singledf=False):
         self.allaggs = allaggs
         self.selectedaggs = selectedaggs
         self.singledf = singledf
@@ -151,9 +151,13 @@ class SummaryStats(AbstractPlugin):
     def execute(self):
         summaries = {}
         sel_functions = [self.agg_functions[f] for f in self.params['aggs']]
-        if self.params['features'] is None or len(self.params['features']) == 0:
+        features = self.params['features']
+        if features == ALL_FEATURES:
+            features = list(self.data.select_dtypes(np.number).columns.values)
+            print (f'using all features: {features}')
+        if features is None or len(features) == 0:
             return summaries
-        for header in self.params['features']:
+        for header in features:
             #categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
             allcats = [x for x in self.params['grouping']]
             allcats.append(header)

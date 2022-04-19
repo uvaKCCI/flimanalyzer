@@ -79,7 +79,7 @@ class PCAnalysis(AbstractPlugin):
     
     def __init__(self, data, keeporig=False, keepstd=True, explainedhisto=False, n_components=0.999, **kwargs):
         AbstractPlugin.__init__(self, data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, n_components=n_components, **kwargs)
-        self.name = "Principal Component Analysis"
+        self.name = "PCA"
     
     def get_description(self):
         return 'Specifiy PCA components to retain:'\

@@ -9,13 +9,15 @@ Created on Wed Dec 16 14:18:30 2020
 import logging
 from flim.plugin import AbstractPlugin
 import matplotlib.pyplot as plt
+import matplotlib.figure
 import seaborn as sns
+import numpy as np
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
 from prefect import Task
-from flim.plugin import plugin
+from flim.plugin import plugin, ALL_FEATURES
 
 
 default_linestyles = ['-','--',':', '-.']
@@ -26,7 +28,7 @@ class KDE(AbstractPlugin, Task):
 
     def __init__(self, data, **kwargs):#classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
         AbstractPlugin.__init__(self, data, **kwargs)#classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
-        self.name = "KDE Plot"
+        self.name = "KDE"
         
     def get_required_categories(self):
         return []
@@ -38,6 +40,12 @@ class KDE(AbstractPlugin, Task):
     def get_required_features(self):
         return ['any']
         
+    def output_definition(self):
+        features = self.params['features']
+        if features == ALL_FEATURES:
+            features = list(self.data.select_dtypes(np.number).columns.values)
+        return {f'Plot: KDE {feature}':plt.figure.Figure for feature in features}
+    
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
@@ -51,14 +59,17 @@ class KDE(AbstractPlugin, Task):
 
     def execute(self):
         results = {}
-        for header in sorted(self.params['features']):
+        features = self.params['features']
+        if features == ALL_FEATURES:
+            features = list(self.data.select_dtypes(np.number).columns.values)
+        for header in sorted(features):
             bins = 100
             minx = self.data[header].min() #hconfig[0]
             maxx = self.data[header].max() #hconfig[1]
             logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
             fig,ax = self.grouped_kdeplot(self.data, header, groups=self.params['grouping'], hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
             ax.set_xlim(minx, maxx)
-            results[f'KDE Plot: {header}'] = fig
+            results[f'Plot: KDE {header}'] = fig
         return results
     
     

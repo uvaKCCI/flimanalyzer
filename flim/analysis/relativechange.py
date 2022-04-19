@@ -109,7 +109,7 @@ class RelativeChange(AbstractPlugin):
         return params
 
     def output_definition(self):
-        return {'Table: Relatve Change': pd.DataFrame}
+        return {'Table: Relative Change': pd.DataFrame}
         
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = RelativeChangeConfigDlg(parent, f'Configuration: {self.name}', self.data, 
