@@ -38,21 +38,21 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
 
     def get_option_panels(self):
         self.modelfiletxt = wx.StaticText(self, label=self.modelfile)
-        browsebutton = wx.Button(self, wx.ID_ANY, 'Choose...')
+        browsebutton = wx.Button(self.panel, wx.ID_ANY, 'Choose...')
         browsebutton.Bind(wx.EVT_BUTTON, self.OnBrowse)
 
         timeseries_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        timeseries_sizer.Add(wx.StaticText(self, label="Load Model from File"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        timeseries_sizer.Add(wx.StaticText(self.panel, label="Load Model from File"), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         timeseries_sizer.Add(self.modelfiletxt, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
         timeseries_sizer.Add(browsebutton, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
 
         bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.device_combobox = wx.ComboBox(self, wx.ID_ANY, style=wx.CB_READONLY, value=self.device, choices=['cpu', 'cuda'])
-        bottom_sizer.Add(wx.StaticText(self, label="Device"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.device_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.device, choices=['cpu', 'cuda'])
+        bottom_sizer.Add(wx.StaticText(self.panel, label="Device"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         bottom_sizer.Add(self.device_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        self.sets_spinner = wx.SpinCtrl(self,wx.ID_ANY,min=1,max=20,initial=self.sets)
-        bottom_sizer.Add(wx.StaticText(self, label="Sets"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.sets_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=20,initial=self.sets)
+        bottom_sizer.Add(wx.StaticText(self.panel, label="Sets"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         bottom_sizer.Add(self.sets_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         return [timeseries_sizer, bottom_sizer]
