@@ -894,6 +894,7 @@ class AppFrame(wx.Frame):
             importer.set_parser(parser)
             importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
             importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
+            importer.set_column_combos(config.get([cfg.CONFIG_CATEGORY_COMBINATIONS]))
             importer.set_preprocessor(preprocessor)
             data, filenames, fheaders = importer.import_data()
 

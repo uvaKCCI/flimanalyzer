@@ -115,20 +115,24 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         
         sizer.Add(self.optionsizer, 0, wx.ALIGN_LEFT, 5)
         sizer.Add(wx.StaticLine(self.panel,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
-        
         if self.enablegrouping:
             groupings = ['None']
             if data.select_dtypes(['category']).columns.nlevels == 1:
-                categories = [c for c in list(data.select_dtypes(['category']).columns.values)]
+                categories = [c for c in list(data.select_dtypes(['category']).columns.values) if "-" not in c]
+                combinations = [c for c in list(data.select_dtypes(['category']).columns.values) if "-" in c]
             else:
-                categories = [c for c in list(data.select_dtypes(['category']).columns.get_level_values(0).values)]
+                categories = [c for c in list(data.select_dtypes(['category']).columns.get_level_values(0).values) if "-" not in c]
+                combinations = [c for c in list(data.select_dtypes(['category']).columns.get_level_values(0).values) if "-" in c]
             logging.debug (f"groupings: {groupings}")
             for i in range(1,len(categories)+1):
                 permlist = list(itertools.permutations(categories,i))
                 for p in permlist:
                     groupings.append(", ".join(p))
+
+            groupings = ['None'] + combinations + groupings[1:] #avoids factorial permutation generation
             if ", ".join(selectedgrouping) not in groupings:
                 selectedgrouping = ['None']
+            
             groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
             self.grouping_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=", ".join(selectedgrouping), choices=groupings)
             groupingsizer.Add(wx.StaticText(self.panel, label="Data Grouping"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
@@ -183,11 +187,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         
         
     def _on_feature_selection(self, event):
-        print ('_on_feature_selection')
+        pass
         
                 
     def OnClickFeature(self, event):
-        print ('OnClickFeature')
         cbox = event.GetEventObject()
         for feature in self.cboxes.keys():
             if self.cboxes[feature] == cbox:
@@ -486,8 +489,8 @@ class ConfigureAxisDlg(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
     def get_settings(self):
-	    return self.settings
-		
+        return self.settings
+
     def SaveConnString(self, event):
         self.settings['label'] = self.labelinput.GetValue()
         self.settings['min'] = self.mininput.GetValue()

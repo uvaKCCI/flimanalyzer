@@ -1,9 +1,10 @@
 *.pyc
 *.log
+*.svg
+*.model
 flimanalyzer.egg-info
 data
 papers
-KS_test.ipynb
 build
 _build
 dist
