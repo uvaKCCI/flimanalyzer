@@ -8,6 +8,7 @@ Created on Wed Dec 16 14:18:30 2020
 
 import logging
 import wx
+import numpy as np
 import pandas as pd
 from flim.gui.dicttablepanel import DictTable, ListTable
 from flim.plugin import plugin 
@@ -22,9 +23,11 @@ import flim.resources
 
 class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, data_choices={}, data_selected={}):
+    def __init__(self, parent, title, data, data_choices={}, data_selected={}, type=False, numbers_only=False):
         self.data_choices = data_choices
         self.data_selected = data_selected
+        self.type = type
+        self.numbers_only = numbers_only
 
         BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
 		    
@@ -34,6 +37,9 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         fsizer = wx.BoxSizer(wx.VERTICAL)
         label = wx.StaticText(self.panel, wx.ID_ANY, "Select datasets to concatenate:")
         self.catsel = wx.CheckBox(self.panel, wx.ID_ANY, "Horizontal Concatenate ")
+        self.catsel.SetValue(self.type)
+        self.numbers_only_cb = wx.CheckBox(self.panel, wx.ID_ANY, "Numbers only")
+        self.numbers_only_cb.SetValue(self.numbers_only)
         self.cfggrid = wx.grid.Grid(self.panel)
         self.cfggrid.SetDefaultColSize(500,True)
         self.cfgtable = ListTable(cfgdata, headers=['Select', 'Dataset'], sort=False)
@@ -42,6 +48,7 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         self.cfggrid.SetColSize(0, -1)
         
         fsizer.Add(self.catsel, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
+        fsizer.Add(self.numbers_only_cb, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.cfggrid, 1, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
@@ -53,6 +60,7 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         cfgdata = self.cfgtable.GetData()
         params['input'] = {row['Dataset']:self.data_choices[row['Dataset']] for row in cfgdata if row['Select']}
         params['type'] = self.catsel.GetValue()
+        params['numbers_only'] = self.numbers_only_cb.GetValue()
         return params
 
     def OnSelectAll(self, event):
@@ -94,7 +102,8 @@ class Concatenator(AbstractPlugin):
         params = super().get_default_parameters()
         params.update({
             'input': {},
-            'type': False
+            'type': False,
+            'numbers_only': False,
         })
         return params
             
@@ -103,6 +112,8 @@ class Concatenator(AbstractPlugin):
         
     def run_configuration_dialog(self, parent, data_choices={}):
         input = self.params['input']
+        type = self.params['type']
+        numbers_only = self.params['numbers_only']
         # left_on and right_on are str representing dataframe window titles
         if isinstance(input,dict) and len(input) > 0:
             left_on = list(input.keys())[0]
@@ -115,7 +126,9 @@ class Concatenator(AbstractPlugin):
                 
         dlg = ConcatenatorConfigDlg(parent, f'Configuration: {self.name}', self.data, 
             data_choices=data_choices,
-            data_selected=input)
+            data_selected=input,
+            type=type,
+            numbers_only=numbers_only)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
@@ -131,7 +144,14 @@ class Concatenator(AbstractPlugin):
             caxis = 1
         else:
             caxis = 0
-        data = list(input.values())
+        if self.params['type'] and self.params['numbers_only']:
+            # horizontal concat
+            # for df 2 and higher, select numeric columns only
+            data = [df.select_dtypes(np.number) if i!=0 else df for i,df in enumerate(input.values()) ]
+        else:    
+            #vertical concat
+            data = [df.select_dtypes(np.number) for df in list(input.values())]
+            #data = list(input.values())
         concat_df = pd.concat(data, axis=caxis, copy=True)
         results['Table: Concatenated'] = concat_df
         return results

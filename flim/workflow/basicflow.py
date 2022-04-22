@@ -8,6 +8,8 @@ Created on Wed Dec 16 14:35:56 2020
 
 from abc import ABC, abstractmethod
 from flim.plugin import plugin
+
+import json
 import logging
 import inspect
 import os
@@ -27,6 +29,7 @@ from flim.analysis.barplots import BarPlot
 from flim.analysis.heatmap import Heatmap
 from flim.analysis.kde import KDE
 from flim.analysis.kmeans import KMeansClustering
+from flim.analysis.ksstats import KSStats
 from flim.analysis.seriesanalyzer import SeriesAnalyzer
 from flim.analysis.summarystats import SummaryStats
 from flim.analysis.relativechange import RelativeChange
@@ -40,6 +43,7 @@ import flim.resources
 import numpy as np
 
 from prefect import Task, Flow, Parameter, task
+from prefect.tasks.core.constants import Constant
 from prefect.tasks.core.collections import List
 from prefect.executors import DaskExecutor
 from prefect.executors.base import Executor
@@ -51,8 +55,6 @@ import networkx.drawing.nx_agraph
 import networkx.classes.function
 import pydot
 import matplotlib.pyplot as plt
-
-from abc import ABC, abstractmethod
 
 
 class AbsWorkFlow(AbstractPlugin):
@@ -80,7 +82,10 @@ class AbsWorkFlow(AbstractPlugin):
             'executor': {
                 'class': 'prefect.executors.local.LocalExecutor',
                 'args': {},
-                }
+                },
+            'register': True,
+            'project': 'FLIM', #self.name,
+            
         })
         return params
         
@@ -134,8 +139,14 @@ class AbsWorkFlow(AbstractPlugin):
         
     def execute(self):
         flow = self.construct_flow()
+        if self.params['register']:
+            flow.register(project_name=self.params['project'], idempotency_key=flow.serialized_hash()) # prevent version bump when reregistering an unchanged flow
         
         flow.visualize()
+        with open(f'{self.name}.json', 'w') as fp: 
+            json.dump(flow.serialize(), fp, indent=4)
+
+        
         state = flow.run()
         task_refs = flow.get_tasks()
         task_results = [state.result[tr]._result.value for tr in task_refs]
@@ -238,6 +249,7 @@ class StdFLIMWorkflow(AbsWorkFlow):
         simtask = AESimulate(None)
         aeruntask = RunAE(None)
         filtertask = Filter(None)
+        pcatask = PCAnalysis(None)
         stask = SummaryStats(None)#, log_stdout=True)
         heatmaptask = Heatmap(None)
         concattask = Concatenator(None)
@@ -245,8 +257,9 @@ class StdFLIMWorkflow(AbsWorkFlow):
         seriestask = SeriesAnalyzer(None)
         bartask = BarPlot(None, bar_type='100% stacked', features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'])
         kmeanstask = KMeansClustering(None)
-        kdetask = KDE(None)
+        kdetask = KDE(None, features=ALL_FEATURES)
         mergetask = Merger(None)
+        kstask = KSStats(None)
         
         with Flow(f'{self.name}', executor=self.executor, ) as flow:
             #input = Parameter('input', default=self.data)
@@ -256,6 +269,9 @@ class StdFLIMWorkflow(AbsWorkFlow):
             train_features_10 = Parameter('features: 10', default=[
                 'FAD a1', 'FAD a2', 'FAD t1', 'FAD t2', 'FAD photons', 
                 'NAD(P)H a1','NAD(P)H a2', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
+            pca_features_14 = Parameter('pca features: 14', default=[
+                'FAD a1', 'FAD a1[%]', 'FAD a2', 'FAD a2[%]', 'FAD t1', 'FAD t2', 'FAD photons', 
+                'NAD(P)H a1','NAD(P)H a1[%]', 'NAD(P)H a2','NAD(P)H a2[%]', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
             train_features_14 = Parameter('features: 14', default=[
                 'FAD a1', 'FAD a1%', 'FAD a2', 'FAD a2%', 'FAD t1', 'FAD t2', 'FAD photons', 
                 'NAD(P)H a1','NAD(P)H a1%', 'NAD(P)H a2','NAD(P)H a2%', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
@@ -266,6 +282,10 @@ class StdFLIMWorkflow(AbsWorkFlow):
             
             filterresults1 = results_to_tasks(filtertask(data=input, input_select=[0]))
 
+            pcaresults = results_to_tasks(pcatask(data=filterresults1['Table: Filtered'], input_select=[0], 
+                grouping=[], #['FOV', 'Cell'],
+                features=pca_features_14,))
+                
             aeresults = results_to_tasks(aetraintask_10(data=filterresults1['Table: Filtered'], input_select=[0], 
                 grouping=['FOV', 'Cell'],
                 features=train_features_10, 
@@ -304,17 +324,23 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 modelfile=aeresults2['Model File']))
             
             concatresults = results_to_tasks(concattask(data=None, input_select=[0],
-                input={'1': filterresults1['Table: Filtered'], '2': aerunresults['Table: Features']},
-                type=True))
+                input={
+                    '1': filterresults1['Table: Filtered'], 
+                    '2': aerunresults['Table: Features'], 
+                    '3': pcaresults['Table: PCA Components']},
+                type=True,
+                numbers_only=True,))
                 
             summaryresults3 = results_to_tasks(stask(data=concatresults['Table: Concatenated'], input_select=[0], 
                 grouping=['Cell', 'FOV', 'Treatment'],
-                features=['FLIRR', 'Feature 1'], 
+                features=['FLIRR', 'Feature 1', 'PC 1'], 
                 aggs=['mean']))
 
             pivotresult = results_to_tasks(pivottask(data=summaryresults3['Table: Summary'], input_select=[0], 
                 grouping=['Treatment'],
-                features=['FLIRR\nmean', 'Feature 1\nmean']))
+                features=['FLIRR\nmean', 'Feature 1\nmean', 'PC 1\nmean']))
+
+
 
             seriesresult_F1 = results_to_tasks(seriestask(data=pivotresult['Table: Pivoted'], input_select=[0], 
                 features=['Feature 1\nmean\nCtrl', 'Feature 1\nmean\ndox30', 'Feature 1\nmean\ndox45', 'Feature 1\nmean\ndox60'],
@@ -351,7 +377,7 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 max_iter=300,
                 tolerance=1e-4,))
 
-            kderesults_FLIRR = results_to_tasks(kdetask(data=kmeansresult_F1['Table: K-Means'], input_select=[0], 
+            kderesults_F1 = results_to_tasks(kdetask(data=kmeansresult_F1['Table: K-Means'], input_select=[0], 
                 grouping=['F1 Cluster'],
                 features=ALL_FEATURES,))
             
@@ -359,6 +385,8 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 grouping=['F1 Cluster'],
                 features=ALL_FEATURES, 
                 aggs=['count', 'mean']))
+                
+                
                 
             seriesresult_FLIRR = results_to_tasks(seriestask(data=pivotresult['Table: Pivoted'], input_select=[0], 
                 features=['FLIRR\nmean\nCtrl', 'FLIRR\nmean\ndox30', 'FLIRR\nmean\ndox45', 'FLIRR\nmean\ndox60'],
@@ -404,10 +432,78 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 features=ALL_FEATURES,
                 aggs=['count', 'mean']))
                 
-            mergeresulsts_FLIRR = results_to_tasks(mergetask(data=None, input_select=[0],
-                input={'left':seriesresult_FLIRR['Table: Series Analysis'], 'right': kmeansresult_FLIRR['Table: K-Means']},
+            #mergeresults_FLIRR = results_to_tasks(mergetask(data=None, input_select=[0],
+            #    input={'left':seriesresult_FLIRR['Table: Series Analysis'], 'right': kmeansresult_FLIRR['Table: K-Means']},
+            #    how='left', 
+            #    features=[],))
+
+           
+                
+            seriesresult_PCA = results_to_tasks(seriestask(data=pivotresult['Table: Pivoted'], input_select=[0], 
+                features=['PC 1\nmean\nCtrl', 'PC 1\nmean\ndox30', 'PC 1\nmean\ndox45', 'PC 1\nmean\ndox60'],
+                series_min=False,
+                series_max=False,
+                series_range=False,
+                series_mean=False,
+                series_median=False,
+                delta=True, 
+                delta_min=False,
+                delta_max=False,
+                delta_sum=False,
+                delta_cum=False,
+                merge_input=False,))
+
+            barresult_PCA = results_to_tasks(bartask(data=seriesresult_PCA['Table: Series Analysis'], input_select=[0], 
+                grouping=['FOV', 'Cell'],
+                features=['PC 1\nmean\ndelta Ctrl:dox30', 'PC 1\nmean\ndelta dox30:dox45', 'PC 1\nmean\ndelta dox45:dox60'],
+                ordering={},
+                orientation='vertical', # 'horizontal'
+                bar_type='100% stacked', # 'single', 'stacked'
+                dropna=True,
+                error_bar='+/-', # '+', 'None'
+                error_type='s.e.m',)) # 'std'
+
+            kmeansresult_PCA = results_to_tasks(kmeanstask(data=seriesresult_PCA['Table: Series Analysis'], input_select=[0], 
+                grouping=['Cell', 'FOV', 'Treatment'],
+                features=['PC 1\nmean\ndelta Ctrl:dox30', 'PC 1\nmean\ndelta dox30:dox45', 'PC 1\nmean\ndelta dox45:dox60'],
+                n_clusters=2,
+                cluster_prefix='PCA Cluster',
+                init='k-means++',
+                algorithm='auto',
+                n_init=4,
+                max_iter=300,
+                tolerance=1e-4,))
+
+            kderesults_PCA = results_to_tasks(kdetask(data=kmeansresult_PCA['Table: K-Means'], input_select=[0], 
+                grouping=['PCA Cluster'],
+                features=ALL_FEATURES,))
+            
+            summaryresults_PCA = results_to_tasks(stask(data=kmeansresult_PCA['Table: K-Means'], input_select=[0], 
+                grouping=['PCA Cluster'],
+                features=ALL_FEATURES,
+                aggs=['count', 'mean']))
+
+            mergeresults_FLIRR = results_to_tasks(mergetask(data=None, input_select=[0],
+                input={'left':concatresults['Table: Concatenated'], 'right': kmeansresult_FLIRR['Table: K-Means']},
                 how='left', 
-                features=['FLIRR\nmean\nCtrl', 'FLIRR\nmean\ndox30', 'FLIRR\nmean\ndox45', 'FLIRR\nmean\ndox60'],))
+                features=[],))
+
+            mergeresults_FLIRR_F1 = results_to_tasks(mergetask(data=None, input_select=[0],
+                input={'left':mergeresults_FLIRR['Table: Merged'], 'right': kmeansresult_F1['Table: K-Means']},
+                how='left', 
+                features=[],))
+
+            mergeresults_FLIRR_F1_PCA = results_to_tasks(mergetask(data=None, input_select=[0],
+                input={'left':mergeresults_FLIRR_F1['Table: Merged'], 'right': kmeansresult_PCA['Table: K-Means']},
+                how='left', 
+                features=[],))
+
+            ksresults_PCA = results_to_tasks(kstask(data=mergeresults_FLIRR_F1_PCA['Table: Merged'], input_select=[0], 
+                comparison='Treatment',
+                grouping=['Cell', 'FOV', 'PCA Cluster'], 
+                alpha=0.05,
+                features=['FLIRR','Feature 1','PC 1'],))
+            
 
             heatmap_inputresults = results_to_tasks(heatmaptask(data=filterresults1['Table: Filtered'], input_select=[0],
                 grouping=['Treatment','FOV', 'Cell'],
@@ -433,6 +529,106 @@ class StdFLIMWorkflow(AbsWorkFlow):
         return flow
 
                 
+@plugin(plugintype="Workflow")        
+class StdFLIMWorkflow(AbsWorkFlow):
+
+    def __init__(self, data, *args, executor=None, **kwargs):
+        super().__init__(data, *args, executor=executor, **kwargs)
+        self.name = "FLIM Autoencoder"
+        #self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
+
+    def get_required_features(self):
+        return ['any']
+
+    def get_default_parameters(self):
+        params = super().get_default_parameters()
+        params.update({
+            'features': [
+                'FAD a1','FAD a1[%]', 'FAD a2', 'FAD a2[%]', 'FAD t1', 'FAD t2', 'FAD photons', 
+                'NAD(P)H a1', 'NAD(P)H a1[%]', 'NAD(P)H a2', 'NAD(P)H a2[%]', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'],
+        })
+        return params
+                
+    def construct_flow(self):
+        sel_features = self.params['features']
+        all_features = [c for c in self.data.select_dtypes(include=np.number)]
+        
+        #listtask = List()
+        datatask = DataBucket(None, name='Input')
+        aetraintask_10 = AETraining(None)
+        aetraintask_14 = AETraining(None)
+        simtask = AESimulate(None)
+        aeruntask = RunAE(None)
+        filtertask = Filter(None)
+        pcatask = PCAnalysis(None)
+        stask = SummaryStats(None)#, log_stdout=True)
+        heatmaptask = Heatmap(None)
+        concattask = Concatenator(None)
+        pivottask = Pivot(None)
+        seriestask = SeriesAnalyzer(None)
+        bartask = BarPlot(None, bar_type='100% stacked', features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'])
+        kmeanstask = KMeansClustering(None)
+        kdetask = KDE(None, features=ALL_FEATURES)
+        mergetask = Merger(None)
+        kstask = KSStats(None)
+        
+        with Flow(f'{self.name}', executor=self.executor, ) as flow:
+            #input = Parameter('input', default=self.data)
+            modelfile_10 = Parameter('modelfile: 10', default='AETrain-10.model')
+            modelfile_14 = Parameter('modelfile: 14', default='AETrain-14.model')
+
+            train_features_10 = Parameter('features: 10', default=[
+                'FAD a1', 'FAD a2', 'FAD t1', 'FAD t2', 'FAD photons', 
+                'NAD(P)H a1','NAD(P)H a2', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
+            pca_features_14 = Parameter('pca features: 14', default=[
+                'FAD a1', 'FAD a1[%]', 'FAD a2', 'FAD a2[%]', 'FAD t1', 'FAD t2', 'FAD photons', 
+                'NAD(P)H a1','NAD(P)H a1[%]', 'NAD(P)H a2','NAD(P)H a2[%]', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
+            train_features_14 = Parameter('features: 14', default=[
+                'FAD a1', 'FAD a1%', 'FAD a2', 'FAD a2%', 'FAD t1', 'FAD t2', 'FAD photons', 
+                'NAD(P)H a1','NAD(P)H a1%', 'NAD(P)H a2','NAD(P)H a2%', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
+
+            sim_sets = Parameter('sim_sets', default=4) 
+            
+            input = datatask(name='Input', data=self.data, input_select=[0])
+            
+            filterresults1 = results_to_tasks(filtertask(data=input, input_select=[0]))
+
+            aeresults = results_to_tasks(aetraintask_10(data=filterresults1['Table: Filtered'], input_select=[0], 
+                grouping=['FOV', 'Cell'],
+                features=train_features_10, 
+                epochs=20,
+                learning_rate=0.0001,
+                weight_decay=0.00000001,
+                batch_size=128,
+                timeseries='Treatment',
+                rescale=True,
+                model='Autoencoder 1',
+                modelfile=modelfile_10))
+
+            simresults = results_to_tasks(simtask(data=filterresults1['Table: Filtered'], input_select=[0], 
+                grouping=['FOV', 'Cell'], 
+                features=train_features_10, 
+                modelfile=aeresults['Model File'], 
+                sets=sim_sets))
+                
+            filterresults2 = results_to_tasks(filtertask(data=simresults['Table: Simulated'], input_select=[0]))
+            
+            aeresults2 = results_to_tasks(aetraintask_14(data=filterresults2['Table: Filtered'], input_select=[0], 
+                grouping=['FOV', 'Cell'],
+                features=train_features_14, 
+                epochs=20,
+                learning_rate=0.00015,
+                weight_decay=0.00000001,
+                batch_size=500,
+                timeseries='Treatment',
+                rescale=True,
+                model='Autoencoder 2',
+                modelfile=modelfile_14))
+            
+        return flow
+
+        
+        
 @plugin(plugintype="Workflow")        
 class BasicFLIMWorkFlow(AbsWorkFlow):
 

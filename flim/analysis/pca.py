@@ -153,7 +153,7 @@ class PCAnalysis(AbstractPlugin):
         
         pca_df = pd.DataFrame(
             data = principalComponents,
-            columns = ['Principal component %d' % x for x in range(1,principalComponents.shape[1]+1)])
+            columns = ['PC %d' % x for x in range(1,principalComponents.shape[1]+1)])
         if self.params['keeporig'] and self.params['keepstd']:
             standard_df = pd.DataFrame(
                 data = standard_data,
@@ -168,7 +168,7 @@ class PCAnalysis(AbstractPlugin):
             pca_df = pd.concat([data.select_dtypes(include='category'), standard_df, pca_df] , axis=1) #.reset_index(drop=True)
         else:
             pca_df = pd.concat([data.select_dtypes(include='category'), pca_df] , axis=1) #.reset_index(drop=True)                        
-        pca_comp_label = 'PCA component'
+        pca_comp_label = 'PC'
         explained_label = 'explained var ratio'
         pca_explained_df = pd.DataFrame(data={
                 pca_comp_label: [str(c) for c in range(1,len(pca.explained_variance_ratio_)+1)], 

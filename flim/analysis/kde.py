@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import matplotlib.figure
 import seaborn as sns
 import numpy as np
+import pandas as pd
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
@@ -41,10 +42,13 @@ class KDE(AbstractPlugin, Task):
         return ['any']
         
     def output_definition(self):
-        features = self.params['features']
-        if features == ALL_FEATURES:
-            features = list(self.data.select_dtypes(np.number).columns.values)
-        return {f'Plot: KDE {feature}':plt.figure.Figure for feature in features}
+        if self.data is None and ALL_FEATURES in self.params['features']:
+            return {'Plot: KDE': pd.DataFrame}
+        else:
+            features = self.params['features']
+            if features == ALL_FEATURES:
+                features = list(self.data.select_dtypes(np.number).columns.values)
+            return {f'Plot: KDE {feature}':plt.figure.Figure for feature in features}
     
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
@@ -67,7 +71,7 @@ class KDE(AbstractPlugin, Task):
             minx = self.data[header].min() #hconfig[0]
             maxx = self.data[header].max() #hconfig[1]
             logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig,ax = self.grouped_kdeplot(self.data, header, groups=self.params['grouping'], hist=False, bins=bins, kde_kws={'clip':(minx, maxx)})
+            fig,ax = self.grouped_kdeplot(self.data, header, groups=self.params['grouping'], clip=(minx, maxx)) # bins=bins, hist=False, 
             ax.set_xlim(minx, maxx)
             results[f'Plot: KDE {header}'] = fig
         return results
@@ -95,9 +99,9 @@ class KDE(AbstractPlugin, Task):
         fig.set_figheight(6)
         fig.set_figwidth(12)
     
-        kde_args = newkwargs.get('kde_kws')
-        if not kde_args:
-            newkwargs['kde_kws'] = {}
+        #kde_args = newkwargs.get('kde_kws')
+        #if not kde_args:
+        #    newkwargs['kde_kws'] = {}
         if len(groups) > 0:
             gs = data.groupby(groups)
             styles = []
@@ -115,21 +119,23 @@ class KDE(AbstractPlugin, Task):
             for name, groupdata in gs:
                 if (len(groupdata[column]) > 0):
                     name_fixed = self._fix_label(name)
-                    kde_args.update({
-                            'label': name_fixed,})
+                    #kde_args.update({
+                    #        'label': name_fixed,})
                     if len(styles) > index:
                         newkwargs['color'] = styles[index]['color']
-                        newkwargs['kde_kws']['linestyle'] = styles[index]['linestyle']
+                        newkwargs['linestyle'] = styles[index]['linestyle']
                     logging.debug (f"NEWKWARGS: {newkwargs}")
                     logging.debug (f"len(groupdata[column])={len(groupdata[column])}")
-                    sns.distplot(groupdata[column], **newkwargs)
+                    #sns.distplot(groupdata[column], **newkwargs)
+                    sns.kdeplot(groupdata[column], **newkwargs)
                     labels.append(name_fixed)
                 index += 1
             no_legendcols = (len(groups)//30 + 1)
             ax.legend()
             # ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
         else:        
-            sns.distplot(data[column], **newkwargs)
+            #sns.distplot(data[column], **newkwargs)
+            sns.kdeplot(data[column], **newkwargs)
         ax.autoscale(enable=True, axis='y')    
         ax.set_ylim(0,None)
         if title is None:

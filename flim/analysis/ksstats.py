@@ -60,7 +60,7 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class KSStats(AbstractPlugin):
     
-    def __init__(self, data, comparison='Treatment', alpha='0.05', **kwargs):
+    def __init__(self, data, comparison='Treatment', alpha=0.05, **kwargs):
         AbstractPlugin.__init__(self, data, comparison=comparison, alpha=alpha, **kwargs)
         self.name = 'KS-Statistics'
         
@@ -82,7 +82,9 @@ class KSStats(AbstractPlugin):
         })
         return params
 
-
+    def output_definition(self):
+        return {'Table: KS-Stats': pd.DataFrame}
+        
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = KSStatsConfigDlg(parent, f'Configuration: {self.name}', 
             self.data, 
@@ -127,7 +129,8 @@ class KSStats(AbstractPlugin):
             if len(groups) == 0:
                 fdata = data
             else:   
-                querystr = ' and '.join([f'{groups[i]} == "{groupval[i]}"' for i in range(len(groupval))])
+                querystr = ' and '.join([f'"{groups[i]}" == "{groupval[i]}"' for i in range(len(groupval))])
+                print (f'QUERY={querystr}, cols={data.columns.values}')
                 fdata = data.query(querystr)
             if len(fdata) == 0:
                 continue
@@ -147,5 +150,5 @@ class KSStats(AbstractPlugin):
         result = pd.DataFrame(rdata, columns=cols)
         for ckey in allcategories:
             result[ckey] = result[ckey].astype('category')
-        return result
+        return {'Table: KS-stats': result}
             
