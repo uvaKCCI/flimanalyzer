@@ -23,14 +23,14 @@ import matplotlib.ticker as mtick
 
 class BarPlotConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', orientation='vertical', ordering=[], ebar='+/-', etype='std', dropna=True, bartype='single'):
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', orientation='vertical', ordering=[], ebar='+/-', etype='std', dropna=True, bartype='single'):
         self.orientation = orientation
         self.ordering = ordering
         self.ebar = ebar
         self.etype = etype
         self.sel_bartype = bartype
         self.dropna = dropna
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
         osizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -93,9 +93,8 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Plot')
 class BarPlot(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Bar Plot"
+    def __init__(self, name="Bar Plot", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     def get_icon(self):
         source = files(flim.resources).joinpath('barplot.png')
@@ -139,7 +138,8 @@ class BarPlot(AbstractPlugin):
         ebar = self.params['error_bar']
         bartype = self.params['bar_type']
         dropna = self.params['dropna']
-        dlg = BarPlotConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = BarPlotConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
         	selectedgrouping=selgrouping, 
         	selectedfeatures=selfeatures, 
         	ordering=ordering, 
@@ -156,6 +156,7 @@ class BarPlot(AbstractPlugin):
             return None
 
     def execute(self):
+        data = list(self.input.values())[0]
         results = {}
         features = self.params['features']
         grouping = self.params['grouping']
@@ -165,13 +166,13 @@ class BarPlot(AbstractPlugin):
         if stacked:
             logging.debug (f"\tcreating stacked mean bar plot for {features}")
             # pass and stack all features
-            fig = self.grouped_meanbarplot(self.data, features, categories=grouping, dropna=dropna, bartype=bartype)
+            fig = self.grouped_meanbarplot(data, features, categories=grouping, dropna=dropna, bartype=bartype)
             results[f"Plot: {'|'.join(features)}"] = fig            
         else:    
             # pass one feature per plot
             for feature in sorted(features):
                 logging.debug (f"\tcreating mean bar plot for {feature}")
-                fig = self.grouped_meanbarplot(self.data, [feature], categories=grouping, dropna=dropna, bartype=bartype)
+                fig = self.grouped_meanbarplot(data, [feature], categories=grouping, dropna=dropna, bartype=bartype)
                 results[f"Plot: {feature}"] = fig
         return results
     

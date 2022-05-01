@@ -23,16 +23,15 @@ import flim.resources
 
 class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, data_choices={}, data_selected={}, type=False, numbers_only=False):
+    def __init__(self, parent, title, input={}, data_choices={}, type=False, numbers_only=False):
         self.data_choices = data_choices
-        self.data_selected = data_selected
+        #self.data_selected = data_selected
         self.type = type
         self.numbers_only = numbers_only
-
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):
-        cfgdata = [{'Select':name in self.data_selected, 'Dataset': name} for name in self.data_choices]
+        cfgdata = [{'Select':name in self.input.keys(), 'Dataset': name} for name in self.data_choices]
         
         fsizer = wx.BoxSizer(wx.VERTICAL)
         label = wx.StaticText(self.panel, wx.ID_ANY, "Select datasets to concatenate:")
@@ -78,9 +77,8 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Data')
 class Concatenator(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Concatenate"
+    def __init__(self, name="Concat Data", **kwargs):
+        AbstractPlugin.__init__(self, name=name, **kwargs)
             
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -124,9 +122,10 @@ class Concatenator(AbstractPlugin):
         else:
             right_on=''
                 
-        dlg = ConcatenatorConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = ConcatenatorConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
             data_choices=data_choices,
-            data_selected=input,
+            #data_selected=input,
             type=type,
             numbers_only=numbers_only)
         if dlg.ShowModal() == wx.ID_CANCEL:
@@ -138,7 +137,7 @@ class Concatenator(AbstractPlugin):
         
     def execute(self):
         results = {}
-        input = self.params['input']
+        #input = self.params['input']
         cattype = self.params['type']
         if cattype: #horizontal
             caxis = 1
@@ -146,12 +145,12 @@ class Concatenator(AbstractPlugin):
             caxis = 0
         if self.params['type'] and self.params['numbers_only']:
             # horizontal concat
-            # for df 2 and higher, select numeric columns only
-            data = [df.select_dtypes(np.number) if i!=0 else df for i,df in enumerate(input.values()) ]
+            # for df #2 and higher, select numeric columns only
+            data = [df.select_dtypes(np.number) if i!=0 else df for i,df in enumerate(self.input.values()) ]
         else:    
             #vertical concat
-            data = [df.select_dtypes(np.number) for df in list(input.values())]
-            #data = list(input.values())
+            data = [df.select_dtypes(np.number) for df in list(self.input.values())]
+            #data = list(self.input.values())
         concat_df = pd.concat(data, axis=caxis, copy=True)
         results['Table: Concatenated'] = concat_df
         return results

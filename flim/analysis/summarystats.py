@@ -27,11 +27,11 @@ def percentile(n):
 
 class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, description=None, selectedgrouping=['None'], selectedfeatures=ALL_FEATURES, allaggs=[], selectedaggs='All', singledf=False):
+    def __init__(self, parent, title, input=None, description=None, selectedgrouping=['None'], selectedfeatures=ALL_FEATURES, allaggs=[], selectedaggs='All', singledf=False):
         self.allaggs = allaggs
         self.selectedaggs = selectedaggs
         self.singledf = singledf
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
         self.aggboxes = {}
@@ -87,11 +87,8 @@ class SummaryStats(AbstractPlugin):
     
     agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'sem':'sem', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75), 'sum':'sum'}
     
-    def __init__(self, data, *args, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)', 'sum'], singledf=True, flattenindex=True, **kwargs):
-        AbstractPlugin.__init__(self, data, *args, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs) #data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
-        self.name = "Summarize"
-        self.titleprefix = 'Summary'
-
+    def __init__(self, name="Summarize", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     def get_description(self):
         return "Calculates counts, min, max, mean, median (50th percentile), 25th percentile, and 75th percentile, StDev, S.E.M, of grouped data."
@@ -128,7 +125,7 @@ class SummaryStats(AbstractPlugin):
 
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', 
-            self.data, 
+            input=self.input, 
             description=self.get_description(), 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
@@ -144,17 +141,17 @@ class SummaryStats(AbstractPlugin):
     
     def _create_df_title(self, feature):
         if feature:
-            return 'Table: ' + ': '.join([self.titleprefix,feature.replace('\n',' ')])
+            return 'Table: ' + ': '.join(['Summary',feature.replace('\n',' ')])
         else:
             return 'Table: Summary'
         
     def execute(self):
         summaries = {}
+        data = list(self.input.values())[0]
         sel_functions = [self.agg_functions[f] for f in self.params['aggs']]
         features = self.params['features']
         if features == ALL_FEATURES:
-            features = list(self.data.select_dtypes(np.number).columns.values)
-            print (f'using all features: {features}')
+            features = list(data.select_dtypes(np.number).columns.values)
         if features is None or len(features) == 0:
             return summaries
         for header in features:
@@ -164,11 +161,11 @@ class SummaryStats(AbstractPlugin):
             dftitle = self._create_df_title(header)
             if self.params['grouping'] is None or len(self.params['grouping']) == 0:
                 # create fake group by --> creates 'index' column that needs to removed from aggregate results
-                summary = self.data[allcats].groupby(lambda _ : True, group_keys=False).agg(sel_functions)
+                summary = data[allcats].groupby(lambda _ : True, group_keys=False).agg(sel_functions)
             else:                
                 #data = data.copy()
                 #data.reset_index(inplace=True)
-                grouped_data = self.data[allcats].groupby(self.params['grouping'], observed=True)
+                grouped_data = data[allcats].groupby(self.params['grouping'], observed=True)
                 summary = grouped_data.agg(sel_functions)
                 #summary = summary.dropna()
                 summary.reset_index(inplace=True)

@@ -227,7 +227,9 @@ class PandasFrame(wx.Frame):
     def GetViewData(self):
         return self.dataview
     
-    
+    def GetData(self):
+        return self.data
+        
     def _init_gui(self):
         table = PandasTable(self.dataview, showcolindex=self.showcolindex)
 

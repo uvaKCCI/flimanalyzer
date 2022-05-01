@@ -1,6 +1,6 @@
 import logging
 import flim
-from flim.plugin import AbstractPlugin
+from flim.plugin import AbstractPlugin, ALL_FEATURES
 from flim.plugin import plugin
 from importlib_resources import files
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -10,9 +10,8 @@ import pandas as pd
 @plugin(plugintype="Data")
 class Pivot(AbstractPlugin):
 
-    def __init__(self, data, **kwargs):
-        super().__init__(data, **kwargs)
-        self.name = "Pivot"
+    def __init__(self, name="Pivot", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -34,7 +33,7 @@ class Pivot(AbstractPlugin):
         params = super().get_default_parameters()
         params.update({
             'grouping': ['Treatment'],
-            'features': ['FLIRR'],
+            'features': ALL_FEATURES,
         })
         return params
                 
@@ -44,7 +43,10 @@ class Pivot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, 'Pivot Data', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = BasicAnalysisConfigDlg(parent, 'Pivot Data', 
+            input=self.input, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -53,11 +55,12 @@ class Pivot(AbstractPlugin):
             return None
 
     def execute(self):
+        data = list(self.input.values())[0]
         selfeatures = [c for c in self.params['features']]
         selgroups = self.params['grouping']
-        groups = list(self.data.select_dtypes('category').columns.values)
+        groups = list(data.select_dtypes('category').columns.values)
         selfeatures.extend(groups)
-        data = self.data[selfeatures]
+        data = data[selfeatures]
         results = {}
         indexgroups = [g for g in data.columns.values if g in groups and g not in selgroups]
         logging.debug (f'index groups: {indexgroups}')

@@ -23,7 +23,7 @@ from flim.plugin import plugin
 
 class MergerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, description=None, data_choices={}, 
+    def __init__(self, parent, title, input={}, description=None, data_choices={}, 
             how='left', left_on=None, right_on=None, left_index=False, right_index=False):
         self.data_choices = data_choices
         self.how_choices = {'<< merge left':'left', 'merge right >>':'right', 'merge inner':'inner', 'merge outer':'outer'}
@@ -44,7 +44,7 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
             self.right_on = right_on
         self.left_index = left_index
         self.right_index = right_index
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, description=description, data_choices=data_choices, enablefeatures=False, enablegrouping=False, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):
         fsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -72,9 +72,8 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Data')
 class Merger(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs) #categories={}, default='unassigned', **kwargs)
-        self.name = "Merge Data"
+    def __init__(self, name="Merge", **kwargs):
+        AbstractPlugin.__init__(self, name=name, **kwargs) #categories={}, default='unassigned', **kwargs)
     
     def get_description(self):
         return "Merges two data tables based on shared index. "\
@@ -102,12 +101,15 @@ class Merger(AbstractPlugin):
             'how': '',
             'left_index': [],
             'right_index': [],
-            'input': {},
+            #'input': {},
         })
         return params
     
+    def input_definition(self):
+        return [pd.DataFrame, pd.DataFrame]
+
     def output_definition(self):
-        return {'Table: Merged': pd. DataFrame}
+        return {'Table: Merged': pd.DataFrame}
         
     def run_configuration_dialog(self, parent, data_choices={}):
         input = self.params['input']
@@ -124,7 +126,7 @@ class Merger(AbstractPlugin):
         dlg = MergerConfigDlg(
             parent, 
             f'Configuration: {self.name}', 
-            self.data,
+            input=self.input,
             description = self.get_description(), 
             data_choices=data_choices,
             left_on=left_on,
@@ -141,8 +143,7 @@ class Merger(AbstractPlugin):
         
     def execute(self):
         results = {}
-        input = self.params['input'] 
-        data = list(input.values())
+        data = list(self.input.values())
         left = data[0]
         right = data[1]
         how = self.params['how']

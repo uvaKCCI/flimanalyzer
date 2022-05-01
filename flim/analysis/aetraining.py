@@ -51,7 +51,8 @@ class datasets(Dataset):
         
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, description=None, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile='', device='cpu', rescale=False):
+    def __init__(self, parent, title, input={}, description=None, selectedgrouping=['None'], selectedfeatures='All', epoches=20, batch_size=200, learning_rate=1e-4, weight_decay=1e-7, timeseries='', model='', modelfile='', device='cpu', rescale=False):
+        data = list(input.values())[0]
         self.timeseries_opts = data.select_dtypes(include=['category']).columns.values
         self.timeseries = timeseries
         self.epoches = epoches
@@ -63,7 +64,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.modelfile = modelfile
         self.device = device
         self.rescale = rescale
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
         self._update_model_info(None)
 		    
     def get_option_panels(self):
@@ -203,9 +204,8 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype="Analysis")        
 class AETraining(AbstractPlugin):
 
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Autoencoder: Train"
+    def __init__(self, name="Autoencoder: Train", **kwargs):
+        super().__init__(name=name, **kwargs)
         self.variables = self.params['features']
         self.epoches = self.params['epoches']
         self.timeseries = self.params['timeseries']
@@ -261,7 +261,8 @@ class AETraining(AbstractPlugin):
         return {'Table: AE Loss': pd.DataFrame, 'Table: AE Decoded': pd.DataFrame, 'Table: AE Encoded': pd.DataFrame, 'Plot: AE Loss': matplotlib.figure.Figure, 'Model File': str}
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', self.data,
+        dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input,
             description=self.get_description(), 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
@@ -282,14 +283,15 @@ class AETraining(AbstractPlugin):
         return self.params
    
     def _create_datasets(self):
-        allcat_columns = [n for n in self.data.select_dtypes('category').columns]
+        data = list(self.input.values())[0]
+        allcat_columns = [n for n in data.select_dtypes('category').columns]
         grouping = [n for n in self.params['grouping'] if n != self.params['timeseries']]
         columns = list(allcat_columns) # list(cat_columns)
         columns.extend(self.params['features'])
 
         # encode labels of all category columns
         label_encoders = defaultdict(LabelEncoder)
-        data = self.data.loc[:,columns]
+        data = data.loc[:,columns]
         data.loc[:,allcat_columns] = data.loc[:,allcat_columns].apply(lambda x: label_encoders[x.name].fit_transform(x))
         
         # define logical groups first, then split into train and validation set.
@@ -332,6 +334,7 @@ class AETraining(AbstractPlugin):
         return train_loader, val_loader, train_scaler, val_scaler, label_encoders
 
     def execute(self):
+        data = list(self.input.values())[0]
         logging.info('Training started.')
         train_loader, val_loader, train_scaler, val_scaler, label_encoders = self._create_datasets()
         aeclasses = autoencoder.get_autoencoder_classes()
@@ -408,7 +411,7 @@ class AETraining(AbstractPlugin):
             decoded_train = train_scaler.inverse_transform(decoded[:train_samples])
             decoded_val = val_scaler.inverse_transform(decoded[train_samples:])
             decoded = np.concatenate([decoded_train, decoded_val])
-        lcols = [n for n in self.data.select_dtypes('category').columns]
+        lcols = [n for n in data.select_dtypes('category').columns]
         lcols.append('Autoencoder')
         # create train/validation labels
         labels = np.concatenate(labels)

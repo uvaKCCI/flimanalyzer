@@ -8,6 +8,7 @@ Created on Thu Dec 17 16:11:37 2020
 
 import logging
 import pandas as pd
+from flim.plugin import plugin 
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -15,14 +16,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from importlib_resources import files
 import flim.resources
-from flim.plugin import plugin 
 
 @plugin(plugintype='Plot')
 class BoxPlot(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Box Plot"
+    def __init__(self, name="Box Plot", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -43,7 +42,10 @@ class BoxPlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -53,8 +55,8 @@ class BoxPlot(AbstractPlugin):
         
     def execute(self):
         results = {}
-        categories = self.data.select_dtypes('category').columns.values
-        data = self.data.copy()
+        data = list(self.input.values())[0].copy()
+        categories = data.select_dtypes('category').columns.values
         for c in categories:
             data[c] = data[c].astype('str') 
 

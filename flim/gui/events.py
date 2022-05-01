@@ -39,7 +39,7 @@ FILTERS_UPDATED = 'filters.updated'
 class DataUpdatedEvent(wx.PyCommandEvent):
 
     def __init__(self, evtType, id):
-        wx.PyCommandEvent.__init__(self, evtType, id)
+        super().__init__(evtType, id)
         self.data = None
         self.datatype = None
 
@@ -95,7 +95,10 @@ class DataWindowEvent(wx.PyCommandEvent):
     def GetData(self):
         return self.data
     
-    
+    def GetDataId(self):
+        return id(data)
+        
+        
     def GetConfig(self):
         return self.config
     
@@ -147,7 +150,9 @@ class PlotEvent(wx.PyCommandEvent):
     def GetFigure(self):
         return self.figure
    
-    
+    def GetDataId(self):
+        return id(self.figure)
+       
     def GetTitle(self):
         return self.title
     

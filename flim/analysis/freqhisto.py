@@ -22,14 +22,14 @@ default_linestyles = ['-','--',':', '-.']
 
 class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', bins=20, stacked=False, cumulative=False, histtype='step', datatable=False, featuresettings={}, settingspecs={}):
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', bins=20, stacked=False, cumulative=False, histtype='step', datatable=False, featuresettings={}, settingspecs={}):
         self.bins = bins
         self.stacked = stacked
         self.cumulative = cumulative
         self.histtype = histtype
         self.datatable = datatable
 
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1, enablefeatsettings=True, featuresettings=featuresettings, settingspecs=settingspecs)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1, enablefeatsettings=True, featuresettings=featuresettings, settingspecs=settingspecs)
         
     def get_option_panels(self):
         optsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -68,9 +68,8 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Plot')
 class FreqHisto(AbstractPlugin):
 
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Frequency Histogram"
+    def __init__(self, name="Frequency Histogram", **kwargs):
+        super().__init__(name=name, **kwargs)
         
     def get_required_categories(self):
         return []
@@ -130,16 +129,18 @@ class FreqHisto(AbstractPlugin):
         return params      
 
     def run_configuration_dialog(self, parent, data_choices={}):
+        data = list(self.input.values())[0]
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        histmax = self.data.iloc[:, 1:].max(axis=1).max()
+        histmax = data.iloc[:, 1:].max(axis=1).max()
         #defines how to get input for values
         binspecs = {
             'bins':[wx.SpinCtrl, {'min':1,'max':500,'initial':100}],
             'min':[wx.SpinCtrlDouble, {'min':0,'max':histmax,'initial':0, 'inc':0.1}],
             'max':[wx.SpinCtrlDouble, {'min':0,'max':histmax,'initial':histmax, 'inc':0.1}]
             }
-        dlg = FreqHistoConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = FreqHistoConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
             selectedgrouping=selgrouping, 
             selectedfeatures=selfeatures,
             bins=self.params['bins'],
@@ -157,6 +158,7 @@ class FreqHisto(AbstractPlugin):
             return None
     
     def execute(self):
+        data = list(self.input.values())[0]
         results = {}
         density = self.params['density']
         histtype = self.params['histtype']
@@ -165,7 +167,7 @@ class FreqHisto(AbstractPlugin):
         self.datatable = self.params['datatable']
         bins = 100
         for header in sorted(self.params['features']):
-            mrange = (self.data[header].min(), self.data[header].max())
+            mrange = (data[header].min(), data[header].max())
             try:
                 hconfig = self.params['featuresettings'][header]
                 mrange = (hconfig['min'], hconfig['max'])
@@ -178,7 +180,7 @@ class FreqHisto(AbstractPlugin):
 #            fig, ax = MatplotlibFigure()
             #fig = plt.figure(FigureClass=MatplotlibFigure)
             #ax = fig.add_subplot(111)
-            binvalues, binedges, groupnames, fig, ax = self.histogram(self.data, header, groups=self.params['grouping'], 
+            binvalues, binedges, groupnames, fig, ax = self.histogram(data, header, groups=self.params['grouping'], 
                 normalize=100, 
                 range=mrange, 
                 bins=bins, 

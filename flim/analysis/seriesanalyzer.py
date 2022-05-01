@@ -21,7 +21,7 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 
 class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', seriesmin=True, seriesmax=True, seriesrange=True, seriesmean=True, seriesmedian=True, delta=True, deltamin=True, deltamax=True, deltasum=True, deltacum=True, deltanorm=True, mergeinput=False):
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', seriesmin=True, seriesmax=True, seriesrange=True, seriesmean=True, seriesmedian=True, delta=True, deltamin=True, deltamax=True, deltasum=True, deltacum=True, deltanorm=True, mergeinput=False):
         self.seriesmin = seriesmin
         self.seriesmax = seriesmax
         self.seriesrange = seriesrange
@@ -34,7 +34,7 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.deltacum = deltacum
         self.deltanorm = deltanorm
         self.mergeinput = mergeinput
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, enablegrouping=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, enablegrouping=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
         self.boxes = {}
@@ -143,9 +143,8 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class SeriesAnalyzer(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Series Analysis"
+    def __init__(self, name="Series Analysis", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -199,7 +198,8 @@ class SeriesAnalyzer(AbstractPlugin):
         deltacum = self.params['delta_cum']
         deltanorm = self.params['delta_norm']
         mergeinput = self.params['merge_input']
-        dlg = SeriesAnalyzerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = SeriesAnalyzerConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
         	selectedgrouping=selgrouping, 
         	selectedfeatures=selfeatures, 
         	seriesmin=seriesmin,
@@ -222,9 +222,10 @@ class SeriesAnalyzer(AbstractPlugin):
             return None
 
     def execute(self):
+        data = list(self.input.values())[0]
         results = {}
         logging.debug (f"\tcreating series analysis for {self.params['features']}")
-        categories = self.data.select_dtypes('category').columns.values
+        categories = data.select_dtypes('category').columns.values
         features = self.params['features']
         sfeatures = [f.split("\n") for f in features]
         common = set(sfeatures[0]).intersection(*sfeatures[1:])
@@ -234,21 +235,21 @@ class SeriesAnalyzer(AbstractPlugin):
         if self.params['merge_input']:
             cols = list(categories)
             cols.extend(features)
-            df = self.data[cols].copy()
+            df = data[cols].copy()
         else:
-            df = self.data[categories].copy()
+            df = data[categories].copy()
         if self.params['series_min']:
-            df[f'{label}\nSeries min'] = self.data[features].min(axis=1)
+            df[f'{label}\nSeries min'] = data[features].min(axis=1)
         if self.params['series_max']:
-            df[f'{label}\nSeries max'] = self.data[features].max(axis=1)
+            df[f'{label}\nSeries max'] = data[features].max(axis=1)
         if self.params['series_range']:
-            df[f'{label}\nSeries max-min'] = self.data[features].max(axis=1)-self.data[features].min(axis=1)
+            df[f'{label}\nSeries max-min'] = data[features].max(axis=1)-data[features].min(axis=1)
         if self.params['series_mean']:
-            df[f'{label}\nSeries mean'] = self.data[features].mean(axis=1)
+            df[f'{label}\nSeries mean'] = data[features].mean(axis=1)
         if self.params['series_median']:
-            df[f'{label}\nSeries median'] = self.data[features].median(axis=1)
+            df[f'{label}\nSeries median'] = data[features].median(axis=1)
         if self.params['delta'] or self.params['delta_max'] or self.params['delta_min'] or self.params['delta_sum'] or self.params['delta_cum'] or self.params['delta_norm']:
-            dfdelta = self.data[features].diff(axis=1)
+            dfdelta = data[features].diff(axis=1)
             dfcum = dfdelta.cumsum(axis=1)
             dfnorm = dfdelta.divide(dfcum.iloc[:, -1], axis=0)
             uniquef.insert(0,'None')

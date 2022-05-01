@@ -30,11 +30,11 @@ import flim.resources
 
 class AESimConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', modelfile='', device='cpu', sets=1):
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', modelfile='', device='cpu', sets=1):
         self.modelfile = modelfile
         self.device = device
         self.sets = sets
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping,
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping,
                                         selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 
     def get_option_panels(self):
@@ -80,9 +80,8 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype="Analysis")        
 class AESimulate(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Autoencoder: Simulate"
+    def __init__(self, name="Autoencoder: Simulate", **kwargs):
+        super().__init__(name=name, **kwargs)
         self.variables = self.params['features']
         self.modelfile = self.params['modelfile']
         self.device = self.params['device']
@@ -117,7 +116,8 @@ class AESimulate(AbstractPlugin):
         return {'Table: Simulated': None}
         
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AESimConfigDlg(parent, f'Configuration: {self.name}', self.data,
+        dlg = AESimConfigDlg(parent, f'Configuration: {self.name}', 
+                            input=self.input,
                             selectedgrouping=self.params['grouping'],
                             selectedfeatures=self.params['features'],
                             modelfile=self.params['modelfile'],
@@ -131,8 +131,9 @@ class AESimulate(AbstractPlugin):
             return None
 
     def execute(self):
-        cats = list(self.data.select_dtypes(['category']).columns.values)
-        data_feat = self.data[self.params['features']]
+        data = list(self.input.values())[0]
+        cats = list(data.select_dtypes(['category']).columns.values)
+        data_feat = data[self.params['features']]
         feat_cols = list(data_feat.columns)
         fc_lower = [x.lower() for x in feat_cols]
 
@@ -154,7 +155,7 @@ class AESimulate(AbstractPlugin):
         min_max_scaler = preprocessing.MinMaxScaler()
         
         sim_df = pd.DataFrame(columns=(cats+feat_cols))
-        maxcell = np.amax(self.data['Cell'].astype(int).to_numpy())
+        maxcell = np.amax(data['Cell'].astype(int).to_numpy())
         
         for simset in range(0, self.params['sets']):
             noise = rng.standard_normal(size=data_feat.shape)
@@ -184,7 +185,7 @@ class AESimulate(AbstractPlugin):
             sim_data = recon_data*(raw_range) + raw_min
             
             temp = pd.DataFrame(columns=(cats+feat_cols))
-            temp[cats] = self.data[cats]
+            temp[cats] = data[cats]
             temp['Cell'] = temp['Cell'].astype(int) + maxcell*simset
             temp[feat_cols] = sim_data
             sim_df = pd.concat([sim_df, temp])

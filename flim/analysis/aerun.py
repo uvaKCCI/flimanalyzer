@@ -13,23 +13,22 @@ from torch.autograd import Variable
 import matplotlib.pyplot as plt
 from sklearn.impute import SimpleImputer
 from sklearn import preprocessing
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import flim.analysis.ml.autoencoder as autoencoder
 import wx
 from wx.lib.masked import NumCtrl
 
-from flim.plugin import AbstractPlugin
+from flim.plugin import plugin, AbstractPlugin
+from flim.gui.dialogs import BasicAnalysisConfigDlg
+import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
 from importlib_resources import files, as_file
-from flim.plugin import plugin
 
 
 class AERunningConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', modelfile='', device='cpu'):
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', modelfile='', device='cpu'):
         self.modelfile = modelfile
         self.device = device
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping,
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping,
                                         selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 
     def get_option_panels(self):
@@ -70,9 +69,8 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class RunAE(AbstractPlugin):
 
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Autoencoder: Run"
+    def __init__(self, name="Autoencoder: Run", **kwargs):
+        super().__init__(name=name, **kwargs)
         self.variables = self.params['features']
         self.modelfile = self.params['modelfile']
         self.device = self.params['device']
@@ -102,7 +100,7 @@ class RunAE(AbstractPlugin):
         return params
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AERunningConfigDlg(parent, f'Configuration: {self.name}', self.data,
+        dlg = AERunningConfigDlg(parent, f'Configuration: {self.name}', input=self.input,
                                   selectedgrouping=self.params['grouping'],
                                   selectedfeatures=self.params['features'],
                                   modelfile=self.params['modelfile'],
@@ -118,7 +116,8 @@ class RunAE(AbstractPlugin):
         return {'Table: Reconstructed': None, 'Table: Features': None}
 
     def execute(self):
-        data_feat = self.data[self.params['features']]
+        data = list(self.input.values())[0]
+        data_feat = data[self.params['features']]
 
         # load an AE model
         device = self.params['device']

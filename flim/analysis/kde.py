@@ -8,6 +8,7 @@ Created on Wed Dec 16 14:18:30 2020
 
 import logging
 from flim.plugin import AbstractPlugin
+import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.figure
 import seaborn as sns
@@ -27,9 +28,8 @@ default_linestyles = ['-','--',':', '-.']
 class KDE(AbstractPlugin, Task):
     
 
-    def __init__(self, data, **kwargs):#classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)#classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
-        self.name = "KDE"
+    def __init__(self, name="KDE", **kwargs):#classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
+        super().__init__(name=name, **kwargs)
         
     def get_required_categories(self):
         return []
@@ -42,18 +42,19 @@ class KDE(AbstractPlugin, Task):
         return ['any']
         
     def output_definition(self):
-        if self.data is None and ALL_FEATURES in self.params['features']:
-            return {'Plot: KDE': pd.DataFrame}
-        else:
-            features = self.params['features']
-            if features == ALL_FEATURES:
-                features = list(self.data.select_dtypes(np.number).columns.values)
-            return {f'Plot: KDE {feature}':plt.figure.Figure for feature in features}
-    
+        data = list(self.input.values())[0]
+        features = self.params['features']
+        if features == ALL_FEATURES and isinstance(data, pd.DataFrame):
+            features = list(data.select_dtypes(np.number).columns.values) 
+        return {f'Plot: KDE {feature}':matplotlib.figure.Figure for feature in features}
+            
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -62,16 +63,17 @@ class KDE(AbstractPlugin, Task):
             return None
 
     def execute(self):
+        data = list(self.input.values())[0]
         results = {}
         features = self.params['features']
         if features == ALL_FEATURES:
-            features = list(self.data.select_dtypes(np.number).columns.values)
+            features = list(data.select_dtypes(np.number).columns.values)
         for header in sorted(features):
             bins = 100
-            minx = self.data[header].min() #hconfig[0]
-            maxx = self.data[header].max() #hconfig[1]
+            minx = data[header].min() #hconfig[0]
+            maxx = data[header].max() #hconfig[1]
             logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig,ax = self.grouped_kdeplot(self.data, header, groups=self.params['grouping'], clip=(minx, maxx)) # bins=bins, hist=False, 
+            fig,ax = self.grouped_kdeplot(data, header, groups=self.params['grouping'], clip=(minx, maxx)) # bins=bins, hist=False, 
             ax.set_xlim(minx, maxx)
             results[f'Plot: KDE {header}'] = fig
         return results

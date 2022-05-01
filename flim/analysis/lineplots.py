@@ -23,9 +23,8 @@ from flim.plugin import plugin
 @plugin(plugintype='Plot')
 class LinePlot(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Line Plot"
+    def __init__(self, name="Line Plot", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -63,7 +62,10 @@ class LinePlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', 
+            input = self.input, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -72,13 +74,13 @@ class LinePlot(AbstractPlugin):
             return None
 
     def execute(self):
+        data = list(self.input.values())[0].copy()
         results = {}
-        categories = self.data.select_dtypes('category').columns.values
-        categories = [c for c in categories if len(self.data[c].unique()) > 1]
-        ticklabels = [', '.join(str(row)) for row in self.data[categories].values]
+        categories = data.select_dtypes('category').columns.values
+        categories = [c for c in categories if len(data[c].unique()) > 1]
+        ticklabels = [', '.join(str(row)) for row in data[categories].values]
         fig, ax = plt.subplots()
         
-        data = self.data.copy()
         for c in categories:
             data[c] = data[c].astype('str') 
         for feature in sorted(self.params['features']):

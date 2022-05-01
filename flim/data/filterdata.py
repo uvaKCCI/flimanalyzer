@@ -26,13 +26,12 @@ import flim.resources
 
 class FilterConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, filter_params={}, use=True, show_dropped=False, inplace=False):
+    def __init__(self, parent, title, input=None, filter_params={}, use=True, show_dropped=False, inplace=False):
         self.filter_params = filter_params
         self.use = use
         self.show_dropped = show_dropped
         self.inplace = inplace
-
-        super().__init__(parent, title, data, enablegrouping=False, enablefeatures=False, optgridrows=1, optgridcols=0)
+        super().__init__(parent, title, input=input, enablegrouping=False, enablefeatures=False, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
         fsizer = wx.BoxSizer(wx.VERTICAL)
@@ -66,9 +65,8 @@ class FilterConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Data')
 class Filter(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs) #categories={}, default='unassigned')
-        self.name = "Filter"
+    def __init__(self, name='Filter', **kwargs):
+        AbstractPlugin.__init__(self, name=name, **kwargs) #categories={}, default='unassigned')
         default_filters = [
                         RangeFilter('trp t1',0,2500).get_params(),
                         RangeFilter('trp t2',0,8000).get_params(),
@@ -158,12 +156,13 @@ class Filter(AbstractPlugin):
         return {'Table: Filtered': None}
         
     def run_configuration_dialog(self, parent, data_choices={}):
-        filter_params = self._update_filter_params(self.data, self.params['range filters'])
+        data = list(self.input.values())[0]
+        filter_params = self._update_filter_params(data, self.params['range filters'])
         logging.debug (filter_params)
         inplace = self.params['inplace']
                 
         dlg = FilterConfigDlg(parent, f'Configuration: {self.name}',
-            self.data, 
+            input=self.input, 
             filter_params=filter_params,
             inplace=inplace)
         if dlg.ShowModal() == wx.ID_CANCEL:
@@ -175,17 +174,16 @@ class Filter(AbstractPlugin):
         return self.params    
         
     def execute(self):
+        data = list(self.input.values())[0]
         if not self.params['inplace']:
-            data = self.data.copy()
-        else:
-            data = self.data
+            data = data.copy()
         
         droppedrows = {}
-        filter_params = {f['name']:f for f in self._update_filter_params(self.data, self.params['range filters'])}
+        filter_params = {f['name']:f for f in self._update_filter_params(data, self.params['range filters'])}
         for fname in filter_params:
             filter = RangeFilter(params=filter_params[fname])
             if filter.is_selected():
-                droppedrows[fname] = filter.get_dropped(self.data)
+                droppedrows[fname] = filter.get_dropped(data)
             #elif droppedrows.get(fname) is not None:
             # 	del droppedrows[fname]
             	

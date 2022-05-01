@@ -16,9 +16,8 @@ from flim.plugin import plugin
 @plugin(plugintype='Plot')
 class Heatmap(AbstractPlugin):
 
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Heatmap"
+    def __init__(self, name="Heatmap", **kwargs):
+        super().__init__(name=name, **kwargs)
 
     def __str__(self):
         return self.name
@@ -39,7 +38,10 @@ class Heatmap(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -48,7 +50,8 @@ class Heatmap(AbstractPlugin):
             return None
 
     def execute(self):
-        data_c = self.data[self.params['features']]
+        data = list(self.input.values())[0]
+        data_c = data[self.params['features']]
         results = {}
         corr = data_c.corr()
         fig, ax = plt.subplots(constrained_layout=True)
@@ -77,5 +80,5 @@ class Heatmap(AbstractPlugin):
             title = f"Data grouped by {self.params['grouping']}"
         ax.set_title(title)
 
-        self._add_picker(fig)
+        #self._add_picker(fig)
         return results

@@ -21,9 +21,8 @@ from flim.plugin import plugin
 @plugin(plugintype='Plot')
 class SwarmPlot(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Swarm Plot"
+    def __init__(self, name="Swarm Plot", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -45,12 +44,16 @@ class SwarmPlot(AbstractPlugin):
         return ['any']
 
     def run_configuration_dialog(self, parent, data_choices={}):
+        data = list(self.input.values())[0].copy()
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        if len(self.data) > 1000:
+        if len(data) > 1000:
             wx.MessageBox('Too many data points to plot. Consider aggregating the data in a summary table first.', 'Warning', wx.OK)
             return None
-        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -59,9 +62,9 @@ class SwarmPlot(AbstractPlugin):
             return None
         
     def execute(self):
+        data = list(self.input.values())[0].copy()
         results = {}
-        categories = self.data.select_dtypes('category').columns.values
-        data = self.data.copy()
+        categories = data.select_dtypes('category').columns.values
         for c in categories:
             data[c] = data[c].astype('str') 
 

@@ -147,9 +147,8 @@ class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Data')
 class CategoryOrder(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs) #categories={}, default='unassigned')
-        self.name = "Order Categories"
+    def __init__(self, name="Order Categories", **kwargs):
+        AbstractPlugin.__init__(self, name=name, **kwargs) #categories={}, default='unassigned')
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"

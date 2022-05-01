@@ -17,6 +17,7 @@ from flim.core.filter import RangeFilter
 import flim.core.configuration as cfg
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
 from flim.gui.dicttablepanel import ListTable
+from flim.plugin import ALL_FEATURES
 
 def check_data_msg(data):
     ok = data is not None and len(data) > 0
@@ -82,10 +83,11 @@ def save_figure(parent, title, fig, filename, wildcard="all files (*.*)|*.*", dp
             
 class BasicAnalysisConfigDlg(wx.Dialog):
 
-    def __init__(self, parent, title, data, description=None, data_choices={}, chooseinput=False, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2, enablefeatsettings=False, featuresettings={}, settingspecs={}):
+    def __init__(self, parent, title, input={}, description=None, data_choices={}, chooseinput=False, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures=ALL_FEATURES, optgridrows=0, optgridcols=2, enablefeatsettings=False, featuresettings={}, settingspecs={}):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)#, size= (650,400))
         self.panel = wx.Panel(self, wx.ID_ANY)
         # 5 col gridsizer
+        self.input = input
         self.description = description
         self.chooseinput = chooseinput
         self.enablegrouping = enablegrouping
@@ -95,6 +97,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.featuresettings = featuresettings
         self.settingspecs = settingspecs
         
+        data = list(self.input.values())[0]
         allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
         # ordered dict with label:columm items; column headers are converted to single line labels
         self.allfeatures = OrderedDict((" ".join(c.split("\n")),c) for c in allfeatures)
@@ -144,7 +147,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             self.cboxes = {}
             for f in self.allfeatures:
                 cb = wx.CheckBox(self.panel,wx.ID_ANY,f)
-                cb.SetValue((f in self.selectedfeatures) or ('All' in self.selectedfeatures))
+                cb.SetValue((f in self.selectedfeatures) or (ALL_FEATURES in self.selectedfeatures))
                 self.cboxes[f] = cb
                 cbsizer.Add(cb, 0, wx.ALL, 5)
                 if self.enablefeatsettings:
@@ -233,9 +236,9 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         else:
             params['features'] = []
         if self.chooseinput:
-            params['input'] = {}
+            params['input'] = self.input
         else:
-            params['input'] = {}    
+            params['input'] = self.input    
         return params
     
     

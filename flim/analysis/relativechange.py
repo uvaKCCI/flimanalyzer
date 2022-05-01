@@ -19,8 +19,8 @@ from flim.plugin import plugin
 
 class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', method='mean', refgroup='', refvalue=''):
-        self.data = data
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', method='mean', refgroup='', refvalue=''):
+        data = list(input.values())[0]
         self.method_options = ['mean', 'median']
         self.sel_method = method
         if self.sel_method not in self.method_options:
@@ -35,9 +35,10 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         self.sel_refvalue = refvalue
         if self.sel_refvalue not in self.refval_options:
             self.sel_refvalue = self.refval_options[0]
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
+        data = list(self.input.values())[0]
         self.aggboxes = {}
         self.refgrp_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refgroup, choices=self.categories)
         self.refgrp_combobox.Bind(wx.EVT_COMBOBOX, self.OnRefGroupChanged)
@@ -45,7 +46,7 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         rgsizer.Add(wx.StaticText(self.panel, label="Reference Group "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         rgsizer.Add(self.refgrp_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
-        dummy = [a for c in self.categories for a in self.data[c].unique()]
+        dummy = [a for c in self.categories for a in data[c].unique()]
         self.refval_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refvalue, choices=dummy)
         self.refval_combobox.SetItems(self.refval_options)
         self.refval_combobox.SetValue(self.sel_refvalue)
@@ -79,9 +80,8 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class RelativeChange(AbstractPlugin):
      
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Relative Change"
+    def __init__(self, name="Relative Change", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -112,7 +112,8 @@ class RelativeChange(AbstractPlugin):
         return {'Table: Relative Change': pd.DataFrame}
         
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = RelativeChangeConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = RelativeChangeConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
             method=self.params['method'],
@@ -127,8 +128,9 @@ class RelativeChange(AbstractPlugin):
         return parameters
     
     def execute(self):
+        data = list(self.input.values())[0]
         method = self.params['method']
-        allcategories = list(self.data.select_dtypes(['category']).columns.values)
+        allcategories = list(data.select_dtypes(['category']).columns.values)
         features = self.params['features']
         grouping = list(self.params['grouping'])
         refgroup = self.params['reference_group']
@@ -136,7 +138,7 @@ class RelativeChange(AbstractPlugin):
         if refgroup not in grouping:
             grouping.insert(0, refgroup)
         cols = allcategories + features
-        data = self.data[cols]
+        data = data[cols]
 
         nonrefcategories = [c for c in allcategories if c != refgroup]
 

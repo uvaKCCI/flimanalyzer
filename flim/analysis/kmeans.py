@@ -27,7 +27,8 @@ TOLERANCE_OPTONS = ['%.1e' % (10.0**(-b)) for  b in range(2,6)]
 
 class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, 
+    def __init__(self, parent, title, 
+            input=None, 
             selectedgrouping=['None'], 
             selectedfeatures='All', 
             n_clusters=2,
@@ -44,7 +45,7 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
         self.n_init = n_init
         self.tolerance = tolerance
         self.algorithm = algorithm
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, enablegrouping=False, selectedgrouping=selectedgrouping,
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, enablegrouping=False, selectedgrouping=selectedgrouping,
                                         selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 
     def get_option_panels(self):
@@ -102,9 +103,8 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class KMeansClustering(AbstractPlugin):
 
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "K-Means"
+    def __init__(self, name="K-Means", **kwargs):
+        super().__init__(name=name, **kwargs)
 
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -140,7 +140,8 @@ class KMeansClustering(AbstractPlugin):
         
         
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = KMeansClusteringConfigDlg(parent, f'Configuration: {self.name}', self.data,
+        dlg = KMeansClusteringConfigDlg(parent, f'Configuration: {self.name}', 
+                                  input=self.input,
                                   selectedgrouping=self.params['grouping'],
                                   selectedfeatures=self.params['features'],
                                   n_clusters=self.params['n_clusters'],
@@ -159,7 +160,8 @@ class KMeansClustering(AbstractPlugin):
         return self.params
 
     def execute(self):
-        data = self.data[self.params['features']]
+        original = list(self.input.values())[0]
+        data = original[self.params['features']]
         data = data.dropna(how='any', axis=0).reset_index()
         oldidx = data['index']
         features = self.params['features']
@@ -180,8 +182,8 @@ class KMeansClustering(AbstractPlugin):
             tol=self.params['tolerance'],
             random_state=0)
         predict = kmeans.fit(standard_data)
-        cat_cols = list(self.data.select_dtypes(['category']).columns.values)
-        cat_df = self.data.iloc[oldidx].reset_index() #match cat_df index w/ index of used prediction data
+        cat_cols = list(original.select_dtypes(['category']).columns.values)
+        cat_df = original.iloc[oldidx].reset_index() #match cat_df index w/ index of used prediction data
         cat_df = cat_df[cat_cols].copy()
 
         predict_df = pd.DataFrame(data, columns=features)

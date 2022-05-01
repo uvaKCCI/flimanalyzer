@@ -19,6 +19,7 @@ import pandas as pd
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
+import matplotlib
 import matplotlib.pyplot as plt
 import itertools
 from importlib_resources import files
@@ -29,9 +30,8 @@ from flim.plugin import plugin
 @plugin(plugintype='Plot')
 class ScatterPlot(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, **kwargs)
-        self.name = "Scatter Plot"
+    def __init__(self, name="Scatter Plot", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -52,7 +52,10 @@ class ScatterPlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, 'Scatter Plot', self.data, selectedgrouping=selgrouping, selectedfeatures=selfeatures)
+        dlg = BasicAnalysisConfigDlg(parent, 'Scatter Plot', 
+            input=self.input, 
+            selectedgrouping=selgrouping, 
+            selectedfeatures=selfeatures)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -62,14 +65,15 @@ class ScatterPlot(AbstractPlugin):
 
     def output_definition(self):
         combs = itertools.combinations(self.params['features'], 2)
-        return {f'Scatter: {c}': pd.DataFrame for c in sorted(combs)}
+        return {f'Scatter: {c}': matplotlib.figure.Figure for c in sorted(combs)}
     
     def execute(self):
+        data = list(self.input.values())[0]
         results = {}
         combs = itertools.combinations(self.params['features'], 2)
         for comb in sorted(combs):
             logging.debug (f"\tcreating scatter plot for {str(comb)}")
-            fig = self.grouped_scatterplot(self.data, comb, categories=self.params['grouping'], marker='o', s=10)#, facecolors='none', edgecolors='r')
+            fig = self.grouped_scatterplot(data, comb, categories=self.params['grouping'], marker='o', s=10)#, facecolors='none', edgecolors='r')
             results[f"Scatter Plot: {comb}"] = fig
         return results
     

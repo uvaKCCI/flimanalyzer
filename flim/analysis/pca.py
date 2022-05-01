@@ -23,7 +23,8 @@ from flim.plugin import plugin
 
 class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, 
+    def __init__(self, parent, title, 
+            input=None, 
             description=None,
             selectedgrouping=['None'], 
             selectedfeatures='All', 
@@ -32,17 +33,18 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
             explainedhisto=False,
             n_components=None):
 
-        self.allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
         self.keeporig = keeporig
         self.keepstd = keepstd
         self.explainedhisto = explainedhisto
         self.n_components = n_components
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):        
+        data = list(self.input.values())[0]
+        allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
         sizer = wx.BoxSizer(wx.HORIZONTAL)
 
-        self.n_components_input = NumCtrl(self.panel, wx.ID_ANY, min=0.0, max=float(len(self.allfeatures)), value=self.n_components, fractionWidth=3)
+        self.n_components_input = NumCtrl(self.panel, wx.ID_ANY, min=0.0, max=float(len(allfeatures)), value=self.n_components, fractionWidth=3)
         sizer.Add(wx.StaticText(self.panel, label="N-components"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.n_components_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
@@ -77,9 +79,8 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class PCAnalysis(AbstractPlugin):
     
-    def __init__(self, data, keeporig=False, keepstd=True, explainedhisto=False, n_components=0.999, **kwargs):
-        AbstractPlugin.__init__(self, data, keeporig=keeporig, keepstd=keepstd, explainedhisto=explainedhisto, n_components=n_components, **kwargs)
-        self.name = "PCA"
+    def __init__(self, name="PCA", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     def get_description(self):
         return 'Specifiy PCA components to retain:'\
@@ -113,7 +114,8 @@ class PCAnalysis(AbstractPlugin):
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = PCAnalysisConfigDlg(parent, f'Configuration: {self.name}', self.data,
+        dlg = PCAnalysisConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input,
             description=self.get_description(), 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
@@ -135,7 +137,7 @@ class PCAnalysis(AbstractPlugin):
             return {'Table: PCA Components': None, 'Table: PCA explained': None}            
 
     def execute(self):
-        data = self.data
+        data = list(self.input.values())[0]
         features = self.params['features']
         data_no_na = data[features].dropna(how='any', axis=0).reset_index()
         if len(features) == 1:

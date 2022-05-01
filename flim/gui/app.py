@@ -16,13 +16,14 @@ import numpy as np
 import itertools
 import pandas as pd
 import json
+import ctypes
 
 import wx
 import wx.lib.agw.customtreectrl as CT
 from pubsub import pub
 
 import flim.plugin as plugin
-from flim.plugin import PLUGINS
+from flim.plugin import PLUGINS, AbstractPlugin
 import flim.analysis
 import flim.workflow
 import flim.core.configuration as cfg
@@ -175,7 +176,7 @@ class AppFrame(wx.Frame):
         menu = wx.Menu()
         plugins = PLUGINS[menuname]
         for pname,pclass in plugins.items():
-            plg = plugin.create_instance(pclass, None)
+            plg = plugin.create_instance(pclass)
             menuitem = menu.Append(wx.NewId(), pname)
             self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
             if toolbar:
@@ -190,8 +191,22 @@ class AppFrame(wx.Frame):
 #        mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
 #        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
 
+    def _get_window_frame(self, obj_id):
+        for title, window in self.windowframes.items():
+            if isinstance(window, PandasFrame) and id(window.GetData()) == obj_id:
+                logging.debug (f'selected: title={title}, obj_id={obj_id}, id={id(window.GetData())}')
+                return window
+            elif isinstance(window, matplotlib.figure.Figure) and id(window) == obj_id:
+                logging.debug (f'selected: title={title}, obj_id={obj_id}, id={id(window)}')
+                return window
+        return
+        
+        
     def OnDataWindowFocused(self, data, frame):
-        title = frame.GetTitle()
+        if isinstance(frame, matplotlib.figure.Figure):
+            title = frame.canvas.manager.get_window_title()
+        else:
+            title = frame.GetTitle()
         self.window_zorder = [w for w in self.window_zorder if w != title]
         self.window_zorder.append(title)
 
@@ -353,13 +368,14 @@ class AppFrame(wx.Frame):
         #features = [c for c in self.get_checked_cols(self.currentdata)]
         
         plugin_class = next(plugin.get_plugin_class(pluginname))#flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
-        tool = plugin.create_instance(plugin_class, data) #, data_choices=data_choices)
+        tool = plugin.create_instance(plugin_class) #, data_choices=data_choices)
         _,parentkeys = self.config.get_parent([cfg.CONFIG_PLUGINS, pluginname], returnkeys=True)
         parameters, keys = self.config.get([cfg.CONFIG_PLUGINS, pluginname], returnkeys=True)
         input = parameters.get('input')
-        input = {t:data_choices[title] for t in input if t in data_choices}
-        if len(input) == 0:
-            input = {title:data}
+        if len(input) != 0:
+            parameters['input'] = {t:data_choices[title] for t in input if t in data_choices}
+        else:
+            parameters['input'] = {title:data}    
         tool.configure(**parameters)
 
         # run optional tool config dialog and execte analysis
@@ -489,10 +505,19 @@ class AppFrame(wx.Frame):
 
         	
     def OnPick(self, event):
-        if event.mouseevent.dblclick:
-            #print ("picked:", event.artist, type(event.artist))
-    	    #print (event.mouseevent)
-    	    #print (matplotlib.artist.get(event.artist))
+        if not event.mouseevent.dblclick:
+            try:        
+                obj_id = int(event.artist.get_label())
+                window = self._get_window_frame(obj_id)
+                if window:
+                    self._raise_window(window)
+                else:
+                    py_obj = ctypes.cast(obj_id, ctypes.py_object).value
+                    if issubclass(type(py_obj), AbstractPlugin):
+                        py_obj.run_configuration_dialog(self)
+            except Exception as e:
+               logging.error(e)
+        else:
             ax = event.artist.axes
             fig = event.artist.get_figure()
             if isinstance(event.artist,matplotlib.axis.YAxis):
@@ -566,6 +591,15 @@ class AppFrame(wx.Frame):
         logging.debug ("appframe.OnClosingPlotWindow")
         self.remove_figure_from_menu(event.canvas.figure)
         
+    
+    def _raise_window(self, window, title=''):
+        if isinstance(window,wx.Frame):
+            window.Raise()
+            if isinstance(window, PandasFrame) and self.window_zorder[-1] != title:
+                self.window_zorder = [w for w in self.window_zorder if w != title]
+                self.window_zorder.append(title)
+        elif isinstance(window,matplotlib.figure.Figure):
+            window.canvas.manager.show()
         
     def OnWindowSelectedInMenu(self, event):
         itemid = event.GetId()
@@ -574,13 +608,7 @@ class AppFrame(wx.Frame):
         if self.windowframes.get(mitem.GetItemLabelText()):
             wintitle = mitem.GetItemLabelText()
             window = self.windowframes[wintitle]
-            if isinstance(window,wx.Frame):
-                window.Raise()
-                if isinstance(window, PandasFrame) and self.window_zorder[-1] != wintitle:
-                    self.window_zorder = [w for w in self.window_zorder if w != wintitle]
-                    self.window_zorder.append(wintitle)
-            elif isinstance(window,matplotlib.figure.Figure):
-                window.canvas.manager.show()
+            self._raise_window(window, title=wintitle)
         logging.debug(f"select window {self.window_zorder}")
 
         

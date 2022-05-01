@@ -23,7 +23,8 @@ from flim.plugin import plugin
 
 class RandomForestConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', classifier='', importancehisto=True, n_estimators=100, test_size=0.3):
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', classifier='', importancehisto=True, n_estimators=100, test_size=0.3):
+        data = list(input.values())[0]
         self.classifieropts = data.select_dtypes(['category']).columns.values
         if classifier in self.classifieropts:
             self.classifier = classifier
@@ -32,7 +33,7 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
         self.importancehisto = importancehisto
         self.n_estimators = n_estimators
         self.test_size = test_size
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=1)
 		    
     def get_option_panels(self):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -67,9 +68,8 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class RandomForest(AbstractPlugin):
     
-    def __init__(self, data, classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
-        AbstractPlugin.__init__(self, data, classifier=classifier, importancehisto=importancehisto, n_estimators=n_estimators, test_size=test_size, **kwargs)
-        self.name = "Random Forest"
+    def __init__(self, name="Random Forest", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -97,7 +97,8 @@ class RandomForest(AbstractPlugin):
         return params    
         
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = RandomForestConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = RandomForestConfigDlg(parent, f'Configuration: {self.name}', 
+           input=self.input, 
            selectedgrouping=self.params['grouping'], 
            selectedfeatures=self.params['features'], 
            classifier=self.params['classifier'],
@@ -106,22 +107,24 @@ class RandomForest(AbstractPlugin):
            importancehisto=self.params['importancehisto'])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
-            return # implicit None
+            return
         parameters = dlg.get_selected()  
         self.configure(**parameters)
         return parameters
 
-        category_cols = self.data.select_dtypes(['category']).columns.values
+        data = list(self.input.values())[0]
+        category_cols = data.select_dtypes(['category']).columns.values
         dlg = wx.SingleChoiceDialog(parent, 'Choose feature to be used as classifier', 'Random Forest Classifier', category_cols)
         if dlg.ShowModal() == wx.ID_OK:
             parameters = {'classifier': dlg.GetStringSelection()}
             self.configure(**parameters)
             return parameters
-        return  # explicit None
+        return
     
     def execute(self):
+        data = list(self.input.values())[0]
         results = {}
-        data = self.data.dropna(how='any', axis=0)
+        data = data.dropna(how='any', axis=0)
         data_features = [f for f in self.params['features'] if f not in self.params['grouping']]
         X = data[data_features]  # Features
         y = data[self.params['classifier']]  # one of the categorical columns

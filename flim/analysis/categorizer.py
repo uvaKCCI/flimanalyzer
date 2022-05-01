@@ -23,7 +23,7 @@ import flim.resources
 
 class CategorizerConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, 
+    def __init__(self, parent, title, input=None, 
             header='Category',
             selectedgrouping=['None'], 
             selectedfeatures='All', 
@@ -34,7 +34,7 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
         self.categories = categories
         self.default = default
         self.mergeinput = mergeinput
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, enablegrouping=False, enablefeatures=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, enablegrouping=False, enablefeatures=False, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=2, optgridcols=1)
 		    
     def get_option_panels(self):
         helptxt = f'Specifiy PCA components to retain:'\
@@ -101,9 +101,8 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class Categorizer(AbstractPlugin):
     
-    def __init__(self, data, **kwargs):
-        AbstractPlugin.__init__(self, data, categories={}, default='unassigned')
-        self.name = "Categorize Data"
+    def __init__(self, name="Categorize Data", **kwargs):
+        super().__init__(name=name, **kwargs)
     
     #def __repr__(self):
     #    return f"{'name': {self.name}}"
@@ -151,7 +150,8 @@ class Categorizer(AbstractPlugin):
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = CategorizerConfigDlg(parent, f'Configuration: {self.name}', self.data, 
+        dlg = CategorizerConfigDlg(parent, f'Configuration: {self.name}', 
+            input=self.input, 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'], 
             header=self.params['name'],
@@ -166,6 +166,7 @@ class Categorizer(AbstractPlugin):
         return self.params    
         
     def execute(self):
+        data = list(self.input.values())[0]
         colname = self.params['name']
         categories = self.params['categories']
         selfeatures = self.params['features']
@@ -177,15 +178,15 @@ class Categorizer(AbstractPlugin):
         bins.append(maxs[-1])
         feature = categories[0]['criteria']['feature']
 
-        catcols = self.data.select_dtypes('category').columns.values
+        catcols = data.select_dtypes('category').columns.values
 
         if self.params['merge_input']:
-            cat_df = self.data.copy()
+            cat_df = data.copy()
         else:
             cols = list(catcols)
             cols.extend(selfeatures)
-            cat_df = self.data[cols].copy()
-        cat_df[colname] = pd.cut(self.data[feature], bins=bins, labels=values)
+            cat_df = data[cols].copy()
+        cat_df[colname] = pd.cut(data[feature], bins=bins, labels=values)
         cat_df[colname].cat.add_categories(default, inplace=True)
         cat_df[colname].fillna(default, inplace=True)
         orderedcols = [c for c in cat_df.columns.values if c != colname]

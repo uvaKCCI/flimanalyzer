@@ -23,15 +23,15 @@ calpha = {0.10:1.22, 0.05:1.36, 0.025:1.48, 0.01:1.63, 0.005:1.73, 0.001:1.95}
 
 class KSStatsConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, selectedgrouping=['None'], selectedfeatures='All', comparison='Treatment', alpha=0.05):
-        self.data = data
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', comparison='Treatment', alpha=0.05):
         self.comparison = comparison
         self.alpha = alpha
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
+        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=1, optgridcols=0)
 		    
     def get_option_panels(self):
+        data = list(self.input.values())[0]
         osizer = wx.BoxSizer(wx.HORIZONTAL)
-        comparison_opts = [c for c in list(self.data.select_dtypes(['category']).columns.values)]
+        comparison_opts = [c for c in list(data.select_dtypes(['category']).columns.values)]
         sel_comparison = self.comparison
         if sel_comparison not in comparison_opts:
             sel_comparison = comparison_opts[0]
@@ -60,9 +60,8 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
 @plugin(plugintype='Analysis')
 class KSStats(AbstractPlugin):
     
-    def __init__(self, data, comparison='Treatment', alpha=0.05, **kwargs):
-        AbstractPlugin.__init__(self, data, comparison=comparison, alpha=alpha, **kwargs)
-        self.name = 'KS-Statistics'
+    def __init__(self, name="KS-Statistics", **kwargs):
+        super().__init__(name=name, **kwargs)
         
     def get_required_categories(self):
         return []
@@ -87,7 +86,7 @@ class KSStats(AbstractPlugin):
         
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = KSStatsConfigDlg(parent, f'Configuration: {self.name}', 
-            self.data, 
+            input=self.input, 
             selectedgrouping=self.params['grouping'], 
             selectedfeatures=self.params['features'],
             comparison=self.params['comparison'],
@@ -100,12 +99,13 @@ class KSStats(AbstractPlugin):
             return None
 
     def execute(self):
+        data = list(self.input.values())[0]
         results = {}
         comparison = self.params['comparison']
         alpha = self.params['alpha']
         for header in sorted(self.params['features']):
             logging.debug (f"Calculating ks-statistics for {str(header)}")
-            result = self.feature_kststats(self.data, header, groups=self.params['grouping'], comparison=comparison, alpha=alpha)
+            result = self.feature_kststats(data, header, groups=self.params['grouping'], comparison=comparison, alpha=alpha)
             results[f'KS-stats: {header}'] = result
         return results
     
@@ -117,6 +117,7 @@ class KSStats(AbstractPlugin):
             groupvals = [('none',)]
             cols = ['Grouping']
         else:
+            # set groups based on categories excluding the comparison category
             groups = [g for g in groups if g != comparison]
             groupvals = [name for name,_ in data.groupby(groups)]
             cols = [c for c in groups]
@@ -129,8 +130,9 @@ class KSStats(AbstractPlugin):
             if len(groups) == 0:
                 fdata = data
             else:   
-                querystr = ' and '.join([f'"{groups[i]}" == "{groupval[i]}"' for i in range(len(groupval))])
-                print (f'QUERY={querystr}, cols={data.columns.values}')
+                # bracket group and grpupvals with backticks in case they contain whitespaces or special characters
+                querystr = ' and '.join([f'`{groups[i]}` == "{groupval[i]}"' for i in range(len(groupval))])
+                logging.debug (f'QUERY={querystr}, cols={data.columns.values}')
                 fdata = data.query(querystr)
             if len(fdata) == 0:
                 continue
@@ -150,5 +152,5 @@ class KSStats(AbstractPlugin):
         result = pd.DataFrame(rdata, columns=cols)
         for ckey in allcategories:
             result[ckey] = result[ckey].astype('category')
-        return {'Table: KS-stats': result}
+        return result
             
