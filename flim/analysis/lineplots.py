@@ -73,6 +73,14 @@ class LinePlot(AbstractPlugin):
         else:	
             return None
 
+    def get_parallel_parameters(self):
+        parallel_params = []
+        for f in self.params['features']:
+            pair_param = self.params.copy()
+            pair_param['features'] = [f]
+            parallel_params.append(pair_param)
+        return parallel_params
+        
     def execute(self):
         data = list(self.input.values())[0].copy()
         results = {}

@@ -272,6 +272,9 @@ class AbstractPlugin(Task):
 
     def get_parameters(self):
         return self.params
+        
+    def get_parallel_parameters(self):
+        return [self.params]
 
     def get_config_name(self):
         return ''.join(e for e in self.name if e.isalnum())

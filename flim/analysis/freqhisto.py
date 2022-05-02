@@ -128,6 +128,14 @@ class FreqHisto(AbstractPlugin):
                 })
         return params      
 
+    def get_parallel_parameters(self):
+        parallel_params = []
+        for f in self.params['features']:
+            pair_param = self.params.copy()
+            pair_param['features'] = [f]
+            parallel_params.append(pair_param)
+        return parallel_params
+            
     def run_configuration_dialog(self, parent, data_choices={}):
         data = list(self.input.values())[0]
         selgrouping = self.params['grouping']

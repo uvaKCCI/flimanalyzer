@@ -145,6 +145,18 @@ class SummaryStats(AbstractPlugin):
         else:
             return 'Table: Summary'
         
+    def get_parallel_parameters(self):
+        if not self.params['singledf']:
+            parallel_params = []
+            for f in self.params['features']:
+                pair_param = self.params.copy()
+                pair_param['features'] = [f]
+                parallel_params.append(pair_param)
+            return parallel_params
+        else:
+            # combine all features results in single df
+            return [self.params]
+        
     def execute(self):
         summaries = {}
         data = list(self.input.values())[0]

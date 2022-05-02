@@ -63,6 +63,15 @@ class ScatterPlot(AbstractPlugin):
         else:	
             return None
 
+    def get_parallel_parameters(self):
+        parallel_params = []
+        combs = itertools.combinations(self.params['features'], 2)
+        for pair in combs:
+            pair_param = self.params.copy()
+            pair_param['features'] = [f for f in pair]
+            parallel_params.append(pair_param)
+        return parallel_params
+        
     def output_definition(self):
         combs = itertools.combinations(self.params['features'], 2)
         return {f'Scatter: {c}': matplotlib.figure.Figure for c in sorted(combs)}

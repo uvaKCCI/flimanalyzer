@@ -47,6 +47,14 @@ class KDE(AbstractPlugin, Task):
         if features == ALL_FEATURES and isinstance(data, pd.DataFrame):
             features = list(data.select_dtypes(np.number).columns.values) 
         return {f'Plot: KDE {feature}':matplotlib.figure.Figure for feature in features}
+
+    def get_parallel_parameters(self):
+        parallel_params = []
+        for f in self.params['features']:
+            pair_param = self.params.copy()
+            pair_param['features'] = [f]
+            parallel_params.append(pair_param)
+        return parallel_params
             
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']

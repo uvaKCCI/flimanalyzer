@@ -50,6 +50,9 @@ from flim.gui.events import REQUEST_CONFIG_UPDATE, CONFIG_UPDATED
 from flim.gui.events import FOCUSED_DATA_WINDOW, NEW_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, NEW_PLOT_WINDOW, DATA_IMPORTED, FILTERS_UPDATED, FILTERED_DATA_UPDATED, DATA_UPDATED, ANALYSIS_BINS_UPDATED
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
 
+from prefect import Flow
+
+
 from wx.lib.newevent import NewEvent
 
 ImportEvent, EVT_IMPORT = NewEvent()
@@ -364,8 +367,6 @@ class AppFrame(wx.Frame):
             return
         
         # check that user provided required data categories and data features
-        #categories = self.sel_roigrouping
-        #features = [c for c in self.get_checked_cols(self.currentdata)]
         
         plugin_class = next(plugin.get_plugin_class(pluginname))#flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
         tool = plugin.create_instance(plugin_class) #, data_choices=data_choices)
@@ -400,26 +401,35 @@ class AppFrame(wx.Frame):
             wx.MessageBox(f'Analysis tool {tool} requires selection of at least {len(req_categories)} groups, including {not_any_categories}.', 'Warning', wx.OK)            
             return
         
-        results = tool.execute()
+        # get list of configure parameters for parallel processing
+        parallel_params = tool.get_parallel_parameters()
+        with Flow(name="Interative Analysis") as flow:
+            for p in parallel_params:
+                tool(**p)
+            
+        state = flow.run()
+        task_refs = flow.get_tasks()
+        result_list = [state.result[tr]._result.value for tr in task_refs]
         
         # handle results, DataFrames or Figure objects
-        if results is not None:
-            for title, result in results.items():
-                if isinstance(result, pd.DataFrame):
-                    # result = result.reset_index()
-                    event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-                    event.SetEventInfo(result, 
+        for results in result_list:
+            if results is not None:
+                for title, result in results.items():
+                    if isinstance(result, pd.DataFrame):
+                        # result = result.reset_index()
+                        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                        event.SetEventInfo(result, 
                                        title,
                                        'createnew', 
                                        showcolindex=False)
-                    self.GetEventHandler().ProcessEvent(event)
-                elif isinstance(result, matplotlib.figure.Figure):
-                    fig = result
-                    #fig.canvas.set_window_title(title)
-                    fig.canvas.manager.set_window_title(title)
-                    event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-                    event.SetEventInfo(fig, title, 'createnew')
-                    self.GetEventHandler().ProcessEvent(event)                
+                        self.GetEventHandler().ProcessEvent(event)
+                    elif isinstance(result, matplotlib.figure.Figure):
+                        fig = result
+                        #fig.canvas.set_window_title(title)
+                        fig.canvas.manager.set_window_title(title)
+                        event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+                        event.SetEventInfo(fig, title, 'createnew')
+                        self.GetEventHandler().ProcessEvent(event)                
         
 
     def append_window_to_menu(self, title, window):
@@ -619,6 +629,18 @@ class AppFrame(wx.Frame):
     def get_window_frames(self):
         return [x for x in self.GetChildren() if isinstance(x, wx.Frame) or isinstance(x, matplotlib.figure.Figure)]
 
+
+    def unique_window_title(self, title):
+        suffix = None
+        i = 1
+        while title in self.windowframes:
+            if suffix:
+                title = title[:-len(suffix)]
+            suffix = '-%d' % i    
+            title = '%s%s' % (title, suffix)
+            i += 1
+        return title
+    
     
     def OnCloseAll(self, event):
         logging.debug ("appframe.OnCloseAll")
@@ -639,7 +661,7 @@ class AppFrame(wx.Frame):
                     window.Close()
         self.window_zorder = []
         
-    
+
     def OnImport(self, event):
         #self.rawdata = event.rawdata
 #        self.filtertab.update_rawdata(self.rawdata)        
@@ -688,16 +710,5 @@ class AppFrame(wx.Frame):
             logging.debug ("\t {key} {str(u))}")
 
         
-    def unique_window_title(self, title):
-        suffix = None
-        i = 1
-        while title in self.windowframes:
-            if suffix:
-                title = title[:-len(suffix)]
-            suffix = '-%d' % i    
-            title = '%s%s' % (title, suffix)
-            i += 1
-        return title
-    
                                     
    

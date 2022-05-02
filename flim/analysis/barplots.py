@@ -155,6 +155,18 @@ class BarPlot(AbstractPlugin):
         else:	
             return None
 
+    def get_parallel_parameters(self):
+        if self.params['bartype'] == 'single':
+            parallel_params = []
+            for f in self.params['features']:
+                pair_param = self.params.copy()
+                pair_param['features'] = [f]
+                parallel_params.append(pair_param)
+            return parallel_params
+        else:
+            # stacked plots process all features at once
+            return [self.params]
+            
     def execute(self):
         data = list(self.input.values())[0]
         results = {}
