@@ -198,11 +198,12 @@ class CategoryOrder(AbstractPlugin):
         return params
             
     def run_configuration_dialog(self, parent, data_choices={}):
-        categories = self._update_category_params(self.data, self.params['categories'])
+        data = next(iter(self.input.values()))
+        categories = self._update_category_params(data, self.params['categories'])
         inplace = self.params['inplace']
                 
         dlg = CategoryOrderConfigDlg(parent, f'Order Category Values',
-            self.data, 
+            self.input, 
             categories=categories,
             inplace=inplace)
         if dlg.ShowModal() == wx.ID_CANCEL:
@@ -213,8 +214,9 @@ class CategoryOrder(AbstractPlugin):
         return self.params    
         
     def execute(self):
+        data = list(self.input.values())[0]
         if not self.params['inplace']:
-            self.data = self.data.copy()
+            data = data.copy()
         results = {}
         #input = self.params['input'] 
         #data = list(input.values())
@@ -222,10 +224,10 @@ class CategoryOrder(AbstractPlugin):
         #results['Concatenated'] = concat_df
         catparams = self.params['categories']
         for cat in catparams:
-            self.data[cat] = pd.Categorical(self.data[cat], 
+            data[cat] = pd.Categorical(data[cat], 
                       categories=catparams[cat]['values'],
                       ordered=True)
-        self.data.sort_values(by=list(catparams.keys()), inplace=True)
-        results['Reordered'] = self.data
+        data.sort_values(by=list(catparams.keys()), inplace=True)
+        results['Reordered'] = data
         return results
             

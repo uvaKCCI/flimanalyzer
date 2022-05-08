@@ -51,6 +51,7 @@ from flim.gui.events import FOCUSED_DATA_WINDOW, NEW_DATA_WINDOW, CLOSING_DATA_W
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
 
 from prefect import Flow
+from prefect.backend import FlowRunView
 
 
 from wx.lib.newevent import NewEvent
@@ -406,7 +407,9 @@ class AppFrame(wx.Frame):
         with Flow(name="Interative Analysis") as flow:
             for p in parallel_params:
                 tool(**p)
-            
+        
+        #:print (dir(flow))
+        #flow_run = FlowRunView.from_flow_run_id("4c0101af-c6bb-4b96-8661-63a5bbfb5596")
         state = flow.run()
         task_refs = flow.get_tasks()
         result_list = [state.result[tr]._result.value for tr in task_refs]
