@@ -199,10 +199,10 @@ class AppFrame(wx.Frame):
         for title, window in self.windowframes.items():
             if isinstance(window, PandasFrame) and id(window.GetData()) == obj_id:
                 logging.debug (f'selected: title={title}, obj_id={obj_id}, id={id(window.GetData())}')
-                return window
+                return title, window
             elif isinstance(window, matplotlib.figure.Figure) and id(window) == obj_id:
                 logging.debug (f'selected: title={title}, obj_id={obj_id}, id={id(window)}')
-                return window
+                return title, window
         return
         
         
@@ -521,9 +521,9 @@ class AppFrame(wx.Frame):
         if not event.mouseevent.dblclick:
             try:        
                 obj_id = int(event.artist.get_label())
-                window = self._get_window_frame(obj_id)
+                title, window = self._get_window_frame(obj_id)
                 if window:
-                    self._raise_window(window)
+                    self._raise_window(title, window)
                 else:
                     py_obj = ctypes.cast(obj_id, ctypes.py_object).value
                     if issubclass(type(py_obj), AbstractPlugin):
@@ -605,7 +605,7 @@ class AppFrame(wx.Frame):
         self.remove_figure_from_menu(event.canvas.figure)
         
     
-    def _raise_window(self, window, title=''):
+    def _raise_window(self, title, window):
         if isinstance(window,wx.Frame):
             window.Raise()
             if isinstance(window, PandasFrame) and self.window_zorder[-1] != title:
@@ -621,7 +621,7 @@ class AppFrame(wx.Frame):
         if self.windowframes.get(mitem.GetItemLabelText()):
             wintitle = mitem.GetItemLabelText()
             window = self.windowframes[wintitle]
-            self._raise_window(window, title=wintitle)
+            self._raise_window(wintitle, window)
         logging.debug(f"select window {self.window_zorder}")
 
         
