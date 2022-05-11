@@ -9,12 +9,12 @@ Created on Thu Dec 17 09:50:44 2020
 import numpy as np
 import pandas as pd
 import wx
+from importlib_resources import files
+
+from flim.plugin import plugin, ALL_FEATURES
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
-import wx
-from importlib_resources import files
 import flim.resources
-from flim.plugin import plugin, ALL_FEATURES
 
 
 

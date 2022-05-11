@@ -3,9 +3,7 @@
 # @Time  : 12/17/20 10:44 AM
 # @Author: Jiaxin_Zhang
 
-from flim.plugin import AbstractPlugin
-from flim.plugin import plugin
-
+import itertools
 import os
 import random
 import numpy as np
@@ -21,17 +19,23 @@ import torch.utils.data
 from torch.utils.data.dataset import Dataset
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
-import flim.analysis.ml.autoencoder as autoencoder
 import logging
-from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
-import flim.resources
 from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
 
+from flim.plugin import AbstractPlugin
+from flim.plugin import plugin
+import flim.resources
+import flim.analysis.ml.autoencoder as autoencoder
+from flim.gui.dialogs import BasicAnalysisConfigDlg
 
+
+def to_str_sequence(items):
+    return ",".join([str(i) for i in items])
+    
 class datasets(Dataset):
 
     def __init__(self, data, labels=[]):
@@ -83,12 +87,12 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         spinner_sizer.Add(batch_sizer)
 
         learning_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.learning_input = NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
+        self.learning_input = wx.TextCtrl(self.panel, wx.ID_ANY, value=to_str_sequence(self.learning_rate)) #NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
         learning_sizer.Add(wx.StaticText(self.panel, label="Learning Rate"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         learning_sizer.Add(self.learning_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         weight_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.weight_input = NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.weight_decay, fractionWidth=10)
+        self.weight_input = wx.TextCtrl(self.panel, wx.ID_ANY, value=to_str_sequence(self.weight_decay)) #NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.weight_decay, fractionWidth=10)
         weight_sizer.Add(wx.StaticText(self.panel, label="Weight Decay"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         weight_sizer.Add(self.weight_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
@@ -192,8 +196,8 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         params = super()._get_selected()
         params['epoches'] = self.epoches_spinner.GetValue()
         params['batch_size'] = self.batchsize_spinner.GetValue()
-        params['learning_rate'] = self.learning_input.GetValue()
-        params['weight_decay'] = self.weight_input.GetValue()
+        params['learning_rate'] = [float(i) for i in self.learning_input.GetValue().split(",")]
+        params['weight_decay'] = [float(i) for i in self.weight_input.GetValue().split(",")]
         params['timeseries'] = self.timeseries_combobox.GetValue()
         params['modelfile'] = self.modelfiletxt.GetLabel()
         params['model'] = self.model_combobox.GetValue()
@@ -238,12 +242,24 @@ class AETraining(AbstractPlugin):
     def get_required_features(self):
         return ["any","any"]
 
+    def get_parallel_parameters(self):
+        parallel_params = []
+        rates = self.params['learning_rate']
+        decays = self.params['weight_decay']
+        combinations = list(itertools.product(rates, decays))
+        for rate,decay in combinations:
+            param = self.params.copy()
+            param['learning_rate'] = [rate]
+            param['weight_decay'] = [decay]
+            parallel_params.append(param)
+        return parallel_params
+
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update({
 	        'epoches': 20, 
-	        'learning_rate': 1e-4, 
-	        'weight_decay': 1e-8, 
+	        'learning_rate': [1e-4], 
+	        'weight_decay': [1e-8], 
 	        'batch_size': 128,
 	        'timeseries': 'Treatment',
 	        'modelfile': '',
@@ -258,7 +274,18 @@ class AETraining(AbstractPlugin):
         return params
 	 
     def output_definition(self):
-        return {'Table: AE Loss': pd.DataFrame, 'Table: AE Decoded': pd.DataFrame, 'Table: AE Encoded': pd.DataFrame, 'Plot: AE Loss': matplotlib.figure.Figure, 'Model File': str}
+        output = {}
+        rates = self.params['learning_rate']
+        decays = self.params['weight_decay']
+        combinations = list(itertools.product(rates, decays))
+        for rate,decay in combinations:
+            output.update({
+                f'Table: AE Loss-{learning_rate}-{weight_decay}': pd.DataFrame, 
+                f'Table: AE Decoded-{learning_rate}-{weight_decay}': pd.DataFrame, 
+                f'Table: AE Encoded-{learning_rate}-{weight_decay}': pd.DataFrame, 
+                f'Plot: AE Loss-{learning_rate}-{weight_decay}': matplotlib.figure.Figure, 
+                f'Model File {learning_rate}-{weight_decay}': str})
+        return output
 
     def run_configuration_dialog(self, parent, data_choices={}):
         dlg = AETrainingConfigDlg(parent, f'Configuration: {self.name}', 
@@ -334,9 +361,20 @@ class AETraining(AbstractPlugin):
         return train_loader, val_loader, train_scaler, val_scaler, label_encoders
 
     def execute(self):
-        data = list(self.input.values())[0]
-        logging.info('Training started.')
+        rates = self.params['learning_rate']
+        decays = self.params['weight_decay']
+        combinations = list(itertools.product(rates, decays))
         train_loader, val_loader, train_scaler, val_scaler, label_encoders = self._create_datasets()
+        results = {}
+        for rate,decay in combinations:
+            r = self.train(rate, decay, train_loader, val_loader, train_scaler, val_scaler, label_encoders)
+            results.update(r)
+        return results
+    
+    def train(self, learning_rate, weight_decay, train_loader, val_loader, train_scaler, val_scaler, label_encoders):
+        data = list(self.input.values())[0]
+        model_file = f'{self.params["modelfile"]}-{learning_rate}-{weight_decay}'
+        logging.info('Training started.')
         aeclasses = autoencoder.get_autoencoder_classes()
         device = self.params['device']
         if self.params['device'] == 'cuda' and not torch.cuda.is_available():
@@ -345,7 +383,7 @@ class AETraining(AbstractPlugin):
         no_features = len(self.params['features'])    
         ae = autoencoder.create_instance(aeclasses[self.params['model']], nb_param=no_features).to(device)
         criterion = nn.MSELoss()#.cuda()
-        optimizer = optim.RMSprop(ae.parameters(), self.params['learning_rate'], self.params['weight_decay'])
+        optimizer = optim.RMSprop(ae.parameters(), learning_rate, weight_decay)
 
         loss_train = []
         loss_val = []
@@ -432,7 +470,7 @@ class AETraining(AbstractPlugin):
         logging.debug(f'loss_TrainingSet: {loss_train[-1]}')
         logging.debug(f'loss_TestSet: {loss_val[-1]}')
         logging.info('Training complete.')
-        torch.save(ae, self.params['modelfile'])
+        torch.save(ae, model_file)
 
         fig, ax = plt.subplots(constrained_layout=True)
         ax.plot(range(1,len(loss_train)+1), loss_train, 'b-', label='train-loss')
@@ -443,4 +481,9 @@ class AETraining(AbstractPlugin):
         ax.legend(['training', 'testing'], loc='upper right')
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         self._add_picker(fig)
-        return {'Table: AE Loss': loss_df, 'Table: AE Decoded': decoded_df, 'Table: AE Encoded': encoded_df, 'Plot: AE Loss': fig, 'Model File': self.params['modelfile']}
+        return {
+            f'Table: AE Loss-{learning_rate}-{weight_decay}': loss_df, 
+            f'Table: AE Decoded-{learning_rate}-{weight_decay}': decoded_df, 
+            f'Table: AE Encoded-{learning_rate}-{weight_decay}': encoded_df, 
+            f'Plot: AE Loss-{learning_rate}-{weight_decay}': fig, 
+            f'Model File {learning_rate}-{weight_decay}': model_file}

@@ -404,7 +404,7 @@ class AppFrame(wx.Frame):
         
         # get list of configure parameters for parallel processing
         parallel_params = tool.get_parallel_parameters()
-        with Flow(name="Interative Analysis") as flow:
+        with Flow(name="Interactive Analysis") as flow:
             for p in parallel_params:
                 tool(**p)
         
