@@ -303,7 +303,7 @@ class AETraining(AbstractAnalyzer):
         my_imputer = SimpleImputer(strategy="constant", fill_value=0)
         train_scaler = preprocessing.MinMaxScaler()
         
-        times = train_df[self.params['timeseries']].unique()
+        '''times = train_df[self.params['timeseries']].unique()
         time_training_set = None
         time_train_dset = None
         train_labels = pd.DataFrame(columns=allcat_columns)
@@ -322,27 +322,33 @@ class AETraining(AbstractAnalyzer):
         #print(len(train_labels))
         
         #time_training_set = np.asarray(time_training_set)
-        #np.reshape(time_training_set, train_df[self.params['features']].shape)
+        #np.reshape(time_training_set, train_df[self.params['features']].shape)'''
 
         training_set = train_df[self.params['features']].to_numpy(dtype=np.float32)
-        training_set = train_scaler.fit_transform(training_set)
+        train_scaler = train_scaler.fit(training_set)
+        training_set = train_scaler.transform(training_set)
         training_set = my_imputer.fit_transform(training_set)
-        #train_labels = train_df[allcat_columns]
+        train_labels = train_df[allcat_columns]
         #print(train_labels)
-        #train_dataset = datasets(time_training_set, labels=train_labels)
-        train_loader = torch.utils.data.DataLoader(dataset=time_train_dset,
+        train_dataset = datasets(training_set, labels=train_labels)
+        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                         batch_size=self.params['batch_size'],
                                                         shuffle=True)
         logging.debug(f'Training set shape: {training_set.shape}')
 
-        val_scaler = preprocessing.MinMaxScaler()
+        '''val_scaler = preprocessing.MinMaxScaler()
         time_val_set = None
         time_val_dset = None
         val_labels = pd.DataFrame(columns=allcat_columns)
         for t in times:
             t_df = val_df[val_df[self.params['timeseries']]==t]
+            t_scale_df = train_df[train_df[self.params['timeseries']]==t]
+            t_scale_set = t_scale_df[self.params['features']].to_numpy(dtype=np.float32)
             t_val_set = t_df[self.params['features']].to_numpy(dtype=np.float32)
-            t_val_set = train_scaler.fit_transform(t_val_set)
+            #t_val_set = train_scaler.fit_transform(t_val_set)
+            #prevent data leak to validation
+            t_val_scaler = train_scaler.fit(t_scale_set)
+            t_val_set = t_val_scaler.transform(t_val_set)
             t_val_set = my_imputer.fit_transform(t_val_set)
             if time_val_dset is None:
                 time_val_dset = datasets(t_val_set, labels=t_df[allcat_columns])
@@ -351,19 +357,20 @@ class AETraining(AbstractAnalyzer):
                 time_val_dset = time_val_dset.__add__(datasets(t_val_set, labels=t_df[allcat_columns]))
                 #time_val_set = np.append(time_val_set, t_val_set, axis=0)
             #print(t_df[allcat_columns])
-            #val_labels = pd.concat([train_labels, t_df[allcat_columns]])
+            #val_labels = pd.concat([train_labels, t_df[allcat_columns]])'''
 
         val_set = val_df[self.params['features']].to_numpy(dtype=np.float32)
-        val_set = val_scaler.fit_transform(val_set)
+        #use train scaler to decrease information leak from train to validation set
+        val_set = train_scaler.transform(val_set)
         val_set = my_imputer.fit_transform(val_set)
-        #val_labels = val_df[allcat_columns]
-        #val_dataset = datasets(time_val_set, labels=val_labels)
-        val_loader = torch.utils.data.DataLoader(dataset=time_val_dset,
+        val_labels = val_df[allcat_columns]
+        val_dataset = datasets(val_set, labels=val_labels)
+        val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
                                                         batch_size=self.params['batch_size'],
                                                         shuffle=True)
         logging.debug(f'Val set shape: {val_set.shape}')
                                                         
-        return train_loader, val_loader, train_scaler, val_scaler, label_encoders
+        return train_loader, val_loader, train_scaler, train_scaler, label_encoders
 
     def execute(self):
         logging.info('Training started.')
