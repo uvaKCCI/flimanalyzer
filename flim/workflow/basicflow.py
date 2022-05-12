@@ -558,7 +558,9 @@ class AEWorkflow(AbsWorkFlow):
         
         #listtask = List()
         datatask = DataBucket(name='Input')
-        aetraintask_10 = AETraining()
+        aetraintask_10 = AETraining(
+            learning_rate=[0.0001,0.0002],
+            weight_decay=[0.00000001,0.00000002],)
         aetraintask_14 = AETraining()
         simtask = AESimulate()
         aeruntask = RunAE()
@@ -594,20 +596,21 @@ class AEWorkflow(AbsWorkFlow):
             
             input = datatask(name='Input', input=self.input, input_select=[0])
             
-            filterresults1 = results_to_tasks(filtertask(input=input, input_select=[0]))
+            filterresults1 = results_to_tasks(filtertask(input=input, input_select=[0], category_filters={'Treatment': ['Ctrl', 'dox15']}))
 
             aeresults = results_to_tasks(aetraintask_10(input=filterresults1['Table: Filtered'], input_select=[0], 
                 grouping=['FOV', 'Cell'],
                 features=train_features_10, 
-                epochs=20,
-                learning_rate=0.0001,
-                weight_decay=0.00000001,
+                epoches=5,
+                learning_rate=[0.0001,0.0002],
+                weight_decay=[0.00000001,0.00000002],
                 batch_size=128,
                 timeseries='Treatment',
                 rescale=True,
                 model='Autoencoder 1',
                 modelfile=modelfile_10))
-
+            
+            """
             simresults = results_to_tasks(simtask(input=filterresults1['Table: Filtered'], input_select=[0], 
                 grouping=['FOV', 'Cell'], 
                 features=train_features_10, 
@@ -627,7 +630,7 @@ class AEWorkflow(AbsWorkFlow):
                 rescale=True,
                 model='Autoencoder 2',
                 modelfile=modelfile_14))
-            
+            """
         return flow
 
         

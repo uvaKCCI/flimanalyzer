@@ -43,9 +43,10 @@ class FilterConfigDlg(BasicAnalysisConfigDlg):
     def _get_selected(self):
         #self.cfggrid.EnableEditing(False)
         params = super()._get_selected()
-        params['range filters'] = self.filter_params
+        params['category_filters'] = {}
+        params['range_filters'] = self.filter_params
         params['use'] = self.use
-        params['show dropped'] = self.show_dropped
+        params['show_dropped'] = self.show_dropped
         params['inplace'] = self.inplace # leave unchanged
         return params
 
@@ -145,9 +146,10 @@ class Filter(AbstractPlugin):
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update({
-            'range filters': self._update_filter_params(None),
+            'category_filters': {},
+            'range_filters': self._update_filter_params(None),
             'use': True,
-            'show dropped': False,
+            'show_dropped': False,
             'inplace': False,
         })
         return params
@@ -157,7 +159,7 @@ class Filter(AbstractPlugin):
         
     def run_configuration_dialog(self, parent, data_choices={}):
         data = list(self.input.values())[0]
-        filter_params = self._update_filter_params(data, self.params['range filters'])
+        filter_params = self._update_filter_params(data, self.params['range_filters'])
         logging.debug (filter_params)
         inplace = self.params['inplace']
                 
@@ -179,7 +181,11 @@ class Filter(AbstractPlugin):
             data = data.copy()
         
         droppedrows = {}
-        filter_params = {f['name']:f for f in self._update_filter_params(data, self.params['range filters'])}
+        for cat,values in self.params['category_filters'].items():
+            drop_values = [v for v in data[cat].unique() if v not in values]
+            droppedrows[cat] = np.flatnonzero(data[cat].isin(drop_values))
+            
+        filter_params = {f['name']:f for f in self._update_filter_params(data, self.params['range_filters'])}
         for fname in filter_params:
             filter = RangeFilter(params=filter_params[fname])
             if filter.is_selected():

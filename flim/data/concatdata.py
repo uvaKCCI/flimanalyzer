@@ -102,6 +102,7 @@ class Concatenator(AbstractPlugin):
             'input': {},
             'type': False,
             'numbers_only': False,
+            'source_suffix': True,
         })
         return params
             
@@ -130,7 +131,7 @@ class Concatenator(AbstractPlugin):
             numbers_only=numbers_only)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
-            return # implicit None
+            return
         self.params = dlg.get_selected()
         self.configure(**self.params)
         return self.params    
@@ -138,20 +139,22 @@ class Concatenator(AbstractPlugin):
     def execute(self):
         results = {}
         #input = self.params['input']
-        cattype = self.params['type']
-        if cattype: #horizontal
-            caxis = 1
-        else:
-            caxis = 0
-        if self.params['type'] and self.params['numbers_only']:
-            # horizontal concat
+        horizontal = self.params['type']
+        caxis = 1 if horizontal else 0
+        #if horizontal:
+        #    caxis = 1
+        #else:
+        #    caxis = 0
+        if horizontal and self.params['numbers_only']:
             # for df #2 and higher, select numeric columns only
-            data = [df.select_dtypes(np.number) if i!=0 else df for i,df in enumerate(self.input.values()) ]
+            data = [df.select_dtypes(np.number) if i!=0 else df for i,df in enumerate(self.input.values())]
+            concat_df = pd.concat(data, axis=caxis, copy=True)
         else:    
-            #vertical concat
-            data = [df.select_dtypes(np.number) for df in list(self.input.values())]
-            #data = list(self.input.values())
-        concat_df = pd.concat(data, axis=caxis, copy=True)
+            # data = [df for df in list(self.input.values())]
+            data = list(self.input.values())
+            concat_df = pd.concat(data, axis=caxis, copy=True, keys=list(self.input.keys()), names=['Source', 'Old Index']).reset_index()
+            concat_df = concat_df.drop('Old Index', axis=1)
+            concat_df['Source'] = concat_df['Source'].astype('category') 
         results['Table: Concatenated'] = concat_df
         return results
             

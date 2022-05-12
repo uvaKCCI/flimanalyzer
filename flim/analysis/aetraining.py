@@ -280,11 +280,11 @@ class AETraining(AbstractPlugin):
         combinations = list(itertools.product(rates, decays))
         for rate,decay in combinations:
             output.update({
-                f'Table: AE Loss-{learning_rate}-{weight_decay}': pd.DataFrame, 
-                f'Table: AE Decoded-{learning_rate}-{weight_decay}': pd.DataFrame, 
-                f'Table: AE Encoded-{learning_rate}-{weight_decay}': pd.DataFrame, 
-                f'Plot: AE Loss-{learning_rate}-{weight_decay}': matplotlib.figure.Figure, 
-                f'Model File {learning_rate}-{weight_decay}': str})
+                f'Table: AE Loss-{rate}-{decay}': pd.DataFrame, 
+                f'Table: AE Decoded-{rate}-{decay}': pd.DataFrame, 
+                f'Table: AE Encoded-{rate}-{decay}': pd.DataFrame, 
+                f'Plot: AE Loss-{rate}-{decay}': matplotlib.figure.Figure, 
+                f'Model File {rate}-{decay}': str})
         return output
 
     def run_configuration_dialog(self, parent, data_choices={}):
