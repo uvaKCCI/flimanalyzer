@@ -40,6 +40,8 @@ class datasets(Dataset):
     def __getitem__(self, index):
         single_item = self.data[index]
         item_label = self.labels[index]
+        #print(single_item, type(single_item))
+        #print(item_label, type(item_label))
         return single_item, item_label
 
     def __len__(self):
@@ -300,19 +302,22 @@ class AETraining(AbstractAnalyzer):
         # normalize data, create dataloaders
         my_imputer = SimpleImputer(strategy="constant", fill_value=0)
         train_scaler = preprocessing.MinMaxScaler()
+
         training_set = train_df[self.params['features']].to_numpy(dtype=np.float32)
-        training_set = train_scaler.fit_transform(training_set)
+        train_scaler = train_scaler.fit(training_set)
+        training_set = train_scaler.transform(training_set)
         training_set = my_imputer.fit_transform(training_set)
         train_labels = train_df[allcat_columns]
+        #print(train_labels)
         train_dataset = datasets(training_set, labels=train_labels)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                         batch_size=self.params['batch_size'],
                                                         shuffle=True)
         logging.debug(f'Training set shape: {training_set.shape}')
 
-        val_scaler = preprocessing.MinMaxScaler()
         val_set = val_df[self.params['features']].to_numpy(dtype=np.float32)
-        val_set = val_scaler.fit_transform(val_set)
+        #use train scaler to decrease information leak from train to validation set
+        val_set = train_scaler.transform(val_set)
         val_set = my_imputer.fit_transform(val_set)
         val_labels = val_df[allcat_columns]
         val_dataset = datasets(val_set, labels=val_labels)
@@ -321,7 +326,7 @@ class AETraining(AbstractAnalyzer):
                                                         shuffle=True)
         logging.debug(f'Val set shape: {val_set.shape}')
                                                         
-        return train_loader, val_loader, train_scaler, val_scaler, label_encoders
+        return train_loader, val_loader, train_scaler, train_scaler, label_encoders
 
     def execute(self):
         logging.info('Training started.')
