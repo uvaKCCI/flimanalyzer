@@ -302,27 +302,6 @@ class AETraining(AbstractAnalyzer):
         # normalize data, create dataloaders
         my_imputer = SimpleImputer(strategy="constant", fill_value=0)
         train_scaler = preprocessing.MinMaxScaler()
-        
-        '''times = train_df[self.params['timeseries']].unique()
-        time_training_set = None
-        time_train_dset = None
-        train_labels = pd.DataFrame(columns=allcat_columns)
-        for t in times:
-            t_df = train_df[train_df[self.params['timeseries']]==t]
-            t_training_set = t_df[self.params['features']].to_numpy(dtype=np.float32)
-            t_training_set = train_scaler.fit_transform(t_training_set)
-            t_training_set = my_imputer.fit_transform(t_training_set)
-            if time_train_dset is None:
-                time_train_dset = datasets(t_training_set, labels=t_df[allcat_columns])
-            else:
-                time_train_dset = time_train_dset.__add__(datasets(t_training_set, labels=t_df[allcat_columns]))
-                #time_training_set = np.append(time_training_set, t_training_set, axis=0)
-            #print(t_df[allcat_columns])
-            #train_labels = pd.concat([train_labels, t_df[allcat_columns]])
-        #print(len(train_labels))
-        
-        #time_training_set = np.asarray(time_training_set)
-        #np.reshape(time_training_set, train_df[self.params['features']].shape)'''
 
         training_set = train_df[self.params['features']].to_numpy(dtype=np.float32)
         train_scaler = train_scaler.fit(training_set)
@@ -335,29 +314,6 @@ class AETraining(AbstractAnalyzer):
                                                         batch_size=self.params['batch_size'],
                                                         shuffle=True)
         logging.debug(f'Training set shape: {training_set.shape}')
-
-        '''val_scaler = preprocessing.MinMaxScaler()
-        time_val_set = None
-        time_val_dset = None
-        val_labels = pd.DataFrame(columns=allcat_columns)
-        for t in times:
-            t_df = val_df[val_df[self.params['timeseries']]==t]
-            t_scale_df = train_df[train_df[self.params['timeseries']]==t]
-            t_scale_set = t_scale_df[self.params['features']].to_numpy(dtype=np.float32)
-            t_val_set = t_df[self.params['features']].to_numpy(dtype=np.float32)
-            #t_val_set = train_scaler.fit_transform(t_val_set)
-            #prevent data leak to validation
-            t_val_scaler = train_scaler.fit(t_scale_set)
-            t_val_set = t_val_scaler.transform(t_val_set)
-            t_val_set = my_imputer.fit_transform(t_val_set)
-            if time_val_dset is None:
-                time_val_dset = datasets(t_val_set, labels=t_df[allcat_columns])
-                #time_val_set = t_val_set
-            else:
-                time_val_dset = time_val_dset.__add__(datasets(t_val_set, labels=t_df[allcat_columns]))
-                #time_val_set = np.append(time_val_set, t_val_set, axis=0)
-            #print(t_df[allcat_columns])
-            #val_labels = pd.concat([train_labels, t_df[allcat_columns]])'''
 
         val_set = val_df[self.params['features']].to_numpy(dtype=np.float32)
         #use train scaler to decrease information leak from train to validation set
