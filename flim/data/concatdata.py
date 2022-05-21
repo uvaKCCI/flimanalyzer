@@ -152,8 +152,10 @@ class Concatenator(AbstractPlugin):
         else:    
             # data = [df for df in list(self.input.values())]
             data = list(self.input.values())
+            catcols = list(dict.fromkeys([c for d in data for c in d.select_dtypes(['category']).columns.values]))
             concat_df = pd.concat(data, axis=caxis, copy=True, keys=list(self.input.keys()), names=['Source', 'Old Index']).reset_index()
             concat_df = concat_df.drop('Old Index', axis=1)
+            concat_df[catcols] = concat_df[catcols].astype('category') 
             concat_df['Source'] = concat_df['Source'].astype('category') 
         results['Table: Concatenated'] = concat_df
         return results

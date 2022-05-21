@@ -10,11 +10,26 @@ import inspect
 import os
 import pkgutil
 import importlib
-from abc import ABC, abstractmethod
-from prefect import Task
 import pandas as pd
 import matplotlib.figure
-import os
+import typing
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Union,
+    Tuple,
+    Type,
+)
+from abc import ABC, abstractmethod
+from prefect import Task
 
 
 PLUGINS = {}
@@ -131,30 +146,31 @@ def create_instance(clazz):
 
 
 class AbstractPlugin(Task):
-    """Abstract class used to template analysis classes."""
+    """Abstract class used to template plugins for data manipulation, analysis, plotting."""
 
-    def __init__(self, name=__name__, input=input, input_select=None, **kwargs):
+    def __init__(self, 
+        name: str =__name__, 
+        input: Dict[str,Any] = input, 
+        input_select: str = None, 
+        **kwargs
+        ):
         """Initializes AbstractPlugin class with input and configuration parameters
         
         Args:
-            input_select: list of input indices (if input is list) or list of strings (if input is dict)
+            name (str): display name
+            input (Dict[str: Any]): data to process 
+            input_select (List[int|str]): list of input indices (if input is list) or list of strings (if input is dict)
             kwargs: configuration parameters
         """
         # get plugin specific defaults, pass non-plugin kwargs to superclass 
         self.params = self.get_default_parameters()
         superkwargs = {k:v for k,v in kwargs.items() if k not in self.params}
         super().__init__(name=name, **superkwargs)
-        #self.name = __name__
         # update plugin-specific kwargs
         self.params.update({k:v for k,v in kwargs.items() if k in self.params})        
         self.set_input(input, input_select)
         
-        #self.name = __name__
-        #self.data = data
-        #self.params = self.get_default_parameters()
-        #self.params.update({**kwargs})
-        
-    def set_input(self, input, input_select=None):
+    def set_input(self, input: dict, input_select: str = None) -> dict:
         input_labels = None
         if isinstance(input,dict):
             if input_select is not None:
@@ -174,47 +190,16 @@ class AbstractPlugin(Task):
         logging.debug (f'Setting input for {self.name} to {type(self.input)}')
         return input
 
-    """
-    def set_input(self, input, input_select=None):
-        input_labels = None
-        if isinstance(input,dict):
-            input_labels = list(input.keys())
-            if input_select is None or isinstance(input_select[0], int):
-                input = list(input.values())
-            else:
-                # convert to list
-                input = [input[k] for k in input_select]
-                # convert to list of int
-                input_select = range(len(input_select))
-        if isinstance(input,list):
-            if input_labels is None:
-                input_labels = ['Data'] * len(input)
-            if input_select is None:
-            	self.input = input
-            	self.input_labels = input_labels
-            elif len(input_select) == 1 and max(input_select) < len(input):
-                self.input = input[input_select[0]]
-                self.input_labels = input_labels[input_select[0]]
-            else:
-                self.input = [input[i] for i in input_select if i < len(input)]
-                self.input_labels = [input_labels[i] for i in input_select if i < len(input_labels)]
-        else:
-            # single input, ignore input_select
-            self.input = [input]
-            self.input_labels = ['Data']
-        logging.debug (f'Setting input for {self.name} to {type(self.input)}')
-    """
-    
-    def get_description(self):
+    def get_description(self) -> str:
         """Returns a description for this analyzing module. This may include instructions on how to use the parameters.
 
         Returns:
-            String: the description.
+            str: the description.
 
         """
         return self.name
             
-    def get_icon(self):
+    def get_icon(self) -> Any:
         """Returns icon for this analysis.
 
         Returns:
@@ -222,9 +207,8 @@ class AbstractPlugin(Task):
 
         """
         return wx.ArtProvider.GetBitmap(wx.ART_EXECUTABLE_FILE)
-        
-        
-    def _fix_label(self, label):
+                
+    def _fix_label(self, label: str) -> str:
         """Removes special characters from label string.
         
         Args:
@@ -241,12 +225,11 @@ class AbstractPlugin(Task):
                 label = str(label)
         return str(label).replace('\'','').replace('(','').replace(')','')
     	
-    	
-    def _add_picker(self, figure):
+    def _add_picker(self, figure: matplotlib.figure.Figure) ->  None:
         """Enables picker to figure's axes, their children and grandchildren.
         
         Args:
-            figure (Figure): the figure for which the pickers will be enabled. 
+            figure (matplotlib.figure.Figure): the figure for which the pickers will be enabled. 
         """
         
         ax_list = figure.axes
@@ -260,64 +243,110 @@ class AbstractPlugin(Task):
         	ax.set_xlabel(ax.get_xlabel(), picker=True)
         	ax.set_ylabel(ax.get_ylabel(), picker=True)
 
-
     def __repr__(self):
         return f'<{type(self).__name__}>: {self.name}'
 
     def __str__(self):
         return self.name
 
-    def get_default_parameters(self):
-        return {'grouping': [], 'features': [], 'input': {}}
+    def get_default_parameters(self) -> dict:
+        """Provides the plugin's default parameters.
+        
+        Returns:
+            dict: default parameters
+        """
+        defaults = {
+            'grouping': [], 
+            'features': [], 
+            'input': {},
+            'auto_save': False,
+            'working_dir': '',
+            }      
+        return defaults
 
-    def get_parameters(self):
+    def get_parameters(self) -> dict:
+        """Defines the plugins current parameters.
+        
+        Returns:
+            dict: current parameters
+        """     
         return self.params
         
-    def get_parallel_parameters(self):
+    def get_parallel_parameters(self) -> List[Dict[str, Any]]:
+        """Provides a list of the plugins current parameters. Each list item defines a 
+        parameters for the smallest independent work unit. The list can be mapped for
+        parallel flow execution.
+        
+        Returns:
+            list[dict]: list of current parameters
+        """     
         return [self.params]
 
-    def get_config_name(self):
+    def get_config_name(self) -> str:
+        """Returns a string copy of plugin's name (self.name) in which whitespaces and non alphanumeric 
+        characters have been removed. It's used to defines the plugin's identifier in the
+        config file.
+        
+        Returns:
+           str: cleaned up plugin name
+        """
         return ''.join(e for e in self.name if e.isalnum())
 
     @abstractmethod
-    def get_required_categories(self):
+    def get_required_categories(self) -> List[str]:
         """Returns the category column names that are required in the input to be analyzed. 
         
         Category columns use 'category' as dtype in Pandas DataFrame.
         
         Returns:
-            list(str): List of column names.
+            list(str): list of column names.
         """
         return []
     
     @abstractmethod
-    def get_required_features(self):
+    def get_required_features(self) -> List[str]:
         """Returns the non-category column names that are required in the input to be analyzed. 
         
         Non-category columns are all those columns that do not use 'category' as dtype in Pandas dataframe.
 
         Returns:
-            list(str): List of column names.
+            list(str): list of column names.
         """
         return ['any']
     
-    def run_configuration_dialog(self, parent, data_choices={}):
-        """Executes the anaylzer's configuration dialog.
+    def run_configuration_dialog(self, parent: Any, data_choices: Dict[str, Any] = {}) -> Dict[str, Any]:
+        """Executes the plugin's configuration dialog.
         
         The dialog is initialized with values of the analyzer's Config object.
         
+        Args:
+            parent: parent GUI element
+            data_choices (dict): available data tables to choose from. Keys correspond to 
+                table names; values correspond to DataFrame objects.
+                
         Returns:
-            dict: The specified key:value pairs.
+            dict: The key:value pairs of specified config parameters.
         """    
         return {}
 
-    def input_definition(self):
+    def input_definition(self) -> List[Type]:
+        """Provides type definition of plugin's required input.
+        
+        Returns:
+            list[type]: list of object types
+        """
         return [pd.DataFrame]
         
-    def output_definition(self):
+    def output_definition(self) -> Dict[str, Type]:
+        """Provides type definition of plugin's execute method.
+        
+        Returns:
+            dict[type]: keys describe output object labels; values represent corresponding
+                object types
+        """
         return {f'Data: {self.name}':pd.DataFrame}
         
-    def configure(self, input=input, input_select=None, **kwargs):
+    def configure(self, input: dict = input, input_select: str = None, **kwargs):
         """Updates the configuration with the passed arguments.
         
         The configuration is updated not replaced, i.e values of matching keys are 
@@ -362,7 +391,7 @@ class DataBucket(AbstractPlugin):
             return 'Data'
          
     def output_definition(self):
-        return {self.name: None}
+        return {self.name: Any}
         
     #def configure(self, **kwargs):
     #    super().configure(**kwargs)
@@ -384,7 +413,7 @@ class DataBucket(AbstractPlugin):
         #results = self.input.values()
         #for k,v in self.input.items():
         #    print (f'\tk={k}, type(v)={type(v)}')
-        return self.input
+        return next(iter(self.input.values()))
         
         
 # auto run on import to populate the PLUGIN dictionary

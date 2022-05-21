@@ -121,7 +121,7 @@ class Filter(AbstractPlugin):
         return []
     
     def get_icon(self):
-        source = files(flim.resources).joinpath('concatenate.png')
+        source = files(flim.resources).joinpath('filter.png')
         return wx.Bitmap(str(source))
         
     def get_required_features(self):

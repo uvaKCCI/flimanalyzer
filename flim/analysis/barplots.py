@@ -156,7 +156,7 @@ class BarPlot(AbstractPlugin):
             return None
 
     def get_parallel_parameters(self):
-        if self.params['bartype'] == 'single':
+        if self.params['bar_type'] == 'single':
             parallel_params = []
             for f in self.params['features']:
                 pair_param = self.params.copy()
@@ -224,9 +224,9 @@ class BarPlot(AbstractPlugin):
                 error = [[np.zeros_like(error_vals), error_vals]]
             ticklabels = ''#mean.index.values
             if self.params['orientation'] == 'horizontal':
-                mean.plot.barh(ax=ax, xerr=error, stacked=stacked, capsize=capsize, barsabove=True)#,figsize=fsize,width=0.8)
+                mean.plot.barh(ax=ax, xerr=error, stacked=stacked, capsize=capsize)#, barsabove=True)#,figsize=fsize,width=0.8)
             else:
-                mean.plot.bar(ax=ax, yerr=error, stacked=stacked, capsize=capsize, barsabove=True)#,figsize=fsize,width=0.8)            
+                mean.plot.bar(ax=ax, yerr=error, stacked=stacked, capsize=capsize)#, barsabove=True)#,figsize=fsize,width=0.8)            
         else:    
             cols = [c for c in categories]
             cols.extend(feature)

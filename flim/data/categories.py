@@ -7,6 +7,7 @@ Created on Wed Dec 16 14:18:30 2020
 """
 
 import logging
+import itertools
 import wx
 import wx.grid
 from wx.lib.masked import NumCtrl
@@ -14,13 +15,12 @@ import pandas as pd
 from importlib_resources import files
 from itertools import groupby
 
-
+import flim.resources
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
 from flim.gui.dicttablepanel import DictTable, ListTable
 from flim.gui.datapanel import PandasTable
 from flim.gui.dialogs import BasicAnalysisConfigDlg
-import flim.resources
 
 
 class TablePanel(wx.Panel):
@@ -114,22 +114,35 @@ class TablePanel(wx.Panel):
       
 class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, data, categories={}, inplace=False):
+    def __init__(self, parent, title, input, categories={}, inplace=False):
+        self.data = next(iter(input.values()))
         self.categories = categories
         self.inplace = inplace
 
-        super().__init__(parent, title, data, enablegrouping=False, enablefeatures=False, optgridrows=1, optgridcols=0)
+        super().__init__(parent, title, input, enablegrouping=False, enablefeatures=False, optgridrows=0, optgridcols=1)
 		    
     def get_option_panels(self):
+        if self.data.select_dtypes(['category']).columns.nlevels == 1:
+            categories = [c for c in list(self.data.select_dtypes(['category']).columns.values)]
+        else:
+            categories = [c for c in list(self.data.select_dtypes(['category']).columns.get_level_values(0).values)]
+        combolist = list(itertools.permutations(categories,len(categories)))
+        groupings = [', '.join(c) for c in combolist]
+        self.order_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=', '.join(categories), choices=groupings)
+    
         nb = wx.Notebook(self.panel)
         self.tabpanels = {}
         for cat in self.categories:
             self.tabpanels[cat] = TablePanel(nb, cat, self.categories[cat]['values'], self.categories[cat]['sort'])
             nb.AddPage(self.tabpanels[cat], cat)        
         
+        gsizer= wx.BoxSizer(wx.HORIZONTAL)
+        label = wx.StaticText(self.panel, wx.ID_ANY, "Category order")
+        gsizer.Add(label, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        gsizer.Add(self.order_combobox, 1, wx.EXPAND, 5)
+        
         fsizer = wx.BoxSizer(wx.VERTICAL)
-        label = wx.StaticText(self.panel, wx.ID_ANY, "Category columns")
-        fsizer.Add(label, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        fsizer.Add(gsizer)
         fsizer.Add(nb, 1, wx.EXPAND, 5)
 
         return [fsizer]
@@ -139,7 +152,8 @@ class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
         catparams = {}
         for cat in self.categories:
             catparams.update(self.tabpanels[cat].get_params())
-        params['categories'] = catparams
+        corder = self.order_combobox.GetValue().split(', ')
+        params['categories'] = {c: catparams[c] for c in corder}
         params['inplace'] = self.inplace # leave unchanged
         return params
 
@@ -160,7 +174,7 @@ class CategoryOrder(AbstractPlugin):
         return []
     
     def get_icon(self):
-        source = files(flim.resources).joinpath('concatenate.png')
+        source = files(flim.resources).joinpath('order.png')
         return wx.Bitmap(str(source))
         
     def get_required_features(self):
@@ -215,6 +229,7 @@ class CategoryOrder(AbstractPlugin):
         
     def execute(self):
         data = list(self.input.values())[0]
+        catcols = data.select_dtypes(['category']).columns.values
         if not self.params['inplace']:
             data = data.copy()
         results = {}
@@ -223,6 +238,14 @@ class CategoryOrder(AbstractPlugin):
         #concat_df = pd.concat(data, axis=0, copy=True)
         #results['Concatenated'] = concat_df
         catparams = self.params['categories']
+        newcatorder = list(catparams.keys())
+        neworder = []
+        for c in data.columns.values:
+            if c in catparams.keys():
+                neworder.append(newcatorder.pop(0))
+            else:
+                neworder.append(c)
+        data = data[neworder]
         for cat in catparams:
             data[cat] = pd.Categorical(data[cat], 
                       categories=catparams[cat]['values'],

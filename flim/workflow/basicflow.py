@@ -6,19 +6,35 @@ Created on Wed Dec 16 14:35:56 2020
 @author: khs3z
 """
 
-from abc import ABC, abstractmethod
-from flim.plugin import plugin
-
 import json
 import logging
 import inspect
 import os
 import pkgutil
 import importlib
-from importlib_resources import files
+import numpy as np
+import pandas as pd
 import wx
+import graphviz
+import networkx as nx
+import networkx.drawing.nx_pydot
+import networkx.drawing.nx_agraph
+import networkx.classes.function
+import pydot
+import matplotlib.pyplot as plt
+from abc import ABC, abstractmethod
+from importlib_resources import files
+from prefect import Task, Flow, Parameter, task
+from prefect.tasks.core.constants import Constant
+from prefect.tasks.core.collections import List
+from prefect.executors import DaskExecutor
+from prefect.executors.base import Executor
+
+import flim.resources
+from flim.plugin import plugin
 from flim.plugin import AbstractPlugin, DataBucket, ALL_FEATURES
-from flim.data.tableops import Pivot
+from flim.data.pivotdata import Pivot
+from flim.data.unpivotdata import UnPivot
 from flim.data.filterdata import Filter
 from flim.data.concatdata import Concatenator
 from flim.data.mergedata import Merger
@@ -30,6 +46,7 @@ from flim.analysis.heatmap import Heatmap
 from flim.analysis.kde import KDE
 from flim.analysis.kmeans import KMeansClustering
 from flim.analysis.ksstats import KSStats
+from flim.analysis.lineplots import LinePlot
 from flim.analysis.seriesanalyzer import SeriesAnalyzer
 from flim.analysis.summarystats import SummaryStats
 from flim.analysis.relativechange import RelativeChange
@@ -39,22 +56,8 @@ from flim.analysis.barplots import BarPlot
 from flim.analysis.lineplots import LinePlot
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 from flim.core.graph import WorkflowGraph
-import flim.resources
-import numpy as np
 
-from prefect import Task, Flow, Parameter, task
-from prefect.tasks.core.constants import Constant
-from prefect.tasks.core.collections import List
-from prefect.executors import DaskExecutor
-from prefect.executors.base import Executor
 
-import graphviz
-import networkx as nx
-import networkx.drawing.nx_pydot
-import networkx.drawing.nx_agraph
-import networkx.classes.function
-import pydot
-import matplotlib.pyplot as plt
 
 
 class AbsWorkFlow(AbstractPlugin):
@@ -207,6 +210,7 @@ def results_to_tasks(task_in):
     out_tasks = {}
     for i, output_name in enumerate(task_in.output_definition()):
         datatask = DataBucket()#task_in, name=output_name, task_run_name="Hello")
+        #out_tasks[output_name] = datatask(name=output_name, task_run_name="Hello", input=task_in, input_select=[i])
         out_tasks[output_name] = datatask(name=output_name, task_run_name="Hello", input=task_in, input_select=[i])
     # out_tasks = {k:datatask(name=k, data=task_in, input_select=[i]) for i, k in enumerate(task_in.output_definition())}
     # print (f'out_tasks={out_tasks}')
@@ -535,7 +539,7 @@ class StdFLIMWorkflow(AbsWorkFlow):
 @plugin(plugintype="Workflow")        
 class AEWorkflow(AbsWorkFlow):
 
-    def __init__(self, name="FLIM Autoencoder", **kwargs):
+    def __init__(self, name="FLIM AE Tuning", **kwargs):
         super().__init__(name=name, **kwargs)
         #self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
 
@@ -556,11 +560,23 @@ class AEWorkflow(AbsWorkFlow):
         sel_features = self.params['features']
         all_features = [c for c in data.select_dtypes(include=np.number)]
         
+        rates = [0.0001, 0.00015]#, 0.0002]
+        decays = [0.00000001, 0.000000015]#, 0.00000002]
+        batch_sizes = [128, 256]#, 512]
+        
         #listtask = List()
         datatask = DataBucket(name='Input')
         aetraintask_10 = AETraining(
-            learning_rate=[0.0001,0.0002],
-            weight_decay=[0.00000001,0.00000002],)
+            learning_rate=rates,
+            weight_decay=decays,
+            batch_size=batch_sizes,
+            )
+        concattask = Concatenator()
+        summarytask = SummaryStats()
+        unpivottask = UnPivot()
+        lineplottask = LinePlot()
+        barplottask = BarPlot()
+        
         aetraintask_14 = AETraining()
         simtask = AESimulate()
         aeruntask = RunAE()
@@ -568,7 +584,6 @@ class AEWorkflow(AbsWorkFlow):
         pcatask = PCAnalysis()
         stask = SummaryStats()#, log_stdout=True)
         heatmaptask = Heatmap()
-        concattask = Concatenator()
         pivottask = Pivot()
         seriestask = SeriesAnalyzer()
         bartask = BarPlot(bar_type='100% stacked', features=['Feature 1\nmean\ndelta Ctrl:dox30', 'Feature 1\nmean\ndelta dox30:dox45', 'Feature 1\nmean\ndelta dox45:dox60'])
@@ -581,7 +596,7 @@ class AEWorkflow(AbsWorkFlow):
             #input = Parameter('input', default=data)
             modelfile_10 = Parameter('modelfile: 10', default='AETrain-10.model')
             modelfile_14 = Parameter('modelfile: 14', default='AETrain-14.model')
-
+            
             train_features_10 = Parameter('features: 10', default=[
                 'FAD a1', 'FAD a2', 'FAD t1', 'FAD t2', 'FAD photons', 
                 'NAD(P)H a1','NAD(P)H a2', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
@@ -596,19 +611,63 @@ class AEWorkflow(AbsWorkFlow):
             
             input = datatask(name='Input', input=self.input, input_select=[0])
             
-            filterresults1 = results_to_tasks(filtertask(input=input, input_select=[0], category_filters={'Treatment': ['Ctrl', 'dox15']}))
+            filterresults1 = results_to_tasks(filtertask(
+                input=input, 
+                input_select=[0], 
+                category_filters={'Treatment': ['Ctrl', 'dox15']}
+                ))
 
-            aeresults = results_to_tasks(aetraintask_10(input=filterresults1['Table: Filtered'], input_select=[0], 
+            aeresults = results_to_tasks(aetraintask_10(
+                input=filterresults1['Table: Filtered'], 
+                input_select=[0], 
                 grouping=['FOV', 'Cell'],
                 features=train_features_10, 
-                epoches=5,
-                learning_rate=[0.0001,0.0002],
-                weight_decay=[0.00000001,0.00000002],
-                batch_size=128,
+                epoches=10,
+                learning_rate=rates,
+                weight_decay=decays,
+                batch_size=batch_sizes,
                 timeseries='Treatment',
                 rescale=True,
                 model='Autoencoder 1',
-                modelfile=modelfile_10))
+                modelfile=modelfile_10
+                ))
+            
+            loss_tables = [k for k,output in aeresults.items() if 'Table: AE Loss' in k]
+            concatresults = results_to_tasks(concattask(
+                input=aeresults, 
+                input_select=loss_tables, 
+                type=False)
+                )
+            
+            summaryresults = results_to_tasks(summarytask(
+                input=concatresults, 
+                input_select=[0],
+                grouping=['Source', 'Batch Size', 'Learning Rate', 'Weight Decay'],
+                features=['Training Loss', 'Validation Loss'], 
+                singledf=True, 
+                aggs=['min']
+                ))
+            
+            unpivotresults = results_to_tasks(unpivottask(
+                input=concatresults, 
+                input_select=[0],
+                features=['Training Loss', 'Validation Loss'], 
+                category_name='Loss Type',
+                feature_name='Loss Value',
+                ))
+            lineplotresults = results_to_tasks(lineplottask(
+                input=unpivotresults, 
+                input_select=[0],
+                grouping = ['Epoch', 'Loss Type', 'Batch Size', 'Learning Rate', 'Weight Decay'],
+                features = ['Loss Value']
+                ))
+
+            barplotresults = results_to_tasks(barplottask(
+                input=concatresults, 
+                input_select=[0],
+                grouping = ['Epoch', 'Batch Size', 'Learning Rate', 'Weight Decay'],
+                features = ['Training Loss', 'Validation Loss']
+                ))
             
             """
             simresults = results_to_tasks(simtask(input=filterresults1['Table: Filtered'], input_select=[0], 

@@ -7,6 +7,7 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import pandas as pd
 
+        
 @plugin(plugintype="Data")
 class Pivot(AbstractPlugin):
 

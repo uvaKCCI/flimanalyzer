@@ -78,9 +78,10 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         epoches_sizer.Add(self.epoches_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
         
         batch_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.batchsize_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=4096,initial=self.batch_size)
+        #self.batchsize_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=4096,initial=self.batch_size)
+        self.batchsize_input = wx.TextCtrl(self.panel, wx.ID_ANY, value=to_str_sequence(self.batch_size)) #NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
         batch_sizer.Add(wx.StaticText(self.panel, label="Batch Size"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        batch_sizer.Add(self.batchsize_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        batch_sizer.Add(self.batchsize_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
         spinner_sizer = wx.BoxSizer(wx.VERTICAL)
         spinner_sizer.Add(epoches_sizer)
@@ -168,7 +169,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         
     def _update_model_info(self, event):
         modelname = self.model_combobox.GetValue()
-        batch_size = self.batchsize_spinner.GetValue()
+        #batch_size = self.batchsize_spinner.GetValue()
         aeclasses = autoencoder.get_autoencoder_classes()
         sel_features = [self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()]
         ae = autoencoder.create_instance(aeclasses[modelname], nb_param=len(sel_features))
@@ -195,7 +196,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
     def _get_selected(self):
         params = super()._get_selected()
         params['epoches'] = self.epoches_spinner.GetValue()
-        params['batch_size'] = self.batchsize_spinner.GetValue()
+        params['batch_size'] = [int(i) for i in self.batchsize_input.GetValue().split(",")]
         params['learning_rate'] = [float(i) for i in self.learning_input.GetValue().split(",")]
         params['weight_decay'] = [float(i) for i in self.weight_input.GetValue().split(",")]
         params['timeseries'] = self.timeseries_combobox.GetValue()
@@ -244,11 +245,13 @@ class AETraining(AbstractPlugin):
 
     def get_parallel_parameters(self):
         parallel_params = []
+        sizes = self.params['batch_size']
         rates = self.params['learning_rate']
         decays = self.params['weight_decay']
-        combinations = list(itertools.product(rates, decays))
-        for rate,decay in combinations:
+        combinations = list(itertools.product(sizes, rates, decays))
+        for size,rate,decay in combinations:
             param = self.params.copy()
+            param['batch_size'] = [size]
             param['learning_rate'] = [rate]
             param['weight_decay'] = [decay]
             parallel_params.append(param)
@@ -260,7 +263,7 @@ class AETraining(AbstractPlugin):
 	        'epoches': 20, 
 	        'learning_rate': [1e-4], 
 	        'weight_decay': [1e-8], 
-	        'batch_size': 128,
+	        'batch_size': [128],
 	        'timeseries': 'Treatment',
 	        'modelfile': '',
             'grouping': ['FOV','Cell'],
@@ -277,14 +280,15 @@ class AETraining(AbstractPlugin):
         output = {}
         rates = self.params['learning_rate']
         decays = self.params['weight_decay']
-        combinations = list(itertools.product(rates, decays))
-        for rate,decay in combinations:
+        sizes = self.params['batch_size']
+        combinations = list(itertools.product(sizes, rates, decays))
+        for size,rate,decay in combinations:
             output.update({
-                f'Table: AE Loss-{rate}-{decay}': pd.DataFrame, 
-                f'Table: AE Decoded-{rate}-{decay}': pd.DataFrame, 
-                f'Table: AE Encoded-{rate}-{decay}': pd.DataFrame, 
-                f'Plot: AE Loss-{rate}-{decay}': matplotlib.figure.Figure, 
-                f'Model File {rate}-{decay}': str})
+                f'Table: AE Loss-{size}-{rate}-{decay}': pd.DataFrame, 
+                f'Table: AE Decoded-{size}-{rate}-{decay}': pd.DataFrame, 
+                f'Table: AE Encoded-{size}-{rate}-{decay}': pd.DataFrame, 
+                f'Plot: AE Loss-{size}-{rate}-{decay}': matplotlib.figure.Figure, 
+                f'Model File {size}-{rate}-{decay}': str})
         return output
 
     def run_configuration_dialog(self, parent, data_choices={}):
@@ -309,7 +313,7 @@ class AETraining(AbstractPlugin):
         self.configure(**self.params)
         return self.params
    
-    def _create_datasets(self):
+    def _create_datasets(self, batch_size):
         data = list(self.input.values())[0]
         allcat_columns = [n for n in data.select_dtypes('category').columns]
         grouping = [n for n in self.params['grouping'] if n != self.params['timeseries']]
@@ -343,7 +347,7 @@ class AETraining(AbstractPlugin):
         train_labels = train_df[allcat_columns]
         train_dataset = datasets(training_set, labels=train_labels)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                                        batch_size=self.params['batch_size'],
+                                                        batch_size=batch_size,
                                                         shuffle=True)
         logging.debug(f'Training set shape: {training_set.shape}')
 
@@ -354,26 +358,27 @@ class AETraining(AbstractPlugin):
         val_labels = val_df[allcat_columns]
         val_dataset = datasets(val_set, labels=val_labels)
         val_loader = torch.utils.data.DataLoader(dataset=val_dataset,
-                                                        batch_size=self.params['batch_size'],
+                                                        batch_size=batch_size,
                                                         shuffle=True)
         logging.debug(f'Val set shape: {val_set.shape}')
                                                         
         return train_loader, val_loader, train_scaler, val_scaler, label_encoders
 
     def execute(self):
+        data = list(self.input.values())[0]
         rates = self.params['learning_rate']
         decays = self.params['weight_decay']
-        combinations = list(itertools.product(rates, decays))
-        train_loader, val_loader, train_scaler, val_scaler, label_encoders = self._create_datasets()
+        sizes = self.params['batch_size']
+        combinations = list(itertools.product(sizes, rates, decays))
         results = {}
-        for rate,decay in combinations:
-            r = self.train(rate, decay, train_loader, val_loader, train_scaler, val_scaler, label_encoders)
+        for size,rate,decay in combinations:
+            train_loader, val_loader, train_scaler, val_scaler, label_encoders = self._create_datasets(size)
+            r = self.train(data, rate, decay, size, train_loader, val_loader, train_scaler, val_scaler, label_encoders)
             results.update(r)
         return results
     
-    def train(self, learning_rate, weight_decay, train_loader, val_loader, train_scaler, val_scaler, label_encoders):
-        data = list(self.input.values())[0]
-        model_file = f'{self.params["modelfile"]}-{learning_rate}-{weight_decay}'
+    def train(self, data, learning_rate, weight_decay, batch_size, train_loader, val_loader, train_scaler, val_scaler, label_encoders):
+        model_file = f'{self.params["modelfile"]}-{batch_size}-{learning_rate}-{weight_decay}'
         logging.info('Training started.')
         aeclasses = autoencoder.get_autoencoder_classes()
         device = self.params['device']
@@ -460,12 +465,23 @@ class AETraining(AbstractPlugin):
 
         decoded_cols = [f'AE Recon {s}' for s in self.params['features']]
         decoded_df = pd.concat([label_df, pd.DataFrame(decoded, columns=decoded_cols, dtype=np.float32)], axis=1)
+        decoded_df = decoded_df.set_index(data.index)
         encoded_cols = [f'AE Encoded {i}' for i in range(encod.shape[1])]
         encoded_df = pd.concat([label_df, pd.DataFrame(encoded[:,0:encod.shape[1]], columns=encoded_cols, dtype=np.float32)], axis=1)
+        encoded_df = encoded_df.set_index(data.index)
         
         epoch_list = [str(e) for e in range(1,self.params['epoches']+1)]
-        loss_df = pd.DataFrame({'Epoch':epoch_list, 'Training Loss':loss_train, 'Validation Loss':loss_val})
+        loss_df = pd.DataFrame({
+            'Epoch': epoch_list,
+            'Batch Size': [str(batch_size)] * len(epoch_list),
+            'Learning Rate': [str(learning_rate)] * len(epoch_list),
+            'Weight Decay': [str(weight_decay)] * len(epoch_list),
+            'Training Loss': loss_train, 
+            'Validation Loss': loss_val})
         loss_df['Epoch'] = loss_df['Epoch'].astype('category')
+        loss_df['Batch Size'] = loss_df['Batch Size'].astype('category')
+        loss_df['Learning Rate'] = loss_df['Learning Rate'].astype('category')
+        loss_df['Weight Decay'] = loss_df['Weight Decay'].astype('category')
         
         logging.debug(f'loss_TrainingSet: {loss_train[-1]}')
         logging.debug(f'loss_TestSet: {loss_val[-1]}')
@@ -482,8 +498,8 @@ class AETraining(AbstractPlugin):
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         self._add_picker(fig)
         return {
-            f'Table: AE Loss-{learning_rate}-{weight_decay}': loss_df, 
-            f'Table: AE Decoded-{learning_rate}-{weight_decay}': decoded_df, 
-            f'Table: AE Encoded-{learning_rate}-{weight_decay}': encoded_df, 
-            f'Plot: AE Loss-{learning_rate}-{weight_decay}': fig, 
-            f'Model File {learning_rate}-{weight_decay}': model_file}
+            f'Table: AE Loss-{batch_size}-{learning_rate}-{weight_decay}': loss_df, 
+            f'Table: AE Decoded-{batch_size}-{learning_rate}-{weight_decay}': decoded_df, 
+            f'Table: AE Encoded-{batch_size}-{learning_rate}-{weight_decay}': encoded_df, 
+            f'Plot: AE Loss-{batch_size}-{learning_rate}-{weight_decay}': fig, 
+            f'Model File {batch_size}-{learning_rate}-{weight_decay}': model_file}

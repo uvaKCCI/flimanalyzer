@@ -87,24 +87,23 @@ class LinePlot(AbstractPlugin):
         categories = data.select_dtypes('category').columns.values
         categories = [c for c in categories if len(data[c].unique()) > 1]
         ticklabels = [', '.join(str(row)) for row in data[categories].values]
-        fig, ax = plt.subplots()
-        
         for c in categories:
             data[c] = data[c].astype('str') 
         for feature in sorted(self.params['features']):
             logging.debug (f"\tcreating line plot for {feature}")
+            fig, ax = plt.subplots()
             fig = self.grouped_lineplot(data, feature, categories=self.params['grouping'], ax=ax, fig=fig)
-        #x_formatter = FixedFormatter(ticklabels)
-        #x_locator = FixedLocator(range(len(ticklabels)))
-        #ax.xaxis.set_major_formatter(x_formatter)
-        #ax.xaxis.set_major_locator(x_locator)
+            #x_formatter = FixedFormatter(ticklabels)
+            #x_locator = FixedLocator(range(len(ticklabels)))
+            #ax.xaxis.set_major_formatter(x_formatter)
+            #ax.xaxis.set_major_locator(x_locator)
         
-        #ax.tick_params(axis='x', labelrotation=70)
-        #h, labels = ax.get_legend_handles_labels()
-        #labels = [l.replace('\n', ', ').replace('\'','').replace('(','').replace(')','') for l in labels]
-        #print (f"labels={labels}")
-        #legend = ax.legend(loc='upper left', bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=1)
-        results[f"Line Plot: {feature}"] = fig
+            #ax.tick_params(axis='x', labelrotation=70)
+            #h, labels = ax.get_legend_handles_labels()
+            #labels = [l.replace('\n', ', ').replace('\'','').replace('(','').replace(')','') for l in labels]
+            #print (f"labels={labels}")
+            #legend = ax.legend(loc='upper left', bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=1)
+            results[f"Line Plot: {feature}"] = fig
         return results
             
     def grouped_lineplot(self, data, feature, title=None, categories=[], dropna=True, ax=None, fig=None, **kwargs):
@@ -118,13 +117,61 @@ class LinePlot(AbstractPlugin):
             cols = [c for c in categories]
             cols.append(feature)
             if len(categories) == 1:
-                sns.lineplot(ax=ax, data=data, x=categories[0], y=feature, ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'])
+                sns.lineplot(
+                    ax=ax, 
+                    data=data, 
+                    x=categories[0], 
+                    y=feature, 
+                    ci=self.params['ci'], 
+                    err_style=self.params['err_style'], 
+                    markers=self.params['markers'])
             elif len(categories) == 2:
-                sns.lineplot(ax=ax, data=data, x=categories[0], y=feature, hue=categories[1], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'])
+                sns.lineplot(
+                    ax=ax, 
+                    data=data, 
+                    x=categories[0], 
+                    y=feature, 
+                    hue=categories[1], 
+                    ci=self.params['ci'], 
+                    err_style=self.params['err_style'], 
+                    markers=self.params['markers'])
             elif len(categories) == 3:
-                sns.lineplot(ax=ax, data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'])
-            elif len(categories) >3 :
-                g = sns.relplot(data=data, x=categories[0], y=feature, hue=categories[1], style=categories[2], col=categories[3], ci=self.params['ci'], err_style=self.params['err_style'], markers=self.params['markers'], kind="line")
+                sns.lineplot(
+                    ax=ax, 
+                    data=data, 
+                    x=categories[0], 
+                    y=feature, 
+                    hue=categories[1], 
+                    style=categories[2], 
+                    ci=self.params['ci'], 
+                    err_style=self.params['err_style'], 
+                    markers=self.params['markers'])
+            elif len(categories) == 4:
+                g = sns.relplot(
+                    data=data, 
+                    x=categories[0], 
+                    y=feature, 
+                    hue=categories[1], 
+                    style=categories[2], 
+                    col=categories[3], 
+                    ci=self.params['ci'], 
+                    err_style=self.params['err_style'], 
+                    markers=self.params['markers'], 
+                    kind="line")
+                fig = g.fig
+            elif len(categories) > 4:
+                g = sns.relplot(
+                    data=data, 
+                    x=categories[0], 
+                    y=feature, 
+                    hue=categories[1], 
+                    style=categories[2], 
+                    col=categories[3], 
+                    row=categories[4], 
+                    ci=self.params['ci'], 
+                    err_style=self.params['err_style'],
+                    markers=self.params['markers'], 
+                    kind="line")
                 fig = g.fig
 
             #if dropna:
