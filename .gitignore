@@ -7,6 +7,7 @@ dask-worker-space/
 flimanalyzer.egg-info
 build
 _build
+data
 dist
 .vscode
 *.egg-info

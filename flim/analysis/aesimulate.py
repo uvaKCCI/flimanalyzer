@@ -141,6 +141,8 @@ class AESimulate(AbstractPlugin):
             if ("fad" in fc_lower[r] and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
         NADPH_feats = [feat_cols[r] for r in range(len(fc_lower)) 
             if (("nadph" in fc_lower[r] or "nad(p)h" in fc_lower[r]) and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
+        print (FAD_feats)
+        print (NADPH_feats)
         
         rng = random.default_rng()
         # load an AE model
