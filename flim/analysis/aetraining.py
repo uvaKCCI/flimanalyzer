@@ -273,6 +273,7 @@ class AETraining(AbstractPlugin):
             'model': 'Autoencoder 2',
             'device': 'cpu',
             'rescale': False,
+            'create_plots': True,
         })
         return params
 	 
@@ -287,8 +288,12 @@ class AETraining(AbstractPlugin):
                 f'Table: AE Loss-{size}-{rate}-{decay}': pd.DataFrame, 
                 f'Table: AE Decoded-{size}-{rate}-{decay}': pd.DataFrame, 
                 f'Table: AE Encoded-{size}-{rate}-{decay}': pd.DataFrame, 
-                f'Plot: AE Loss-{size}-{rate}-{decay}': matplotlib.figure.Figure, 
-                f'Model File {size}-{rate}-{decay}': str})
+                'Model File': str
+                })
+            if self.params['create_plots']:
+                output.update({
+                    f'Plot: AE Loss-{size}-{rate}-{decay}': matplotlib.figure.Figure,
+                }) 
         return output
 
     def run_configuration_dialog(self, parent, data_choices={}):
@@ -309,8 +314,8 @@ class AETraining(AbstractPlugin):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
-        self.params = dlg.get_selected()
-        self.configure(**self.params)
+        params = dlg.get_selected()
+        self.configure(**params)
         return self.params
    
     def _create_datasets(self, batch_size):
@@ -488,18 +493,23 @@ class AETraining(AbstractPlugin):
         logging.info('Training complete.')
         torch.save(ae, model_file)
 
-        fig, ax = plt.subplots(constrained_layout=True)
-        ax.plot(range(1,len(loss_train)+1), loss_train, 'b-', label='train-loss')
-        ax.plot(range(1,len(loss_val)+1), loss_val, 'r-', label='val-loss')
-        ax.grid('on')
-        ax.set_ylabel('loss')
-        ax.set_xlabel('epoch')
-        ax.legend(['training', 'testing'], loc='upper right')
-        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        self._add_picker(fig)
-        return {
+        results = {
             f'Table: AE Loss-{batch_size}-{learning_rate}-{weight_decay}': loss_df, 
             f'Table: AE Decoded-{batch_size}-{learning_rate}-{weight_decay}': decoded_df, 
             f'Table: AE Encoded-{batch_size}-{learning_rate}-{weight_decay}': encoded_df, 
-            f'Plot: AE Loss-{batch_size}-{learning_rate}-{weight_decay}': fig, 
-            f'Model File {batch_size}-{learning_rate}-{weight_decay}': model_file}
+            'Model File': model_file
+            }
+        if self.params['create_plots']:
+            fig, ax = plt.subplots(constrained_layout=True)
+            ax.plot(range(1,len(loss_train)+1), loss_train, 'b-', label='train-loss')
+            ax.plot(range(1,len(loss_val)+1), loss_val, 'r-', label='val-loss')
+            ax.grid('on')
+            ax.set_ylabel('loss')
+            ax.set_xlabel('epoch')
+            ax.legend(['training', 'testing'], loc='upper right')
+            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+            self._add_picker(fig)
+            results.update({
+                f'Plot: AE Loss-{batch_size}-{learning_rate}-{weight_decay}': fig, 
+            })
+        return results

@@ -146,8 +146,6 @@ class Merger(AbstractPlugin):
         data = list(self.input.values())
         left = data[0]
         right = data[1]
-        print (left.head())
-        print (right.head())
         how = self.params['how']
         left_on = [c for c in list(left.select_dtypes(['category']).columns.values)]
         right_on = [c for c in list(right.select_dtypes(['category']).columns.values)]

@@ -108,6 +108,7 @@ class AEWorkflow(AbsWorkFlow):
             learning_rate=rates,
             weight_decay=decays,
             batch_size=batch_sizes,
+            create_plots=False,
             )
         concattask = Concatenator()
         summarytask = SummaryStats()
@@ -116,8 +117,7 @@ class AEWorkflow(AbsWorkFlow):
         barplottask = BarPlot()
         
         with Flow(f'{self.name}', executor=self.executor, ) as flow:
-            modelfile_10 = f'{self.params["modelfile"]}-{len(self.params["features"])}'
-            modelfile_14 = f'{self.params["modelfile"]}-{len(self.params["features"])+4}'
+            modelfile = f'{self.params["modelfile"]}-{len(self.params["features"])}'
 
             timeseries = Parameter('timeseries', default=self.params['timeseries'])
             grouping = Parameter('grouping', default=self.params['grouping'])
@@ -125,8 +125,7 @@ class AEWorkflow(AbsWorkFlow):
             rates = Parameter('learning rate', default=rates)
             decays = Parameter('weight decay', default=decays)
             batch_sizes = Parameter('batch size', default=batch_sizes)
-            train_features_10 = Parameter(f'features: {len(self.params["features"])}', default=self.params['features'])
-            train_features_14 = Parameter(f'features: {len(self.params["features"])+4}', default=list(self.params['features']) + ['FAD a1%', 'FAD a2%', 'NAD(P)H a1%', 'NAD(P)H a2%'])
+            train_features = Parameter(f'features: {len(self.params["features"])}', default=self.params['features'])
             model = Parameter('model', default=self.params['model'])
             
             input = datatask(name='Input', input=self.input, input_select=[0])
@@ -135,7 +134,7 @@ class AEWorkflow(AbsWorkFlow):
                 input=input, 
                 input_select=[0], 
                 grouping=grouping,
-                features=train_features_10, 
+                features=train_features, 
                 epoches=epoches,
                 learning_rate=rates,
                 weight_decay=decays,
@@ -143,7 +142,8 @@ class AEWorkflow(AbsWorkFlow):
                 timeseries=timeseries,
                 rescale=True,
                 model=model,
-                modelfile=modelfile_10
+                modelfile=modelfile,
+                create_plots=False,
                 ))
             
             loss_tables = [k for k,output in aeresults.items() if 'Table: AE Loss' in k]

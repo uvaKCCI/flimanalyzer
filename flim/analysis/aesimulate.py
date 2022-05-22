@@ -145,10 +145,10 @@ class AESimulate(AbstractPlugin):
         rng = random.default_rng()
         # load an AE model
         device = self.params['device']
-        if self.params['device'] == 'cuda' and not torch.cuda.is_available():
+        if device == 'cuda' and not torch.cuda.is_available():
             device = 'cpu'
             logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
-        ae = torch.load(self.params['modelfile'], map_location = device)
+        ae = torch.load(self.params['modelfile'], map_location=device)
 
         data_feat = data_feat.astype(float)
         my_imputer = SimpleImputer(strategy="constant",fill_value=0)
@@ -167,18 +167,18 @@ class AESimulate(AbstractPlugin):
             sdata_feat = my_imputer.fit_transform(sdata_feat)
             
             sdata_feat = torch.FloatTensor(sdata_feat)
-            logging.debug(f'original shape: {sdata_feat.shape}')
+            logging.debug(f'Sim set {simset+1}, original shape: {sdata_feat.shape}')
     
             data_input = Variable(sdata_feat)
             features, reconstructed = ae(data_input)
-            logging.debug(f'Reconstructed shape: {reconstructed.shape}')
+            logging.debug(f'Sim set {simset+1}, reconstructed shape: {reconstructed.shape}')
     
             features=torch.squeeze(features)
-            logging.debug(f'Features shape: {features.shape}')
+            logging.debug(f'Sim set {simset+1}, features shape: {features.shape}')
     
             criterion = nn.MSELoss()
             loss = criterion(reconstructed, sdata_feat)
-            logging.debug(f'Loss: {loss.data}')
+            logging.debug(f'Sim set {simset+1}, loss: {loss.data}')
             
             recon_data = reconstructed.detach().numpy()
             raw_range = (raw_max-raw_min).reshape((1, -1))
@@ -197,10 +197,10 @@ class AESimulate(AbstractPlugin):
         NADPH0 = sim_df[NADPH_feats[0]]/NADPHtot*100
         NADPH1 = sim_df[NADPH_feats[1]]/NADPHtot*100
         calcdf = pd.DataFrame(({
-            FAD_feats[0]+"%": FAD0,
-            FAD_feats[1]+"%": FAD1,
-            NADPH_feats[0]+"%": NADPH0,
-            NADPH_feats[1]+"%": NADPH1,
+            FAD_feats[0]+"[%]": FAD0,
+            FAD_feats[1]+"[%]": FAD1,
+            NADPH_feats[0]+"[%]": NADPH0,
+            NADPH_feats[1]+"[%]": NADPH1,
         }))
         # concat and ensure unique index
         sim_df = pd.concat([sim_df, calcdf], axis=1).reset_index()
