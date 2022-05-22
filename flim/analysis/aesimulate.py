@@ -141,8 +141,6 @@ class AESimulate(AbstractPlugin):
             if ("fad" in fc_lower[r] and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
         NADPH_feats = [feat_cols[r] for r in range(len(fc_lower)) 
             if (("nadph" in fc_lower[r] or "nad(p)h" in fc_lower[r]) and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
-        print (FAD_feats)
-        print (NADPH_feats)
         
         rng = random.default_rng()
         # load an AE model
@@ -204,7 +202,8 @@ class AESimulate(AbstractPlugin):
             NADPH_feats[0]+"%": NADPH0,
             NADPH_feats[1]+"%": NADPH1,
         }))
-        sim_df = pd.concat([sim_df, calcdf], axis=1)
+        # concat and ensure unique index
+        sim_df = pd.concat([sim_df, calcdf], axis=1).reset_index()
         outfeats = feat_cols+list(calcdf.columns.values)
         outfeats.sort() #ensure feature vectors will be applied correctly
         sim_df = sim_df[cats+outfeats]

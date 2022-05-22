@@ -378,7 +378,7 @@ class AETraining(AbstractPlugin):
         return results
     
     def train(self, data, learning_rate, weight_decay, batch_size, train_loader, val_loader, train_scaler, val_scaler, label_encoders):
-        model_file = f'{self.params["modelfile"]}-{batch_size}-{learning_rate}-{weight_decay}'
+        model_file = f'{self.params["modelfile"]}_{batch_size}_{learning_rate}_{weight_decay}'
         logging.info('Training started.')
         aeclasses = autoencoder.get_autoencoder_classes()
         device = self.params['device']

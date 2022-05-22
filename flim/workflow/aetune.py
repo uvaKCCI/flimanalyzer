@@ -54,14 +54,14 @@ class AEWorkflow(AbsWorkFlow):
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update({
-            'grouping': ['FOV','Cell'],
+            'grouping': ['Treatment', 'FOV', 'Cell'],
             'features': [
                 'FAD a1','FAD a1[%]', 'FAD a2', 'FAD a2[%]', 'FAD t1', 'FAD t2', 'FAD photons', 
                 'NAD(P)H a1', 'NAD(P)H a1[%]', 'NAD(P)H a2', 'NAD(P)H a2[%]', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'],
 	        'timeseries': 'Treatment',
 	        'epoches': 20, 
-	        'learning_rate': [1e-4], 
-	        'weight_decay': [1e-8], 
+	        'learning_rate': [0.00001, 0.00002, 0.00005, 0.0001, 0.00011, 0.00015, 0.0002], 
+	        'weight_decay': [1e-7, 1e-8], 
 	        'batch_size': [128],
 	        'modelfile': 'AETrain',
             'model': 'Autoencoder 2',
@@ -129,22 +129,10 @@ class AEWorkflow(AbsWorkFlow):
             train_features_14 = Parameter(f'features: {len(self.params["features"])+4}', default=list(self.params['features']) + ['FAD a1%', 'FAD a2%', 'NAD(P)H a1%', 'NAD(P)H a2%'])
             model = Parameter('model', default=self.params['model'])
             
-            pca_features_14 = Parameter('pca features: 14', default=[
-                'FAD a1', 'FAD a1[%]', 'FAD a2', 'FAD a2[%]', 'FAD t1', 'FAD t2', 'FAD photons', 
-                'NAD(P)H a1','NAD(P)H a1[%]', 'NAD(P)H a2','NAD(P)H a2[%]', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
-
-            sim_sets = Parameter('sim_sets', default=4) 
-            
             input = datatask(name='Input', input=self.input, input_select=[0])
             
-            filterresults1 = results_to_tasks(filtertask(
-                input=input, 
-                input_select=[0], 
-                category_filters={'Treatment': ['Ctrl', 'dox15']}
-                ))
-
             aeresults = results_to_tasks(aetraintask_10(
-                input=filterresults1['Table: Filtered'], 
+                input=input, 
                 input_select=[0], 
                 grouping=grouping,
                 features=train_features_10, 
