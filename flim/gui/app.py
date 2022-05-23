@@ -386,7 +386,6 @@ class AppFrame(wx.Frame):
             return
         self.config.update(parameters, keys)
         logging.debug (f'Updating keys={keys}')
-        logging.debug(parameters)
         features = parameters['features']
         categories = parameters['grouping']     
 

@@ -238,7 +238,7 @@ class AETraining(AbstractPlugin):
         return wx.Bitmap(str(source))        
 
     def get_required_categories(self):
-        return ["any"]
+        return []
 
     def get_required_features(self):
         return ["any","any"]
@@ -274,6 +274,7 @@ class AETraining(AbstractPlugin):
             'device': 'cpu',
             'rescale': False,
             'create_plots': True,
+            'train_size': 0.7, # 0.0 < train_size < 1.0
         })
         return params
 	 
@@ -319,6 +320,7 @@ class AETraining(AbstractPlugin):
         return self.params
    
     def _create_datasets(self, batch_size):
+        train_size = self.params['train_size']
         data = list(self.input.values())[0]
         allcat_columns = [n for n in data.select_dtypes('category').columns]
         grouping = [n for n in self.params['grouping'] if n != self.params['timeseries']]
@@ -330,16 +332,20 @@ class AETraining(AbstractPlugin):
         data = data.loc[:,columns]
         data.loc[:,allcat_columns] = data.loc[:,allcat_columns].apply(lambda x: label_encoders[x.name].fit_transform(x))
         
-        # define logical groups first, then split into train and validation set.
-        g = data[columns].groupby(grouping)
-        cat_groups = sorted(g.groups.keys())
         random.seed()
-        train_cat = random.sample(cat_groups, k=int(np.around(0.7*len(cat_groups))))
-        val_cat = [c for c in cat_groups if c not in train_cat]
-        logging.debug (f'Groups for training: {sorted(train_cat)}')
-        logging.debug (f'Groups for validation: {sorted(val_cat)}')
-        train_df = pd.concat([g.get_group(group) for group in g.groups if group in train_cat] )
-        val_df = pd.concat([g.get_group(group) for group in g.groups if group not in train_cat] )
+        if len(grouping) > 0:
+            # define logical groups first, then split into train and validation set.
+            g = data[columns].groupby(grouping)
+            cat_groups = sorted(g.groups.keys())
+            train_cat = random.sample(cat_groups, k=int(np.around(train_size*len(cat_groups))))
+            val_cat = [c for c in cat_groups if c not in train_cat]
+            logging.debug (f'Groups for training: {sorted(train_cat)}')
+            logging.debug (f'Groups for validation: {sorted(val_cat)}')
+            train_df = pd.concat([g.get_group(group) for group in g.groups if group in train_cat] )
+            val_df = pd.concat([g.get_group(group) for group in g.groups if group not in train_cat] )
+        else:
+            train_df = data.sample(n=int(np.around(train_size*len(data))))
+            val_df = pd.concat([data, train_df, train_df]).drop_duplicates(keep=False)
         logging.debug(train_df.describe())
         logging.debug(val_df.describe())
 
