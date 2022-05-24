@@ -91,27 +91,18 @@ class KDE(AbstractPlugin, Task):
     
         if data is None or not column in data.columns.values:
             return None, None
-        #plt.rcParams.update({'figure.autolayout': True})
     
-        fig, ax = plt.subplots()# (constrained_layout=True)
+        fig, ax = plt.subplots()
         if groups is None:
             groups = []
     
         newkwargs = kwargs.copy()
-        # ensure autoscaling of y axis
-        #newkwargs['auto'] = None
         newkwargs['ax'] = ax
         
         cols = [c for c in groups]
         cols.append(column)
         if dropna:
             data = data[cols].dropna(how='any', subset=[column])
-        fig.set_figheight(6)
-        fig.set_figwidth(12)
-    
-        #kde_args = newkwargs.get('kde_kws')
-        #if not kde_args:
-        #    newkwargs['kde_kws'] = {}
         if len(groups) > 0:
             gs = data.groupby(groups)
             styles = []
@@ -129,33 +120,27 @@ class KDE(AbstractPlugin, Task):
             for name, groupdata in gs:
                 if (len(groupdata[column]) > 0):
                     name_fixed = self._fix_label(name)
-                    #kde_args.update({
-                    #        'label': name_fixed,})
                     if len(styles) > index:
                         newkwargs['color'] = styles[index]['color']
                         newkwargs['linestyle'] = styles[index]['linestyle']
                     logging.debug (f"NEWKWARGS: {newkwargs}")
                     logging.debug (f"len(groupdata[column])={len(groupdata[column])}")
-                    #sns.distplot(groupdata[column], **newkwargs)
                     sns.kdeplot(groupdata[column], **newkwargs)
                     labels.append(name_fixed)
                 index += 1
             no_legendcols = (len(groups)//30 + 1)
-            ax.legend()
-            # ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
+            ax.legend(labels=labels, loc='upper left', title=', '.join(groups), bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=no_legendcols)
         else:        
-            #sns.distplot(data[column], **newkwargs)
             sns.kdeplot(data[column], **newkwargs)
         ax.autoscale(enable=True, axis='y')    
         ax.set_ylim(0,None)
         if title is None:
-            title = column.replace('\n', ' ')#.encode('utf-8')
+            title = column.replace('\n', ' ')
             if len(groups) > 0:
                 title = f"{title} grouped by {groups}"
         if len(title) > 0:
             ax.set_title(title)
         
-        # plt.rcParams.update({'figure.autolayout': False})
         self._add_picker(fig)
         return fig,ax
             

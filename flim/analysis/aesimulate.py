@@ -30,10 +30,12 @@ import flim.resources
 
 class AESimConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', modelfile='', device='cpu', sets=1):
+    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', modelfile='', device='cpu', sets=1, add_noise=True, noise=0.1):
         self.modelfile = modelfile
         self.device = device
         self.sets = sets
+        self.add_noise = add_noise
+        self.noise = noise
         BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping,
                                         selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
 
@@ -56,6 +58,14 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         bottom_sizer.Add(wx.StaticText(self, label="Sets"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         bottom_sizer.Add(self.sets_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
+        #self.noise_checkbox = wx.CheckBox(self.panel, wx.ID_ANY, label="Add noise")
+        #self.noise_checkbox.SetValue(self.add_noise)
+        #bottom_sizer.Add(self.noise_checkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
+        #self.noise_input = NumCtrl(self.panel,wx.ID_ANY, min=0.0, value=self.noise, fractionWidth=3)
+        #bottom_sizer.Add(wx.StaticText(self.panel, label="Signal-to-Noise Ratio"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        #bottom_sizer.Add(self.noise_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+
         return [timeseries_sizer, bottom_sizer]
 
     def OnBrowse(self, event):
@@ -74,6 +84,8 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         params['modelfile'] = self.modelfiletxt.GetLabel()
         params['device'] = self.device_combobox.GetValue()
         params['sets'] = self.sets_spinner.GetValue()
+        #params['add_noise'] = self.noise_checkbox.GetValue()
+        #params['noise'] = self.noise_input.GetValue()
         return params
                 
         
@@ -86,6 +98,8 @@ class AESimulate(AbstractPlugin):
         self.modelfile = self.params['modelfile']
         self.device = self.params['device']
         self.sets = self.params['sets']
+        self.add_noise = self.params['add_noise']
+        self.noise = self.params['noise']
 
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -108,7 +122,9 @@ class AESimulate(AbstractPlugin):
         params.update({
             'modelfile': '',
             'device': 'cpu',
-            'sets': 1
+            'sets': 1,
+            'add_noise': True,
+            'noise': 0.1, # 0.0 < noise < 1.0
         })
         return params
 
@@ -122,10 +138,12 @@ class AESimulate(AbstractPlugin):
                             selectedfeatures=self.params['features'],
                             modelfile=self.params['modelfile'],
                             device=self.params['device'],
-                            sets=self.params['sets'])
+                            sets=self.params['sets'],
+                            add_noise=self.params['add_noise'],
+                            noise=self.params['noise'])
         if dlg.ShowModal() == wx.ID_OK:
-            results = dlg.get_selected()
-            self.params.update(results)
+            params = dlg.get_selected()
+            self.params.update(params)
             return self.params
         else:	
             return None
