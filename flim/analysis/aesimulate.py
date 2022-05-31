@@ -28,17 +28,43 @@ import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
 
 
+NOISE_UNIT=['linear', 'dB']
+
+def to_db(value):
+        return (10.0 * np.log10(value))
+        
+def db_to_linear(db_value):
+        return 10.0 ** (db_value / 10.0)
+        
+
 class AESimConfigDlg(BasicAnalysisConfigDlg):
 
-    def __init__(self, parent, title, input=None, selectedgrouping=['None'], selectedfeatures='All', modelfile='', device='cpu', sets=1, add_noise=True, noise=0.1):
+    def __init__(self, 
+                 parent, 
+                 title, 
+                 input=None, 
+                 selectedgrouping=['None'], 
+                 selectedfeatures='All', modelfile='', 
+                 device='cpu', 
+                 sets=1, 
+                 add_noise=True, 
+                 snr_db=0.0, 
+                 snr_unit=NOISE_UNIT[-1]):
         self.modelfile = modelfile
         self.device = device
         self.sets = sets
         self.add_noise = add_noise
-        self.noise = noise
-        BasicAnalysisConfigDlg.__init__(self, parent, title, input=input, selectedgrouping=selectedgrouping,
-                                        selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
-
+        self.snr_unit = snr_unit if snr_unit in NOISE_UNIT else NOISE_UNIT[-1]
+        self.snr = snr_db if self.snr_unit=='dB' else db_to_linear(snr_db) 
+        BasicAnalysisConfigDlg.__init__(self, 
+                                        parent, 
+                                        title, 
+                                        input=input, 
+                                        selectedgrouping=selectedgrouping,
+                                        selectedfeatures=selectedfeatures, 
+                                        optgridrows=0, 
+                                        optgridcols=1)
+                                        
     def get_option_panels(self):
         self.modelfiletxt = wx.StaticText(self.panel, label=self.modelfile)
         browsebutton = wx.Button(self.panel, wx.ID_ANY, 'Choose...')
@@ -58,16 +84,42 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         bottom_sizer.Add(wx.StaticText(self.panel, label="Sets"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
         bottom_sizer.Add(self.sets_spinner, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        #self.noise_checkbox = wx.CheckBox(self.panel, wx.ID_ANY, label="Add noise")
-        #self.noise_checkbox.SetValue(self.add_noise)
-        #bottom_sizer.Add(self.noise_checkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.noise_checkbox = wx.CheckBox(self.panel, wx.ID_ANY, label="Add noise")
+        self.noise_checkbox.SetValue(self.add_noise)
+        self.noise_checkbox.Bind(wx.EVT_CHECKBOX, self._add_noise)
+        bottom_sizer.Add(self.noise_checkbox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
-        #self.noise_input = NumCtrl(self.panel,wx.ID_ANY, min=0.0, value=self.noise, fractionWidth=3)
-        #bottom_sizer.Add(wx.StaticText(self.panel, label="Signal-to-Noise Ratio"), 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        #bottom_sizer.Add(self.noise_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        self.noise_input = NumCtrl(self.panel,wx.ID_ANY, min=0.0, value=self.snr, fractionWidth=3)
+        self.noise_input.SetMin(0.0)
+        self.noise_label = wx.StaticText(self.panel, label="Signal-to-Noise Ratio")
+        bottom_sizer.Add(self.noise_label, 1, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
+        bottom_sizer.Add(self.noise_input, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
 
+        self.unit_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.snr_unit, choices=NOISE_UNIT)
+        self.unit_combobox.Bind(wx.EVT_COMBOBOX, self._update_unit)
+        bottom_sizer.Add(self.unit_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        self._add_noise(None)
         return [timeseries_sizer, bottom_sizer]
 
+    def _add_noise(self, event):
+        if self.noise_checkbox.GetValue():
+            self.noise_label.Enable()
+            self.noise_input.Enable()
+            self.unit_combobox.Enable()
+        else:
+            self.noise_label.Disable()
+            self.noise_input.Disable()
+            self.unit_combobox.Disable()
+        
+    def _update_unit(self, event):
+        unit = self.unit_combobox.GetValue()
+        if unit != self.snr_unit:
+            noise = self.noise_input.GetValue()
+            noise = to_db(noise) if unit=='dB' else db_to_linear(noise)
+            self.snr_unit = unit
+            self.noise_input.SetValue(noise)
+        
     def OnBrowse(self, event):
         fpath = self.modelfiletxt.GetLabel()
         _,fname = os.path.split(fpath)
@@ -84,8 +136,12 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         params['modelfile'] = self.modelfiletxt.GetLabel()
         params['device'] = self.device_combobox.GetValue()
         params['sets'] = self.sets_spinner.GetValue()
-        #params['add_noise'] = self.noise_checkbox.GetValue()
-        #params['noise'] = self.noise_input.GetValue()
+        params['add_noise'] = self.noise_checkbox.GetValue()
+        self.noise_input.Refresh()
+        if self.unit_combobox.GetValue() == 'dB':  
+            params['snr_db'] = self.noise_input.GetValue()
+        else:
+            params['snr_db'] = to_db(self.noise_input.GetValue())
         return params
                 
         
@@ -99,7 +155,7 @@ class AESimulate(AbstractPlugin):
         self.device = self.params['device']
         self.sets = self.params['sets']
         self.add_noise = self.params['add_noise']
-        self.noise = self.params['noise']
+        self.snr_db = self.params['snr_db']
 
     def __repr__(self):
         return f"{'name': {self.name}}"
@@ -124,7 +180,7 @@ class AESimulate(AbstractPlugin):
             'device': 'cpu',
             'sets': 1,
             'add_noise': True,
-            'noise': 0.1, # 0.0 < noise < 1.0
+            'snr_db': 0.0, # 0.0 < noise < 1.0
         })
         return params
 
@@ -140,7 +196,7 @@ class AESimulate(AbstractPlugin):
                             device=self.params['device'],
                             sets=self.params['sets'],
                             add_noise=self.params['add_noise'],
-                            noise=self.params['noise'])
+                            snr_db=self.params['snr_db'])
         if dlg.ShowModal() == wx.ID_OK:
             params = dlg.get_selected()
             self.params.update(params)
@@ -148,6 +204,20 @@ class AESimulate(AbstractPlugin):
         else:	
             return None
 
+    def _model_noise(self, signal, snr_db):
+        logging.debug(f'Adding {snr_db} dB white noise.')
+        # Calculate signal power and convert its mean to dB 
+        signal_power = signal ** 2
+        signal_avg_power = np.mean(signal_power)
+        signal_avg_db = 10 * np.log10(signal_avg_power)
+        # Calculate power of noise
+        noise_avg_db = signal_avg_db - snr_db
+        noise_avg_power = 10 ** (noise_avg_db / 10)
+        
+        std_noise = np.sqrt(noise_avg_power)
+        mean_noise = np.zeros(std_noise.shape)
+        return mean_noise, std_noise
+        
     def execute(self):
         data = list(self.input.values())[0]
         cats = list(data.select_dtypes(['category']).columns.values)
@@ -160,7 +230,7 @@ class AESimulate(AbstractPlugin):
         NADPH_feats = [feat_cols[r] for r in range(len(fc_lower)) 
             if (("nadph" in fc_lower[r] or "nad(p)h" in fc_lower[r]) and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
         
-        rng = random.default_rng()
+        #rng = random.default_rng()
         # load an AE model
         device = self.params['device']
         if device == 'cuda' and not torch.cuda.is_available():
@@ -173,11 +243,16 @@ class AESimulate(AbstractPlugin):
         min_max_scaler = preprocessing.MinMaxScaler()
         
         sim_df = pd.DataFrame(columns=(cats+feat_cols))
+        noise_df = pd.DataFrame(columns=(cats+feat_cols))
         maxcell = np.amax(data['Cell'].astype(int).to_numpy())
-        
+                
+        mean_noise, std_noise = self._model_noise(data_feat, self.params['snr_db']) #rng.standard_normal(size=data_feat.shape)
         for simset in range(0, self.params['sets']):
-            noise = rng.standard_normal(size=data_feat.shape)
-            sdata_feat = data_feat.add(noise)
+            if self.params['add_noise']:
+                noise = np.random.normal(mean_noise, scale=std_noise, size=data_feat.shape)
+                sdata_feat = data_feat.add(noise)
+            else:
+                sdata_feat = data_feat
             raw_min = np.asarray(np.amin(sdata_feat, axis=0))
             raw_max = np.asarray(np.amax(sdata_feat, axis=0))
 
@@ -207,6 +282,13 @@ class AESimulate(AbstractPlugin):
             temp['Cell'] = temp['Cell'].astype(int) + maxcell*simset
             temp[feat_cols] = sim_data
             sim_df = pd.concat([sim_df, temp])
+            
+            #temp = pd.DataFrame(columns=(cats+feat_cols))
+            #temp[cats] = data[cats]
+            #temp['Cell'] = temp['Cell'].astype(int) + maxcell*simset
+            #temp[feat_cols] = noise
+            #print (f'sim_data.shape={sim_data.shape}, noise.shape={noise.shape}')
+            #noise_df = pd.concat([noise_df, tmp])
 
         FADtot = sim_df[FAD_feats[0]]+sim_df[FAD_feats[1]]
         FAD0 = sim_df[FAD_feats[0]]/FADtot*100
@@ -227,5 +309,5 @@ class AESimulate(AbstractPlugin):
         sim_df = sim_df[cats+outfeats]
         sim_df['Cell'] = sim_df['Cell'].astype(str).astype('category')
         
-        return {'Table: Simulated': sim_df}
+        return {'Table: Simulated': sim_df} #, 'Table: Noise': noise_df}
     

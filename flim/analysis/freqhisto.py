@@ -89,8 +89,7 @@ class FreqHisto(AbstractPlugin):
         params['histtype'] = 'step' # 'bar', 'barstacked', 'step', 'stepfilled'
         params['stacked'] = False
         params['datatable'] = False
-        params['featuresettings'] = {}
-        params.update({
+        params['featuresettings'] = {
     				'trp t1': [0,8000,81,['Treatment']],
                     'trp t2': [0,8000,81,['Treatment']],
                     'trp tm': [0,4000,81,['Treatment']],
@@ -125,7 +124,7 @@ class FreqHisto(AbstractPlugin):
                     'FAD photons': [0,800,81,['Treatment']],
                     'FLIRR': [0,2.4,81,['Treatment']],
                     'NADPH a2/FAD a1': [0,10,101,['Treatment']],
-                })
+                }
         return params      
 
     def get_parallel_parameters(self):

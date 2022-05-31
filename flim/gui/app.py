@@ -405,6 +405,8 @@ class AppFrame(wx.Frame):
         parallel_params = tool.get_parallel_parameters()
         with Flow(name="Interactive Analysis") as flow:
             for p in parallel_params:
+                #for k,v in p.items():
+                #    print (f'{k}={v}')
                 tool(**p)
         
         #:print (dir(flow))
