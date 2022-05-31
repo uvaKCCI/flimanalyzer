@@ -222,6 +222,7 @@ class AESimulate(AbstractPlugin):
         data = list(self.input.values())[0]
         cats = list(data.select_dtypes(['category']).columns.values)
         data_feat = data[self.params['features']]
+        grouping = self.params['grouping']
         feat_cols = list(data_feat.columns)
         fc_lower = [x.lower() for x in feat_cols]
 
@@ -244,7 +245,10 @@ class AESimulate(AbstractPlugin):
         
         sim_df = pd.DataFrame(columns=(cats+feat_cols))
         noise_df = pd.DataFrame(columns=(cats+feat_cols))
-        maxcell = np.amax(data['Cell'].astype(int).to_numpy())
+        try:
+            maxcell = np.amax(data[grouping[-1]].astype(int).to_numpy())
+        except:
+            pass
                 
         mean_noise, std_noise = self._model_noise(data_feat, self.params['snr_db']) #rng.standard_normal(size=data_feat.shape)
         for simset in range(0, self.params['sets']):
@@ -279,7 +283,10 @@ class AESimulate(AbstractPlugin):
             
             temp = pd.DataFrame(columns=(cats+feat_cols))
             temp[cats] = data[cats]
-            temp['Cell'] = temp['Cell'].astype(int) + maxcell*simset
+            try:
+                temp[grouping[-1]] = temp[grouping].astype(int) + maxcell*simset
+            except:
+                temp[grouping[-1]] = temp[grouping[-1]].astype(str) + f'.{simset}'                
             temp[feat_cols] = sim_data
             sim_df = pd.concat([sim_df, temp])
             
@@ -307,7 +314,7 @@ class AESimulate(AbstractPlugin):
         outfeats = feat_cols+list(calcdf.columns.values)
         outfeats.sort() #ensure feature vectors will be applied correctly
         sim_df = sim_df[cats+outfeats]
-        sim_df['Cell'] = sim_df['Cell'].astype(str).astype('category')
+        sim_df[grouping[-1]] = sim_df[grouping[-1]].astype(str).astype('category')
         
         return {'Table: Simulated': sim_df} #, 'Table: Noise': noise_df}
     
