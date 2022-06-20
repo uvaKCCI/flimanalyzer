@@ -77,7 +77,7 @@ The shown example table contains the following categorical columsn that may be u
     :hidden:
     :glob:
     
-    summarystats
+    summary
     relchange
     seriesanalysis
     categorize

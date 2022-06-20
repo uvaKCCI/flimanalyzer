@@ -7,6 +7,7 @@ Created on Wed Dec 16 14:18:30 2020
 """
 
 import logging
+import re
 import os
 import numpy as np
 import numpy.random as random
@@ -226,10 +227,16 @@ class AESimulate(AbstractPlugin):
         feat_cols = list(data_feat.columns)
         fc_lower = [x.lower() for x in feat_cols]
 
+        signals = set([re.findall(r'\S+', col)[0] for col in feat_cols])
+        amplitudes = {k:[col for col in feat_cols if len(re.findall(rf'^{re.escape(k)}\sa\d$', col, re.IGNORECASE))>0 ] for k in signals}
+        logging.debug (f'amplitudes={amplitudes}')
+
+        """
         FAD_feats = [feat_cols[r] for r in range(len(fc_lower)) 
             if ("fad" in fc_lower[r] and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
         NADPH_feats = [feat_cols[r] for r in range(len(fc_lower)) 
             if (("nadph" in fc_lower[r] or "nad(p)h" in fc_lower[r]) and ("a1" in fc_lower[r] or "a2" in fc_lower[r]))]
+        """
         
         #rng = random.default_rng()
         # load an AE model
@@ -297,6 +304,16 @@ class AESimulate(AbstractPlugin):
             #print (f'sim_data.shape={sim_data.shape}, noise.shape={noise.shape}')
             #noise_df = pd.concat([noise_df, tmp])
 
+        calcdf = pd.DataFrame()
+        for k,amps in amplitudes.items():
+            total_col = f'{k} total'
+            total_amp = sim_df[amps].sum(axis=1)
+            for a in amps:
+                calc_col = [c for c in data.columns.values if (a in c and '%' in c and '/' not in c)]
+                calc_col = calc_col[0] if len(calc_col)>0 else f'{a}%'
+                logging.debug (f'Calculating {calc_col}.')
+                calcdf[calc_col] = sim_df[a]/total_amp * 100.0
+        """
         FADtot = sim_df[FAD_feats[0]]+sim_df[FAD_feats[1]]
         FAD0 = sim_df[FAD_feats[0]]/FADtot*100
         FAD1 = sim_df[FAD_feats[1]]/FADtot*100
@@ -309,6 +326,7 @@ class AESimulate(AbstractPlugin):
             NADPH_feats[0]+"[%]": NADPH0,
             NADPH_feats[1]+"[%]": NADPH1,
         }))
+        """
         # concat and ensure unique index
         sim_df = pd.concat([sim_df, calcdf], axis=1).reset_index()
         outfeats = feat_cols+list(calcdf.columns.values)
@@ -316,5 +334,5 @@ class AESimulate(AbstractPlugin):
         sim_df = sim_df[cats+outfeats]
         sim_df[grouping[-1]] = sim_df[grouping[-1]].astype(str).astype('category')
         
-        return {'Table: Simulated': sim_df} #, 'Table: Noise': noise_df}
+        return {'Table: Simulated': sim_df, 'Table: Calculated': calcdf} #, 'Table: Noise': noise_df}
     

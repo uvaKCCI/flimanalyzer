@@ -2,9 +2,6 @@
 Welcome to FLIM Analyzer's documentation!
 =========================================
 
-.. automodule:: flimanalyzer.main
-   :members:
-
 .. toctree::
    :maxdepth: 3
    :glob:
@@ -15,6 +12,8 @@ Welcome to FLIM Analyzer's documentation!
    programming/index
    codedocs/index
 
+
+   
 
 Indices and tables
 ==================
