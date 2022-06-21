@@ -59,10 +59,10 @@ class AbsAutoencoder(nn.Module):
         return None
     
        
-class Autoencoder_One(AbsAutoencoder):
+class Autoencoder_One_Six(AbsAutoencoder):
     def __init__(self, nb_param=2, hidden_size=6):
-        super(Autoencoder_One, self).__init__()
-        self.name = "Autoencoder 1" 
+        super().__init__()
+        self.name = "AE Simulator 1-6" 
         self.fc1 = nn.Linear(nb_param, hidden_size)
         self.fc4 = nn.Linear(hidden_size, nb_param)
         #self.activation1 = nn.Sigmoid()
@@ -77,11 +77,28 @@ class Autoencoder_One(AbsAutoencoder):
     def get_description(self):
         return "This Autoencoder can be used to simulate new data based on an existing dataset."
 
+class Autoencoder_One_Three(AbsAutoencoder):
+    def __init__(self, nb_param=2, hidden_size=3):
+        super().__init__()
+        self.name = "AE Simulator 1-3" 
+        self.fc1 = nn.Linear(nb_param, hidden_size)
+        self.fc4 = nn.Linear(hidden_size, nb_param)
+        #self.activation1 = nn.Sigmoid()
+        self.activation2 = nn.ReLU()
+        #self.activation3 = nn.LeakyReLU()
         
-class Autoencoder_Two(AbsAutoencoder):
+    def forward(self, x):
+        encoder_out = self.activation2(self.fc1(x))
+        decoder_out = self.fc4(encoder_out)
+        return encoder_out, decoder_out
+        
+    def get_description(self):
+        return "This Autoencoder can be used to simulate new data based on an existing dataset."
+        
+class Autoencoder_Two_Ten(AbsAutoencoder):
     def __init__(self, nb_param=2, hidden_size_1=10, hidden_size_2=1):
-        super(Autoencoder_Two, self).__init__()
-        self.name = "Autoencoder 2" 
+        super().__init__()
+        self.name = "AE Dimensionality Reduction 2-10" 
         self.fc1 = nn.Linear(nb_param, hidden_size_1)
         self.fc2 = nn.Linear(hidden_size_1, hidden_size_2)
         self.fc3 = nn.Linear(hidden_size_2, hidden_size_1)
@@ -89,7 +106,28 @@ class Autoencoder_Two(AbsAutoencoder):
         #self.activation1 = nn.Sigmoid()
         self.activation2 = nn.ReLU()
         #self.activation3 = nn.LeakyReLU()
+        
+    def forward(self, x):
+        x_out = self.activation2(self.fc1(x))
+        encoder_out = self.activation2(self.fc2(x_out))
+        y_out = self.activation2(self.fc3(encoder_out))
+        decoder_out = self.fc4(y_out)
+        return encoder_out, decoder_out
+        
+    def get_description(self):
+        return "This Autoencoder is used for dimensionality reduction of the feature space of an existing dataset."
 
+class Autoencoder_Two_Five(AbsAutoencoder):
+    def __init__(self, nb_param=2, hidden_size_1=5, hidden_size_2=1):
+        super().__init__()
+        self.name = "AE Dimensionality Reduction 2-5" 
+        self.fc1 = nn.Linear(nb_param, hidden_size_1)
+        self.fc2 = nn.Linear(hidden_size_1, hidden_size_2)
+        self.fc3 = nn.Linear(hidden_size_2, hidden_size_1)
+        self.fc4 = nn.Linear(hidden_size_1, nb_param)
+        #self.activation1 = nn.Sigmoid()
+        self.activation2 = nn.ReLU()
+        #self.activation3 = nn.LeakyReLU()
         
     def forward(self, x):
         x_out = self.activation2(self.fc1(x))
