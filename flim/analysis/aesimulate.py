@@ -69,7 +69,8 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
                                         optgridcols=1)
 
     def get_option_panels(self):
-        self.modelfiletxt = wx.StaticText(self.panel, label=self.modelfile)
+        mf = self.modelfile[0] if (isinstance(self.modelfile, list) and len(self.modelfile) >0) else self.modelfile
+        self.modelfiletxt = wx.StaticText(self.panel, label=mf)
         browsebutton = wx.Button(self.panel, wx.ID_ANY, 'Choose...')
         browsebutton.Bind(wx.EVT_BUTTON, self.OnBrowse)
 
@@ -135,19 +136,24 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
             self.noise_input.SetValue(noise)
 
     def OnBrowse(self, event):
-        fpath = self.modelfiletxt.GetLabel()
-        _, fname = os.path.split(fpath)
-        with wx.FileDialog(self, 'Model File', style=wx.FD_OPEN) as fileDialog:
+        if isinstance(self.modelfile, list) and len(self.modelfile) > 0:
+            fpath = self.modelfile[0]
+            fname = ''
+        else:   
+            fpath = self.modelfile # self.modelfiletxt.GetLabel()
+            _, fname = os.path.split(fpath)
+        with wx.FileDialog(self, 'Model File', style=wx.FD_OPEN|wx.FD_MULTIPLE) as fileDialog:
             fileDialog.SetPath(fpath)
             fileDialog.SetFilename(fname)
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            fname = fileDialog.GetPath()
-            self.modelfiletxt.SetLabel(fname)
+            #fname = fileDialog.GetPath()
+            self.modelfile = fileDialog.GetPaths()
+            self.modelfiletxt.SetLabel(self.modelfile[0])
 
     def _get_selected(self):
         params = super()._get_selected()
-        params['modelfile'] = self.modelfiletxt.GetLabel()
+        params['modelfile'] = self.modelfile #self.modelfiletxt.GetLabel()
         params['device'] = self.device_combobox.GetValue()
         params['sets'] = self.sets_spinner.GetValue()
         params['add_noise'] = self.noise_checkbox.GetValue()
@@ -185,6 +191,17 @@ class AESimulate(AbstractPlugin):
 
     def get_required_features(self):
         return ["any"]
+
+    def get_parallel_parameters(self):
+        parallel_params = []
+        files = self.params['modelfile']
+        if not isinstance(files, list):
+            files = [files]
+        for mf in files:
+            param = self.params.copy()
+            param["modelfile"] = mf
+            parallel_params.append(param)
+        return parallel_params
 
     def get_default_parameters(self):
         params = super().get_default_parameters()
@@ -256,7 +273,11 @@ class AESimulate(AbstractPlugin):
             device = 'cpu'
             logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
         sim_df = pd.DataFrame(columns=(cats + feat_cols))
-        noise_df = pd.DataFrame(columns=(cats + feat_cols))
+        noise_df = pd.DataFrame()
+        try:
+            maxcell = np.amax(data[grouping[-1]].astype(int).to_numpy())
+        except:
+            pass
 
         mean_noise, std_noise = self._model_noise(data_feat, self.params['snr_db'])
         #ae = torch.load(self.params['modelfile'], map_location = device)
@@ -267,7 +288,7 @@ class AESimulate(AbstractPlugin):
         for simset in range(0, self.params['sets']):
             if self.params['add_noise']:
                 noise = np.random.normal(mean_noise, scale=std_noise, size=data_feat.shape)
-                sdata_feat = data_feat.add(noise)
+                sdata_feat = data_feat + noise
             else:
                 sdata_feat = data_feat
 
@@ -291,10 +312,14 @@ class AESimulate(AbstractPlugin):
             sim_data = scaler.inverse_transform(recon_data)
             temp = pd.DataFrame(columns=(cats + feat_cols))
             temp[cats] = data[cats]
+            try:
+                temp[grouping[-1]] = temp[grouping[-1]].astype(int) + maxcell*simset
+            except:
+                temp[grouping[-1]] = temp[grouping[-1]].astype(str) + f'.{simset}'
             temp[feat_cols] = sim_data
             sim_df = pd.concat([sim_df, temp])
 
-        calcdf = pd.DataFrame()
+        # calculate the rel amplitudes, e.g. a1%, a2% etc.
         for k, amps in amplitudes.items():
             total_col = f'{k} total'
             total_amp = sim_df[amps].sum(axis=1)
@@ -304,16 +329,13 @@ class AESimulate(AbstractPlugin):
                 ]
                 calc_col = calc_col[0] if len(calc_col) > 0 else f'{a}%'
                 logging.debug(f'Calculating {calc_col}.')
-                calcdf[calc_col] = sim_df[a] / total_amp * 100.0
+                sim_df[calc_col] = sim_df[a] / total_amp * 100.0
 
-        # concat and ensure unique index
-        sim_df = pd.concat([sim_df, calcdf], axis=1).reset_index()
-        outfeats = feat_cols + list(calcdf.columns.values)
+        outfeats = list([c for c in sim_df.columns.values if c not in cats])
         outfeats.sort()  #ensure feature vectors will be applied correctly
         sim_df = sim_df[cats + outfeats]
         sim_df[grouping[-1]] = sim_df[grouping[-1]].astype(str).astype('category')
 
         return {
             'Table: Simulated': sim_df,
-            'Table: Calculated': calcdf
         }  #, 'Table: Noise': noise_df}

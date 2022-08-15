@@ -44,7 +44,7 @@ from flim.workflow.basicflow import AbsWorkFlow, results_to_tasks
 @plugin(plugintype="Workflow")        
 class AEWorkflow(AbsWorkFlow):
 
-    def __init__(self, name="FLIM AE Tuning", **kwargs):
+    def __init__(self, name="FLIM Data Simulation Tuning", **kwargs):
         super().__init__(name=name, **kwargs)
         #self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
 
@@ -59,14 +59,15 @@ class AEWorkflow(AbsWorkFlow):
                 'FAD a1','FAD a1[%]', 'FAD a2', 'FAD a2[%]', 'FAD t1', 'FAD t2', 'FAD photons', 
                 'NAD(P)H a1', 'NAD(P)H a1[%]', 'NAD(P)H a2', 'NAD(P)H a2[%]', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'],
 	        'timeseries': 'Treatment',
-	        'epoches': 20, 
-	        'learning_rate': [0.00001, 0.00002, 0.00005, 0.0001, 0.00011, 0.00015, 0.0002], 
+	        'epoches': 6, #20, 
+	        'learning_rate': [0.00001, 0.00002], #, 0.00005, 0.0001, 0.00011, 0.00015, 0.0002], 
 	        'weight_decay': [1e-7, 1e-8], 
-	        'batch_size': [128],
-	        'modelfile': 'AETrain',
-            'model': 'Autoencoder 2',
+	        'batch_size': [128, 64],
+	        'modelfile': 'AE Train Simulator',
+            'model': 'AE Simulator 1-6',
             'device': 'cpu',
             'rescale': True,
+            'checkpoint_interval': 2, # 20
         })
         return params
 
@@ -84,7 +85,8 @@ class AEWorkflow(AbsWorkFlow):
             model=self.params['model'],
             modelfile=self.params['modelfile'],
             device=self.params['device'],
-            rescale=self.params['rescale'])
+            rescale=self.params['rescale'],
+            checkpoint_interval=self.params["checkpoint_interval"])
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return # implicit None
@@ -100,6 +102,7 @@ class AEWorkflow(AbsWorkFlow):
         rates = self.params['learning_rate']
         decays = self.params['weight_decay']
         batch_sizes = self.params['batch_size']
+        checkpoint_interval = self.params['checkpoint_interval']
                 
         #listtask = List()
         datatask = DataBucket(name='Input')
@@ -109,6 +112,7 @@ class AEWorkflow(AbsWorkFlow):
             weight_decay=decays,
             batch_size=batch_sizes,
             create_plots=False,
+            checkpoint_interval=checkpoint_interval,
             )
         concattask = Concatenator()
         summarytask = SummaryStats()
@@ -139,6 +143,7 @@ class AEWorkflow(AbsWorkFlow):
                 learning_rate=rates,
                 weight_decay=decays,
                 batch_size=batch_sizes,
+                checkpoint_interval=checkpoint_interval,
                 timeseries=timeseries,
                 rescale=True,
                 model=model,
@@ -157,7 +162,7 @@ class AEWorkflow(AbsWorkFlow):
                 input=concatresults, 
                 input_select=[0],
                 grouping=['Source', 'Batch Size', 'Learning Rate', 'Weight Decay'],
-                features=['Training Loss', 'Validation Loss'], 
+                features=['Training Loss', 'Validation Loss', 'Model File'], 
                 singledf=True, 
                 aggs=['min']
                 ))

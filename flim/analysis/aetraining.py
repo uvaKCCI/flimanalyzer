@@ -598,6 +598,9 @@ class AETraining(AbstractPlugin):
                 imputer,
                 label_encoders,
             )
+            for key in r:
+                if key in results:
+                    r[key] = results[key] + r[key]
             results.update(r)
         return results
 
@@ -734,6 +737,21 @@ class AETraining(AbstractPlugin):
         encoded_df = encoded_df.set_index(data.index)
 
         epoch_list = [str(e) for e in range(1, self.params["epoches"] + 1)]
+        parts = model_file #self.params["modelfile"].split(".")
+        presuf = (
+            ["".join(parts[: len(parts) - 1]), f".{parts[-1]}"]
+            if len(parts) > 1
+            else parts + [""]
+        )
+        all_model_files={}
+        for epoch, ae in checkpoints:
+            f = f"{presuf[0]}{presuf[1]}_epoch{epoch:04d}"
+            dump(
+                make_pipeline(imputer, input_scaler, ae),
+                filename=f,
+            )
+            all_model_files[epoch] = f
+
         loss_df = pd.DataFrame(
             {
                 "Epoch": epoch_list,
@@ -742,8 +760,11 @@ class AETraining(AbstractPlugin):
                 "Weight Decay": [str(weight_decay)] * len(epoch_list),
                 "Training Loss": loss_train,
                 "Validation Loss": loss_val,
+                "Model File": [all_model_files.get(e, '---') for e in range(1, self.params["epoches"] + 1)] 
             }
         )
+
+
         loss_df["Epoch"] = loss_df["Epoch"].astype("category")
         loss_df["Batch Size"] = loss_df["Batch Size"].astype("category")
         loss_df["Learning Rate"] = loss_df["Learning Rate"].astype("category")
@@ -753,23 +774,12 @@ class AETraining(AbstractPlugin):
         logging.debug(f"loss_TestSet: {loss_val[-1]}")
         logging.info("Training complete.")
 
-        parts = self.params["modelfile"].split(".")
-        presuf = (
-            ["".join(parts[: len(parts) - 1]), f".{parts[-1]}"]
-            if len(parts) > 1
-            else parts + [""]
-        )
-        for epoch, ae in checkpoints:
-            dump(
-                make_pipeline(imputer, input_scaler, ae),
-                filename=f"{presuf[0]}-epoch{epoch}{presuf[1]}",
-            )
 
         results = {
             f"Table: AE Loss-{batch_size}-{learning_rate}-{weight_decay}": loss_df,
             f"Table: AE Decoded-{batch_size}-{learning_rate}-{weight_decay}": decoded_df,
             f"Table: AE Encoded-{batch_size}-{learning_rate}-{weight_decay}": encoded_df,
-            "Model File": model_file,
+            "Model File": [v for v in all_model_files.values()],
         }
         if self.params["create_plots"]:
             fig, ax = plt.subplots(constrained_layout=True)
