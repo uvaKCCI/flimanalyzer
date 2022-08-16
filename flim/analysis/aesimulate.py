@@ -285,6 +285,7 @@ class AESimulate(AbstractPlugin):
 
         data_feat = data_feat.to_numpy(dtype=np.float32)
 
+        temps = []
         for simset in range(0, self.params['sets']):
             if self.params['add_noise']:
                 noise = np.random.normal(mean_noise, scale=std_noise, size=data_feat.shape)
@@ -317,8 +318,10 @@ class AESimulate(AbstractPlugin):
             except:
                 temp[grouping[-1]] = temp[grouping[-1]].astype(str) + f'.{simset}'
             temp[feat_cols] = sim_data
-            sim_df = pd.concat([sim_df, temp])
+            temps.append(temp)
+            #sim_df = pd.concat([sim_df, temp])
 
+        sim_df = pd.concat(temps).reset_index()
         # calculate the rel amplitudes, e.g. a1%, a2% etc.
         for k, amps in amplitudes.items():
             total_col = f'{k} total'
@@ -333,8 +336,9 @@ class AESimulate(AbstractPlugin):
 
         outfeats = list([c for c in sim_df.columns.values if c not in cats])
         outfeats.sort()  #ensure feature vectors will be applied correctly
-        sim_df = sim_df[cats + outfeats]
+        sim_df = sim_df[cats + outfeats] #.reset_index()
         sim_df[grouping[-1]] = sim_df[grouping[-1]].astype(str).astype('category')
+        print (sim_df.index.duplicated())
 
         return {
             'Table: Simulated': sim_df,
