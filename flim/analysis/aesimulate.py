@@ -337,8 +337,6 @@ class AESimulate(AbstractPlugin):
         # ae = torch.load(self.params['modelfile'], map_location = device)
         ae_pipeline = load(modelfile)
 
-        data_feat = data_feat.to_numpy(dtype=np.float32)
-
         temps = []
         for simset in range(0, self.params["sets"]):
             if self.params["add_noise"]:
@@ -348,6 +346,8 @@ class AESimulate(AbstractPlugin):
                 sdata_feat = data_feat + noise
             else:
                 sdata_feat = data_feat
+
+            sdata_feat = sdata_feat.to_numpy(dtype=np.float32)
 
             features, reconstructed = ae_pipeline.transform(sdata_feat)
 
@@ -398,4 +398,4 @@ class AESimulate(AbstractPlugin):
 
         return {
             f"Table: Simulated-{os.path.basename(modelfile)}": sim_df,
-        }  # , 'Table: Noise': noise_df}
+        }
