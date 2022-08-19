@@ -5,13 +5,14 @@ Created on Thu Feb 10 12:45:21 2022
 
 @author: khs3z
 """
-import logging
-import inspect
-import os
-import pkgutil
 import importlib
-import pandas as pd
+import inspect
+import logging
 import matplotlib.figure
+import os
+import pandas as pd
+import pkgutil
+import re
 import typing
 from typing import (
     TYPE_CHECKING,
@@ -170,16 +171,20 @@ class AbstractPlugin(Task):
         self.params.update({k:v for k,v in kwargs.items() if k in self.params})        
         self.set_input(input, input_select)
         
-    def set_input(self, input: dict, input_select: str = None) -> dict:
+    def set_input(self, input: dict, input_select: list = []) -> dict:
+        if isinstance(input,list):
+            if isinstance(input[0], dict):
+                # flatten list of dict
+                input = {k:v for entry in input for k,v in entry.items()}
         input_labels = None
-        if isinstance(input,dict):
+        if isinstance(input, dict):
             if input_select is not None:
                 if isinstance(input_select[0], int):
                     input_labels = list(input.keys())
                     input_values = list(input.values())
                     input = {input_labels[i]:input_values[i] for i in input_select}
                 elif isinstance(input_select[0], str):
-                    input = {k:input[k] for k in input_select}
+                    input = {k:input[k] for pattern in input_select for k in input if re.match(pattern, k)}
         elif isinstance(input,list):
             if input_select is None or not isinstance(input_select[0], int):
                 input_select=range(len(input))    
@@ -260,7 +265,7 @@ class AbstractPlugin(Task):
             'features': [], 
             'input': {},
             'auto_save': False,
-            'working_dir': '',
+            'working_dir': os.path.join(os.path.expanduser('~'),'FLIMAnalyzerResults')
             }      
         return defaults
 
@@ -398,9 +403,6 @@ class DataBucket(AbstractPlugin):
         
     def execute(self):
         #self.name = self._get_input_label(self.input)
-        print (f'{self.name}-- {self.input}')
-        for k,v in self.input.items():
-            print (f'\tk={k}, type(v)={type(v)}')
         return self.input
         #return list(self.input.values())[0]
     

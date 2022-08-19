@@ -5,38 +5,35 @@
 
 import copy
 import itertools
+import logging
 import os
 import random
-import numpy as np
-import pandas as pd
+from collections import defaultdict
+
+import flim.analysis.ml.autoencoder as autoencoder
+import flim.resources
 import matplotlib.figure
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
+import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.parallel
 import torch.optim as optim
 import torch.utils.data
-from torch.utils.data.dataset import Dataset
+import wx
+from flim import utils
+from flim.gui.dialogs import BasicAnalysisConfigDlg
+from flim.plugin import AbstractPlugin, plugin
+from importlib_resources import files
+from joblib import dump
+from matplotlib.ticker import MaxNLocator
 from sklearn import preprocessing
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import make_pipeline
-from joblib import dump
-import flim.analysis.ml.autoencoder as autoencoder
-import logging
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import wx
-from wx.lib.masked import NumCtrl
-from importlib_resources import files
-import flim.resources
-from collections import defaultdict
 from sklearn.preprocessing import LabelEncoder
-
-from flim.plugin import AbstractPlugin
-from flim.plugin import plugin
-import flim.resources
-import flim.analysis.ml.autoencoder as autoencoder
-from flim.gui.dialogs import BasicAnalysisConfigDlg
+from torch.utils.data.dataset import Dataset
+from wx.lib.masked import NumCtrl
 
 
 def to_str_sequence(items):
@@ -577,7 +574,7 @@ class AETraining(AbstractPlugin):
         rates = self.params["learning_rate"]
         decays = self.params["weight_decay"]
         sizes = self.params["batch_size"]
-        combinations = list(itertools.product(sizes, rates, decays))
+        combinations = utils.combine(sizes, rates, decays)
         results = {}
         for size, rate, decay in combinations:
             (
@@ -737,13 +734,13 @@ class AETraining(AbstractPlugin):
         encoded_df = encoded_df.set_index(data.index)
 
         epoch_list = [str(e) for e in range(1, self.params["epoches"] + 1)]
-        parts = model_file #self.params["modelfile"].split(".")
+        parts = model_file  # self.params["modelfile"].split(".")
         presuf = (
             ["".join(parts[: len(parts) - 1]), f".{parts[-1]}"]
             if len(parts) > 1
             else parts + [""]
         )
-        all_model_files={}
+        all_model_files = {}
         for epoch, ae in checkpoints:
             f = f"{presuf[0]}{presuf[1]}_epoch{epoch:04d}"
             dump(
@@ -760,10 +757,12 @@ class AETraining(AbstractPlugin):
                 "Weight Decay": [str(weight_decay)] * len(epoch_list),
                 "Training Loss": loss_train,
                 "Validation Loss": loss_val,
-                "Model File": [all_model_files.get(e, '---') for e in range(1, self.params["epoches"] + 1)] 
+                "Model File": [
+                    all_model_files.get(e, "---")
+                    for e in range(1, self.params["epoches"] + 1)
+                ],
             }
         )
-
 
         loss_df["Epoch"] = loss_df["Epoch"].astype("category")
         loss_df["Batch Size"] = loss_df["Batch Size"].astype("category")
@@ -773,7 +772,6 @@ class AETraining(AbstractPlugin):
         logging.debug(f"loss_TrainingSet: {loss_train[-1]}")
         logging.debug(f"loss_TestSet: {loss_val[-1]}")
         logging.info("Training complete.")
-
 
         results = {
             f"Table: AE Loss-{batch_size}-{learning_rate}-{weight_decay}": loss_df,

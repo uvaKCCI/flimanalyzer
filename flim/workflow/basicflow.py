@@ -6,58 +6,53 @@ Created on Wed Dec 16 14:35:56 2020
 @author: khs3z
 """
 
+import importlib
+import inspect
 import json
 import logging
-import inspect
 import os
 import pkgutil
-import importlib
-import numpy as np
-import pandas as pd
-import wx
-import graphviz
-import networkx as nx
-import networkx.drawing.nx_pydot
-import networkx.drawing.nx_agraph
-import networkx.classes.function
-import pydot
-import matplotlib.pyplot as plt
 from abc import ABC, abstractmethod
-from importlib_resources import files
-from prefect import Task, Flow, Parameter, task
-from prefect.tasks.core.constants import Constant
-from prefect.tasks.core.collections import List
-from prefect.executors import DaskExecutor
-from prefect.executors.base import Executor
 
 import flim.resources
-from flim.plugin import plugin
-from flim.plugin import AbstractPlugin, DataBucket, ALL_FEATURES
-from flim.data.pivotdata import Pivot
-from flim.data.unpivotdata import UnPivot
-from flim.data.filterdata import Filter
-from flim.data.concatdata import Concatenator
-from flim.data.mergedata import Merger
+import graphviz
+import matplotlib.pyplot as plt
+import networkx as nx
+import networkx.classes.function
+import networkx.drawing.nx_agraph
+import networkx.drawing.nx_pydot
+import numpy as np
+import pandas as pd
+import pydot
+import wx
 from flim.analysis.aerun import RunAE
-from flim.analysis.aetraining import AETraining
 from flim.analysis.aesimulate import AESimulate
+from flim.analysis.aetraining import AETraining
 from flim.analysis.barplots import BarPlot
 from flim.analysis.heatmap import Heatmap
 from flim.analysis.kde import KDE
 from flim.analysis.kmeans import KMeansClustering
 from flim.analysis.ksstats import KSStats
 from flim.analysis.lineplots import LinePlot
+from flim.analysis.pca import PCAnalysis
+from flim.analysis.relativechange import RelativeChange
+from flim.analysis.scatterplots import ScatterPlot
 from flim.analysis.seriesanalyzer import SeriesAnalyzer
 from flim.analysis.summarystats import SummaryStats
-from flim.analysis.relativechange import RelativeChange
-from flim.analysis.pca import PCAnalysis
-from flim.analysis.scatterplots import ScatterPlot
-from flim.analysis.barplots import BarPlot
-from flim.analysis.lineplots import LinePlot
-from flim.gui.dialogs import BasicAnalysisConfigDlg
 from flim.core.graph import WorkflowGraph
-
-
+from flim.data.concatdata import Concatenator
+from flim.data.filterdata import Filter
+from flim.data.mergedata import Merger
+from flim.data.pivotdata import Pivot
+from flim.data.unpivotdata import UnPivot
+from flim.gui.dialogs import BasicAnalysisConfigDlg
+from flim.plugin import ALL_FEATURES, AbstractPlugin, DataBucket, plugin
+from importlib_resources import files
+from prefect import Flow, Parameter, Task, task
+from prefect.executors import DaskExecutor
+from prefect.executors.base import Executor
+from prefect.tasks.core.collections import List
+from prefect.tasks.core.constants import Constant
 
 
 class AbsWorkFlow(AbstractPlugin):
@@ -153,6 +148,7 @@ class AbsWorkFlow(AbstractPlugin):
             json.dump(flow.serialize(), fp, indent=4)
 
         
+        results = {}
         state = flow.run()
         task_refs = flow.get_tasks()
         task_results = [state.result[tr]._result.value for tr in task_refs]
