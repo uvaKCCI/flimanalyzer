@@ -83,7 +83,7 @@ class Filter(AbstractPlugin):
                         RangeFilter('trp r3',0,3).get_params(),
                         RangeFilter('trp chi',0,4.7).get_params(),
                         RangeFilter('trp photons',0,160).get_params(),
-                        RangeFilter('NAD(P)H a1',0,1000, selected=True).get_params(),
+                        RangeFilter('NAD(P)H a1',0,800, selected=True).get_params(),
                         RangeFilter('NAD(P)H a1[%]',0,100).get_params(),
                         RangeFilter('NAD(P)H a2',5,300, selected=True).get_params(),
                         RangeFilter('NAD(P)H a2[%]',0,100).get_params(),
@@ -95,7 +95,7 @@ class Filter(AbstractPlugin):
                         RangeFilter('NADPH %',0,99).get_params(),
                         RangeFilter('NADH %',0,100).get_params(),
                         RangeFilter('NADPH/NADH',0,3).get_params(),
-                        RangeFilter('NAD(P)H chi',0.7,4.7).get_params(),
+                        RangeFilter('NAD(P)H chi',0.7,2.0).get_params(),
                         RangeFilter('FAD t1',10,1500, selected=True).get_params(),
                         RangeFilter('FAD t2',1000,6000, selected=True).get_params(),
                         RangeFilter('FAD tm',0,2500).get_params(),
@@ -105,8 +105,8 @@ class Filter(AbstractPlugin):
                         RangeFilter('FAD a2[%]',0,100).get_params(),
                         RangeFilter('FAD a1[%]/a2[%]',0,16).get_params(),
                         RangeFilter('FLIRR',0,2.4).get_params(),
-                        RangeFilter('FAD chi',0.7,4.7).get_params(),
-                        RangeFilter('FAD photons',10,1000, selected=True).get_params(),
+                        RangeFilter('FAD chi',0.7,2.5).get_params(),
+                        RangeFilter('FAD photons',10,4000, selected=True).get_params(),
                         RangeFilter('FAD photons/NAD(P)H photons',0,2).get_params(),
         ]
         self.default_filters = {filter['name']:filter for filter in default_filters}

@@ -78,11 +78,14 @@ class KDE(AbstractPlugin, Task):
             features = list(data.select_dtypes(np.number).columns.values)
         for header in sorted(features):
             bins = 100
-            minx = data[header].min() #hconfig[0]
-            maxx = data[header].max() #hconfig[1]
+            cdata = data[header].replace([np.inf, -np.inf], np.nan).dropna()
+            len(cdata)
+            minx = cdata.min() #hconfig[0]
+            maxx = cdata.max() #hconfig[1]
             logging.debug (f"Creating kde plot for {str(header)}, bins={str(bins)}")
             fig,ax = self.grouped_kdeplot(data, header, groups=self.params['grouping'], clip=(minx, maxx)) # bins=bins, hist=False, 
-            ax.set_xlim(minx, maxx)
+            if not np.isinf([minx, maxx]).any() and not np.isnan([minx, maxx]).any():
+                ax.set_xlim(minx, maxx)
             results[f'Plot: KDE {header}'] = fig
         return results
     

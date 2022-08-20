@@ -194,7 +194,7 @@ class BarPlot(AbstractPlugin):
         #plt.rcParams.update({'figure.autolayout': True})
         a = all(e in data.columns.values for e in feature)
         if data is None or not a:
-            return None, None
+            return None
         if ax is None:
             fig, ax = plt.subplots() #constrained_layout=True)
         else:

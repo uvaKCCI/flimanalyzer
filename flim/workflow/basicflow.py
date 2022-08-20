@@ -320,10 +320,8 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 sets=sim_sets
                 ))
                 
-            filterresults2 = results_to_tasks(filtertask(
-                input=simresults['Table: Simulated'], 
-                input_select=[0]
-                ))
+            filterresults2 = results_to_tasks(filtertask(input=simresults["Table: Simulated"], input_select=[0])
+)
             
             aeresults2 = results_to_tasks(aetraintask_14(
                 input=filterresults2['Table: Filtered'], 
