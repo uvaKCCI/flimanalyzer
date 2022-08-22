@@ -22,22 +22,13 @@ import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files, as_file
 
+import flim.analysis.ml.autoencoder as autoencoder
+import flim.resources
 from flim.plugin import AbstractPlugin
 from flim.plugin import plugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
-import flim.analysis.ml.autoencoder as autoencoder
-import flim.resources
+from flim import utils
 from joblib import load
-
-NOISE_UNIT = ["linear", "dB"]
-
-
-def to_db(value):
-    return 10.0 * np.log10(value)
-
-
-def db_to_linear(db_value):
-    return 10.0 ** (db_value / 10.0)
 
 
 class AESimConfigDlg(BasicAnalysisConfigDlg):
@@ -53,14 +44,14 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         sets=1,
         add_noise=True,
         snr_db=0.0,
-        snr_unit=NOISE_UNIT[-1],
+        snr_unit=utils.NOISE_UNIT[-1],
     ):
         self.modelfile = modelfile
         self.device = device
         self.sets = sets
         self.add_noise = add_noise
-        self.snr_unit = snr_unit if snr_unit in NOISE_UNIT else NOISE_UNIT[-1]
-        self.snr = snr_db if self.snr_unit == "dB" else db_to_linear(snr_db)
+        self.snr_unit = snr_unit if snr_unit in utils.NOISE_UNIT else utils.NOISE_UNIT[-1]
+        self.snr = snr_db if self.snr_unit == "dB" else utils.db_to_linear(snr_db)
         BasicAnalysisConfigDlg.__init__(
             self,
             parent,
@@ -76,7 +67,7 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         mf = (
             self.modelfile[0]
             if (isinstance(self.modelfile, list) and len(self.modelfile) > 0)
-            else self.modelfile 
+            else self.modelfile
         )
         self.modelfiletxt = wx.StaticText(self.panel, label=mf)
         browsebutton = wx.Button(self.panel, wx.ID_ANY, "Choose...")
@@ -147,7 +138,7 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.snr_unit,
-            choices=NOISE_UNIT,
+            choices=utils.NOISE_UNIT,
         )
         self.unit_combobox.Bind(wx.EVT_COMBOBOX, self._update_unit)
         bottom_sizer.Add(
@@ -171,7 +162,7 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         unit = self.unit_combobox.GetValue()
         if unit != self.snr_unit:
             noise = self.noise_input.GetValue()
-            noise = to_db(noise) if unit == "dB" else db_to_linear(noise)
+            noise = utils.to_db(noise) if unit == "dB" else utils.db_to_linear(noise)
             self.snr_unit = unit
             self.noise_input.SetValue(noise)
 
@@ -203,7 +194,7 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         if self.unit_combobox.GetValue() == "dB":
             params["snr_db"] = self.noise_input.GetValue()
         else:
-            params["snr_db"] = to_db(self.noise_input.GetValue())
+            params["snr_db"] = utils.to_db(self.noise_input.GetValue())
         return params
 
 

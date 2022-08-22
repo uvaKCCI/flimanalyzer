@@ -20,6 +20,7 @@ class LocalResultClear(LocalResult):
         assert new.location is not None
 
         full_path = os.path.join(self.dir, new.location)
+        logging.debug(f"Saving to {full_path}")
         if isinstance(value, dict):
             for k, v in value.items():
                 if isinstance(v, pd.DataFrame):

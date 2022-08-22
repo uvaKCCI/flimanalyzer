@@ -36,10 +36,6 @@ from torch.utils.data.dataset import Dataset
 from wx.lib.masked import NumCtrl
 
 
-def to_str_sequence(items):
-    return ",".join([str(i) for i in items])
-
-
 class datasets(Dataset):
     def __init__(self, data, labels=[]):
         self.data = np.asarray(data)
@@ -71,6 +67,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         weight_decay=1e-7,
         timeseries="",
         model="",
+        working_dir="",
         modelfile="",
         device="cpu",
         rescale=False,
@@ -85,6 +82,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.weight_decay = weight_decay
         self.model = model
         self.model_opts = [a for a in autoencoder.get_autoencoder_classes()]
+        self.working_dir = working_dir
         self.modelfile = modelfile
         self.device = device
         self.rescale = rescale
@@ -120,7 +118,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         batch_sizer = wx.BoxSizer(wx.HORIZONTAL)
         # self.batchsize_spinner = wx.SpinCtrl(self.panel,wx.ID_ANY,min=1,max=4096,initial=self.batch_size)
         self.batchsize_input = wx.TextCtrl(
-            self.panel, wx.ID_ANY, value=to_str_sequence(self.batch_size)
+            self.panel, wx.ID_ANY, value=utils.to_str_sequence(self.batch_size)
         )  # NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
         batch_sizer.Add(
             wx.StaticText(self.panel, label="Batch Size"),
@@ -153,7 +151,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
         learning_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.learning_input = wx.TextCtrl(
-            self.panel, wx.ID_ANY, value=to_str_sequence(self.learning_rate)
+            self.panel, wx.ID_ANY, value=utils.to_str_sequence(self.learning_rate)
         )  # NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.learning_rate, fractionWidth=10)
         learning_sizer.Add(
             wx.StaticText(self.panel, label="Learning Rate"),
@@ -167,7 +165,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
         weight_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.weight_input = wx.TextCtrl(
-            self.panel, wx.ID_ANY, value=to_str_sequence(self.weight_decay)
+            self.panel, wx.ID_ANY, value=utils.to_str_sequence(self.weight_decay)
         )  # NumCtrl(self.panel,wx.ID_ANY, min=0.0, max=1.0, value=self.weight_decay, fractionWidth=10)
         weight_sizer.Add(
             wx.StaticText(self.panel, label="Weight Decay"),
@@ -330,17 +328,16 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.model_layers.Replace(0, self.model_layers.GetLastPosition(), layer_txt)
 
     def _on_browse(self, event):
-        fpath = self.modelfiletxt.GetLabel()
-        _, fname = os.path.split(fpath)
         with wx.FileDialog(
             self, "Model File", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
         ) as fileDialog:
-            fileDialog.SetPath(fpath)
-            fileDialog.SetFilename(fname)
+            fileDialog.SetPath(self.working_dir)
+            fileDialog.SetFilename(self.modelfile)
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             fname = fileDialog.GetPath()
-            self.modelfiletxt.SetLabel(fname)
+            self.working_dir, self.modelfile = os.path.split(fname)
+            self.modelfiletxt.SetLabel(self.modelfile)
 
     def _get_selected(self):
         params = super()._get_selected()
@@ -355,7 +352,8 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
             float(i) for i in self.weight_input.GetValue().split(",")
         ]
         params["timeseries"] = self.timeseries_combobox.GetValue()
-        params["modelfile"] = self.modelfiletxt.GetLabel()
+        params["working_dir"] = self.working_dir
+        params["modelfile"] = self.modelfile
         params["model"] = self.model_combobox.GetValue()
         params["device"] = self.device_combobox.GetValue()
         params["rescale"] = self.rescale_checkbox.GetValue()
@@ -370,6 +368,7 @@ class AETraining(AbstractPlugin):
         self.variables = self.params["features"]
         self.epoches = self.params["epoches"]
         self.timeseries = self.params["timeseries"]
+        self.working_dir = self.params["working_dir"]
         self.modelfile = self.params["modelfile"]
         self.lr = self.params["learning_rate"]
         self.wd = self.params["weight_decay"]
@@ -425,20 +424,16 @@ class AETraining(AbstractPlugin):
                 "weight_decay": [1e-8],
                 "batch_size": [128],
                 "timeseries": "Treatment",
-                "modelfile": "",
+                "modelfile": "AEModel",
                 "grouping": ["FOV", "Cell"],
                 "features": [
                     "FAD a1",
-                    "FAD a1[%]",
                     "FAD a2",
-                    "FAD a2[%]",
                     "FAD t1",
                     "FAD t2",
                     "FAD photons",
                     "NAD(P)H a1",
-                    "NAD(P)H a1[%]",
                     "NAD(P)H a2",
-                    "NAD(P)H a2[%]",
                     "NAD(P)H t1",
                     "NAD(P)H t2",
                     "NAD(P)H photons",
@@ -490,6 +485,7 @@ class AETraining(AbstractPlugin):
             learning_rate=self.params["learning_rate"],
             timeseries=self.params["timeseries"],
             model=self.params["model"],
+            working_dir=self.params["working_dir"],
             modelfile=self.params["modelfile"],
             device=self.params["device"],
             rescale=self.params["rescale"],
@@ -613,8 +609,11 @@ class AETraining(AbstractPlugin):
         imputer,
         label_encoders,
     ):
-        model_file = (
-            f'{self.params["modelfile"]}_{batch_size}_{learning_rate}_{weight_decay}'
+        modelfile = (
+            os.path.join(
+                self.params["working_dir"],
+                f'{self.params["modelfile"]}_{batch_size}_{learning_rate}_{weight_decay}'
+            )
         )
         logging.info("Training started.")
         aeclasses = autoencoder.get_autoencoder_classes()
@@ -734,7 +733,7 @@ class AETraining(AbstractPlugin):
         encoded_df = encoded_df.set_index(data.index)
 
         epoch_list = [str(e) for e in range(1, self.params["epoches"] + 1)]
-        parts = model_file  # self.params["modelfile"].split(".")
+        parts = modelfile  # self.params["modelfile"].split(".")
         presuf = (
             ["".join(parts[: len(parts) - 1]), f".{parts[-1]}"]
             if len(parts) > 1
