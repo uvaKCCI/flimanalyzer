@@ -44,10 +44,15 @@ class Pivot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params['grouping']
         selfeatures = self.params['features']
-        dlg = BasicAnalysisConfigDlg(parent, 'Pivot Data', 
+        dlg = BasicAnalysisConfigDlg(
+            parent, 
+            'Pivot Data', 
             input=self.input, 
             selectedgrouping=selgrouping, 
-            selectedfeatures=selfeatures)
+            selectedfeatures=selfeatures,
+            autosave=self.params["autosave"],
+            working_dir=self.params["working_dir"],
+        )
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)

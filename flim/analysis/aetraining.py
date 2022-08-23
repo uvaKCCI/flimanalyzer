@@ -67,11 +67,12 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         weight_decay=1e-7,
         timeseries="",
         model="",
-        working_dir="",
         modelfile="",
         device="cpu",
         rescale=False,
         checkpoint_interval=20,
+        autosave=True,
+        working_dir="",
     ):
         data = list(input.values())[0]
         self.timeseries_opts = data.select_dtypes(include=["category"]).columns.values
@@ -87,7 +88,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.device = device
         self.rescale = rescale
         self.checkpoint_interval = checkpoint_interval
-        BasicAnalysisConfigDlg.__init__(
+        super().__init__(
             self,
             parent,
             title,
@@ -97,6 +98,8 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            autosave=autosave,
+            working_dir=working_dir,
         )
         self._update_model_info(None)
 
@@ -401,7 +404,7 @@ class AETraining(AbstractPlugin):
     def get_required_features(self):
         return ["any", "any"]
 
-    def get_parallel_parameters(self):
+    def get_mapped_parameters(self):
         parallel_params = []
         sizes = self.params["batch_size"]
         rates = self.params["learning_rate"]
@@ -485,11 +488,12 @@ class AETraining(AbstractPlugin):
             learning_rate=self.params["learning_rate"],
             timeseries=self.params["timeseries"],
             model=self.params["model"],
-            working_dir=self.params["working_dir"],
             modelfile=self.params["modelfile"],
             device=self.params["device"],
             rescale=self.params["rescale"],
             checkpoint_interval=self.params["checkpoint_interval"],
+            autosave=self.params["autosave"],
+            working_dir=self.params["working_dir"],
         )
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
@@ -609,11 +613,10 @@ class AETraining(AbstractPlugin):
         imputer,
         label_encoders,
     ):
-        modelfile = (
-            os.path.join(
-                self.params["working_dir"],
-                f'{self.params["modelfile"]}_{batch_size}_{learning_rate}_{weight_decay}'
-            )
+        results = {}
+        modelfile = os.path.join(
+            self.params["working_dir"],
+            f'{self.params["modelfile"]}_{batch_size}_{learning_rate}_{weight_decay}',
         )
         logging.info("Training started.")
         aeclasses = autoencoder.get_autoencoder_classes()
@@ -741,11 +744,16 @@ class AETraining(AbstractPlugin):
         )
         all_model_files = {}
         for epoch, ae in checkpoints:
-            f = f"{presuf[0]}{presuf[1]}_epoch{epoch:04d}"
+            f = (
+                f"{presuf[0]}{presuf[1]}_epoch{epoch:04d}".replace(".model", "")
+                + ".model"
+            )
+            pipeline = make_pipeline(imputer, input_scaler, ae)
             dump(
-                make_pipeline(imputer, input_scaler, ae),
+                pipeline,
                 filename=f,
             )
+            results[os.path.split(f)[1]] = pipeline
             all_model_files[epoch] = f
 
         loss_df = pd.DataFrame(
@@ -772,12 +780,14 @@ class AETraining(AbstractPlugin):
         logging.debug(f"loss_TestSet: {loss_val[-1]}")
         logging.info("Training complete.")
 
-        results = {
-            f"Table: AE Loss-{batch_size}-{learning_rate}-{weight_decay}": loss_df,
-            f"Table: AE Decoded-{batch_size}-{learning_rate}-{weight_decay}": decoded_df,
-            f"Table: AE Encoded-{batch_size}-{learning_rate}-{weight_decay}": encoded_df,
-            "Model File": [v for v in all_model_files.values()],
-        }
+        results.update(
+            {
+                f"Table: AE Loss-{batch_size}-{learning_rate}-{weight_decay}": loss_df,
+                f"Table: AE Decoded-{batch_size}-{learning_rate}-{weight_decay}": decoded_df,
+                f"Table: AE Encoded-{batch_size}-{learning_rate}-{weight_decay}": encoded_df,
+                "Model File": [v for v in all_model_files.values()],
+            }
+        )
         if self.params["create_plots"]:
             fig, ax = plt.subplots(constrained_layout=True)
             ax.plot(range(1, len(loss_train) + 1), loss_train, "b-", label="train-loss")

@@ -42,7 +42,6 @@ from flim.analysis.scatterplots import ScatterPlot
 from flim.analysis.barplots import BarPlot
 from flim.analysis.lineplots import LinePlot
 from flim.gui.dialogs import BasicAnalysisConfigDlg
-from flim.results import LocalResultClear
 from flim.workflow.basicflow import AbsWorkFlow, results_to_tasks
 
 @task
@@ -74,10 +73,11 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
         weight_decay=1e-7,
         timeseries="",
         model="",
-        working_dir=os.path.expanduser("~"),
         device="cpu",
         rescale=False,
         checkpoint_interval=20,
+        autosave=True,
+        working_dir=os.path.expanduser("~"),
     ):
         data = list(input.values())[0]
         self.timeseries_opts = data.select_dtypes(include=["category"]).columns.values
@@ -92,8 +92,7 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
         self.device = device
         self.rescale = rescale
         self.checkpoint_interval = checkpoint_interval
-        BasicAnalysisConfigDlg.__init__(
-            self,
+        super().__init__(
             parent,
             title,
             input=input,
@@ -102,6 +101,8 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            autosave=autosave,
+            working_dir=working_dir,
         )
         self._update_model_info(None)
 
@@ -253,9 +254,9 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
         )
         self.model_combobox.Bind(wx.EVT_COMBOBOX, self._update_model_info)
 
-        self.workingdirtxt = wx.StaticText(self.panel, label=self.working_dir)
-        browsebutton = wx.Button(self.panel, wx.ID_ANY, "Choose...")
-        browsebutton.Bind(wx.EVT_BUTTON, self._on_browse)
+        #self.workingdirtxt = wx.StaticText(self.panel, label=self.working_dir)
+        #browsebutton = wx.Button(self.panel, wx.ID_ANY, "Choose...")
+        #browsebutton.Bind(wx.EVT_BUTTON, self._on_browse)
 
         timeseries_sizer.Add(
             wx.StaticText(self.panel, label="Model Architecture"),
@@ -272,10 +273,10 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
             wx.ALL | wx.ALIGN_CENTER_VERTICAL,
             5,
         )
-        timeseries_sizer.Add(self.workingdirtxt, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        timeseries_sizer.Add(
-            browsebutton, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
-        )
+        #timeseries_sizer.Add(self.workingdirtxt, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        #timeseries_sizer.Add(
+        #    browsebutton, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+        #)
 
         descr_sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.model_descr = wx.TextCtrl(
@@ -422,10 +423,11 @@ class AEWorkflow(AbsWorkFlow):
             learning_rate=self.params["learning_rate"],
             timeseries=self.params["timeseries"],
             model=self.params["model"],
-            working_dir=self.params["working_dir"],
             device=self.params["device"],
             rescale=self.params["rescale"],
             checkpoint_interval=self.params["checkpoint_interval"],
+            autosave=self.params["autosave"],
+            working_dir=self.params["working_dir"],
         )
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
@@ -475,13 +477,7 @@ class AEWorkflow(AbsWorkFlow):
         heatmaptask = Heatmap()
         kdetask = KDE()
 
-        localresult = LocalResultClear(
-            dir=f'{self.params["working_dir"]}',
-            location="{flow_name}/"
-            "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/"
-            "{task_full_name}-{task_tags}",  # -{task_run_id}-{map_index}-
-        )
-        with Flow(f"{self.name}", executor=self.executor, result=localresult) as flow:
+        with Flow(f"{self.name}", executor=self.executor, result=self.result) as flow:
             working_dir = Parameter("working_dir", self.params["working_dir"])
             modelfile = f'AEModel-{len(self.params["features"])}'
 

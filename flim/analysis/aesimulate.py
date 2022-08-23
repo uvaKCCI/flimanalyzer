@@ -45,6 +45,8 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         add_noise=True,
         snr_db=0.0,
         snr_unit=utils.NOISE_UNIT[-1],
+        autosave=True,
+        working_dir="",
     ):
         self.modelfile = modelfile
         self.device = device
@@ -61,6 +63,8 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            autosave=autosave,
+            working_dir=working_dir,
         )
 
     def get_option_panels(self):
@@ -225,7 +229,7 @@ class AESimulate(AbstractPlugin):
     def get_required_features(self):
         return ["any"]
 
-    def get_parallel_parameters(self):
+    def get_mapped_parameters(self):
         parallel_params = []
         files = self.params["modelfile"]
         if not isinstance(files, list):
@@ -264,6 +268,8 @@ class AESimulate(AbstractPlugin):
             sets=self.params["sets"],
             add_noise=self.params["add_noise"],
             snr_db=self.params["snr_db"],
+            autosave=self.params["autosave"],
+            working_dir=self.params["working_dir"],
         )
         if dlg.ShowModal() == wx.ID_OK:
             params = dlg.get_selected()

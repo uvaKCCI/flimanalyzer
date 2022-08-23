@@ -43,7 +43,7 @@ class SwarmPlot(AbstractPlugin):
     def get_required_features(self):
         return ['any']
 
-    def get_parallel_parameters(self):
+    def get_mapped_parameters(self):
         parallel_params = []
         for f in self.params['features']:
             pair_param = self.params.copy()
@@ -61,7 +61,10 @@ class SwarmPlot(AbstractPlugin):
         dlg = BasicAnalysisConfigDlg(parent, f'Configuration: {self.name}', 
             input=self.input, 
             selectedgrouping=selgrouping, 
-            selectedfeatures=selfeatures)
+            selectedfeatures=selfeatures,
+            autosave=self.params["autosave"],
+            working_dir=self.params["working_dir"],
+        )
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)

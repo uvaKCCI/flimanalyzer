@@ -278,8 +278,8 @@ class AbstractPlugin(Task):
             "grouping": [],
             "features": [],
             "input": {},
-            "auto_save": False,
-            "working_dir": os.path.expanduser("~"),
+            "autosave": False,
+            "working_dir": os.path.join(os.path.expanduser("~"), "FLIMAnalyzerResults"),
         }
         return defaults
 
@@ -291,7 +291,7 @@ class AbstractPlugin(Task):
         """
         return self.params
 
-    def get_parallel_parameters(self) -> List[Dict[str, Any]]:
+    def get_mapped_parameters(self) -> List[Dict[str, Any]]:
         """Provides a list of the plugins current parameters. Each list item defines a
         parameters for the smallest independent work unit. The list can be mapped for
         parallel flow execution.
@@ -393,7 +393,7 @@ class AbstractPlugin(Task):
     def run(self, input={}, input_select=None, **kwargs):
         self.configure(input=input, input_select=input_select, **kwargs)
         logging.debug(
-            f"Executing {self.name}: run_task_name={self.task_run_name}, type(self.input)={type(self.input)}"
+            f"Executing {self.name}: task_run_name={self.task_run_name}, type(self.input)={type(self.input)}"
         )
         results = self.execute()
         return results

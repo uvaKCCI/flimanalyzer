@@ -55,7 +55,10 @@ class ScatterPlot(AbstractPlugin):
         dlg = BasicAnalysisConfigDlg(parent, 'Scatter Plot', 
             input=self.input, 
             selectedgrouping=selgrouping, 
-            selectedfeatures=selfeatures)
+            selectedfeatures=selfeatures,
+            autosave=self.params["autosave"],
+            working_dir=self.params["working_dir"],
+        )
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -63,7 +66,7 @@ class ScatterPlot(AbstractPlugin):
         else:	
             return None
 
-    def get_parallel_parameters(self):
+    def get_mapped_parameters(self):
         parallel_params = []
         combs = itertools.combinations(self.params['features'], 2)
         for pair in combs:

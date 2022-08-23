@@ -17,44 +17,40 @@ import itertools
 import pandas as pd
 import json
 import ctypes
-
 import wx
 import wx.lib.agw.customtreectrl as CT
-from pubsub import pub
 
-import flim.plugin as plugin
-from flim.plugin import PLUGINS, AbstractPlugin
+from pubsub import pub
+from prefect import Flow
+from prefect.backend import FlowRunView
+from wx.lib.newevent import NewEvent
+
 import flim.analysis
-import flim.workflow
 import flim.core.configuration as cfg
-from flim.core.configuration import Config
 import flim.core.parser
 import flim.core.plots
 import flim.core.preprocessor
 import flim.gui.dialogs
-from flim.gui.importdlg import ImportDlg
+import flim.plugin as plugin
+import flim.workflow
+from flim.core.configuration import Config
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.filter import RangeFilter
-
+from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.datapanel import PandasFrame
-from flim.gui.dicttablepanel import DictTable, ListTable
-from flim.gui.listcontrol import AnalysisListCtrl, FilterListCtrl, EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
-from flim.gui.seriesfiltertree import SeriesFilterCtrl
-
-
 from flim.gui.dialogs import ConfigureCategoriesDlg
+from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
+from flim.gui.dicttablepanel import DictTable, ListTable
 from flim.gui.events import DataUpdatedEvent, EVT_DATAUPDATED, EVT_DU_TYPE, DataWindowEvent, EVT_DATA, EVT_DATA_TYPE, PlotEvent, EVT_PLOT, EVT_PLOT_TYPE 
 from flim.gui.events import REQUEST_CONFIG_UPDATE, CONFIG_UPDATED
 from flim.gui.events import FOCUSED_DATA_WINDOW, NEW_DATA_WINDOW, CLOSING_DATA_WINDOW, REQUEST_RENAME_DATA_WINDOW, RENAMED_DATA_WINDOW, NEW_PLOT_WINDOW, DATA_IMPORTED, FILTERS_UPDATED, FILTERED_DATA_UPDATED, DATA_UPDATED, ANALYSIS_BINS_UPDATED
-from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
-
-from prefect import Flow
-from prefect.backend import FlowRunView
-
-
-from wx.lib.newevent import NewEvent
+from flim.gui.importdlg import ImportDlg
+from flim.gui.listcontrol import AnalysisListCtrl, FilterListCtrl, EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
+from flim.gui.seriesfiltertree import SeriesFilterCtrl
+from flim.results import LocalResultClear
+from flim.workflow.basicflow import AbsWorkFlow
 
 ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
@@ -347,7 +343,6 @@ class AppFrame(wx.Frame):
              return
         pass
         
-        
     def on_run_plugin(self, event):
         title,data = self.get_currentdata()
         if data is None:
@@ -400,21 +395,32 @@ class AppFrame(wx.Frame):
         if len(req_categories) > 0 and (categories is None or len(categories) < len(req_categories) or not all(c in categories for c in not_any_categories)):
             wx.MessageBox(f'Analysis tool {tool} requires selection of at least {len(req_categories)} groups, including {not_any_categories}.', 'Warning', wx.OK)            
             return
-        
+
         # get list of configure parameters for parallel processing
-        parallel_params = tool.get_parallel_parameters()
-        with Flow(name="Interactive Analysis") as flow:
-            for p in parallel_params:
+        if not isinstance(tool, AbsWorkFlow) and parameters['autosave']:
+            # only need to set this up for tasks wrapped into new flow
+            dirname = parameters["working_dir"] if os.path.isdir(parameters["working_dir"]) else self.config.get(cfg.CONFIG_WORKINGDIR)
+            localresult = LocalResultClear(
+                dir=f'{dirname}',
+                location="{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/"
+                "{task_tags}/pickled/"
+                "{task_full_name}",  # -{task_run_id}-{map_index}-
+            )
+        else:
+            localresult = None
+        mapped_params = tool.get_mapped_parameters()
+        with Flow(name="Interactive Analysis", result=localresult) as flow:
+            for p in mapped_params:
                 #for k,v in p.items():
                 #    print (f'{k}={v}')
-                tool(**p)
+                tool(**p, task_tags=tool.name)
         
         #:print (dir(flow))
         #flow_run = FlowRunView.from_flow_run_id("4c0101af-c6bb-4b96-8661-63a5bbfb5596")
         state = flow.run()
         task_refs = flow.get_tasks()
         result_list = [state.result[tr]._result.value for tr in task_refs]
-        
+                        
         # handle results, DataFrames or Figure objects
         for results in result_list:
             if results is not None:
