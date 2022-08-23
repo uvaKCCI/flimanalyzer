@@ -89,7 +89,6 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.rescale = rescale
         self.checkpoint_interval = checkpoint_interval
         super().__init__(
-            self,
             parent,
             title,
             input=input,

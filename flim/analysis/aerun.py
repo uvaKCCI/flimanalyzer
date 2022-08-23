@@ -40,7 +40,6 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
         self.modelfile = modelfile
         self.device = device
         super().__init__(
-            self,
             parent,
             title,
             input=input,
