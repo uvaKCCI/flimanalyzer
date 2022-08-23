@@ -15,7 +15,7 @@ dependencies:
   - seaborn
   - xlsxwriter
   - networkx=2.5.1
-  - wxpython
+  - wxpython=4.0.4
   - pip:
     - pypubsub
     - importlib-resources
