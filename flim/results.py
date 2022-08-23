@@ -18,8 +18,8 @@ from flim import utils
 
 class LocalResultClear(LocalResult):
     def write(self, value, **kwargs):
-        #for k,v in kwargs.items():
-        #    print (k,v)    
+        # for k,v in kwargs.items():
+        #    print (k,v)
         new = super().write(value, **kwargs)
         assert new.location is not None
 

@@ -164,7 +164,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
         storagesizer = wx.BoxSizer(wx.HORIZONTAL)
         self.autosave_cb = wx.CheckBox(self.panel, wx.ID_ANY, "Autosave")
-        self.Bind(wx.EVT_CHECKBOX,self._on_checked)
+        self.Bind(wx.EVT_CHECKBOX, self._on_checked)
         self.autosave_cb.SetValue(self.autosave)
         self.browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
         self.browse_button.Bind(wx.EVT_BUTTON, self._on_browse)
@@ -283,14 +283,14 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         is_checked = self.autosave_cb.GetValue()
         self.workingdirtxt.Enable(is_checked)
         self.browse_button.Enable(is_checked)
-        
+
     def _on_browse(self, event):
         dirname = self.workingdirtxt.GetLabel()
         with wx.DirDialog(
             self, "Working Directory", dirname, wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST
         ) as dirDialog:
-            #dirDialog.SetPath(dirname)
-            #fileDialog.SetFilename(fname)
+            # dirDialog.SetPath(dirname)
+            # fileDialog.SetFilename(fname)
             if dirDialog.ShowModal() == wx.ID_CANCEL:
                 return
             dirname = dirDialog.GetPath()

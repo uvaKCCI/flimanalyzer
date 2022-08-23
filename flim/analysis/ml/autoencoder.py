@@ -20,10 +20,9 @@ from abc import abstractmethod
 def get_autoencoder_classes():
     pkdir = os.path.dirname(__file__)
     for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
-        importlib.import_module('.' + name, __package__)
+        importlib.import_module("." + name, __package__)
     available_aes = {
-        create_instance(cls).get_name(): cls
-        for cls in AbsAutoencoder.__subclasses__()
+        create_instance(cls).get_name(): cls for cls in AbsAutoencoder.__subclasses__()
     }
     return available_aes
 
@@ -36,15 +35,13 @@ def init_autoencoders():
 
 def create_instance(clazz, **kwargs):
     if isinstance(clazz, str):
-        modulename, _, classname = clazz.rpartition('.')
+        modulename, _, classname = clazz.rpartition(".")
     elif inspect.isclass(clazz):
         modulename = clazz.__module__
         classname = clazz.__name__
     else:
         logging.error(f"Error instantiating {clazz} autoencoder.")
-    logging.debug(
-        f"Autoencoder modulename={modulename}, classname={classname}, {kwargs}"
-    )
+    logging.debug(f"Autoencoder modulename={modulename}, classname={classname}, {kwargs}")
     try:
         module = importlib.import_module(modulename)
         class_ = getattr(module, classname)
@@ -90,7 +87,7 @@ class Autoencoder_One_Six(AbsAutoencoder):
         return self
 
     def transform(self, X):
-        #return only decoder output
+        # return only decoder output
         X = Variable(torch.from_numpy(X))
         return self(X)
 
@@ -115,7 +112,7 @@ class Autoencoder_One_Three(AbsAutoencoder):
         return self
 
     def transform(self, X):
-        #return only decoder output
+        # return only decoder output
         X = Variable(torch.from_numpy(X))
         return self(X)
 
@@ -142,7 +139,7 @@ class Autoencoder_Two_Ten(AbsAutoencoder):
         return self
 
     def transform(self, X):
-        #return only decoder output
+        # return only decoder output
         X = Variable(torch.from_numpy(X))
         return self(X)
 
@@ -171,7 +168,7 @@ class Autoencoder_Two_Five(AbsAutoencoder):
         return self
 
     def transform(self, X):
-        #return only decoder output
+        # return only decoder output
         X = Variable(torch.from_numpy(X))
         return self(X)
 

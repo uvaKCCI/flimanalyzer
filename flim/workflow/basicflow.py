@@ -827,6 +827,7 @@ class StdFLIMWorkflow(AbsWorkFlow):
         return flow
 """
 
+
 @plugin(plugintype="Workflow")
 class TestWorkFlow(AbsWorkFlow):
     def __init__(self, name="Test Workflow", **kwargs):
@@ -854,55 +855,51 @@ class TestWorkFlow(AbsWorkFlow):
         barplottask = BarPlot(None)
         kdetask = KDE(None)
         # cats = list(data.select_dtypes('category').columns.values)
-        with Flow(
-            f"{self.name}",
-            executor=self.executor,
-            result=self.result
-        ) as flow:
+        with Flow(f"{self.name}", executor=self.executor, result=self.result) as flow:
             # input = Parameter('input', default=data)
             inputresult = datatask(name="Input", input=self.input, input_select=[0])
 
             reltable = relchangetask(
-                    input=inputresult,
-                    task_run_name="1.0 {relchangetask.name}",
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=sel_features,
-                    reference_group="Treatment",
-                    reference_value="ctrl",
-                    method="mean",
+                input=inputresult,
+                task_run_name="1.0 {relchangetask.name}",
+                input_select=[0],
+                grouping=["FOV", "Cell"],
+                features=sel_features,
+                reference_group="Treatment",
+                reference_value="ctrl",
+                method="mean",
             )
             srelresult = stask(
-                    input=reltable["Table: Relative Change"],
-                    input_select=[0],
-                    grouping=["Cell", "FOV", "Treatment"],
-                    features=[f"rel {f}" for f in sel_features],
-                    aggs=["mean"],
-                    singledf=False,
+                input=reltable["Table: Relative Change"],
+                input_select=[0],
+                grouping=["Cell", "FOV", "Treatment"],
+                features=[f"rel {f}" for f in sel_features],
+                aggs=["mean"],
+                singledf=False,
             )
             # pivotresult = results_to_tasks(pivottask(data=srelresult['Data: Summarize'], input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean']))
             lineplotresult = lineplottask(
-                    input=reltable["Table: Relative Change"],
-                    input_select=[0],
-                    grouping=["Treatment", "FOV"],
-                    features=["rel FLIRR"],
+                input=reltable["Table: Relative Change"],
+                input_select=[0],
+                grouping=["Treatment", "FOV"],
+                features=["rel FLIRR"],
             )
 
             # sresult = results_to_tasks(stask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=allfeatures,aggs=['max','mean','median','count']))
             # listtask = to_list(scattertask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=sel_features))
             # scatter = data_task.map(listtask)
             scatter = scattertask(
-                    input=inputresult,
-                    input_select=[0],
-                    grouping=["Treatment"],
-                    features=sel_features,
+                input=inputresult,
+                input_select=[0],
+                grouping=["Treatment"],
+                features=sel_features,
             )
 
             pcaresult = pcatask(
-                    input=inputresult,
-                    input_select=[0],
-                    features=all_features,
-                    explainedhisto=True,
+                input=inputresult,
+                input_select=[0],
+                features=all_features,
+                explainedhisto=True,
             )
 
             # reltable = datatask(name='Relative Change', data=relchresult)

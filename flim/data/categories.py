@@ -148,11 +148,11 @@ class TablePanel(wx.Panel):
 
 class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
     def __init__(
-        self, 
-        parent, 
-        title, 
-        input, 
-        categories={}, 
+        self,
+        parent,
+        title,
+        input,
+        categories={},
         inplace=False,
         autosave=True,
         working_dir="",
