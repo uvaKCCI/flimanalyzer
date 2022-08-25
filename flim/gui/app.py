@@ -504,26 +504,26 @@ class AppFrame(wx.Frame):
             return
 
         # get list of configure parameters for parallel processing
-        if not isinstance(tool, AbsWorkFlow) and parameters["autosave"]:
-            # only need to set this up for tasks wrapped into new flow
-            dirname = (
-                parameters["working_dir"]
-                if os.path.isdir(parameters["working_dir"])
-                else self.config.get(cfg.CONFIG_WORKINGDIR)
-            )
-            localresult = LocalResultClear(
-                dir=f"{dirname}",
-                location="{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/"
-                "{task_tags}/pickled/"
-                "{task_full_name}",  # -{task_run_id}-{map_index}-
-            )
-        else:
-            localresult = None
         mapped_params = tool.get_mapped_parameters()
         if not isinstance(tool, AbsWorkFlow):
+            # only need to set this up for tasks wrapped into new flow
+            if parameters["autosave"]:
+                dirname = (
+                    parameters["working_dir"]
+                    if os.path.isdir(parameters["working_dir"])
+                    else self.config.get(cfg.CONFIG_WORKINGDIR)
+                )
+                localresult = LocalResultClear(
+                    dir=f"{dirname}",
+                    location="{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/"
+                    "{task_tags}/pickled/"
+                    "{task_full_name}",  # -{task_run_id}-{map_index}-
+                )
+            else:
+                localresult = None
             with Flow(
                 name="Interactive Analysis",
-                #result=localresult,
+                result=localresult,
                 #executor=self.flimanalyzer.get_executor(),
             ) as flow:
                 for p in mapped_params:
@@ -534,8 +534,14 @@ class AppFrame(wx.Frame):
                     tool(**p, task_tags=tool.name)
         else:
             flow = tool.construct_flow()
+            flow.result = LocalResultClear(
+                dir=f'{parameters["working_dir"]}',
+                location="{flow_name}/"
+                "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/pickled/"
+                "{task_full_name}",  # -{task_run_id}-{map_index}-
+            )
+            flow.visualize()
         flow.executor = self.flimanalyzer.get_executor()
-        flow.result = localresult
         state = flow.run()
         task_refs = flow.get_tasks()
 

@@ -60,6 +60,7 @@ flimanalyzer
 ```
 
 **Parallel execution**
+
 FLIMAanauzer uses [Prefect](https://www.prefect.io) and [Dask](https://www.dask.org) for parallel execution of tasks.For parallel execution on a *single node*, add these command line arguments:
 ```
 export PREFECT__FLOWS__CHECKPOINTING=true 
