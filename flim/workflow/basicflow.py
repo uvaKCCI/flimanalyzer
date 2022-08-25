@@ -100,33 +100,36 @@ class AbsWorkFlow(AbstractPlugin):
         )
 
     def set_executor(self, executor=None, **kwargs):
-        modulename = "<unresolved"
-        classname = "<unresolved"
-        if executor is None:
-            # use default, ignore kwargs
-            executor = self.params["executor"]["class"]
-            kwargs = self.params["executor"]["args"]
-        elif isinstance(executor, dict):
-            kwargs = executor.get("args", {})
-            executor = executor.get("class", "prefect.executors.local.LocalExecutor")
-        if isinstance(executor, str):
-            modulename, _, classname = executor.rpartition(".")
-            try:
-                module = importlib.import_module(modulename)
-                class_ = getattr(module, classname)
-                self.executor = class_(**kwargs)
-            except Exception as err:
-                logging.error(f"Error: {err}")
-                logging.error(
-                    f"Error instantiating {modulename}.{classname} plugin tool."
-                )
-                self.executor = LocalExecutor()
-        elif issubclass(self.executor, Executor):
-            modulename = clazz.__module__
-            classname = clazz.__name__
+        if isinstance(executor, Executor):
             self.executor = executor
-        logging.debug(f"Executor modulename={modulename}, classname={classname}")
-        assert issubclass(self.executor.__class__, Executor)
+        else:    
+            modulename = "<unresolved"
+            classname = "<unresolved"
+            if executor is None:
+            	# use default, ignore kwargs
+            	executor = self.params["executor"]["class"]
+            	kwargs = self.params["executor"]["args"]
+            elif isinstance(executor, dict):
+            	kwargs = executor.get("args", {})
+            	executor = executor.get("class", "prefect.executors.local.LocalExecutor")
+            if isinstance(executor, str):
+            	modulename, _, classname = executor.rpartition(".")
+            	try:
+            		module = importlib.import_module(modulename)
+            		class_ = getattr(module, classname)
+            		self.executor = class_(**kwargs)
+            	except Exception as err:
+            		logging.error(f"Error: {err}")
+            		logging.error(
+            			f"Error instantiating {modulename}.{classname} plugin tool."
+            		)
+            		self.executor = LocalExecutor()
+            elif issubclass(self.executor, Executor):
+            	modulename = clazz.__module__
+            	classname = clazz.__name__
+            	self.executor = executor
+            logging.debug(f"Executor modulename={modulename}, classname={classname}")
+            assert issubclass(self.executor.__class__, Executor)
 
     def get_required_categories(self):
         return ["Treatment", "FOV", "Cell"]
@@ -160,6 +163,7 @@ class AbsWorkFlow(AbstractPlugin):
     def execute(self):
         self.set_result()
         self.set_executor(self.params["executor"])
+        logging.info(f"Using {self.executor} for flow {self.name}")
         flow = self.construct_flow()
         if self.params["register"]:
             flow.register(

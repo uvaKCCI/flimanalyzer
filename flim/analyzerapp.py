@@ -25,10 +25,22 @@ def parse_arguments():
         "-i", "--input", nargs="+", help="import set of files or directories"
     )
     parser.add_argument(
-        "-e", "--exclude", nargs="+", default=[], help="exclude file from importing"
+        "-x", "--exclude", nargs="+", default=[], help="exclude file from importing"
     )
     parser.add_argument(
-        "-o", "--output", default=None, help="save imported dataset to file"
+        "-e",
+        "--executor",
+        default="LocalCluster",
+        help="executor to run pipeline. Options: LocalCluster, LocalDaskExecutor, DaskExecutor",
+    )
+    parser.add_argument(
+        "-a",
+        "--execargs",
+        default="",
+        help="comma separated list of arguments to pass to executor instance",
+    )
+    parser.add_argument(
+        "-o", "--output", default=None, help="save imported dataset to file/directory"
     )
     parser.add_argument(
         "-p",
@@ -194,7 +206,7 @@ def main():
     logging.info(f"FlimAnalyzer version {flim.__version__}")
 
     logging.debug(args)
-    fa = FLIMAnalyzer()
+    fa = FLIMAnalyzer(executor=args.executor, execargs=args.execargs)
     # analyzers = analysis.absanalyzer.init_analyzers()
     # aes = analysis.ml.autoencoder.init_autoencoders()
     # config = analysis.absanalyzer.init_default_config(analyzers)

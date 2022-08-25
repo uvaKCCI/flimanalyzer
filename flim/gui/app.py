@@ -520,21 +520,32 @@ class AppFrame(wx.Frame):
         else:
             localresult = None
         mapped_params = tool.get_mapped_parameters()
-        with Flow(name="Interactive Analysis", result=localresult) as flow:
-            for p in mapped_params:
-                # for k,v in p.items():
-                #    print (f'{k}={v}')
-                tool(**p, task_tags=tool.name)
+        if not isinstance(tool, AbsWorkFlow):
+            with Flow(
+                name="Interactive Analysis",
+                #result=localresult,
+                #executor=self.flimanalyzer.get_executor(),
+            ) as flow:
+                for p in mapped_params:
+                    # if p.get("executor"):
+                    #    p["executor"] = self.flimanalyzer.get_executor()
+                    # for k,v in p.items():
+                    #    print (f'{k}={v}')
+                    tool(**p, task_tags=tool.name)
+        else:
+            flow = tool.construct_flow()
+        flow.executor = self.flimanalyzer.get_executor()
+        flow.result = localresult
+        state = flow.run()
+        task_refs = flow.get_tasks()
 
         #:print (dir(flow))
         # flow_run = FlowRunView.from_flow_run_id("4c0101af-c6bb-4b96-8661-63a5bbfb5596")
-        state = flow.run()
-        task_refs = flow.get_tasks()
         result_list = [state.result[tr]._result.value for tr in task_refs]
 
         # handle results, DataFrames or Figure objects
         for results in result_list:
-            if results is not None:
+            if isinstance(results, dict):
                 for title, result in results.items():
                     if isinstance(result, pd.DataFrame):
                         # result = result.reset_index()

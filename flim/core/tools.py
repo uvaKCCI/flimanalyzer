@@ -4,18 +4,18 @@ Created on Fri May  4 02:42:45 2018
 @author: khs3z
 """
 
+import pandas as pd
+import argparse
 import logging
+import sys
+
 import flim
 from flim.core.importer import dataimporter
 from flim.core.parser import defaultparser
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.analyzer import dataanalyzer
-
-# from flim.gui.app import FlimAnalyzerApp
-
-import pandas as pd
-import argparse
-import sys
+from prefect.executors.local import LocalExecutor
+from prefect.executors.dask import LocalDaskExecutor, DaskExecutor
 
 
 class FLIMAnalyzer:
@@ -24,16 +24,44 @@ class FLIMAnalyzer:
         importer=dataimporter(),
         preprocessor=defaultpreprocessor(),
         danalyzer=dataanalyzer(),
+        executor=LocalExecutor,
+        execargs="",
+        **kwargs
     ):
         self.importer = importer
         self.preprocessor = preprocessor
         self.analyzer = danalyzer
         self.data = pd.DataFrame()
+        try:
+            execargs = {item.split("=")[0]:item.split("=")[1] for item in execargs.split(",") if len(item.split("="))==2}
+        except:
+            logging.error(f'Failed to parse executor arguments "{execargs}" for {executor}')
+        n = {}
+        for k,v in execargs.items():
+            try:
+               v = int(v)
+            except:
+               pass
+            n[k] = v
+        execargs = n
+        if executor == "LocalDaskExecutor":
+            self.executor = LocalDaskExecutor(**execargs)
+        elif executor == "DaskExecutor":
+            self.executor = DaskExecutor(**execargs)
+        else:
+            self.executor = LocalExecutor()
+            execargs=""
+        
         #        self.outputgenerator = outputgenerator()
+        logging.info(f"Setting up {self.executor}: {execargs}")
         logging.debug(
             f"Initialized {__name__}.FlimAnalyzer version {flim.__version__} with {importer}, {preprocessor}, {danalyzer}"
         )
+        logging.debug(f"Using {self.executor}, {execargs}")
 
+    def get_executor(self):
+        return self.executor
+        
     def get_data(self):
         return self.data
 
