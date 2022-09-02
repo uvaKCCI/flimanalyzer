@@ -234,12 +234,6 @@ class CategoryOrder(AbstractPlugin):
             self, name=name, **kwargs
         )  # categories={}, default='unassigned')
 
-    # def __repr__(self):
-    #    return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_required_categories(self):
         return []
 

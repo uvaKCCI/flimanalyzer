@@ -62,7 +62,7 @@ class AbsWorkFlow(AbstractPlugin):
     def __init__(self, name="Base Workflow", executor=None, **kwargs):
         super().__init__(name=name, **kwargs)
         # self.name = "Abstract FLIM Workflow"
-        self.set_executor(executor)
+        # self.set_executor(executor)
 
     # def __repr__(self):
     #    return f"{'name: {self.name}'}"
@@ -91,6 +91,7 @@ class AbsWorkFlow(AbstractPlugin):
         )
         return params
 
+    """
     def set_result(self):
         self.result = LocalResultClear(
             dir=f'{self.params["working_dir"]}',
@@ -99,6 +100,7 @@ class AbsWorkFlow(AbstractPlugin):
             "{task_full_name}",  # -{task_run_id}-{map_index}-
         )
 
+    
     def set_executor(self, executor=None, **kwargs):
         if isinstance(executor, Executor):
             self.executor = executor
@@ -130,6 +132,7 @@ class AbsWorkFlow(AbstractPlugin):
             	self.executor = executor
             logging.debug(f"Executor modulename={modulename}, classname={classname}")
             assert issubclass(self.executor.__class__, Executor)
+    """
 
     def get_required_categories(self):
         return ["Treatment", "FOV", "Cell"]
@@ -157,12 +160,12 @@ class AbsWorkFlow(AbstractPlugin):
             return None
 
     @abstractmethod
-    def construct_flow(self):
-        return Flow(name=self.name, result=self.result)
+    def construct_flow(self, executor, result):
+        return Flow(name=self.name, executor=executor, result=result)
 
     def execute(self):
-        self.set_result()
-        self.set_executor(self.params["executor"])
+        # self.set_result()
+        # self.set_executor(self.params["executor"])
         logging.info(f"Using {self.executor} for flow {self.name}")
         flow = self.construct_flow()
         if self.params["register"]:
@@ -264,574 +267,6 @@ def to_list(d):
     return [v for v in d.values()]
 
 
-"""
-@plugin(plugintype="Workflow")
-class StdFLIMWorkflow(AbsWorkFlow):
-    def __init__(self, name="Standard FLIM Analysis", **kwargs):
-        super().__init__(name=name, **kwargs)
-        # self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
-
-    def get_required_features(self):
-        return ["any"]
-
-    def get_default_parameters(self):
-        params = super().get_default_parameters()
-        params.update(
-            {
-                "features": [
-                    "FAD a1",
-                    "FAD a1[%]",
-                    "FAD a2",
-                    "FAD a2[%]",
-                    "FAD t1",
-                    "FAD t2",
-                    "FAD photons",
-                    "NAD(P)H a1",
-                    "NAD(P)H a1[%]",
-                    "NAD(P)H a2",
-                    "NAD(P)H a2[%]",
-                    "NAD(P)H t1",
-                    "NAD(P)H t2",
-                    "NAD(P)H photons",
-                ],
-            }
-        )
-        return params
-
-    def construct_flow(self):
-        data = list(self.input.values())[0]
-        sel_features = self.params["features"]
-        all_features = [c for c in data.select_dtypes(include=np.number)]
-
-        # listtask = List()
-        datatask = DataBucket(name="Input")
-        aetraintask_10 = AETraining()
-        aetraintask_14 = AETraining()
-        simtask = AESimulate()
-        aeruntask = RunAE()
-        filtertask = Filter()
-        pcatask = PCAnalysis()
-        stask = SummaryStats()  # , log_stdout=True)
-        heatmaptask = Heatmap()
-        concattask = Concatenator()
-        pivottask = Pivot()
-        seriestask = SeriesAnalyzer()
-        bartask = BarPlot(
-            bar_type="100% stacked",
-            features=[
-                "Feature 1\nmean\ndelta Ctrl:dox30",
-                "Feature 1\nmean\ndelta dox30:dox45",
-                "Feature 1\nmean\ndelta dox45:dox60",
-            ],
-        )
-        kmeanstask = KMeansClustering()
-        kdetask = KDE(
-            features=[
-                "Feature 1\nmean\ndelta ctrl:dox30",
-                "Feature 1\nmean\ndelta dox30:dox45",
-                "Feature 1\nmean\ndelta dox45:dox60",
-            ]
-        )
-        mergetask = Merger()
-        kstask = KSStats()
-
-        with Flow(
-            f"{self.name}",
-            executor=self.executor,
-            result=self.result,
-        ) as flow:
-            # input = Parameter('input', default=data)
-            modelfile_10 = Parameter(f"modelfile: {len(self.params['features'])}", default=f"AEModel-{len(self.params['features'])}")
-            modelfile_14 = Parameter("modelfile: 14", default="AEModel-14.model")
-
-            train_features_10 = Parameter(
-                "features: 10",
-                default=[
-                    "FAD a1",
-                    "FAD a2",
-                    "FAD t1",
-                    "FAD t2",
-                    "FAD photons",
-                    "NAD(P)H a1",
-                    "NAD(P)H a2",
-                    "NAD(P)H t1",
-                    "NAD(P)H t2",
-                    "NAD(P)H photons",
-                ],
-            )
-            pca_features_14 = Parameter(
-                "pca features: 14",
-                default=[
-                    "FAD a1",
-                    "FAD a1[%]",
-                    "FAD a2",
-                    "FAD a2[%]",
-                    "FAD t1",
-                    "FAD t2",
-                    "FAD photons",
-                    "NAD(P)H a1",
-                    "NAD(P)H a1[%]",
-                    "NAD(P)H a2",
-                    "NAD(P)H a2[%]",
-                    "NAD(P)H t1",
-                    "NAD(P)H t2",
-                    "NAD(P)H photons",
-                ],
-            )
-            # train_features_14 = Parameter('features: 14', default=[
-            #    'FAD a1', 'FAD a1%', 'FAD a2', 'FAD a2%', 'FAD t1', 'FAD t2', 'FAD photons',
-            #    'NAD(P)H a1','NAD(P)H a1%', 'NAD(P)H a2','NAD(P)H a2%', 'NAD(P)H t1', 'NAD(P)H t2', 'NAD(P)H photons'])
-
-            sim_sets = Parameter("sim_sets", default=4)
-
-            input = datatask(name="Input", input=self.input, input_select=[0])
-
-            filterresults1 = results_to_tasks(filtertask(input=input, input_select=[0]))
-
-            pcaresults = results_to_tasks(
-                pcatask(
-                    input=filterresults1["Table: Filtered"],
-                    input_select=[0],
-                    grouping=[],  # ['FOV', 'Cell'],
-                    features=pca_features_14,
-                )
-            )
-
-            aeresults = results_to_tasks(
-                aetraintask_10(
-                    input=filterresults1["Table: Filtered"],
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=train_features_10,
-                    epochs=20,
-                    learning_rate=[0.0001],
-                    weight_decay=[0.00000001],
-                    batch_size=[128],
-                    timeseries="Treatment",
-                    rescale=True,
-                    model="AE Simulator 1-6",
-                    modelfile=modelfile_10,
-                )
-            )
-
-            simresults = results_to_tasks(
-                simtask(
-                    input=filterresults1["Table: Filtered"],
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=train_features_10,
-                    modelfile=aeresults["Model File"],
-                    sets=sim_sets,
-                )
-            )
-
-            filterresults2 = results_to_tasks(
-                filtertask(input=simresults["Table: Simulated"], input_select=[0])
-            )
-
-            aeresults2 = results_to_tasks(
-                aetraintask_14(
-                    input=filterresults2["Table: Filtered"],
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=self.params["features"],  # train_features_14,
-                    epochs=20,
-                    learning_rate=[0.00015],
-                    weight_decay=[0.00000001],
-                    batch_size=[500],
-                    timeseries="Treatment",
-                    rescale=True,
-                    model="Autoencoder 2",
-                    modelfile=modelfile_14,
-                )
-            )
-
-            aerunresults = results_to_tasks(
-                aeruntask(
-                    input=filterresults1["Table: Filtered"],
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=self.params["features"],
-                    modelfile=aeresults2["Model File"],
-                )
-            )
-
-            concatresults = results_to_tasks(
-                concattask(
-                    input={
-                        "1": filterresults1["Table: Filtered"],
-                        "2": aerunresults["Table: Features"],
-                        "3": pcaresults["Table: PCA Components"],
-                    },
-                    type=True,
-                    numbers_only=True,
-                )
-            )
-
-            summaryresults3 = results_to_tasks(
-                stask(
-                    input=concatresults["Table: Concatenated"],
-                    input_select=[0],
-                    grouping=["Cell", "FOV", "Treatment"],
-                    features=["FLIRR", "Feature 1", "PC 1"],
-                    aggs=["mean"],
-                )
-            )
-
-            pivotresult = results_to_tasks(
-                pivottask(
-                    input=summaryresults3["Table: Summary"],
-                    input_select=[0],
-                    grouping=["Treatment"],
-                    features=["FLIRR\nmean", "Feature 1\nmean", "PC 1\nmean"],
-                )
-            )
-
-            seriesresult_F1 = results_to_tasks(
-                seriestask(
-                    input=pivotresult["Table: Pivoted"],
-                    input_select=[0],
-                    features=[
-                        "Feature 1\nmean\nctrl",
-                        "Feature 1\nmean\ndox30",
-                        "Feature 1\nmean\ndox45",
-                        "Feature 1\nmean\ndox60",
-                    ],
-                    series_min=False,
-                    series_max=False,
-                    series_range=False,
-                    series_mean=False,
-                    series_median=False,
-                    delta=True,
-                    delta_min=False,
-                    delta_max=False,
-                    delta_sum=False,
-                    delta_cum=False,
-                    merge_input=False,
-                )
-            )
-
-            barresult_F1 = results_to_tasks(
-                bartask(
-                    input=seriesresult_F1["Table: Series Analysis"],
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=[
-                        "Feature 1\nmean\ndelta ctrl:dox30",
-                        "Feature 1\nmean\ndelta dox30:dox45",
-                        "Feature 1\nmean\ndelta dox45:dox60",
-                    ],
-                    ordering={},
-                    orientation="vertical",  # 'horizontal'
-                    bar_type="100% stacked",  # 'single', 'stacked'
-                    dropna=True,
-                    error_bar="+/-",  # '+', 'None'
-                    error_type="s.e.m",
-                )
-            )  # 'std'
-
-            kmeansresult_F1 = results_to_tasks(
-                kmeanstask(
-                    input=seriesresult_F1["Table: Series Analysis"],
-                    input_select=[0],
-                    grouping=["Cell", "FOV", "Treatment"],
-                    features=[
-                        "Feature 1\nmean\ndelta ctrl:dox30",
-                        "Feature 1\nmean\ndelta dox30:dox45",
-                        "Feature 1\nmean\ndelta dox45:dox60",
-                    ],
-                    n_clusters=2,
-                    cluster_prefix="F1 Cluster",
-                    init="k-means++",
-                    algorithm="auto",
-                    n_init=4,
-                    max_iter=300,
-                    tolerance=1e-4,
-                )
-            )
-
-            kderesults_F1 = results_to_tasks(
-                kdetask(
-                    input=kmeansresult_F1["Table: K-Means"],
-                    input_select=[0],
-                    grouping=["F1 Cluster"],
-                    features=ALL_FEATURES,
-                )
-            )
-
-            summaryresults_F1 = results_to_tasks(
-                stask(
-                    input=kmeansresult_F1["Table: K-Means"],
-                    input_select=[0],
-                    grouping=["F1 Cluster"],
-                    features=ALL_FEATURES,
-                    aggs=["count", "mean"],
-                )
-            )
-
-            seriesresult_FLIRR = results_to_tasks(
-                seriestask(
-                    input=pivotresult["Table: Pivoted"],
-                    input_select=[0],
-                    features=[
-                        "FLIRR\nmean\nctrl",
-                        "FLIRR\nmean\ndox30",
-                        "FLIRR\nmean\ndox45",
-                        "FLIRR\nmean\ndox60",
-                    ],
-                    series_min=False,
-                    series_max=False,
-                    series_range=False,
-                    series_mean=False,
-                    series_median=False,
-                    delta=True,
-                    delta_min=False,
-                    delta_max=False,
-                    delta_sum=False,
-                    delta_cum=False,
-                    merge_input=False,
-                )
-            )
-
-            barresult_FLIRR = results_to_tasks(
-                bartask(
-                    input=seriesresult_FLIRR["Table: Series Analysis"],
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=[
-                        "FLIRR\nmean\ndelta ctrl:dox30",
-                        "FLIRR\nmean\ndelta dox30:dox45",
-                        "FLIRR\nmean\ndelta dox45:dox60",
-                    ],
-                    ordering={},
-                    orientation="vertical",  # 'horizontal'
-                    bar_type="100% stacked",  # 'single', 'stacked'
-                    dropna=True,
-                    error_bar="+/-",  # '+', 'None'
-                    error_type="s.e.m",
-                )
-            )  # 'std'
-
-            kmeansresult_FLIRR = results_to_tasks(
-                kmeanstask(
-                    input=seriesresult_FLIRR["Table: Series Analysis"],
-                    input_select=[0],
-                    grouping=["Cell", "FOV", "Treatment"],
-                    features=[
-                        "FLIRR\nmean\ndelta ctrl:dox30",
-                        "FLIRR\nmean\ndelta dox30:dox45",
-                        "FLIRR\nmean\ndelta dox45:dox60",
-                    ],
-                    n_clusters=2,
-                    cluster_prefix="FLIRR Cluster",
-                    init="k-means++",
-                    algorithm="auto",
-                    n_init=4,
-                    max_iter=300,
-                    tolerance=1e-4,
-                )
-            )
-
-            kderesults_FLIRR = results_to_tasks(
-                kdetask(
-                    input=kmeansresult_FLIRR["Table: K-Means"],
-                    input_select=[0],
-                    grouping=["FLIRR Cluster"],
-                    features=ALL_FEATURES,
-                )
-            )
-
-            summaryresults_FLIRR = results_to_tasks(
-                stask(
-                    input=kmeansresult_FLIRR["Table: K-Means"],
-                    input_select=[0],
-                    grouping=["FLIRR Cluster"],
-                    features=ALL_FEATURES,
-                    aggs=["count", "mean"],
-                )
-            )
-
-            # mergeresults_FLIRR = results_to_tasks(mergetask(input=None, input_select=[0],
-            #    input={'left':seriesresult_FLIRR['Table: Series Analysis'], 'right': kmeansresult_FLIRR['Table: K-Means']},
-            #    how='left',
-            #    features=[],))
-
-            seriesresult_PCA = results_to_tasks(
-                seriestask(
-                    input=pivotresult["Table: Pivoted"],
-                    input_select=[0],
-                    features=[
-                        "PC 1\nmean\nctrl",
-                        "PC 1\nmean\ndox30",
-                        "PC 1\nmean\ndox45",
-                        "PC 1\nmean\ndox60",
-                    ],
-                    series_min=False,
-                    series_max=False,
-                    series_range=False,
-                    series_mean=False,
-                    series_median=False,
-                    delta=True,
-                    delta_min=False,
-                    delta_max=False,
-                    delta_sum=False,
-                    delta_cum=False,
-                    merge_input=False,
-                )
-            )
-
-            barresult_PCA = results_to_tasks(
-                bartask(
-                    input=seriesresult_PCA["Table: Series Analysis"],
-                    input_select=[0],
-                    grouping=["FOV", "Cell"],
-                    features=[
-                        "PC 1\nmean\ndelta ctrl:dox30",
-                        "PC 1\nmean\ndelta dox30:dox45",
-                        "PC 1\nmean\ndelta dox45:dox60",
-                    ],
-                    ordering={},
-                    orientation="vertical",  # 'horizontal'
-                    bar_type="100% stacked",  # 'single', 'stacked'
-                    dropna=True,
-                    error_bar="+/-",  # '+', 'None'
-                    error_type="s.e.m",
-                )
-            )  # 'std'
-
-            kmeansresult_PCA = results_to_tasks(
-                kmeanstask(
-                    input=seriesresult_PCA["Table: Series Analysis"],
-                    input_select=[0],
-                    grouping=["Cell", "FOV", "Treatment"],
-                    features=[
-                        "PC 1\nmean\ndelta ctrl:dox30",
-                        "PC 1\nmean\ndelta dox30:dox45",
-                        "PC 1\nmean\ndelta dox45:dox60",
-                    ],
-                    n_clusters=2,
-                    cluster_prefix="PCA Cluster",
-                    init="k-means++",
-                    algorithm="auto",
-                    n_init=4,
-                    max_iter=300,
-                    tolerance=1e-4,
-                )
-            )
-
-            kderesults_PCA = results_to_tasks(
-                kdetask(
-                    input=kmeansresult_PCA["Table: K-Means"],
-                    input_select=[0],
-                    grouping=["PCA Cluster"],
-                    features=ALL_FEATURES,
-                )
-            )
-
-            summaryresults_PCA = results_to_tasks(
-                stask(
-                    input=kmeansresult_PCA["Table: K-Means"],
-                    input_select=[0],
-                    grouping=["PCA Cluster"],
-                    features=ALL_FEATURES,
-                    aggs=["count", "mean"],
-                )
-            )
-
-            mergeresults_FLIRR = results_to_tasks(
-                mergetask(
-                    input={
-                        "left": concatresults["Table: Concatenated"],
-                        "right": kmeansresult_FLIRR["Table: K-Means"],
-                    },
-                    how="left",
-                    features=[],
-                )
-            )
-
-            mergeresults_FLIRR_F1 = results_to_tasks(
-                mergetask(
-                    input={
-                        "left": mergeresults_FLIRR["Table: Merged"],
-                        "right": kmeansresult_F1["Table: K-Means"],
-                    },
-                    how="left",
-                    features=[],
-                )
-            )
-
-            mergeresults_FLIRR_F1_PCA = results_to_tasks(
-                mergetask(
-                    input={
-                        "left": mergeresults_FLIRR_F1["Table: Merged"],
-                        "right": kmeansresult_PCA["Table: K-Means"],
-                    },
-                    how="left",
-                    features=[],
-                )
-            )
-
-            ksresults_PCA = results_to_tasks(
-                kstask(
-                    input=mergeresults_FLIRR_F1_PCA["Table: Merged"],
-                    input_select=[0],
-                    comparison="Treatment",
-                    grouping=["Cell", "FOV", "PCA Cluster"],
-                    alpha=0.05,
-                    features=["FLIRR", "Feature 1", "PC 1"],
-                )
-            )
-
-            heatmap_inputresults = results_to_tasks(
-                heatmaptask(
-                    input=filterresults1["Table: Filtered"],
-                    input_select=[0],
-                    grouping=["Treatment", "FOV", "Cell"],
-                    features=self.params["features"],
-                )
-            )
-
-            heatmap_simrawresults = results_to_tasks(
-                heatmaptask(
-                    input=simresults["Table: Simulated"],
-                    input_select=[0],
-                    grouping=["Treatment", "FOV", "Cell"],
-                    features=self.params["features"],
-                )
-            )
-
-            heatmap_simfilteredresults = results_to_tasks(
-                heatmaptask(
-                    input=filterresults2["Table: Filtered"],
-                    input_select=[0],
-                    grouping=["Treatment", "FOV", "Cell"],
-                    features=self.params["features"],
-                )
-            )
-
-            summaryresults = results_to_tasks(
-                stask(
-                    input=simresults["Table: Simulated"],
-                    input_select=[0],
-                    features=train_features_10,
-                    aggs=["min", "max", "median", "count"],
-                )
-            )
-
-            summaryresults2 = results_to_tasks(
-                stask(
-                    input=filterresults2["Table: Filtered"],
-                    input_select=[0],
-                    features=train_features_10,
-                    aggs=["min", "max", "median", "count"],
-                )
-            )
-            # aetrainresults = results_to_tasks(aetraintask(input=input, input_select=[0], features=sel_features, sets=sim_sets))
-
-        return flow
-"""
-
-
 @plugin(plugintype="Workflow")
 class TestWorkFlow(AbsWorkFlow):
     def __init__(self, name="Test Workflow", **kwargs):
@@ -841,13 +276,13 @@ class TestWorkFlow(AbsWorkFlow):
     def get_required_features(self):
         return ["FLIRR", "any"]
 
-    def construct_flow(self):
+    def construct_flow(self, executor, result):
         data = list(self.input.values())[0].copy()
         sel_features = self.params["features"]
         all_features = [c for c in data.select_dtypes(include=np.number)]
 
         # listtask = List()
-        datatask = DataBucket()  # None, name='Input')
+        datatask = DataBucket("Input")  # None, name='Input')
         stask = SummaryStats(
             None, features=[f"rel {f}" for f in sel_features], singledf=False
         )  # , log_stdout=True)
@@ -859,13 +294,14 @@ class TestWorkFlow(AbsWorkFlow):
         barplottask = BarPlot(None)
         kdetask = KDE(None)
         # cats = list(data.select_dtypes('category').columns.values)
-        with Flow(f"{self.name}", executor=self.executor, result=self.result) as flow:
+        with Flow(f"{self.name}", executor=executor, result=result) as flow:
             # input = Parameter('input', default=data)
-            inputresult = datatask(name="Input", input=self.input, input_select=[0])
+            inputresult = datatask(
+                name="Input", input=self.input, input_select=[0], task_tags="Input"
+            )
 
             reltable = relchangetask(
                 input=inputresult,
-                task_run_name="1.0 {relchangetask.name}",
                 input_select=[0],
                 grouping=["FOV", "Cell"],
                 features=sel_features,

@@ -13,12 +13,6 @@ class Pivot(AbstractPlugin):
     def __init__(self, name="Pivot", **kwargs):
         super().__init__(name=name, **kwargs)
 
-    # def __repr__(self):
-    #    return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_icon(self):
         source = files(flim.resources).joinpath("pivot.png")
         return wx.Bitmap(str(source))
@@ -80,9 +74,7 @@ class Pivot(AbstractPlugin):
         )
         # flatten multiindex in column headers
         pivot_data.columns = ["\n".join(col).strip() for col in pivot_data.columns.values]
-        print(pivot_data.columns.values)
 
         pivot_data = pivot_data.reset_index()
-        print(pivot_data.columns.values)
         results = {"Table: Pivoted": pivot_data}
         return results

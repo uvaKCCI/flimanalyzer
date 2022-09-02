@@ -4,6 +4,7 @@ import itertools
 import numpy as np
 import os
 import pandas as pd
+import prefect
 import re
 import wx
 import matplotlib.pyplot as plt
@@ -18,7 +19,7 @@ from prefect.engine.results import LocalResult
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
 from flim import utils
-from flim.plugin import plugin
+from flim.plugin import plugin, perm, product, select
 from flim.plugin import AbstractPlugin, DataBucket, ALL_FEATURES
 from flim.data.pivotdata import Pivot
 from flim.data.unpivotdata import UnPivot
@@ -42,25 +43,7 @@ from flim.analysis.scatterplots import ScatterPlot
 from flim.analysis.barplots import BarPlot
 from flim.analysis.lineplots import LinePlot
 from flim.gui.dialogs import BasicAnalysisConfigDlg
-from flim.workflow.basicflow import AbsWorkFlow, results_to_tasks
-
-
-@task
-def perm(a, b):
-    combinations = list(itertools.product(a, b))
-    return tuple(map(itemgetter(0), combinations)), tuple(
-        map(itemgetter(1), combinations)
-    )
-
-
-@task
-def product(x, y):
-    return list(itertools.product(x, y))
-
-
-@task
-def select(listofdict, pattern):
-    return [v for entry in listofdict for k, v in entry.items() if re.search(pattern, k)]
+from flim.workflow.basicflow import AbsWorkFlow
 
 
 class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
@@ -443,7 +426,7 @@ class AEWorkflow(AbsWorkFlow):
         self.configure(**params)
         return self.params
 
-    def construct_flow(self):
+    def construct_flow(self, executor, result):
         checkpoint_interval = self.params["checkpoint_interval"]
 
         data = list(self.input.values())[0]
@@ -464,7 +447,6 @@ class AEWorkflow(AbsWorkFlow):
         )
 
         add_noise = False
-        sets = 4
 
         # listtask = List()
         datatask = DataBucket(name="Input")
@@ -486,9 +468,9 @@ class AEWorkflow(AbsWorkFlow):
         heatmaptask = Heatmap()
         kdetask = KDE()
 
-        with Flow(f"{self.name}", executor=self.executor, result=self.result) as flow:
+        with Flow(f"{self.name}", executor=executor, result=result) as flow:
             working_dir = Parameter("working_dir", self.params["working_dir"])
-            modelfile = f'AEModel-{len(self.params["features"])}'
+            modelfile = f'AESim-{len(self.params["features"])}'
 
             timeseries = Parameter("timeseries", default=self.params["timeseries"])
             grouping = Parameter("grouping", default=self.params["grouping"])
@@ -502,7 +484,7 @@ class AEWorkflow(AbsWorkFlow):
             )
             model = Parameter("model", default=self.params["model"])
             add_noise = Parameter("add noise", default=add_noise)
-            sets = Parameter("sets", default=sets)
+            sets = Parameter("sets", default=self.params["sets"])
 
             input = datatask(
                 name="Input",
@@ -647,4 +629,5 @@ class AEWorkflow(AbsWorkFlow):
                 aggs=unmapped(["min", "max", "median", "count"]),
                 task_tags=combinations,
             )
+
         return flow

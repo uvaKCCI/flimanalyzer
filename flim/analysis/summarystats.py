@@ -140,12 +140,6 @@ class SummaryStats(AbstractPlugin):
     def get_description(self):
         return "Calculates counts, min, max, mean, median (50th percentile), 25th percentile, and 75th percentile, StDev, S.E.M, of grouped data."
 
-    # def __repr__(self):
-    #    return f"name: {self.name}"
-
-    def __str__(self):
-        return self.name
-
     def get_icon(self):
         source = files(flim.resources).joinpath("summary.png")
         return wx.Bitmap(str(source))

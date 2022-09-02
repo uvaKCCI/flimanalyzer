@@ -30,11 +30,45 @@ from typing import (
     Type,
 )
 from abc import ABC, abstractmethod
-from prefect import Task
+from prefect import Task, task
 
 
 PLUGINS = {}
 ALL_FEATURES = "all_features"
+
+
+@task
+def perm(a, b):
+    combinations = list(itertools.product(a, b))
+    return tuple(map(itemgetter(0), combinations)), tuple(
+        map(itemgetter(1), combinations)
+    )
+
+
+@task
+def product(x, y):
+    return list(itertools.product(x, y))
+
+
+@task
+def select(listofdict, key_pattern="(.*?)", value_pattern=None):
+    result = [
+        v for entry in listofdict for k, v in entry.items() if re.search(key_pattern, k)
+    ]
+    if value_pattern:
+        try:
+            result = [
+                element
+                for r in result
+                for element in r
+                if (isinstance(r, list) and re.search(value_pattern, element))
+            ]
+        except:
+            pass
+    logging.debug(
+        f"{key_pattern}, {value_pattern}: {[d.keys() for d in listofdict]}, result={result}"
+    )
+    return result
 
 
 def plugin(plugintype):
@@ -391,6 +425,7 @@ class AbstractPlugin(Task):
         return {}
 
     def run(self, input={}, input_select=None, **kwargs):
+        logging.debug(f"{self.name}: kwargs[features]={kwargs.get('features', None)}")
         self.configure(input=input, input_select=input_select, **kwargs)
         logging.debug(
             f"Executing {self.name}: task_run_name={self.task_run_name}, type(self.input)={type(self.input)}"

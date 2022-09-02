@@ -25,12 +25,6 @@ class LinePlot(AbstractPlugin):
     def __init__(self, name="Line Plot", **kwargs):
         super().__init__(name=name, **kwargs)
 
-    # def __repr__(self):
-    #    return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_icon(self):
         source = files(flim.resources).joinpath("lineplot.png")
         return wx.Bitmap(str(source))

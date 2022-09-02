@@ -213,12 +213,6 @@ class AESimulate(AbstractPlugin):
         self.add_noise = self.params["add_noise"]
         self.snr_db = self.params["snr_db"]
 
-    def __repr__(self):
-        return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_icon(self):
         source = files(flim.resources).joinpath("aerun.png")
         return wx.Bitmap(str(source))

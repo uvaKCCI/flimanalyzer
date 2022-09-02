@@ -132,12 +132,6 @@ class Filter(AbstractPlugin):
         ]
         self.default_filters = {filter["name"]: filter for filter in default_filters}
 
-    # def __repr__(self):
-    #    return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_required_categories(self):
         return []
 

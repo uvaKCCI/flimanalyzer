@@ -24,6 +24,7 @@ import wx.lib.agw.customtreectrl as CT
 from pubsub import pub
 from prefect import Flow
 from prefect.backend import FlowRunView
+from prefect.engine.state import State
 from wx.lib.newevent import NewEvent
 
 import flim.analysis
@@ -38,6 +39,7 @@ from flim.core.configuration import Config
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.filter import RangeFilter
+from flim.core.graph import WorkflowGraph
 from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.datapanel import PandasFrame
@@ -524,7 +526,7 @@ class AppFrame(wx.Frame):
             with Flow(
                 name="Interactive Analysis",
                 result=localresult,
-                #executor=self.flimanalyzer.get_executor(),
+                executor=self.flimanalyzer.get_executor(),
             ) as flow:
                 for p in mapped_params:
                     # if p.get("executor"):
@@ -532,39 +534,53 @@ class AppFrame(wx.Frame):
                     # for k,v in p.items():
                     #    print (f'{k}={v}')
                     tool(**p, task_tags=tool.name)
+            state = flow.run()
+            task_refs = flow.get_tasks()
+            result_list = [state.result[tr]._result.value for tr in task_refs]
+
+            # handle results, DataFrames or Figure objects
+            for results in result_list:
+                if isinstance(results, dict):
+                    for title, result in results.items():
+                        if isinstance(result, pd.DataFrame):
+                            # result = result.reset_index()
+                            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                            event.SetEventInfo(
+                                result, title, "createnew", showcolindex=False
+                            )
+                            self.GetEventHandler().ProcessEvent(event)
+                        elif isinstance(result, matplotlib.figure.Figure):
+                            fig = result
+                            # fig.canvas.set_window_title(title)
+                            fig.canvas.manager.set_window_title(title)
+                            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+                            event.SetEventInfo(fig, title, "createnew")
+                            self.GetEventHandler().ProcessEvent(event)
         else:
-            flow = tool.construct_flow()
-            flow.result = LocalResultClear(
+            localresult = LocalResultClear(
                 dir=f'{parameters["working_dir"]}',
                 location="{flow_name}/"
                 "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/pickled/"
                 "{task_full_name}",  # -{task_run_id}-{map_index}-
             )
+            flow = tool.construct_flow(self.flimanalyzer.get_executor(), localresult)
             flow.visualize()
-        flow.executor = self.flimanalyzer.get_executor()
-        state = flow.run()
-        task_refs = flow.get_tasks()
 
-        #:print (dir(flow))
-        # flow_run = FlowRunView.from_flow_run_id("4c0101af-c6bb-4b96-8661-63a5bbfb5596")
-        result_list = [state.result[tr]._result.value for tr in task_refs]
+            state = flow.run()
+            flow.visualize(flow_state=state)
 
-        # handle results, DataFrames or Figure objects
-        for results in result_list:
-            if isinstance(results, dict):
-                for title, result in results.items():
-                    if isinstance(result, pd.DataFrame):
-                        # result = result.reset_index()
-                        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-                        event.SetEventInfo(result, title, "createnew", showcolindex=False)
-                        self.GetEventHandler().ProcessEvent(event)
-                    elif isinstance(result, matplotlib.figure.Figure):
-                        fig = result
-                        # fig.canvas.set_window_title(title)
-                        fig.canvas.manager.set_window_title(title)
-                        event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-                        event.SetEventInfo(fig, title, "createnew")
-                        self.GetEventHandler().ProcessEvent(event)
+            # show flow graph
+            wg = WorkflowGraph(flow, state)
+            fig, _ = wg.get_plot(
+                pick_event=self.OnPick, #motion_notify_event=self._on_hover
+            )
+            fig.canvas.manager.set_window_title(title)
+            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+            event.SetEventInfo(fig, f"{flow.name} Graph", "createnew")
+            self.GetEventHandler().ProcessEvent(event)
+
+    def _on_hover(self, event):
+        print (event)
 
     def append_window_to_menu(self, title, window):
         self.windowframes[title] = window
@@ -648,17 +664,25 @@ class AppFrame(wx.Frame):
 
     def OnPick(self, event):
         if not event.mouseevent.dblclick:
+            """
             try:
+                print(event.artist.get_label())
                 obj_id = int(event.artist.get_label())
+                py_obj = ctypes.cast(obj_id, ctypes.py_object).value
+                if issubclass(type(py_obj), AbstractPlugin):
+                    py_obj.run_configuration_dialog(self)
+                elif issubclass(type(py_obj), State):
+                    print(py_obj.result)
+                    print(f"is_mappeed={py_obj.is_mapped()}, {py_obj._result.location}")
                 title, window = self._get_window_frame(obj_id)
                 if window:
                     self._raise_window(title, window)
                 else:
-                    py_obj = ctypes.cast(obj_id, ctypes.py_object).value
                     if issubclass(type(py_obj), AbstractPlugin):
                         py_obj.run_configuration_dialog(self)
             except Exception as e:
                 logging.error(e)
+            """
         else:
             ax = event.artist.axes
             fig = event.artist.get_figure()

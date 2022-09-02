@@ -9,6 +9,7 @@ import os
 import logging
 import matplotlib
 import pandas as pd
+import re
 from joblib import dump
 from pathlib import Path
 from prefect.engine.results.local_result import LocalResult
@@ -18,8 +19,12 @@ from flim import utils
 
 class LocalResultClear(LocalResult):
     def write(self, value, **kwargs):
-        # for k,v in kwargs.items():
-        #    print (k,v)
+        # store relevant params for location templating
+        keys = [k.split(":")[0] for k in re.findall("(?<=\{).*?(?=\})", self.location)]
+        self.location_params = {}
+        for k in keys:
+            self.location_params[k] = kwargs.get(k, None)
+        
         new = super().write(value, **kwargs)
         assert new.location is not None
 
@@ -30,6 +35,7 @@ class LocalResultClear(LocalResult):
         if isinstance(value, dict):
             for k, v in value.items():
                 if isinstance(v, pd.DataFrame):
+                    v = v.copy()
                     v.reset_index()
                     # if indx was flattened in analyzer.summarize_data, multiindex col values were joined with '\n'--> revert here
                     v.columns = [c.replace("\n", " ") for c in v.columns.values]

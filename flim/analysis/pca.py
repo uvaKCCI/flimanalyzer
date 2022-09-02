@@ -129,12 +129,6 @@ class PCAnalysis(AbstractPlugin):
             "\n\t1 <= n <= # features (integer):   retain first n PCA components."
         )
 
-    # def __repr__(self):
-    #    return f"name: {self.name}"
-
-    def __str__(self):
-        return self.name
-
     def get_required_categories(self):
         return []
 

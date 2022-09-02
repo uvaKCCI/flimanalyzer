@@ -109,12 +109,6 @@ class Concatenator(AbstractPlugin):
     def __init__(self, name="Concat Data", **kwargs):
         AbstractPlugin.__init__(self, name=name, **kwargs)
 
-    def __repr__(self):
-        return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_required_categories(self):
         return []
 

@@ -186,12 +186,6 @@ class SeriesAnalyzer(AbstractPlugin):
     def __init__(self, name="Series Analysis", **kwargs):
         super().__init__(name=name, **kwargs)
 
-    def __repr__(self):
-        return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_icon(self):
         source = files(flim.resources).joinpath("seriesanalysis.png")
         return wx.Bitmap(str(source))
@@ -270,6 +264,7 @@ class SeriesAnalyzer(AbstractPlugin):
 
     def execute(self):
         data = list(self.input.values())[0]
+        logging.debug (f"data columns={data.columns.values}, sel features={self.params['features']}")
         results = {}
         logging.debug(f"\tcreating series analysis for {self.params['features']}")
         categories = data.select_dtypes("category").columns.values

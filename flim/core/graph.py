@@ -8,9 +8,22 @@ Created on Sat Feb  26 14:03:11 2022
 
 from flim.plugin import DataBucket
 
+import ctypes
+import graphviz
 import io
+import logging
+import networkx as nx
+import networkx.drawing.nx_pydot
+import networkx.drawing.nx_agraph
+import networkx.classes.function
 import math
 import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+import os
+import pendulum
+import prefect
+import pydot
+
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
@@ -18,41 +31,25 @@ from matplotlib.textpath import TextPath
 from matplotlib.patches import PathPatch, FancyBboxPatch
 from matplotlib.font_manager import FontProperties
 
-import graphviz
-import networkx as nx
-import networkx.drawing.nx_pydot
-import networkx.drawing.nx_agraph
-import networkx.classes.function
-import pydot
-import matplotlib.pyplot as plt
-
-import logging
-
 
 class WorkflowGraph:
-    def __init__(self, flow):
+    def __init__(self, flow, state):
         self.flow = flow
+        self.state = state
         self.graph = None
         self.pydotgraph = None
 
     def _clean_label(self, l):
         return l.lstrip().rstrip().replace('"', "")
 
-    def create_graph(self, state=None):
+    def _closest_match(self, id, target_ids):
+        return [t for t in target_ids if id == t[: len(id)]]
+
+    def create_graph(self):
         task_refs = self.flow.get_tasks()
-        vgraph = self.flow.visualize(filename="workflow", format="svg", flow_state=state)
-
-        output_ids = [id(tr) for tr in task_refs if isinstance(tr, DataBucket)]
-        plugin_ids = [id(tr) for tr in task_refs if not isinstance(tr, DataBucket)]
-        self.obj_ids = {
-            id(tr): (
-                id(list(tr.input.values())[0]) if isinstance(tr, DataBucket) else id(tr)
-            )
-            for tr in task_refs
-        }
-        logging.debug(f"output_ids={sorted(output_ids)}")
-        logging.debug(f"plugin_ids={sorted(plugin_ids)}")
-
+        vgraph = self.flow.visualize(
+            filename="workflow", format="svg", flow_state=self.state
+        )
         self.pydotgraph = pydot.graph_from_dot_data(vgraph.source)[0]
         g = networkx.drawing.nx_pydot.from_pydot(self.pydotgraph)
 
@@ -60,25 +57,38 @@ class WorkflowGraph:
             n.get_name(): self._clean_label(n.get_label())
             for n in self.pydotgraph.get_nodes()
         }
+
+        plugin_ids = [id(tr) for tr in task_refs]
+
+        # create dict that uses the node label as key, and the id of the task result state object
+        self.obj_ids = {}
+        for tr in task_refs:
+            result = self.state.result[tr]._result
+            if not self.state.result[tr].is_mapped(): 
+                self.obj_ids[id(tr)] = id(self.state.result[tr])
+            else:
+                for map_index,s in enumerate(self.state.result[tr].map_states):
+                    newid  = str(id(tr)) + str(map_index)
+                    self.obj_ids[int(newid)] = id(s)
+            # loaded = [self.state.result[tr].load_result() for tr in task_refs]
+
+        output_ids = [id(tr) for tr in task_refs if isinstance(tr, DataBucket)]
+        plugin_ids = [id(tr) for tr in task_refs if not isinstance(tr, DataBucket)]
+
+        logging.debug(f"output_ids={sorted(output_ids)}")
+        logging.debug(f"plugin_ids={sorted(plugin_ids)}")
+
         self.output_nodes = [
             n for n in networkx.classes.function.nodes(g) if int(n) in output_ids
         ]
         self.plugin_nodes = [
             n for n in networkx.classes.function.nodes(g) if int(n) in plugin_ids
         ]
-        # output_node_labels = {n.get_name():n.get_label() for n in pydotgraph.get_nodes() if int(n.get_name()) in output_ids}
-        # plugin_node_labels = {n.get_name():n.get_label() for n in pydotgraph.get_nodes() if int(n.get_name()) in plugin_ids}
-        # print (f'output_ids={sorted(output_ids)}')
-        # print (f'plugin_ids={sorted(plugin_ids)}')
-        # print (f'output_nodes={self.output_nodes}')
-        # print (f'plugin_nodes={self.plugin_nodes}')
-        # print (f'output_node_labels={output_node_labels}')
-        # print (f'plugin_node_labels={plugin_node_labels}')
 
         self.graph = g
         return self.graph
 
-    def get_plot(self, ax=None, fontsize=16, callback=None):
+    def get_plot(self, ax=None, fontsize=12, **callback):
         if not self.graph:
             self.create_graph()
         if not ax:
@@ -91,8 +101,6 @@ class WorkflowGraph:
         sio.write(png_str)
         sio.seek(0)
         img = mpimg.imread(sio)
-        # plot the image
-        # ax.imshow(img, aspect='equal')
 
         pos = nx.drawing.nx_agraph.graphviz_layout(
             self.graph, prog="dot"
@@ -116,6 +124,7 @@ class WorkflowGraph:
         tp = TextPath((0, 0), "Test q [](){}%", size=fontsize, prop=fp)
         box = tp.get_extents()
         _, _, _, height = box.bounds
+        
         for node_id, (x, y) in pos.items():
             tp = TextPath((x, y), self.node_labels[node_id], size=fontsize, prop=fp)
             box = tp.get_extents()
@@ -131,7 +140,7 @@ class WorkflowGraph:
                     (originx_box, originy_box),
                     width=width_box,
                     height=height_box,
-                    label=self.obj_ids[int(node_id)],
+                    label=self.obj_ids.get(int(node_id), None),
                     boxstyle="round",
                     ec=ecs[node_id],
                     fc=fcs[node_id],
@@ -139,11 +148,17 @@ class WorkflowGraph:
                 )
             )
             tp = TextPath(
-                (originx, originy), self.node_labels[node_id], size=fontsize, prop=fp
+                (originx, originy),
+                self.node_labels.get(node_id, "Not found"),
+                size=fontsize,
+                prop=fp,
             )
             ax.set_aspect(1.0)
             ax.add_patch(PathPatch(tp, color="black"))
 
-        if callback is not None:
-            fig.canvas.mpl_connect("pick_event", callback)
+        for evt, routine in callback.items():
+            try:
+                fig.canvas.mpl_connect(evt, routine)
+            except:
+                logging.debug(f"Could not connect {evt} for {routine} in {fig}")
         return fig, ax

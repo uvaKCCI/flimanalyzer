@@ -114,12 +114,6 @@ class RunAE(AbstractPlugin):
         self.modelfile = self.params["modelfile"]
         self.device = self.params["device"]
 
-    # def __repr__(self):
-    #    return f"{'name': {self.name}}"
-
-    def __str__(self):
-        return self.name
-
     def get_icon(self):
         source = files(flim.resources).joinpath("aerun.png")
         return wx.Bitmap(str(source))
@@ -163,6 +157,16 @@ class RunAE(AbstractPlugin):
         return {"Table: Reconstructed": None, "Table: Features": None}
 
     def execute(self):
+        if isinstance(self.params["modelfile"], list):
+            results = {}
+            for mfile in self.params["modelfile"]:
+                r = self.run_model(mfile)
+                results.update(r)
+        else:
+            results = self.run_model(self.params["modelfile"])
+        return results
+
+    def run_model(self, modelfile):
         data = list(self.input.values())[0]
         data_feat = data[self.params["features"]]
 
@@ -172,7 +176,7 @@ class RunAE(AbstractPlugin):
             device = "cpu"
             logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
         # ae = torch.load(self.params['modelfile'], map_location = device)
-        ae_pipeline = load(self.params["modelfile"])  # currently no way to remap device
+        ae_pipeline = load(modelfile)  # currently no way to remap device
 
         data_feat = data_feat.astype(float)
         data_input = data_feat.to_numpy(dtype=np.float32)
@@ -200,4 +204,7 @@ class RunAE(AbstractPlugin):
         features_df = pd.DataFrame(
             features_data, columns=[f"Feature {i}" for i in range(1, len_features + 1)]
         )
-        return {"Table: Reconstructed": recon_df, "Table: Features": features_df}
+        return {
+            f"Table: Reconstructed-{os.path.basename(modelfile)}": recon_df,
+            f"Table: Features-{os.path.basename(modelfile)}": features_df,
+        }
