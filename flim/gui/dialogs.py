@@ -13,6 +13,7 @@ from collections import OrderedDict
 import wx.grid
 from pubsub import pub
 from wx.lib.masked import NumCtrl
+from wx.lib.scrolledpanel import ScrolledPanel
 from flim.core.filter import RangeFilter
 import flim.core.configuration as cfg
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
@@ -235,12 +236,15 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
         buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.enablefeatures:
+            self.scrolledpanel = ScrolledPanel(
+                self.panel, wx.ID_ANY, size=(-1, self.GetSize().y / 3)
+            )
             cbsizer = wx.GridSizer(4, 0, 0)
             if self.allfeatures is None:
                 self.allfeatures = {}
             self.cboxes = {}
             for f in self.allfeatures:
-                cb = wx.CheckBox(self.panel, wx.ID_ANY, f)
+                cb = wx.CheckBox(self.scrolledpanel, wx.ID_ANY, f)
                 cb.SetValue(
                     (f in self.selectedfeatures)
                     or (ALL_FEATURES in self.selectedfeatures)
@@ -250,7 +254,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
                 if self.enablefeatsettings:
                     cb.Bind(wx.EVT_RIGHT_UP, self.OnClickFeature)
                 cb.Bind(wx.EVT_CHECKBOX, self._on_feature_selection)
-            sizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
+            self.scrolledpanel.SetSizer(cbsizer)
+            self.scrolledpanel.SetupScrolling(scroll_x=False)
+            sizer.Add(self.scrolledpanel, 0, wx.EXPAND | wx.ALIGN_CENTER)
+
             sizer.Add(
                 wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL),
                 0,
