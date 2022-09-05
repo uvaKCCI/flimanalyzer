@@ -37,7 +37,6 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         self.type = type
         self.numbers_only = numbers_only
         super().__init__(
-            self,
             parent,
             title,
             input=input,

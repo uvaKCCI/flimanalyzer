@@ -62,7 +62,6 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
         self.left_index = left_index
         self.right_index = right_index
         super().__init__(
-            self,
             parent,
             title,
             input=input,
@@ -217,13 +216,8 @@ class Merger(AbstractPlugin):
         left_on = [c for c in list(left.select_dtypes(["category"]).columns.values)]
         right_on = [c for c in list(right.select_dtypes(["category"]).columns.values)]
         on = list(set(left_on).intersection(set(right_on)))
-        # left.set_index(on, inplace=True)
-        # print (left.index)
-        # right.set_index(on, inplace=True)
-        # print (right.index)
         merged_df = pd.merge(left, right, how=how, on=on)
         merged_df[on] = merged_df[on].astype("category")
-        # merged_df = pd.merge(left, right, how=how, left_index=True, right_index=True)
         neworder = [
             c for c in list(merged_df.select_dtypes(["category"]).columns.values)
         ]
