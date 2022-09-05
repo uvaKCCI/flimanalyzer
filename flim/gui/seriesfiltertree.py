@@ -35,7 +35,9 @@ class SeriesFilterCtrl(CT.CustomTreeCtrl):
 
         # Create an image list to add icons next to an item
         il = wx.ImageList(16, 16)
-        fldridx = il.Add(wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16)))
+        fldridx = il.Add(
+            wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
+        )
         fldropenidx = il.Add(
             wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16))
         )

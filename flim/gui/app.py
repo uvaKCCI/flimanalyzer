@@ -222,7 +222,9 @@ class AppFrame(wx.Frame):
             menuitem = menu.Append(wx.NewId(), pname)
             self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
             if toolbar:
-                tool = toolbar.AddTool(wx.NewId(), pname, plg.get_icon(), shortHelp=pname)
+                tool = toolbar.AddTool(
+                    wx.NewId(), pname, plg.get_icon(), shortHelp=pname
+                )
                 self.Bind(wx.EVT_TOOL, self.on_run_plugin, tool)
         return menu
 
@@ -237,7 +239,8 @@ class AppFrame(wx.Frame):
         for title, window in self.windowframes.items():
             if isinstance(window, PandasFrame) and id(window.GetData()) == obj_id:
                 logging.debug(
-                    f"selected: title={title}, obj_id={obj_id}, id={id(window.GetData())}"
+                    f"selected: title={title}, obj_id={obj_id},"
+                    f" id={id(window.GetData())}"
                 )
                 return title, window
             elif isinstance(window, matplotlib.figure.Figure) and id(window) == obj_id:
@@ -297,7 +300,9 @@ class AppFrame(wx.Frame):
             config = dlg.get_config()
 
             parsername = config.get([cfg.CONFIG_PARSER_CLASS])
-            parser = flim.core.parser.instantiate_parser("flim.core.parser." + parsername)
+            parser = flim.core.parser.instantiate_parser(
+                "flim.core.parser." + parsername
+            )
             if parser is None:
                 logging.warning(f"Could not instantiate parser {parsername}")
                 return
@@ -339,7 +344,6 @@ class AppFrame(wx.Frame):
             wildcard="json files (*.json)|*.json",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
-
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             configfile = fileDialog.GetPath()
@@ -351,12 +355,12 @@ class AppFrame(wx.Frame):
                 else:
                     message = ""
                     if len(missing) > 0:
-                        message += "Missing keys:\n%s\n\n" % (
-                            "\n".join([str(m) for m in missing])
+                        message += "Missing keys:\n%s\n\n" % "\n".join(
+                            [str(m) for m in missing]
                         )
                     if len(invalid) > 0:
-                        message += "Missing values:\n%s\n\n" % (
-                            "\n".join([str(i) for i in invalid])
+                        message += "Missing values:\n%s\n\n" % "\n".join(
+                            [str(i) for i in invalid]
                         )
                     dlg = wx.MessageDialog(
                         None,
@@ -399,7 +403,6 @@ class AppFrame(wx.Frame):
             wildcard="json files (*.json)|*.json",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
         ) as fileDialog:
-
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             configfile = fileDialog.GetPath()
@@ -485,7 +488,8 @@ class AppFrame(wx.Frame):
             or not all(f in features for f in not_any_features)
         ):
             wx.MessageBox(
-                f"Analysis tool {tool} requires selection of at least {len(req_features)} data features, including {not_any_features}.",
+                f"Analysis tool {tool} requires selection of at least"
+                f" {len(req_features)} data features, including {not_any_features}.",
                 "Warning",
                 wx.OK,
             )
@@ -499,7 +503,8 @@ class AppFrame(wx.Frame):
             or not all(c in categories for c in not_any_categories)
         ):
             wx.MessageBox(
-                f"Analysis tool {tool} requires selection of at least {len(req_categories)} groups, including {not_any_categories}.",
+                f"Analysis tool {tool} requires selection of at least"
+                f" {len(req_categories)} groups, including {not_any_categories}.",
                 "Warning",
                 wx.OK,
             )
@@ -517,9 +522,11 @@ class AppFrame(wx.Frame):
                 )
                 localresult = LocalResultClear(
                     dir=f"{dirname}",
-                    location="{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/"
-                    "{task_tags}/pickled/"
-                    "{task_full_name}",  # -{task_run_id}-{map_index}-
+                    location=(  # -{task_run_id}-{map_index}-
+                        "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/"
+                        "{task_tags}/pickled/"
+                        "{task_full_name}"
+                    ),
                 )
             else:
                 localresult = None
@@ -559,9 +566,11 @@ class AppFrame(wx.Frame):
         else:
             localresult = LocalResultClear(
                 dir=f'{parameters["working_dir"]}',
-                location="{flow_name}/"
-                "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/pickled/"
-                "{task_full_name}",  # -{task_run_id}-{map_index}-
+                location=(  # -{task_run_id}-{map_index}-
+                    "{flow_name}/"
+                    "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/pickled/"
+                    "{task_full_name}"
+                ),
             )
             flow = tool.construct_flow(self.flimanalyzer.get_executor(), localresult)
             flow.visualize()
@@ -572,7 +581,7 @@ class AppFrame(wx.Frame):
             # show flow graph
             wg = WorkflowGraph(flow, state)
             fig, _ = wg.get_plot(
-                pick_event=self.OnPick, #motion_notify_event=self._on_hover
+                pick_event=self.OnPick,  # motion_notify_event=self._on_hover
             )
             fig.canvas.manager.set_window_title(title)
             event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
@@ -580,7 +589,7 @@ class AppFrame(wx.Frame):
             self.GetEventHandler().ProcessEvent(event)
 
     def _on_hover(self, event):
-        print (event)
+        print(event)
 
     def append_window_to_menu(self, title, window):
         self.windowframes[title] = window
@@ -854,7 +863,8 @@ class AppFrame(wx.Frame):
     def OnRangeFilterUpdated(self, event):
         rfilters = event.GetUpdatedItems()
         logging.debug(
-            f"###############  OLD appframe.OnRangeFilterUpdated - {len(rfilters)} Filters updated:"
+            "###############  OLD appframe.OnRangeFilterUpdated -"
+            f" {len(rfilters)} Filters updated:"
         )
         # for key in rfilters:
         #    rfilter = rfilters[key]

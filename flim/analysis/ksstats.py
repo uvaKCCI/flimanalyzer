@@ -85,7 +85,10 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
             5,
         )
         osizer.Add(
-            self.comparison_combobox, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+            self.comparison_combobox,
+            0,
+            wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL,
+            5,
         )
         osizer.Add(
             wx.StaticText(self.panel, label="alpha "),
@@ -181,6 +184,7 @@ class KSStats(AbstractPlugin):
     def feature_kststats(
         self, data, column, groups=[], comparison="", alpha=0.05, dropna=True
     ):
+        logging.debug(f"data.columns.values={data.columns.values}")
         if data is None or not column in data.columns.values:
             return None, None
         if len(groups) == 0:
@@ -256,7 +260,7 @@ class KSStats(AbstractPlugin):
                     ]
                 )
                 rdata.append(row)
-        result = pd.DataFrame(rdata, columns=cols)
+        ksdata = pd.DataFrame(rdata, columns=cols)
         for ckey in allcategories:
-            result[ckey] = result[ckey].astype("category")
-        return result
+            ksdata[ckey] = ksdata[ckey].astype("category")
+        return ksdata

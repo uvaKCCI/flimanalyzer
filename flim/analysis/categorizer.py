@@ -56,10 +56,10 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
 
     def get_option_panels(self):
         helptxt = (
-            f"Specifiy PCA components to retain:"
-            "\n\tleave empty:   retain all PCA components."
-            "\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance."
-            "\n\t1 <= n <= {len(self.allfeatures)} (integer):   retain first n PCA components."
+            f"Specifiy PCA components to retain:\n\tleave empty:   retain all PCA"
+            f" components.\n\t0.0 < n < 1.0 (float):   retain PCA components that"
+            f" explain specified fraction of observed variance.\n\t1 <= n <="
+            f" {{len(self.allfeatures)}} (integer):   retain first n PCA components."
         )
 
         mins = [c["criteria"]["min"] for c in self.categories]
@@ -111,7 +111,9 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
         bsizer.Add(self.bin_field, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
 
         vsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.value_field = wx.TextCtrl(self.panel, value=",".join(values), size=(500, -1))
+        self.value_field = wx.TextCtrl(
+            self.panel, value=",".join(values), size=(500, -1)
+        )
         vsizer.Add(
             wx.StaticText(self.panel, label="Category labels"),
             0,

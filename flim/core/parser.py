@@ -15,7 +15,7 @@ import pkgutil
 
 
 def get_available_parsers(pkdir="core.parser"):
-    for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
+    for module_loader, name, ispkg in pkgutil.iter_modules([pkdir]):
         importlib.import_module("." + name, __package__)
     parser_classes = {cls.__name__: cls for cls in defaultparser.__subclasses__()}
     return parser_classes

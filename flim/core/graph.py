@@ -64,11 +64,11 @@ class WorkflowGraph:
         self.obj_ids = {}
         for tr in task_refs:
             result = self.state.result[tr]._result
-            if not self.state.result[tr].is_mapped(): 
+            if not self.state.result[tr].is_mapped():
                 self.obj_ids[id(tr)] = id(self.state.result[tr])
             else:
-                for map_index,s in enumerate(self.state.result[tr].map_states):
-                    newid  = str(id(tr)) + str(map_index)
+                for map_index, s in enumerate(self.state.result[tr].map_states):
+                    newid = str(id(tr)) + str(map_index)
                     self.obj_ids[int(newid)] = id(s)
             # loaded = [self.state.result[tr].load_result() for tr in task_refs]
 
@@ -111,11 +111,15 @@ class WorkflowGraph:
         nx.draw_networkx_edges(self.graph, pos, ax=ax)
         # nx.draw_networkx_labels(self.graph, pos, ax=ax, labels=self.node_labels)
         ecs = {
-            node_id: (1.0, 0.5, 0.5) if node_id in self.output_nodes else (0.5, 0.5, 1.0)
+            node_id: (1.0, 0.5, 0.5)
+            if node_id in self.output_nodes
+            else (0.5, 0.5, 1.0)
             for node_id in pos.keys()
         }
         fcs = {
-            node_id: (1.0, 0.8, 0.8) if node_id in self.output_nodes else (0.8, 0.8, 1.0)
+            node_id: (1.0, 0.8, 0.8)
+            if node_id in self.output_nodes
+            else (0.8, 0.8, 1.0)
             for node_id in pos.keys()
         }
 
@@ -124,7 +128,7 @@ class WorkflowGraph:
         tp = TextPath((0, 0), "Test q [](){}%", size=fontsize, prop=fp)
         box = tp.get_extents()
         _, _, _, height = box.bounds
-        
+
         for node_id, (x, y) in pos.items():
             tp = TextPath((x, y), self.node_labels[node_id], size=fontsize, prop=fp)
             box = tp.get_extents()

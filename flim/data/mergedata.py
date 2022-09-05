@@ -143,7 +143,8 @@ class Merger(AbstractPlugin):
     def get_description(self):
         return (
             "Merges two data tables based on shared index. "
-            + "The index is determined using category column headers found in both tables."
+            + "The index is determined using category column headers found in both"
+            " tables."
         )
 
     def get_required_categories(self):
@@ -223,7 +224,9 @@ class Merger(AbstractPlugin):
         merged_df = pd.merge(left, right, how=how, on=on)
         merged_df[on] = merged_df[on].astype("category")
         # merged_df = pd.merge(left, right, how=how, left_index=True, right_index=True)
-        neworder = [c for c in list(merged_df.select_dtypes(["category"]).columns.values)]
+        neworder = [
+            c for c in list(merged_df.select_dtypes(["category"]).columns.values)
+        ]
         noncategories = [c for c in merged_df.columns.values if c not in neworder]
         neworder.extend(noncategories)
         merged_df = merged_df[neworder]

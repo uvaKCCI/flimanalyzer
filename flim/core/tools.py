@@ -26,22 +26,28 @@ class FLIMAnalyzer:
         danalyzer=dataanalyzer(),
         executor=LocalExecutor,
         execargs="",
-        **kwargs
+        **kwargs,
     ):
         self.importer = importer
         self.preprocessor = preprocessor
         self.analyzer = danalyzer
         self.data = pd.DataFrame()
         try:
-            execargs = {item.split("=")[0]:item.split("=")[1] for item in execargs.split(",") if len(item.split("="))==2}
+            execargs = {
+                item.split("=")[0]: item.split("=")[1]
+                for item in execargs.split(",")
+                if len(item.split("=")) == 2
+            }
         except:
-            logging.error(f'Failed to parse executor arguments "{execargs}" for {executor}')
+            logging.error(
+                f'Failed to parse executor arguments "{execargs}" for {executor}'
+            )
         n = {}
-        for k,v in execargs.items():
+        for k, v in execargs.items():
             try:
-               v = int(v)
+                v = int(v)
             except:
-               pass
+                pass
             n[k] = v
         execargs = n
         if executor == "LocalDaskExecutor":
@@ -50,18 +56,19 @@ class FLIMAnalyzer:
             self.executor = DaskExecutor(**execargs)
         else:
             self.executor = LocalExecutor()
-            execargs=""
-        
+            execargs = ""
+
         #        self.outputgenerator = outputgenerator()
         logging.info(f"Setting up {self.executor}: {execargs}")
         logging.debug(
-            f"Initialized {__name__}.FlimAnalyzer version {flim.__version__} with {importer}, {preprocessor}, {danalyzer}"
+            f"Initialized {__name__}.FlimAnalyzer version {flim.__version__} with"
+            f" {importer}, {preprocessor}, {danalyzer}"
         )
         logging.debug(f"Using {self.executor}, {execargs}")
 
     def get_executor(self):
         return self.executor
-        
+
     def get_data(self):
         return self.data
 
@@ -120,7 +127,9 @@ def noninteractive_test(fa, logger, args):
     if data is None:
         logging.info("No data")
         return
-    logging.info("Raw data contains %d rows, %d columns" % (data.shape[0], data.shape[1]))
+    logging.info(
+        "Raw data contains %d rows, %d columns" % (data.shape[0], data.shape[1])
+    )
 
     pp = fa.get_preprocessor()
     pp.set_replacementheaders(
@@ -181,8 +190,8 @@ def noninteractive_test(fa, logger, args):
     logging.info("\nCalculating values for added columns...")
     data, capplied, cskipped = analyzer.calculate(data)
     logging.info(
-        "Applied %d calculation functions, skipped %d: data contains %d rows, %d columns"
-        % (len(capplied), len(cskipped), data.shape[0], data.shape[1])
+        "Applied %d calculation functions, skipped %d: data contains %d rows, %d"
+        " columns" % (len(capplied), len(cskipped), data.shape[0], data.shape[1])
     )
     for afunc in capplied:
         logging.debug("\tcalculated %s" % afunc)
@@ -192,7 +201,8 @@ def noninteractive_test(fa, logger, args):
     logging.info("\nFiltering values...")
     data, fapplied, fskipped, droppedrows = analyzer.apply_filter(data)
     logging.info(
-        "Applied %d filters, skipped %d filters, dropped %d rows: data contains %d rows, %d columns"
+        "Applied %d filters, skipped %d filters, dropped %d rows: data contains %d"
+        " rows, %d columns"
         % (len(fapplied), len(fskipped), droppedrows, data.shape[0], data.shape[1])
     )
     for afunc in fapplied:

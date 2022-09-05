@@ -66,7 +66,8 @@ def select(listofdict, key_pattern="(.*?)", value_pattern=None):
         except:
             pass
     logging.debug(
-        f"{key_pattern}, {value_pattern}: {[d.keys() for d in listofdict]}, result={result}"
+        f"{key_pattern}, {value_pattern}: {[d.keys() for d in listofdict]},"
+        f" result={result}"
     )
     return result
 
@@ -105,7 +106,7 @@ def discover_plugin_classes(dirs=["data", "analysis", "workflow"]):
         logging.debug(f"Searching {dir} for plugins.")
         pkdir = os.path.join(this_dir, dir)
         # pkdir = os.path.dirname(__file__)
-        for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
+        for module_loader, name, ispkg in pkgutil.iter_modules([pkdir]):
             importlib.import_module("." + name, __package__ + "." + dir)
         available_tools = {
             str(create_instance(cls)): cls for cls in AbstractPlugin.__subclasses__()
@@ -218,7 +219,12 @@ class AbstractPlugin(Task):
         if isinstance(input, list):
             if isinstance(input[0], dict):
                 # flatten list of dict
-                input = {k: v for entry in input for k, v in entry.items()}
+                # input = {k: entry[k] for entry in input for i,k in enumerate(entry.keys())}
+                input = {
+                    f"{k}-{i:04d}": v
+                    for i, entry in enumerate(input)
+                    for k, v in entry.items()
+                }
         input_labels = None
         if isinstance(input, dict):
             if input_select is not None:
@@ -312,6 +318,7 @@ class AbstractPlugin(Task):
             "grouping": [],
             "features": [],
             "input": {},
+            "prefix": None,
             "autosave": False,
             "working_dir": os.path.join(os.path.expanduser("~"), "FLIMAnalyzerResults"),
         }
@@ -428,9 +435,12 @@ class AbstractPlugin(Task):
         logging.debug(f"{self.name}: kwargs[features]={kwargs.get('features', None)}")
         self.configure(input=input, input_select=input_select, **kwargs)
         logging.debug(
-            f"Executing {self.name}: task_run_name={self.task_run_name}, type(self.input)={type(self.input)}"
+            f"Executing {self.name}: task_run_name={self.task_run_name},"
+            f" type(self.input)={type(self.input)}"
         )
         results = self.execute()
+        if self.params["prefix"]:
+            results = {f'{self.params["prefix"]}{k}': v for k, v in results.items()}
         return results
 
 

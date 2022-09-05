@@ -76,7 +76,10 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
             5,
         )
         osizer.Add(
-            self.orientation_combobox, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+            self.orientation_combobox,
+            0,
+            wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL,
+            5,
         )
 
         ssizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -104,7 +107,11 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         if sel_ebar not in ebar_opts:
             sel_ebar = ebar_opts[0]
         self.ebar_combobox = wx.ComboBox(
-            self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_ebar, choices=ebar_opts
+            self.panel,
+            wx.ID_ANY,
+            style=wx.CB_READONLY,
+            value=sel_ebar,
+            choices=ebar_opts,
         )
         self.ebar_combobox.Bind(wx.EVT_COMBOBOX, self.OnErroBarChange)
         bsizer.Add(
@@ -243,7 +250,7 @@ class BarPlot(AbstractPlugin):
             return [self.params]
 
     def execute(self):
-        data = list(self.input.values())[0]
+        data = list(self.input.values())[0].copy()
         results = {}
         features = self.params["features"]
         grouping = self.params["grouping"]
@@ -331,7 +338,14 @@ class BarPlot(AbstractPlugin):
                 )
             else:
                 groupeddata = data[cols].groupby(categories, observed=True)
+            # if groupeddata.ngroups == len(data):
+            #    logging.debug("Single value per group.")
+            #    groupeddata = data.set_index([c for c in categories], drop=True)
             mean = groupeddata.mean()
+            if groupeddata.ngroups == len(data):
+                dataindex = data.set_index([c for c in categories], drop=True).index
+                logging.debug("Single value per group. Keeping index of original data.")
+                mean = mean.reindex(index=dataindex)
             if self.params["error_bar"] != "None":
                 if self.params["error_type"] == "std":
                     error = groupeddata.std()

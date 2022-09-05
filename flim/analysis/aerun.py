@@ -174,7 +174,9 @@ class RunAE(AbstractPlugin):
         device = self.params["device"]
         if device == "cuda" and not torch.cuda.is_available():
             device = "cpu"
-            logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
+            logging.info(
+                "CUDA selected, but no CUDA device available. Switching to CPU."
+            )
         # ae = torch.load(self.params['modelfile'], map_location = device)
         ae_pipeline = load(modelfile)  # currently no way to remap device
 
@@ -197,13 +199,26 @@ class RunAE(AbstractPlugin):
         recon_data = reconstructed.detach().numpy()
         features_data = features.detach().numpy()
         len_features = 1 if len(features_data.shape) == 1 else features_data.shape[1]
+
+        lcols = [n for n in data.select_dtypes("category").columns]
+
         recon_df = pd.DataFrame(
             recon_data,
             columns=[f"Recon Feature {i}" for i in range(1, recon_data.shape[1] + 1)],
         )
+        recon_df = pd.concat(
+            [data[lcols], recon_df],
+            axis=1,
+        )
+
         features_df = pd.DataFrame(
             features_data, columns=[f"Feature {i}" for i in range(1, len_features + 1)]
         )
+        features_df = pd.concat(
+            [data[lcols], features_df],
+            axis=1,
+        )
+
         return {
             f"Table: Reconstructed-{os.path.basename(modelfile)}": recon_df,
             f"Table: Features-{os.path.basename(modelfile)}": features_df,

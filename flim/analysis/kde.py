@@ -47,7 +47,9 @@ class KDE(AbstractPlugin, Task):
         features = self.params["features"]
         if features == ALL_FEATURES and isinstance(data, pd.DataFrame):
             features = list(data.select_dtypes(np.number).columns.values)
-        return {f"Plot: KDE {feature}": matplotlib.figure.Figure for feature in features}
+        return {
+            f"Plot: KDE {feature}": matplotlib.figure.Figure for feature in features
+        }
 
     def get_mapped_parameters(self):
         parallel_params = []
@@ -108,7 +110,6 @@ class KDE(AbstractPlugin, Task):
         pivot_level=1,
         **kwargs,
     ):
-
         if data is None or not column in data.columns.values:
             return None, None
 
@@ -132,7 +133,9 @@ class KDE(AbstractPlugin, Task):
                     uniquevalues[1]
                 ) <= len(default_linestyles):
                     colors = [c for c in sns.color_palette()[: len(uniquevalues[0])]]
-                    linestyles = [ls for ls in default_linestyles[: len(uniquevalues[1])]]
+                    linestyles = [
+                        ls for ls in default_linestyles[: len(uniquevalues[1])]
+                    ]
                     for c in colors:
                         for ls in linestyles:
                             styles.append({"color": c, "linestyle": ls})

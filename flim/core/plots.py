@@ -122,7 +122,8 @@ def grouped_meanbarplot(
         # ticklabels is an array of tuples --> convert individual tuples into string
         #        ticklabels = [', '.join(l) for l in ticklabels]
         ticklabels = [
-            str(l).replace("'", "").replace("(", "").replace(")", "") for l in ticklabels
+            str(l).replace("'", "").replace("(", "").replace(")", "")
+            for l in ticklabels
         ]
         h, labels = ax.get_legend_handles_labels()
         # labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
@@ -223,7 +224,11 @@ def grouped_scatterplot(
 ):
     col1 = combination[0]
     col2 = combination[1]
-    if data is None or not col1 in data.columns.values or not col2 in data.columns.values:
+    if (
+        data is None
+        or not col1 in data.columns.values
+        or not col2 in data.columns.values
+    ):
         return None, None
 
     import matplotlib.pyplot as plt

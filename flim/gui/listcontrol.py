@@ -153,7 +153,9 @@ class AnalysisListCtrl(
         checked = {}
         for idx in range(self.GetItemCount()):
             if self.IsChecked(idx):
-                key = self.GetItem(idx, self.get_key_col()).GetText()  # .encode('utf-8')
+                key = self.GetItem(
+                    idx, self.get_key_col()
+                ).GetText()  # .encode('utf-8')
                 # PROBLEM MULTIINDEX
                 checked[key] = self.data[key]
         return checked
@@ -342,13 +344,14 @@ class FilterListCtrl(AnalysisListCtrl):
                 no_droppedfromview = len(self.get_view_dropped(key))
                 self.SetItem(idx, 4, f"{no_droppedfromview:,}")
                 logging.debug(
-                    "\tUpdating dropped row (SELECTED), key=%s, index=%d: %d, dropped from view: %d"
-                    % (key, idx, len(dropped), no_droppedfromview)
+                    "\tUpdating dropped row (SELECTED), key=%s, index=%d: %d, dropped"
+                    " from view: %d" % (key, idx, len(dropped), no_droppedfromview)
                 )
             else:
                 self.SetItem(idx, 4, "---")
                 logging.debug(
-                    "\tUpdating dropped row (NOT SELECTED), key=%s, index=%d" % (key, idx)
+                    "\tUpdating dropped row (NOT SELECTED), key=%s, index=%d"
+                    % (key, idx)
                 )
         """        
         for key in sorted(droppedrows):

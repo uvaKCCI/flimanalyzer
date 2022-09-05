@@ -311,10 +311,14 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
         sel_features = [
             self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()
         ]
-        ae = autoencoder.create_instance(aeclasses[modelname], nb_param=len(sel_features))
+        ae = autoencoder.create_instance(
+            aeclasses[modelname], nb_param=len(sel_features)
+        )
         if ae:
             descr = ae.get_description()
-            layer_txt = "\n".join(str(ae).split("\n")[1:-1])  # strip first and last line
+            layer_txt = "\n".join(
+                str(ae).split("\n")[1:-1]
+            )  # strip first and last line
         else:
             descr = "No input features or model defined"
             layer_txt = descr
@@ -324,7 +328,10 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
     def _on_browse(self, event):
         dirname = self.workingdirtxt.GetLabel()
         with wx.DirDialog(
-            self, "Working Directory", dirname, wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST
+            self,
+            "Working Directory",
+            dirname,
+            wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST,
         ) as dirDialog:
             # dirDialog.SetPath(dirname)
             # fileDialog.SetFilename(fname)

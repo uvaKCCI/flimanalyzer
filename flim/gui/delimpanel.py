@@ -22,7 +22,9 @@ class DelimiterPanel(wx.Panel):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         # sizer.Add(delimiter_label, 0, wx.RIGHT, 5)
         sizer.Add(self.comma_box, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
-        sizer.Add(self.semicolon_box, 0, wx.LEFT | wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(
+            self.semicolon_box, 0, wx.LEFT | wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5
+        )
         sizer.Add(self.tab_box, 0, wx.LEFT | wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(self.space_box, 0, wx.LEFT | wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(others_label, 0, wx.LEFT | wx.ALIGN_CENTER_VERTICAL, 5)

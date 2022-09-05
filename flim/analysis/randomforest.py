@@ -74,7 +74,10 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
             5,
         )
         sizer.Add(
-            self.classifier_selector, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+            self.classifier_selector,
+            0,
+            wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL,
+            5,
         )
 
         self.n_estimators_spinner = wx.SpinCtrl(
@@ -87,7 +90,10 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
             5,
         )
         sizer.Add(
-            self.n_estimators_spinner, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+            self.n_estimators_spinner,
+            0,
+            wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL,
+            5,
         )
 
         self.test_size_input = NumCtrl(

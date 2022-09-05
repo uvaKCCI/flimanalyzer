@@ -19,7 +19,7 @@ from abc import abstractmethod
 
 def get_autoencoder_classes():
     pkdir = os.path.dirname(__file__)
-    for (module_loader, name, ispkg) in pkgutil.iter_modules([pkdir]):
+    for module_loader, name, ispkg in pkgutil.iter_modules([pkdir]):
         importlib.import_module("." + name, __package__)
     available_aes = {
         create_instance(cls).get_name(): cls for cls in AbsAutoencoder.__subclasses__()
@@ -41,7 +41,9 @@ def create_instance(clazz, **kwargs):
         classname = clazz.__name__
     else:
         logging.error(f"Error instantiating {clazz} autoencoder.")
-    logging.debug(f"Autoencoder modulename={modulename}, classname={classname}, {kwargs}")
+    logging.debug(
+        f"Autoencoder modulename={modulename}, classname={classname}, {kwargs}"
+    )
     try:
         module = importlib.import_module(modulename)
         class_ = getattr(module, classname)
@@ -97,7 +99,10 @@ class Autoencoder_One_Six(AbsAutoencoder):
         return encoder_out, decoder_out
 
     def get_description(self):
-        return "This Autoencoder can be used to simulate new data based on an existing dataset."
+        return (
+            "This Autoencoder can be used to simulate new data based on an existing"
+            " dataset."
+        )
 
 
 class Autoencoder_One_Three(AbsAutoencoder):
@@ -122,7 +127,10 @@ class Autoencoder_One_Three(AbsAutoencoder):
         return encoder_out, decoder_out
 
     def get_description(self):
-        return "This Autoencoder can be used to simulate new data based on an existing dataset."
+        return (
+            "This Autoencoder can be used to simulate new data based on an existing"
+            " dataset."
+        )
 
 
 class Autoencoder_Two_Ten(AbsAutoencoder):
@@ -151,7 +159,10 @@ class Autoencoder_Two_Ten(AbsAutoencoder):
         return encoder_out, decoder_out
 
     def get_description(self):
-        return "This Autoencoder is used for dimensionality reduction of the feature space of an existing dataset."
+        return (
+            "This Autoencoder is used for dimensionality reduction of the feature space"
+            " of an existing dataset."
+        )
 
 
 class Autoencoder_Two_Five(AbsAutoencoder):
@@ -180,4 +191,7 @@ class Autoencoder_Two_Five(AbsAutoencoder):
         return encoder_out, decoder_out
 
     def get_description(self):
-        return "This Autoencoder is used for dimensionality reduction of the feature space of an existing dataset."
+        return (
+            "This Autoencoder is used for dimensionality reduction of the feature space"
+            " of an existing dataset."
+        )

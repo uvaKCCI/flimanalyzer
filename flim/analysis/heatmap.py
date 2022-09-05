@@ -59,7 +59,10 @@ class HeatmapConfigDlg(BasicAnalysisConfigDlg):
             5,
         )
         corrsizer.Add(
-            self.correlation_combobox, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+            self.correlation_combobox,
+            0,
+            wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL,
+            5,
         )
 
         colorsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -143,7 +146,9 @@ class Heatmap(AbstractPlugin):
             ax.get_yticklabels(),
             rotation=0,
         )
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, horizontalalignment="right")
+        ax.set_xticklabels(
+            ax.get_xticklabels(), rotation=45, horizontalalignment="right"
+        )
         title = "Data ungrouped"
         if len(self.params["grouping"]) > 0:
             title = f"Data grouped by {self.params['grouping']}"

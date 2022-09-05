@@ -50,7 +50,8 @@ class SwarmPlot(AbstractPlugin):
         selfeatures = self.params["features"]
         if len(data) > 1000:
             wx.MessageBox(
-                "Too many data points to plot. Consider aggregating the data in a summary table first.",
+                "Too many data points to plot. Consider aggregating the data in a"
+                " summary table first.",
                 "Warning",
                 wx.OK,
             )
@@ -111,7 +112,9 @@ class SwarmPlot(AbstractPlugin):
 
         if len(categories) == 0:
             # data.boxplot(**newkwargs)
-            g = sns.catplot(data=data, y=feature, kind="swarm")  # , height=6, aspect=.7)
+            g = sns.catplot(
+                data=data, y=feature, kind="swarm"
+            )  # , height=6, aspect=.7)
         elif len(categories) == 1:
             g = sns.catplot(
                 data=data, x=categories[0], y=feature, kind="swarm", color="blue"

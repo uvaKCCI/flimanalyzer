@@ -263,7 +263,10 @@ class CategoryOrder(AbstractPlugin):
                 missing = [
                     v
                     for v in values
-                    if (cat not in catparams or v not in catparams[cat].get("values", []))
+                    if (
+                        cat not in catparams
+                        or v not in catparams[cat].get("values", [])
+                    )
                 ]
                 catparams[cat] = {
                     "values": values,

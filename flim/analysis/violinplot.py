@@ -103,7 +103,9 @@ class ViolinPlot(AbstractPlugin):
 
         if len(categories) == 0:
             # data.boxplot(**newkwargs)
-            g = sns.catplot(data=data, y=feature, kind="violin")  # , height=6, aspect=.7)
+            g = sns.catplot(
+                data=data, y=feature, kind="violin"
+            )  # , height=6, aspect=.7)
         elif len(categories) == 1:
             g = sns.catplot(
                 data=data, x=categories[0], y=feature, kind="violin", color="blue"

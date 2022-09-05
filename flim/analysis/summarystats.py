@@ -120,7 +120,6 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
 
 @plugin(plugintype="Analysis")
 class SummaryStats(AbstractPlugin):
-
     agg_functions = {
         "count": "count",
         "min": "min",
@@ -138,7 +137,10 @@ class SummaryStats(AbstractPlugin):
         super().__init__(name=name, **kwargs)
 
     def get_description(self):
-        return "Calculates counts, min, max, mean, median (50th percentile), 25th percentile, and 75th percentile, StDev, S.E.M, of grouped data."
+        return (
+            "Calculates counts, min, max, mean, median (50th percentile), 25th"
+            " percentile, and 75th percentile, StDev, S.E.M, of grouped data."
+        )
 
     def get_icon(self):
         source = files(flim.resources).joinpath("summary.png")

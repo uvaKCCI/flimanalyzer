@@ -112,9 +112,9 @@ class dataanalyzer:
         #    alldroppedrows.extend(droppedrows)
         for acol in sorted(self.rangefilters):
             rfilter = self.rangefilters[acol]
-            if (onlyselected and not rfilter.is_selected()) or not self.columns_available(
-                data, [acol]
-            ):
+            if (
+                onlyselected and not rfilter.is_selected()
+            ) or not self.columns_available(data, [acol]):
                 skippedfilters.append([acol, rfilter])
             else:
                 # low,high = rfilter.get_range()
@@ -224,7 +224,9 @@ class dataanalyzer:
         ref_values = tuple([normalizeto[c] for c in ref_cols])
         unstack_levels = [grouping.index(c) for c in ref_cols]
         logging.debug(
-            f"COLS TO UNSTACK, ref_cols={str(ref_cols)}, non_ref_cols={str(non_ref_cols)}, unstack_levels={str(unstack_levels)}, ref_values={str(ref_values)}"
+            f"COLS TO UNSTACK, ref_cols={str(ref_cols)},"
+            f" non_ref_cols={str(non_ref_cols)}, unstack_levels={str(unstack_levels)},"
+            f" ref_values={str(ref_values)}"
         )
         #        med = data.groupby(grouping)[col].median().unstack(level=0)#.rename(columns=str).reset_index()
         logging.debug(data.groupby(grouping)[col].median())

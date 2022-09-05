@@ -31,7 +31,10 @@ def parse_arguments():
         "-e",
         "--executor",
         default="LocalCluster",
-        help="executor to run pipeline. Options: LocalCluster, LocalDaskExecutor, DaskExecutor",
+        help=(
+            "executor to run pipeline. Options: LocalCluster, LocalDaskExecutor,"
+            " DaskExecutor"
+        ),
     )
     parser.add_argument(
         "-a",
@@ -150,8 +153,8 @@ def noninteractive_run(fa, args):
     logging.info("\nCalculating values for added columns...")
     data, capplied, cskipped = analyzer.calculate(data)
     logging.debug(
-        "Applied %d calculation functions, skipped %d: data contains %d rows, %d columns"
-        % (len(capplied), len(cskipped), data.shape[0], data.shape[1])
+        "Applied %d calculation functions, skipped %d: data contains %d rows, %d"
+        " columns" % (len(capplied), len(cskipped), data.shape[0], data.shape[1])
     )
     for afunc in capplied:
         logging.debug("\tcalculated %s" % afunc)
@@ -161,7 +164,8 @@ def noninteractive_run(fa, args):
     logging.info("\nFiltering values...")
     data, fapplied, fskipped, droppedrows = analyzer.apply_filter(data)
     logging.info(
-        "Applied %d filters, skipped %d filters, dropped %d rows: data contains %d rows, %d columns"
+        "Applied %d filters, skipped %d filters, dropped %d rows: data contains %d"
+        " rows, %d columns"
         % (len(fapplied), len(fskipped), droppedrows, data.shape[0], data.shape[1])
     )
     for afunc in fapplied:

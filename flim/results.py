@@ -24,7 +24,7 @@ class LocalResultClear(LocalResult):
         self.location_params = {}
         for k in keys:
             self.location_params[k] = kwargs.get(k, None)
-        
+
         new = super().write(value, **kwargs)
         assert new.location is not None
 

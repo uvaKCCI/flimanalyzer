@@ -75,12 +75,16 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.seriesmin_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Series min")
         self.seriesmin_cb.SetValue(self.seriesmin)
         self.boxes["series_min"] = self.seriesmin_cb
-        sizer.Add(self.seriesmin_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(
+            self.seriesmin_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+        )
 
         self.seriesmax_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Series max")
         self.seriesmax_cb.SetValue(self.seriesmax)
         self.boxes["series_max"] = self.seriesmax_cb
-        sizer.Add(self.seriesmax_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(
+            self.seriesmax_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+        )
 
         self.seriesrange_cb = wx.CheckBox(
             self.panel, id=wx.ID_ANY, label="Series max-min"
@@ -94,7 +98,9 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.seriesmean_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Series mean")
         self.seriesmean_cb.SetValue(self.seriesmean)
         self.boxes["series_mean"] = self.seriesmean_cb
-        sizer.Add(self.seriesmean_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(
+            self.seriesmean_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+        )
 
         self.seriesmedian_cb = wx.CheckBox(
             self.panel, id=wx.ID_ANY, label="Series median"
@@ -125,7 +131,9 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.boxes["delta_sum"] = self.deltasum_cb
         sizer.Add(self.deltasum_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
 
-        self.deltacum_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Cumulative delta")
+        self.deltacum_cb = wx.CheckBox(
+            self.panel, id=wx.ID_ANY, label="Cumulative delta"
+        )
         self.deltacum_cb.SetValue(self.deltacum)
         self.boxes["delta_cum"] = self.deltacum_cb
         sizer.Add(self.deltacum_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
@@ -135,12 +143,16 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         )
         self.deltanorm_cb.SetValue(self.deltanorm)
         self.boxes["delta_norm"] = self.deltanorm_cb
-        sizer.Add(self.deltanorm_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(
+            self.deltanorm_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+        )
 
         self.mergeinput_cb = wx.CheckBox(self.panel, id=wx.ID_ANY, label="Merge input")
         self.mergeinput_cb.SetValue(self.mergeinput)
         self.boxes["merge_input"] = self.mergeinput_cb
-        sizer.Add(self.mergeinput_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
+        sizer.Add(
+            self.mergeinput_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+        )
 
         selectsizer = wx.BoxSizer(wx.VERTICAL)
         self.selectAllButton = wx.Button(self.panel, label="Select All")
@@ -264,7 +276,10 @@ class SeriesAnalyzer(AbstractPlugin):
 
     def execute(self):
         data = list(self.input.values())[0]
-        logging.debug (f"data columns={data.columns.values}, sel features={self.params['features']}")
+        logging.debug(
+            f"data columns={data.columns.values}, sel"
+            f" features={self.params['features']}"
+        )
         results = {}
         logging.debug(f"\tcreating series analysis for {self.params['features']}")
         categories = data.select_dtypes("category").columns.values

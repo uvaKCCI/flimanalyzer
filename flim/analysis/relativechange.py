@@ -214,7 +214,8 @@ class RelativeChange(AbstractPlugin):
         for ckey in allcategories:
             reldf[ckey] = reldf[ckey].astype("category")
         columnlabels = [
-            col if col in allcategories else f"rel {col}" for col in reldf.columns.values
+            col if col in allcategories else f"rel {col}"
+            for col in reldf.columns.values
         ]
         reldf.columns = columnlabels
 

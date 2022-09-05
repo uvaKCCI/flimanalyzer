@@ -235,7 +235,9 @@ class PandasFrame(wx.Frame):
         for group in groups:
             self.popupmenus[group] = self.create_popupmenu(group)
         if self.grid is not None:
-            logging.debug(f"datapanel.PandasFrame.SetData - REFRESHING {self.GetTitle()}")
+            logging.debug(
+                f"datapanel.PandasFrame.SetData - REFRESHING {self.GetTitle()}"
+            )
             self.update_view()
         else:
             logging.debug(
@@ -343,7 +345,9 @@ class PandasFrame(wx.Frame):
         if precision:
             self.precision = precision
             for colindex in self.grid.GetTable().GetFloatColIdx():
-                self.grid.SetColFormatFloat(colindex, width=-1, precision=self.precision)
+                self.grid.SetColFormatFloat(
+                    colindex, width=-1, precision=self.precision
+                )
 
     def is_analyzable(self):
         return self.analyzable
@@ -435,7 +439,9 @@ class PandasFrame(wx.Frame):
         filterconfig[CONFIG_RANGEFILTERS] = self._existing_rangefilters(rfilterlist)
 
         # need to make sure we pass copy of dropped rows so we can cancel without affecting droppedrows
-        dlg = ConfigureFiltersDlg(self, filterconfig, self.data, self.droppedrows.copy())
+        dlg = ConfigureFiltersDlg(
+            self, filterconfig, self.data, self.droppedrows.copy()
+        )
         response = dlg.ShowModal()
         if response == wx.ID_OK:
             filterconfig = dlg.GetData()
@@ -444,7 +450,9 @@ class PandasFrame(wx.Frame):
             currentfilters = {f["name"]: f for f in rfilterlist}
             currentfilters.update(newfilters)
             newfilterlist = [currentfilters[key] for key in currentfilters]
-            self.config.update({CONFIG_RANGEFILTERS: newfilterlist}, parentkeys=keys[:-1])
+            self.config.update(
+                {CONFIG_RANGEFILTERS: newfilterlist}, parentkeys=keys[:-1]
+            )
             self.config.update(
                 {CONFIG_SHOW_DROPPED: filterconfig[CONFIG_SHOW_DROPPED]},
                 parentkeys=keys[:-1],
@@ -454,7 +462,8 @@ class PandasFrame(wx.Frame):
             )
             self.filtercb.SetValue(filterconfig[CONFIG_USE])
             self.updateusefilter(
-                self.filtercb.GetValue(), showdiscarded=filterconfig[CONFIG_SHOW_DROPPED]
+                self.filtercb.GetValue(),
+                showdiscarded=filterconfig[CONFIG_SHOW_DROPPED],
             )
 
     def OnPopupItemSelected(self, event):
@@ -621,7 +630,9 @@ class PandasFrame(wx.Frame):
             # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
             self.modified = True
             self.update_view()
-        elif event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue():
+        elif (
+            event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue()
+        ):
             rfilterlist, keys = self.config.get(
                 [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
             )
@@ -688,7 +699,8 @@ class PandasFrame(wx.Frame):
                     formatstr = "%" + ".%df" % (self.precision)
                 valuestr = formatstr % value  # value[:totaldigits]
                 logging.debug(
-                    f"minval={minval}, maxval={maxval},value={value}, formatstr={formatstr}, valuestr={valuestr}"
+                    f"minval={minval}, maxval={maxval},value={value},"
+                    f" formatstr={formatstr}, valuestr={valuestr}"
                 )
             width, h = dc.GetTextExtent(valuestr)
             width = max(width, headerwidth)
@@ -711,7 +723,9 @@ class PandasFrame(wx.Frame):
         selgroups = dlg.get_selected()
         dlg.Destroy()
         valcols = [col for col in usedata.columns.values if col not in self.groups]
-        dlg = SelectGroupsDlg(self, title="Pivot data: Columns to retain", groups=valcols)
+        dlg = SelectGroupsDlg(
+            self, title="Pivot data: Columns to retain", groups=valcols
+        )
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return
@@ -741,7 +755,11 @@ class PandasFrame(wx.Frame):
             windowtitle = self.GetTitle()
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(
-                pivot_data, windowtitle, "createnew", showcolindex=False, analyzable=True
+                pivot_data,
+                windowtitle,
+                "createnew",
+                showcolindex=False,
+                analyzable=True,
             )
             self.GetEventHandler().ProcessEvent(event)
 
@@ -836,7 +854,8 @@ class PandasFrame(wx.Frame):
         if self.savemodied and self.modified:
             dlg = wx.MessageDialog(
                 self,
-                "The current view of the data has not been saved.\n\nDo you want to save the data?\n",
+                "The current view of the data has not been saved.\n\nDo you want to"
+                " save the data?\n",
                 self.GetLabel(),
                 style=wx.YES_NO | wx.CANCEL,
             )

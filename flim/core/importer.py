@@ -190,7 +190,9 @@ class dataimporter:
             allheaders = list(df.columns.values)
             logging.debug(self.get_reserved_categorycols(parser))
             categories = [
-                key for key in self.get_reserved_categorycols(parser) if key in allheaders
+                key
+                for key in self.get_reserved_categorycols(parser)
+                if key in allheaders
             ]
 
             # if 'ROI' not in df.columns.values:

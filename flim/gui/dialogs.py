@@ -132,11 +132,15 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             include=["number"], exclude=["category"]
         ).columns.values
         # ordered dict with label:columm items; column headers are converted to single line labels
-        self.allfeatures = OrderedDict((" ".join(c.split("\n")), c) for c in allfeatures)
+        self.allfeatures = OrderedDict(
+            (" ".join(c.split("\n")), c) for c in allfeatures
+        )
         if isinstance(selectedfeatures, str):
             self.selectedfeatures = {selectedfeatures: selectedfeatures}
         else:
-            self.selectedfeatures = {" ".join(c.split("\n")): c for c in selectedfeatures}
+            self.selectedfeatures = {
+                " ".join(c.split("\n")): c for c in selectedfeatures
+            }
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -287,7 +291,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
     def _on_browse(self, event):
         dirname = self.workingdirtxt.GetLabel()
         with wx.DirDialog(
-            self, "Working Directory", dirname, wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST
+            self,
+            "Working Directory",
+            dirname,
+            wx.DD_DEFAULT_STYLE | wx.DD_DIR_MUST_EXIST,
         ) as dirDialog:
             # dirDialog.SetPath(dirname)
             # fileDialog.SetFilename(fname)
@@ -404,7 +411,9 @@ class SelectGroupsDlg(wx.Dialog):
         buttonsizer.Add(self.cancelButton, 0, wx.ALL, 10)
 
         mainsizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
-        mainsizer.Add(wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5)
+        mainsizer.Add(
+            wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5
+        )
         mainsizer.Add(selectbsizer, 0, wx.ALIGN_CENTER, 5)
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(mainsizer, 0, wx.ALIGN_CENTER, 5)
@@ -532,7 +541,8 @@ class ConfigureFiltersDlg(wx.Dialog):
         # self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
         logging.debug(f"Updated: {[name for name in updateditems]}")
         logging.debug(
-            f"Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)"
+            f"Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining:"
+            f" {remaining:,} ({100.0 * remaining/viewlength:.2f}%)"
         )
 
     def GetData(self):
@@ -564,7 +574,11 @@ class ConfigureFiltersDlg(wx.Dialog):
 class ConfigureCategoriesDlg(wx.Dialog):
     def __init__(self, parent, title="", bins=[], labels=[]):
         wx.Dialog.__init__(
-            self, parent, wx.ID_ANY, "Category Configuration: %s" % title, size=(650, 220)
+            self,
+            parent,
+            wx.ID_ANY,
+            "Category Configuration: %s" % title,
+            size=(650, 220),
         )
         #        self.bins = None
         #        self.labels = None

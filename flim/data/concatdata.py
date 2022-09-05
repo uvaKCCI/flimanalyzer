@@ -69,9 +69,14 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         self.cfggrid.SetRowLabelSize(0)
         self.cfggrid.SetColSize(0, -1)
 
-        fsizer.Add(self.catsel, 0, wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(
-            self.numbers_only_cb, 0, wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL, 5
+            self.catsel, 0, wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL, 5
+        )
+        fsizer.Add(
+            self.numbers_only_cb,
+            0,
+            wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL,
+            5,
         )
         fsizer.Add(label, 0, wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         fsizer.Add(self.cfggrid, 1, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)

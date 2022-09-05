@@ -37,7 +37,6 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
         autosave=True,
         working_dir="",
     ):
-
         self.keeporig = keeporig
         self.keepstd = keepstd
         self.explainedhisto = explainedhisto
@@ -123,10 +122,10 @@ class PCAnalysis(AbstractPlugin):
 
     def get_description(self):
         return (
-            "Specifiy PCA components to retain:"
-            "\n\tleave empty:   retain all PCA components."
-            "\n\t0.0 < n < 1.0 (float):   retain PCA components that explain specified fraction of observed variance."
-            "\n\t1 <= n <= # features (integer):   retain first n PCA components."
+            "Specifiy PCA components to retain:\n\tleave empty:   retain all PCA"
+            " components.\n\t0.0 < n < 1.0 (float):   retain PCA components that"
+            " explain specified fraction of observed variance.\n\t1 <= n <= # features"
+            " (integer):   retain first n PCA components."
         )
 
     def get_required_categories(self):

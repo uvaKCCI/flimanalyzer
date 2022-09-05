@@ -319,10 +319,14 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         sel_features = [
             self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()
         ]
-        ae = autoencoder.create_instance(aeclasses[modelname], nb_param=len(sel_features))
+        ae = autoencoder.create_instance(
+            aeclasses[modelname], nb_param=len(sel_features)
+        )
         if ae:
             descr = ae.get_description()
-            layer_txt = "\n".join(str(ae).split("\n")[1:-1])  # strip first and last line
+            layer_txt = "\n".join(
+                str(ae).split("\n")[1:-1]
+            )  # strip first and last line
         else:
             descr = "No input features or model defined"
             layer_txt = descr
@@ -382,7 +386,8 @@ class AETraining(AbstractPlugin):
     def get_description(self):
         descr = (
             "Train and save a new autoencoder model using selectable input features. "
-            + "Training and validation datasets are randomly split based on the specified Data Grouping. "
+            + "Training and validation datasets are randomly split based on the"
+            " specified Data Grouping. "
             + "Device selection supports modeling on CPU or GPU (cuda) if available."
         )
         return descr
@@ -499,7 +504,9 @@ class AETraining(AbstractPlugin):
         train_size = self.params["train_size"]
         data = list(self.input.values())[0]
         allcat_columns = [n for n in data.select_dtypes("category").columns]
-        grouping = [n for n in self.params["grouping"] if n != self.params["timeseries"]]
+        grouping = [
+            n for n in self.params["grouping"] if n != self.params["timeseries"]
+        ]
         columns = list(allcat_columns)  # list(cat_columns)
         columns.extend(self.params["features"])
 
@@ -616,7 +623,9 @@ class AETraining(AbstractPlugin):
         device = self.params["device"]
         if self.params["device"] == "cuda" and not torch.cuda.is_available():
             device = "cpu"
-            logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
+            logging.info(
+                "CUDA selected, but no CUDA device available. Switching to CPU."
+            )
         no_features = len(self.params["features"])
         ae = autoencoder.create_instance(
             aeclasses[self.params["model"]], nb_param=no_features
@@ -660,7 +669,7 @@ class AETraining(AbstractPlugin):
             logging.debug("Epoch %d., Train loss: %.4f" % (epoch, loss_train[-1]))
 
             cum_loss = 0
-            for (i, item) in enumerate(val_loader):
+            for i, item in enumerate(val_loader):
                 batchinputs = item[0]  # .cuda()
                 batchlabels = item[1]
                 encoder_out, decoder_out = ae(batchinputs)

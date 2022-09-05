@@ -52,7 +52,9 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         self.device = device
         self.sets = sets
         self.add_noise = add_noise
-        self.snr_unit = snr_unit if snr_unit in utils.NOISE_UNIT else utils.NOISE_UNIT[-1]
+        self.snr_unit = (
+            snr_unit if snr_unit in utils.NOISE_UNIT else utils.NOISE_UNIT[-1]
+        )
         self.snr = snr_db if self.snr_unit == "dB" else utils.db_to_linear(snr_db)
         BasicAnalysisConfigDlg.__init__(
             self,
@@ -316,7 +318,9 @@ class AESimulate(AbstractPlugin):
         device = self.params["device"]
         if device == "cuda" and not torch.cuda.is_available():
             device = "cpu"
-            logging.info("CUDA selected, but no CUDA device available. Switching to CPU.")
+            logging.info(
+                "CUDA selected, but no CUDA device available. Switching to CPU."
+            )
         sim_df = pd.DataFrame(columns=(cats + feat_cols))
         noise_df = pd.DataFrame()
         try:

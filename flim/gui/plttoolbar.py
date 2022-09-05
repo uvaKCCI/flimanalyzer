@@ -11,7 +11,6 @@ from matplotlib.backends.backend_wx import NavigationToolbar2Wx
 
 
 class MyCustomToolbar(NavigationToolbar2Wx):
-
     _NTB_PLAY = wx.NewId()
 
     def __init__(self, plotCanvas):

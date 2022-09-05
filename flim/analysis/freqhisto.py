@@ -86,7 +86,9 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
 
         self.stacked_cb = wx.CheckBox(self.panel, wx.ID_ANY, label="Stacked")
         self.stacked_cb.SetValue(self.stacked)
-        optsizer.Add(self.stacked_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5)
+        optsizer.Add(
+            self.stacked_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
+        )
 
         self.cumulative_cb = wx.CheckBox(self.panel, wx.ID_ANY, label="Cumulative")
         self.cumulative_cb.SetValue(self.cumulative)
@@ -243,7 +245,8 @@ class FreqHisto(AbstractPlugin):
                     "bins": 100,
                 }
             logging.debug(
-                f"\tcreating frequency histogram plot for {header} with {bins} bins, range {mrange}"
+                f"\tcreating frequency histogram plot for {header} with {bins} bins,"
+                f" range {mrange}"
             )
             # categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
             #            fig, ax = MatplotlibFigure()

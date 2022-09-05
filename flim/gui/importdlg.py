@@ -142,7 +142,10 @@ class ImportDlg(wx.Dialog):
             )
             filesizer.Add(exclude_label, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 5)
             filesizer.Add(
-                self.exclude_files_list, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5
+                self.exclude_files_list,
+                1,
+                wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM,
+                5,
             )
 
         if singlefile:
@@ -255,7 +258,9 @@ class ImportDlg(wx.Dialog):
         importer.set_delimiter(self.delimiter_panel.get_delimiters())
         if self.parsefname:
             parsername = self.parser_chooser.GetStringSelection()
-            parser = flim.core.parser.instantiate_parser("flim.core.parser." + parsername)
+            parser = flim.core.parser.instantiate_parser(
+                "flim.core.parser." + parsername
+            )
             if parser is None:
                 logging.warning(f"COULD NOT INSTANTIATE PARSER:{parsername}")
                 return
@@ -308,9 +313,11 @@ class ImportDlg(wx.Dialog):
             self,
             "Add Raw Data Results",
             wildcard="txt files (*.txt)|*.txt|csv files (*.csv)|*.csv",
-            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE | wx.FD_CHANGE_DIR,
+            style=wx.FD_OPEN
+            | wx.FD_FILE_MUST_EXIST
+            | wx.FD_MULTIPLE
+            | wx.FD_CHANGE_DIR,
         ) as fileDialog:
-
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             # Proceed loading the file chosen by the user
@@ -366,7 +373,8 @@ class ImportDlg(wx.Dialog):
                 self.configure_importer(importer, [files[0]])
             else:
                 logging.debug(
-                    f"PREVIEWING: delimiter={delimiter}, {self.files_list.GetString(selected[0])}"
+                    f"PREVIEWING: delimiter={delimiter},"
+                    f" {self.files_list.GetString(selected[0])}"
                 )
             self.configure_importer(importer, [self.files_list.GetString(selected[0])])
 
@@ -400,6 +408,7 @@ class ImportDlg(wx.Dialog):
             self.config.update(self.importer.get_config(), [cfg.CONFIG_IMPORT])
             if self.preprocess:
                 self.config.update(
-                    self.importer.get_preprocessor().get_config(), [cfg.CONFIG_PREPROCESS]
+                    self.importer.get_preprocessor().get_config(),
+                    [cfg.CONFIG_PREPROCESS],
                 )
             self.EndModal(wx.ID_OK)
