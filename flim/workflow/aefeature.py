@@ -159,7 +159,7 @@ class AEFeatureConfigDialog(AESimTuneConfigDlg):
             5,
         )
         fsizer.Add(self.run_combobox, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-        
+
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(fsizer)
         for p in super().get_option_panels():
@@ -167,14 +167,27 @@ class AEFeatureConfigDialog(AESimTuneConfigDlg):
         return [sizer]
 
     def _update_input(self, event):
-        update = self.train_on != self.train_combobox.GetValue() or self.run_on != self.run_combobox.GetValue()
+        update = (
+            self.train_on != self.train_combobox.GetValue()
+            or self.run_on != self.run_combobox.GetValue()
+        )
         if update:
             self.train_on = self.train_combobox.GetValue()
             self.run_on = self.run_combobox.GetValue()
-            print (self.train_on, self.run_on)
-            allfeatures = self.get_selectable_features() 
-            self.allfeatures = OrderedDict((" ".join(c.split("\n")), c) for c in allfeatures)
+            allfeatures = self.get_selectable_features()
+            self.allfeatures = OrderedDict(
+                (" ".join(c.split("\n")), c) for c in allfeatures
+            )
             self._update_feature_cbs()
+
+    def _get_selected(self):
+        params = super()._get_selected()
+        params["input"] = {
+            "Train": self.data_choices[self.train_on],
+            "Run": self.data_choices[self.train_on],
+        }
+        return params
+
 
 @plugin(plugintype="Workflow")
 class AEFeatureWorkflow(AbsWorkFlow):
@@ -264,9 +277,10 @@ class AEFeatureWorkflow(AbsWorkFlow):
     def construct_flow(self, executor, result):
         checkpoint_interval = self.params["checkpoint_interval"]
 
-        data = list(self.input.values())[0]
+        data_train = list(self.input.values())[0]
+        data_run = list(self.input.values())[1]
         sel_features = self.params["features"]
-        all_features = [c for c in data.select_dtypes(include=np.number)]
+        all_features = [c for c in data_train.select_dtypes(include=np.number)]
 
         batch_sizes = [f"b{i}" for i in self.params["batch_size"]]
         rates = [f"l{i}" for i in self.params["learning_rate"]]
@@ -311,7 +325,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
 
             timeseries = Parameter("timeseries", default=self.params["timeseries"])
             timeseries_vals = [
-                v for v in data[self.params["timeseries"]].unique() if not "15" in v
+                v for v in data_train[self.params["timeseries"]].unique() if not "15" in v
             ]
             t_pairs = list(zip(timeseries_vals, timeseries_vals[1:]))
             ctrl_group = self.params["ctrl_group"]
@@ -332,21 +346,34 @@ class AEFeatureWorkflow(AbsWorkFlow):
                 pattern="AE*.model",
             )
 
-            input = datatask(
-                name="Input",
-                input=self.input,
+            input_train = datatask(
+                name="Input_Train",
+                input=data_train,
                 input_select=[0],
-                task_tags="Input",
+                task_tags="Input_Train",
             )
 
-            input_filtered = filtertask(
-                input=input,
+            input_train_filtered = filtertask(
+                input=input_train,
                 input_select=[0],
-                task_tags="Input_Filtered",
+                task_tags="Input_Train_Filtered",
+            )
+
+            input_run = datatask(
+                name="Input_Run",
+                input=data_run,
+                input_select=[0],
+                task_tags="Input_Run",
+            )
+
+            input_run_filtered = filtertask(
+                input=input_run,
+                input_select=[0],
+                task_tags="Input_Run_Filtered",
             )
 
             pcaresults = pcatask(
-                input=input_filtered,
+                input=input_run_filtered,
                 input_select=[0],
                 grouping=[],  # ['FOV', 'Cell'],
                 features=features,
@@ -354,7 +381,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             )
 
             aeresults = aetraintask.map(
-                input=unmapped(input_filtered),
+                input=unmapped(input_train_filtered),
                 input_select=unmapped([0]),
                 grouping=unmapped(grouping),
                 features=unmapped(features),
@@ -374,7 +401,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             )
 
             aerunresults = aeruntask.map(
-                input=unmapped(input_filtered),
+                input=unmapped(input_run_filtered),
                 input_select=unmapped([0]),
                 grouping=unmapped(grouping),
                 features=unmapped(features),
@@ -389,7 +416,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             flirr_pca_f1_tags = ["FLIRR"] + ["PCA"] + [f"{c}" for c in combinations]
 
             kderesults_F1 = kdetask.map(
-                input=[input_filtered, pcaresults["Table: PCA Components"]]
+                input=[input_run_filtered, pcaresults["Table: PCA Components"]]
                 + select(aerunresults, "Table: Features"),
                 input_select=unmapped([0]),
                 grouping=unmapped(["Treatment"]),
@@ -398,7 +425,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             )
 
             summaryresults = stask.map(
-                input=[input_filtered, pcaresults["Table: PCA Components"]]
+                input=[input_run_filtered, pcaresults["Table: PCA Components"]]
                 + select(aerunresults, "Table: Features"),
                 input_select=unmapped([0]),
                 grouping=unmapped(["Cell", "FOV", "Treatment"]),
@@ -489,7 +516,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             )  # 'std'
 
             ksresults = kstask.map(
-                input=[input_filtered, pcaresults["Table: PCA Components"]]
+                input=[input_run_filtered, pcaresults["Table: PCA Components"]]
                 + select(aerunresults, "Table: Features"),
                 input_select=unmapped([0]),
                 comparison=unmapped("Treatment"),
