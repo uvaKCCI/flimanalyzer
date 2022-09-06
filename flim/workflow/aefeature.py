@@ -9,6 +9,7 @@ import re
 import wx
 import matplotlib.pyplot as plt
 
+from collections import OrderedDict
 from prefect import Task, Flow, Parameter, task, unmapped, flatten, tags
 from prefect.tasks.core.collections import List
 from prefect.tasks.core.constants import Constant
@@ -56,8 +57,127 @@ def list_to_dict(listofdict):
     return result
 
 
+class AEFeatureConfigDialog(AESimTuneConfigDlg):
+    def __init__(
+        self,
+        parent,
+        title,
+        input={},
+        data_choices={},
+        train_on=None,
+        run_on=None,
+        description=None,
+        selectedgrouping=["None"],
+        selectedfeatures="All",
+        epoches=20,
+        batch_size=200,
+        learning_rate=1e-4,
+        weight_decay=1e-7,
+        timeseries="",
+        model="",
+        device="cpu",
+        rescale=False,
+        checkpoint_interval=20,
+        autosave=True,
+        working_dir=os.path.expanduser("~"),
+    ):
+        self.data_choices = data_choices
+        dc = list(data_choices.keys())
+        if train_on not in dc:
+            self.train_on = dc[0]
+        else:
+            self.train_on = train_on
+        if run_on not in dc:
+            self.run_on = dc[1] if len(dc) > 1 else self.train_on
+        else:
+            self.run_on = run_on
+
+        super().__init__(
+            parent,
+            title,
+            input=input,
+            data_choices=data_choices,
+            description=description,
+            selectedgrouping=selectedgrouping,
+            selectedfeatures=selectedfeatures,
+            epoches=epoches,
+            batch_size=batch_size,
+            weight_decay=weight_decay,
+            learning_rate=learning_rate,
+            timeseries=timeseries,
+            model=model,
+            device=device,
+            rescale=rescale,
+            checkpoint_interval=checkpoint_interval,
+            autosave=autosave,
+            working_dir=working_dir,
+        )
+
+    def get_selectable_features(self):
+        # training and running of model needs to occur on same features
+        features = set(
+            self.data_choices[self.train_on]
+            .select_dtypes(include=["number"], exclude=["category"])
+            .columns.values
+        ).intersection(
+            self.data_choices[self.run_on]
+            .select_dtypes(include=["number"], exclude=["category"])
+            .columns.values
+        )
+        logging.debug(f"selectable features={features}")
+        return features
+
+    def get_option_panels(self):
+        fsizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.train_combobox = wx.ComboBox(
+            self.panel,
+            wx.ID_ANY,
+            style=wx.CB_READONLY,
+            value=self.train_on,
+            choices=list(self.data_choices.keys()),
+        )
+        self.train_combobox.Bind(wx.EVT_COMBOBOX, self._update_input)
+        self.run_combobox = wx.ComboBox(
+            self.panel,
+            wx.ID_ANY,
+            style=wx.CB_READONLY,
+            value=self.run_on,
+            choices=list(self.data_choices.keys()),
+        )
+        self.run_combobox.Bind(wx.EVT_COMBOBOX, self._update_input)
+        fsizer.Add(
+            wx.StaticText(self.panel, label="Train Model on"),
+            0,
+            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
+            5,
+        )
+        fsizer.Add(self.train_combobox, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        fsizer.Add(
+            wx.StaticText(self.panel, label="Run Model on"),
+            0,
+            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
+            5,
+        )
+        fsizer.Add(self.run_combobox, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
+        
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(fsizer)
+        for p in super().get_option_panels():
+            sizer.Add(p)
+        return [sizer]
+
+    def _update_input(self, event):
+        update = self.train_on != self.train_combobox.GetValue() or self.run_on != self.run_combobox.GetValue()
+        if update:
+            self.train_on = self.train_combobox.GetValue()
+            self.run_on = self.run_combobox.GetValue()
+            print (self.train_on, self.run_on)
+            allfeatures = self.get_selectable_features() 
+            self.allfeatures = OrderedDict((" ".join(c.split("\n")), c) for c in allfeatures)
+            self._update_feature_cbs()
+
 @plugin(plugintype="Workflow")
-class StdFLIMWorkflow(AbsWorkFlow):
+class AEFeatureWorkflow(AbsWorkFlow):
     def __init__(self, name="FLIM Feature Analysis", **kwargs):
         super().__init__(name=name, **kwargs)
         # self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
@@ -103,10 +223,22 @@ class StdFLIMWorkflow(AbsWorkFlow):
         return params
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AESimTuneConfigDlg(
+        input = self.params["input"]
+        if isinstance(input, dict) and len(input) > 0:
+            train_on = list(input.keys())[0]
+        else:
+            train_on = ""
+        if isinstance(input, dict) and len(input) > 1:
+            run_on = list(input.keys())[1]
+        else:
+            run_on = ""
+        dlg = AEFeatureConfigDialog(
             parent,
             f"Configuration: {self.name}",
-            input=self.input,
+            input=input,
+            data_choices=data_choices,
+            train_on=train_on,
+            run_on=run_on,
             description=self.get_description(),
             selectedgrouping=self.params["grouping"],
             selectedfeatures=self.params["features"],
@@ -346,12 +478,7 @@ class StdFLIMWorkflow(AbsWorkFlow):
                 ]
                 + [[f"PC 1\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]]
                 + len(combinations)
-                * [
-                    [
-                        f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}"
-                        for t in t_pairs
-                    ]
-                ],
+                * [[f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]],
                 ordering=unmapped({}),
                 orientation=unmapped("vertical"),  # 'horizontal'
                 bar_type=unmapped("stacked"),  # 'single', '100% stacked'

@@ -37,6 +37,7 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         parent,
         title,
         input=None,
+        data_choices={},
         selectedgrouping=["None"],
         selectedfeatures="All",
         modelfile="",
@@ -56,11 +57,11 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
             snr_unit if snr_unit in utils.NOISE_UNIT else utils.NOISE_UNIT[-1]
         )
         self.snr = snr_db if self.snr_unit == "dB" else utils.db_to_linear(snr_db)
-        BasicAnalysisConfigDlg.__init__(
-            self,
+        super().__init__(
             parent,
             title,
             input=input,
+            data_choices=data_choices,
             selectedgrouping=selectedgrouping,
             selectedfeatures=selectedfeatures,
             optgridrows=0,
@@ -257,6 +258,7 @@ class AESimulate(AbstractPlugin):
             parent,
             f"Configuration: {self.name}",
             input=self.input,
+            data_choices=data_choices,
             selectedgrouping=self.params["grouping"],
             selectedfeatures=self.params["features"],
             modelfile=self.params["modelfile"],

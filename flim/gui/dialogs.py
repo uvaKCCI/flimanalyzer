@@ -129,19 +129,13 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.working_dir = working_dir
 
         data = list(self.input.values())[0]
-        allfeatures = data.select_dtypes(
-            include=["number"], exclude=["category"]
-        ).columns.values
+        allfeatures = self.get_selectable_features()
         # ordered dict with label:columm items; column headers are converted to single line labels
-        self.allfeatures = OrderedDict(
-            (" ".join(c.split("\n")), c) for c in allfeatures
-        )
+        self.allfeatures = OrderedDict((" ".join(c.split("\n")), c) for c in allfeatures)
         if isinstance(selectedfeatures, str):
             self.selectedfeatures = {selectedfeatures: selectedfeatures}
         else:
-            self.selectedfeatures = {
-                " ".join(c.split("\n")): c for c in selectedfeatures
-            }
+            self.selectedfeatures = {" ".join(c.split("\n")): c for c in selectedfeatures}
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -239,23 +233,8 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             self.scrolledpanel = ScrolledPanel(
                 self.panel, wx.ID_ANY, size=(-1, self.GetSize().y / 3)
             )
-            cbsizer = wx.GridSizer(4, 0, 0)
-            if self.allfeatures is None:
-                self.allfeatures = {}
-            self.cboxes = {}
-            for f in self.allfeatures:
-                cb = wx.CheckBox(self.scrolledpanel, wx.ID_ANY, f)
-                cb.SetValue(
-                    (f in self.selectedfeatures)
-                    or (ALL_FEATURES in self.selectedfeatures)
-                )
-                self.cboxes[f] = cb
-                cbsizer.Add(cb, 0, wx.ALL, 5)
-                if self.enablefeatsettings:
-                    cb.Bind(wx.EVT_RIGHT_UP, self.OnClickFeature)
-                cb.Bind(wx.EVT_CHECKBOX, self._on_feature_selection)
-            self.scrolledpanel.SetSizer(cbsizer)
-            self.scrolledpanel.SetupScrolling(scroll_x=False)
+            self.cbsizer = wx.GridSizer(4, 0, 0)
+            self._update_feature_cbs()
             sizer.Add(self.scrolledpanel, 0, wx.EXPAND | wx.ALIGN_CENTER)
 
             sizer.Add(
@@ -290,6 +269,35 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.DoLayoutAdaptation()
         self.Show()
 
+    def _update_feature_cbs(self):
+        if self.cbsizer: 
+            self.cbsizer.Clear(delete_windows=True)
+        if self.allfeatures is None:
+            self.allfeatures = {}
+        self.cboxes = {}
+        for f in self.allfeatures:
+            cb = wx.CheckBox(self.scrolledpanel, wx.ID_ANY, f)
+            cb.SetValue(
+                (f in self.selectedfeatures) or (ALL_FEATURES in self.selectedfeatures)
+            )
+            self.cboxes[f] = cb
+            self.cbsizer.Add(cb, 0, wx.ALL, 5)
+            if self.enablefeatsettings:
+                cb.Bind(wx.EVT_RIGHT_UP, self.OnClickFeature)
+            cb.Bind(wx.EVT_CHECKBOX, self._on_feature_selection)
+        self.scrolledpanel.SetSizer(self.cbsizer)
+        self.scrolledpanel.SetupScrolling(scroll_x=False)
+        self.scrolledpanel.Update()
+        self.Update()
+
+    def get_selectable_features(self):
+        data = list(self.input.values())[0]
+        allfeatures = data.select_dtypes(
+            include=["number"], exclude=["category"]
+        ).columns.values
+
+        return allfeatures
+
     def _on_checked(self, event):
         is_checked = self.autosave_cb.GetValue()
         self.workingdirtxt.Enable(is_checked)
@@ -317,7 +325,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         pass
 
     def OnClickFeature(self, event):
-        print("OnClickFeature")
         cbox = event.GetEventObject()
         for feature in self.cboxes.keys():
             if self.cboxes[feature] == cbox:
@@ -418,9 +425,7 @@ class SelectGroupsDlg(wx.Dialog):
         buttonsizer.Add(self.cancelButton, 0, wx.ALL, 10)
 
         mainsizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
-        mainsizer.Add(
-            wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5
-        )
+        mainsizer.Add(wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5)
         mainsizer.Add(selectbsizer, 0, wx.ALIGN_CENTER, 5)
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(mainsizer, 0, wx.ALIGN_CENTER, 5)

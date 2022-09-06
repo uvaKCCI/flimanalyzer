@@ -52,6 +52,7 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
         parent,
         title,
         input={},
+        data_choices={},
         description=None,
         selectedgrouping=["None"],
         selectedfeatures="All",
@@ -84,6 +85,7 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
             parent,
             title,
             input=input,
+            data_choices=data_choices,
             description=description,
             selectedgrouping=selectedgrouping,
             selectedfeatures=selectedfeatures,
@@ -388,6 +390,7 @@ class AEWorkflow(AbsWorkFlow):
                     "NAD(P)H photons",
                 ],
                 "timeseries": "Treatment",
+                "sets": 4,
                 "epoches": 6,  # 20,
                 "learning_rate": [
                     0.00001,
