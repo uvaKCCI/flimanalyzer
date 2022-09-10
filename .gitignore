@@ -6,7 +6,7 @@
 *.model
 /flimanalyzer.egg-info
 /build
-/_build
+docs/_build
 /data
 /dist
 .vscode

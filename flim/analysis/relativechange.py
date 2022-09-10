@@ -31,18 +31,18 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         autosave=True,
         working_dir="",
     ):
-        data = list(input.values())[0]
+        self.data = list(input.values())[0]
         self.method_options = ["mean", "median"]
         self.sel_method = method
         if self.sel_method not in self.method_options:
             self.sel_method = self.method_options[0]
 
-        self.categories = list(data.select_dtypes(["category"]).columns.values)
+        self.categories = list(self.data.select_dtypes(["category"]).columns.values)
         self.sel_refgroup = refgroup
         if self.sel_refgroup not in self.categories:
             self.sel_refgroup = self.categories[0]
 
-        self.refval_options = data[self.sel_refgroup].unique()
+        self.refval_options = self.data[self.sel_refgroup].unique()
         self.sel_refvalue = refvalue
         if self.sel_refvalue not in self.refval_options:
             self.sel_refvalue = self.refval_options[0]
@@ -59,7 +59,7 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         )
 
     def get_option_panels(self):
-        data = list(self.input.values())[0]
+        #data = list(self.input.values())[0]
         self.aggboxes = {}
         self.refgrp_combobox = wx.ComboBox(
             self.panel,
@@ -80,7 +80,7 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
             self.refgrp_combobox, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
         )
 
-        dummy = [a for c in self.categories for a in data[c].unique()]
+        dummy = [a for c in self.categories for a in self.data[c].unique()]
         self.refval_combobox = wx.ComboBox(
             self.panel,
             wx.ID_ANY,

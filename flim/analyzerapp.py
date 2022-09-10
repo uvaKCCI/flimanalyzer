@@ -20,6 +20,7 @@ from flim.core.configuration import Config, CONFIG_PARSER_CLASS
 
 
 def parse_arguments():
+    """Parses command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-i", "--input", nargs="+", help="import set of files or directories"
