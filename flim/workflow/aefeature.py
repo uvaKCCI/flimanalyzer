@@ -184,7 +184,7 @@ class AEFeatureConfigDialog(AESimTuneConfigDlg):
         params = super()._get_selected()
         params["input"] = {
             "Train": self.data_choices[self.train_on],
-            "Run": self.data_choices[self.train_on],
+            "Run": self.data_choices[self.run_on],
         }
         return params
 
@@ -279,6 +279,8 @@ class AEFeatureWorkflow(AbsWorkFlow):
 
         data_train = list(self.input.values())[0]
         data_run = list(self.input.values())[1]
+        logging.debug(f"Training on {data_train.shape}")
+        logging.debug(f"Running on {data_run.shape}")
         sel_features = self.params["features"]
         all_features = [c for c in data_train.select_dtypes(include=np.number)]
 
