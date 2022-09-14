@@ -68,7 +68,7 @@ class AESimTuneConfigDlg(BasicAnalysisConfigDlg):
         autosave=True,
         working_dir=os.path.expanduser("~"),
     ):
-        data = list(input.values())[0]
+        data = next(iter(input.values()))
         self.timeseries_opts = data.select_dtypes(include=["category"]).columns.values
         self.timeseries = timeseries
         self.epoches = epoches

@@ -74,7 +74,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         autosave=True,
         working_dir="",
     ):
-        data = list(input.values())[0]
+        data = next(iter(input.values()))
         self.timeseries_opts = data.select_dtypes(include=["category"]).columns.values
         self.timeseries = timeseries
         self.epoches = epoches
@@ -570,7 +570,8 @@ class AETraining(AbstractPlugin):
         return train_loader, val_loader, train_scaler, my_imputer, label_encoders
 
     def execute(self):
-        data = list(self.input.values())[0]
+        data = next(iter(self.input.values()))
+        print (f"aetrain on: {data.columns.values}")
         rates = self.params["learning_rate"]
         decays = self.params["weight_decay"]
         sizes = self.params["batch_size"]

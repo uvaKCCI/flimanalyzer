@@ -237,6 +237,13 @@ class AEFeatureWorkflow(AbsWorkFlow):
 
     def run_configuration_dialog(self, parent, data_choices={}):
         input = self.params["input"]
+        dc = [(k,v) for k,v in data_choices.items()]
+        i = 0
+        while len(input) < min(2, len(data_choices)):
+            key, value = dc[i]
+            if not key in input:
+                input[key] = value
+            i+=1
         if isinstance(input, dict) and len(input) > 0:
             train_on = list(input.keys())[0]
         else:
@@ -244,7 +251,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
         if isinstance(input, dict) and len(input) > 1:
             run_on = list(input.keys())[1]
         else:
-            run_on = ""
+            run_on = train_on
         dlg = AEFeatureConfigDialog(
             parent,
             f"Configuration: {self.name}",
