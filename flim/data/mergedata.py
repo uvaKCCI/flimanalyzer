@@ -184,7 +184,7 @@ class Merger(AbstractPlugin):
         if isinstance(input, dict) and len(input) > 1:
             right_on = list(input.keys())[1]
         else:
-            right_on = ""
+            right_on = left_on
 
         dlg = MergerConfigDlg(
             parent,
@@ -203,8 +203,8 @@ class Merger(AbstractPlugin):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
-        self.params = dlg.get_selected()
-        self.configure(**self.params)
+        params = dlg.get_selected()
+        self.configure(**params)
         return self.params
 
     def execute(self):

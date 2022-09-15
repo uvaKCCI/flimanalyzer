@@ -188,9 +188,9 @@ class SummaryStats(AbstractPlugin):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
-        parameters = dlg.get_selected()
-        self.configure(**parameters)
-        return parameters
+        params = dlg.get_selected()
+        self.configure(**params)
+        return params
 
     def _create_df_title(self, feature):
         if feature:

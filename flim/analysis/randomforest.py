@@ -177,9 +177,9 @@ class RandomForest(AbstractPlugin):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return
-        parameters = dlg.get_selected()
-        self.configure(**parameters)
-        return parameters
+        params = dlg.get_selected()
+        self.configure(**params)
+        return params
 
         data = list(self.input.values())[0]
         category_cols = data.select_dtypes(["category"]).columns.values
@@ -190,9 +190,9 @@ class RandomForest(AbstractPlugin):
             category_cols,
         )
         if dlg.ShowModal() == wx.ID_OK:
-            parameters = {"classifier": dlg.GetStringSelection()}
-            self.configure(**parameters)
-            return parameters
+            params = {"classifier": dlg.GetStringSelection()}
+            self.configure(**params)
+            return params
         return
 
     def execute(self):

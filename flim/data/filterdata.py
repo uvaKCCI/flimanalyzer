@@ -193,9 +193,8 @@ class Filter(AbstractPlugin):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
-        self.params = dlg.get_selected()
-        self.configure(**self.params)
-        print(self.params)
+        params = dlg.get_selected()
+        self.configure(**params)
         return self.params
 
     def execute(self):

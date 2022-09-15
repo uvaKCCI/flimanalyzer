@@ -571,7 +571,7 @@ class AETraining(AbstractPlugin):
 
     def execute(self):
         data = next(iter(self.input.values()))
-        print (f"aetrain on: {data.columns.values}")
+        logging.debug(f"aetrain on: {data.columns.values}")
         rates = self.params["learning_rate"]
         decays = self.params["weight_decay"]
         sizes = self.params["batch_size"]

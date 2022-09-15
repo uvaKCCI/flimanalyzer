@@ -222,9 +222,7 @@ class AppFrame(wx.Frame):
             menuitem = menu.Append(wx.NewId(), pname)
             self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
             if toolbar:
-                tool = toolbar.AddTool(
-                    wx.NewId(), pname, plg.get_icon(), shortHelp=pname
-                )
+                tool = toolbar.AddTool(wx.NewId(), pname, plg.get_icon(), shortHelp=pname)
                 self.Bind(wx.EVT_TOOL, self.on_run_plugin, tool)
         return menu
 
@@ -300,9 +298,7 @@ class AppFrame(wx.Frame):
             config = dlg.get_config()
 
             parsername = config.get([cfg.CONFIG_PARSER_CLASS])
-            parser = flim.core.parser.instantiate_parser(
-                "flim.core.parser." + parsername
-            )
+            parser = flim.core.parser.instantiate_parser("flim.core.parser." + parsername)
             if parser is None:
                 logging.warning(f"Could not instantiate parser {parsername}")
                 return
@@ -432,11 +428,6 @@ class AppFrame(wx.Frame):
         pass
 
     def on_run_plugin(self, event):
-        title, data = self.get_currentdata()
-        if data is None:
-            wx.MessageBox("No data available")
-            return
-        data_choices = self.get_alldata()
         itemid = event.GetId()
         evtobj = event.GetEventObject()
         pluginname = ""
@@ -445,12 +436,6 @@ class AppFrame(wx.Frame):
         else:
             pluginname = evtobj.FindItemById(itemid).GetItemLabelText()
         logging.debug(f"{event.GetId()}, {pluginname}")
-
-        # check that there's any data to process
-        if not flim.gui.dialogs.check_data_msg(data):
-            return
-
-        # check that user provided required data categories and data features
 
         plugin_class = next(
             plugin.get_plugin_class(pluginname)
@@ -462,16 +447,26 @@ class AppFrame(wx.Frame):
         parameters, keys = self.config.get(
             [cfg.CONFIG_PLUGINS, pluginname], returnkeys=True
         )
-        input = parameters.get("input")
-        if len(input) != 0:
-            parameters["input"] = {
-                t: data_choices[title] for t in input if t in data_choices
-            }
-        else:
-            parameters["input"] = {title: data}
+
+        # get top level data and all open data tables as options
+        title, currentdata = self.get_currentdata()
+        data_choices = {title:currentdata}
+        data_choices.update(self.get_alldata())
+        input = {title:data_choices[title] for i,title in enumerate(data_choices) if i<len(tool.input_definition())}
+        logging.debug(f"input={input.keys()}, data_choices={data_choices.keys()}")
+        if len(input) < len(tool.input_definition()):
+            wx.MessageBox(
+                f"Analysis tool {tool} requires at least"
+                f" {len(tool.input_definition())} data table[s].",
+                "Warning",
+                wx.OK,
+            )
+            return
+
+        # configure tool and execte analysis
+        parameters["input"] = input
         tool.configure(**parameters)
 
-        # run optional tool config dialog and execte analysis
         parameters = tool.run_configuration_dialog(self, data_choices=data_choices)
         if parameters is None:
             return

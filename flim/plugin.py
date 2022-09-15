@@ -331,7 +331,7 @@ class AbstractPlugin(Task):
         Returns:
             dict: current parameters
         """
-        return self.params
+        return self.params.copy()
 
     def get_mapped_parameters(self) -> List[Dict[str, Any]]:
         """Provides a list of the plugins current parameters. Each list item defines a

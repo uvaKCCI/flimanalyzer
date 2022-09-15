@@ -135,6 +135,9 @@ class Concatenator(AbstractPlugin):
         )
         return params
 
+    def input_definition(self):
+        return [pd.DataFrame, pd.DataFrame]
+
     def output_definition(self):
         return {"Table: Concatenated": pd.DataFrame}
 
@@ -166,8 +169,8 @@ class Concatenator(AbstractPlugin):
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return
-        self.params = dlg.get_selected()
-        self.configure(**self.params)
+        params = dlg.get_selected()
+        self.configure(**params)
         return self.params
 
     def execute(self):
