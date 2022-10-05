@@ -2,11 +2,11 @@
 
 This tool creates swarm plots of grouped data.
 
-**Menu Access:** `Analysis` > `Swarm Plot`
+**Menu Access:** `Plot` > `Swarm Plot`
 
 **Toolbar Icon:** ![](/images/analysis/swarmplot.png)
 
-## Running the Analysis
+## Creating the Plot
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.  
     ```{note}
