@@ -12,13 +12,6 @@ Subpackages
 Submodules
 ----------
 
-flim.analysis.absanalyzer module
---------------------------------
-
-.. automodule:: flim.analysis.absanalyzer
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 flim.analysis.aetraining module
 -------------------------------
@@ -100,10 +93,10 @@ flim.analysis.relativechange module
    :undoc-members:
    :show-inheritance:
 
-flim.analysis.runae module
+flim.analysis.aerun module
 --------------------------
 
-.. automodule:: flim.analysis.runae
+.. automodule:: flim.analysis.aerun
    :members:
    :undoc-members:
    :show-inheritance:
