@@ -45,14 +45,21 @@ sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flima
 
 **From the command line**
 
-On Windows,run this command
+On Windows, run this command
 ```
 conda activate flimenv
-set PREFECT__FLOWS__CHECKPOINTING true 
+set PREFECT__FLOWS__CHECKPOINTING=true 
 flimanalyzer.exe
 ```
 
-On Mac OSX and Linux, run this command:
+If on Powershell, run this command
+```
+conda activate flimenv
+$env:PREFECT__FLOWS__CHECKPOINTING=true 
+flimanalyzer.exe
+```
+
+On Mac OSX and Linux, run this command
 ```
 conda activate flimenv
 export PREFECT__FLOWS__CHECKPOINTING=true 
