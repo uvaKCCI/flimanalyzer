@@ -2,11 +2,11 @@
 
 The `Bar Plot` tool creates bar plots based on mean +/- StDev (or S.E.M) of grouped data.
 
-**Menu Access:** `Analysis` > `Bar plot`
+**Menu Access:** `Plot` > `Bar plot`
 
 **Toolbar Icon:** ![](/images/analysis/barplot.png)
 
-## Running the Analysis
+## Creating the Plot
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
     ![](/images/data/dataframe.png)

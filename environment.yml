@@ -1,13 +1,20 @@
-name: flimenv-0.3.0
+name: flimenv-0.4.0
 channels:
   - pytorch
   - conda-forge
   - defaults
 dependencies:
   - matplotlib>3.4
+  - graphviz=2.50.0
+  - python-graphviz=0.16
+  - pygraphviz=1.7
+  - dask=2021
+  - mkl=2021
   - numpy=1.18
   - pandas=1.1
   - pip=20.3
+  - prefect=0.15.3
+  - pydot=1.4.1
   - python=3.7
   - pytorch=1.7.0
   - torchinfo=1.6.3

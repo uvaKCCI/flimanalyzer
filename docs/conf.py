@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('..'))
 
 project = 'FLIM Analyzer'
 copyright = '2021, UVA Keck Center for Cellular Imaging'
-author = 'UVA Keck Center for Cellular Imaging: Karsten Siller, Jiaxin Zhang'
+author = 'UVA Keck Center for Cellular Imaging: Karsten Siller, Brian Mbogo, Jiaxin Zhang'
 
 
 # -- General configuration ---------------------------------------------------
