@@ -91,12 +91,6 @@ def save_figure(
             return None
         return fname
 
-<<<<<<< HEAD
-    def __init__(self, parent, title, data, description=None, data_choices={}, chooseinput=False, enablegrouping=True, enablefeatures=True, selectedgrouping=['None'], selectedfeatures='All', optgridrows=0, optgridcols=2, enablefeatsettings=False, featuresettings={}, settingspecs={}):
-        wx.Dialog.__init__(self, parent, wx.ID_ANY, title)#, size= (650,400))
-        self.panel = wx.Panel(self, wx.ID_ANY)
-        # 5 col gridsizer
-=======
 
 class BasicAnalysisConfigDlg(wx.Dialog):
     def __init__(
@@ -123,7 +117,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.panel = wx.Panel(self, wx.ID_ANY)
         # 5 col gridsizer
         self.input = input
->>>>>>> prefect
         self.description = description
         self.chooseinput = chooseinput
         self.enablegrouping = enablegrouping
@@ -132,16 +125,11 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.enablefeatsettings = enablefeatsettings
         self.featuresettings = featuresettings
         self.settingspecs = settingspecs
-<<<<<<< HEAD
-        
-        allfeatures = data.select_dtypes(include=['number'], exclude=['category']).columns.values
-=======
         self.autosave = autosave
         self.working_dir = working_dir
 
         data = list(self.input.values())[0]
         allfeatures = self.get_selectable_features()
->>>>>>> prefect
         # ordered dict with label:columm items; column headers are converted to single line labels
         self.allfeatures = OrderedDict((" ".join(c.split("\n")), c) for c in allfeatures)
         if isinstance(selectedfeatures, str):
@@ -150,10 +138,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             self.selectedfeatures = {" ".join(c.split("\n")): c for c in selectedfeatures}
 
         sizer = wx.BoxSizer(wx.VERTICAL)
-        
-        if description and len(description) > 0:
-            sizer.Add(wx.StaticText(self.panel,label=description), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-            sizer.Add(wx.StaticLine(self.panel,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
 
         if description and len(description) > 0:
             sizer.Add(
@@ -173,20 +157,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             self.optionsizer.Add(p)
 
         sizer.Add(self.optionsizer, 0, wx.ALIGN_LEFT, 5)
-<<<<<<< HEAD
-        sizer.Add(wx.StaticLine(self.panel,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
-        if self.enablegrouping:
-            groupings = ['None']
-            if data.select_dtypes(['category']).columns.nlevels == 1:
-                categories = [c for c in list(data.select_dtypes(['category']).columns.values) if "-" not in c]
-                combinations = [c for c in list(data.select_dtypes(['category']).columns.values) if "-" in c]
-            else:
-                categories = [c for c in list(data.select_dtypes(['category']).columns.get_level_values(0).values) if "-" not in c]
-                combinations = [c for c in list(data.select_dtypes(['category']).columns.get_level_values(0).values) if "-" in c]
-            logging.debug (f"groupings: {groupings}")
-            for i in range(1,len(categories)+1):
-                permlist = list(itertools.permutations(categories,i))
-=======
         sizer.Add(
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
         )
@@ -226,50 +196,9 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             logging.debug(f"groupings: {groupings}")
             for i in range(1, len(categories) + 1):
                 permlist = list(itertools.permutations(categories, i))
->>>>>>> prefect
                 for p in permlist:
                     groupings.append(", ".join(p))
-
-            groupings = ['None'] + combinations + groupings[1:] #avoids factorial permutation generation
             if ", ".join(selectedgrouping) not in groupings:
-<<<<<<< HEAD
-                selectedgrouping = ['None']
-            
-            groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
-            self.grouping_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=", ".join(selectedgrouping), choices=groupings)
-            groupingsizer.Add(wx.StaticText(self.panel, label="Data Grouping"), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-            groupingsizer.Add(self.grouping_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-            sizer.Add(groupingsizer, 0, wx.ALIGN_LEFT, 5)
-            sizer.Add(wx.StaticLine(self.panel,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
-        
-        if self.enablefeatures:
-            cbsizer = wx.GridSizer(4, 0, 0)
-            if self.allfeatures is None:
-                self.allfeatures = {}
-            self.cboxes = {}
-            for f in self.allfeatures:
-                cb = wx.CheckBox(self.panel,wx.ID_ANY,f)
-                cb.SetValue((f in self.selectedfeatures) or ('All' in self.selectedfeatures))
-                self.cboxes[f] = cb
-                cbsizer.Add(cb, 0, wx.ALL, 5)
-                if self.enablefeatsettings:
-                    cb.Bind(wx.EVT_RIGHT_UP, self.OnClickFeature)
-                cb.Bind(wx.EVT_CHECKBOX, self._on_feature_selection)
-            sizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
-            sizer.Add(wx.StaticLine(self.panel,style=wx.LI_HORIZONTAL), 0, wx.ALL|wx.EXPAND, 5)
-
-        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.selectAllButton = wx.Button(self.panel, label="Select All")
-        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAll)
-        buttonsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
-        self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
-        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnDeselectAll)
-        buttonsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
-        self.okButton = wx.Button(self.panel, label="OK", pos=(110,160))
-        self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
-        buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
-        self.cancelButton = wx.Button(self.panel, label="Cancel", pos=(210,160))
-=======
                 selectedgrouping = ["None"]
             groupingsizer = wx.BoxSizer(wx.HORIZONTAL)
             self.grouping_combobox = wx.ComboBox(
@@ -326,7 +255,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
         buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
         self.cancelButton = wx.Button(self.panel, label="Cancel", pos=(210, 160))
->>>>>>> prefect
         self.cancelButton.Bind(wx.EVT_BUTTON, self.OnQuit)
         buttonsizer.Add(self.cancelButton, 0, wx.ALL, 10)
 
@@ -335,11 +263,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.panel.Fit()
         self.panel.Layout()
         self.Fit()
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> prefect
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
         self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
         self.DoLayoutAdaptation()
@@ -396,19 +320,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
     def get_option_panels(self):
         return []
-<<<<<<< HEAD
-        
-        
-    def _on_feature_selection(self, event):
-        pass
-        
-                
-=======
 
     def _on_feature_selection(self, event):
         pass
 
->>>>>>> prefect
     def OnClickFeature(self, event):
         cbox = event.GetEventObject()
         for feature in self.cboxes.keys():
@@ -416,14 +331,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
                 default = None
                 if feature in self.featuresettings:
                     default = self.featuresettings[feature]
-<<<<<<< HEAD
-                dlg = ConfigureFeatureDlg(self, title=f"{feature} config", feature=feature, settings=self.settingspecs, defaults=default)
-                if dlg.ShowModal() == wx.ID_OK:
-                    self.featuresettings[feature] = dlg.get_settings()     
-                break
-        
-        
-=======
                 dlg = ConfigureFeatureDlg(
                     self,
                     title=f"{feature} config",
@@ -435,24 +342,15 @@ class BasicAnalysisConfigDlg(wx.Dialog):
                     self.featuresettings[feature] = dlg.get_settings()
                 break
 
->>>>>>> prefect
     def OnSelectAll(self, event):
         if self.cboxes:
             for key in self.cboxes:
                 self.cboxes[key].SetValue(True)
-<<<<<<< HEAD
-       
-=======
 
->>>>>>> prefect
     def OnDeselectAll(self, event):
         if self.cboxes:
             for key in self.cboxes:
                 self.cboxes[key].SetValue(False)
-<<<<<<< HEAD
-
-=======
->>>>>>> prefect
 
     def OnQuit(self, event):
         self.EndModal(wx.ID_CANCEL)
@@ -466,13 +364,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             else:
                 params["grouping"] = []
         else:
-<<<<<<< HEAD
-            params['grouping'] = []
-        if self.enablefeatures:
-            params['features'] = [self.allfeatures[key] for key in self.cboxes if self.cboxes[key].GetValue()]
-            if self.enablefeatsettings:
-                params['featuresettings'] = self.featuresettings
-=======
             params["grouping"] = []
         if self.enablefeatures:
             params["features"] = [
@@ -482,7 +373,6 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             ]
             if self.enablefeatsettings:
                 params["featuresettings"] = self.featuresettings
->>>>>>> prefect
         else:
             params["features"] = []
         if self.chooseinput:
@@ -514,13 +404,8 @@ class SelectGroupsDlg(wx.Dialog):
             groups = []
         self.cboxes = {}
         for g in groups:
-<<<<<<< HEAD
-            cb = wx.CheckBox(self,wx.ID_ANY,str(g))
-            cb.SetValue((g in selected) or (selected == 'All'))
-=======
             cb = wx.CheckBox(self, wx.ID_ANY, str(g))
             cb.SetValue((g in selected) or (selected == "All"))
->>>>>>> prefect
             self.cboxes[g] = cb
             cbsizer.Add(cb, 0, wx.ALL, 5)
         selectbsizer = wx.BoxSizer(wx.VERTICAL)
@@ -577,47 +462,23 @@ class SelectGroupsDlg(wx.Dialog):
 
 
 class ConfigureFiltersDlg(wx.Dialog):
-<<<<<<< HEAD
-
-    def __init__(self, parent, config=None, dataframe=None, dropped={}, showusefilter=True):
-        wx.Dialog.__init__(self, parent, wx.ID_ANY, "Filter Settings TEST", size= (650,400))
-=======
     def __init__(
         self, parent, config=None, dataframe=None, dropped={}, showusefilter=True
     ):
         wx.Dialog.__init__(
             self, parent, wx.ID_ANY, "Filter Settings TEST", size=(650, 400)
         )
->>>>>>> prefect
         self.dataframe = dataframe
         self.dropped = dropped
         self.showusefilter = showusefilter
         cfgdata = config.get(cfg.CONFIG_RANGEFILTERS)
-<<<<<<< HEAD
-        self.panel = wx.Panel(self,wx.ID_ANY)
-=======
         self.panel = wx.Panel(self, wx.ID_ANY)
->>>>>>> prefect
         cbsizer = wx.BoxSizer(wx.HORIZONTAL)
         filtersizer = wx.BoxSizer(wx.VERTICAL)
         if self.showusefilter:
             self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="Use Filters")
             self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
             self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
-<<<<<<< HEAD
-            cbsizer.Add(self.filtercb, 0, wx.ALL|wx.EXPAND, 5)        
-            self.showdropcb = wx.CheckBox(self.panel, wx.ID_ANY, label="Show Dropped")
-            self.showdropcb.SetValue(config.get(cfg.CONFIG_SHOW_DROPPED))
-            cbsizer.Add(self.showdropcb, 0, wx.ALL|wx.EXPAND, 5)        
-            filtersizer.Add(cbsizer, 0, wx.ALL|wx.EXPAND, 5)
-        self.dropped_label = wx.StaticText(self.panel, label=f'Dropped from view: ??? (of {len(self.dataframe):,})')
-        self.remaining_label = wx.StaticText(self.panel, label=f'Remaining: ??? (of {len(self.dataframe):,})')
-        filtersizer.Add(self.dropped_label, 0, wx.ALL|wx.EXPAND, 5)
-        filtersizer.Add(self.remaining_label, 0, wx.ALL|wx.EXPAND, 5)
-        #filtersizer.Add(labelsizer)
-        
-        self.filterlist = FilterListCtrl(self.panel, showdropped=True, fireevents=True, style=wx.LC_REPORT, size=(500,-1)) #, pos=(110,100))
-=======
             cbsizer.Add(self.filtercb, 0, wx.ALL | wx.EXPAND, 5)
             self.showdropcb = wx.CheckBox(self.panel, wx.ID_ANY, label="Show Dropped")
             self.showdropcb.SetValue(config.get(cfg.CONFIG_SHOW_DROPPED))
@@ -640,21 +501,10 @@ class ConfigureFiltersDlg(wx.Dialog):
             style=wx.LC_REPORT,
             size=(500, -1),
         )  # , pos=(110,100))
->>>>>>> prefect
         self.filterlist.InsertColumn(0, "Use")
         self.filterlist.InsertColumn(1, "Column")
         self.filterlist.InsertColumn(2, "Min", wx.LIST_FORMAT_RIGHT)
         self.filterlist.InsertColumn(3, "Max", wx.LIST_FORMAT_RIGHT)
-<<<<<<< HEAD
-        #self.filterlist.SetEditable([False, False, True, True])
-        self.filterlist.InsertColumn(4, "Dropped view", wx.LIST_FORMAT_RIGHT)
-        self.filterlist.SetEditable([False, False, True, True, False])
-        self.filterlist.Arrange()
-        currentfilters = {rfcfg['name']:RangeFilter(params=rfcfg) for rfcfg in cfgdata}        
-
-        filtersizer.Add(self.filterlist, 0, wx.ALL|wx.EXPAND, 5)
-        
-=======
         # self.filterlist.SetEditable([False, False, True, True])
         self.filterlist.InsertColumn(4, "Dropped view", wx.LIST_FORMAT_RIGHT)
         self.filterlist.SetEditable([False, False, True, True, False])
@@ -663,7 +513,6 @@ class ConfigureFiltersDlg(wx.Dialog):
 
         filtersizer.Add(self.filterlist, 0, wx.ALL | wx.EXPAND, 5)
 
->>>>>>> prefect
         loadbutton = wx.Button(self.panel, label="Load")
         loadbutton.Bind(wx.EVT_BUTTON, self.OnLoad)
         okbutton = wx.Button(self.panel, label="OK")
@@ -682,14 +531,6 @@ class ConfigureFiltersDlg(wx.Dialog):
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(filtersizer)
-<<<<<<< HEAD
-        sizer.Add(wx.StaticLine(self.panel,style=wx.LI_VERTICAL), 0, wx.ALL|wx.EXPAND, 5)
-        sizer.Add(buttonsizer, 0, wx.ALL|wx.EXPAND, 5)
-        self.panel.SetSizer(sizer)
-
-        pub.subscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
-        self.filterlist.SetData(currentfilters, dataframe=self.dataframe, dropped=self.dropped, headers=['Use', 'Column', 'Min', 'Max', "Dropped view"])
-=======
         sizer.Add(
             wx.StaticLine(self.panel, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5
         )
@@ -703,19 +544,10 @@ class ConfigureFiltersDlg(wx.Dialog):
             dropped=self.dropped,
             headers=["Use", "Column", "Min", "Max", "Dropped view"],
         )
->>>>>>> prefect
 
         self.Show()
 
     def OnFiltersUpdated(self, updateditems, totaldropped, viewdropped, viewlength):
-<<<<<<< HEAD
-        remaining = viewlength-viewdropped
-        #self.dropped_label.SetLabel(f'Dropped from view: {viewdropped:,} (of {viewlength:,})')
-        #self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
-        logging.debug (f'Updated: {[name for name in updateditems]}')
-        logging.debug (f'Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
-        
-=======
         remaining = viewlength - viewdropped
         # self.dropped_label.SetLabel(f'Dropped from view: {viewdropped:,} (of {viewlength:,})')
         # self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
@@ -725,7 +557,6 @@ class ConfigureFiltersDlg(wx.Dialog):
             f" {remaining:,} ({100.0 * remaining/viewlength:.2f}%)"
         )
 
->>>>>>> prefect
     def GetData(self):
         return self.config
 
@@ -744,11 +575,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         if self.showusefilter:
             self.config[cfg.CONFIG_USE] = self.filtercb.GetValue()
             self.config[cfg.CONFIG_SHOW_DROPPED] = self.showdropcb.GetValue()
-<<<<<<< HEAD
-        self.config[cfg.CONFIG_RANGEFILTERS] = [cfgs[key].get_params() for key in cfgs]  
-=======
         self.config[cfg.CONFIG_RANGEFILTERS] = [cfgs[key].get_params() for key in cfgs]
->>>>>>> prefect
         self.EndModal(wx.ID_OK)
 
     def OnQuit(self, event):
@@ -844,26 +671,6 @@ class ConfigureAxisDlg(wx.Dialog):
         self.settings["max"] = self.maxinput.GetValue()
         self.EndModal(wx.ID_OK)
 
-<<<<<<< HEAD
-class RenameGroupsDlg(wx.Dialog):
-    def __init__(self, parent, title):
-        wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size=(450,120))
-        mainsizer = wx.BoxSizer(wx.VERTICAL)
-
-        patternsizer = wx.BoxSizer(wx.HORIZONTAL)
-        patternlabel = wx.StaticText(self, label='Pattern match')
-        patternsizer.Add(patternlabel, 0, wx.ALL|wx.EXPAND, 5)
-        self.patterntxt = wx.TextCtrl(self, value='^0+')
-        patternsizer.Add(self.patterntxt, 0, wx.ALL|wx.EXPAND, 5)
-        replacelabel = wx.StaticText(self, label='Replacement')
-        patternsizer.Add(replacelabel, 0, wx.ALL|wx.EXPAND, 5)
-        self.replacetxt = wx.TextCtrl(self, value='')
-        patternsizer.Add(self.replacetxt, 0, wx.ALL|wx.EXPAND, 5)
-        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.okButton = wx.Button(self, label="OK", pos=(110,160))
-        buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
-        self.closeButton =wx.Button(self, label="Cancel", pos=(210,160))
-=======
 
 class RenameGroupsDlg(wx.Dialog):
     def __init__(self, parent, title):
@@ -883,7 +690,6 @@ class RenameGroupsDlg(wx.Dialog):
         self.okButton = wx.Button(self, label="OK", pos=(110, 160))
         buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
         self.closeButton = wx.Button(self, label="Cancel", pos=(210, 160))
->>>>>>> prefect
         buttonsizer.Add(self.closeButton, 0, wx.ALL, 10)
         self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
         self.closeButton.Bind(wx.EVT_BUTTON, self.OnQuit)
@@ -892,55 +698,20 @@ class RenameGroupsDlg(wx.Dialog):
         self.SetSizer(mainsizer)
         mainsizer.Add(patternsizer, 0, wx.ALIGN_CENTER, 10)
         mainsizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 10)
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> prefect
         self.Show()
 
     def OnOK(self, event):
         try:
             re.compile(self.patterntxt.GetLineText(0))
         except re.error:
-<<<<<<< HEAD
-            wx.MessageDialog(self,'Invalid regex pattern')
-        else:    
-=======
             wx.MessageDialog(self, "Invalid regex pattern")
         else:
->>>>>>> prefect
             self.EndModal(wx.ID_OK)
 
     def OnQuit(self, event):
         self.EndModal(wx.ID_CANCEL)
 
-<<<<<<< HEAD
-#Feature-level analysis customization
-class ConfigureFeatureDlg(wx.Dialog):
-    def __init__(self, parent, title, feature, settings, defaults):
-        wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size=(200*min(len(settings), 3),120))
-        
-        mainsizer = wx.BoxSizer(wx.VERTICAL)
-        optsizer = wx.WrapSizer(wx.HORIZONTAL)
-        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        self.settings = settings #dict of option name -> [input handler class, handler args]
-        self.insettings = dict(self.settings)
-        self.inputs = dict()
-        
-        for name,specs in self.settings.items():
-            opt_handler = specs[0](self,wx.ID_ANY,**specs[1])
-            self.inputs[name] = opt_handler
-            if defaults is not None:
-                self.inputs[name].SetValue(defaults[name])
-            optsizer.Add(wx.StaticText(self, label=name), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-            optsizer.Add(opt_handler, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        
-        self.okButton = wx.Button(self, label="OK", pos=(110,160))
-        buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
-        self.closeButton =wx.Button(self, label="Cancel", pos=(210,160))
-=======
 
 # Feature-level analysis customization
 class ConfigureFeatureDlg(wx.Dialog):
@@ -972,7 +743,6 @@ class ConfigureFeatureDlg(wx.Dialog):
         self.okButton = wx.Button(self, label="OK", pos=(110, 160))
         buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
         self.closeButton = wx.Button(self, label="Cancel", pos=(210, 160))
->>>>>>> prefect
         buttonsizer.Add(self.closeButton, 0, wx.ALL, 10)
         self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
         self.closeButton.Bind(wx.EVT_BUTTON, self.OnQuit)
@@ -981,31 +751,17 @@ class ConfigureFeatureDlg(wx.Dialog):
         self.SetSizer(mainsizer)
         mainsizer.Add(optsizer, 0, wx.ALIGN_LEFT, 10)
         mainsizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 10)
-<<<<<<< HEAD
-    
-    def OnOK(self, event):
-        self.insettings = {setting:self.inputs[setting].GetValue() for setting in self.settings}
-        #for setting in self.settings:
-=======
 
     def OnOK(self, event):
         self.insettings = {
             setting: self.inputs[setting].GetValue() for setting in self.settings
         }
         # for setting in self.settings:
->>>>>>> prefect
         #   self.insettings[setting] = self.inputs[setting].GetValue()
         self.EndModal(wx.ID_OK)
 
     def OnQuit(self, event):
         self.EndModal(wx.ID_CANCEL)
-<<<<<<< HEAD
-    
-    def get_settings(self):
-        return self.insettings #dict of option name -> option value
-    
-=======
 
     def get_settings(self):
         return self.insettings  # dict of option name -> option value
->>>>>>> prefect

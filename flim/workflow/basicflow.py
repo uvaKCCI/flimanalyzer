@@ -88,6 +88,49 @@ class AbsWorkFlow(AbstractPlugin):
         )
         return params
 
+    """
+    def set_result(self):
+        self.result = LocalResultClear(
+            dir=f'{self.params["working_dir"]}',
+            location="{flow_name}/"
+            "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/pickled/"
+            "{task_full_name}",  # -{task_run_id}-{map_index}-
+        )
+
+    
+    def set_executor(self, executor=None, **kwargs):
+        if isinstance(executor, Executor):
+            self.executor = executor
+        else:    
+            modulename = "<unresolved"
+            classname = "<unresolved"
+            if executor is None:
+            	# use default, ignore kwargs
+            	executor = self.params["executor"]["class"]
+            	kwargs = self.params["executor"]["args"]
+            elif isinstance(executor, dict):
+            	kwargs = executor.get("args", {})
+            	executor = executor.get("class", "prefect.executors.local.LocalExecutor")
+            if isinstance(executor, str):
+            	modulename, _, classname = executor.rpartition(".")
+            	try:
+            		module = importlib.import_module(modulename)
+            		class_ = getattr(module, classname)
+            		self.executor = class_(**kwargs)
+            	except Exception as err:
+            		logging.error(f"Error: {err}")
+            		logging.error(
+            			f"Error instantiating {modulename}.{classname} plugin tool."
+            		)
+            		self.executor = LocalExecutor()
+            elif issubclass(self.executor, Executor):
+            	modulename = clazz.__module__
+            	classname = clazz.__name__
+            	self.executor = executor
+            logging.debug(f"Executor modulename={modulename}, classname={classname}")
+            assert issubclass(self.executor.__class__, Executor)
+    """
+
     def get_required_categories(self):
         return ["Treatment", "FOV", "Cell"]
 
@@ -163,6 +206,24 @@ def get_task_graph(task):
         g.add_edge(task.name, rname)
     print(f"len(g):{len(g)}")
     return g
+
+
+"""
+@task
+def results_to_tasks(task_in):
+    datatask = DataBucket(None)
+    results = task_in
+    if len(task_in) > 1:
+        print ("MAPPING", "|".join([t for t in task_in]))
+        #task_list = [v for v in task_in.values()]
+        #mapped = data_task.map(task_list)
+        #out_tasks = {f'Out {i}':d for i,d in enumerate(mapped)}
+        out_tasks = {k:datatask(name=k, data=task_in[k], input_select=[0]) for i, k in enumerate(task_in)}
+    else:
+        out_tasks = task_in
+        #out_tasks = {k:datatask(name=k, data=results, input_select=[i]) for i, k in enumerate(task_in.output_definition())}
+    return out_tasks
+"""
 
 
 def _get_input_label(self, data):

@@ -61,27 +61,6 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
     def get_option_panels(self):
         #data = list(self.input.values())[0]
         self.aggboxes = {}
-<<<<<<< HEAD
-        self.refgrp_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refgroup, choices=self.categories)
-        self.refgrp_combobox.Bind(wx.EVT_COMBOBOX, self.OnRefGroupChanged)
-        rgsizer = wx.BoxSizer(wx.HORIZONTAL)
-        rgsizer.Add(wx.StaticText(self.panel, label="Reference Group "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        rgsizer.Add(self.refgrp_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        
-        dummy = [a for c in self.categories for a in self.data[c].unique()]
-        self.refval_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_refvalue, choices=dummy)
-        self.refval_combobox.SetItems(self.refval_options)
-        self.refval_combobox.SetValue(self.sel_refvalue)
-        rvsizer = wx.BoxSizer(wx.HORIZONTAL)
-        rvsizer.Add(wx.StaticText(self.panel, label="Reference Value "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        rvsizer.Add(self.refval_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-
-        self.method_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=self.sel_method, choices=self.method_options)
-        msizer = wx.BoxSizer(wx.HORIZONTAL)
-        msizer.Add(wx.StaticText(self.panel, label="Method "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        msizer.Add(self.method_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        
-=======
         self.refgrp_combobox = wx.ComboBox(
             self.panel,
             wx.ID_ANY,
@@ -140,7 +119,6 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
             self.method_combobox, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
         )
 
->>>>>>> prefect
         return [rgsizer, rvsizer, msizer]
 
     def _get_selected(self):

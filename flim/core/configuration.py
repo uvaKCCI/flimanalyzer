@@ -15,36 +15,6 @@ from flim.core.importer import dataimporter
 from flim.core.preprocessor import defaultpreprocessor
 from flim.plugin import init_plugins_configs, PLUGINS
 
-<<<<<<< HEAD
-CONFIG_USE = 'Use'
-CONFIG_ROOT = 'root'
-CONFIG_IMPORT = 'import'
-CONFIG_CATEGORY_COLUMNS = 'category cols'
-CONFIG_CATEGORY_COMBINATIONS = 'category combos'
-CONFIG_FITTING_COLUMNS = 'fitting columns'
-CONFIG_PARSER = 'fname parser'
-CONFIG_PARSER_CLASS = 'Class'
-CONFIG_PARSER_PATTERNS = 'Patterns'
-CONFIG_PARSER_USE = 'Use'
-CONFIG_PARSER_CATEGORY = 'Category'
-CONFIG_PARSER_REGEX = 'Regex'
-
-CONFIG_PREPROCESS = 'preprocess'
-CONFIG_DELIMITER = 'delimiter'
-CONFIG_HEADERS = 'rename'
-CONFIG_INCLUDE_FILES = 'include files'
-CONFIG_EXCLUDE_FILES = 'exclude files'
-CONFIG_DROP_COLUMNS = 'drop'
-CONFIG_CALC_COLUMNS = 'calculate'
-CONFIG_FILTERS = 'filters'
-CONFIG_SHOW_DROPPED = 'show dropped'
-CONFIG_RANGEFILTERS = 'range filters'
-CONFIG_SERIESFILTERS = 'series filters'
-CONFIG_DATA_DISPLAY = 'display'
-CONFIG_ANALYSIS ='analysis'
-CONFIG_HISTOGRAMS = 'histograms'
-CONFIG_SCATTER = 'scatter'
-=======
 CONFIG_WORKINGDIR = "working_dir"
 CONFIG_USE = "Use"
 CONFIG_ROOT = "root"
@@ -75,7 +45,6 @@ CONFIG_HISTOGRAMS = "histograms"
 CONFIG_SCATTER = "scatter"
 CONFIG_WORKFLOW = "workflow"
 CONFIG_PLUGINS = "plugins"
->>>>>>> prefect
 
 
 class Config:
@@ -230,26 +199,15 @@ class Config:
                 self.parameters = json.load(fp)  # , object_hook=self._to_utf)
                 self.modified = False
                 self.filename = configfile
-<<<<<<< HEAD
-            logging.info(f'Configuration loaded from {configfile}.')    
-            return True
-        except:
-            logging.error(f'Config file {configfile} could not be found or read.')    
-=======
             logging.info(f"Configuration loaded from {configfile}.")
             return True
         except:
             logging.error(f"Config file {configfile} could not be found or read.")
->>>>>>> prefect
             if defaultonfail:
                 self.create_default()
                 self.modified = False
                 self.filename = None
-<<<<<<< HEAD
-                logging.info(f'Created default configuration.')    
-=======
                 logging.info(f"Created default configuration.")
->>>>>>> prefect
             return False
 
     def write_to_json(self, configfile):
@@ -258,15 +216,6 @@ class Config:
                 json.dump(self.parameters, fp, sort_keys=True, indent=4)
                 self.modified = False
                 self.filename = configfile
-<<<<<<< HEAD
-            logging.info(f'Configuration saved as {configfile}.')    
-        except:
-            logging.error(f'Config file could not be saved to {configfile}')    
-            
-    
-    def is_not_None(self,searchkeys):
-        logging.debug (f"validating searchkeys {searchkeys}, {self.get(searchkeys) is not None}")
-=======
             logging.info(f"Configuration saved as {configfile}.")
         except:
             logging.error(f"Config file could not be saved to {configfile}")
@@ -275,7 +224,6 @@ class Config:
         logging.debug(
             f"validating searchkeys {searchkeys}, {self.get(searchkeys) is not None}"
         )
->>>>>>> prefect
         return self.get(searchkeys) is not None
 
     def _get_required_keys(self):
@@ -381,43 +329,6 @@ class Config:
             CONFIG_FILTERS: {
                 CONFIG_USE: False,
                 CONFIG_SHOW_DROPPED: True,
-<<<<<<< HEAD
-                CONFIG_RANGEFILTERS:[
-                        RangeFilter('trp t1',0,2500).get_params(),
-                        RangeFilter('trp t2',0,8000).get_params(),
-                        RangeFilter('trp tm',0,4000,selected=False).get_params(),
-                        RangeFilter('trp a1[%]',0,100).get_params(),
-                        RangeFilter('trp a2[%]',0,100).get_params(),
-                        RangeFilter('trp a1[%]/a2[%]',0,2).get_params(),
-                        RangeFilter('trp E%1',0,100).get_params(),
-                        RangeFilter('trp E%2',0,100).get_params(),
-                        RangeFilter('trp E%3',0,100).get_params(),
-                        RangeFilter('trp r1',0,15).get_params(),
-                        RangeFilter('trp r2',0,3).get_params(),
-                        RangeFilter('trp r3',0,3).get_params(),
-                        RangeFilter('trp chi',0,4.7, selected=True).get_params(),
-                        RangeFilter('trp photons',0,160).get_params(),
-                        RangeFilter('NAD(P)H t1',0,1000).get_params(),
-                        RangeFilter('NAD(P)H t2',0,8000).get_params(),
-                        RangeFilter('NAD(P)H tm',0,2000).get_params(),
-                        RangeFilter('NAD(P)H photons',0,2000).get_params(),
-                        RangeFilter('NAD(P)H a2[%]',0,100).get_params(),
-            #                    RangeFilter('NAD(P)H %',0,99).get_params(),
-                        RangeFilter('NADPH %',0,99).get_params(),
-                        RangeFilter('NADH %',0,100).get_params(),
-                        RangeFilter('NADPH/NADH',0,3).get_params(),
-                        RangeFilter('NAD(P)H chi',0.7,4.7, selected=True).get_params(),
-                        RangeFilter('FAD t1',0,1500).get_params(),
-                        RangeFilter('FAD t2',1000,8000).get_params(),
-                        RangeFilter('FAD tm',0,2500).get_params(),
-                        RangeFilter('FAD a1[%]',0,100).get_params(),
-                        RangeFilter('FAD a2[%]',0,100).get_params(),
-                        RangeFilter('FAD a1[%]/a2[%]',0,16).get_params(),
-                        RangeFilter('FLIRR',0,2.4).get_params(),
-                        RangeFilter('FAD chi',0.7,4.7, selected=True).get_params(),
-                        RangeFilter('FAD photons',0,800).get_params(),
-                        RangeFilter('FAD photons/NAD(P)H photons',0,2).get_params(),
-=======
                 CONFIG_RANGEFILTERS: [
                     RangeFilter("trp t1", 0, 2500).get_params(),
                     RangeFilter("trp t2", 0, 8000).get_params(),
@@ -459,7 +370,6 @@ class Config:
                     RangeFilter("FAD chi", 0.7, 4.7, selected=True).get_params(),
                     RangeFilter("FAD photons", 10, 1000).get_params(),
                     RangeFilter("FAD photons/NAD(P)H photons", 0, 2).get_params(),
->>>>>>> prefect
                 ],
                 CONFIG_SERIESFILTERS: [],
             },

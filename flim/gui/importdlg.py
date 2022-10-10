@@ -1,6 +1,4 @@
-from calendar import c
 import logging
-import itertools
 import wx
 import os
 import flim.core
@@ -31,13 +29,8 @@ class ImportDlg(wx.Dialog):
         self.parsefname = parsefname
         self.preprocess = preprocess
         self.excludefiles = excludefiles
-<<<<<<< HEAD
-        
-        configsizer = wx.FlexGridSizer(3,2,5,5)
-=======
 
         configsizer = wx.FlexGridSizer(2, 2, 5, 5)
->>>>>>> prefect
         configsizer.AddGrowableCol(1, 1)
         colsizer = wx.FlexGridSizer(2, 3, 5, 5)
         colsizer.AddGrowableCol(0, 2)
@@ -107,13 +100,6 @@ class ImportDlg(wx.Dialog):
             configsizer.Add(
                 self.parser_chooser, 1, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
             )
-
-            #Combined col labels
-            combo_label = wx.StaticText(self, wx.ID_ANY, "Column Combos:")
-            self.combo_panel = wx.Panel(self, wx.ID_ANY)
-            wx.CheckBox(self.combo_panel, wx.ID_ANY)
-            configsizer.Add(combo_label, 0, wx.ALL|wx.ALIGN_RIGHT|wx.ALIGN_CENTER_VERTICAL, 5)
-            configsizer.Add(self.combo_panel, 1, wx.ALL|wx.ALIGN_LEFT|wx.ALIGN_CENTER_VERTICAL, 5)
 
         if preprocess:
             rename_label = wx.StaticText(self, wx.ID_ANY, "Rename Columns:")
@@ -279,15 +265,6 @@ class ImportDlg(wx.Dialog):
                 logging.warning(f"COULD NOT INSTANTIATE PARSER:{parsername}")
                 return
             parser.set_regexpatterns(self.parsetable.GetData())
-
-            comboscb = self.combo_panel.GetChildren()[0]
-            if comboscb.GetValue():
-                catlist = [pattern[cfg.CONFIG_PARSER_CATEGORY] for pattern in self.parsetable.GetData()]
-                combolist = [combo for combo in itertools.combinations(catlist, 2)]
-                importer.set_column_combos(combolist)
-            else:
-                importer.set_column_combos(None)
-            
             importer.set_parser(parser)
         else:
             importer.set_parser(None)
@@ -302,11 +279,7 @@ class ImportDlg(wx.Dialog):
             parsername = self.parser_chooser.GetStringSelection()
             importer.set_preprocessor(preprocessor)
         else:
-<<<<<<< HEAD
-            importer.set_preprocessor(None)  
-=======
             importer.set_preprocessor(None)
->>>>>>> prefect
         importer.set_files(files)
 
     def update_listlabel(self):
@@ -406,26 +379,17 @@ class ImportDlg(wx.Dialog):
             self.configure_importer(importer, [self.files_list.GetString(selected[0])])
 
     def OnOpenFile(self, event):
-<<<<<<< HEAD
-        with wx.FileDialog(self, "Add Raw Data Results", wildcard="txt files (*.txt)|*.txt|csv files (*.csv)|*.csv",
-                       style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR) as fileDialog:
-=======
         with wx.FileDialog(
             self,
             "Add Raw Data Results",
             wildcard="txt files (*.txt)|*.txt|csv files (*.csv)|*.csv",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
->>>>>>> prefect
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             # Proceed loading the file chosen by the user
             files = fileDialog.GetPaths()
-<<<<<<< HEAD
-            self.importer.set_delimiter('\t,')
-=======
             self.importer.set_delimiter("\t,")
->>>>>>> prefect
             self.configure_importer(self.importer, files)
             self.config.update(self.importer.get_config(), [cfg.CONFIG_IMPORT])
             self.EndModal(wx.ID_OK)

@@ -26,15 +26,6 @@ def percentile(n):
 
 
 class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
-<<<<<<< HEAD
-
-    def __init__(self, parent, title, data, description=None, selectedgrouping=['None'], selectedfeatures='All', allaggs=[], selectedaggs='All', singledf=False):
-        self.allaggs = allaggs
-        self.selectedaggs = selectedaggs
-        self.singledf = singledf
-        BasicAnalysisConfigDlg.__init__(self, parent, title, data, description=description, selectedgrouping=selectedgrouping, selectedfeatures=selectedfeatures, optgridrows=0, optgridcols=1)
-		    
-=======
     def __init__(
         self,
         parent,
@@ -65,7 +56,6 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
             working_dir=working_dir,
         )
 
->>>>>>> prefect
     def get_option_panels(self):
         self.aggboxes = {}
         ssizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -74,17 +64,6 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
             sel_dfoutput = self.dfoutput_opts[0]
         else:
             sel_dfoutput = self.dfoutput_opts[1]
-<<<<<<< HEAD
-        self.dfoutput_combobox = wx.ComboBox(self.panel, wx.ID_ANY, style=wx.CB_READONLY, value=sel_dfoutput, choices=self.dfoutput_opts)
-        ssizer.Add(wx.StaticText(self.panel, label="Output "), 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL, 5)
-        ssizer.Add(self.dfoutput_combobox, 0, wx.ALL|wx.EXPAND|wx.ALIGN_CENTER_VERTICAL, 5)
-        
-        nestsizer = wx.BoxSizer(wx.HORIZONTAL)
-        aggsizer = wx.GridSizer(5, 0, 0)
-        for f in self.allaggs:
-            cb = wx.CheckBox(self.panel, wx.ID_ANY,f)
-            cb.SetValue((f in self.selectedaggs) or (self.selectedaggs == 'All'))
-=======
         self.dfoutput_combobox = wx.ComboBox(
             self.panel,
             wx.ID_ANY,
@@ -107,33 +86,11 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
         for f in self.allaggs:
             cb = wx.CheckBox(self.panel, wx.ID_ANY, f)
             cb.SetValue((f in self.selectedaggs) or (self.selectedaggs == "All"))
->>>>>>> prefect
             self.aggboxes[f] = cb
             aggsizer.Add(cb, 0, wx.ALL, 5)
 
         selectsizer = wx.BoxSizer(wx.VERTICAL)
         self.selectAllButton = wx.Button(self.panel, label="Select All")
-<<<<<<< HEAD
-        self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnOptSelectAll)
-        selectsizer.Add(self.selectAllButton, 0, wx.ALL|wx.EXPAND, 5)
-        self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
-        self.deselectAllButton.Bind(wx.EVT_BUTTON, self.OnOptDeselectAll)
-        selectsizer.Add(self.deselectAllButton, 0, wx.ALL|wx.EXPAND, 5)
-        nestsizer.Add(aggsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
-        nestsizer.Add(selectsizer, 0, wx.ALL|wx.ALIGN_CENTER_VERTICAL)
-        return [ssizer,nestsizer]
-    
-    def OnOptSelectAll(self, event):
-        if self.aggboxes:
-            for key in self.aggboxes:
-                self.aggboxes[key].SetValue(True)
-        
-    def OnOptDeselectAll(self, event):
-        if self.aggboxes:
-            for key in self.aggboxes:
-                self.aggboxes[key].SetValue(False)
-    
-=======
         self.selectAllButton.Bind(wx.EVT_BUTTON, self.OnSelectAllAggs)
         selectsizer.Add(self.selectAllButton, 0, wx.ALL | wx.EXPAND, 5)
         self.deselectAllButton = wx.Button(self.panel, label="Deselect All")
@@ -153,7 +110,6 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
             for key in self.aggboxes:
                 self.aggboxes[key].SetValue(False)
 
->>>>>>> prefect
     def _get_selected(self):
         selaggs = [key for key in self.aggboxes if self.aggboxes[key].GetValue()]
         params = super()._get_selected()
@@ -162,25 +118,6 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
         return params
 
 
-<<<<<<< HEAD
-class SummaryStats(AbstractAnalyzer):
-    
-    agg_functions = {'count':'count', 'min':'min', 'max':'max', 'mean':'mean', 'std':'std', 'sem':'sem', 'median':'median', 'percentile(25)':percentile(25), 'percentile(75)':percentile(75), 'sum':'sum'}
-    
-    def __init__(self, data, aggs=['count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)', 'sum'], singledf=True, flattenindex=True, **kwargs):
-        AbstractAnalyzer.__init__(self, data, aggs=aggs, singledf=singledf, flattenindex=flattenindex, **kwargs)
-        self.name = "Summary Table"
-    
-    def get_description(self):
-        return "Calculates counts, min, max, mean, median (50th percentile), 25th percentile, and 75th percentile, StDev, S.E.M, of grouped data."
-        
-    def __repr__(self):
-        return f"{'name': {self.name}}"
-    
-    def __str__(self):
-        return self.name
-    
-=======
 @plugin(plugintype="Analysis")
 class SummaryStats(AbstractPlugin):
     agg_functions = {
@@ -205,7 +142,6 @@ class SummaryStats(AbstractPlugin):
             " percentile, and 75th percentile, StDev, S.E.M, of grouped data."
         )
 
->>>>>>> prefect
     def get_icon(self):
         source = files(flim.resources).joinpath("summary.png")
         return wx.Bitmap(str(source))
@@ -236,16 +172,6 @@ class SummaryStats(AbstractPlugin):
             }
 
     def run_configuration_dialog(self, parent, data_choices={}):
-<<<<<<< HEAD
-        dlg = SummaryStatsConfigDlg(parent, f'Configuration: {self.name}', 
-            self.data, 
-            description=self.get_description(), 
-            selectedgrouping=self.params['grouping'], 
-            selectedfeatures=self.params['features'], 
-            allaggs=self.agg_functions, 
-            selectedaggs=self.params['aggs'], 
-            singledf=self.params['singledf'])
-=======
         dlg = SummaryStatsConfigDlg(
             parent,
             f"Configuration: {self.name}",
@@ -259,7 +185,6 @@ class SummaryStats(AbstractPlugin):
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )
->>>>>>> prefect
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None

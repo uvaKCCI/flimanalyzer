@@ -6,7 +6,6 @@ Created on Fri May  4 02:53:40 2018
 @author: khs3z
 """
 
-import itertools
 import logging
 import os
 import glob
@@ -14,15 +13,8 @@ import pandas as pd
 import numpy as np
 
 import flim.core.configuration as cfg
-<<<<<<< HEAD
-from flim.core.parser import  defaultparser
-import flim.core.preprocessor as pp
-
-DEFAULT_EXT = ['.txt','.csv']
-=======
 from flim.core.parser import defaultparser
 import flim.core.preprocessor as pp
->>>>>>> prefect
 
 DEFAULT_EXT = [".txt", ".csv"]
 
@@ -35,20 +27,6 @@ class dataimporter:
         self.excluded_files = []
         self.parser = defaultparser()
         self.preprocessor = None
-<<<<<<< HEAD
-        self.combolist = None
-    
-    def get_config(self):
-        config = {
-                cfg.CONFIG_EXCLUDE_FILES: self.excluded_files,
-                cfg.CONFIG_INCLUDE_FILES: self.files,
-                cfg.CONFIG_DELIMITER: self.delimiter,
-                cfg.CONFIG_PARSER: self.parser.get_config(),
-                cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
-                cfg.CONFIG_FITTING_COLUMNS: [],
-                cfg.CONFIG_CATEGORY_COMBINATIONS: self.combolist
-                }
-=======
 
     def get_config(self):
         config = {
@@ -59,7 +37,6 @@ class dataimporter:
             cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
             cfg.CONFIG_FITTING_COLUMNS: [],
         }
->>>>>>> prefect
         return config
 
     def set_parser(self, parser):
@@ -82,13 +59,6 @@ class dataimporter:
     def get_delimiter(self):
         return self.delimiter
 
-<<<<<<< HEAD
-
-    def set_column_combos(self, combolist):
-        self.combolist = combolist
-    
-=======
->>>>>>> prefect
     def set_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
         if exclude is None:
             exclude = self.excluded_files
@@ -102,12 +72,7 @@ class dataimporter:
 
     def get_excluded_files(self):
         return self.excluded_files
-<<<<<<< HEAD
-        
-    
-=======
 
->>>>>>> prefect
     def add_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
         if files is None:
             return None, 0
@@ -154,12 +119,6 @@ class dataimporter:
     def get_reserved_categorycols(self, parser=None):
         if parser is None:
             parser = self.parser
-<<<<<<< HEAD
-        rcatnames = ['Cell line', 'Category', 'Cat', 'FOV', 'Well', 'Cell',
-         'Treatment', 'Treatment 1', 'Treatment 2', 'Treatment 1 & 2', 'Time',
-          'Compartment', 'New Cat', 'Origin', 'AE Label', 'Cluster', 'Combined']    
-        rcatnames.extend([entry[cfg.CONFIG_PARSER_CATEGORY] for entry in parser.get_regexpatterns() for key in entry])
-=======
         rcatnames = [
             "Cell line",
             "Category",
@@ -186,7 +145,6 @@ class dataimporter:
                 for key in entry
             ]
         )
->>>>>>> prefect
         return sorted(set(rcatnames))
 
     def import_data(self, delimiter=None, parser=None, preprocessor=None, nrows=None):
@@ -200,8 +158,6 @@ class dataimporter:
         dflist = []
         filenames = []
         fheaders = []
-        comboheaders = []
-        cdflist = []
         for f in self.files:
             if not os.path.isfile(f):
                 continue
@@ -225,62 +181,19 @@ class dataimporter:
             dflist.append(df)
             fheaders.extend(list(headers.keys()))
             filenames.append(f)
-            
-            filecdf = None
-            if self.combolist is not None:
-                if len(self.combolist) == 0:
-                    categories = [cat for cat in category_dtypes if cat in df.select_dtypes(['object']).columns]
-                    self.combolist = [combo for combo in itertools.combinations(categories, 2)]
-                for combo in self.combolist:
-                    combocol = "-".join(combo)
-                    cdf = pd.DataFrame(df[combo[0]].str.cat([df[c] for c in combo[1:]], sep="-").astype("category")).reset_index(drop=True)
-                    cdf.columns = [combocol]
-                    if filecdf is None:
-                        filecdf = cdf
-                    else:
-                        filecdf = pd.concat([filecdf, cdf], axis=1) #add col
-                    comboheaders.append(combocol)
-            if filecdf is not None:
-                cdflist.append(filecdf)
-            
         if len(dflist) == 0:
             return  # None, filenames, None
         else:
-            fheaders = set(fheaders+comboheaders)
-            df = pd.concat(dflist).reset_index(drop=True)
-            if len(cdflist) > 0:
-                cdf = pd.concat(cdflist).reset_index(drop=True)
-                df = pd.concat([df, cdf], axis=1, copy=True)
-            #df.reset_index(inplace=True, drop=True)
-
-            #if 'ROI' not in df.columns.values:
-            #    df['ROI'] = np.arange(1,len(df)+1) 
-            #print ('done')
+            fheaders = set(fheaders)
+            df = pd.concat(dflist)
+            df.reset_index(inplace=True, drop=True)
             allheaders = list(df.columns.values)
-<<<<<<< HEAD
-            logging.debug (self.get_reserved_categorycols(parser))
-            categories = [key for key in self.get_reserved_categorycols(parser) if key in allheaders]+comboheaders
-            '''df['ROI'] = df.groupby(categories).cumcount() + 1
-            df['ROI'] = [str(roi) for roi in df['ROI']]
-            categories.append('ROI')'''
-            
-            for ckey in categories:
-                df[ckey] = df[ckey].astype('category')
-            if preprocessor is None:
-                dp = pp.defaultpreprocessor()
-                df = dp.reorder_columns(df)
-            else:
-                df = preprocessor.reorder_columns(df)
-                df,_,_ = preprocessor.calculate(df)
-            return df, filenames, fheaders 
-=======
             logging.debug(self.get_reserved_categorycols(parser))
             categories = [
                 key
                 for key in self.get_reserved_categorycols(parser)
                 if key in allheaders
             ]
->>>>>>> prefect
 
             # if 'ROI' not in df.columns.values:
             #    df['ROI'] = df.groupby(categories).cumcount() + 1

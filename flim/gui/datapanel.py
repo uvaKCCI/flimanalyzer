@@ -11,16 +11,12 @@ import wx.lib.mixins.gridlabelrenderer as glr
 from pubsub import pub
 
 import flim.core.configuration as cfg
-<<<<<<< HEAD
-from flim.core.configuration import CONFIG_FILTERS,CONFIG_RANGEFILTERS,CONFIG_USE,CONFIG_SHOW_DROPPED
-=======
 from flim.core.configuration import (
     CONFIG_FILTERS,
     CONFIG_RANGEFILTERS,
     CONFIG_USE,
     CONFIG_SHOW_DROPPED,
 )
->>>>>>> prefect
 from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import AnalysisListCtrl, FilterListCtrl
 from flim.gui.events import (
@@ -33,11 +29,7 @@ from flim.gui.events import (
     DATA_UPDATED,
 )
 import flim.gui.dialogs
-<<<<<<< HEAD
-from flim.gui.dialogs import SelectGroupsDlg,ConfigureFiltersDlg, RenameGroupsDlg
-=======
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureFiltersDlg, RenameGroupsDlg
->>>>>>> prefect
 
 EVEN_ROW_COLOUR = "#CCE6FF"
 GRID_LINE_COLOUR = "#ccc"
@@ -283,10 +275,6 @@ class PandasFrame(wx.Frame):
         self.grid.Bind(wx.grid.EVT_GRID_LABEL_RIGHT_CLICK, self.OnLabelClick)
 
         self.grid.Bind(wx.grid.EVT_GRID_LABEL_LEFT_DCLICK, self.OnLabelDClick)
-<<<<<<< HEAD
-        
-        precisionspinner = wx.SpinCtrl(self, wx.ID_ANY, value=str(self.precision), min=1, max=10, style=wx.TE_PROCESS_ENTER, size=(50, -1))
-=======
 
         precisionspinner = wx.SpinCtrl(
             self,
@@ -297,7 +285,6 @@ class PandasFrame(wx.Frame):
             style=wx.TE_PROCESS_ENTER,
             size=(50, -1),
         )
->>>>>>> prefect
         precisionspinner.Bind(wx.EVT_SPINCTRL, self.OnPrecisionChange)
 
         autosizebutton = wx.Button(self, wx.ID_ANY, "Autosize Cols")
@@ -351,11 +338,6 @@ class PandasFrame(wx.Frame):
         sizer.Add(toolsizer)
 
         self.SetSizer(sizer)
-<<<<<<< HEAD
-        
-        #self.apply_filters({f['name']:f for f in self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS])})
-=======
->>>>>>> prefect
 
         # self.apply_filters({f['name']:f for f in self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS])})
 
@@ -375,14 +357,6 @@ class PandasFrame(wx.Frame):
 
     def set_modified(self, modified=True):
         self.modified = modified
-<<<<<<< HEAD
-        
-    
-    def apply_filters(self, filtercfg, showdiscarded=False):
-        if len (filtercfg) == 0:
-            cfg, keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-            filternames = [f['name'] for f in cfg]
-=======
 
     def apply_filters(self, filtercfg, showdiscarded=False):
         if len(filtercfg) == 0:
@@ -390,7 +364,6 @@ class PandasFrame(wx.Frame):
                 [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
             )
             filternames = [f["name"] for f in cfg]
->>>>>>> prefect
             for fname in filternames:
                 if self.droppedrows.get(fname) is not None:
                     del self.droppedrows[fname]
@@ -402,12 +375,7 @@ class PandasFrame(wx.Frame):
                 del self.droppedrows[fname]
         self.modified = True
         self.update_view(showdiscarded=showdiscarded)
-<<<<<<< HEAD
-            
-            	    
-=======
 
->>>>>>> prefect
     def OnDataUpdated(self, originaldata, newdata):
         if (
             originaldata is not None
@@ -430,70 +398,24 @@ class PandasFrame(wx.Frame):
     def OnPrecisionChange(self, event):
         self.update_precision(event.GetEventObject().GetValue())
         self.grid.Refresh()
-<<<<<<< HEAD
-        
-    
-    def updateusefilter(self, enabled, showdiscarded=False):
-        self.config.update({CONFIG_USE:enabled}, parentkeys=[CONFIG_FILTERS])
-=======
 
     def updateusefilter(self, enabled, showdiscarded=False):
         self.config.update({CONFIG_USE: enabled}, parentkeys=[CONFIG_FILTERS])
->>>>>>> prefect
         self.filterbutton.Enable(enabled)
         filtercfg, keys = self.config.get(
             [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
         )
         if enabled:
             # apply
-<<<<<<< HEAD
-            self.apply_filters({f['name']:f for f in filtercfg}, showdiscarded=showdiscarded)
-=======
             self.apply_filters(
                 {f["name"]: f for f in filtercfg}, showdiscarded=showdiscarded
             )
->>>>>>> prefect
         else:
             # clear
             self.apply_filters({})
 
     def OnFilterData(self, event):
         cb = event.GetEventObject()
-<<<<<<< HEAD
-        self.updateusefilter(cb.GetValue())        
-                
-    def _existing_rangefilters(self, filterlist, columns=None):
-        existingfilters = {rfilter['name']:rfilter for rfilter in filterlist}
-        if columns is None:
-            columns = self.data.select_dtypes(include=['number'], exclude=['category'])
-        elif not isinstance(columns,list):
-            columns = [columns]
-        rangefilters = [existingfilters[f] if f in existingfilters else RangeFilter(f).get_params() for f in columns]
-        return rangefilters
-        
-    def OnFilterSettings(self, event):
-        rfilterlist,keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-        filterconfig = self.config.get([CONFIG_FILTERS]).copy() 
-        #filterconfig[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
-        filterconfig[CONFIG_RANGEFILTERS] = self._existing_rangefilters(rfilterlist)
-        
-        # need to make sure we pass copy of dropped rows so we can cancel without affecting droppedrows     
-        dlg = ConfigureFiltersDlg(self, filterconfig, self.data, self.droppedrows.copy())
-        response = dlg.ShowModal()
-        if (response == wx.ID_OK):
-            filterconfig = dlg.GetData()
-            rfcfg = filterconfig.get(CONFIG_RANGEFILTERS)
-            newfilters = {f['name']:f for f in rfcfg}
-            currentfilters = {f['name']:f for f in rfilterlist}
-            currentfilters.update(newfilters)
-            newfilterlist = [currentfilters[key] for key in currentfilters]
-            self.config.update({CONFIG_RANGEFILTERS:newfilterlist}, parentkeys=keys[:-1])
-            self.config.update({CONFIG_SHOW_DROPPED:filterconfig[CONFIG_SHOW_DROPPED]}, parentkeys=keys[:-1])
-            self.config.update({CONFIG_USE:filterconfig[CONFIG_USE]}, parentkeys=keys[:-1])
-            self.filtercb.SetValue(filterconfig[CONFIG_USE])
-            self.updateusefilter(self.filtercb.GetValue(), showdiscarded=filterconfig[CONFIG_SHOW_DROPPED])
-
-=======
         self.updateusefilter(cb.GetValue())
 
     def _existing_rangefilters(self, filterlist, columns=None):
@@ -543,7 +465,6 @@ class PandasFrame(wx.Frame):
                 self.filtercb.GetValue(),
                 showdiscarded=filterconfig[CONFIG_SHOW_DROPPED],
             )
->>>>>>> prefect
 
     def OnPopupItemSelected(self, event):
         item = self.currentpopup.FindItemById(event.GetId())
@@ -582,45 +503,12 @@ class PandasFrame(wx.Frame):
                 # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
                 self.modified = True
         self.update_view()
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> prefect
     def _flatten_array(self, arraylist):
         arraylist = [a for a in arraylist if len(a) > 0]
         if len(arraylist) > 0:
             arraylist = np.concatenate(arraylist)
         return np.unique(arraylist)
-<<<<<<< HEAD
-           
-    def update_view(self, showdiscarded=False):
-    	# get RangeFilter names and rows dropped by them 
-        filterlist,keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-        rfilters = self._existing_rangefilters(filterlist)
-        rfilter_names = [rfilter['name'] for rfilter in rfilters]
-        rfilterdropped = self._flatten_array([self.droppedrows[fname] for fname in rfilter_names if fname in self.droppedrows])
-        # get rows dropped by category filters
-        catdropped = self._flatten_array([self.droppedrows[fname] for fname in self.droppedrows if fname not in rfilter_names])
-        # all dropped rows are the unique elements of the union of rfilterdropped andcatdropped
-        droppedrows = self._flatten_array([rfilterdropped, catdropped])
-        #rfilterseries = pd.Series(['discard' if row in rfilterdropped else 'keep' for row in range(len(self.data))], dtype='category')
-        #self.data['Range Filter'] = rfilterseries
-        if len(droppedrows) == 0:
-            self.dataview = self.data
-        else:
-            self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(drop=True)
-            #self.dataview = self.data
-        self.groups = self.data.select_dtypes(['category']).columns.get_level_values(0).values
-        
-        colsizes = self.grid.GetColSizes()
-        #self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
-        self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
-        self.update_precision(self.precision)
-        self.grid.SetColSizes(colsizes)
-        self.set_header_renderer()
-        self.grid.Refresh()        
-=======
 
     def update_view(self, showdiscarded=False):
         # get RangeFilter names and rows dropped by them
@@ -668,25 +556,10 @@ class PandasFrame(wx.Frame):
         self.grid.SetColSizes(colsizes)
         self.set_header_renderer()
         self.grid.Refresh()
->>>>>>> prefect
 
         if showdiscarded:
             newcfg = cfg.Config()
             newcfg.update(self.config.parameters)
-<<<<<<< HEAD
-            newcfg.update({CONFIG_RANGEFILTERS:list()}, parentkeys=keys[:-1])
-            rangediscarded = np.setdiff1d(rfilterdropped, catdropped)
-            windowtitle = f'{self.GetTitle()} - Discarded'
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(self.data.iloc[rangediscarded,:], 
-                              windowtitle, 
-                              'createnew', 
-                              
-                              showcolindex=False, 
-                              analyzable=True)
-            self.GetEventHandler().ProcessEvent(event)               
-        
-=======
             newcfg.update({CONFIG_RANGEFILTERS: list()}, parentkeys=keys[:-1])
             rangediscarded = np.setdiff1d(rfilterdropped, catdropped)
             windowtitle = f"{self.GetTitle()} - Discarded"
@@ -700,7 +573,6 @@ class PandasFrame(wx.Frame):
             )
             self.GetEventHandler().ProcessEvent(event)
 
->>>>>>> prefect
     def create_popupmenu(self, colheader):
         menu = wx.Menu()
         menu.SetTitle(colheader)
@@ -708,22 +580,12 @@ class PandasFrame(wx.Frame):
             mitem = menu.Append(-1, item)
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         for chitem in self.data[colheader].unique():
-<<<<<<< HEAD
-            mitem = menu.AppendCheckItem(-1,str(chitem))
-            if mitem == None:
-                break
-=======
             mitem = menu.AppendCheckItem(-1, str(chitem))
->>>>>>> prefect
             mitem.Check(True)
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         menu.InsertSeparator(2)
         return menu
-<<<<<<< HEAD
-    
-=======
 
->>>>>>> prefect
     def OnLabelDClick(self, event):
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
@@ -733,18 +595,11 @@ class PandasFrame(wx.Frame):
                 return
             pattern = dlg.patterntxt.GetLineText(0)
             replacement = dlg.replacetxt.GetLineText(0)
-<<<<<<< HEAD
-            
-            self.data[group] = self.data[group].apply(
-                lambda x: re.sub(pattern, replacement, str(x)))
-            self.data[group] = self.data[group].astype('category')
-=======
 
             self.data[group] = self.data[group].apply(
                 lambda x: re.sub(pattern, replacement, str(x))
             )
             self.data[group] = self.data[group].astype("category")
->>>>>>> prefect
             self.modified = True
             self.update_view()
 
@@ -775,15 +630,6 @@ class PandasFrame(wx.Frame):
             # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
             self.modified = True
             self.update_view()
-<<<<<<< HEAD
-        elif event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue():
-            rfilterlist,keys = self.config.get([CONFIG_FILTERS,CONFIG_RANGEFILTERS], returnkeys=True)
-            filterconfig = self.config.get([CONFIG_FILTERS]).copy() 
-            # set single RangeFilter config for current column (group)
-            filterconfig[CONFIG_RANGEFILTERS] = self._existing_rangefilters(rfilterlist, columns=[group])
-
-            dlg = ConfigureFiltersDlg(self, filterconfig, self.data, self.droppedrows.copy(), showusefilter=False)
-=======
         elif (
             event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue()
         ):
@@ -803,18 +649,12 @@ class PandasFrame(wx.Frame):
                 self.droppedrows.copy(),
                 showusefilter=False,
             )
->>>>>>> prefect
             response = dlg.ShowModal()
             if response == wx.ID_OK:
                 config = dlg.GetData()
                 rfcfg = config.get(CONFIG_RANGEFILTERS)
-<<<<<<< HEAD
-                newfilters = {f['name']:f for f in rfcfg}
-                currentfilters = {f['name']:f for f in rfilterlist}
-=======
                 newfilters = {f["name"]: f for f in rfcfg}
                 currentfilters = {f["name"]: f for f in rfilterlist}
->>>>>>> prefect
                 currentfilters.update(newfilters)
                 newfilterlist = [currentfilters[key] for key in currentfilters]
                 self.config.update({CONFIG_RANGEFILTERS: newfilterlist}, keys[:-1])
@@ -844,13 +684,8 @@ class PandasFrame(wx.Frame):
                 isinstance(colseries, (str, bytes, collections.Iterable))
             ):
                 # handle strings, categories, objects
-<<<<<<< HEAD
-                logging.debug (f"AUTOSIZE col {col}")
-                rowidx = colseries.astype(str).map(len).idxmax()
-=======
                 logging.debug(f"AUTOSIZE col {col}")
                 rowidx = colseries.map(len).idxmax()
->>>>>>> prefect
                 valuestr = colseries[rowidx]
             else:
                 # handle numbers; using numpy min/max is orders of magnitude faster than grid.AutoSize
