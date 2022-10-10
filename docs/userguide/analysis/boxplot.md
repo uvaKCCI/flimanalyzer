@@ -2,16 +2,16 @@
 
 The `Box Plot` tool creates box plots based on mean +/- StDev (or S.E.M) of grouped data.
 
-**Menu Access:** `Plot` > `Boxplot`
+**Menu Access:** `Analysis` > `Boxplot`
 
 **Toolbar Icon:** ![](/images/analysis/boxplot.png)
 
-## Creating the Plot
+## Running the Analysis
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
     ![](/images/data/dataframe.png)
 
-2. Start the Box Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `Box Plot` menu.
+2. Start the Bar Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `Box Plot` menu.
 
 3. In the `Configuration: Box Plot` dialog, select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
 

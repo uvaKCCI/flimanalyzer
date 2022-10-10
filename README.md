@@ -47,25 +47,12 @@ sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flima
 
 On Windows,run this command
 ```
-conda activate flimenv
-set PREFECT__FLOWS__CHECKPOINTING true 
+conda activate flimenv 
 flimanalyzer.exe
 ```
 
 On Mac OSX and Linux, run this command:
 ```
 conda activate flimenv
-export PREFECT__FLOWS__CHECKPOINTING=true 
 flimanalyzer
 ```
-
-**Parallel execution**
-
-FLIMAanauzer uses [Prefect](https://www.prefect.io) and [Dask](https://www.dask.org) for parallel execution of tasks.For parallel execution on a *single node*, add these command line arguments:
-```
-export PREFECT__FLOWS__CHECKPOINTING=true 
-flimanalyzer -e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8" # or flimanalyzer.exe
-```
-
-As a general guideline, adjust `num_workers` to match the number of cpu cores in your system. 
-
