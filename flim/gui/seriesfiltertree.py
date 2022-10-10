@@ -14,19 +14,19 @@ from flim.gui.events import FILTERS_UPDATED
 
 
 class SeriesFilterCtrl(CT.CustomTreeCtrl):
+    
     def __init__(self, *args, **kwargs):
-        CT.CustomTreeCtrl.__init__(
-            self, *args, **kwargs
-        )  # , agwStyle=wx.TR_DEFAULT_STYLE)
-        self.Bind(CT.EVT_TREE_ITEM_CHECKED, self.SeriesFilterChanged)
-
-        # custom_tree = CT.CustomTreeCtrl(self, agwStyle=wx.TR_DEFAULT_STYLE)
-
+        CT.CustomTreeCtrl.__init__(self, *args, **kwargs)#, agwStyle=wx.TR_DEFAULT_STYLE)
+        self.Bind(CT.EVT_TREE_ITEM_CHECKED, self.SeriesFilterChanged) 
+        
+        #custom_tree = CT.CustomTreeCtrl(self, agwStyle=wx.TR_DEFAULT_STYLE)
+      
     def fire_rowsupdated_event(self, items):
-        # event = ListCtrlUpdatedEvent(EVT_FU_TYPE, self.GetId())
-        # event.SetUpdatedItems(items)
-        # self.GetEventHandler().ProcessEvent(event)
-        pub.sendMessage(FILTERS_UPDATED, updateditems=items)
+        #event = ListCtrlUpdatedEvent(EVT_FU_TYPE, self.GetId())
+        #event.SetUpdatedItems(items)
+        #self.GetEventHandler().ProcessEvent(event)        
+        pub.sendMessage(FILTERS_UPDATED, updateditems=items)        
+
 
     def setdata(self, data):
         self.data = data
@@ -35,29 +35,26 @@ class SeriesFilterCtrl(CT.CustomTreeCtrl):
 
         # Create an image list to add icons next to an item
         il = wx.ImageList(16, 16)
-        fldridx = il.Add(
-            wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
-        )
-        fldropenidx = il.Add(
-            wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16))
-        )
+        fldridx     = il.Add(wx.ArtProvider.GetBitmap(wx.ART_FOLDER,      wx.ART_OTHER, (16, 16)))
+        fldropenidx = il.Add(wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE,   wx.ART_OTHER, (16, 16)))
 
         self.SetImageList(il)
-        # self.seriesfilter.SetItemImage(root, fldridx, wx.TreeItemIcon_Normal)
-        # self.seriesfilter.SetItemImage(root, fldropenidx, wx.TreeItemIcon_Expanded)
-
+        #self.seriesfilter.SetItemImage(root, fldridx, wx.TreeItemIcon_Normal)
+        #self.seriesfilter.SetItemImage(root, fldropenidx, wx.TreeItemIcon_Expanded)
+        
         if self.data is not None:
-            cols = self.data.select_dtypes(["category"]).columns.values
+            cols = self.data.select_dtypes(['category']).columns.values
             for col in cols:
                 child = self.AppendItem(root, col, ct_type=1)
-                # self.seriesfilter.SetItemImage(child, fldridx, wx.TreeItemIcon_Normal)
-                # self.seriesfilter.SetItemImage(child, fldropenidx, wx.TreeItemIcon_Expanded)
+                #self.seriesfilter.SetItemImage(child, fldridx, wx.TreeItemIcon_Normal)
+                #self.seriesfilter.SetItemImage(child, fldropenidx, wx.TreeItemIcon_Expanded)
                 values = self.data[col].unique()
                 for val in sorted(values):
                     last = self.AppendItem(child, val, ct_type=1)
-                    # self.seriesfilter.SetItemImage(last, fldridx, wx.TreeItemIcon_Normal)
-                    # self.seriesfilter.SetItemImage(last, fldropenidx, wx.TreeItemIcon_Expanded)
-            # self.seriesfilter.Expand(root)
+                    #self.seriesfilter.SetItemImage(last, fldridx, wx.TreeItemIcon_Normal)
+                    #self.seriesfilter.SetItemImage(last, fldropenidx, wx.TreeItemIcon_Expanded)
+            #self.seriesfilter.Expand(root)
+
 
     def GetCheckedItems(self, itemParent=None, checkedItems=None):
         if self.GetRootItem is None:
@@ -76,21 +73,31 @@ class SeriesFilterCtrl(CT.CustomTreeCtrl):
 
         return checkedItems
 
+
     def GetData(self):
         checked = {}
         checkeditems = self.GetCheckedItems()
         for item in checkeditems:
             if item.GetParent() != self.GetRootItem():
-                l = checked.get(item.GetParent().GetText(), [])
+                l = checked.get(item.GetParent().GetText(),[])
                 l.append(item.GetText())
                 checked[item.GetParent().GetText()] = l
         return checked
 
+
     def SeriesFilterChanged(self, event):
         scol = event.GetItem().GetParent().GetText()
         svalue = event.GetItem().GetText()
-        logging.debug(f"{svalue}, {event.GetItem().IsChecked()}, parent={scol}")
-
+        logging.debug (f"{svalue}, {event.GetItem().IsChecked()}, parent={scol}")
+        
         checked = self.GetData()
-        logging.debug(checked)
+        logging.debug (checked)
         self.fire_rowsupdated_event({})
+
+        
+
+        
+
+
+
+        

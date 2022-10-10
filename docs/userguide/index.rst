@@ -11,7 +11,6 @@ User Guide
     appmenu
     data/index 
     analysis/index  
-    plots/index
-    workflows/index      
+    plots/index      
     settings
 

@@ -2,11 +2,11 @@
 
 This tool creates violin plots of grouped data.
 
-**Menu Access:** `Plot` > `Violin Plot`
+**Menu Access:** `Analysis` > `Violin Plot`
 
 **Toolbar Icon:** ![](/images/analysis/violinplot.png)
 
-## Creating the Plot
+## Running the Analysis
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
     ![](/images/data/dataframe.png)

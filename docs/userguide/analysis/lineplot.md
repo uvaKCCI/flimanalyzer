@@ -2,11 +2,11 @@
 
 The `Line Plot` tool creates line plots based on mean +/- StDev (or S.E.M) of grouped data.
 
-**Menu Access:** `Plot` > `Lineplot`
+**Menu Access:** `Analysis` > `Lineplot`
 
 **Toolbar Icon:** ![](/images/analysis/lineplot.png)
 
-## Creating the Plot
+## Running the Analysis
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selectd table window to the front.
     ![](/images/data/dataframe.png)
