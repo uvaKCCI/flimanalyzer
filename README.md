@@ -52,7 +52,7 @@ set PREFECT__FLOWS__CHECKPOINTING=true
 flimanalyzer.exe
 ```
 
-If on Powershell, run this command
+On Powershell, run this command
 ```
 conda activate flimenv
 $env:PREFECT__FLOWS__CHECKPOINTING=true 
