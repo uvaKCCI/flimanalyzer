@@ -55,7 +55,7 @@ flimanalyzer.exe
 On Powershell, run this command
 ```
 conda activate flimenv
-$env:PREFECT__FLOWS__CHECKPOINTING=true 
+$env:PREFECT__FLOWS__CHECKPOINTING='true'
 flimanalyzer.exe
 ```
 
