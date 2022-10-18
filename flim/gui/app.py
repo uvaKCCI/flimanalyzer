@@ -312,6 +312,7 @@ class AppFrame(wx.Frame):
             importer.set_parser(parser)
             importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
             importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
+            importer.set_column_combos(config.get([cfg.CONFIG_CATEGORY_COMBINATIONS]))
             importer.set_preprocessor(preprocessor)
             data, filenames, fheaders = importer.import_data()
 
@@ -450,9 +451,13 @@ class AppFrame(wx.Frame):
 
         # get top level data and all open data tables as options
         title, currentdata = self.get_currentdata()
-        data_choices = {title:currentdata}
+        data_choices = {title: currentdata}
         data_choices.update(self.get_alldata())
-        input = {title:data_choices[title] for i,title in enumerate(data_choices) if i<len(tool.input_definition())}
+        input = {
+            title: data_choices[title]
+            for i, title in enumerate(data_choices)
+            if i < len(tool.input_definition())
+        }
         logging.debug(f"input={input.keys()}, data_choices={data_choices.keys()}")
         if len(input) < len(tool.input_definition()):
             wx.MessageBox(
