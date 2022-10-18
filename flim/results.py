@@ -39,10 +39,37 @@ class LocalResultClear(LocalResult):
                     v.reset_index()
                     # if indx was flattened in analyzer.summarize_data, multiindex col values were joined with '\n'--> revert here
                     v.columns = [c.replace("\n", " ") for c in v.columns.values]
-                    v.to_csv(os.path.join(cleardir, f"{k}.txt"), index=False, sep="\t")
+                    dirpath = repr(os.path.join(cleardir, f"{k}.txt"))
+                    drive = dirpath[1:3]
+                    savepath = (
+                        dirpath[3:-1]
+                        .replace("%", "pcent")
+                        .replace("\r", "")
+                        .replace("\n", " ")
+                    )
+                    savepath = re.sub(":\s?", "_", savepath)
+                    v.to_csv(drive + savepath)
                 elif isinstance(v, matplotlib.figure.Figure):
                     # v.tight_layout()
-                    v.savefig(os.path.join(cleardir, f"{k}.png"))
+                    dirpath = repr(os.path.join(cleardir, f"{k}.png"))
+                    drive = dirpath[1:3]
+                    savepath = (
+                        dirpath[3:-1]
+                        .replace("%", "pcent")
+                        .replace("\r", "")
+                        .replace("\n", " ")
+                    )
+                    savepath = re.sub(":\s?", "_", savepath)
+                    v.savefig(drive + savepath)
                 else:
-                    dump(v, os.path.join(cleardir, f"{k}"))
+                    dirpath = repr(os.path.join(cleardir, f"{k}"))
+                    drive = dirpath[1:3]
+                    savepath = (
+                        dirpath[3:-1]
+                        .replace("%", "pcent")
+                        .replace("\r", "")
+                        .replace("\n", " ")
+                    )
+                    savepath = re.sub(":\s?", "_", savepath)
+                    dump(v, drive + savepath)
         return new
