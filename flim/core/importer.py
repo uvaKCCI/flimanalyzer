@@ -38,7 +38,7 @@ class dataimporter:
             cfg.CONFIG_PARSER: self.parser.get_config(),
             cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
             cfg.CONFIG_FITTING_COLUMNS: [],
-            cfg.CONFIG_CATEGORY_COMBINATIONS: self.combolist,
+            cfg.CONFIG_CATEGORY_COMBINATIONS: self.combolist
         }
         return config
 
@@ -145,6 +145,22 @@ class dataimporter:
             "Source",
             "Time",
             "Combined",
+            "Cell line-Compartment",
+            "Cell line-FOV",
+            "Cell line-Treatment",
+            "Cell line-Cell",
+            "Compartment-Cell",
+            "Compartment-FOV",
+            "Compartment-Treatment",
+            "FOV-Time",
+            "FOV-Well",
+            "Time-Well",
+            "Treatment-Time",
+            "Treatment-FOV",
+            "FOV-Cell",
+            "FOV-Treatment",
+            "Treatment-Cell",
+
         ]
         rcatnames.extend(
             [
@@ -195,11 +211,10 @@ class dataimporter:
             filecdf = None
             if self.combolist is not None:
                 if len(self.combolist) == 0:
-                    categories = [
-                        cat
-                        for cat in category_dtypes
-                        if cat in df.select_dtypes(["object"]).columns
-                    ]
+                    categories = []
+                    for cat in category_dtypes:
+                        if cat in df.select_dtypes(["object"]).columns:
+                            categories.append(cat)
                     self.combolist = [
                         combo for combo in itertools.combinations(categories, 2)
                     ]
@@ -220,7 +235,7 @@ class dataimporter:
                 cdflist.append(filecdf)
 
         if len(dflist) == 0:
-            return  # None, filenames, None
+            return # None, filenames, None
         else:
             fheaders = set(fheaders + comboheaders)
             df = pd.concat(dflist).reset_index(drop=True)
