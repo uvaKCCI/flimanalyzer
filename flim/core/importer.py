@@ -6,6 +6,7 @@ Created on Fri May  4 02:53:40 2018
 @author: khs3z
 """
 
+import itertools
 import logging
 import os
 import glob
@@ -27,6 +28,7 @@ class dataimporter:
         self.excluded_files = []
         self.parser = defaultparser()
         self.preprocessor = None
+        self.combolist = None
 
     def get_config(self):
         config = {
@@ -36,6 +38,7 @@ class dataimporter:
             cfg.CONFIG_PARSER: self.parser.get_config(),
             cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
             cfg.CONFIG_FITTING_COLUMNS: [],
+            cfg.CONFIG_CATEGORY_COMBINATIONS: self.combolist,
         }
         return config
 
@@ -58,6 +61,9 @@ class dataimporter:
 
     def get_delimiter(self):
         return self.delimiter
+
+    def set_column_combos(self, combolist):
+        self.combolist = combolist
 
     def set_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
         if exclude is None:
@@ -137,6 +143,23 @@ class dataimporter:
             "Origin",
             "AE Label",
             "Source",
+            "Time",
+            "Combined",
+            "Cell line-Compartment",
+            "Cell line-FOV",
+            "Cell line-Treatment",
+            "Cell line-Cell",
+            "Compartment-Cell",
+            "Compartment-FOV",
+            "Compartment-Treatment",
+            "FOV-Time",
+            "FOV-Well",
+            "Time-Well",
+            "Treatment-Time",
+            "Treatment-FOV",
+            "FOV-Cell",
+            "FOV-Treatment",
+            "Treatment-Cell",
         ]
         rcatnames.extend(
             [
@@ -158,6 +181,8 @@ class dataimporter:
         dflist = []
         filenames = []
         fheaders = []
+        comboheaders = []
+        cdflist = []
         for f in self.files:
             if not os.path.isfile(f):
                 continue
@@ -181,24 +206,55 @@ class dataimporter:
             dflist.append(df)
             fheaders.extend(list(headers.keys()))
             filenames.append(f)
+
+            filecdf = None
+            if self.combolist is not None:
+                if len(self.combolist) == 0:
+                    categories = [
+                        cat
+                        for cat in category_dtypes
+                        if cat in df.select_dtypes(["object"]).columns
+                    ]
+                    self.combolist = [
+                        combo for combo in itertools.combinations(categories, 2)
+                    ]
+                for combo in self.combolist:
+                    combocol = "-".join(combo)
+                    cdf = pd.DataFrame(
+                        df[combo[0]]
+                        .str.cat([df[c] for c in combo[1:]], sep="-")
+                        .astype("category")
+                    ).reset_index(drop=True)
+                    cdf.columns = [combocol]
+                    if filecdf is None:
+                        filecdf = cdf
+                    else:
+                        filecdf = pd.concat([filecdf, cdf], axis=1)  # add col
+                    comboheaders.append(combocol)
+            if filecdf is not None:
+                cdflist.append(filecdf)
+
         if len(dflist) == 0:
-            return  # None, filenames, None
+            return # None, filenames, None
         else:
-            fheaders = set(fheaders)
-            df = pd.concat(dflist)
-            df.reset_index(inplace=True, drop=True)
+            fheaders = set(fheaders + comboheaders)
+            df = pd.concat(dflist).reset_index(drop=True)
+            if len(cdflist) > 0:
+                cdf = pd.concat(cdflist).reset_index(drop=True)
+                df = pd.concat([df, cdf], axis=1, copy=True)
+            # df.reset_index(inplace=True, drop=True)
+
+            # if 'ROI' not in df.columns.values:
+            #    df['ROI'] = np.arange(1,len(df)+1)
+            # print ('done')
             allheaders = list(df.columns.values)
             logging.debug(self.get_reserved_categorycols(parser))
             categories = [
-                key
-                for key in self.get_reserved_categorycols(parser)
-                if key in allheaders
-            ]
-
-            # if 'ROI' not in df.columns.values:
-            #    df['ROI'] = df.groupby(categories).cumcount() + 1
-            #    df['ROI'] = [str(roi) for roi in df['ROI']]
-            #    categories.append('ROI')
+                key for key in self.get_reserved_categorycols(parser) if key in allheaders
+            ] + comboheaders
+            """df['ROI'] = df.groupby(categories).cumcount() + 1
+            df['ROI'] = [str(roi) for roi in df['ROI']]
+            categories.append('ROI')"""
 
             for ckey in categories:
                 df[ckey] = df[ckey].astype("category")
