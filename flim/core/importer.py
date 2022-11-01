@@ -38,7 +38,7 @@ class dataimporter:
             cfg.CONFIG_PARSER: self.parser.get_config(),
             cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
             cfg.CONFIG_FITTING_COLUMNS: [],
-            cfg.CONFIG_CATEGORY_COMBINATIONS: self.combolist
+            cfg.CONFIG_CATEGORY_COMBINATIONS: self.combolist,
         }
         return config
 
@@ -160,7 +160,6 @@ class dataimporter:
             "FOV-Cell",
             "FOV-Treatment",
             "Treatment-Cell",
-
         ]
         rcatnames.extend(
             [
@@ -211,10 +210,11 @@ class dataimporter:
             filecdf = None
             if self.combolist is not None:
                 if len(self.combolist) == 0:
-                    categories = []
-                    for cat in category_dtypes:
-                        if cat in df.select_dtypes(["object"]).columns:
-                            categories.append(cat)
+                    categories = [
+                        cat
+                        for cat in category_dtypes
+                        if cat in df.select_dtypes(["object"]).columns
+                    ]
                     self.combolist = [
                         combo for combo in itertools.combinations(categories, 2)
                     ]

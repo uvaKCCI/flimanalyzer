@@ -210,12 +210,6 @@ class ImportDlg(wx.Dialog):
                 return
             parser.set_regexpatterns(self.parsetable.GetData())
 
-            #ignore below
-            # combolist = [combo for combo in itertools.combinations(catlist, 2)]
-            # for combo in combolist:
-            #     for column_headers in allheaders:
-            #         if combo in
-
             comboscb = self.combo_panel.GetChildren()[0]
             if comboscb.GetValue():
                 catlist = [pattern[cfg.CONFIG_PARSER_CATEGORY] for pattern in self.parsetable.GetData()]
@@ -331,9 +325,6 @@ class ImportDlg(wx.Dialog):
             self.configure_importer(self.importer, files)
             self.config.update(self.importer.get_config(), [cfg.CONFIG_IMPORT])
             self.EndModal(wx.ID_OK)
-
-
-
                
                     
     def OnImportFiles(self, event):
