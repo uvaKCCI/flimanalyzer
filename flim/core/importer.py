@@ -145,6 +145,21 @@ class dataimporter:
             "Source",
             "Time",
             "Combined",
+            "Cell line-Compartment",
+            "Cell line-FOV",
+            "Cell line-Treatment",
+            "Cell line-Cell",
+            "Compartment-Cell",
+            "Compartment-FOV",
+            "Compartment-Treatment",
+            "FOV-Time",
+            "FOV-Well",
+            "Time-Well",
+            "Treatment-Time",
+            "Treatment-FOV",
+            "FOV-Cell",
+            "FOV-Treatment",
+            "Treatment-Cell",
         ]
         rcatnames.extend(
             [
@@ -220,7 +235,7 @@ class dataimporter:
                 cdflist.append(filecdf)
 
         if len(dflist) == 0:
-            return  # None, filenames, None
+            return # None, filenames, None
         else:
             fheaders = set(fheaders + comboheaders)
             df = pd.concat(dflist).reset_index(drop=True)
