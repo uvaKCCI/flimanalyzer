@@ -145,6 +145,21 @@ class dataimporter:
             "Source",
             "Time",
             "Combined",
+            "Cell line-Compartment",
+            "Cell line-FOV",
+            "Cell line-Treatment",
+            "Cell line-Cell",
+            "Compartment-Cell",
+            "Compartment-FOV",
+            "Compartment-Treatment",
+            "FOV-Time",
+            "FOV-Well",
+            "Time-Well",
+            "Treatment-Time",
+            "Treatment-FOV",
+            "FOV-Cell",
+            "FOV-Treatment",
+            "Treatment-Cell",
         ]
         rcatnames.extend(
             [
