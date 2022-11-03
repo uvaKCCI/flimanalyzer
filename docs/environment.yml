@@ -2,21 +2,30 @@ name: docs
 channels:
   - pytorch
   - conda-forge
+  - defaults
 dependencies:
-  - matplotlib=3
+  - matplotlib>3.4
+  - graphviz=2.50.0
+  - python-graphviz=0.16
+  - pygraphviz=1.7
+  - dask=2021
+  - mkl=2021
   - numpy=1.18
   - pandas=1.1
   - pip=20.3
+  - prefect=1.3
+  - pydot=1.4.1
   - python=3.7
   - pytorch=1.7.0
+  - torchinfo=1.6.3
   - scikit-learn
   - seaborn
   - xlsxwriter
   - networkx=2.5.1
-  - wxpython
+  - wxpython=4.0.4
   - sphinx==3.5.4
   - sphinx_rtd_theme==0.4.2
   - myst-parser==0.13.7
   - pip:
     - pypubsub
-    - importlib_resources
+    - importlib-resources
