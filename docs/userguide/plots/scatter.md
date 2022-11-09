@@ -17,7 +17,7 @@ The `Scatter Plot` tool creates scatter plots of grouped data.
 
     In the example, input data is grouped by `Treatment`.  
 
-    ![](/images/analysis/scatter-config.png)
+    ![](/images/analysis/scatter-config.PNG)
 
 4. Click `OK`.
 
@@ -25,4 +25,8 @@ The `Scatter Plot` tool creates scatter plots of grouped data.
 
 ## Example Output
 
-![](/images/analysis/scatter-results.png)
+![](/images/analysis/scatter-results.PNG)
+
+```{note}
+Plots can be manipulated and saved as described in the [Plots](/userguide/plots/index) section.
+```
