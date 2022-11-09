@@ -23,20 +23,12 @@ The `KDE` tool creates KDE plots of grouped data.
 
 5. The data for each analysis feature is plotted in its own plot window.
 
-```{note}
-The plot layout and grouping of bars can be changed by altering the order of the data grouping elements. See examples below.
-```
 
 ## Example Output
 
 **Example Results:** `Data Grouping` - Treatment, FOV
 
 ![](/images/analysis/kde-results.png)
-
-
-**Example Results:** `Data Grouping` - FOV, Treatment
-
-![](/images/analysis/kde-results2.png)
 
 ```{note}
 Plots can be manipulated and saved as described in the [Plots](/userguide/plots/index) section.
