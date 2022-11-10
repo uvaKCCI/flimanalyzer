@@ -18,7 +18,7 @@ The shown example table contains the following categorical columsn that may be u
      - Analysis Tool
      - Description
    * - .. image:: /images/analysis/summary.png 
-     - `Summary Table <summarystats.html>`_
+     - `Summary Table <summary.html>`_
      - Calculates counts, min, max, mean, median, StDev, S.E.M, <br>25t percentile, and 75 percentile of grouped data.
    * - .. image:: /images/analysis/relchange.png 
      - `Relative Change <relchange.html>`_
