@@ -25,19 +25,24 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data.
 
 ## Example Output
 
-Use of the `bar` histogram style:
+**Example Results:** Use of the `bar` histogram style:
+
 ![](/images/analysis/histogram-results1.png)
 
-Use of the `barstacked` histogram style:
+**Example Results:** Use of the `barstacked` histogram style:
+
 ![](/images/analysis/histogram-results2.png)
 
-Use of the `step` histogram style:
+**Example Results:** Use of the `step` histogram style:
+
 ![](/images/analysis/histogram-results3.png)
 
-Use of the `stepfilled` histogram style:
+**Example Results:** Use of the `stepfilled` histogram style:
+
 ![](/images/analysis/histogram-results4.png)
 
-Example of the generated `Binned data table`:
+**Example Results:** Generated `Binned data table`:
+
 ![](/images/analysis/histogram-results1a.png)
 
 ```{note}
