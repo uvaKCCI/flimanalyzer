@@ -2,7 +2,7 @@
 
 ## File
 
-Clicking on `File` will open a drop-down menu with three options: `Open`, `Import`, and `Exit`. More information on loading data using the `Open` and `Import` options can be found in the Data Tables/Load Data section. The `Exit` option closes the FLIManalyzer program all together.
+Clicking on `File` will open a drop-down menu with three options: `Open`, `Import`, and `Exit`. More information on loading data using the `Open` and `Import` options can be found in the [Loading Data](/userguide/data/index) section. The `Exit` option closes the FLIManalyzer program all together.
 
     
 ## Settings
