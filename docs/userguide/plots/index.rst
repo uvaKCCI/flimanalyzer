@@ -68,5 +68,5 @@ Create a Plot
 
 Save a Plot
 -----------
-
+While selecting the configuration settings for a given plot, there is an `Autosave` checkbox that saves the produced plot. Simply click on the checkbox and use the `Choose...` button to select a directory to save the file to.
 
