@@ -20,6 +20,12 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
      - Forms new data tables for rows of the same categorical value. 
    * - `Merge Data <merge.html>`_
      - Combines two data tables based on categorical columns.
+   * - `Order Categories <order.html>`_
+     - Rearranges order of categorical columns.
+   * - `Concat Data <concat.html>`_
+     - Combines two data tables.
+   * - `Sort <sort.html>`_
+     - Reorders rows in ascending order of a selected data feature.
    * - `Saving Data <save.html>`_
      - Saves altered data table.
    
@@ -34,4 +40,7 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
     pivot
     split
     merge
+    order
+    concat
+    sort
     save
