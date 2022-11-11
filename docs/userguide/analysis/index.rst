@@ -29,48 +29,30 @@ The shown example table contains the following categorical columsn that may be u
    * - .. image:: /images/analysis/categorize.png 
      - `Categorize Data <categorize.html>`_
      - categorizes data based on thresholded value bins in a specified table column. 
-   * - .. image:: /images/analysis/merge.png 
-     - `Merge Data <merge.html>`_
-     - Merges two data tables based on shared category columns. 
-   * - .. image:: /images/analysis/barplot.png 
-     - `Barplot <barplot.html>`_
-     - Creates bar plot based on mean +/- StDev (or S.E.M)<br> of grouped data.
-   * - .. image:: /images/analysis/boxplot.png 
-     - `Boxplot <boxplot.html>`_
-     - Creates box plot of grouped data. 
-   * - .. image:: /images/analysis/lineplot.png 
-     - `Lineplot <lineplot.html>`_
-     - Creates line plot of grouped data. 
-   * - .. image:: /images/analysis/swarmplot.png 
-     - `Swarmplot <swarmplot.html>`_
-     - Creates swarm plot of grouped data. 
-   * - .. image:: /images/analysis/violinplot.png 
-     - `Violinplot <violinplot.html>`_
-     - Creates violin plot of grouped data. 
-   * - .. image:: /images/analysis/scatter.png 
-     - `Scatter Plot <scatter.html>`_
-     - Creates scatter plot for pairs of selected features in grouped data. 
-   * - .. image:: /images/analysis/histogram.png 
-     - `Frequency Histogram <histogram.html>`_
-     - Creates frequency histogram of grouped data. 
-   * - .. image:: /images/analysis/kde.png 
-     - `KDE Plot <kde.html>`_
-     - Creates kernel density estimate (kde) plot of grouped data.
-   * - .. image:: /images/analysis/heatmap.png 
-     - `Heatmap <heatmap.html>`_
-     - Creates heatmap for matrix of data features based on mean of grouped data. 
    * - .. image:: /images/analysis/randomforest.png 
      - `Random Forest <randomforest.html>`_
      - Performs a random forest classification analysis for grouped data. 
    * - .. image:: /images/analysis/pca.png 
      - `Principal Component Analysis <pca.html>`_
      - Performs a principal component analysis for grouped data. 
+   * - .. image:: /images/analysis/kmeans.png 
+     - `K-Means <kmeans.html>`_
+     - Groups similar data points in a cluster.
+   * - .. image:: /images/analysis/ks.png 
+     - `KS Statistics <ks.html>`_
+     - ks..
+   * - .. image:: /images/analysis/aerun.png 
+     - `Autoencoder Analysis <aerun.html>`_
+     - Applies a pre-trained autoencoder model to data.
    * - .. image:: /images/analysis/aetrain.png 
      - `Autoencoder Training <aetrain.html>`_
      - Trains an autoencoder model on selected data features. 
    * - .. image:: /images/analysis/aerun.png 
      - `Autoencoder Analysis <aerun.html>`_
      - Applies a pre-trained autoencoder model to data.
+   * - .. image:: /images/analysis/aerun.png 
+     - `Autoencoder Simulate <aesim.html>`_
+     - Simulate..
 
 .. toctree::
     :maxdepth: 2
@@ -82,18 +64,13 @@ The shown example table contains the following categorical columsn that may be u
     seriesanalysis
     categorize
     merge
-    barplot
-    boxplot
-    lineplot
-    swarmplot
-    violinplot
-    scatter
-    histogram
-    kde
     heatmap
     randomforest
     pca
+    kmeans
+    ks
     aetrain
     aerun
+    aesimulate
 
 
