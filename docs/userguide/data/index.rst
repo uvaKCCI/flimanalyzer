@@ -3,7 +3,7 @@ Data Tables
 Upon loading in data, the tables can be altered to emphasize trends, adjust the precision of data values, and more generally, make the data easier to interpret. 
 
 .. list-table::
-   :widths: 10 10 30
+   :widths: 10 30
    :header-rows: 1
 
    * - Data Table Tool
