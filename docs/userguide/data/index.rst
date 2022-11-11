@@ -18,6 +18,8 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
      - Rearranges data columns to emphasize trends. 
    * - `Splitting Data <split.html>`_
      - Forms new data tables for rows of the same categorical value. 
+   * - `Merge Data <merge.html>`_
+     - Combines two data tables based on categorical columns.
    * - `Saving Data <save.html>`_
      - Saves altered data table.
    
@@ -31,4 +33,5 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
     filter
     pivot
     split
+    merge
     save
