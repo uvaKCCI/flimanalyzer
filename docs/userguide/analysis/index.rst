@@ -41,9 +41,6 @@ The shown example table contains the following categorical columsn that may be u
    * - .. image:: /images/analysis/ks.png 
      - `KS Statistics <ks.html>`_
      - ks..
-   * - .. image:: /images/analysis/aerun.png 
-     - `Autoencoder Analysis <aerun.html>`_
-     - Applies a pre-trained autoencoder model to data.
    * - .. image:: /images/analysis/aetrain.png 
      - `Autoencoder Training <aetrain.html>`_
      - Trains an autoencoder model on selected data features. 
