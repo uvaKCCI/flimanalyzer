@@ -2,4 +2,4 @@
 
 **Menu Access:** `Workflow` > `FLIM Feature Analysis`
 
-**Toolbar Icon:** ![](/images/plot/heatmap.png)
+**Toolbar Icon:** ![](/images/analysis/heatmap.png)
