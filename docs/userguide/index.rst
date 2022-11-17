@@ -1,7 +1,7 @@
 User Guide
 ==========
 
-.. image:: /images/app.png
+.. image:: /images/toolbar.png
   :width: 100%
   :alt: Alternative text
   
