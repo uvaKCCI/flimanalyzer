@@ -6,3 +6,8 @@ Workflows
     :hidden:
     :glob:
     
+    test
+    sim
+    analysis
+    
+    
