@@ -2,4 +2,4 @@
 
 **Menu Access:** `Workflow` > `FLIM Data Simulation Tuning`
 
-**Toolbar Icon:** ![](/images/plot/heatmap.png)
+**Toolbar Icon:** ![](/images/analysis/heatmap.png)
