@@ -68,6 +68,6 @@ The shown example table contains the following categorical columsn that may be u
     ks
     aetrain
     aerun
-    aesimulate
+    aesim
 
 

@@ -15,11 +15,11 @@ The `Data` menu item provides several options for adjusting your data. After hav
 
 ## Analysis
 
-The `Analysis` menu item provides a drop-down menu of all the different analysis tools, which can also be accessed via their corresponding icons in the toolbar menu. Reference the [Analysis](/userguide/analysis) section of the docs for more information on the specific tools.
+The `Analysis` menu item provides a drop-down menu of all the different analysis tools, which can also be accessed via their corresponding icons in the toolbar menu. Reference the [Analysis](/userguide/analysis/) section of the docs for more information on the specific tools.
 
 ## Plots
 
-The `Plot` menu item offers several different statistical plots that can be used to find data trends, provide a graphical representation of the data, and overall, make the data easier to interpret. Reference the [Plots](/userguide/plots) section of the docs for more information on the specific plots.
+The `Plot` menu item offers several different statistical plots that can be used to find data trends, provide a graphical representation of the data, and overall, make the data easier to interpret. Reference the [Plots](/userguide/plots/) section of the docs for more information on the specific plots.
 
 
 ## Window
