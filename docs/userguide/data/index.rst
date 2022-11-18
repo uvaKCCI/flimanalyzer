@@ -16,6 +16,8 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
      - Displays only desired data columns. 
    * - `Pivoting Data <pivot.html>`_
      - Rearranges data columns to emphasize trends. 
+   * - `Unpivoting Data <unpivot.html>`_
+     - Undoes previous pivotting. 
    * - `Splitting Data <split.html>`_
      - Forms new data tables for rows of the same categorical value. 
    * - `Merge Data <merge.html>`_
@@ -38,6 +40,7 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
     precision
     filter
     pivot
+    unpivot
     split
     merge
     order
