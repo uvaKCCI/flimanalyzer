@@ -1,4 +1,4 @@
-# Unpivot Data
+# Unpivoting Data
 
 **Menu Access:** `Data` > `Unpivot`
 
