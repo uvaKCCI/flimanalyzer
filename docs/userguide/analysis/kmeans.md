@@ -24,7 +24,6 @@ The `K-Means` tool is an algorithm that finds similar data points and groups the
     ![](/images/analysis/kmeans-config.png)
 
 4. Select the data features of interest. Data features correspond to columns with numeric data, `FAD a1`, etc..
-
     In the example, only FAD a1 and NAD(P)H a1 are used.
 
 4. Click `OK`.
@@ -45,5 +44,5 @@ To see the the clusters plotted on a graph, you can use one of the plotting tool
 Results of using a scatter plot to plot the data by `Cluster`:
 ![](/images/analysis/kmeans-results2.png)
 
-While not the best example, since the data points are not very separated and there are not clear clusters, the scattr plot still provides a visual as to how the `K-Means` tool groups data points.
+While not the best example, since the data points are not very separated and there are not clear clusters, the scatter plot still provides a visual as to how the `K-Means` tool groups data points.
     
