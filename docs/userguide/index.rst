@@ -12,6 +12,6 @@ User Guide
     data/index 
     analysis/index  
     plots/index
-    workflows/index      
+    workflows     
     settings
 
