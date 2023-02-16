@@ -320,7 +320,6 @@ class AbstractPlugin(Task):
             "input": {},
             "prefix": None,
             "autosave": False,
-            "prefix": None,
             "working_dir": os.path.join(os.path.expanduser("~"), "FLIMAnalyzerResults"),
         }
         return defaults
