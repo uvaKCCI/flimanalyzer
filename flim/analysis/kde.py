@@ -91,12 +91,13 @@ class KDE(AbstractPlugin, Task):
             minx = cdata.min()  # hconfig[0]
             maxx = cdata.max()  # hconfig[1]
             logging.debug(f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig, ax = self.grouped_kdeplot(
+            fig, ax, kde_data = self.grouped_kdeplot(
                 data, header, groups=self.params["grouping"], clip=(minx, maxx)
             )  # bins=bins, hist=False,
             if not np.isinf([minx, maxx]).any() and not np.isnan([minx, maxx]).any():
                 ax.set_xlim(minx, maxx)
             results[f"Plot: KDE {header}"] = fig
+            results[f"Table: KDE {header}"] = kde_data
         return results
 
     def grouped_kdeplot(
@@ -124,6 +125,7 @@ class KDE(AbstractPlugin, Task):
         cols.append(column)
         if dropna:
             data = data[cols].dropna(how="any", subset=[column])
+        df = pd.DataFrame()
         if len(groups) > 0:
             gs = data.groupby(groups)
             styles = []
@@ -150,7 +152,10 @@ class KDE(AbstractPlugin, Task):
                         newkwargs["linestyle"] = styles[index]["linestyle"]
                     logging.debug(f"NEWKWARGS: {newkwargs}")
                     logging.debug(f"len(groupdata[column])={len(groupdata[column])}")
-                    sns.kdeplot(groupdata[column], **newkwargs)
+                    kde = sns.kdeplot(groupdata[column], **newkwargs)
+                    x,y = kde.get_lines()[-1].get_data()
+                    df[name_fixed + "_x"] = x
+                    df[name_fixed + "_y"] = y
                     labels.append(name_fixed)
                 index += 1
             no_legendcols = len(groups) // 30 + 1
@@ -163,7 +168,10 @@ class KDE(AbstractPlugin, Task):
                 ncol=no_legendcols,
             )
         else:
-            sns.kdeplot(data[column], **newkwargs)
+            kde = sns.kdeplot(data[column], **newkwargs)
+            x,y = kde.get_lines()[-1].get_data()
+            df["ungrouped_x"] = x
+            df["ungrouped_y"] = y
         ax.autoscale(enable=True, axis="y")
         ax.set_ylim(0, None)
         if title is None:
@@ -174,4 +182,4 @@ class KDE(AbstractPlugin, Task):
             ax.set_title(title)
 
         self._add_picker(fig)
-        return fig, ax
+        return fig, ax, df

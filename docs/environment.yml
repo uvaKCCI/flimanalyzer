@@ -1,4 +1,4 @@
-name: flimenv-0.4.0
+name: docs
 channels:
   - pytorch
   - conda-forge
@@ -23,9 +23,9 @@ dependencies:
   - xlsxwriter
   - networkx=2.5.1
   - wxpython=4.0.4
-  - sphinx==3.5.4
+  - sphinx==4.2.0
   - sphinx_rtd_theme==0.4.2
-  - myst-parser==0.13.7
+  - myst-parser==0.18.1
   - pip:
     - pypubsub
     - importlib-resources

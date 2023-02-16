@@ -11,7 +11,7 @@
 * pytorch
 * scikit-learn
 * xlsxwriter
-* wxpython
+* wxpython (4.0.7)
 * networkx
 * pypubsub
 * python.app (for MacOS X)
@@ -25,7 +25,7 @@ Run the following commands to create a `flimenv` Conda environment based on the 
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
 conda env create -f environment.yml
-conda activate flimenv
+conda activate flimenv-0.4.0
 python setup.py install
 ```
 Installations on Windows and MacOS require a couple additional steps.
@@ -38,7 +38,7 @@ Install VS Code.
 
 Activate the Conda environment, install the MacOS specific `python.app` package, and patch the shebang of the `flimanalyzer` console script. 
 ```
-conda activate flimenv
+conda activate flimenv-0.4.0
 conda install python.app
 sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flimanalyzer)
 ```
@@ -49,13 +49,22 @@ sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flima
 
 On Mac and Linux, run this command:
 ```
-conda activate flimenv 
+conda activate flimenv-0.4.0 
+export PREFECT__FLOWS__CHECKPOINTING=true 
 flimanalyzer
 ```
 
 On Windows, run this command:
 ```
-conda activate flimenv 
+conda activate flimenv-0.4.0 
+set PREFECT__FLOWS__CHECKPOINTING=true
+flimanalyzer.exe
+```
+
+On Powershell, run this command:
+```
+conda activate flimenv-0.4.0
+$env:PREFECT__FLOWS__CHECKPOINTING='true'
 flimanalyzer.exe
 ```
 
