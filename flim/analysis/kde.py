@@ -7,6 +7,7 @@ Created on Wed Dec 16 14:18:30 2020
 """
 
 import logging
+import math
 from flim.plugin import AbstractPlugin
 import matplotlib
 import matplotlib.pyplot as plt
@@ -27,9 +28,8 @@ default_linestyles = ["-", "--", ":", "-."]
 
 @plugin(plugintype="Plot")
 class KDE(AbstractPlugin, Task):
-    def __init__(
-        self, name="KDE", **kwargs
-    ):  # classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
+    def __init__(self, name="KDE", **kwargs):
+        # classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
         super().__init__(name=name, **kwargs)
 
     def get_required_categories(self):
@@ -47,17 +47,36 @@ class KDE(AbstractPlugin, Task):
         features = self.params["features"]
         if features == ALL_FEATURES and isinstance(data, pd.DataFrame):
             features = list(data.select_dtypes(np.number).columns.values)
-        return {
-            f"Plot: KDE {feature}": matplotlib.figure.Figure for feature in features
-        }
+        return_type = {"Table: KDE {header}": pd.DataFrame for feature in features}
+        if self.params["single_plot"]:
+            return_type["Plot: KDE"] = matplotlib.figure.Figure
+        else:
+            return_type.update(
+                {f"Plot: KDE {feature}": matplotlib.figure.Figure for feature in features}
+            )
+        return return_type
+
+    def get_default_parameters(self):
+        params = super().get_default_parameters()
+        params.update(
+            {
+                "single_plot": False,
+                "col_wrap": 5,  # auto
+                "return_plot": True,
+            }
+        )
+        return params
 
     def get_mapped_parameters(self):
-        parallel_params = []
-        for f in self.params["features"]:
-            pair_param = self.params.copy()
-            pair_param["features"] = [f]
-            parallel_params.append(pair_param)
-        return parallel_params
+        if self.params["single_plot"]:
+            return super().get_mapped_parameters()
+        else:
+            parallel_params = []
+            for i, f in enumerate(self.params["features"]):
+                pair_param = self.params.copy()
+                pair_param["features"] = [f]
+                parallel_params.append(pair_param)
+            return parallel_params
 
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
@@ -84,20 +103,54 @@ class KDE(AbstractPlugin, Task):
         features = self.params["features"]
         if features == ALL_FEATURES:
             features = list(data.select_dtypes(np.number).columns.values)
-        for header in sorted(features):
+        if self.params["single_plot"] and len(features) > 1:
+            n = len(features)
+            if self.params["col_wrap"] == 0:
+                # auto
+                cols = math.ceil(math.sqrt(n))
+            else:
+                # fixed number of cols
+                cols = min(self.params["col_wrap"], n)
+            rows = math.ceil(float(n) / cols)
+            fig, axs = plt.subplots(rows, cols)
+            # remove unused axes objects in 2d grid
+            for j in range(n, rows * cols):
+                if axs.ndim == 2:
+                    fig.delaxes(axs[j // cols][j % cols])
+            self._add_picker(fig)
+        for i, header in enumerate(sorted(features)):
+            if self.params["single_plot"] and len(features) > 1:
+                if axs.ndim == 2:
+                    ax = axs[i // cols][i % cols]
+                else:
+                    ax = axs[i]
+            else:
+                fig, ax = plt.subplots()
+                self._add_picker(fig)
             bins = 100
             cdata = data[header].replace([np.inf, -np.inf], np.nan).dropna()
             len(cdata)
             minx = cdata.min()  # hconfig[0]
             maxx = cdata.max()  # hconfig[1]
             logging.debug(f"Creating kde plot for {str(header)}, bins={str(bins)}")
-            fig, ax, kde_data = self.grouped_kdeplot(
-                data, header, groups=self.params["grouping"], clip=(minx, maxx)
+            kde_data = self.grouped_kdeplot(
+                data,
+                header,
+                groups=self.params["grouping"],
+                clip=(minx, maxx),
+                ax=ax,
+                return_plot=self.params.get("return_plot"),
+                show_legend=not self.params["single_plot"] or i == cols - 1,
             )  # bins=bins, hist=False,
             if not np.isinf([minx, maxx]).any() and not np.isnan([minx, maxx]).any():
                 ax.set_xlim(minx, maxx)
-            results[f"Plot: KDE {header}"] = fig
+            if self.params.get("return_plot") and not self.params["single_plot"]:
+                fig.tight_layout()
+                results[f"Plot: KDE {header}"] = fig
             results[f"Table: KDE {header}"] = kde_data
+        if self.params.get("return_plot") and self.params["single_plot"]:
+            fig.tight_layout()
+            results[f"Plot: KDE"] = fig
         return results
 
     def grouped_kdeplot(
@@ -105,6 +158,9 @@ class KDE(AbstractPlugin, Task):
         data,
         column,
         title=None,
+        ax=None,
+        show_legend=True,
+        return_plot=True,
         groups=[],
         dropna=True,
         linestyles=None,
@@ -113,13 +169,12 @@ class KDE(AbstractPlugin, Task):
     ):
         if data is None or not column in data.columns.values:
             return None, None
-
-        fig, ax = plt.subplots()
         if groups is None:
             groups = []
 
         newkwargs = kwargs.copy()
         newkwargs["ax"] = ax
+        newkwargs["warn_singular"] = False
 
         cols = [c for c in groups]
         cols.append(column)
@@ -135,9 +190,7 @@ class KDE(AbstractPlugin, Task):
                     uniquevalues[1]
                 ) <= len(default_linestyles):
                     colors = [c for c in sns.color_palette()[: len(uniquevalues[0])]]
-                    linestyles = [
-                        ls for ls in default_linestyles[: len(uniquevalues[1])]
-                    ]
+                    linestyles = [ls for ls in default_linestyles[: len(uniquevalues[1])]]
                     for c in colors:
                         for ls in linestyles:
                             styles.append({"color": c, "linestyle": ls})
@@ -150,36 +203,40 @@ class KDE(AbstractPlugin, Task):
                     if len(styles) > index:
                         newkwargs["color"] = styles[index]["color"]
                         newkwargs["linestyle"] = styles[index]["linestyle"]
-                    logging.debug(f"NEWKWARGS: {newkwargs}")
-                    logging.debug(f"len(groupdata[column])={len(groupdata[column])}")
-                    kde = sns.kdeplot(groupdata[column], **newkwargs)
-                    x,y = kde.get_lines()[-1].get_data()
-                    df[name_fixed + "_x"] = x
-                    df[name_fixed + "_y"] = y
+                    try:
+                        kde = sns.kdeplot(groupdata[column], **newkwargs)
+                        x, y = kde.get_lines()[-1].get_data()
+                        df[name_fixed + "_x"] = x
+                        df[name_fixed + "_y"] = y
+                    except Exception as e:
+                        logging.error(e)
                     labels.append(name_fixed)
                 index += 1
             no_legendcols = len(groups) // 30 + 1
-            ax.legend(
-                labels=labels,
-                loc="upper left",
-                title=", ".join(groups),
-                bbox_to_anchor=(1.0, 1.0),
-                fontsize="small",
-                ncol=no_legendcols,
-            )
+            if show_legend:
+                ax.legend(
+                    labels=labels,
+                    loc="upper left",
+                    title=", ".join(groups),
+                    bbox_to_anchor=(1.0, 1.0),
+                    fontsize="small",
+                    ncol=no_legendcols,
+                )
         else:
-            kde = sns.kdeplot(data[column], **newkwargs)
-            x,y = kde.get_lines()[-1].get_data()
-            df["ungrouped_x"] = x
-            df["ungrouped_y"] = y
+            try:
+                kde = sns.kdeplot(data[column], **newkwargs)
+                x, y = kde.get_lines()[-1].get_data()
+                df["ungrouped_x"] = x
+                df["ungrouped_y"] = y
+            except Exception as e:
+                logging.error(e)
         ax.autoscale(enable=True, axis="y")
         ax.set_ylim(0, None)
-        if title is None:
-            title = column.replace("\n", " ")
-            if len(groups) > 0:
-                title = f"{title} grouped by {groups}"
-        if len(title) > 0:
-            ax.set_title(title)
+        # if title is None:
+        #    title = column.replace("\n", " ")
+        #    if len(groups) > 0:
+        #        title = f"{title}"  # " grouped by {groups}"
+        # if len(title) > 0:
+        #    ax.set_title(title)
 
-        self._add_picker(fig)
-        return fig, ax, df
+        return df
