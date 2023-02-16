@@ -24,7 +24,6 @@ class UnPivotConfigDlg(BasicAnalysisConfigDlg):
         self.category_name = category_name
         self.feature_name = feature_name
         super().__init__(
-            self,
             parent,
             title,
             input=input,
@@ -139,7 +138,7 @@ class UnPivot(AbstractPlugin):
         new_cat_name = self._create_unique_name(
             self.params["category_name"], "Category", existing=cat_cols
         )
-        new_value_name = self._create_unique_name(
+        new_feature_name = self._create_unique_name(
             self.params["feature_name"], "Feature", existing=sel_features
         )
         unpivot_data = pd.melt(
@@ -147,8 +146,13 @@ class UnPivot(AbstractPlugin):
             id_vars=cat_cols,
             value_vars=sel_features,
             var_name=new_cat_name,
-            value_name=new_value_name,
+            value_name=new_feature_name,
         )
-        unpivot_data[new_cat_name] = unpivot_data[new_cat_name].astype("category")
+        unpivot_data[new_cat_name] = (
+            unpivot_data[new_cat_name]
+            .str.replace(new_feature_name + "\n", "")
+            .str.replace("\n", "|")
+            .astype("category")
+        )
         results = {"Table: Unpivoted": unpivot_data}
         return results

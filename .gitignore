@@ -9,6 +9,7 @@
 docs/_build
 /data
 /dist
+/paper
 .vscode
 *.egg-info
 .DS_Store
