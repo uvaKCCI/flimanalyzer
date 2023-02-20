@@ -101,13 +101,27 @@ class FLIRRPlot(AbstractPlugin):
             )
         ]
 
-        fig, ax = plt.subplots()
-        ax1 = plt.subplot2grid((3, 5), (0, 0), colspan=2, rowspan=2, fig=fig)
-        ax2 = plt.subplot2grid((3, 5), (0, 2), colspan=1, fig=fig)
-        ax3 = plt.subplot2grid((3, 5), (0, 3), colspan=1, fig=fig)
-        ax4 = plt.subplot2grid((3, 5), (0, 4), colspan=1, fig=fig)
-        ax5 = plt.subplot2grid((3, 5), (1, 2), colspan=3, fig=fig)
-        ax6 = plt.subplot2grid((3, 5), (2, 0), colspan=5, fig=fig)
+        cols = 5
+        rows = 3
+        #fig, ax = plt.subplots(3, 5, figsize=(5,3))
+        fig = plt.figure(tight_layout=True)
+        #plt.subplots_adjust(left=0.2, bottom=0.2, wspace=0.5, hspace=0.5)
+        ax1 = plt.subplot2grid((rows, cols), (0, 0), colspan=2, rowspan=2, fig=fig)
+        ax2 = plt.subplot2grid((rows, cols), (0, 2), colspan=1, fig=fig)
+        ax3 = plt.subplot2grid((rows, cols), (0, 3), colspan=1, fig=fig)
+        ax4 = plt.subplot2grid((rows, cols), (0, 4), colspan=1, fig=fig)
+        ax5 = plt.subplot2grid((rows, cols), (1, 2), colspan=3, fig=fig)
+        ax6 = plt.subplot2grid((rows, cols), (2, 0), colspan=5, fig=fig)
+        
+        #gs = matplotlib.gridspec.GridSpec(3,5)
+        #gs.update(wspace = 0.5, hspace = 0.5)
+        #ax1  = plt.subplot(gs[0:2,0:2])
+        #ax2 = plt.subplot(gs[0,2])
+        #ax3 = plt.subplot(gs[0,3])
+        #ax4  = plt.subplot(gs[0,4])
+        #ax5 = plt.subplot(gs[1,2:])
+        #ax6 = plt.subplot(gs[2,0:5])
+        
         sns.scatterplot(
             ax=ax1,
             data=data,
@@ -161,6 +175,8 @@ class FLIRRPlot(AbstractPlugin):
             error_type="sem",
             legend=False,
         )
-        fig = ax1.get_figure()
-        fig.tight_layout()
+        #fig = ax1.get_figure()
+        fig.set_size_inches(fig.get_size_inches()*2)
+
+        #fig.tight_layout()
         return fig

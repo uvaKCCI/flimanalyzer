@@ -37,6 +37,7 @@ from prefect.tasks.core.constants import Constant
 from flim.analysis.aerun import RunAE
 from flim.analysis.aesimulate import AESimulate
 from flim.analysis.aetraining import AETraining
+from flim.analysis.flirr import FLIRRPlot
 from flim.analysis.barplots import BarPlot
 from flim.analysis.heatmap import Heatmap
 from flim.analysis.kde import KDE
@@ -319,7 +320,7 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
                 or ("NAD" in c and "a2" in c and "%" in c)
             )
         ]
-        print(scatter_features)
+        logging.debug(f"Scatter features: {scatter_features}")
 
         # listtask = List()
         datatask = DataBucket("Input")  # None, name='Input')
@@ -332,12 +333,19 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
         pairplottask = PairPlot(None)
         pivottask = Pivot(None)
         barplottask = BarPlot(None)
+        flirrplottask = FLIRRPlot(None)
         kdetask = KDE()
         # cats = list(data.select_dtypes('category').columns.values)
         with Flow(f"{self.name}", executor=executor, result=result) as flow:
             # input = Parameter('input', default=data)
             inputresult = datatask(
                 name="Input", input=self.input, input_select=[0], task_tags="Input"
+            )
+            flirrplot = flirrplottask(
+                input=inputresult,
+                input_select=[0],
+                grouping=sel_grouping,
+                features=sel_features,
             )
             summary = stask(
                 input=inputresult,
@@ -393,7 +401,12 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
                 singledf=True,
                 prefix="Relative Stats-",
             )
-            # pivotresult = results_to_tasks(pivottask(data=srelresult['Data: Summarize'], input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean']))
+            pivotresult = pivottask(
+                data=srelresult["Relative Stats-Table: Summary"],
+                input_select=[0],
+                grouping=[sel_grouping[0]],
+                features=[f"{flirr_label}\nmean"],
+            )
             scatter = scattertask(
                 input=inputresult,
                 input_select=[0],
@@ -416,7 +429,12 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
             # reltable = datatask(name='Relative Change', data=relchresult)
             # lineplotresult = results_to_tasks(lineplottask(data=reltable['Table: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel '+c for c in sel_features]))
 
-            # barplot = results_to_tasks(barplottask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'], features=['FLIRR']))
+            barplot = barplottask.map(
+                input=unmapped(inputresult),
+                input_select=unmapped([0]),
+                grouping=unmapped(sel_grouping),
+                features=[[c] for c in sel_features],
+            )
             kdeplot = kdetask.map(
                 input=unmapped(inputresult),
                 input_select=unmapped([0]),

@@ -92,8 +92,8 @@ class PairPlotConfigDlg(BasicAnalysisConfigDlg):
 
     def _get_selected(self):
         params = super()._get_selected()
-        params["x_vars"] = self.selectedfeatures  # self.x_vars
-        params["y_vars"] = self.selectedfeatures  # self.y_vars
+        params["x_vars"] = params["features"]  # self.x_vars
+        params["y_vars"] = params["features"]  # self.y_vars
         params["diag_kind"] = self.diag_combobox.GetValue()
         params["corner"] = self.corner_cb.GetValue()
         params["hist_bins"] = self.hist_bins  # self.hist_bins_spinner.GetValue())
@@ -106,7 +106,7 @@ class PairPlot(AbstractPlugin):
         super().__init__(name=name, **kwargs)
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("scatter.png")
+        source = files(flim.resources).joinpath("scatter.png") #"pairplot.png")
         return wx.Bitmap(str(source))
 
     def get_required_categories(self):

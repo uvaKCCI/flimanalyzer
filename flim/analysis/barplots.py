@@ -41,10 +41,11 @@ def grouped_meanbarplot(
     if data is None or not a:
         return None
     if ax is None:
-        fig, ax = plt.subplots()  # constrained_layout=True)
+        size = (4,8) if orientation=="horizontal" else (8,4)
+        fig, ax = plt.subplots(figsize=size)  # constrained_layout=True)
     else:
         fig = ax.get_figure()
-    capsize = 6
+    capsize = 0 #6
     if categories is None:
         categories = []
     if len(categories) == 0:
@@ -128,8 +129,8 @@ def grouped_meanbarplot(
             error = error.reshape([dim[0], 2, dim[1]])
         ticklabels = mean.index.values
         bwidth = 0.8  # * len(ticklabels)/num_bars
-        fig.set_figheight(1 + num_bars // 8)
-        fig.set_figwidth(6)
+        #fig.set_figheight(1 + num_bars // 8)
+        #fig.set_figwidth(6)
         if orientation == "horizontal":
             mean.plot.barh(
                 ax=ax, xerr=error, width=bwidth, stacked=stacked, capsize=capsize

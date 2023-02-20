@@ -231,7 +231,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.enablefeatures:
             self.scrolledpanel = ScrolledPanel(
-                self.panel, wx.ID_ANY, size=(-1, self.GetSize().y / 3)
+                self.panel, wx.ID_ANY, size=(-1, self.GetSize().y / 2)
             )
             self.cbsizer = wx.GridSizer(4, 0, 0)
             self._update_feature_cbs()
