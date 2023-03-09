@@ -552,7 +552,7 @@ class AETraining(AbstractPlugin):
         train_labels = train_df[allcat_columns]
         train_dataset = datasets(training_set, labels=train_labels)
         train_loader = torch.utils.data.DataLoader(
-            dataset=train_dataset, batch_size=batch_size, shuffle=True
+            dataset=train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
         )
         logging.debug(f"Training set shape: {training_set.shape}")
 
@@ -563,7 +563,7 @@ class AETraining(AbstractPlugin):
         val_labels = val_df[allcat_columns]
         val_dataset = datasets(val_set, labels=val_labels)
         val_loader = torch.utils.data.DataLoader(
-            dataset=val_dataset, batch_size=batch_size, shuffle=True
+            dataset=val_dataset, batch_size=batch_size, shuffle=True, pin_memory=True
         )
         logging.debug(f"Val set shape: {val_set.shape}")
 
@@ -646,6 +646,7 @@ class AETraining(AbstractPlugin):
             cum_loss = 0
             train_samples = 0
             for i, (batchinputs, batchlabels) in enumerate(train_loader):
+                batchinputs.to(device)
                 encoder_out, decoder_out = ae(batchinputs)
                 if epoch == self.params["epoches"]:
                     length = len(batchlabels)
@@ -671,7 +672,7 @@ class AETraining(AbstractPlugin):
 
             cum_loss = 0
             for i, item in enumerate(val_loader):
-                batchinputs = item[0]  # .cuda()
+                batchinputs = item[0].to(device)  # .cuda()
                 batchlabels = item[1]
                 encoder_out, decoder_out = ae(batchinputs)
                 if epoch == self.params["epoches"]:
