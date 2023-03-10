@@ -646,7 +646,7 @@ class AETraining(AbstractPlugin):
             cum_loss = 0
             train_samples = 0
             for i, (batchinputs, batchlabels) in enumerate(train_loader):
-                batchinputs.to(device)
+                batchinputs = batchinputs.to(device)
                 encoder_out, decoder_out = ae(batchinputs)
                 if epoch == self.params["epoches"]:
                     length = len(batchlabels)
