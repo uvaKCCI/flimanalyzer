@@ -654,9 +654,9 @@ class AETraining(AbstractPlugin):
                     labelarray = np.array(length * [0]).reshape(length, 1)
                     labelarray = np.concatenate([batchlabels, labelarray], axis=1)
                     labels.append(labelarray)
-                    batchout = decoder_out.detach().to(device).numpy()
+                    batchout = decoder_out.to(device).detach().numpy()
                     decoded.append(batchout)
-                    encod = encoder_out.detach().to(device).numpy()
+                    encod = encoder_out.to(device).detach().numpy()
                     encoded.append(encod)
                     train_samples += len(batchinputs)
 
@@ -681,9 +681,9 @@ class AETraining(AbstractPlugin):
                     labelarray = np.array(length * [1]).reshape(length, 1)
                     labelarray = np.concatenate([batchlabels, labelarray], axis=1)
                     labels.append(labelarray)
-                    batchout = decoder_out.detach().to(device).numpy()
+                    batchout = decoder_out.to(device).detach().numpy()
                     decoded.append(batchout)
-                    encod = encoder_out.detach().to(device).numpy()
+                    encod = encoder_out.to(device).detach().numpy()
                     encoded.append(encod)
 
                 loss = criterion(decoder_out, batchinputs)
