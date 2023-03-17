@@ -2,6 +2,8 @@
 
 A pivot table summarizes and rearranges data to emphasize specific information. For example, transposing specific row values observed in a single column into separate adjacent columns can be useful to display summary trends across multiple dataseries.
 
+**Menu Access:** `Data` > `Pivot`
+
 Let's take the following data table.
 
 ![](/images/data/pivot-original.png)

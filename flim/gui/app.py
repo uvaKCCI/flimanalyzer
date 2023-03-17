@@ -451,7 +451,7 @@ class AppFrame(wx.Frame):
 
         # get top level data and all open data tables as options
         title, currentdata = self.get_currentdata()
-        data_choices = {title: currentdata}
+        data_choices = {title: currentdata} if title else {}
         data_choices.update(self.get_alldata())
         input = {
             title: data_choices[title]
@@ -544,6 +544,7 @@ class AppFrame(wx.Frame):
             state = flow.run()
             task_refs = flow.get_tasks()
             result_list = [state.result[tr]._result.value for tr in task_refs]
+            logging.debug(f"Results: {len(result_list)}")
 
             # handle results, DataFrames or Figure objects
             for results in result_list:

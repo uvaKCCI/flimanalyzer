@@ -16,6 +16,7 @@ from abc import ABC, abstractmethod
 
 import flim.resources
 import graphviz
+import math
 import matplotlib.pyplot as plt
 import networkx as nx
 import networkx.classes.function
@@ -27,7 +28,7 @@ import pydot
 import wx
 
 from importlib_resources import files
-from prefect import Flow, Parameter, Task, task
+from prefect import Flow, Parameter, Task, task, unmapped
 from prefect.executors import DaskExecutor
 from prefect.executors.base import Executor
 from prefect.tasks.core.collections import List
@@ -39,6 +40,7 @@ from flim.analysis.kde import KDE
 from flim.analysis.kmeans import KMeansClustering
 from flim.analysis.ksstats import KSStats
 from flim.analysis.lineplots import LinePlot
+from flim.analysis.pairplots import PairPlot
 from flim.analysis.pca import PCAnalysis
 from flim.analysis.relativechange import RelativeChange
 from flim.analysis.scatterplots import ScatterPlot
@@ -265,85 +267,159 @@ def to_list(d):
 
 
 @plugin(plugintype="Workflow")
-class TestWorkFlow(AbsWorkFlow):
-    def __init__(self, name="Test Workflow", **kwargs):
+class BasicFLIRRWorkFlow(AbsWorkFlow):
+    def __init__(self, name="Basic FLIRR Analysis", **kwargs):
         super().__init__(name=name, **kwargs)
         # self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
 
+    def get_default_parameters(self):
+        params = super().get_default_parameters()
+        params.update(
+            {
+                "grouping": ["Treatment", "FOV", "Cell"],
+                "features": [
+                    "FAD a1",
+                    "FAD a1%",
+                    "FAD a2",
+                    "FAD a2%",
+                    "FAD t1",
+                    "FAD t2",
+                    "FAD photons",
+                    "NAD(P)H a1",
+                    "NAD(P)H a1%",
+                    "NAD(P)H a2",
+                    "NAD(P)H a2%",
+                    "NAD(P)H t1",
+                    "NAD(P)H t2",
+                    "NAD(P)H photons",
+                ],
+            }
+        )
+        return params
+
     def get_required_features(self):
-        return ["FLIRR", "any"]
+        return ["any"]
 
     def construct_flow(self, executor, result):
         data = list(self.input.values())[0].copy()
+        sel_grouping = self.params["grouping"]
         sel_features = self.params["features"]
         all_features = [c for c in data.select_dtypes(include=np.number)]
+        flirr_label = [c for c in all_features if "FLIRR" in c.upper()][0]
+        scatter_features = [
+            c
+            for c in data.select_dtypes(include=np.number)
+            if "FLIRR" not in c.upper()
+            and "/" not in c
+            and (
+                ("FAD" in c and "a1" in c and "%" in c)
+                or ("NAD" in c and "a2" in c and "%" in c)
+            )
+        ]
+        print(scatter_features)
 
         # listtask = List()
         datatask = DataBucket("Input")  # None, name='Input')
         stask = SummaryStats(
             None, features=[f"rel {f}" for f in sel_features], singledf=False
         )  # , log_stdout=True)
-        pcatask = PCAnalysis(None, explainedhisto=True)  # , log_stdout=True)
-        scattertask = ScatterPlot(None, features=sel_features)
+        scattertask = ScatterPlot(None, features=scatter_features)
         relchangetask = RelativeChange(None)
         lineplottask = LinePlot(None)
+        pairplottask = PairPlot(None)
         pivottask = Pivot(None)
         barplottask = BarPlot(None)
-        kdetask = KDE(None)
+        kdetask = KDE()
         # cats = list(data.select_dtypes('category').columns.values)
         with Flow(f"{self.name}", executor=executor, result=result) as flow:
             # input = Parameter('input', default=data)
             inputresult = datatask(
                 name="Input", input=self.input, input_select=[0], task_tags="Input"
             )
-
+            summary = stask(
+                input=inputresult,
+                input_select=[0],
+                grouping=[sel_grouping[0]],
+                features=sel_features,
+                aggs=["count", "median", "mean", "std", "sem"],
+                singledf=True,
+                prefix="Stats-",
+            )
+            counts = stask(
+                input=inputresult,
+                input_select=[0],
+                grouping=sel_grouping,
+                features=[sel_features[0]],
+                aggs=["count"],
+                singledf=True,
+                prefix="Counts-",
+            )
+            pairplots = pairplottask(
+                input=inputresult,
+                input_select=[0],
+                grouping=[sel_grouping[0]],
+                x_vars=[f for f in sel_features if "FAD" in f],
+                y_vars=[f for f in sel_features if "FAD" in f],
+                diag_kind="KDE",
+                prefix="FAD-",
+            )
+            pairplots = pairplottask(
+                input=inputresult,
+                input_select=[0],
+                grouping=[sel_grouping[0]],
+                x_vars=[f for f in sel_features if "NAD" in f],
+                y_vars=[f for f in sel_features if "NAD" in f],
+                diag_kind="KDE",
+                prefix="NADPH-",
+            )
             reltable = relchangetask(
                 input=inputresult,
                 input_select=[0],
-                grouping=["FOV", "Cell"],
+                grouping=sel_grouping[1:],
                 features=sel_features,
-                reference_group="Treatment",
-                reference_value="ctrl",
+                reference_group=sel_grouping[0],
+                reference_value=data[sel_grouping[0]].unique()[0],
                 method="mean",
             )
             srelresult = stask(
                 input=reltable["Table: Relative Change"],
                 input_select=[0],
-                grouping=["Cell", "FOV", "Treatment"],
+                grouping=sel_grouping[::-1],
                 features=[f"rel {f}" for f in sel_features],
                 aggs=["mean"],
-                singledf=False,
+                singledf=True,
+                prefix="Relative Stats-",
             )
             # pivotresult = results_to_tasks(pivottask(data=srelresult['Data: Summarize'], input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean']))
-            lineplotresult = lineplottask(
-                input=reltable["Table: Relative Change"],
+            scatter = scattertask(
+                input=inputresult,
                 input_select=[0],
-                grouping=["Treatment", "FOV"],
-                features=["rel FLIRR"],
+                grouping=[sel_grouping[0]],
+                features=scatter_features,
+            )
+            lineplotresult = lineplottask.map(
+                input=unmapped(reltable["Table: Relative Change"]),
+                input_select=unmapped([0]),
+                grouping=unmapped(
+                    sel_grouping[0:2] if len(sel_grouping) > 1 else sel_grouping
+                ),
+                features=[["rel " + c] for c in sel_features],
             )
 
             # sresult = results_to_tasks(stask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=allfeatures,aggs=['max','mean','median','count']))
             # listtask = to_list(scattertask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=sel_features))
             # scatter = data_task.map(listtask)
-            scatter = scattertask(
-                input=inputresult,
-                input_select=[0],
-                grouping=["Treatment"],
-                features=sel_features,
-            )
-
-            pcaresult = pcatask(
-                input=inputresult,
-                input_select=[0],
-                features=all_features,
-                explainedhisto=True,
-            )
 
             # reltable = datatask(name='Relative Change', data=relchresult)
-            # lineplotresult = results_to_tasks(lineplottask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR']))
+            # lineplotresult = results_to_tasks(lineplottask(data=reltable['Table: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel '+c for c in sel_features]))
 
             # barplot = results_to_tasks(barplottask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'], features=['FLIRR']))
-            # kdeplot = results_to_tasks(kdetask(data=reltable['Data: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel FLIRR']))
+            kdeplot = kdetask.map(
+                input=unmapped(inputresult),
+                input_select=unmapped([0]),
+                grouping=unmapped([sel_grouping[0]]),
+                features=[[c] for c in sel_features],
+            )
             # sresult2 = results_to_tasks(stask(data=sresult['Data: Summarize'], input_select=[0], grouping=['FOV'], features=['FLIRR\nmean'], aggs=['max']))
             # sresult3 = results_to_tasks(stask(data=pcaresult, input_select=[0], grouping=[], features=['Principal component 1'], aggs=['max']))
             # sresult4 = results_to_tasks(stask(data=pcaresult['PCA explained'], input_select=[0], grouping=['PCA component'], features=['explained var ratio'], aggs=['max']))

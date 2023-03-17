@@ -235,7 +235,7 @@ class dataimporter:
                 cdflist.append(filecdf)
 
         if len(dflist) == 0:
-            return  # None, filenames, None
+            return # None, filenames, None
         else:
             fheaders = set(fheaders + comboheaders)
             df = pd.concat(dflist).reset_index(drop=True)

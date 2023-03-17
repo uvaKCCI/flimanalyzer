@@ -4,21 +4,12 @@
 *.log
 *.svg
 *.model
-<<<<<<< HEAD
-flimanalyzer.egg-info
-data
-papers
-build
-_build
-dist
-=======
 /flimanalyzer.egg-info
 /build
 docs/_build
 /data
 /dist
->>>>>>> prefect
+/paper
 .vscode
 *.egg-info
 .DS_Store
-dask-worker-space
