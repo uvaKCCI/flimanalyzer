@@ -18,6 +18,19 @@ from flim import utils
 
 
 class LocalResultClear(LocalResult):
+    """def __init__(self, dir: str = None, validate_dir: bool = True, **kwargs):
+    if dir is not None:
+        cleaned_dir = (
+            repr(dir)
+            .replace("%", "pcent")
+            .replace("\r", "")
+            .replace("\n", " ")
+            .replace("|", "_")
+        )
+    else:
+        cleaned_dir = dir
+    super().__init__(cleaned_dir, validate_dir, **kwargs)"""
+
     def write(self, value, **kwargs):
         # store relevant params for location templating
         keys = [k.split(":")[0] for k in re.findall("(?<=\{).*?(?=\})", self.location)]
@@ -45,7 +58,8 @@ class LocalResultClear(LocalResult):
                         dirpath[3:-1]
                         .replace("%", "pcent")
                         .replace("\r", "")
-                        .replace("\n", " ")
+                        .replace("\\n", " ")
+                        .replace("|", "_")
                     )
                     savepath = re.sub(":\s?", "_", savepath)
                     v.to_csv(drive + savepath)
@@ -56,8 +70,9 @@ class LocalResultClear(LocalResult):
                     savepath = (
                         dirpath[3:-1]
                         .replace("%", "pcent")
-                        .replace("\r", "")
-                        .replace("\n", " ")
+                        .replace("\\r", "")
+                        .replace("\\n", " ")
+                        .replace("|", "_")
                     )
                     savepath = re.sub(":\s?", "_", savepath)
                     v.savefig(drive + savepath)
@@ -67,8 +82,9 @@ class LocalResultClear(LocalResult):
                     savepath = (
                         dirpath[3:-1]
                         .replace("%", "pcent")
-                        .replace("\r", "")
-                        .replace("\n", " ")
+                        .replace("\\r", "")
+                        .replace("\\n", " ")
+                        .replace("|", "_")
                     )
                     savepath = re.sub(":\s?", "_", savepath)
                     dump(v, drive + savepath)
