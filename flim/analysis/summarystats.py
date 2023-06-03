@@ -9,6 +9,7 @@ Created on Thu Dec 17 09:50:44 2020
 import numpy as np
 import pandas as pd
 import wx
+from collections import OrderedDict
 from importlib_resources import files
 
 from flim.plugin import plugin, ALL_FEATURES
@@ -211,7 +212,7 @@ class SummaryStats(AbstractPlugin):
             return [self.params]
 
     def execute(self):
-        summaries = {}
+        summaries = OrderedDict()
         data = list(self.input.values())[0]
         sel_functions = [self.agg_functions[f] for f in self.params["aggs"]]
         features = self.params["features"]

@@ -292,6 +292,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             utils.clean(f"{str(i)} e{last_epoch:04d}")
             for i in list(itertools.product(batch_sizes, rates, decays))
         ]
+        logging.debug(f"combinations={combinations}")
         batch_sizes, rates, decays = utils.permutate(
             self.params["batch_size"],
             self.params["learning_rate"],
@@ -416,6 +417,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             )
 
             flirr_pca_f1_tags = ["FLIRR"] + ["PCA"] + [f"{c}" for c in combinations]
+            logging.debug(f"flirr_pca_f1_tags={flirr_pca_f1_tags}")
 
             kderesults_F1 = kdetask.map(
                 input=[input_run_filtered, pcaresults["Table: PCA Components"]]
