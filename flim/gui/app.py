@@ -25,6 +25,7 @@ from pubsub import pub
 from prefect import Flow
 from prefect.backend import FlowRunView
 from prefect.engine.state import State
+from setuptools_scm import get_version
 from wx.lib.newevent import NewEvent
 
 import flim.analysis
@@ -121,8 +122,9 @@ class AppFrame(wx.Frame):
         self.windowframes = {}
         self.window_zorder = []
 
+        version = get_version()
         super(AppFrame, self).__init__(
-            None, wx.ID_ANY, title=f"FLIM Data Analyzer {flim.__version__}"
+            None, wx.ID_ANY, title=f"FLIM Data Analyzer {version}"
         )  # , size=(600, 500))
 
         tb = wx.ToolBar(self, -1)
