@@ -15,7 +15,7 @@ Python package for analysis of Fluoresence Lifetime Imaging Microscopy (FLIM) da
 * wxpython (4.0.7)
 * pypubsub
 * python.app (for Mac OSX)
-* setuptools_fcm
+* setuptools_scm
 
 **Windows Installation:**
 * Install VS Code
