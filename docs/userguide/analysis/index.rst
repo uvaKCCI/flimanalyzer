@@ -19,8 +19,7 @@ The shown example table contains the following categorical columns that may be u
      - Description
    * - .. image:: /images/analysis/summary.png 
      - `Summary Table <summary.html>`_
-     - Calculates counts, min, max, mean, median, StDev, S.E.M,    
-25th percentile, and 75th percentile of grouped data.
+     - Calculates counts, min, max, mean, median, StDev, S.E.M, 25th percentile, and 75th percentile of grouped data.
    * - .. image:: /images/analysis/relchange.png 
      - `Relative Change <relchange.html>`_
      - Converts input data to fold-change values relative to mean/median of reference group.
