@@ -15,6 +15,7 @@
 * networkx
 * pypubsub
 * python.app (for MacOS X)
+* setuptools_scm
 
 ## Creating a Conda environment
 

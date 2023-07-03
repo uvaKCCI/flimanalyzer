@@ -19,7 +19,7 @@ The shown example table contains the following categorical columns that may be u
      - Description
    * - .. image:: /images/analysis/summary.png 
      - `Summary Table <summary.html>`_
-     - Calculates counts, min, max, mean, median, StDev, S.E.M, <br>25t percentile, and 75 percentile of grouped data.
+     - Calculates counts, min, max, mean, median, StDev, S.E.M, 25th percentile, and 75th percentile of grouped data.
    * - .. image:: /images/analysis/relchange.png 
      - `Relative Change <relchange.html>`_
      - Converts input data to fold-change values relative to mean/median of reference group.
@@ -28,19 +28,19 @@ The shown example table contains the following categorical columns that may be u
      - Performs an analysis of a data series spread across multiple table columns. 
    * - .. image:: /images/analysis/categorize.png 
      - `Categorize Data <categorize.html>`_
-     - categorizes data based on thresholded value bins in a specified table column. 
+     - Categorizes data based on thresholded value bins in a specified table column. 
    * - .. image:: /images/analysis/randomforest.png 
      - `Random Forest <randomforest.html>`_
      - Performs a random forest classification analysis for grouped data. 
    * - .. image:: /images/analysis/pca.png 
      - `Principal Component Analysis <pca.html>`_
-     - Performs a principal component analysis for grouped data. 
+     - Reduces the dimensionality of dataset and outputs principal component values. 
    * - .. image:: /images/analysis/kmeans.png 
      - `K-Means <kmeans.html>`_
-     - Groups similar data points in a cluster.
+     - Groups similar data points into clusters.
    * - .. image:: /images/analysis/ks.png 
      - `KS Statistics <ks.html>`_
-     - ks..
+     - Applies Kolmogorov–Smirnov test, to measure similarity between sample and theoretical distributions.
    * - .. image:: /images/analysis/aetrain.png 
      - `Autoencoder Training <aetrain.html>`_
      - Trains an autoencoder model on selected data features. 

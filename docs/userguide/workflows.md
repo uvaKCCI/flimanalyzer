@@ -19,7 +19,7 @@ The `Test Workflow` tool performs the user-configured workflow on a set of data,
 
 **Toolbar Icon:** ![](/images/analysis/heatmap.png)
 
-The `FLIM Data Simulation Tuning` tool uses an autoencoder to generate simulated data and performs the workflow on the new dataset. The results of the workflow are saved in the selected file directory.
+The `FLIM Data Simulation Tuning` tool uses an autoencoder to first train a model, then apply that model to the original dataset to generate a larger simulated dataset. The Keck Center currently has this tool configured to output various plots and data tables to check the precision of the simulated data. This includes heatmaps and training loss plots. The results of the workflow are saved in the selected file directory.
 
 ## FLIM Feature Analysis
 
@@ -27,4 +27,4 @@ The `FLIM Data Simulation Tuning` tool uses an autoencoder to generate simulated
 
 **Toolbar Icon:** ![](/images/analysis/heatmap.png)
 
-The `FLIM Feature Analysis` tool requires two datasets: one that is the simulated data from the `FLIM Data Simulation Tuning` tool, and the other being a real dataset. The tool uses the model created by the autoencoder from the `FLIM Data Simulation Tuning` tool and is ran on the real data. The results of the workflow are saved in the selected file directory.
+The `FLIM Feature Analysis` tool requires two datasets: one that is the larger simulated dataset from the `FLIM Data Simulation Tuning` tool, and the other being a real dataset. The tool is then trained on the simulated data and the resulting model is applied to the real data. Similar to PCA, this tool uses dimensionality reduction to generate feature values based on a particular data grouping. Unlike PCA, however, the `FLIM Feature Analysis` tool is nonlinear. The results of the workflow are saved in the selected file directory.
