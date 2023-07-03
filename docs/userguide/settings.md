@@ -1,6 +1,6 @@
 # Settings
 
-The application settings can be saved as JSON configuration files.  The startup settings are loaded from `defaults.json`.  If the defaults.josn file is not found, the application is initialized with standard values.
+The application settings can be saved as JSON configuration files.  The startup settings are loaded from `defaults.json`.  If the defaults.json file is not found, the application is initialized with standard values.
 
 ## Load Settings
 
