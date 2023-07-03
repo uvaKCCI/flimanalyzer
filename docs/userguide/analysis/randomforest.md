@@ -1,6 +1,6 @@
 # Random Forest Analysis
 
-The `Random Forest Analysis` tool is a machine learning algorithm that deploys several decision trees to ultimately arrive at data feature importance scores. These importance scores tell you how much of an impact that feature has; a higher importance score means that data feature has more impact on the other features.
+The `Random Forest Analysis` tool is a machine learning algorithm that deploys decision trees to arrive at data feature importance scores. These scores measure each feature's impact on the predictive behavior of the model, with higher scores indicating a higher impact.
 
 **Menu Access:** `Analysis` > `Random Forest`
 
@@ -9,23 +9,23 @@ The `Random Forest Analysis` tool is a machine learning algorithm that deploys s
 ## Running the Analysis
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
-    ![](/images/data/exdata_table.png)
+    ![](/images/analysis/rf-start.png)
 
 
 2. Start the `Random Forest Analysis` by clicking on the icon in the toolbar or via the `Analysis` > `Random Forest` menu.
 
 3. In the `Configuration: Random Forest Analysis` dialog, define the classifier, n-estimator, and test size.
-    - `Classifier`: The categorical column by which the random forest will classify the data by.
+    - `Classifier`: One of the categorical columns. It defines what you want to "predict." Using `Treatment` as a classifier, for example, will create a model that will determine which data features are most important in predicting a data point's treatment.
     - `N-estimator`: The number of trees used, which will default to 100.
     - `Test Size`: The ratio of testing data to training data, which will default to 0.3. This means that the tool will use 30% test data and 70% training data.
     
     
-    ![](/images/analysis/random_config.png)
+    ![](/images/analysis/rf-config.png)
     
     
-4. Select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
+4. Select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
 
-  In the example, input data is classified by `Treatment`, and uses the default values for both `N-estimator` and `Test size`. Prior to opening the Random Forest tool, the `Summarize` tool was used to find the mean for FAD a1, FAD a2, FAD chi, NAD(P)H a1, and NAD(P)H a2, grouped by 'Cell, FOV, Treatment`. This explains why only those data features appear in the configuration box.
+  In the example, input data is classified by `Treatment`, and uses the default values for both `N-estimator` and `Test size`. 
   
 4. Click `OK`.
 
@@ -38,11 +38,11 @@ The `Random Forest Analysis` tool is a machine learning algorithm that deploys s
 
 Importance Histogram using the configuration settings shown before:
 
-![](/images/analysis/random_results1.png)
+![](/images/analysis/rf-output1.png)
 
 New data table showing each data feature's importance score:
 
-![](/images/analysis/random_reults2.png)
+![](/images/analysis/rf-output2.png.png)
 
-In this example, NAD(P)H a1 had the highest importance score by a decent margin, meaning that it was more impactful in the generated decisions trees than the other selected features.
+In this example, FAD a1 had the highest importance score, meaning that it was more impactful in predicting the treatment of a particular cell. There is likely large variation in FAD a1 values across the various treatments.
 
