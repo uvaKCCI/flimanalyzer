@@ -11,7 +11,7 @@ Information about `Settings` can be found [here](/userguide/settings).
 
 ## Data
 
-The `Data` menu item provides several options for adjusting your data. After having at least one data file open in FLIManalyzer, you may use these adjustment tools. 
+The `Data` menu item provides several options for altering the presentation of your data, such as the `Sort` and `Filter` tools. After having at least one data file open in FLIManalyzer, you may use these tools. 
 
 ## Analysis
 
