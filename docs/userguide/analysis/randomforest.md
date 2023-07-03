@@ -38,11 +38,11 @@ The `Random Forest Analysis` tool is a machine learning algorithm that deploys d
 
 Importance Histogram using the configuration settings shown before:
 
-![](/images/analysis/rf-output1.png)
+![](/images/analysis/rf-output.png)
 
 New data table showing each data feature's importance score:
 
-![](/images/analysis/rf-output2.png.png)
+![](/images/analysis/rf-output2.png)
 
 In this example, FAD a1 had the highest importance score, meaning that it was more impactful in predicting the treatment of a particular cell. There is likely large variation in FAD a1 values across the various treatments.
 
