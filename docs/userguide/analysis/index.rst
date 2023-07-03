@@ -29,7 +29,7 @@ The shown example table contains the following categorical columns that may be u
      - Performs an analysis of a data series spread across multiple table columns. 
    * - .. image:: /images/analysis/categorize.png 
      - `Categorize Data <categorize.html>`_
-     - categorizes data based on thresholded value bins in a specified table column. 
+     - Categorizes data based on thresholded value bins in a specified table column. 
    * - .. image:: /images/analysis/randomforest.png 
      - `Random Forest <randomforest.html>`_
      - Performs a random forest classification analysis for grouped data. 
