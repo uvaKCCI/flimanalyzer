@@ -9,7 +9,7 @@ The `PCA` tool is used to decrease the dimensionality of the dataset, making it 
 ## Running the Analysis
 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
-    ![](/images/data/rf-start.png)
+    ![](/images/analysis/rf-start.png)
 
 2. Start the PCA tool by clicking on the icon in the toolbar or via the `Analysis` > `PCA` menu.
 
