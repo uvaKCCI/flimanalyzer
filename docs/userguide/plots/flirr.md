@@ -26,7 +26,7 @@ The 'FLIRR Plot` tool creates a scatter plot, line plot, and KDE plots based on 
 
 **Example Results:** FLIRR Plot
 
-![](/images/analysis/flirr-results.png)
+![](/images/analysis/flirr-result.png)
 
 ```{note}
 Plots can be manipulated and saved as described in the [Plots](/userguide/plots/index) section.
