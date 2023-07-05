@@ -68,6 +68,7 @@ Create a Plot
     histogram
     kde
     heatmap
+    flirr
 
 Save a Plot
 -----------
