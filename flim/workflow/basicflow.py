@@ -275,6 +275,10 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
         super().__init__(name=name, **kwargs)
         # self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
 
+    def get_icon(self):
+        source = files(flim.resources).joinpath("flirr_test1.png")
+        return wx.Bitmap(str(source))
+        
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update(
