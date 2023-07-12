@@ -11,7 +11,7 @@ The 'FLIRR Plot` tool creates a scatter plot, line plot, and KDE plots based on 
 1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
     ![](/images/analysis/flirr_data.png)
 
-2. Start the FLIRR Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `Heatmap` menu.
+2. Start the FLIRR Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `FLIRR Plot` menu.
 
 3. In the `Configuration: FLIRR Plot` dialog, select the desired data grouping.
 
