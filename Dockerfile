@@ -2,8 +2,14 @@ FROM continuumio/miniconda3:latest
 
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install -y libxxf86vm1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # repo cloned into /app dir, via the period at the end
 RUN git clone https://github.com/uvaKCCI/flimanalyzer.git .
+
 
 RUN conda install -c conda-forge mamba -y
 
@@ -22,5 +28,6 @@ RUN python setup.py install
 
 ENV PREFECT__FLOWS__CHECKPOINTING=true
 
-CMD ["flimanalyzer"]
+CMD ["/opt/conda/envs/flimenv-0.4.0/bin/flimanalyzer"]
+
 
