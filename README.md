@@ -39,7 +39,7 @@ Activate the Conda environment, install the MacOS specific python.app package, a
 ```
 conda activate flimenv
 conda install python.app
-sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flimanalyzer)
+sed -i '' -e "1s/.*/\#\!\/usr\/bin\/env pythonw/" $(which flimanalyzer)
 ```
 
 ## Run the application
