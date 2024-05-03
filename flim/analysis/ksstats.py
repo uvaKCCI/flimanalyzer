@@ -32,6 +32,8 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
         selectedfeatures="All",
         comparison="Treatment",
         alpha=0.05,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -45,6 +47,8 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=1,
             optgridcols=0,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -146,6 +150,7 @@ class KSStats(AbstractPlugin):
             selectedfeatures=self.params["features"],
             comparison=self.params["comparison"],
             alpha=self.params["alpha"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

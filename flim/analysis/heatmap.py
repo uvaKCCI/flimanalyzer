@@ -23,6 +23,8 @@ class HeatmapConfigDlg(BasicAnalysisConfigDlg):
         selectedfeatures="All",
         corr_type="pearson",
         numbers=False,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -35,6 +37,8 @@ class HeatmapConfigDlg(BasicAnalysisConfigDlg):
             enablegrouping=False,
             selectedgrouping=selectedgrouping,
             selectedfeatures=selectedfeatures,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -115,6 +119,7 @@ class Heatmap(AbstractPlugin):
             selectedfeatures=selfeatures,
             corr_type=self.params["corr_type"],
             numbers=self.params["numbers"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

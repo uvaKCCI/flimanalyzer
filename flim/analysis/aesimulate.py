@@ -46,6 +46,8 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
         add_noise=True,
         snr_db=0.0,
         snr_unit=utils.NOISE_UNIT[-1],
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -66,6 +68,8 @@ class AESimConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -266,6 +270,8 @@ class AESimulate(AbstractPlugin):
             sets=self.params["sets"],
             add_noise=self.params["add_noise"],
             snr_db=self.params["snr_db"],
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

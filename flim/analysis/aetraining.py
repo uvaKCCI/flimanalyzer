@@ -71,6 +71,8 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         device="cpu",
         rescale=False,
         checkpoint_interval=20,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -97,6 +99,8 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -252,7 +256,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
         self.modelfiletxt = wx.StaticText(self.panel, label=self.modelfile)
         browsebutton = wx.Button(self.panel, wx.ID_ANY, "Choose...")
-        browsebutton.Bind(wx.EVT_BUTTON, self._on_browse)
+        browsebutton.Bind(wx.EVT_BUTTON, self._on_result_browse)
 
         timeseries_sizer.Add(
             wx.StaticText(self.panel, label="Model Architecture"),
@@ -333,7 +337,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.model_descr.Replace(0, self.model_descr.GetLastPosition(), descr)
         self.model_layers.Replace(0, self.model_layers.GetLastPosition(), layer_txt)
 
-    def _on_browse(self, event):
+    def _on_result_browse(self, event):
         with wx.FileDialog(
             self, "Model File", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
         ) as fileDialog:
@@ -490,6 +494,7 @@ class AETraining(AbstractPlugin):
             device=self.params["device"],
             rescale=self.params["rescale"],
             checkpoint_interval=self.params["checkpoint_interval"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

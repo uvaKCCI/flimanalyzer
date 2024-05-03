@@ -18,6 +18,8 @@ class UnPivotConfigDlg(BasicAnalysisConfigDlg):
         selectedfeatures="All",
         category_name="",
         feature_name="",
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -33,6 +35,8 @@ class UnPivotConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=2,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -113,6 +117,7 @@ class UnPivot(AbstractPlugin):
             selectedfeatures=selfeatures,
             category_name=category_name,
             feature_name=feature_name,
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

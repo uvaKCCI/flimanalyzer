@@ -36,6 +36,8 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
         datatable=False,
         featuresettings={},
         settingspecs={},
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -56,6 +58,8 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
             enablefeatsettings=True,
             featuresettings=featuresettings,
             settingspecs=settingspecs,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -212,6 +216,7 @@ class FreqHisto(AbstractPlugin):
             datatable=self.params["datatable"],
             featuresettings=self.params["featuresettings"],
             settingspecs=binspecs,
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

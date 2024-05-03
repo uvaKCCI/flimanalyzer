@@ -235,7 +235,7 @@ class dataimporter:
                 cdflist.append(filecdf)
 
         if len(dflist) == 0:
-            return # None, filenames, None
+            return  # None, filenames, None
         else:
             fheaders = set(fheaders + comboheaders)
             df = pd.concat(dflist).reset_index(drop=True)
@@ -250,7 +250,9 @@ class dataimporter:
             allheaders = list(df.columns.values)
             logging.debug(self.get_reserved_categorycols(parser))
             categories = [
-                key for key in self.get_reserved_categorycols(parser) if key in allheaders
+                key
+                for key in self.get_reserved_categorycols(parser)
+                if key in allheaders
             ] + comboheaders
             """df['ROI'] = df.groupby(categories).cumcount() + 1
             df['ROI'] = [str(roi) for roi in df['ROI']]
