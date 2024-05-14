@@ -141,7 +141,8 @@ def grouped_meanbarplot(
 
     if len(categories) > 1 or stacked:
         ticklabels = [
-            str(l).replace("'", "").replace("(", "").replace(")", "") for l in ticklabels
+            str(l).replace("'", "").replace("(", "").replace(")", "")
+            for l in ticklabels
         ]
         h, labels = ax.get_legend_handles_labels()
         if stacked:
@@ -219,6 +220,8 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         etype="std",
         dropna=True,
         bartype="single",
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
         legend=True,
@@ -238,6 +241,8 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=1,
             optgridcols=0,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -416,6 +421,8 @@ class BarPlot(AbstractPlugin):
             dropna=dropna,
             ebar=ebar,
             etype=etype,
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
             legend=legend,

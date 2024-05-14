@@ -9,6 +9,7 @@ Created on Tue Jun 12 13:35:51 2018
 import logging
 import itertools
 import re
+import json
 from collections import OrderedDict
 import wx.grid
 from pubsub import pub
@@ -93,6 +94,8 @@ def save_figure(
 
 
 class BasicAnalysisConfigDlg(wx.Dialog):
+    # TODO: Add the ability to save the configuration after a run (same format as Config class), all saving should go to the working dir
+    # TODO: Add the ability to load the configuration from a json, incorrect format,etc should give feedback w/o crash
     def __init__(
         self,
         parent,
@@ -110,6 +113,8 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         enablefeatsettings=False,
         featuresettings={},
         settingspecs={},
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -125,17 +130,23 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.enablefeatsettings = enablefeatsettings
         self.featuresettings = featuresettings
         self.settingspecs = settingspecs
+        self.saveconfig = saveconfig
+        self.config_file = config_file
         self.autosave = autosave
         self.working_dir = working_dir
 
         data = list(self.input.values())[0]
         allfeatures = self.get_selectable_features()
         # ordered dict with label:columm items; column headers are converted to single line labels
-        self.allfeatures = OrderedDict((" ".join(c.split("\n")), c) for c in allfeatures)
+        self.allfeatures = OrderedDict(
+            (" ".join(c.split("\n")), c) for c in allfeatures
+        )
         if isinstance(selectedfeatures, str):
             self.selectedfeatures = {selectedfeatures: selectedfeatures}
         else:
-            self.selectedfeatures = {" ".join(c.split("\n")): c for c in selectedfeatures}
+            self.selectedfeatures = {
+                " ".join(c.split("\n")): c for c in selectedfeatures
+            }
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -161,18 +172,34 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
         )
 
-        storagesizer = wx.BoxSizer(wx.HORIZONTAL)
+        storagesizer = wx.BoxSizer(wx.VERTICAL)
+
+        resultsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.autosave_cb = wx.CheckBox(self.panel, wx.ID_ANY, "Autosave")
         self.Bind(wx.EVT_CHECKBOX, self._on_checked)
         self.autosave_cb.SetValue(self.autosave)
-        self.browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
-        self.browse_button.Bind(wx.EVT_BUTTON, self._on_browse)
-        self.browse_button.Enable(self.autosave)
         self.workingdirtxt = wx.StaticText(self.panel, label=self.working_dir)
         self.workingdirtxt.Enable(self.autosave)
-        storagesizer.Add(self.autosave_cb)
-        storagesizer.Add(self.browse_button)
-        storagesizer.Add(self.workingdirtxt)
+        self.save_browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
+        self.save_browse_button.Bind(wx.EVT_BUTTON, self._on_result_browse)
+        self.save_browse_button.Enable(self.autosave)
+        resultsizer.Add(self.autosave_cb)
+        resultsizer.Add(self.save_browse_button)
+        resultsizer.Add(self.workingdirtxt)
+        storagesizer.Add(resultsizer)
+
+        configsizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.saveconfig_cb = wx.CheckBox(self.panel, wx.ID_ANY, "Save Config")
+        self.saveconfig_cb.SetValue(self.saveconfig)
+        self.config_browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
+        self.config_browse_button.Bind(wx.EVT_BUTTON, self._on_config_browse)
+        self.configfiletxt = wx.StaticText(self.panel, label="")
+        self.configfiletxt.Enable(self.saveconfig)
+        configsizer.Add(self.saveconfig_cb)
+        configsizer.Add(self.config_browse_button)
+        configsizer.Add(self.configfiletxt)
+        storagesizer.Add(configsizer)
+
         sizer.Add(storagesizer)
         sizer.Add(
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
@@ -270,7 +297,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.Show()
 
     def _update_feature_cbs(self):
-        if self.cbsizer: 
+        if self.cbsizer:
             self.cbsizer.Clear(delete_windows=True)
         if self.allfeatures is None:
             self.allfeatures = {}
@@ -299,11 +326,16 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         return allfeatures
 
     def _on_checked(self, event):
-        is_checked = self.autosave_cb.GetValue()
-        self.workingdirtxt.Enable(is_checked)
-        self.browse_button.Enable(is_checked)
+        if event.GetEventObject() is self.autosave_cb:
+            is_checked = self.autosave_cb.GetValue()
+            self.workingdirtxt.Enable(is_checked)
+            self.save_browse_button.Enable(is_checked)
+        elif event.GetEventObject() is self.saveconfig_cb:
+            is_checked = self.saveconfig_cb.GetValue()
+            self.configfiletxt.Enable(is_checked)
+            self.config_browse_button.Enable(is_checked)
 
-    def _on_browse(self, event):
+    def _on_result_browse(self, event):
         dirname = self.workingdirtxt.GetLabel()
         with wx.DirDialog(
             self,
@@ -317,6 +349,19 @@ class BasicAnalysisConfigDlg(wx.Dialog):
                 return
             dirname = dirDialog.GetPath()
             self.workingdirtxt.SetLabel(dirname)
+
+    def _on_config_browse(self, event):
+        filename = self.configfiletxt.GetLabel()
+        with wx.FileDialog(
+            self,
+            "Tool Config File",
+            defaultFile=filename,
+            style=wx.FD_DEFAULT_STYLE,
+        ) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            filename = fileDialog.GetPath()
+            self.configfiletxt.SetLabel(filename)
 
     def get_option_panels(self):
         return []
@@ -346,6 +391,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         if self.cboxes:
             for key in self.cboxes:
                 self.cboxes[key].SetValue(True)
+                pub.sendMessage
 
     def OnDeselectAll(self, event):
         if self.cboxes:
@@ -379,6 +425,8 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             params["input"] = self.input
         else:
             params["input"] = self.input
+        params["saveconfig"] = self.saveconfig_cb.GetValue()
+        params["config_file"] = self.configfiletxt.GetLabel()
         params["autosave"] = self.autosave_cb.GetValue()
         params["working_dir"] = self.workingdirtxt.GetLabel()
         return params
@@ -425,7 +473,9 @@ class SelectGroupsDlg(wx.Dialog):
         buttonsizer.Add(self.cancelButton, 0, wx.ALL, 10)
 
         mainsizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
-        mainsizer.Add(wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5)
+        mainsizer.Add(
+            wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5
+        )
         mainsizer.Add(selectbsizer, 0, wx.ALIGN_CENTER, 5)
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(mainsizer, 0, wx.ALIGN_CENTER, 5)

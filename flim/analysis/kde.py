@@ -52,7 +52,10 @@ class KDE(AbstractPlugin, Task):
             return_type["Plot: KDE"] = matplotlib.figure.Figure
         else:
             return_type.update(
-                {f"Plot: KDE {feature}": matplotlib.figure.Figure for feature in features}
+                {
+                    f"Plot: KDE {feature}": matplotlib.figure.Figure
+                    for feature in features
+                }
             )
         return return_type
 
@@ -87,6 +90,8 @@ class KDE(AbstractPlugin, Task):
             input=self.input,
             selectedgrouping=selgrouping,
             selectedfeatures=selfeatures,
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )
@@ -190,7 +195,9 @@ class KDE(AbstractPlugin, Task):
                     uniquevalues[1]
                 ) <= len(default_linestyles):
                     colors = [c for c in sns.color_palette()[: len(uniquevalues[0])]]
-                    linestyles = [ls for ls in default_linestyles[: len(uniquevalues[1])]]
+                    linestyles = [
+                        ls for ls in default_linestyles[: len(uniquevalues[1])]
+                    ]
                     for c in colors:
                         for ls in linestyles:
                             styles.append({"color": c, "linestyle": ls})

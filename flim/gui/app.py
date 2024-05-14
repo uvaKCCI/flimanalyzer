@@ -222,7 +222,9 @@ class AppFrame(wx.Frame):
             menuitem = menu.Append(wx.NewId(), pname)
             self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
             if toolbar:
-                tool = toolbar.AddTool(wx.NewId(), pname, plg.get_icon(), shortHelp=pname)
+                tool = toolbar.AddTool(
+                    wx.NewId(), pname, plg.get_icon(), shortHelp=pname
+                )
                 self.Bind(wx.EVT_TOOL, self.on_run_plugin, tool)
         return menu
 
@@ -298,7 +300,9 @@ class AppFrame(wx.Frame):
             config = dlg.get_config()
 
             parsername = config.get([cfg.CONFIG_PARSER_CLASS])
-            parser = flim.core.parser.instantiate_parser("flim.core.parser." + parsername)
+            parser = flim.core.parser.instantiate_parser(
+                "flim.core.parser." + parsername
+            )
             if parser is None:
                 logging.warning(f"Could not instantiate parser {parsername}")
                 return
@@ -476,6 +480,13 @@ class AppFrame(wx.Frame):
         if parameters is None:
             return
         self.config.update(parameters, keys)
+
+        if "saveconfig" in parameters and parameters["saveconfig"]:
+            self.config.write_to_json(
+                configfile=os.path.join(parameters["config_file"]),
+                searchkey=[cfg.CONFIG_PLUGINS, pluginname],
+            )
+
         logging.debug(f"Updating keys={keys}")
         features = parameters["features"]
         categories = parameters["grouping"]

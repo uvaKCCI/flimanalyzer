@@ -37,6 +37,8 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
         allaggs=[],
         selectedaggs="All",
         singledf=False,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -52,6 +54,8 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -182,6 +186,7 @@ class SummaryStats(AbstractPlugin):
             allaggs=self.agg_functions,
             selectedaggs=self.params["aggs"],
             singledf=self.params["singledf"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

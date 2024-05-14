@@ -197,7 +197,10 @@ class Config:
     def read_from_json(self, configfile, defaultonfail=True):
         try:
             with open(configfile, "r") as fp:
-                self.parameters = json.load(fp)  # , object_hook=self._to_utf)
+                default = Config()
+                default.create_default()
+                default.update(json.load(fp))
+                self.update(default.get())
                 self.modified = False
                 self.filename = configfile
             logging.info(f"Configuration loaded from {configfile}.")
@@ -211,10 +214,67 @@ class Config:
                 logging.info(f"Created default configuration.")
             return False
 
-    def write_to_json(self, configfile):
+    def write_to_json(self, configfile, searchkey=None):
+        def make_item_serializable(cfgitem):
+            item = None
+            if isinstance(cfgitem, dict):
+                item = {}
+                for key in cfgitem.keys():
+                    if (
+                        not isinstance(cfgitem[key], dict)
+                        and not isinstance(cfgitem[key], list)
+                        and not isinstance(cfgitem[key], str)
+                        and not isinstance(cfgitem[key], bytes)
+                    ):
+                        item.update({key: str(cfgitem[key])})
+
+                    elif isinstance(cfgitem[key], dict) or isinstance(
+                        cfgitem[key], list
+                    ):
+                        item.update({key: make_item_serializable(cfgitem[key])})
+            elif isinstance(cfgitem, list):
+                item = []
+                for idx in range(0, len(cfgitem)):
+                    if (
+                        not isinstance(cfgitem[idx], dict)
+                        and not isinstance(cfgitem[idx], list)
+                        and not isinstance(cfgitem[idx], str)
+                        and not isinstance(cfgitem[idx], bytes)
+                    ):
+                        item[idx] = str(cfgitem[idx])
+
+                    elif isinstance(cfgitem[idx], dict) or isinstance(
+                        cfgitem[idx], list
+                    ):
+                        item[idx] = make_item_serializable(cfgitem[idx])
+
+            return item
+
+        def make_serializable(cfg):
+            serializable = dict()
+            serializable.update(cfg)
+
+            for key in cfg.keys():
+                if (
+                    not isinstance(cfg[key], dict)
+                    and not isinstance(cfg[key], list)
+                    and not isinstance(cfg[key], str)
+                    and not isinstance(cfg[key], bytes)
+                ):
+                    serializable[key] = str(cfg[key])
+                elif isinstance(cfg[key], dict) or isinstance(cfg[key], list):
+                    serializable[key] = make_item_serializable(cfg[key])
+
+            return serializable
+
+        config_to_save = self.parameters
+        if searchkey is not None:
+            config_to_save = {searchkey[-1]: self.get(searchkey)}
+            config_to_save = make_serializable(config_to_save)
+
         try:
             with open(configfile, "w") as fp:
-                json.dump(self.parameters, fp, sort_keys=True, indent=4)
+                json.dump(config_to_save, fp, sort_keys=True, indent=4)
                 self.modified = False
                 self.filename = configfile
             logging.info(f"Configuration saved as {configfile}.")

@@ -28,6 +28,8 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         method="mean",
         refgroup="",
         refvalue="",
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -54,12 +56,14 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=1,
             optgridcols=0,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
 
     def get_option_panels(self):
-        #data = list(self.input.values())[0]
+        # data = list(self.input.values())[0]
         self.aggboxes = {}
         self.refgrp_combobox = wx.ComboBox(
             self.panel,
@@ -175,6 +179,7 @@ class RelativeChange(AbstractPlugin):
             method=self.params["method"],
             refgroup=self.params["reference_group"],
             refvalue=self.params["reference_value"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

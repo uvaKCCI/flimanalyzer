@@ -33,6 +33,8 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
         importancehisto=True,
         n_estimators=100,
         test_size=0.3,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -53,6 +55,8 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=1,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -171,6 +175,7 @@ class RandomForest(AbstractPlugin):
             n_estimators=self.params["n_estimators"],
             test_size=self.params["test_size"],
             importancehisto=self.params["importancehisto"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

@@ -319,6 +319,10 @@ class AbstractPlugin(Task):
             "features": [],
             "input": {},
             "prefix": None,
+            "saveconfig": False,
+            "config_file": os.path.join(
+                os.path.expanduser("~"), "FLIMAnalyzerResults", "configuration.json"
+            ),
             "autosave": False,
             "working_dir": os.path.join(os.path.expanduser("~"), "FLIMAnalyzerResults"),
         }
@@ -410,12 +414,12 @@ class AbstractPlugin(Task):
 
     def validate(self):
         """Validates the parameters currently set for the plugin.
-        
+
         Returns:
             boolean: True if set parameters satisfy plugin's requirements
-        """     
+        """
         return True
-        
+
     def configure(self, input: dict = input, input_select: str = None, **kwargs):
         """Updates the configuration with the passed arguments.
 
@@ -448,7 +452,7 @@ class AbstractPlugin(Task):
         )
         for data in self.input.values():
             if isinstance(input, pd.DataFrame) and len(data) == 0:
-                raise ValueError("Dataframe is enmpty.") 
+                raise ValueError("Dataframe is enmpty.")
         results = self.execute()
         if self.params["prefix"]:
             results = {f'{self.params["prefix"]}{k}': v for k, v in results.items()}

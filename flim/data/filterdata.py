@@ -34,6 +34,8 @@ class FilterConfigDlg(BasicAnalysisConfigDlg):
         use=True,
         show_dropped=False,
         inplace=False,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -49,6 +51,8 @@ class FilterConfigDlg(BasicAnalysisConfigDlg):
             enablefeatures=False,
             optgridrows=1,
             optgridcols=0,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -187,6 +191,7 @@ class Filter(AbstractPlugin):
             input=self.input,
             filter_params=filter_params,
             inplace=self.params["inplace"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )
