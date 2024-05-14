@@ -12,4 +12,5 @@ docs/_build
 /paper
 .vscode
 *.egg-info
+flim/_version.py
 .DS_Store

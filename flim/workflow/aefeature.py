@@ -31,7 +31,7 @@ from flim.data.mergedata import Merger
 from flim.data.sortdata import Sort
 from flim.analysis.aerun import RunAE
 from flim.analysis.aetraining import AETraining, AETrainingConfigDlg
-from flim.analysis.aesimulate import AESimulate
+from flim.analysis.aeaugment import AEAugment
 from flim.analysis.barplots import BarPlot
 from flim.analysis.heatmap import Heatmap
 from flim.analysis.kde import KDE
@@ -46,7 +46,7 @@ from flim.analysis.scatterplots import ScatterPlot
 from flim.analysis.barplots import BarPlot
 from flim.analysis.lineplots import LinePlot
 from flim.gui.dialogs import BasicAnalysisConfigDlg
-from flim.workflow.aetune import AESimTuneConfigDlg
+from flim.workflow.aetune import AEAugmentTuneConfigDlg
 from flim.workflow.basicflow import AbsWorkFlow
 
 
@@ -57,7 +57,7 @@ def list_to_dict(listofdict):
     return result
 
 
-class AEFeatureConfigDialog(AESimTuneConfigDlg):
+class AEFeatureConfigDialog(AEAugmentTuneConfigDlg):
     def __init__(
         self,
         parent,
@@ -201,7 +201,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
 
     def get_required_features(self):
         return ["any"]
-
+    
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update(
@@ -297,6 +297,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             utils.clean(f"{str(i)} e{last_epoch:04d}")
             for i in list(itertools.product(batch_sizes, rates, decays))
         ]
+        logging.debug(f"combinations={combinations}")
         batch_sizes, rates, decays = utils.permutate(
             self.params["batch_size"],
             self.params["learning_rate"],
@@ -423,6 +424,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             )
 
             flirr_pca_f1_tags = ["FLIRR"] + ["PCA"] + [f"{c}" for c in combinations]
+            logging.debug(f"flirr_pca_f1_tags={flirr_pca_f1_tags}")
 
             kderesults_F1 = kdetask.map(
                 input=[input_run_filtered, pcaresults["Table: PCA Components"]]

@@ -77,7 +77,7 @@ class AbsAutoencoder(nn.Module, BaseEstimator, TransformerMixin):
         return None
 
 
-class Autoencoder_One_Six(AbsAutoencoder):
+class Autoencoder_One_Six(AbsAutoencoder): #used for simulation
     def __init__(self, nb_param=2, hidden_size=6):
         super().__init__()
         self.name = "AE Simulator 1-6"
@@ -105,7 +105,7 @@ class Autoencoder_One_Six(AbsAutoencoder):
         )
 
 
-class Autoencoder_One_Three(AbsAutoencoder):
+class Autoencoder_One_Three(AbsAutoencoder): #also for simulation but isnt used
     def __init__(self, nb_param=2, hidden_size=3):
         super().__init__()
         self.name = "AE Simulator 1-3"
@@ -165,7 +165,7 @@ class Autoencoder_Two_Ten(AbsAutoencoder):
         )
 
 
-class Autoencoder_Two_Five(AbsAutoencoder):
+class Autoencoder_Two_Five(AbsAutoencoder): #also not really used
     def __init__(self, nb_param=2, hidden_size_1=5, hidden_size_2=1):
         super().__init__()
         self.name = "AE Dimensionality Reduction 2-5"

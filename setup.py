@@ -1,14 +1,10 @@
 import setuptools
-import flim
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-version = flim.__version__
-
 setuptools.setup(
-    name="flimanalyzer",  # Replace with your own username
-    version=version,
+    name="flimanalyzer",
     author="Karsten Siller",
     author_email="khsiller@gmail.com",
     description="FLIM Analyzer",
@@ -25,4 +21,6 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires=">=3.6",
+    use_scm_version=True,
+    setup_requires=["setuptools_scm"],
 )
