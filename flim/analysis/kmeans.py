@@ -41,6 +41,8 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
         n_init=4,
         max_iter=300,
         tolerance=1e-4,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -60,6 +62,8 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -229,6 +233,7 @@ class KMeansClustering(AbstractPlugin):
             n_init=self.params["n_init"],
             max_iter=self.params["max_iter"],
             tolerance=self.params["tolerance"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

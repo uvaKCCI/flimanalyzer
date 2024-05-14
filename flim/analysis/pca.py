@@ -34,6 +34,8 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
         keepstd=True,
         explainedhisto=False,
         n_components=None,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -50,6 +52,8 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=2,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -162,6 +166,7 @@ class PCAnalysis(AbstractPlugin):
             keepstd=self.params["keepstd"],
             explainedhisto=self.params["explainedhisto"],
             n_components=self.params["n_components"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

@@ -33,6 +33,8 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
         categories={},
         default="unassigned",
         mergeinput=True,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -50,6 +52,8 @@ class CategorizerConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=2,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -227,6 +231,7 @@ class Categorizer(AbstractPlugin):
             categories=self.params["categories"],
             default=self.params["default"],
             mergeinput=self.params["merge_input"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

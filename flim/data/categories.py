@@ -154,6 +154,8 @@ class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
         input,
         categories={},
         inplace=False,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -169,6 +171,8 @@ class CategoryOrderConfigDlg(BasicAnalysisConfigDlg):
             enablefeatures=False,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -294,6 +298,7 @@ class CategoryOrder(AbstractPlugin):
             self.input,
             categories=categories,
             inplace=self.params["inplace"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

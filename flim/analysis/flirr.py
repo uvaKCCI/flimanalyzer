@@ -55,6 +55,8 @@ class FLIRRPlot(AbstractPlugin):
             enablefeatures=False,
             selectedgrouping=selgrouping,
             selectedfeatures=selfeatures,
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

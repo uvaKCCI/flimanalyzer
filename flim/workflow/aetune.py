@@ -67,6 +67,8 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
         device="cpu",
         rescale=False,
         checkpoint_interval=20,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir=os.path.expanduser("~"),
     ):
@@ -93,6 +95,8 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -329,7 +333,7 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
         self.model_descr.Replace(0, self.model_descr.GetLastPosition(), descr)
         self.model_layers.Replace(0, self.model_layers.GetLastPosition(), layer_txt)
 
-    def _on_browse(self, event):
+    def _on_result_browse(self, event):
         dirname = self.workingdirtxt.GetLabel()
         with wx.DirDialog(
             self,
@@ -433,6 +437,7 @@ class AEWorkflow(AbsWorkFlow):
             device=self.params["device"],
             rescale=self.params["rescale"],
             checkpoint_interval=self.params["checkpoint_interval"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

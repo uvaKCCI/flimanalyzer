@@ -41,6 +41,8 @@ class PairPlotConfigDlg(BasicAnalysisConfigDlg):
         diag_kind="KDE",
         corner=False,
         hist_bins=20,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -57,6 +59,8 @@ class PairPlotConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=1,
             optgridcols=0,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -137,6 +141,7 @@ class PairPlot(AbstractPlugin):
             input=self.input,
             selectedgrouping=selgrouping,
             selectedfeatures=selfeatures,
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
             x_vars=self.params["x_vars"],

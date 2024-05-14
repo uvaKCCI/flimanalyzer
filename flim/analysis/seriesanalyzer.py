@@ -40,6 +40,8 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         deltacum=True,
         deltanorm=True,
         mergeinput=False,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -64,6 +66,8 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=1,
             optgridcols=0,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -265,6 +269,7 @@ class SeriesAnalyzer(AbstractPlugin):
             deltacum=deltacum,
             deltanorm=deltanorm,
             mergeinput=mergeinput,
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

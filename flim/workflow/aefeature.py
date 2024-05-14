@@ -78,6 +78,8 @@ class AEFeatureConfigDialog(AEAugmentTuneConfigDlg):
         device="cpu",
         rescale=False,
         checkpoint_interval=20,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir=os.path.expanduser("~"),
     ):
@@ -109,6 +111,8 @@ class AEFeatureConfigDialog(AEAugmentTuneConfigDlg):
             device=device,
             rescale=rescale,
             checkpoint_interval=checkpoint_interval,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -264,6 +268,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
             device=self.params["device"],
             rescale=self.params["rescale"],
             checkpoint_interval=self.params["checkpoint_interval"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )
@@ -328,7 +333,9 @@ class AEFeatureWorkflow(AbsWorkFlow):
 
             timeseries = Parameter("timeseries", default=self.params["timeseries"])
             timeseries_vals = [
-                v for v in data_train[self.params["timeseries"]].unique() if not "15" in v
+                v
+                for v in data_train[self.params["timeseries"]].unique()
+                if not "15" in v
             ]
             t_pairs = list(zip(timeseries_vals, timeseries_vals[1:]))
             ctrl_group = self.params["ctrl_group"]
@@ -509,7 +516,12 @@ class AEFeatureWorkflow(AbsWorkFlow):
                 ]
                 + [[f"PC 1\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]]
                 + len(combinations)
-                * [[f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]],
+                * [
+                    [
+                        f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}"
+                        for t in t_pairs
+                    ]
+                ],
                 ordering=unmapped({}),
                 orientation=unmapped("vertical"),  # 'horizontal'
                 bar_type=unmapped("stacked"),  # 'single', '100% stacked'

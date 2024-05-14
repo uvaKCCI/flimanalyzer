@@ -34,6 +34,8 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
         selectedfeatures="All",
         modelfile="",
         device="cpu",
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -47,6 +49,8 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -143,6 +147,8 @@ class RunAE(AbstractPlugin):
             selectedfeatures=self.params["features"],
             modelfile=self.params["modelfile"],
             device=self.params["device"],
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

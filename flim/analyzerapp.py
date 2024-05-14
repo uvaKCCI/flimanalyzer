@@ -226,6 +226,7 @@ def main():
 
 if __name__ == "__main__":
     import platform, multiprocessing
+
     if platform.system() == "Darwin":
-        multiprocessing.set_start_method('spawn')
+        multiprocessing.set_start_method("spawn")
     main()
