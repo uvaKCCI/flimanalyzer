@@ -226,6 +226,23 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         working_dir="",
         legend=True,
     ):
+        barplot_config = {  # TODO maybe change to dict(key=val, ) format
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+            "orientation": orientation,
+            "ordering": ordering,
+            "ebar": ebar,
+            "etype": etype,
+            "sel_bartype": bartype,
+            "dropna": dropna,
+            "legend": legend,
+        }
+
         self.orientation = orientation
         self.ordering = ordering
         self.ebar = ebar
@@ -233,19 +250,10 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         self.sel_bartype = bartype
         self.dropna = dropna
         self.legend = legend
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=1,
-            optgridcols=0,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
-        )
+
+        init_config = dict(BasicAnalysisConfigDlg.base_params)
+        init_config.update(barplot_config)
+        super().__init__(parent, title, **init_config)
 
     def get_option_panels(self):
         osizer = wx.BoxSizer(wx.HORIZONTAL)

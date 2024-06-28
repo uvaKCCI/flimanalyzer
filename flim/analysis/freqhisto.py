@@ -192,7 +192,7 @@ class FreqHisto(AbstractPlugin):
         selfeatures = self.params["features"]
         histmax = data.iloc[:, 1:].max(axis=1).max()
         # defines how to get input for values
-        binspecs = { #revised bins so that they can accept negative vals
+        binspecs = {  # revised bins so that they can accept negative vals
             "bins": [wx.SpinCtrl, {"min": 1, "max": 500, "initial": 30}],
             "min": [
                 wx.SpinCtrlDouble,

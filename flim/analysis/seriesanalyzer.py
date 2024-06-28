@@ -294,12 +294,12 @@ class SeriesAnalyzer(AbstractPlugin):
         common_all = set(sfeatures[0]).intersection(*sfeatures[1:])
         logging.debug(f"sfeatures: {sfeatures}")
         logging.debug(f"common_all: {common_all}")
-        #ncommon_all = list(dict.fromkeys(sfeatures[0]).intersection(*sfeatures[1:]))
+        # ncommon_all = list(dict.fromkeys(sfeatures[0]).intersection(*sfeatures[1:]))
         common = [
             f for f in sfeatures[0] if f in common_all
         ]  # needed to ensure maintaining propper order
         uniquef = ["\n".join([f for f in s if f not in common]) for s in sfeatures]
-        #logging.debug(f"ncommon_all: {common_all}")
+        # logging.debug(f"ncommon_all: {common_all}")
         logging.debug(f"common: {common}")
         logging.debug(f"uniquef: {uniquef}")
         label = "\n".join(common)

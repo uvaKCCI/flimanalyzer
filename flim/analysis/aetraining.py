@@ -651,7 +651,9 @@ class AETraining(AbstractPlugin):
             cum_loss = 0
             train_samples = 0
             for i, (batchinputs, batchlabels) in enumerate(train_loader):
-                encoder_out, decoder_out = ae(batchinputs) #runs inputs through autoencoder
+                encoder_out, decoder_out = ae(
+                    batchinputs
+                )  # runs inputs through autoencoder
                 if epoch == self.params["epoches"]:
                     length = len(batchlabels)
                     # use int 0 to label as 'train'
@@ -669,13 +671,13 @@ class AETraining(AbstractPlugin):
 
                 optimizer.zero_grad()
                 loss.backward()
-                optimizer.step() #improve by one step based on the loss
+                optimizer.step()  # improve by one step based on the loss
 
             loss_train.append(cum_loss / (i + 1))
             logging.debug("Epoch %d., Train loss: %.4f" % (epoch, loss_train[-1]))
 
             cum_loss = 0
-            for i, item in enumerate(val_loader): #validation step
+            for i, item in enumerate(val_loader):  # validation step
                 batchinputs = item[0]  # .cuda()
                 batchlabels = item[1]
                 encoder_out, decoder_out = ae(batchinputs)

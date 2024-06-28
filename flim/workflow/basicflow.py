@@ -304,11 +304,10 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
 
     def get_required_features(self):
         return ["any"]
-    
+
     def get_icon(self):
         source = files(flim.resources).joinpath("flirr_test1.png")
         return wx.Bitmap(str(source))
-
 
     def construct_flow(self, executor, result):
         data = list(self.input.values())[0].copy()

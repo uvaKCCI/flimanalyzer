@@ -96,6 +96,27 @@ def save_figure(
 class BasicAnalysisConfigDlg(wx.Dialog):
     # TODO: Add the ability to save the configuration after a run (same format as Config class), all saving should go to the working dir
     # TODO: Add the ability to load the configuration from a json, incorrect format,etc should give feedback w/o crash
+    __base_params = {
+        "title": "",
+        "input": {},
+        "description": None,
+        "data_choices": {},
+        "chooseinput": False,
+        "enablegrouping": True,
+        "enablefeatures": True,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": ALL_FEATURES,
+        "optgridrows": 0,
+        "optgridcols": 2,
+        "enablefeatsettings": False,
+        "featuresettings": {},
+        "settingspecs": {},
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -193,7 +214,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.saveconfig_cb.SetValue(self.saveconfig)
         self.config_browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
         self.config_browse_button.Bind(wx.EVT_BUTTON, self._on_config_browse)
-        self.configfiletxt = wx.StaticText(self.panel, label="")
+        self.configfiletxt = wx.StaticText(self.panel, label=self.config_file)
         self.configfiletxt.Enable(self.saveconfig)
         configsizer.Add(self.saveconfig_cb)
         configsizer.Add(self.config_browse_button)
@@ -439,6 +460,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             wx.MessageDialog(self, "Select at least one function.")
         else:
             self.EndModal(wx.ID_OK)
+
+    @classmethod
+    def get_base_params():
+        return BasicAnalysisConfigDlg.__base_params
 
 
 class SelectGroupsDlg(wx.Dialog):

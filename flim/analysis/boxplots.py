@@ -41,20 +41,25 @@ class BoxPlot(AbstractPlugin):
             parallel_params.append(pair_param)
         return parallel_params
 
-    def run_configuration_dialog(self, parent, data_choices={}):
+    def run_configuration_dialog(self, parent):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg = BasicAnalysisConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            saveconfig=self.params["saveconfig"],
-            config_file=self.params["config_file"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        dlg_params = {
+            k: self.params.get(k)
+            if k in self.params
+            else BasicAnalysisConfigDlg.get_base_params().get(k)
+            for k in BasicAnalysisConfigDlg.get_base_params().keys()
+        }
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
         )
+
+        dlg = BasicAnalysisConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
