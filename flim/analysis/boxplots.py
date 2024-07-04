@@ -8,6 +8,7 @@ Created on Thu Dec 17 16:11:37 2020
 
 import logging
 import pandas as pd
+import flim.utils as flu
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -41,15 +42,11 @@ class BoxPlot(AbstractPlugin):
             parallel_params.append(pair_param)
         return parallel_params
 
-    def run_configuration_dialog(self, parent):
+    def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg_params = {
-            k: self.params.get(k)
-            if k in self.params
-            else BasicAnalysisConfigDlg.get_base_params().get(k)
-            for k in BasicAnalysisConfigDlg.get_base_params().keys()
-        }
+        
+        dlg_params = flu.update_left(BasicAnalysisConfigDlg.get_base_params(), self.params)
         dlg_params.update(
             dict(
                 title=f"Configuration: {self.name}",
