@@ -32,6 +32,23 @@ from joblib import load
 
 
 class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "modelfile": "",
+        "device": "cpu",
+        "sets": 1,
+        "add_noise": True,
+        "snr_db": 0.0,
+        "snr_unit": utils.NOISE_UNIT[-1],
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -50,7 +67,24 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "optgridrows": 1,
+            "optgridcols": 0,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.modelfile = modelfile
         self.device = device
         self.sets = sets
@@ -59,20 +93,11 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
             snr_unit if snr_unit in utils.NOISE_UNIT else utils.NOISE_UNIT[-1]
         )
         self.snr = snr_db if self.snr_unit == "dB" else utils.db_to_linear(snr_db)
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            data_choices=data_choices,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         mf = (
@@ -208,6 +233,10 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
             params["snr_db"] = utils.to_db(self.noise_input.GetValue())
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class AEAugment(AbstractPlugin):
@@ -258,23 +287,26 @@ class AEAugment(AbstractPlugin):
         return {"Table: Simulated": None}
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AEAugmentConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            data_choices=data_choices,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            modelfile=self.params["modelfile"],
-            device=self.params["device"],
-            sets=self.params["sets"],
-            add_noise=self.params["add_noise"],
-            snr_db=self.params["snr_db"],
-            saveconfig=self.params["saveconfig"],
-            config_file=self.params["config_file"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(AEAugmentConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = AEAugmentConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             params = dlg.get_selected()
             self.params.update(params)

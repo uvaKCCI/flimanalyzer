@@ -11,7 +11,7 @@ import itertools
 import pandas as pd
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
-import flim.utils as flu
+from flim import utils
 import matplotlib.figure
 import matplotlib.pyplot as plt
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -223,7 +223,7 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         "config_file": "",
         "autosave": True,
         "working_dir": "",
-        "legend": True
+        "legend": True,
     }
 
     def __init__(
@@ -244,8 +244,9 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         autosave=True,
         working_dir="",
         legend=True,
+        **kwargs,
     ):
-        basic_config = {
+        basic_params = {
             "title": title,
             "input": input,
             "selectedgrouping": selectedgrouping,
@@ -258,6 +259,8 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
             "working_dir": working_dir,
         }
 
+        basic_params.update(**kwargs)
+
         self.orientation = orientation
         self.ordering = ordering
         self.ebar = ebar
@@ -266,9 +269,10 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         self.dropna = dropna
         self.legend = legend
 
-        init_config = dict(BasicAnalysisConfigDlg.get_base_params())
-        init_config = flu.update_left(BasicAnalysisConfigDlg.get_base_params(), basic_config)
-        super().__init__(parent, **init_config)
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
+        )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         osizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -433,22 +437,28 @@ class BarPlot(AbstractPlugin):
         ebar = self.params["error_bar"]
         bartype = self.params["bar_type"]
 
-        dlg_params = flu.update_left(BarPlotConfigDlg.get_base_params(), self.params)
+        # TODO change this so that info only in the BasicConfigDlg is passed back
+        # possible while maintining current __init__ signature for BarPlot? Probably not, need to add kwargs
+        # TODO check by removing save config from BarPlot defaults
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(BarPlotConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
+        )
         dlg_params.update(
             dict(
                 title=f"Configuration: {self.name}",
+                input=self.input,
                 selectedgrouping=selgrouping,
                 selectedfeatures=selfeatures,
                 etype=etype,
                 ebar=ebar,
-                bartype=bartype
+                bartype=bartype,
             )
         )
 
-        dlg = BarPlotConfigDlg(
-            parent,
-            **dlg_params
-        )
+        dlg = BarPlotConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)

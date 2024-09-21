@@ -14,10 +14,25 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
+from flim import utils
 from flim.plugin import plugin
 
 
 class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "method": "mean",
+        "refgroup": "",
+        "refvalue": "",
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -32,7 +47,24 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "method": method,
+            "refgroup": refgroup,
+            "refvalue": refvalue,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.data = list(input.values())[0]
         self.method_options = ["mean", "median"]
         self.sel_method = method
@@ -48,19 +80,11 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         self.sel_refvalue = refvalue
         if self.sel_refvalue not in self.refval_options:
             self.sel_refvalue = self.refval_options[0]
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=1,
-            optgridcols=0,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         # data = list(self.input.values())[0]
@@ -139,6 +163,10 @@ class RelativeChangeConfigDlg(BasicAnalysisConfigDlg):
         self.refval_combobox.SetItems(self.refval_options)
         self.refval_combobox.SetValue(self.sel_refvalue)
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class RelativeChange(AbstractPlugin):
@@ -170,19 +198,26 @@ class RelativeChange(AbstractPlugin):
         return {"Table: Relative Change": pd.DataFrame}
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = RelativeChangeConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            method=self.params["method"],
-            refgroup=self.params["reference_group"],
-            refvalue=self.params["reference_value"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(RelativeChangeConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = RelativeChangeConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None

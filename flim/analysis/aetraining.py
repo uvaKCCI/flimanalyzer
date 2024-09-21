@@ -53,6 +53,28 @@ class datasets(Dataset):
 
 
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "description": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "epoches": 20,
+        "batch_size": 200,
+        "learning_rate": 1e-4,
+        "weight_decay": 1e-7,
+        "timeseries": "",
+        "model": "",
+        "modelfile": "",
+        "device": "cpu",
+        "rescale": False,
+        "checkpoint_interval": 20,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": ""
+    }
+
     def __init__(
         self,
         parent,
@@ -75,7 +97,32 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "description": description,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "epoches": epoches,
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "weight_decay": weight_decay,
+            "timeseries": timeseries,
+            "model": model,
+            "modelfile": modelfile,
+            "device": device,
+            "rescale": rescale,
+            "checkpoint_interval": checkpoint_interval,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir
+        }
+
+        basic_params.update(**kwargs)
+
         data = next(iter(input.values()))
         self.timeseries_opts = data.select_dtypes(include=["category"]).columns.values
         self.timeseries = timeseries
@@ -90,20 +137,14 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.device = device
         self.rescale = rescale
         self.checkpoint_interval = checkpoint_interval
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
+        )
+
         super().__init__(
             parent,
-            title,
-            input=input,
-            description=description,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
-        )
+            **init_params)
         self._update_model_info(None)
 
     def get_option_panels(self):
@@ -370,6 +411,10 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         params["checkpoint_interval"] = self.checkpoint_spinner.GetValue()
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class AETraining(AbstractPlugin):
@@ -477,27 +522,27 @@ class AETraining(AbstractPlugin):
         return output
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AETrainingConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            description=self.get_description(),
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            epoches=self.params["epoches"],
-            batch_size=self.params["batch_size"],
-            weight_decay=self.params["weight_decay"],
-            learning_rate=self.params["learning_rate"],
-            timeseries=self.params["timeseries"],
-            model=self.params["model"],
-            modelfile=self.params["modelfile"],
-            device=self.params["device"],
-            rescale=self.params["rescale"],
-            checkpoint_interval=self.params["checkpoint_interval"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(AETrainingConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures
+            )
+        )
+
+        dlg = AETrainingConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None

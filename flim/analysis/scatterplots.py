@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 import itertools
 from importlib_resources import files
 import flim.resources
+from flim import utils
 from flim.plugin import plugin
 
 
@@ -45,17 +46,20 @@ class ScatterPlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg = BasicAnalysisConfigDlg(
-            parent,
-            "Scatter Plot",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            saveconfig=self.params["saveconfig"],
-            config_file=self.params["config_file"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+
+        dlg_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), self.params
         )
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = BasicAnalysisConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)

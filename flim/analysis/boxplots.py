@@ -8,7 +8,7 @@ Created on Thu Dec 17 16:11:37 2020
 
 import logging
 import pandas as pd
-import flim.utils as flu
+from flim import utils
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -45,8 +45,10 @@ class BoxPlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        
-        dlg_params = flu.update_left(BasicAnalysisConfigDlg.get_base_params(), self.params)
+
+        dlg_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), self.params
+        )
         dlg_params.update(
             dict(
                 title=f"Configuration: {self.name}",

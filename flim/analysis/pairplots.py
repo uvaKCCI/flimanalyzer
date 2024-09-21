@@ -25,10 +25,27 @@ import matplotlib.pyplot as plt
 import itertools
 from importlib_resources import files
 import flim.resources
+from flim import utils
 from flim.plugin import plugin
 
 
 class PairPlotConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "x_vars": [],
+        "y_vars": [],
+        "diag_kind": "KDE",
+        "corner": False,
+        "hist_bins": 20,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -45,25 +62,37 @@ class PairPlotConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "x_vars": x_vars,
+            "y_vars": y_vars,
+            "diag_kind": diag_kind,
+            "corner": corner,
+            "hist_bins": hist_bins,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.x_vars = x_vars
         self.y_vars = y_vars
         self.diag_kind = diag_kind
         self.corner = corner
         self.hist_bins = hist_bins
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=1,
-            optgridcols=0,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         data = list(self.input.values())[0]
@@ -103,6 +132,10 @@ class PairPlotConfigDlg(BasicAnalysisConfigDlg):
         params["hist_bins"] = self.hist_bins  # self.hist_bins_spinner.GetValue())
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Plot")
 class PairPlot(AbstractPlugin):
@@ -135,21 +168,23 @@ class PairPlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg = PairPlotConfigDlg(
-            parent,
-            "Pair Plot",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
-            x_vars=self.params["x_vars"],
-            y_vars=self.params["y_vars"],
-            diag_kind=self.params["diag_kind"],
-            hist_bins=self.params["hist_bins"],
-            corner=self.params["corner"],
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(PairPlotConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+        dlg = PairPlotConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
