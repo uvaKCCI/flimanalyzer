@@ -10,10 +10,24 @@ import wx
 import matplotlib.pyplot as plt
 from importlib_resources import files
 import flim.resources
+from flim import utils
 from flim.plugin import plugin
 
 
 class HeatmapConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "corr_type": "pearson",
+        "numbers": False,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -27,21 +41,31 @@ class HeatmapConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "corr_type": corr_type,
+            "numbers": numbers,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.corr_type = corr_type
         self.numbers = numbers
-        super().__init__(
-            parent,
-            title,
-            input,
-            enablegrouping=False,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         corrsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -84,6 +108,10 @@ class HeatmapConfigDlg(BasicAnalysisConfigDlg):
         params["numbers"] = self.num_checkbox.GetValue()
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Plot")
 class Heatmap(AbstractPlugin):
@@ -111,18 +139,24 @@ class Heatmap(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg = HeatmapConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            corr_type=self.params["corr_type"],
-            numbers=self.params["numbers"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(HeatmapConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = HeatmapConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)

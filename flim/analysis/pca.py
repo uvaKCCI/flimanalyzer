@@ -18,10 +18,27 @@ import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
 import flim.resources
+from flim import utils
 from flim.plugin import plugin
 
 
 class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "description": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "keeporig": False,
+        "keepstd": True,
+        "explainedhisto": False,
+        "n_components": None,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -38,25 +55,35 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "description": description,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "keeporig": keeporig,
+            "keepstd": keepstd,
+            "explainedhisto": explainedhisto,
+            "n_components": n_components,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.keeporig = keeporig
         self.keepstd = keepstd
         self.explainedhisto = explainedhisto
         self.n_components = n_components
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            description=description,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=2,
-            optgridcols=1,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         data = list(self.input.values())[0]
@@ -118,6 +145,10 @@ class PCAnalysisConfigDlg(BasicAnalysisConfigDlg):
 
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class PCAnalysis(AbstractPlugin):
@@ -155,21 +186,27 @@ class PCAnalysis(AbstractPlugin):
         return params
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = PCAnalysisConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            description=self.get_description(),
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            keeporig=self.params["keeporig"],
-            keepstd=self.params["keepstd"],
-            explainedhisto=self.params["explainedhisto"],
-            n_components=self.params["n_components"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(PCAnalysisConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                description=self.get_description(),
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = PCAnalysisConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
@@ -207,6 +244,10 @@ class PCAnalysis(AbstractPlugin):
         pca_df = pd.DataFrame(
             data=principalComponents,
             columns=["PC %d" % x for x in range(1, principalComponents.shape[1] + 1)],
+        )
+        pca_eigen_df = pd.DataFrame(
+            data=pca.components_,
+            columns=features,
         )
         if self.params["keeporig"] and self.params["keepstd"]:
             standard_df = pd.DataFrame(
@@ -253,6 +294,7 @@ class PCAnalysis(AbstractPlugin):
         results = {
             "Table: PCA Components": pca_df,
             "Table: PCA Explained": pca_explained_df,
+            "Table: PCA Eigen": pca_eigen_df,
         }
         if self.params["explainedhisto"]:
             plot = pca_explained_df.set_index(pca_comp_label).plot.bar()

@@ -9,8 +9,10 @@ Created on Thu Dec 17 09:50:44 2020
 import numpy as np
 import pandas as pd
 import wx
+from collections import OrderedDict
 from importlib_resources import files
 
+from flim import utils
 from flim.plugin import plugin, ALL_FEATURES
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -26,6 +28,21 @@ def percentile(n):
 
 
 class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "description": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": ALL_FEATURES,
+        "allaggs": [],
+        "selectedaggs": "All",
+        "singledf": False,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -41,24 +58,33 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "description": description,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "allaggs": allaggs,
+            "selectedaggs": selectedaggs,
+            "singledf": singledf,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.allaggs = allaggs
         self.selectedaggs = selectedaggs
         self.singledf = singledf
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            description=description,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         self.aggboxes = {}
@@ -121,6 +147,10 @@ class SummaryStatsConfigDlg(BasicAnalysisConfigDlg):
         params["singledf"] = self.dfoutput_combobox.GetValue() == self.dfoutput_opts[0]
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class SummaryStats(AbstractPlugin):
@@ -176,20 +206,26 @@ class SummaryStats(AbstractPlugin):
             }
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = SummaryStatsConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            description=self.get_description(),
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            allaggs=self.agg_functions,
-            selectedaggs=self.params["aggs"],
-            singledf=self.params["singledf"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(SummaryStatsConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = SummaryStatsConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
@@ -216,7 +252,7 @@ class SummaryStats(AbstractPlugin):
             return [self.params]
 
     def execute(self):
-        summaries = {}
+        summaries = OrderedDict()
         data = list(self.input.values())[0]
         sel_functions = [self.agg_functions[f] for f in self.params["aggs"]]
         features = self.params["features"]

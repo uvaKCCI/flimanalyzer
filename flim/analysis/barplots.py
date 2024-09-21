@@ -11,6 +11,7 @@ import itertools
 import pandas as pd
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
+from flim import utils
 import matplotlib.figure
 import matplotlib.pyplot as plt
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -207,6 +208,24 @@ def grouped_meanbarplot(
 
 
 class BarPlotConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "orientation": "vertical",
+        "ordering": [],
+        "ebar": "+/-",
+        "etype": "std",
+        "dropna": True,
+        "bartype": "single",
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+        "legend": True,
+    }
+
     def __init__(
         self,
         parent,
@@ -225,7 +244,23 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         autosave=True,
         working_dir="",
         legend=True,
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "optgridrows": 1,
+            "optgridcols": 0,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.orientation = orientation
         self.ordering = ordering
         self.ebar = ebar
@@ -233,19 +268,11 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         self.sel_bartype = bartype
         self.dropna = dropna
         self.legend = legend
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=1,
-            optgridcols=0,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         osizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -355,6 +382,10 @@ class BarPlotConfigDlg(BasicAnalysisConfigDlg):
         ebar = self.ebar_combobox.GetValue()
         self.etype_combobox.Enable(ebar != "None")
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Plot")
 class BarPlot(AbstractPlugin):
@@ -402,31 +433,32 @@ class BarPlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        ordering = self.params["ordering"]
-        orientation = self.params["orientation"]
         etype = self.params["error_type"]
         ebar = self.params["error_bar"]
         bartype = self.params["bar_type"]
-        dropna = self.params["dropna"]
-        legend = self.params["legend"]
-        dlg = BarPlotConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            ordering=ordering,
-            orientation=orientation,
-            bartype=bartype,
-            dropna=dropna,
-            ebar=ebar,
-            etype=etype,
-            saveconfig=self.params["saveconfig"],
-            config_file=self.params["config_file"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
-            legend=legend,
+
+        # TODO change this so that info only in the BasicConfigDlg is passed back
+        # possible while maintining current __init__ signature for BarPlot? Probably not, need to add kwargs
+        # TODO check by removing save config from BarPlot defaults
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(BarPlotConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+                etype=etype,
+                ebar=ebar,
+                bartype=bartype,
+            )
+        )
+
+        dlg = BarPlotConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)

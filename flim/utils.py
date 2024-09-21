@@ -36,3 +36,7 @@ def permutate(*args):
 def clean(str):
     rmstr = re.sub("[^a-zA-Z0-9 \n\.-_]", "", str)
     return re.sub("[ /]", "_", rmstr)
+
+
+def update_left(left: dict, right: dict):
+    return {k: right.get(k) if k in right.keys() else left.get(k) for k in left.keys()}

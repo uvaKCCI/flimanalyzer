@@ -18,10 +18,26 @@ import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files
 import flim.resources
+from flim import utils
 from flim.plugin import plugin
 
 
 class RandomForestConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "classifier": "",
+        "importancehisto": True,
+        "n_estimators": 100,
+        "test_size": 0.3,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -37,7 +53,25 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "classifier": classifier,
+            "importancehisto": importancehisto,
+            "n_estimators": n_estimators,
+            "test_size": test_size,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         data = list(input.values())[0]
         self.classifieropts = data.select_dtypes(["category"]).columns.values
         if classifier in self.classifieropts:
@@ -47,19 +81,11 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
         self.importancehisto = importancehisto
         self.n_estimators = n_estimators
         self.test_size = test_size
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=1,
-            optgridcols=1,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -136,6 +162,10 @@ class RandomForestConfigDlg(BasicAnalysisConfigDlg):
         params["test_size"] = self.test_size_input.GetValue()
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class RandomForest(AbstractPlugin):
@@ -165,20 +195,26 @@ class RandomForest(AbstractPlugin):
         return params
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = RandomForestConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            classifier=self.params["classifier"],
-            n_estimators=self.params["n_estimators"],
-            test_size=self.params["test_size"],
-            importancehisto=self.params["importancehisto"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(RandomForestConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = RandomForestConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return

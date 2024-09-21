@@ -17,6 +17,7 @@ import wx
 from wx.lib.masked import NumCtrl
 from importlib_resources import files, as_file
 
+from flim import utils
 from flim.plugin import plugin, AbstractPlugin
 import flim.resources
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -27,6 +28,24 @@ TOLERANCE_OPTONS = ["%.1e" % (10.0 ** (-b)) for b in range(2, 6)]
 
 
 class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "n_clusters": 2,
+        "cluster_prefix": "Cluster",
+        "init": "k-means++",
+        "algorithm": "auto",
+        "n_init": 4,
+        "max_iter": 300,
+        "tolerance": 1e-4,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -45,7 +64,28 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "n_clusters": n_clusters,
+            "cluster_prefix": cluster_prefix,
+            "init": init,
+            "algorithm": algorithm,
+            "n_init": n_init,
+            "max_iter": max_iter,
+            "tolerance": tolerance,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.n_clusters = n_clusters
         self.cluster_prefix = cluster_prefix
         self.init = init
@@ -53,20 +93,12 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
         self.n_init = n_init
         self.tolerance = tolerance
         self.algorithm = algorithm
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            enablegrouping=False,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         option_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -185,6 +217,10 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
         params["tolerance"] = float(self.tol_combobox.GetValue())
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class KMeansClustering(AbstractPlugin):
@@ -220,23 +256,26 @@ class KMeansClustering(AbstractPlugin):
         return {"Table: K-Means": pd.DataFrame}
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = KMeansClusteringConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            n_clusters=self.params["n_clusters"],
-            cluster_prefix=self.params["cluster_prefix"],
-            init=self.params["init"],
-            algorithm=self.params["algorithm"],
-            n_init=self.params["n_init"],
-            max_iter=self.params["max_iter"],
-            tolerance=self.params["tolerance"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(KMeansClusteringConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = KMeansClusteringConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None

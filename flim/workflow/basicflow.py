@@ -70,7 +70,7 @@ class AbsWorkFlow(AbstractPlugin):
         return self.name
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("heatmap.png")
+        source = files(flim.resources).joinpath("sim_tuning1.png")
         return wx.Bitmap(str(source))
 
     def get_default_parameters(self):
@@ -301,6 +301,10 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
 
     def get_required_features(self):
         return ["any"]
+
+    def get_icon(self):
+        source = files(flim.resources).joinpath("flirr_test1.png")
+        return wx.Bitmap(str(source))
 
     def construct_flow(self, executor, result):
         data = list(self.input.values())[0].copy()

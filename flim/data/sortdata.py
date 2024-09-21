@@ -27,9 +27,7 @@ import flim.resources
 @plugin(plugintype="Data")
 class Sort(AbstractPlugin):
     def __init__(self, name="Sort", **kwargs):
-        AbstractPlugin.__init__(
-            self, name=name, **kwargs
-        )  # categories={}, default='unassigned')
+        super().__init__(name=name, **kwargs)  # categories={}, default='unassigned')
 
     def get_required_categories(self):
         return []
@@ -46,6 +44,7 @@ class Sort(AbstractPlugin):
         params.update(
             {
                 "ascending": True,
+                "ignore_index": True,
             }
         )
         return params
@@ -77,9 +76,11 @@ class Sort(AbstractPlugin):
         data = list(self.input.values())[0]
         selfeatures = self.params["features"]
         ascending = len(selfeatures) * [self.params["ascending"]]
+        ignore_index = self.params["ignore_index"]
 
-        df = data.sort_values(by=selfeatures, ascending=ascending)
+        df = data.sort_values(
+            by=selfeatures, ascending=ascending, ignore_index=ignore_index
+        )
 
-        results = {}
-        results["Table: Sorted"] = df
+        results = {"Table: Sorted": df}
         return results

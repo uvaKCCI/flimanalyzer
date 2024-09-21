@@ -8,6 +8,7 @@ Created on Wed Dec 16 14:18:30 2020
 
 import logging
 import math
+from flim import utils
 from flim.plugin import AbstractPlugin
 import matplotlib
 import matplotlib.pyplot as plt
@@ -84,17 +85,20 @@ class KDE(AbstractPlugin, Task):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg = BasicAnalysisConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            saveconfig=self.params["saveconfig"],
-            config_file=self.params["config_file"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+
+        dlg_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), self.params
         )
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = BasicAnalysisConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -152,7 +156,7 @@ class KDE(AbstractPlugin, Task):
             if self.params.get("return_plot") and not self.params["single_plot"]:
                 fig.tight_layout()
                 results[f"Plot: KDE {header}"] = fig
-            results[f"Table: KDE {header}"] = kde_data
+            # results[f"Table: KDE {header}"] = kde_data
         if self.params.get("return_plot") and self.params["single_plot"]:
             fig.tight_layout()
             results[f"Plot: KDE"] = fig
