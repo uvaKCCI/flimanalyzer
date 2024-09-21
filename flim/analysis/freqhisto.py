@@ -15,6 +15,7 @@ import wx
 import matplotlib.pyplot as plt
 from importlib_resources import files
 import flim.resources
+from flim import utils
 from flim.plugin import plugin
 
 
@@ -22,6 +23,24 @@ default_linestyles = ["-", "--", ":", "-."]
 
 
 class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "bins": 20,
+        "stacked": False,
+        "cumulative": False,
+        "histtype": "step",
+        "datatable": False,
+        "featuresettings": {},
+        "settingspecs": {},
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -40,29 +59,39 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "bins": bins,
+            "stacked": stacked,
+            "cumulative": cumulative,
+            "histtype": histtype,
+            "datatable": datatable,
+            "featuresettings": featuresettings,
+            "settingspecs": settingspecs,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.bins = bins
         self.stacked = stacked
         self.cumulative = cumulative
         self.histtype = histtype
         self.datatable = datatable
 
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            enablefeatsettings=True,
-            featuresettings=featuresettings,
-            settingspecs=settingspecs,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         optsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -115,6 +144,10 @@ class FreqHistoConfigDlg(BasicAnalysisConfigDlg):
         params["histtype"] = self.histtype_combobox.GetValue()
         params["datatable"] = self.showdata_cb.GetValue()
         return params
+
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
 
 
 @plugin(plugintype="Plot")
@@ -192,7 +225,7 @@ class FreqHisto(AbstractPlugin):
         selfeatures = self.params["features"]
         histmax = data.iloc[:, 1:].max(axis=1).max()
         # defines how to get input for values
-        binspecs = { #revised bins so that they can accept negative vals
+        binspecs = {  # revised bins so that they can accept negative vals
             "bins": [wx.SpinCtrl, {"min": 1, "max": 500, "initial": 30}],
             "min": [
                 wx.SpinCtrlDouble,
@@ -203,23 +236,26 @@ class FreqHisto(AbstractPlugin):
                 {"min": -100, "max": histmax, "initial": histmax, "inc": 0.1},
             ],
         }
-        dlg = FreqHistoConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            bins=self.params["bins"],
-            stacked=self.params["stacked"],
-            cumulative=self.params["cumulative"],
-            histtype=self.params["histtype"],
-            datatable=self.params["datatable"],
-            featuresettings=self.params["featuresettings"],
-            settingspecs=binspecs,
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(FreqHistoConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+                settingspecs=binspecs,
+            )
+        )
+
+        dlg = FreqHistoConfigDlg(parent, **dlg_params)
+
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)

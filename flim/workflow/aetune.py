@@ -349,7 +349,9 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
             self.workingdirtxt.SetLabel(dirname)
 
     def _get_selected(self):
-        logging.debug(f"epoches:{self.epoches_spinner.GetValue()}, batch_size:{self.batchsize_input.GetValue()}, learning_rate:{self.learning_input.GetValue()}, weight_decay:{self.weight_input.GetValue()}")
+        logging.debug(
+            f"epoches:{self.epoches_spinner.GetValue()}, batch_size:{self.batchsize_input.GetValue()}, learning_rate:{self.learning_input.GetValue()}, weight_decay:{self.weight_input.GetValue()}"
+        )
         params = super()._get_selected()
         params["epoches"] = self.epoches_spinner.GetValue()
         params["batch_size"] = [
@@ -382,7 +384,7 @@ class AEWorkflow(AbsWorkFlow):
     # def get_icon(self):
     #     source = files(flim.resources).joinpath("heatmap.png")
     #     return wx.Bitmap(str(source))
-    
+
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update(

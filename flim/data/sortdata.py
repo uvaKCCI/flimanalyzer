@@ -27,9 +27,7 @@ import flim.resources
 @plugin(plugintype="Data")
 class Sort(AbstractPlugin):
     def __init__(self, name="Sort", **kwargs):
-        super().__init__(
-            name=name, **kwargs
-        )  # categories={}, default='unassigned')
+        super().__init__(name=name, **kwargs)  # categories={}, default='unassigned')
 
     def get_required_categories(self):
         return []

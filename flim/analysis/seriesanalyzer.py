@@ -16,11 +16,35 @@ import numpy as np
 from collections import OrderedDict
 
 import flim.resources
+from flim import utils
 from flim.plugin import AbstractPlugin, plugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 
 
 class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "seriesmin": True,
+        "seriesmax": True,
+        "seriesrange": True,
+        "seriesmean": True,
+        "seriesmedian": True,
+        "delta": True,
+        "deltamin": True,
+        "deltamax": True,
+        "deltasum": True,
+        "deltacum": True,
+        "deltanorm": True,
+        "mergeinput": False,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -44,7 +68,33 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "seriesmin": seriesmin,
+            "seriesmax": seriesmax,
+            "seriesrange": seriesrange,
+            "seriesmean": seriesmean,
+            "seriesmedian": seriesmedian,
+            "delta": delta,
+            "deltamin": deltamin,
+            "deltamax": deltamax,
+            "deltasum": deltasum,
+            "deltacum": deltacum,
+            "deltanorm": deltanorm,
+            "mergeinput": mergeinput,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.seriesmin = seriesmin
         self.seriesmax = seriesmax
         self.seriesrange = seriesrange
@@ -57,20 +107,11 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         self.deltacum = deltacum
         self.deltanorm = deltanorm
         self.mergeinput = mergeinput
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            enablegrouping=False,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=1,
-            optgridcols=0,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         self.boxes = {}
@@ -197,6 +238,10 @@ class SeriesAnalyzerConfigDlg(BasicAnalysisConfigDlg):
         params["merge_input"] = self.mergeinput_cb.GetValue()
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class SeriesAnalyzer(AbstractPlugin):
@@ -251,28 +296,38 @@ class SeriesAnalyzer(AbstractPlugin):
         deltacum = self.params["delta_cum"]
         deltanorm = self.params["delta_norm"]
         mergeinput = self.params["merge_input"]
-        dlg = SeriesAnalyzerConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            seriesmin=seriesmin,
-            seriesmax=seriesmax,
-            seriesrange=seriesrange,
-            seriesmean=seriesmean,
-            seriesmedian=seriesmedian,
-            delta=delta,
-            deltamin=deltamin,
-            deltamax=deltamax,
-            deltasum=deltasum,
-            deltacum=deltacum,
-            deltanorm=deltanorm,
-            mergeinput=mergeinput,
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(SeriesAnalyzerConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+                seriesmin=seriesmin,
+                seriesmax=seriesmax,
+                seriesrange=seriesrange,
+                seriesmean=seriesmean,
+                seriesmedian=seriesmedian,
+                delta=delta,
+                deltamin=deltamin,
+                deltamax=deltamax,
+                deltasum=deltasum,
+                deltacum=deltacum,
+                deltanorm=deltanorm,
+                mergeinput=mergeinput,
+                saveconfig=self.params["saveconfig"],
+                autosave=self.params["autosave"],
+                working_dir=self.params["working_dir"],
+            )
+        )
+        dlg = SeriesAnalyzerConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -294,12 +349,12 @@ class SeriesAnalyzer(AbstractPlugin):
         common_all = set(sfeatures[0]).intersection(*sfeatures[1:])
         logging.debug(f"sfeatures: {sfeatures}")
         logging.debug(f"common_all: {common_all}")
-        #ncommon_all = list(dict.fromkeys(sfeatures[0]).intersection(*sfeatures[1:]))
+        # ncommon_all = list(dict.fromkeys(sfeatures[0]).intersection(*sfeatures[1:]))
         common = [
             f for f in sfeatures[0] if f in common_all
         ]  # needed to ensure maintaining propper order
         uniquef = ["\n".join([f for f in s if f not in common]) for s in sfeatures]
-        #logging.debug(f"ncommon_all: {common_all}")
+        # logging.debug(f"ncommon_all: {common_all}")
         logging.debug(f"common: {common}")
         logging.debug(f"uniquef: {uniquef}")
         label = "\n".join(common)
