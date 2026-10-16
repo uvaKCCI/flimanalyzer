@@ -189,7 +189,7 @@ class Config:
                 self._to_utf(key, ignore_dicts=True): self._to_utf(
                     value, ignore_dicts=True
                 )
-                for key, value in data.iteritems()
+                for key, value in data.items()
             }
         # if it's anything else, return it in its original form
         return data

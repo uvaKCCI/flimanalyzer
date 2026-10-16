@@ -41,21 +41,21 @@ def trp_Eperc_1(trp_tm, const=3100):
     if const != 0:
         return (1.0 - (trp_tm / const)) * 100
     else:
-        return np.NaN
+        return np.nan
 
 
 def trp_Eperc_2(trp_t1, trp_t2):
     if trp_t2 != 0:
         return (1.0 - (trp_t1 / trp_t2)) * 100
     else:
-        return np.NaN
+        return np.nan
 
 
 def trp_Eperc_3(trp_t1, const=3100):
     if const != 0:
         return (1.0 - (trp_t1 / const)) * 100
     else:
-        return np.NaN
+        return np.nan
 
 
 def trp_r(trp_Eperc):
@@ -64,7 +64,7 @@ def trp_r(trp_Eperc):
         t = 100.0 / trp_Eperc - 1
         if t >= 0:
             return TRP_RZERO * t**ONE_SIXTH
-    return np.NaN
+    return np.nan
 
 
 def ratio(v1, v2):
@@ -72,7 +72,7 @@ def ratio(v1, v2):
         # force float values
         return float(v1) / v2
     else:
-        return np.NaN
+        return np.nan
 
 
 class defaultpreprocessor:

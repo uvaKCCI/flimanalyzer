@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import re
-import collections
+import collections.abc
 
 import wx
 import wx.grid
@@ -80,12 +80,12 @@ class PandasTable(wx.grid.GridTableBase):
         self.floatcols = [
             col
             for col in self.colheaders
-            if col in self.data.select_dtypes(include=[np.float]).columns.values
+            if col in self.data.select_dtypes(include=[float]).columns.values
         ]
         self.intcols = [
             col
             for col in self.colheaders
-            if col in self.data.select_dtypes(include=[np.int]).columns.values
+            if col in self.data.select_dtypes(include=[np.integer]).columns.values
         ]
 
     def GetData(self):
@@ -673,8 +673,8 @@ class PandasFrame(wx.Frame):
             colindex = 1
         else:
             colindex = 0
-        mins = self.dataview.min()
-        maxs = self.dataview.max()
+        mins = numericcols.min()
+        maxs = numericcols.max()
         for col in self.dataview.columns.values:
             # autosize header first and get new col width
             self.grid.AutoSizeColLabelSize(colindex)
@@ -682,7 +682,7 @@ class PandasFrame(wx.Frame):
             # determine best size for values in this col
             colseries = self.dataview[col]
             if col not in numericcols.columns.values and (
-                isinstance(colseries, (str, bytes, collections.Iterable))
+                isinstance(colseries, (str, bytes, collections.abc.Iterable))
             ):
                 # handle strings, categories, objects
                 logging.debug(f"AUTOSIZE col {col}")

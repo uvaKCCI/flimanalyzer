@@ -11,7 +11,7 @@ import logging
 import argparse
 import sys
 import flim
-from setuptools_scm import get_version
+from flim._version import __version__
 from flim.gui.app import FlimAnalyzerApp
 import flim.core.parser as cp
 import flim.analysis
@@ -209,7 +209,7 @@ def main():
 
     args = parse_arguments()
     init_logger(args.log.upper())
-    version = get_version()
+    version = __version__
     logging.info(f"FlimAnalyzer version {version}")
 
     logging.debug(args)

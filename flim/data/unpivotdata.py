@@ -155,8 +155,8 @@ class UnPivot(AbstractPlugin):
         )
         unpivot_data[new_cat_name] = (
             unpivot_data[new_cat_name]
-            .str.replace(new_feature_name + "\n", "")
-            .str.replace("\n", "|")
+            .str.replace(new_feature_name + "\n", "", regex=False)
+            .str.replace("\n", "|", regex=False)
             .astype("category")
         )
         results = {"Table: Unpivoted": unpivot_data}

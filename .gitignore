@@ -14,3 +14,4 @@ docs/_build
 *.egg-info
 flim/_version.py
 .DS_Store
+/references
