@@ -143,7 +143,7 @@ class PairPlot(AbstractPlugin):
         super().__init__(name=name, **kwargs)
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("pair-new-back3.png")
+        source = files(flim.resources).joinpath("pairplot.png")
         return wx.Bitmap(str(source))
 
     def get_required_categories(self):

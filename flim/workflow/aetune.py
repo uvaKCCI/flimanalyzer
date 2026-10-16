@@ -20,6 +20,7 @@ from importlib_resources import files
 
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
+from importlib_resources import files
 from flim import utils
 from flim.plugin import plugin, perm, product, select
 from flim.plugin import AbstractPlugin, DataBucket, ALL_FEATURES
@@ -377,6 +378,10 @@ class AEWorkflow(AbsWorkFlow):
     def __init__(self, name="FLIM Data Augmentation Tuning", **kwargs):
         super().__init__(name=name, **kwargs)
         # self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
+
+    def get_icon(self):
+        source = files(flim.resources).joinpath("aetuneworkflow.png")
+        return wx.Bitmap(str(source))
 
     def get_required_features(self):
         return ["any"]

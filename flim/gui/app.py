@@ -127,24 +127,25 @@ class AppFrame(wx.Frame):
             None, wx.ID_ANY, title=f"FLIM Data Analyzer {version}"
         )  # , size=(600, 500))
 
-        tb = wx.ToolBar(self, -1)
-        self.ToolBar = tb
-        fileopen_tool = tb.AddTool(
-            wx.NewId(),
-            "Open File",
-            wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN),
-            shortHelp="Open file",
+        # tool buttons wrap into additional rows when the window is too narrow
+        self.toolpanel = wx.Panel(self)
+        self.toolsizer = wx.FlexGridSizer(cols=2, vgap=6, hgap=10)
+        self.toolsizer.AddGrowableCol(1)
+        self._add_tool_group(
+            "File",
+            [
+                (
+                    "Open file",
+                    wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_TOOLBAR, (32, 32)),
+                    self.OnLoadData,
+                ),
+                (
+                    "Import files",
+                    wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN, wx.ART_TOOLBAR, (32, 32)),
+                    self.OnImportData,
+                ),
+            ],
         )
-        self.Bind(wx.EVT_TOOL, self.OnLoadData, fileopen_tool)
-        fileimport_tool = tb.AddTool(
-            wx.NewId(),
-            "Import Files",
-            wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN),
-            shortHelp="Import files",
-        )
-        self.Bind(wx.EVT_TOOL, self.OnImportData, fileimport_tool)
-
-        tb.AddSeparator()
 
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
@@ -165,7 +166,7 @@ class AppFrame(wx.Frame):
         menubar.Append(settingsmenu, "&Settings")
         for plugintype in PLUGINS:
             menubar.Append(
-                self._create_plugin_menu(plugintype, toolbar=tb), f"&{plugintype}"
+                self._create_plugin_menu(plugintype, add_tools=True), f"&{plugintype}"
             )
         menubar.Append(self.windowmenu, "&Window")
 
@@ -177,9 +178,17 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
 
-        tb.Realize()
+        border = wx.BoxSizer(wx.VERTICAL)
+        border.Add(self.toolsizer, 1, wx.EXPAND | wx.ALL, 8)
+        self.toolpanel.SetSizer(border)
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(self.toolpanel, 1, wx.EXPAND)
+        self.SetSizer(frame_sizer)
 
-        self.SetSize((950, 250))
+        # fit height to the tool rows, keep the original default width
+        self.Fit()
+        width, height = self.GetSize()
+        self.SetSize((max(950, width), height))
         self.Centre()
         self.Show(True)
 
@@ -216,18 +225,39 @@ class AppFrame(wx.Frame):
         pub.subscribe(self.OnRequestRenameDataWindow, REQUEST_RENAME_DATA_WINDOW)
         # pub.subscribe(self.OnNewPlotWindow, NEW_PLOT_WINDOW)
 
-    def _create_plugin_menu(self, menuname, toolbar=None):
+    def _add_tool_group(self, label, tools):
+        """Adds a labeled row of icon buttons that wraps when space runs out.
+
+        Args:
+            label (str): group label shown left of the buttons.
+            tools (list): (name, bitmap, handler) tuples; name is used as tooltip
+                and as the button name.
+        """
+        self.toolsizer.Add(
+            wx.StaticText(self.toolpanel, label=label), 0, wx.ALIGN_CENTER_VERTICAL
+        )
+        row = wx.WrapSizer(wx.HORIZONTAL)
+        for name, bitmap, handler in tools:
+            button = wx.BitmapButton(
+                self.toolpanel, wx.ID_ANY, bitmap, name=name, style=wx.BORDER_NONE
+            )
+            button.SetToolTip(name)
+            button.Bind(wx.EVT_BUTTON, handler)
+            row.Add(button, 0, wx.ALL, 2)
+        self.toolsizer.Add(row, 1, wx.EXPAND)
+
+    def _create_plugin_menu(self, menuname, add_tools=False):
         menu = wx.Menu()
         plugins = PLUGINS[menuname]
+        tools = []
         for pname, pclass in plugins.items():
             plg = plugin.create_instance(pclass)
             menuitem = menu.Append(wx.NewId(), pname)
             self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
-            if toolbar:
-                tool = toolbar.AddTool(
-                    wx.NewId(), pname, plg.get_icon(), shortHelp=pname
-                )
-                self.Bind(wx.EVT_TOOL, self.on_run_plugin, tool)
+            if add_tools:
+                tools.append((pname, plg.get_icon(), self.on_run_plugin))
+        if tools:
+            self._add_tool_group(menuname, tools)
         return menu
 
     #    def OnNewDataWindow(self, data, frame):
@@ -438,8 +468,8 @@ class AppFrame(wx.Frame):
         itemid = event.GetId()
         evtobj = event.GetEventObject()
         pluginname = ""
-        if isinstance(evtobj, wx._core.ToolBar):
-            pluginname = evtobj.FindById(itemid).GetLabel()
+        if isinstance(evtobj, wx.BitmapButton):
+            pluginname = evtobj.GetName()
         else:
             pluginname = evtobj.FindItemById(itemid).GetItemLabelText()
         logging.debug(f"{event.GetId()}, {pluginname}")

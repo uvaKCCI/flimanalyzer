@@ -33,7 +33,7 @@ class Sort(AbstractPlugin):
         return []
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("filter.png")
+        source = files(flim.resources).joinpath("sort.png")
         return wx.Bitmap(str(source))
 
     def get_required_features(self):
