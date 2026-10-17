@@ -1,5 +1,7 @@
 # FLIMAnalyzer
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23426563.svg)](https://doi.org/10.5281/zenodo.23426563)
+
 Python package for analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data.
 
 ## Requirements
@@ -73,6 +75,17 @@ As a general guideline, adjust `num_workers` to match the number of CPU cores in
 To use an existing Dask cluster:
 
     uv run flimanalyzer -e DaskExecutor --execargs="address=tcp://<scheduler-host>:8786"
+
+## How to cite
+
+If you use FLIM Analyzer, please cite the software via its Zenodo DOI: [10.5281/zenodo.23426563](https://doi.org/10.5281/zenodo.23426563) (all versions). Citation metadata is also in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
+
+Archived releases and the publications they were used in:
+
+| Version | DOI | Used in |
+|---|---|---|
+| v0.5.0 | [10.5281/zenodo.23438157](https://doi.org/10.5281/zenodo.23438157) | Rehman Alam S, Siller K, Dreicer R, Periasamy A. Label-free optical biomarker for prostate cancer diagnosis. *Molecular Medicine* 32, 165 (2026). [doi:10.1186/s10020-026-01605-2](https://doi.org/10.1186/s10020-026-01605-2) |
+| v0.4.1 | [10.5281/zenodo.23426564](https://doi.org/10.5281/zenodo.23426564) | Zhang J, Wallrabe H, Siller K, Mbogo B, Cassidy T, Alam SR, Periasamy A. Measuring metabolic changes in cancer cells using two-photon fluorescence lifetime imaging microscopy and machine-learning analysis. *Journal of Biophotonics* 18(1), e202400426 (2025). [doi:10.1002/jbio.202400426](https://doi.org/10.1002/jbio.202400426) |
 
 ## Development
 
