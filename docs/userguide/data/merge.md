@@ -24,6 +24,6 @@ To use the `Merge Data` tool, follow the steps below:
   3. Click `OK`.
   4. A new merged table is formed, as directed in the configuration of the tool. In the example merged table below, the FAD a1 mean value is now inserted into the master file based on the shared categorical column values between them. 
 
-  ![](/images/data/merge-results.png)
+  % TODO: add screenshot of the merged table as /images/data/merge-results.png
   
   For each `Cell, FOV, Treatment` identifier, the corresponding FAD a1 mean value is inputted.

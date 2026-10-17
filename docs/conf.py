@@ -15,6 +15,25 @@ import sys
 
 sys.path.insert(0, os.path.abspath(".."))
 
+# The docs are built without installing flimanalyzer's heavy and GUI dependencies
+# (see the "docs" dependency group in pyproject.toml); autodoc imports these as mocks.
+autodoc_mock_imports = [
+    "prefect",
+    "prefect_dask",
+    "torch",
+    "torchvision",
+    "vistiq",
+    "wx",
+]
+
+# wx.lib.newevent.NewEvent() is unpacked at import time, which a mock can't do
+import types
+
+_newevent = types.ModuleType("wx.lib.newevent")
+_newevent.NewEvent = lambda: (type("Event", (), {}), object())
+_newevent.NewCommandEvent = _newevent.NewEvent
+sys.modules["wx.lib.newevent"] = _newevent
+
 
 # -- Project information -----------------------------------------------------
 
@@ -32,10 +51,29 @@ author = (
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "myst_parser",
     "sphinx_rtd_theme",
 ]
+
+# generate one API page per module (codedocs/index.rst) at build time
+autosummary_generate = True
+
+# anchors for Markdown headings up to level 3, e.g. [link](#open-data-file)
+myst_heading_anchors = 3
+
+
+def _skip_sklearn_members(app, what, name, obj, skip, options):
+    # scikit-learn adds set_*_request methods to estimator subclasses; their
+    # docstrings reference sklearn's own docs and are not part of flimanalyzer
+    if getattr(obj, "__module__", "") and obj.__module__.startswith("sklearn"):
+        return True
+    return None
+
+
+def setup(app):
+    app.connect("autodoc-skip-member", _skip_sklearn_members)
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]

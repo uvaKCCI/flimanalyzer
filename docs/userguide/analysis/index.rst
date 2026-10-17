@@ -60,8 +60,6 @@ The shown example table contains the following categorical columns that may be u
     relchange
     seriesanalysis
     categorize
-    merge
-    heatmap
     randomforest
     pca
     kmeans

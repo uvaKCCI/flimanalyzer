@@ -2,76 +2,58 @@
 
 ## Requirements
 
-**Python Packages:**
-* Python 3.7 (or later)
-* pandas
-* numpy (1.18)
-* matplotlib
-* seaborn
-* pytorch
-* scikit-learn
-* xlsxwriter
-* wxpython (4.0.7)
-* networkx
-* pypubsub
-* python.app (for MacOS X)
+* Python 3.12 or later
+* All Python dependencies, including [PyTorch](https://pytorch.org), [Prefect](https://www.prefect.io) and [vistiq](https://github.com/ksiller/vistiq), are declared in the `pyproject.toml` file of the code Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git) and installed automatically.
 
-## Creating a Conda environment
+## Installing with uv (recommended)
 
-The code Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git) contains an `environment.yml` file defining required Python packages. The `python.app` package, only required for MacOS X, is not included in the environment file and has to be installed manually, see below.
-
-Run the following commands to create a `flimenv` Conda environment based on the `environemnt.yml` file:
+[uv](https://docs.astral.sh/uv/) creates a virtual environment in the `.venv` folder of the repository, installs a matching Python version if needed, and installs FLIMAnalyzer in editable mode with the exact package versions recorded in `uv.lock`:
 ```
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
-conda env create -f environment.yml
-conda activate flimenv-0.4.0
-python setup.py install
+uv sync
 ```
-Installations on Windows and MacOS require a couple additional steps.
+On Windows and Linux (x86_64), uv installs the CUDA build of PyTorch; on macOS the standard PyPI build is used.
 
-**Windows Installation**
+## Installing with pip
 
-Install VS Code.
-
-**MacOS X Installation**
-
-Activate the Conda environment, install the MacOS specific `python.app` package, and patch the shebang of the `flimanalyzer` console script. 
 ```
-conda activate flimenv-0.4.0
-conda install python.app
-sed -i '' -e 's/bin\/python/python\.app\/Contents\/MacOS\/python/' $(which flimanalyzer)
+git clone https://github.com/uvaKCCI/flimanalyzer.git
+cd flimanalyzer
+python3.12 -m venv .venv
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e .
+```
+pip installs the CPU build of PyTorch from PyPI. For GPU support, install PyTorch first by following the instructions at [pytorch.org](https://pytorch.org/get-started/locally/).
+
+Conda users can create the Python environment with conda instead of `venv` and install FLIMAnalyzer into it with pip:
+```
+conda create -n flimenv python=3.12
+conda activate flimenv
+pip install -e .
 ```
 
 ## Run the application
 
 **From the command line**
 
-On Mac and Linux, run this command:
+With uv, no activation is needed:
 ```
-conda activate flimenv-0.4.0 
-export PREFECT__FLOWS__CHECKPOINTING=true 
+uv run flimanalyzer
+```
+In an activated environment:
+```
 flimanalyzer
 ```
+Run `flimanalyzer --help` for all command line options.
 
-On Windows, run this command:
-```
-conda activate flimenv-0.4.0 
-set PREFECT__FLOWS__CHECKPOINTING=true
-flimanalyzer.exe
-```
+**Prefect server**
 
-On Powershell, run this command:
-```
-conda activate flimenv-0.4.0
-$env:PREFECT__FLOWS__CHECKPOINTING='true'
-flimanalyzer.exe
-```
+FLIMAnalyzer runs analyses and workflows as [Prefect](https://www.prefect.io) flows. At startup it uses the Prefect server configured in the active Prefect profile or in the `PREFECT_API_URL` environment variable, or a server already running at `http://127.0.0.1:4200/api`. If none is found, it starts a local server and stops it again when the application exits. See the [README](https://github.com/uvaKCCI/flimanalyzer#prefect-server) for details.
 
-**From Anaconda Spyder**
-1. Launch the Anaconda Navigator
-2. In the `Applications on` drop-down, select the name of the conda environment, e.g. `flimenv`. 
-3. Launch Spyder (you may have to install it in your custom flimenv environment).
-4. In the Spyder editor, open the `analyzerapp.py` file.
-5. Go to `Run`--> `Configuration per file...` and check the box `Execute in external system terminal`.
-6. Go to `Run` -->`Run` or click the button with the green triangle in the Spyder toolbar.
+**From Spyder**
+1. Launch Spyder.
+2. Go to `Tools` --> `Preferences` --> `Python interpreter`, select `Use the following Python interpreter` and choose the Python executable of the FLIMAnalyzer environment, e.g. `flimanalyzer/.venv/bin/python` (Windows: `flimanalyzer\.venv\Scripts\python.exe`). Spyder requires the `spyder-kernels` package in that environment (`uv pip install spyder-kernels`).
+3. In the Spyder editor, open the `flim/analyzerapp.py` file.
+4. Go to `Run` --> `Configuration per file...` and check the box `Execute in external system terminal`.
+5. Go to `Run` --> `Run` or click the button with the green triangle in the Spyder toolbar.

@@ -16,3 +16,4 @@ flim/_version.py
 .DS_Store
 /references
 .venv/
+docs/codedocs/generated/

@@ -30,4 +30,4 @@ The resulting table looks like the one below. Note how each row now shows the **
 
 ![](/images/data/pivot-result.png)
 
-Data in this newly generated table can be filtered by categorical values or numeric range filters as described [above](#filtering-data).
+Data in this newly generated table can be filtered by categorical values or numeric range filters as described in [Filtering Data](filter.md).
