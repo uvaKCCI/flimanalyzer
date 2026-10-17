@@ -162,17 +162,6 @@ class defaultpreprocessor:
     def set_dropcolumns(self, cols):
         self.dropcolumns = cols
 
-    def reorder_columns(data, first=[]):
-        if first is None or len(first) == 0:
-            first = sorted(data.select_dtypes(["object"]).columns.values)
-            first.extend(sorted(data.select_dtypes(["category"]).columns.values))
-        newheaders = first
-        newheaders.extend(sorted(set(data.columns.values) - set(first)))
-        if len(newheaders) == len(data.columns):
-            data = data.reindex(newheaders, axis=1)
-        logging.debug(f"Reordered headers: {dataframe.columns.values}")
-        return data
-
     def rename_headers(self, data, newheaders=None, preview=False):
         if data is None:
             return None
