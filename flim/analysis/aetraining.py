@@ -537,7 +537,6 @@ class AETraining(AbstractPlugin):
                 title=f"Configuration: {self.name}",
                 input=self.input,
                 selectedgrouping=selgrouping,
-                selectedgrouping=selgrouping,
                 selectedfeatures=selfeatures
             )
         )
