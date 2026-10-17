@@ -2,26 +2,25 @@
 name = "flimanalyzer"
 dynamic = ["version"]
 dependencies = [
-    "dask[distributed]<2024",
-    "graphviz<1",
     "importlib-resources<7",
     "joblib<2",
-    "matplotlib>3.4,<3.8",
-    "networkx<3",
-    "numpy>=1.24,<2",
-    "pandas>=2,<3",
-    "pendulum<3",
-    "prefect<2",  # code uses the Prefect 1.x API (Flow, executors, ...)
-    "pydot<2",
+    "matplotlib>=3.9,<4",
+    "networkx>=3,<4",
+    "numpy>=2.1,<3",  # vistiq uses np.unstack (numpy 2.1+)
+    "pandas>=2.2.2,<3",  # 2.2.2 is the first release built against numpy 2
+    "prefect>=3.4.7,<4",
+    "prefect-dask>=0.3.7,<1",  # Dask task runner for prefect 3
     "pypubsub<5",
-    "scikit-learn<1.4",
-    "scipy<1.12",
-    "seaborn<0.13",
+    "scikit-learn>=1.5,<2",
+    "scipy>=1.13,<2",
+    "seaborn>=0.13.2,<0.14",
     "torch>2.7,<3",
-    "wxpython<4.3",
+    "torchvision",  # pulled in by vistiq; listed so uv picks the matching CUDA build
+    "vistiq @ git+https://github.com/ksiller/vistiq@c1e4cb9364ba4bb1273425c27baeebf74145d0c7",
+    "wxpython>=4.2.2,<4.3",
     "xlsxwriter<4",
 ]
-requires-python = ">=3.10,<3.12"
+requires-python = ">=3.12"
 description = "Analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data."
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -30,6 +29,7 @@ authors = [
 ]
 classifiers = [
     "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Image Processing",
@@ -40,6 +40,28 @@ test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+]
+
+[dependency-groups]
+# Builds the documentation without installing flimanalyzer itself (wxPython has no
+# Linux wheels): docs/conf.py imports flim from the source tree and mocks wx, torch,
+# prefect and vistiq. Install with `uv sync --only-group docs`.
+docs = [
+    "sphinx>=8,<9",
+    "sphinx-rtd-theme>=3,<4",
+    "myst-parser>=4,<5",
+    # lightweight runtime dependencies imported by the documented modules
+    "importlib-resources<7",
+    "joblib<2",
+    "matplotlib>=3.9,<4",
+    "networkx>=3,<4",
+    "numpy>=2.1,<3",
+    "pandas>=2.2.2,<3",
+    "pypubsub<5",
+    "scikit-learn>=1.5,<2",
+    "scipy>=1.13,<2",
+    "seaborn>=0.13.2,<0.14",
+    "xlsxwriter<4",
 ]
 
 [project.gui-scripts]
@@ -62,6 +84,9 @@ build-backend = "hatchling.build"
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')" },
 ]
+torchvision = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')" },
+]
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
@@ -71,9 +96,16 @@ explicit = true
 [tool.hatch.version]
 source = "versioningit"
 
+[tool.hatch.metadata]
+# vistiq is not on PyPI and is installed from its git repository
+allow-direct-references = true
+
 [tool.versioningit.vcs]
-match = ["[0-9]*.[0-9]*.[0-9]*", "[0-9]*.[0-9]*.[0-9]*.dev[0-9]*"]
-default-tag = "0.0.0"
+# release tags: v1.2.3, v1.2.3rc1, v1.2.3.dev1 (the leading "v" is dropped from the version)
+match = ["v[0-9]*.[0-9]*.[0-9]*"]
+# git describe patterns are globs, so exclude tags like v0.4.1-publication
+exclude = ["*-*"]
+default-tag = "v0.0.0"
 
 [tool.versioningit.next-version]
 method = "smallest-release"
@@ -99,7 +131,7 @@ include = ["/flim", "/README.md", "/LICENSE", "/pyproject.toml", "/write_version
 
 [tool.black]
 line-length = 88
-target-version = ['py310']
+target-version = ['py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(

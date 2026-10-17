@@ -30,46 +30,11 @@ from typing import (
     Type,
 )
 from abc import ABC, abstractmethod
-from prefect import Task, task
+from flim.core.runner import call_plugin, map_plugin, select
 
 
 PLUGINS = {}
 ALL_FEATURES = "all_features"
-
-
-@task
-def perm(a, b):
-    combinations = list(itertools.product(a, b))
-    return tuple(map(itemgetter(0), combinations)), tuple(
-        map(itemgetter(1), combinations)
-    )
-
-
-@task
-def product(x, y):
-    return list(itertools.product(x, y))
-
-
-@task
-def select(listofdict, key_pattern="(.*?)", value_pattern=None):
-    result = [
-        v for entry in listofdict for k, v in entry.items() if re.search(key_pattern, k)
-    ]
-    if value_pattern:
-        try:
-            result = [
-                element
-                for r in result
-                for element in r
-                if (isinstance(r, list) and re.search(value_pattern, element))
-            ]
-        except:
-            pass
-    logging.debug(
-        f"{key_pattern}, {value_pattern}: {[d.keys() for d in listofdict]},"
-        f" result={result}"
-    )
-    return result
 
 
 def plugin(plugintype):
@@ -189,8 +154,15 @@ def create_instance(clazz):
     return toolinstance
 
 
-class AbstractPlugin(Task):
-    """Abstract class used to template plugins for data manipulation, analysis, plotting."""
+class AbstractPlugin:
+    """Abstract class used to template plugins for data manipulation, analysis, plotting.
+
+    Calling a plugin instance (``plugin(input=..., **params)``) or its ``map`` method
+    inside :func:`flim.core.runner.run_flow` runs it as a Prefect task.
+    """
+
+    # node style in the workflow graph
+    graph_kind = "plugin"
 
     def __init__(
         self,
@@ -207,10 +179,12 @@ class AbstractPlugin(Task):
             input_select (List[int|str]): list of input indices (if input is list) or list of strings (if input is dict)
             kwargs: configuration parameters
         """
-        # get plugin specific defaults, pass non-plugin kwargs to superclass
+        self.name = name if name is not None else type(self).__name__
+        # get plugin specific defaults, ignore kwargs that are not plugin parameters
         self.params = self.get_default_parameters()
-        superkwargs = {k: v for k, v in kwargs.items() if k not in self.params}
-        super().__init__(name=name, **superkwargs)
+        ignored = [k for k in kwargs if k not in self.params]
+        if ignored:
+            logging.debug(f"{self.name}: ignoring unknown arguments {ignored}")
         # update plugin-specific kwargs
         self.params.update({k: v for k, v in kwargs.items() if k in self.params})
         self.set_input(input, input_select)
@@ -446,10 +420,7 @@ class AbstractPlugin(Task):
     def run(self, input={}, input_select=None, **kwargs):
         logging.debug(f"{self.name}: kwargs[features]={kwargs.get('features', None)}")
         self.configure(input=input, input_select=input_select, **kwargs)
-        logging.debug(
-            f"Executing {self.name}: task_run_name={self.task_run_name},"
-            f" type(self.input)={type(self.input)}"
-        )
+        logging.debug(f"Executing {self.name}: type(self.input)={type(self.input)}")
         for data in self.input.values():
             if isinstance(input, pd.DataFrame) and len(data) == 0:
                 raise ValueError("Dataframe is enmpty.")
@@ -458,8 +429,31 @@ class AbstractPlugin(Task):
             results = {f'{self.params["prefix"]}{k}': v for k, v in results.items()}
         return results
 
+    def __call__(self, **kwargs):
+        """Runs the plugin with ``kwargs``; as a Prefect task when inside a flow.
+
+        Args:
+            kwargs: arguments for :meth:`run`; ``task_tags`` (str or list) sets the
+                task's tags, which also determine where autosaved results go.
+
+        Returns:
+            TaskOutput inside a flow, otherwise the plugin's results.
+        """
+        return call_plugin(self, **kwargs)
+
+    def map(self, **kwargs):
+        """Calls the plugin once per element of each argument not wrapped in
+        ``prefect.unmapped``.
+
+        Returns:
+            list: one result handle per call.
+        """
+        return map_plugin(self, **kwargs)
+
 
 class DataBucket(AbstractPlugin):
+    graph_kind = "output"
+
     def __init__(self, name="Data Bucket", **kwargs):
         super().__init__(name=name, **kwargs)
         # self.name = self._get_input_label(input)

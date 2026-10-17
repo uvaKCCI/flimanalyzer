@@ -20,7 +20,6 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
-from prefect import Task
 from flim.plugin import plugin, ALL_FEATURES
 
 
@@ -28,7 +27,7 @@ default_linestyles = ["-", "--", ":", "-."]
 
 
 @plugin(plugintype="Plot")
-class KDE(AbstractPlugin, Task):
+class KDE(AbstractPlugin):
     def __init__(self, name="KDE", **kwargs):
         # classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
         super().__init__(name=name, **kwargs)

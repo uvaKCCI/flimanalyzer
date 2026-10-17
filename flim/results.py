@@ -7,85 +7,53 @@ Created on Thu Feb 10 12:45:21 2022
 """
 import os
 import logging
-import matplotlib
+import matplotlib.figure
 import pandas as pd
 import re
 from joblib import dump
-from pathlib import Path
-from prefect.engine.results.local_result import LocalResult
-
-from flim import utils
 
 
-class LocalResultClear(LocalResult):
-    """def __init__(self, dir: str = None, validate_dir: bool = True, **kwargs):
-    if dir is not None:
-        cleaned_dir = (
-            repr(dir)
-            .replace("%", "pcent")
-            .replace("\r", "")
-            .replace("\n", " ")
-            .replace("|", "_")
-        )
-    else:
-        cleaned_dir = dir
-    super().__init__(cleaned_dir, validate_dir, **kwargs)"""
+def clean_path_component(name: str) -> str:
+    """Makes a result/tag name usable as a file or directory name."""
+    name = (
+        str(name)
+        .replace("%", "pcent")
+        .replace("\r", "")
+        .replace("\n", " ")
+        .replace("|", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
+    return re.sub(r":\s?", "_", name)
 
-    def write(self, value, **kwargs):
-        # store relevant params for location templating
-        keys = [k.split(":")[0] for k in re.findall("(?<=\{).*?(?=\})", self.location)]
-        self.location_params = {}
-        for k in keys:
-            self.location_params[k] = kwargs.get(k, None)
 
-        new = super().write(value, **kwargs)
-        assert new.location is not None
+def save_results(results, directory: str, name: str) -> None:
+    """Saves a plugin's results below ``directory``.
 
-        full_path = os.path.join(self.dir, new.location)
-        pickledir = os.path.dirname(full_path)
-        cleardir = Path(pickledir).parent
-        logging.debug(f"Saving pickled data to {full_path}, raw data to {cleardir}")
-        if isinstance(value, dict):
-            for k, v in value.items():
-                if isinstance(v, pd.DataFrame):
-                    v = v.copy()
-                    v.reset_index()
-                    # if indx was flattened in analyzer.summarize_data, multiindex col values were joined with '\n'--> revert here
-                    v.columns = [c.replace("\n", " ") for c in v.columns.values]
-                    dirpath = repr(os.path.join(cleardir, f"{k}.txt"))
-                    drive = dirpath[1:3]
-                    savepath = (
-                        dirpath[3:-1]
-                        .replace("%", "pcent")
-                        .replace("\r", "")
-                        .replace("\\n", " ")
-                        .replace("|", "_")
-                    )
-                    savepath = re.sub(":\s?", "_", savepath)
-                    v.to_csv(drive + savepath)
-                elif isinstance(v, matplotlib.figure.Figure):
-                    # v.tight_layout()
-                    dirpath = repr(os.path.join(cleardir, f"{k}.png"))
-                    drive = dirpath[1:3]
-                    savepath = (
-                        dirpath[3:-1]
-                        .replace("%", "pcent")
-                        .replace("\\r", "")
-                        .replace("\\n", " ")
-                        .replace("|", "_")
-                    )
-                    savepath = re.sub(":\s?", "_", savepath)
-                    v.savefig(drive + savepath)
-                else:
-                    dirpath = repr(os.path.join(cleardir, f"{k}"))
-                    drive = dirpath[1:3]
-                    savepath = (
-                        dirpath[3:-1]
-                        .replace("%", "pcent")
-                        .replace("\\r", "")
-                        .replace("\\n", " ")
-                        .replace("|", "_")
-                    )
-                    savepath = re.sub(":\s?", "_", savepath)
-                    dump(v, drive + savepath)
-        return new
+    The complete result is pickled to ``<directory>/pickled/<name>``. If the result is a
+    dict, each DataFrame is also written as ``<key>.txt``, each Figure as ``<key>.png``
+    and any other value pickled as ``<key>`` in ``directory``.
+
+    Args:
+        results: plugin result, usually a dict of DataFrames and/or Figures.
+        directory (str): target directory, created if it does not exist.
+        name (str): name of the task that produced the results.
+    """
+    pickledir = os.path.join(directory, "pickled")
+    os.makedirs(pickledir, exist_ok=True)
+    dump(results, os.path.join(pickledir, clean_path_component(name)))
+    logging.debug(f"Saving results of {name} to {directory}")
+    if not isinstance(results, dict):
+        return
+    for k, v in results.items():
+        basename = os.path.join(directory, clean_path_component(k))
+        if isinstance(v, pd.DataFrame):
+            v = v.copy()
+            # if index was flattened in analyzer.summarize_data, multiindex col values
+            # were joined with '\n'--> revert here
+            v.columns = [str(c).replace("\n", " ") for c in v.columns.values]
+            v.to_csv(f"{basename}.txt")
+        elif isinstance(v, matplotlib.figure.Figure):
+            v.savefig(f"{basename}.png")
+        else:
+            dump(v, basename)

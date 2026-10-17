@@ -4,25 +4,19 @@ import itertools
 import numpy as np
 import os
 import pandas as pd
-import prefect
 import re
 import wx
 import matplotlib.pyplot as plt
 
 from collections import OrderedDict
-from prefect import Task, Flow, Parameter, task, unmapped, flatten, tags
-from prefect.tasks.core.collections import List
-from prefect.tasks.core.constants import Constant
-from prefect.tasks.files.operations import Glob
-from prefect.executors import DaskExecutor
-from prefect.executors.base import Executor
-from prefect.engine.results import LocalResult
+from prefect import task, unmapped
 
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
 from importlib_resources import files
 from flim import utils
-from flim.plugin import plugin, perm, product, select
+from flim.core.runner import Parameter, select
+from flim.plugin import plugin
 from flim.plugin import AbstractPlugin, DataBucket, ALL_FEATURES
 from flim.data.pivotdata import Pivot
 from flim.data.unpivotdata import UnPivot
@@ -284,7 +278,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
         self.configure(**params)
         return self.params
 
-    def construct_flow(self, executor, result):
+    def construct_flow(self):
         checkpoint_interval = self.params["checkpoint_interval"]
 
         data_train = list(self.input.values())[0]
@@ -311,7 +305,6 @@ class AEFeatureWorkflow(AbsWorkFlow):
 
         # listtask = List()
         datatask = DataBucket(name="Input")
-        globtask = Glob()
         filtertask = Filter()
         aetraintask = AETraining()
         aeruntask = RunAE()
@@ -328,232 +321,213 @@ class AEFeatureWorkflow(AbsWorkFlow):
         kstask = KSStats()
         sorttask = Sort()
 
-        with Flow(
-            f"{self.name}",
-            executor=executor,
-            result=result,
-        ) as flow:
-            working_dir = Parameter("working_dir", self.params["working_dir"])
-            modelfile = f'AEFeature-{len(self.params["features"])}'
+        working_dir = Parameter("working_dir", self.params["working_dir"])
+        modelfile = f'AEFeature-{len(self.params["features"])}'
 
-            timeseries = Parameter("timeseries", default=self.params["timeseries"])
-            timeseries_vals = [
-                v
-                for v in data_train[self.params["timeseries"]].unique()
-                if not "15" in v
+        timeseries = Parameter("timeseries", default=self.params["timeseries"])
+        timeseries_vals = [
+            v for v in data_train[self.params["timeseries"]].unique() if not "15" in v
+        ]
+        t_pairs = list(zip(timeseries_vals, timeseries_vals[1:]))
+        ctrl_group = self.params["ctrl_group"]
+
+        grouping = Parameter("grouping", default=self.params["grouping"])
+        epoches = Parameter("epoches", default=self.params["epoches"])
+        rates = Parameter("learning rate", default=rates)
+        decays = Parameter("weight decay", default=decays)
+        batch_sizes = Parameter("batch size", default=batch_sizes)
+        features = Parameter(
+            f'features: {len(self.params["features"])}',
+            default=sel_features,
+        )
+        model = Parameter("model", default=self.params["model"])
+
+        input_train = datatask(
+            name="Input_Train",
+            input=data_train,
+            input_select=[0],
+            task_tags="Input_Train",
+        )
+
+        input_train_filtered = filtertask(
+            input=input_train,
+            input_select=[0],
+            task_tags="Input_Train_Filtered",
+        )
+
+        input_run = datatask(
+            name="Input_Run",
+            input=data_run,
+            input_select=[0],
+            task_tags="Input_Run",
+        )
+
+        input_run_filtered = filtertask(
+            input=input_run,
+            input_select=[0],
+            task_tags="Input_Run_Filtered",
+        )
+
+        pcaresults = pcatask(
+            input=input_run_filtered,
+            input_select=[0],
+            grouping=[],  # ['FOV', 'Cell'],
+            features=features,
+            task_tags="PCA",
+        )
+
+        aeresults = aetraintask.map(
+            input=unmapped(input_train_filtered),
+            input_select=unmapped([0]),
+            grouping=unmapped(grouping),
+            features=unmapped(features),
+            epoches=unmapped(epoches),
+            learning_rate=rates,
+            weight_decay=decays,
+            batch_size=batch_sizes,
+            checkpoint_interval=unmapped(checkpoint_interval),
+            timeseries=unmapped(timeseries),
+            rescale=unmapped(True),
+            model=unmapped(model),
+            working_dir=unmapped(working_dir),
+            modelfile=unmapped(modelfile),
+            create_plots=unmapped(False),
+            checkpoint=unmapped(True),
+            task_tags=combinations,
+        )
+
+        aerunresults = aeruntask.map(
+            input=unmapped(input_run_filtered),
+            input_select=unmapped([0]),
+            grouping=unmapped(grouping),
+            features=unmapped(features),
+            modelfile=select(
+                aeresults,
+                key_pattern="Model File",
+                value_pattern=f"{last_epoch:04d}",
+            ),
+            task_tags=combinations,
+        )
+
+        flirr_pca_f1_tags = ["FLIRR"] + ["PCA"] + [f"{c}" for c in combinations]
+        logging.debug(f"flirr_pca_f1_tags={flirr_pca_f1_tags}")
+
+        kderesults_F1 = kdetask.map(
+            input=[input_run_filtered, pcaresults["Table: PCA Components"]]
+            + select(aerunresults, "Table: Features"),
+            input_select=unmapped([0]),
+            grouping=unmapped(["Treatment"]),
+            features=[["FLIRR"]] + [["PC 1"]] + len(combinations) * [["Feature 1"]],
+            task_tags=flirr_pca_f1_tags,
+        )
+
+        summaryresults = stask.map(
+            input=[input_run_filtered, pcaresults["Table: PCA Components"]]
+            + select(aerunresults, "Table: Features"),
+            input_select=unmapped([0]),
+            grouping=unmapped(["Cell", "FOV", "Treatment"]),
+            features=[["FLIRR"]] + [["PC 1"]] + len(combinations) * [["Feature 1"]],
+            aggs=unmapped(["mean"]),
+            singledf=unmapped(True),
+            task_tags=flirr_pca_f1_tags,
+        )
+
+        pivotresult = pivottask.map(
+            input=summaryresults,
+            input_select=unmapped([0]),
+            grouping=unmapped([timeseries]),
+            features=[["FLIRR\nmean"]]
+            + [["PC 1\nmean"]]
+            + len(combinations) * [["Feature 1\nmean"]],
+            task_tags=flirr_pca_f1_tags,
+        )
+
+        seriesresult = seriestask.map(
+            input=pivotresult,
+            input_select=unmapped([0]),
+            features=[[f"FLIRR\nmean\n{t}" for t in timeseries_vals]]
+            + [[f"PC 1\nmean\n{t}" for t in timeseries_vals]]
+            + len(combinations)
+            * [[f"Feature 1\nmean\n{t}" for t in timeseries_vals]],
+            series_min=unmapped(False),
+            series_max=unmapped(False),
+            series_range=unmapped(False),
+            series_mean=unmapped(False),
+            series_median=unmapped(False),
+            delta=unmapped(True),
+            delta_min=unmapped(False),
+            delta_max=unmapped(False),
+            delta_sum=unmapped(False),
+            delta_cum=unmapped(True),
+            delta_norm=unmapped(True),
+            merge_input=unmapped(False),
+            task_tags=flirr_pca_f1_tags,
+        )
+
+        sortresult = sorttask.map(
+            input=seriesresult,
+            input_select=unmapped([0]),
+            features=[
+                [
+                    f"FLIRR\nmean\nnormalized delta {t[0]}:{t[1]}"
+                    for t in t_pairs
+                    if ctrl_group.lower() in t[0].lower()
+                ]
             ]
-            t_pairs = list(zip(timeseries_vals, timeseries_vals[1:]))
-            ctrl_group = self.params["ctrl_group"]
-
-            grouping = Parameter("grouping", default=self.params["grouping"])
-            epoches = Parameter("epoches", default=self.params["epoches"])
-            rates = Parameter("learning rate", default=rates)
-            decays = Parameter("weight decay", default=decays)
-            batch_sizes = Parameter("batch size", default=batch_sizes)
-            features = Parameter(
-                f'features: {len(self.params["features"])}',
-                default=sel_features,
-            )
-            model = Parameter("model", default=self.params["model"])
-
-            globresult = globtask(
-                path="/Users/khs3z/FLIMAnalyzerResults/FLIM Feature Analysis/",
-                pattern="AE*.model",
-            )
-
-            input_train = datatask(
-                name="Input_Train",
-                input=data_train,
-                input_select=[0],
-                task_tags="Input_Train",
-            )
-
-            input_train_filtered = filtertask(
-                input=input_train,
-                input_select=[0],
-                task_tags="Input_Train_Filtered",
-            )
-
-            input_run = datatask(
-                name="Input_Run",
-                input=data_run,
-                input_select=[0],
-                task_tags="Input_Run",
-            )
-
-            input_run_filtered = filtertask(
-                input=input_run,
-                input_select=[0],
-                task_tags="Input_Run_Filtered",
-            )
-
-            pcaresults = pcatask(
-                input=input_run_filtered,
-                input_select=[0],
-                grouping=[],  # ['FOV', 'Cell'],
-                features=features,
-                task_tags="PCA",
-            )
-
-            aeresults = aetraintask.map(
-                input=unmapped(input_train_filtered),
-                input_select=unmapped([0]),
-                grouping=unmapped(grouping),
-                features=unmapped(features),
-                epoches=unmapped(epoches),
-                learning_rate=rates,
-                weight_decay=decays,
-                batch_size=batch_sizes,
-                checkpoint_interval=unmapped(checkpoint_interval),
-                timeseries=unmapped(timeseries),
-                rescale=unmapped(True),
-                model=unmapped(model),
-                working_dir=unmapped(working_dir),
-                modelfile=unmapped(modelfile),
-                create_plots=unmapped(False),
-                checkpoint=unmapped(True),
-                task_tags=combinations,
-            )
-
-            aerunresults = aeruntask.map(
-                input=unmapped(input_run_filtered),
-                input_select=unmapped([0]),
-                grouping=unmapped(grouping),
-                features=unmapped(features),
-                modelfile=select(
-                    aeresults,
-                    key_pattern="Model File",
-                    value_pattern=f"{last_epoch:04d}",
-                ),
-                task_tags=combinations,
-            )
-
-            flirr_pca_f1_tags = ["FLIRR"] + ["PCA"] + [f"{c}" for c in combinations]
-            logging.debug(f"flirr_pca_f1_tags={flirr_pca_f1_tags}")
-
-            kderesults_F1 = kdetask.map(
-                input=[input_run_filtered, pcaresults["Table: PCA Components"]]
-                + select(aerunresults, "Table: Features"),
-                input_select=unmapped([0]),
-                grouping=unmapped(["Treatment"]),
-                features=[["FLIRR"]] + [["PC 1"]] + len(combinations) * [["Feature 1"]],
-                task_tags=flirr_pca_f1_tags,
-            )
-
-            summaryresults = stask.map(
-                input=[input_run_filtered, pcaresults["Table: PCA Components"]]
-                + select(aerunresults, "Table: Features"),
-                input_select=unmapped([0]),
-                grouping=unmapped(["Cell", "FOV", "Treatment"]),
-                features=[["FLIRR"]] + [["PC 1"]] + len(combinations) * [["Feature 1"]],
-                aggs=unmapped(["mean"]),
-                singledf=unmapped(True),
-                task_tags=flirr_pca_f1_tags,
-            )
-
-            pivotresult = pivottask.map(
-                input=summaryresults,
-                input_select=unmapped([0]),
-                grouping=unmapped([timeseries]),
-                features=[["FLIRR\nmean"]]
-                + [["PC 1\nmean"]]
-                + len(combinations) * [["Feature 1\nmean"]],
-                task_tags=flirr_pca_f1_tags,
-            )
-
-            seriesresult = seriestask.map(
-                input=pivotresult,
-                input_select=unmapped([0]),
-                features=[[f"FLIRR\nmean\n{t}" for t in timeseries_vals]]
-                + [[f"PC 1\nmean\n{t}" for t in timeseries_vals]]
-                + len(combinations)
-                * [[f"Feature 1\nmean\n{t}" for t in timeseries_vals]],
-                series_min=unmapped(False),
-                series_max=unmapped(False),
-                series_range=unmapped(False),
-                series_mean=unmapped(False),
-                series_median=unmapped(False),
-                delta=unmapped(True),
-                delta_min=unmapped(False),
-                delta_max=unmapped(False),
-                delta_sum=unmapped(False),
-                delta_cum=unmapped(True),
-                delta_norm=unmapped(True),
-                merge_input=unmapped(False),
-                task_tags=flirr_pca_f1_tags,
-            )
-
-            sortresult = sorttask.map(
-                input=seriesresult,
-                input_select=unmapped([0]),
-                features=[
-                    [
-                        f"FLIRR\nmean\nnormalized delta {t[0]}:{t[1]}"
-                        for t in t_pairs
-                        if ctrl_group.lower() in t[0].lower()
-                    ]
+            + [
+                [
+                    f"PC 1\nmean\nnormalized delta {t[0]}:{t[1]}"
+                    for t in t_pairs
+                    if ctrl_group.lower() in t[0].lower()
                 ]
-                + [
-                    [
-                        f"PC 1\nmean\nnormalized delta {t[0]}:{t[1]}"
-                        for t in t_pairs
-                        if ctrl_group.lower() in t[0].lower()
-                    ]
+            ]
+            + len(combinations)
+            * [
+                [
+                    f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}"
+                    for t in t_pairs
+                    if ctrl_group.lower() in t[0].lower()
                 ]
-                + len(combinations)
-                * [
-                    [
-                        f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}"
-                        for t in t_pairs
-                        if ctrl_group.lower() in t[0].lower()
-                    ]
-                ],
-                ascending=unmapped(True),
-                task_tags=flirr_pca_f1_tags,
-            )
+            ],
+            ascending=unmapped(True),
+            task_tags=flirr_pca_f1_tags,
+        )
 
-            barresult = bartask.map(
-                input=sortresult,
-                input_select=unmapped([0]),
-                grouping=unmapped(["FOV", "Cell"]),
-                features=[
-                    [f"FLIRR\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]
-                ]
-                + [[f"PC 1\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]]
-                + len(combinations)
-                * [
-                    [
-                        f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}"
-                        for t in t_pairs
-                    ]
-                ],
-                ordering=unmapped({}),
-                orientation=unmapped("vertical"),  # 'horizontal'
-                bar_type=unmapped("stacked"),  # 'single', '100% stacked'
-                dropna=unmapped(True),
-                error_bar=unmapped("+/-"),  # '+', 'None'
-                error_type=unmapped("s.e.m"),
-                task_tags=flirr_pca_f1_tags,
-            )  # 'std'
+        barresult = bartask.map(
+            input=sortresult,
+            input_select=unmapped([0]),
+            grouping=unmapped(["FOV", "Cell"]),
+            features=[
+                [f"FLIRR\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]
+            ]
+            + [[f"PC 1\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]]
+            + len(combinations)
+            * [[f"Feature 1\nmean\nnormalized delta {t[0]}:{t[1]}" for t in t_pairs]],
+            ordering=unmapped({}),
+            orientation=unmapped("vertical"),  # 'horizontal'
+            bar_type=unmapped("stacked"),  # 'single', '100% stacked'
+            dropna=unmapped(True),
+            error_bar=unmapped("+/-"),  # '+', 'None'
+            error_type=unmapped("s.e.m"),
+            task_tags=flirr_pca_f1_tags,
+        )  # 'std'
 
-            ksresults = kstask.map(
-                input=[input_run_filtered, pcaresults["Table: PCA Components"]]
-                + select(aerunresults, "Table: Features"),
-                input_select=unmapped([0]),
-                comparison=unmapped("Treatment"),
-                grouping=unmapped(["Treatment", "FOV", "Cell"]),
-                alpha=unmapped(0.05),
-                features=[["FLIRR"]] + [["PC 1"]] + len(combinations) * [["Feature 1"]],
-                prefix=["FLIRR:"] + ["PCA:"] + [f"AERun {c}:" for c in combinations],
-                task_tags=flirr_pca_f1_tags,
-            )
+        ksresults = kstask.map(
+            input=[input_run_filtered, pcaresults["Table: PCA Components"]]
+            + select(aerunresults, "Table: Features"),
+            input_select=unmapped([0]),
+            comparison=unmapped("Treatment"),
+            grouping=unmapped(["Treatment", "FOV", "Cell"]),
+            alpha=unmapped(0.05),
+            features=[["FLIRR"]] + [["PC 1"]] + len(combinations) * [["Feature 1"]],
+            prefix=["FLIRR:"] + ["PCA:"] + [f"AERun {c}:" for c in combinations],
+            task_tags=flirr_pca_f1_tags,
+        )
 
-            concatresults = concattask(
-                input=ksresults,  # list_to_dict(ksresults),
-                input_select=None,
-                type=False,
-                numbers_only=False,
-                task_tags="Summary",
-            )
-
-        return flow
+        concatresults = concattask(
+            input=ksresults,  # list_to_dict(ksresults),
+            input_select=None,
+            type=False,
+            numbers_only=False,
+            task_tags="Summary",
+        )

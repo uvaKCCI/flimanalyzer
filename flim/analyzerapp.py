@@ -17,6 +17,7 @@ import flim.core.parser as cp
 import flim.analysis
 from flim.plugin import AbstractPlugin
 from flim.core.tools import FLIMAnalyzer
+from flim.core.prefect_server import use_prefect_server
 from flim.core.configuration import Config, CONFIG_PARSER_CLASS
 
 
@@ -32,9 +33,9 @@ def parse_arguments():
     parser.add_argument(
         "-e",
         "--executor",
-        default="LocalCluster",
+        default="LocalExecutor",
         help=(
-            "executor to run pipeline. Options: LocalCluster, LocalDaskExecutor,"
+            "executor to run pipeline. Options: LocalExecutor, LocalDaskExecutor,"
             " DaskExecutor"
         ),
     )
@@ -43,6 +44,14 @@ def parse_arguments():
         "--execargs",
         default="",
         help="comma separated list of arguments to pass to executor instance",
+    )
+    parser.add_argument(
+        "--no-prefect-server",
+        action="store_true",
+        help=(
+            "don't start a local Prefect server if none is running; flows then use a"
+            " temporary server"
+        ),
     )
     parser.add_argument(
         "-o", "--output", default=None, help="save imported dataset to file/directory"
@@ -218,10 +227,11 @@ def main():
     # aes = analysis.ml.autoencoder.init_autoencoders()
     # config = analysis.absanalyzer.init_default_config(analyzers)
     # print (config)
-    if args.input is None or args.output is None or args.config is None:
-        interactive_run(fa)
-    else:
-        noninteractive_run(fa, args)
+    with use_prefect_server(start=not args.no_prefect_server):
+        if args.input is None or args.output is None or args.config is None:
+            interactive_run(fa)
+        else:
+            noninteractive_run(fa, args)
 
 
 if __name__ == "__main__":

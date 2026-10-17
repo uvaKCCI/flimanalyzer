@@ -14,8 +14,6 @@ from flim.core.importer import dataimporter
 from flim.core.parser import defaultparser
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.analyzer import dataanalyzer
-from prefect.executors.local import LocalExecutor
-from prefect.executors.dask import LocalDaskExecutor, DaskExecutor
 
 
 class FLIMAnalyzer:
@@ -24,7 +22,7 @@ class FLIMAnalyzer:
         importer=dataimporter(),
         preprocessor=defaultpreprocessor(),
         danalyzer=dataanalyzer(),
-        executor=LocalExecutor,
+        executor="LocalExecutor",
         execargs="",
         **kwargs,
     ):
@@ -50,24 +48,40 @@ class FLIMAnalyzer:
                 pass
             n[k] = v
         execargs = n
-        if executor == "LocalDaskExecutor":
-            self.executor = LocalDaskExecutor(**execargs)
-        elif executor == "DaskExecutor":
-            self.executor = DaskExecutor(**execargs)
-        else:
-            self.executor = LocalExecutor()
-            execargs = ""
-
+        self.executor = executor
+        self.execargs = execargs
+        if executor not in ("LocalDaskExecutor", "DaskExecutor"):
+            self.executor = "LocalExecutor"
+            self.execargs = {}
         #        self.outputgenerator = outputgenerator()
-        logging.info(f"Setting up {self.executor}: {execargs}")
+        logging.info(f"Setting up {self.executor}: {self.execargs}")
         logging.debug(
             f"Initialized {__name__}.FlimAnalyzer with"
             f" {importer}, {preprocessor}, {danalyzer}"
         )
-        logging.debug(f"Using {self.executor}, {execargs}")
+        logging.debug(f"Using {self.executor}, {self.execargs}")
 
-    def get_executor(self):
-        return self.executor
+    def get_task_runner(self):
+        """Returns the Prefect task runner for workflow execution.
+
+        Returns:
+            None for ``LocalExecutor`` (tasks run sequentially in the GUI thread),
+            otherwise a ``prefect_dask.DaskTaskRunner``: ``LocalDaskExecutor`` starts a
+            local Dask cluster (args: ``num_workers``, ``scheduler=threads|processes``),
+            ``DaskExecutor`` connects to an existing cluster (arg: ``address``).
+        """
+        if self.executor == "LocalExecutor":
+            return None
+        from prefect_dask import DaskTaskRunner
+
+        args = dict(self.execargs)
+        if self.executor == "DaskExecutor":
+            return DaskTaskRunner(**args)
+        cluster_kwargs = {}
+        if "num_workers" in args:
+            cluster_kwargs["n_workers"] = args.pop("num_workers")
+        cluster_kwargs["processes"] = args.pop("scheduler", "threads") == "processes"
+        return DaskTaskRunner(cluster_kwargs={**cluster_kwargs, **args})
 
     def get_data(self):
         return self.data

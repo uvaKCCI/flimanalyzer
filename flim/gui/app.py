@@ -22,9 +22,6 @@ import wx
 import wx.lib.agw.customtreectrl as CT
 
 from pubsub import pub
-from prefect import Flow
-from prefect.backend import FlowRunView
-from prefect.engine.state import State
 from flim._version import __version__
 from wx.lib.newevent import NewEvent
 
@@ -41,6 +38,7 @@ from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.filter import RangeFilter
 from flim.core.graph import WorkflowGraph
+from flim.core.runner import run_flow
 from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.datapanel import PandasFrame
@@ -80,7 +78,6 @@ from flim.gui.listcontrol import (
     EVT_ANALYSISUPDATED,
 )
 from flim.gui.seriesfiltertree import SeriesFilterCtrl
-from flim.results import LocalResultClear
 from flim.workflow.basicflow import AbsWorkFlow
 
 ImportEvent, EVT_IMPORT = NewEvent()
@@ -556,37 +553,25 @@ class AppFrame(wx.Frame):
         # get list of configure parameters for parallel processing
         mapped_params = tool.get_mapped_parameters()
         if not isinstance(tool, AbsWorkFlow):
-            # only need to set this up for tasks wrapped into new flow
+            autosave_dir = None
             if parameters["autosave"]:
-                dirname = (
+                autosave_dir = (
                     parameters["working_dir"]
                     if os.path.isdir(parameters["working_dir"])
                     else self.config.get(cfg.CONFIG_WORKINGDIR)
                 )
-                localresult = LocalResultClear(
-                    dir=f"{dirname}",
-                    location=(  # -{task_run_id}-{map_index}-
-                        "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/"
-                        "{task_tags}/pickled/"
-                        "{task_full_name}"
-                    ),
-                )
-            else:
-                localresult = None
-            with Flow(
-                name="Interactive Analysis",
-                result=localresult,
-                executor=self.flimanalyzer.get_executor(),
-            ) as flow:
+
+            def interactive_analysis():
                 for p in mapped_params:
-                    # if p.get("executor"):
-                    #    p["executor"] = self.flimanalyzer.get_executor()
-                    # for k,v in p.items():
-                    #    print (f'{k}={v}')
                     tool(**p, task_tags=tool.name)
-            state = flow.run()
-            task_refs = flow.get_tasks()
-            result_list = [state.result[tr]._result.value for tr in task_refs]
+
+            flow_run = run_flow(
+                "Interactive Analysis",
+                interactive_analysis,
+                task_runner=self.flimanalyzer.get_task_runner(),
+                autosave_dir=autosave_dir,
+            )
+            result_list = flow_run.results()
             logging.debug(f"Results: {len(result_list)}")
 
             # handle results, DataFrames or Figure objects
@@ -608,29 +593,28 @@ class AppFrame(wx.Frame):
                             event.SetEventInfo(fig, title, "createnew")
                             self.GetEventHandler().ProcessEvent(event)
         else:
-            localresult = LocalResultClear(
-                dir=f'{parameters["working_dir"]}',
-                location=(  # -{task_run_id}-{map_index}-
-                    "{flow_name}/"
-                    "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/pickled/"
-                    "{task_full_name}"
-                ),
+            flow_run = tool.run_flow(
+                task_runner=self.flimanalyzer.get_task_runner(),
+                autosave_dir=os.path.join(parameters["working_dir"], tool.name),
             )
-            flow = tool.construct_flow(self.flimanalyzer.get_executor(), localresult)
-            flow.visualize()
-
-            state = flow.run()
-            flow.visualize(flow_state=state)
 
             # show flow graph
-            wg = WorkflowGraph(flow, state)
+            wg = WorkflowGraph(flow_run)
             fig, _ = wg.get_plot(
                 pick_event=self.OnPick,  # motion_notify_event=self._on_hover
             )
             fig.canvas.manager.set_window_title(title)
             event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, f"{flow.name} Graph", "createnew")
+            event.SetEventInfo(fig, f"{flow_run.name} Graph", "createnew")
             self.GetEventHandler().ProcessEvent(event)
+
+        if flow_run.failed:
+            wx.MessageBox(
+                "The following tasks failed, see the log for details:\n"
+                + "\n".join(flow_run.failed),
+                pluginname,
+                wx.OK | wx.ICON_WARNING,
+            )
 
     def _on_hover(self, event):
         print(event)
