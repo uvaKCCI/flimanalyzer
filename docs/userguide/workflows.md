@@ -14,12 +14,12 @@ The green color of each of the bubbles indicates that step of the workflow was s
 
 The `Test Workflow` tool performs the user-configured workflow on a set of data, outputting a visual model to show the workflow steps, along with results of running all of the analysis tools in a selected file directory.
 
-## FLIM Data Simulation Tuning
-**Menu Access:** `Workflow` > `FLIM Data Simulation Tuning`
+## FLIM Data Augmentation Tuning
+**Menu Access:** `Workflow` > `FLIM Data Augmentation Tuning`
 
 **Toolbar Icon:** ![](/images/analysis/heatmap.png)
 
-The `FLIM Data Simulation Tuning` tool uses an autoencoder to generate simulated data and performs the workflow on the new dataset. The results of the workflow are saved in the selected file directory.
+The `FLIM Data Augmentation Tuning` tool uses an autoencoder to generate augmented data and performs the workflow on the new dataset. The results of the workflow are saved in the selected file directory.
 
 ## FLIM Feature Analysis
 
@@ -27,4 +27,4 @@ The `FLIM Data Simulation Tuning` tool uses an autoencoder to generate simulated
 
 **Toolbar Icon:** ![](/images/analysis/heatmap.png)
 
-The `FLIM Feature Analysis` tool requires two datasets: one that is the simulated data from the `FLIM Data Simulation Tuning` tool, and the other being a real dataset. The tool uses the model created by the autoencoder from the `FLIM Data Simulation Tuning` tool and is ran on the real data. The results of the workflow are saved in the selected file directory.
+The `FLIM Feature Analysis` tool requires two datasets: one that is the augmented data from the `FLIM Data Augmentation Tuning` tool, and the other being a real dataset. The tool uses the model created by the autoencoder from the `FLIM Data Augmentation Tuning` tool and is ran on the real data. The results of the workflow are saved in the selected file directory.

@@ -48,8 +48,8 @@ The shown example table contains the following categorical columns that may be u
      - `Autoencoder Analysis <aerun.html>`_
      - Applies a pre-trained autoencoder model to data.
    * - .. image:: /images/analysis/aerun.png 
-     - `Autoencoder Simulate <aesim.html>`_
-     - Simulate..
+     - `Autoencoder Augment Data <aeaugment.html>`_
+     - Generates augmented data with a pre-trained autoencoder model.
 
 .. toctree::
     :maxdepth: 2
@@ -66,6 +66,6 @@ The shown example table contains the following categorical columns that may be u
     ks
     aetrain
     aerun
-    aesim
+    aeaugment
 
 
