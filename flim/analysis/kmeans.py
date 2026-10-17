@@ -22,7 +22,9 @@ from flim.plugin import plugin, AbstractPlugin
 import flim.resources
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 
-ALGO_OPTIONS = ["auto", "full", "elkan"]
+ALGO_OPTIONS = ["lloyd", "elkan"]
+# names removed in scikit-learn 1.3, both meant "lloyd"
+LEGACY_ALGOS = {"auto": "lloyd", "full": "lloyd"}
 INIT_OPTIONS = ["k-means++", "random"]
 TOLERANCE_OPTONS = ["%.1e" % (10.0 ** (-b)) for b in range(2, 6)]
 
@@ -56,7 +58,7 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
         n_clusters=2,
         cluster_prefix="Cluster",
         init="k-means++",
-        algorithm="auto",
+        algorithm="lloyd",
         n_init=4,
         max_iter=300,
         tolerance=1e-4,
@@ -244,7 +246,7 @@ class KMeansClustering(AbstractPlugin):
                 "n_clusters": 2,
                 "cluster_prefix": "Cluster",
                 "init": "k-means++",
-                "algorithm": "auto",
+                "algorithm": "lloyd",
                 "n_init": 4,
                 "max_iter": 300,
                 "tolerance": 1e-4,
@@ -300,7 +302,9 @@ class KMeansClustering(AbstractPlugin):
         kmeans = KMeans(
             n_clusters=self.params["n_clusters"],
             init=self.params["init"],
-            algorithm=self.params["algorithm"],
+            algorithm=LEGACY_ALGOS.get(
+                self.params["algorithm"], self.params["algorithm"]
+            ),
             n_init=self.params["n_init"],
             max_iter=self.params["max_iter"],
             tol=self.params["tolerance"],

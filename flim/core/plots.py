@@ -127,7 +127,7 @@ def grouped_meanbarplot(
         ]
         h, labels = ax.get_legend_handles_labels()
         # labels = [l.encode('ascii','ignore').split(',')[1].strip(' \)') for l in labels]
-        labels = [l.split(",")[1].strip(" \)") for l in labels]
+        labels = [l.split(",")[1].strip(" \\)") for l in labels]
         ax.set_ylabel = ", ".join(groups[pivot_level:])
         no_legendcols = len(groups) // 30 + 1
         chartbox = ax.get_position()

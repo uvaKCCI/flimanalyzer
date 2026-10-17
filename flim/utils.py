@@ -34,7 +34,7 @@ def permutate(*args):
 
 
 def clean(str):
-    rmstr = re.sub("[^a-zA-Z0-9 \n\.-_]", "", str)
+    rmstr = re.sub(r"[^a-zA-Z0-9 \n\.-_]", "", str)
     return re.sub("[ /]", "_", rmstr)
 
 
