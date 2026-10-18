@@ -1,3 +1,5 @@
+import gc
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -45,4 +47,7 @@ def features():
 def close_figures():
     yield
     plt.close("all")
+    # collect leftovers (e.g. wx objects kept alive by a failed test's traceback)
+    # here, on the main thread, not later in some worker thread
+    gc.collect()
 

@@ -1,5 +1,6 @@
 """Dialogs shown while a tool or workflow runs and after it was cancelled."""
 
+import gc
 import logging
 import os
 import subprocess
@@ -119,7 +120,25 @@ class RunProgressDialog(wx.Dialog):
         wx.CallAfter(self._start)
 
     def _start(self):
+        # Python's cyclic garbage collector runs in whichever thread allocates when
+        # it triggers; if it frees wx objects in a worker thread, the app crashes.
+        # While the flow runs, collect only here, on the main thread.
+        gc.collect()
+        self._gc_was_enabled = gc.isenabled()
+        gc.disable()
+        self._gc_timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, lambda event: gc.collect(), self._gc_timer)
+        self._gc_timer.Start(1000)
         threading.Thread(target=self._work, name="flow-run", daemon=True).start()
+
+    def _restore_gc(self):
+        timer = getattr(self, "_gc_timer", None)
+        if timer is not None:
+            timer.Stop()
+            self._gc_timer = None
+            if self._gc_was_enabled:
+                gc.enable()
+            gc.collect()
 
     def _work(self):
         try:
@@ -202,6 +221,7 @@ class RunProgressDialog(wx.Dialog):
     def _finished(self):
         if not self:
             return
+        self._restore_gc()
         self.timer.Stop()
         self._refresh()
         self.EndModal(wx.ID_CANCEL if self.cancel_token.is_set() else wx.ID_OK)

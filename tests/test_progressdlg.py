@@ -495,3 +495,29 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_pa
     assert folder and folder.startswith(str(tmp_path)) and has_link
     assert any("Graph" in title for title in frame.windowframes)  # graph window opened too
     frame.OnCloseAll(None)
+
+
+def test_garbage_collection_stays_on_the_main_thread_during_a_run(wxapp):
+    import gc
+
+    from flim.gui.progressdlg import RunProgressDialog
+
+    seen = []
+
+    class Probe(Task):
+        def execute(self):
+            seen.append(gc.isenabled())  # in a worker thread
+            return {}
+
+    def start_run(cancel_token, on_progress, on_start):
+        return run_flow("gc", lambda: Probe()(input={}), on_progress=on_progress,
+                        cancel_token=cancel_token, on_start=on_start)
+
+    assert gc.isenabled()
+    dlg = RunProgressDialog(None, "Test", start_run)
+    try:
+        assert dlg.ShowModal() == wx.ID_OK
+    finally:
+        dlg.Destroy()
+    assert seen == [False]  # no automatic collection while the flow ran
+    assert gc.isenabled()  # restored afterwards
