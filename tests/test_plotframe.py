@@ -1,4 +1,5 @@
 import threading
+import time
 
 import numpy as np
 import pandas as pd
@@ -94,6 +95,14 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
 
         plots = {t: w for t, w in frame.windowframes.items() if isinstance(w, PlotFrame)}
         assert set(plots) == set(sizes), (set(plots), set(sizes))
+        # some window managers apply sizes asynchronously: let the resize events run,
+        # as the app's event loop would
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and any(
+            w.canvas.get_width_height() != w.canvas_size for w in plots.values()
+        ):
+            wx.Yield()
+            time.sleep(0.05)
         menu = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
         assert set(plots) <= set(menu)
         for title, window in plots.items():

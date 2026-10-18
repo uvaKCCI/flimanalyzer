@@ -49,3 +49,4 @@ class PlotFrame(wx.Frame):
         toolbar = self.toolbar.GetBestSize().height
         self.canvas_size = fit_to_screen(width, height, toolbar, parent)
         self.SetClientSize((self.canvas_size[0], self.canvas_size[1] + toolbar))
+        self.Layout()  # resize the canvas (and figure) now, not only once shown
