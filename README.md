@@ -46,7 +46,7 @@ pip installs PyTorch from PyPI, which provides a different build on each platfor
 The autoencoder tools (Autoencoder: Train, Run and Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting:
 
 * `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
-* `cpu`, `cuda` or `mps`: that device. If it is not available, the CPU is used and a warning is logged.
+* `cpu`, `cuda` or `mps`: uses the specified device and falls back to CPU if not available.
 
 Trained models are saved on the CPU, so a model trained on one machine can be used on any other.
 
