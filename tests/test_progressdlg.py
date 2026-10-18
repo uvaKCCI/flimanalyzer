@@ -363,7 +363,19 @@ def test_open_data_files_opens_a_data_window(frame, tmp_path, flim_data):
     window = frame.windowframes["cells.csv"]
     assert isinstance(window, PandasFrame)
     assert len(window.GetViewData()) == len(flim_data)
-    window.modified = False
+    assert not window.is_modified()  # just read from the file: closing asks nothing
+    frame.OnCloseAll(None)
+    assert "cells.csv" not in frame.windowframes
+
+
+def test_result_tables_are_marked_modified(frame, flim_data):
+    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
+
+    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
+    event.SetEventInfo(flim_data, "Result", "createnew")
+    frame.GetEventHandler().ProcessEvent(event)
+    assert frame.windowframes["Result"].is_modified()  # unsaved: closing asks to save
+    frame.windowframes["Result"].modified = False
     frame.OnCloseAll(None)
 
 

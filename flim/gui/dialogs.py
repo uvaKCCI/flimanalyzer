@@ -144,7 +144,9 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             autosave_locked: Autosave is always on and cannot be switched off (used
                 by workflows); the working directory can still be chosen.
         """
-        super().__init__(parent, wx.ID_ANY, title)  # , size= (650,400))
+        super().__init__(
+            parent, wx.ID_ANY, title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
+        )
         self.panel = wx.Panel(self, wx.ID_ANY)
         # 5 col gridsizer
         self.input = input
@@ -288,12 +290,16 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
         buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.enablefeatures:
-            self.scrolledpanel = ScrolledPanel(
-                self.panel, wx.ID_ANY, size=(-1, self.GetSize().y / 3)
-            )
+            self.scrolledpanel = ScrolledPanel(self.panel, wx.ID_ANY)
             self.cbsizer = wx.GridSizer(4, 0, 0)
             self._update_feature_cbs()
-            sizer.Add(self.scrolledpanel, 0, wx.EXPAND | wx.ALIGN_CENTER)
+            # tall enough for all features (up to 45% of the screen); the list grows
+            # and shrinks when the dialog is resized
+            needed = self.cbsizer.GetMinSize().height + 10
+            self.scrolledpanel.SetMinSize(
+                (-1, min(needed, int(wx.GetDisplaySize().height * 0.45)))
+            )
+            sizer.Add(self.scrolledpanel, 1, wx.EXPAND)
 
             sizer.Add(
                 wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL),
@@ -318,13 +324,22 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
         sizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 5)
         self.panel.SetSizer(sizer)
-        self.panel.Fit()
-        self.panel.Layout()
+        dialogsizer = wx.BoxSizer(wx.VERTICAL)
+        dialogsizer.Add(self.panel, 1, wx.EXPAND)
+        self.SetSizer(dialogsizer)
         self.Fit()
+        if self.enablefeatures:
+            # can be made smaller, down to a few rows of features
+            listheight = self.scrolledpanel.GetMinSize().height
+            minheight = self.GetSize().height - listheight + min(listheight, 90)
+            self.scrolledpanel.SetMinSize((-1, min(listheight, 90)))
+            self.SetMinSize((self.GetSize().width, minheight))
 
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
-        self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
-        self.DoLayoutAdaptation()
+        if self.GetSize().height > wx.GetDisplaySize().height * 0.9:
+            # too tall for the screen: let wx make the dialog scrollable
+            self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
+            self.DoLayoutAdaptation()
         self.Show()
 
     def _update_feature_cbs(self):
@@ -518,8 +533,10 @@ class SelectGroupsDlg(wx.Dialog):
         self.SetSizer(sizer)
 
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
-        self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
-        self.DoLayoutAdaptation()
+        if self.GetSize().height > wx.GetDisplaySize().height * 0.9:
+            # too tall for the screen: let wx make the dialog scrollable
+            self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
+            self.DoLayoutAdaptation()
         self.Show()
 
     def OnSelectAll(self, event):

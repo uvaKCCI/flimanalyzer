@@ -232,3 +232,31 @@ def test_tool_dialog_autosave_can_be_switched(wxapp, monkeypatch, table):
     seen, params = _autosave_controls(wxapp, monkeypatch, table, "Analysis", "Summarize", autosave=False)
     assert seen == {"checked": False, "enabled": True, "tooltip": "", "browse": False}
     assert params["autosave"] is False
+
+
+def test_config_dialog_shows_all_features_and_resizes(wxapp):
+    import numpy as np
+    import pandas as pd
+    import wx
+    from flim.gui.dialogs import BasicAnalysisConfigDlg
+
+    rng = np.random.default_rng(0)
+    data = pd.DataFrame({f"feature {i}": rng.random(5) for i in range(40)})
+    data["Treatment"] = pd.Categorical(list("aabba"))
+    dlg = BasicAnalysisConfigDlg(None, "Test", input={"t": data}, selectedgrouping=["Treatment"])
+    try:
+        assert dlg.GetWindowStyle() & wx.RESIZE_BORDER
+        listbox = dlg.scrolledpanel
+        needed = dlg.cbsizer.GetMinSize().height
+        assert listbox.GetSize().height >= needed  # all features visible
+        width, height = dlg.GetSize()
+
+        dlg.SetSize((width, height + 150))  # taller: only the list grows
+        dlg.Layout()
+        assert listbox.GetSize().height >= needed + 140
+
+        dlg.SetSize(dlg.GetMinSize())  # smallest: a few rows remain
+        dlg.Layout()
+        assert 60 <= listbox.GetSize().height < needed
+    finally:
+        dlg.Destroy()
