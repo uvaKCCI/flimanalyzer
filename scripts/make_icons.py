@@ -285,9 +285,9 @@ def pivot_icon(reverse=False):
 
 def order_icon():
     im, d = canvas()
-    # categorical columns swap places
+    # categorical columns swap places: the first and last trade positions
     table(d, 2, 11, 30, 30, 3, 4, header=None)
-    for i, c in enumerate((GREEN, MAGENTA, ORANGE)):
+    for i, c in enumerate((GREEN, LGRAY, MAGENTA)):
         x = 2 + i * 28 / 3
         d.rectangle(s(x, 11, x + 28 / 3, 15.75), fill=c, outline=DARK, width=px(1.1))
     # two-headed arc from the first to the last column
