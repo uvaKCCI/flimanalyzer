@@ -722,8 +722,8 @@ def _app_icon_detailed(r):
     star = []  # spark on top of the pulse: 8-pointed, long vertical/horizontal rays
     for i in range(16):
         a = math.pi * i / 8 - math.pi / 2
-        rad = (4.0 if i % 4 == 0 else 2.4) if i % 2 == 0 else 0.9
-        star.append((7 + rad * math.cos(a), 6.5 + rad * math.sin(a)))
+        rad = (6.6 if i % 4 == 0 else 3.6) if i % 2 == 0 else 1.3
+        star.append((7 + rad * math.cos(a), 7 + rad * math.sin(a)))  # may touch the edge
     d.polygon(r.q(*[v for p in star for v in p]), fill=WHITE)
     heights = (17, 10, 6, 4, 2, 1)  # photon histogram of the decay
     for i, h in enumerate(heights):
@@ -738,8 +738,8 @@ def _app_icon_simple(r):
     """16-unit layout for small sizes: whole-pixel shapes only, no curve."""
     r.draw.rounded_rectangle(r.q(0, 0, 16, 16), radius=3.5 * r.k, fill=NAVY)
     r(3, 6, 4, 12, LBLUE)
-    r(3, 2, 4, 5, WHITE)  # spark: a plus sign of whole pixels
-    r(2, 3, 5, 4, WHITE)
+    r(3, 0, 4, 5, WHITE)  # spark: a plus sign of whole pixels
+    r(1, 2, 6, 3, WHITE)
     for i, h in enumerate((8, 5, 3, 2, 1)):
         r(5 + 2 * i, 12 - h, 6 + 2 * i, 12, GREEN)
     r(2, 12, 14, 13, WHITE)
