@@ -14,30 +14,62 @@ Inside :func:`run_flow` each plugin call becomes a Prefect task run and returns 
 passed to other plugin calls; the dependencies between calls are recorded in
 ``run.graph`` (a networkx DiGraph) for the workflow plot.
 
-Without a task runner, tasks run one after another in the calling thread, which is
-required for plugins that create wx/matplotlib objects. With a task runner (e.g.
-``prefect_dask.DaskTaskRunner``), tasks are submitted and run concurrently.
+Every plugin call is submitted to the flow's task runner: Prefect starts a task once
+its inputs (results of other tasks) are ready and runs independent tasks concurrently,
+up to the task runner's number of workers and the tag concurrency limits configured on
+the Prefect server (each task is tagged with its ``task_tags``). Without an explicit
+task runner, a ``ThreadPoolTaskRunner`` with :func:`default_max_workers` threads is
+used. Plugins that draw figures hold :data:`pyplot_lock`, as pyplot is not thread-safe.
 """
 
+import contextlib
 import contextvars
 import copy
 import datetime
 import logging
 import os
 import re
+import threading
 from typing import Any, Callable, Dict, List, Optional
 
 import networkx as nx
 from prefect import flow, tags, task, unmapped
 from prefect.cache_policies import NO_CACHE
 from prefect.futures import PrefectFuture
+from prefect.settings import get_current_settings
+from prefect.task_runners import ThreadPoolTaskRunner
 
 from flim.results import clean_path_component, save_results
 
-__all__ = ["Parameter", "TaskOutput", "FlowRun", "run_flow", "select", "unmapped"]
+__all__ = [
+    "Parameter",
+    "TaskOutput",
+    "FlowRun",
+    "run_flow",
+    "select",
+    "unmapped",
+    "pyplot_lock",
+    "default_max_workers",
+    "default_task_runner",
+]
 
 _CURRENT_RUN = contextvars.ContextVar("flim_flow_run", default=None)
 _MARKER = "__flim_task_output__"
+
+# pyplot's figure registry and current-figure state are shared by all threads: tasks
+# that draw figures take turns, all other tasks run concurrently
+pyplot_lock = threading.RLock()
+
+
+def default_max_workers() -> int:
+    """Number of threads for concurrent tasks: Prefect's ``thread_pool_max_workers``
+    setting if set, otherwise the number of CPUs."""
+    return get_current_settings().tasks.runner.thread_pool_max_workers or os.cpu_count() or 1
+
+
+def default_task_runner(max_workers: Optional[int] = None) -> ThreadPoolTaskRunner:
+    """Thread pool task runner; ``max_workers=1`` runs one task at a time."""
+    return ThreadPoolTaskRunner(max_workers=max_workers or default_max_workers())
 
 
 def Parameter(name: str, default: Any = None) -> Any:
@@ -57,9 +89,19 @@ class TaskOutput:
         return TaskOutput(self.ref, self.node, self.keys + (key,))
 
     def value(self) -> Any:
-        """Returns the result, waiting for it to be computed if necessary."""
-        value = self.ref.result() if isinstance(self.ref, PrefectFuture) else self.ref
+        """Returns the result, waiting for it to be computed if necessary.
+
+        Returns None if the task did not complete (failed or skipped).
+        """
+        value = self.ref
+        if isinstance(value, PrefectFuture):
+            value.wait()
+            if not value.state.is_completed():
+                return None
+            value = value.result()
         for key in self.keys:
+            if value is None:
+                return None
             value = value[key]
         return value
 
@@ -92,10 +134,21 @@ def _resolve(obj: Any) -> Any:
     return obj
 
 
+def _run_plugin(plugin, kwargs: Dict[str, Any]):
+    """Runs a plugin; plugins that draw figures hold pyplot_lock.
+
+    Kept out of the task function: Dask pickles that by value together with the
+    globals it uses, and a lock cannot be pickled.
+    """
+    draws = getattr(plugin, "draws_figures", False)
+    with pyplot_lock if draws else contextlib.nullcontext():
+        return plugin.run(**_unwrap(kwargs))
+
+
 @task(cache_policy=NO_CACHE, task_run_name="{label}")
 def run_plugin(plugin, label: str, kwargs: Dict[str, Any], autosave: Optional[dict]):
     """Prefect task that runs a single plugin call."""
-    results = plugin.run(**_unwrap(kwargs))
+    results = _run_plugin(plugin, kwargs)
     if autosave:
         save_results(results, **autosave)
     return results
@@ -104,14 +157,28 @@ def run_plugin(plugin, label: str, kwargs: Dict[str, Any], autosave: Optional[di
 class FlowRun:
     """Records and executes the plugin calls made while a flow is running."""
 
-    def __init__(self, name: str, submit: bool = False, autosave_dir: str = None):
+    def __init__(
+        self,
+        name: str,
+        autosave_dir: str = None,
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
+    ):
+        """
+        Args:
+            name: flow name.
+            autosave_dir: directory to save task results in, ``None`` disables saving.
+            on_progress: called as ``on_progress(done, total, label)`` when a task is
+                submitted or finishes, from the thread that submitted or ran it;
+                ``total`` counts the tasks submitted so far.
+        """
         self.name = name
-        self.submit = submit
         self.autosave_dir = autosave_dir
+        self.on_progress = on_progress
         self.start_time = datetime.datetime.now()
         self.graph = nx.DiGraph()
         self._label_counts = {}
         self._key_nodes = {}
+        self._lock = threading.RLock()
 
     # graph bookkeeping -------------------------------------------------------
     def _add_node(self, label: str, kind: str, **attrs) -> str:
@@ -181,32 +248,53 @@ class FlowRun:
                 "name": label,
             }
 
+        # Prefect starts the task once the futures among its inputs are completed and
+        # skips it (state NotReady) if one of them did not complete
         with tags(*tag_list):
-            if self.submit:
-                ref = run_plugin.submit(plugin, label, payload, autosave)
-                self.graph.nodes[node]["ref"] = ref
-                return TaskOutput(ref, node)
-            state = run_plugin(plugin, label, payload, autosave, return_state=True)
-        if state.is_completed():
-            value = state.result()
-            self.graph.nodes[node].update(status="completed", ref=value)
-            return TaskOutput(value, node)
-        logging.error(f"{label} failed: {state.message}")
-        self.graph.nodes[node].update(status="failed", message=state.message)
-        return TaskOutput(None, node)
+            ref = run_plugin.submit(plugin, label, payload, autosave)
+        with self._lock:
+            self.graph.nodes[node]["ref"] = ref
+        self._report_progress(label)
+        ref.add_done_callback(lambda future, node=node: self._record(node))
+        return TaskOutput(ref, node)
 
-    def wait(self):
-        """Waits for submitted tasks and records their final status."""
-        for node, attrs in self.graph.nodes(data=True):
+    def _record(self, node: str):
+        """Records the final status of a finished task (once)."""
+        with self._lock:
+            attrs = self.graph.nodes[node]
             ref = attrs.get("ref")
             if not isinstance(ref, PrefectFuture):
-                continue
-            ref.wait()
-            if ref.state.is_completed():
+                return  # already recorded
+            ref.wait()  # done: stores the final state, which `state` would else read from the API
+            state = ref.state
+            if state.is_completed():
                 attrs.update(status="completed", ref=ref.result())
+            elif state.is_pending() and state.name == "NotReady":
+                attrs.update(status="skipped", ref=None, message=state.message)
+                logging.warning(f"Skipped {attrs['label']}: upstream task did not complete.")
             else:
-                attrs.update(status="failed", ref=None, message=ref.state.message)
-                logging.error(f"{attrs['label']} failed: {ref.state.message}")
+                attrs.update(status="failed", ref=None, message=state.message)
+                logging.error(f"{attrs['label']} failed: {state.message}")
+        self._report_progress(attrs["label"])
+
+    def _report_progress(self, label: str):
+        if self.on_progress is None:
+            return
+        with self._lock:
+            tasks = [a for _, a in self.graph.nodes(data=True) if "plugin" in a]
+            done = sum(a["status"] != "pending" for a in tasks)
+        try:
+            self.on_progress(done, len(tasks), label)
+        except Exception:
+            logging.exception("Progress callback failed")
+
+    def wait(self):
+        """Waits for all submitted tasks and records their final status."""
+        for node, attrs in list(self.graph.nodes(data=True)):
+            ref = attrs.get("ref")
+            if isinstance(ref, PrefectFuture):
+                ref.wait()
+                self._record(node)
 
     def results(self) -> List[Any]:
         """Results of all completed plugin calls, in call order."""
@@ -248,7 +336,7 @@ def map_plugin(plugin, **kwargs) -> List[Any]:
     for k, v in mapped.items():
         if isinstance(v, TaskOutput):
             # mapping over a list produced by another task
-            mapped[k] = [TaskOutput(item, v.node) for item in v.value()]
+            mapped[k] = [TaskOutput(item, v.node) for item in v.value() or []]
     lengths = {len(v) for v in mapped.values()}
     if len(lengths) > 1:
         raise ValueError(
@@ -312,29 +400,32 @@ def run_flow(
     build: Callable[[], Any],
     task_runner=None,
     autosave_dir: str = None,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
 ) -> FlowRun:
     """Runs ``build`` as a Prefect flow; plugin calls inside it become task runs.
 
     Args:
         name: flow name shown in the Prefect UI.
         build: callable that makes the plugin calls.
-        task_runner: Prefect task runner for concurrent execution; ``None`` runs the
-            tasks sequentially in the calling thread.
+        task_runner: Prefect task runner; ``None`` uses :func:`default_task_runner`.
         autosave_dir: if set, every task's results are saved below this directory
             (``<autosave_dir>/<timestamp>/<task tags>/``).
+        on_progress: see :class:`FlowRun`.
 
     Returns:
         FlowRun: recorded task graph and results.
     """
-    run = FlowRun(name, submit=task_runner is not None)
+    run = FlowRun(name, on_progress=on_progress)
     if autosave_dir:
         run.autosave_dir = os.path.join(
             autosave_dir, run.start_time.strftime("%Y-%m-%d_%H-%M-%S")
         )
 
-    prefect_flow = flow(name=name, validate_parameters=False)(_flow_body)
-    if task_runner is not None:
-        prefect_flow = prefect_flow.with_options(task_runner=task_runner)
+    if task_runner is None:
+        task_runner = default_task_runner()
+    prefect_flow = flow(name=name, validate_parameters=False, task_runner=task_runner)(
+        _flow_body
+    )
     token = _PENDING_FLOW.set((run, build))
     try:
         # failed tasks are recorded in run.graph; errors raised while building the

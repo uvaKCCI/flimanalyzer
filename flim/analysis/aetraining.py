@@ -24,6 +24,7 @@ import torch.optim as optim
 import torch.utils.data
 import wx
 from flim import utils
+from flim.core.runner import pyplot_lock
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 from flim.plugin import AbstractPlugin, plugin
 from importlib_resources import files
@@ -843,15 +844,16 @@ class AETraining(AbstractPlugin):
             }
         )
         if self.params["create_plots"]:
-            fig, ax = plt.subplots(constrained_layout=True)
-            ax.plot(range(1, len(loss_train) + 1), loss_train, "b-", label="train-loss")
-            ax.plot(range(1, len(loss_val) + 1), loss_val, "r-", label="val-loss")
-            ax.grid("on")
-            ax.set_ylabel("loss")
-            ax.set_xlabel("epoch")
-            ax.legend(["training", "testing"], loc="upper right")
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            self._add_picker(fig)
+            with pyplot_lock:  # training runs concurrently, plotting takes turns
+                fig, ax = plt.subplots(constrained_layout=True)
+                ax.plot(range(1, len(loss_train) + 1), loss_train, "b-", label="train-loss")
+                ax.plot(range(1, len(loss_val) + 1), loss_val, "r-", label="val-loss")
+                ax.grid("on")
+                ax.set_ylabel("loss")
+                ax.set_xlabel("epoch")
+                ax.legend(["training", "testing"], loc="upper right")
+                ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+                self._add_picker(fig)
             results.update(
                 {
                     f"Plot: AE Loss-{batch_size}-{learning_rate}-{weight_decay}": fig,

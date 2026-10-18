@@ -52,7 +52,9 @@ class FLIMAnalyzer:
         self.execargs = execargs
         if executor not in ("LocalDaskExecutor", "DaskExecutor"):
             self.executor = "LocalExecutor"
-            self.execargs = {}
+            self.execargs = {
+                k: v for k, v in execargs.items() if k == "num_workers" and isinstance(v, int)
+            }
         #        self.outputgenerator = outputgenerator()
         logging.info(f"Setting up {self.executor}: {self.execargs}")
         logging.debug(
@@ -65,13 +67,17 @@ class FLIMAnalyzer:
         """Returns the Prefect task runner for workflow execution.
 
         Returns:
-            None for ``LocalExecutor`` (tasks run sequentially in the GUI thread),
-            otherwise a ``prefect_dask.DaskTaskRunner``: ``LocalDaskExecutor`` starts a
-            local Dask cluster (args: ``num_workers``, ``scheduler=threads|processes``),
+            ``LocalExecutor``: a Prefect ``ThreadPoolTaskRunner`` with ``num_workers``
+            threads (default: :func:`flim.core.runner.default_max_workers`;
+            ``num_workers=1`` runs one task at a time). Otherwise a
+            ``prefect_dask.DaskTaskRunner``: ``LocalDaskExecutor`` starts a local Dask
+            cluster (args: ``num_workers``, ``scheduler=threads|processes``),
             ``DaskExecutor`` connects to an existing cluster (arg: ``address``).
         """
         if self.executor == "LocalExecutor":
-            return None
+            from flim.core.runner import default_task_runner
+
+            return default_task_runner(self.execargs.get("num_workers"))
         from prefect_dask import DaskTaskRunner
 
         args = dict(self.execargs)

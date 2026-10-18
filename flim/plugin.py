@@ -45,6 +45,8 @@ def plugin(plugintype):
 
     def wrapper_register_plugin(plugin_class):
         logging.debug(f"Registering {plugin_class}")
+        if plugintype == "Plot" and "draws_figures" not in vars(plugin_class):
+            plugin_class.draws_figures = True
         pluginst = plugin_class()  # instantiate the plugin
         name = pluginst.name
         if name in get_plugin_class(name):
@@ -163,6 +165,11 @@ class AbstractPlugin:
 
     # node style in the workflow graph
     graph_kind = "plugin"
+    # True if the whole task draws with pyplot: such tasks hold
+    # flim.core.runner.pyplot_lock, as pyplot is not thread-safe. Set automatically
+    # for Plot plugins; plugins that plot only at the end can instead hold the lock
+    # around their plotting code.
+    draws_figures = False
 
     def __init__(
         self,

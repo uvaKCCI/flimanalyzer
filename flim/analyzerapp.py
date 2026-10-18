@@ -43,7 +43,10 @@ def parse_arguments():
         "-a",
         "--execargs",
         default="",
-        help="comma separated list of arguments to pass to executor instance",
+        help=(
+            "comma separated list of arguments to pass to executor instance, e.g."
+            " num_workers=4 (LocalExecutor: number of tasks run at the same time)"
+        ),
     )
     parser.add_argument(
         "--no-prefect-server",

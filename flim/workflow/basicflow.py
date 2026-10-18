@@ -41,7 +41,7 @@ from flim.analysis.scatterplots import ScatterPlot
 from flim.analysis.seriesanalyzer import SeriesAnalyzer
 from flim.analysis.summarystats import SummaryStats
 from flim.core.graph import WorkflowGraph
-from flim.core.runner import Parameter, run_flow
+from flim.core.runner import Parameter, pyplot_lock, run_flow
 from flim.data.concatdata import Concatenator
 from flim.data.filterdata import Filter
 from flim.data.mergedata import Merger
@@ -184,7 +184,8 @@ class AbsWorkFlow(AbstractPlugin):
             if isinstance(d, dict)
             for k, v in d.items()
         }
-        fig, _ = WorkflowGraph(flow_run).get_plot()
+        with pyplot_lock:
+            fig, _ = WorkflowGraph(flow_run).get_plot()
         results[f"{self.name} Graph"] = fig
         return results
 

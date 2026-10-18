@@ -79,9 +79,15 @@ Flow and task runs can be inspected in the Prefect UI of the server in use, e.g.
 
 ## Parallel execution
 
-By default, tasks run one after another. FLIMAnalyzer can use [Dask](https://www.dask.org) to run tasks in parallel.
+Every tool and workflow step runs as a Prefect task. A task starts as soon as the results it needs are ready, and tasks that don't depend on each other run at the same time. Tasks that draw figures take turns, because matplotlib's pyplot is not thread-safe; calculations run in parallel.
 
-On a *single node*, start a local Dask cluster:
+By default, up to one task per CPU core runs at a time, as threads. To change that number:
+
+    uv run flimanalyzer --execargs="num_workers=4"
+
+`num_workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default.
+
+FLIMAnalyzer can also use [Dask](https://www.dask.org). On a *single node*, start a local Dask cluster:
 
     uv run flimanalyzer -e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"
 
@@ -90,6 +96,14 @@ As a general guideline, adjust `num_workers` to match the number of CPU cores in
 To use an existing Dask cluster:
 
     uv run flimanalyzer -e DaskExecutor --execargs="address=tcp://<scheduler-host>:8786"
+
+### Concurrency limits
+
+Each task is tagged: with the tool's name when a single tool runs (e.g. `Autoencoder: Train`), and with the step's tags in a workflow. Prefect applies [tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits) set on the Prefect server to these tasks, whichever executor is used. For example, to let only one autoencoder training run at a time:
+
+    uv run prefect concurrency-limit create "Autoencoder: Train" 1
+
+`uv run prefect concurrency-limit ls` lists the limits, and `uv run prefect concurrency-limit delete <tag>` removes one.
 
 ## How to cite
 
