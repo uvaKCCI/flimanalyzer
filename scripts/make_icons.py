@@ -348,6 +348,7 @@ def relchange_icon():
     for x, h in ((6, -9), (12, 5), (18, -12), (24, 7)):
         d.rectangle(s(x, min(ref, ref - h), x + 4.5, max(ref, ref - h)), fill=GREEN if h < 0 else MAGENTA)
     dashed(d, 4, 30, ref, DARK, w=1.4)
+    label(d, 8.5, 6.5, "%", 8, halo=1.0)
     return im
 
 
@@ -717,7 +718,13 @@ def _app_icon_detailed(r):
     """32-unit layout for 32 px and larger; r(x0, y0, x1, y1) draws a rectangle."""
     d, k = r.draw, r.k
     d.rounded_rectangle(r.q(1, 1, 31, 31), radius=7 * k, fill=NAVY)
-    r(6, 5, 8, 25, LBLUE)  # excitation pulse (blue laser)
+    r(6, 11, 8, 25, LBLUE)  # excitation pulse (blue laser)
+    star = []  # spark on top of the pulse: 8-pointed, long vertical/horizontal rays
+    for i in range(16):
+        a = math.pi * i / 8 - math.pi / 2
+        rad = (4.0 if i % 4 == 0 else 2.4) if i % 2 == 0 else 0.9
+        star.append((7 + rad * math.cos(a), 6.5 + rad * math.sin(a)))
+    d.polygon(r.q(*[v for p in star for v in p]), fill=WHITE)
     heights = (17, 10, 6, 4, 2, 1)  # photon histogram of the decay
     for i, h in enumerate(heights):
         r(10 + 3 * i, 25 - h, 12 + 3 * i, 25, GREEN)
@@ -730,7 +737,9 @@ def _app_icon_detailed(r):
 def _app_icon_simple(r):
     """16-unit layout for small sizes: whole-pixel shapes only, no curve."""
     r.draw.rounded_rectangle(r.q(0, 0, 16, 16), radius=3.5 * r.k, fill=NAVY)
-    r(3, 3, 4, 12, LBLUE)
+    r(3, 6, 4, 12, LBLUE)
+    r(3, 2, 4, 5, WHITE)  # spark: a plus sign of whole pixels
+    r(2, 3, 5, 4, WHITE)
     for i, h in enumerate((8, 5, 3, 2, 1)):
         r(5 + 2 * i, 12 - h, 6 + 2 * i, 12, GREEN)
     r(2, 12, 14, 13, WHITE)
