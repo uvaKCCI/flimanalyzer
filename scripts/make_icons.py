@@ -497,13 +497,13 @@ def pca_icon():
 
     a = math.radians(-30)
     c, s_ = math.cos(a), math.sin(a)
-    cx, cy = 12, 15
+    cx, cy = 15, 15.5
     rnd = random.Random(3)
     for _ in range(24):
         u, v = rnd.gauss(0, 5.5), rnd.gauss(0, 1.8)
         circle(d, cx + u * c - v * s_, cy + u * s_ + v * c, 1.1, NODE)
-    arrow(d, cx, cy, cx + 18 * c, cy + 18 * s_, MAGENTA, w=3.0, head=5.5)  # PC1
-    arrow(d, cx, cy, cx + 10 * s_, cy - 10 * c, GREEN, w=3.0, head=5.5)  # PC2
+    arrow(d, cx, cy, cx + 15.5 * c, cy + 15.5 * s_, MAGENTA, w=3.0, head=5.5)  # PC1
+    arrow(d, cx, cy, cx + 15 * s_, cy - 15 * c, GREEN, w=3.0, head=5.5)  # PC2
     circle(d, cx, cy, 1.9, DARK)
     label(d, 16, 26.5, "PCA", 10.5)
     return im
