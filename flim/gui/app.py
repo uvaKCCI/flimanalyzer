@@ -19,6 +19,7 @@ import pandas as pd
 import json
 import ctypes
 import wx
+import wx.adv
 import wx.lib.agw.customtreectrl as CT
 
 from pubsub import pub
@@ -89,6 +90,11 @@ DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 DEFAULT_CONFIFG_FILE = "defaults.json"
 
 
+def app_icon():
+    """The FLIMAnalyzer application icon."""
+    return wx.Icon(str(files(flim.resources).joinpath("flimanalyzer.png")), wx.BITMAP_TYPE_PNG)
+
+
 class FLIMAnalyzerApp(wx.App):
     def __init__(self, flimanalyzer, config=None):
         self.flimanalyzer = flimanalyzer
@@ -100,9 +106,22 @@ class FLIMAnalyzerApp(wx.App):
         super().__init__()
 
     def OnInit(self):
+        self.SetAppName("FLIMAnalyzer")
+        self.SetAppDisplayName("FLIMAnalyzer")
         self.frame = AppFrame(self.flimanalyzer, self.config)
+        self.dock_icon = None
+        if wx.Platform == "__WXMAC__":
+            # the Dock shows the Python icon unless it is replaced here
+            self.dock_icon = wx.adv.TaskBarIcon(wx.adv.TBI_DOCK)
+            self.dock_icon.SetIcon(app_icon(), "FLIMAnalyzer")
         self.frame.Show(True)
         return True
+
+    def OnExit(self):
+        if self.dock_icon:
+            self.dock_icon.Destroy()
+            self.dock_icon = None
+        return super().OnExit()
 
 
 class AppFrame(wx.Frame):
@@ -125,6 +144,8 @@ class AppFrame(wx.Frame):
         super(AppFrame, self).__init__(
             None, wx.ID_ANY, title=f"FLIMAnalyzer {version}"
         )  # , size=(600, 500))
+
+        self.SetIcon(app_icon())
 
         # tool buttons, one labeled box per group, laid out in two rows
         self.toolpanel = wx.Panel(self)

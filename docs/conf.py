@@ -98,4 +98,8 @@ html_static_path = ["_static"]
 
 html_theme_options = {"collapse_navigation": False}
 
+# application icon, drawn by scripts/make_icons.py
+html_logo = "../flim/resources/flimanalyzer.png"
+html_favicon = "../flim/resources/flimanalyzer.ico"
+
 intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}

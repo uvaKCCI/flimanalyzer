@@ -50,7 +50,17 @@ def test_icons_are_32px_rgba():
     wrong = {
         p.name: (im.size, im.mode)
         for p in sorted((FLIM / "resources").glob("*.png"))
+        if p.name != "flimanalyzer.png"  # application icon
         for im in [Image.open(p)]
         if im.size != (32, 32) or im.mode != "RGBA"
     }
     assert not wrong, f"icons must be 32x32 RGBA: {wrong}"
+
+
+def test_app_icon():
+    Image = pytest.importorskip("PIL.Image")
+    resources = FLIM / "resources"
+    png = Image.open(resources / "flimanalyzer.png")
+    assert png.size == (256, 256) and png.mode == "RGBA"
+    ico = Image.open(resources / "flimanalyzer.ico")
+    assert {(16, 16), (32, 32), (256, 256)} <= set(ico.info["sizes"])

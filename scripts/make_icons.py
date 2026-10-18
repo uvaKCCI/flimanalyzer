@@ -636,6 +636,45 @@ def aefeatureworkflow_icon():
     return im
 
 
+# --- application icon ------------------------------------------------------
+
+NAVY = (22, 38, 84, 255)
+
+
+def app_icon(size=1024):
+    """Fluorescence decay: photon histogram after an excitation pulse, with its fit."""
+    k = size / 32
+    im = Image.new("RGBA", (size, size), CLEAR)
+    d = ImageDraw.Draw(im)
+
+    def q(*v):
+        return [x * k for x in v]
+
+    d.rounded_rectangle(q(1, 1, 31, 31), radius=6.5 * k, fill=NAVY)
+    base, x0, x1 = 25.5, 6, 27.5
+    # excitation pulse
+    d.polygon(q(6, base, 7.3, 6.5, 8.6, base), fill=ORANGE)
+    # photon histogram of the decay
+    n, w = 11, (x1 - 9.2) / 11
+    for i in range(n):
+        x = 9.2 + i * w
+        h = 18.5 * math.exp(-(i + 0.5) / 3.2)
+        d.rectangle(q(x + 0.25, base - h, x + w - 0.25, base), fill=GREEN)
+    # fitted exponential through the bar centres
+    ts = [0.5 + (n - 1) * i / 60 for i in range(61)]
+    pts = [(9.2 + t * w, base - 18.5 * math.exp(-t / 3.2)) for t in ts]
+    d.line([v * k for p in pts for v in p], fill=MAGENTA, width=max(1, int(1.4 * k)), joint="curve")
+    # time axis
+    d.line(q(x0 - 1, base + 1.2, x1 + 0.8, base + 1.2), fill=WHITE, width=max(1, int(1.2 * k)))
+    return im
+
+
+def save_app_icon(outdir):
+    im = app_icon(1024)
+    im.resize((256, 256), Image.LANCZOS).save(outdir / "flimanalyzer.png")
+    im.save(outdir / "flimanalyzer.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+
+
 ICONS = {
     # File
     "fileopen.png": fileopen_icon,
@@ -685,6 +724,7 @@ def main(outdir):
     outdir.mkdir(parents=True, exist_ok=True)
     for name, draw in ICONS.items():
         draw().resize((SIZE, SIZE), Image.LANCZOS).save(outdir / name)
+    save_app_icon(outdir)
 
 
 if __name__ == "__main__":
