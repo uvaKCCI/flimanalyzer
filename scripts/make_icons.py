@@ -123,6 +123,19 @@ def text(d, x, y, txt, size, color=DARK, bold=0.5):
            stroke_width=px(bold), stroke_fill=color)
 
 
+def label(d, x, y, txt, size, color=DARK, halo=1.6):
+    """Bold text with a white halo, readable on top of a drawing.
+
+    Uses DejaVu Sans Bold from matplotlib, so the result is the same everywhere.
+    """
+    import matplotlib
+
+    path = Path(matplotlib.get_data_path()) / "fonts" / "ttf" / "DejaVuSans-Bold.ttf"
+    font = ImageFont.truetype(str(path), size=size * S)
+    d.text((x * S, y * S), txt, fill=color, font=font, anchor="mm",
+           stroke_width=px(halo), stroke_fill=WHITE)
+
+
 def gauss_pts(x0, x1, ybase, height, mu, sigma, n=40):
     pts = []
     for i in range(n + 1):
@@ -473,22 +486,26 @@ def ks_icon():
     line(d, ecdf((6, 8.5, 11, 13.5, 16)), GREEN, 1.8)
     line(d, ecdf((14, 18.5, 22, 25, 27.5)), MAGENTA, 1.8)
     double_arrow(d, 15, 8.5, 26.5, ORANGE, w=2.0, head=3.6)
+    label(d, 24, 21.5, "KS", 12)
     return im
 
 
 def pca_icon():
     im, d = canvas()
-    a = math.radians(-35)
+    # point cloud with its two orthogonal principal axes
     import random
 
-    rnd = random.Random(3)
-    for _ in range(26):
-        u, v = rnd.gauss(0, 6.5), rnd.gauss(0, 2.2)
-        x, y = 16 + u * math.cos(a) - v * math.sin(a), 16 + u * math.sin(a) + v * math.cos(a)
-        circle(d, x, y, 1.2, NODE)
+    a = math.radians(-30)
     c, s_ = math.cos(a), math.sin(a)
-    arrow(d, 16, 16, 16 + 15 * c, 16 + 15 * s_, MAGENTA, w=2.0, head=4)
-    arrow(d, 16, 16, 16 + 7 * -s_, 16 + 7 * c, GREEN, w=2.0, head=3.6)
+    cx, cy = 12, 15
+    rnd = random.Random(3)
+    for _ in range(24):
+        u, v = rnd.gauss(0, 5.5), rnd.gauss(0, 1.8)
+        circle(d, cx + u * c - v * s_, cy + u * s_ + v * c, 1.1, NODE)
+    arrow(d, cx, cy, cx + 18 * c, cy + 18 * s_, MAGENTA, w=3.0, head=5.5)  # PC1
+    arrow(d, cx, cy, cx + 10 * s_, cy - 10 * c, GREEN, w=3.0, head=5.5)  # PC2
+    circle(d, cx, cy, 1.9, DARK)
+    label(d, 16, 26.5, "PCA", 10.5)
     return im
 
 
