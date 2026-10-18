@@ -318,9 +318,13 @@ def categorize_icon():
 
 def summary_icon():
     im, d = canvas()
+    # summary statistics of a table: a large sum sign over it
     table(d, 2, 3, 30, 29, 3, 5)
-    d.rectangle(s(2, 23.8, 30, 29), fill=BLUE, outline=DARK, width=px(1.1))
-    text(d, 7, 26.2, "\u03a3", 7, WHITE, bold=0.3)
+    sigma = ((23, 10), (23, 6.5), (9.5, 6.5), (17.5, 16), (9.5, 25.5), (23, 25.5), (23, 22))
+    for color, w in ((WHITE, 6.5), (BLUE, 3.4)):
+        line(d, sigma, color, w)
+        for x, y in sigma:  # round joints and ends
+            circle(d, x, y, w / 2, color)
     return im
 
 
