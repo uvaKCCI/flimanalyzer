@@ -56,7 +56,7 @@ class FLIMAnalyzer:
         #        self.outputgenerator = outputgenerator()
         logging.info(f"Setting up {self.executor}: {self.execargs}")
         logging.debug(
-            f"Initialized {__name__}.FlimAnalyzer with"
+            f"Initialized {__name__}.FLIMAnalyzer with"
             f" {importer}, {preprocessor}, {danalyzer}"
         )
         logging.debug(f"Using {self.executor}, {self.execargs}")

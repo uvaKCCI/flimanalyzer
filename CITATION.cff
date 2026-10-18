@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata from this file."
 type: software
-title: FLIM Analyzer
+title: FLIMAnalyzer
 abstract: Python application for the analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data.
 authors:
   - family-names: Siller

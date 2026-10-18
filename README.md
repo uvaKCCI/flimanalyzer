@@ -1,10 +1,6 @@
 # FLIMAnalyzer
 
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://github.com/uvaKCCI/flimanalyzer/blob/main/pyproject.toml)
-[![Tests](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml)
-[![codecov](https://codecov.io/gh/uvaKCCI/flimanalyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/uvaKCCI/flimanalyzer)
-[![Documentation Status](https://readthedocs.org/projects/flimanalyzer/badge/?version=latest)](https://flimanalyzer.readthedocs.io/en/latest/)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23426563.svg)](https://doi.org/10.5281/zenodo.23426563)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://github.com/uvaKCCI/flimanalyzer/blob/main/pyproject.toml) [![Tests](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/uvaKCCI/flimanalyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/uvaKCCI/flimanalyzer) [![Documentation Status](https://readthedocs.org/projects/flimanalyzer/badge/?version=latest)](https://flimanalyzer.readthedocs.io/en/latest/) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23426563.svg)](https://doi.org/10.5281/zenodo.23426563)
 
 Python package for analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data.
 
@@ -84,7 +80,7 @@ To use an existing Dask cluster:
 
 ## How to cite
 
-If you use FLIM Analyzer, please cite the software via its Zenodo DOI: [10.5281/zenodo.23426563](https://doi.org/10.5281/zenodo.23426563) (all versions). Citation metadata is also in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
+If you use FLIMAnalyzer, please cite the software via its Zenodo DOI: [10.5281/zenodo.23426563](https://doi.org/10.5281/zenodo.23426563) (all versions). Citation metadata is also in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
 
 Archived releases and the publications they were used in:
 

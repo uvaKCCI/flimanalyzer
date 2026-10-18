@@ -87,7 +87,7 @@ DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 DEFAULT_CONFIFG_FILE = "defaults.json"
 
 
-class FlimAnalyzerApp(wx.App):
+class FLIMAnalyzerApp(wx.App):
     def __init__(self, flimanalyzer, config=None):
         self.flimanalyzer = flimanalyzer
         if config is None or not isinstance(config, Config):
@@ -121,7 +121,7 @@ class AppFrame(wx.Frame):
 
         version = __version__
         super(AppFrame, self).__init__(
-            None, wx.ID_ANY, title=f"FLIM Data Analyzer {version}"
+            None, wx.ID_ANY, title=f"FLIMAnalyzer {version}"
         )  # , size=(600, 500))
 
         # tool buttons, one labeled box per group, laid out in two rows

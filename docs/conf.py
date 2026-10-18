@@ -37,7 +37,7 @@ sys.modules["wx.lib.newevent"] = _newevent
 
 # -- Project information -----------------------------------------------------
 
-project = "FLIM Analyzer"
+project = "FLIMAnalyzer"
 copyright = "2021, UVA Keck Center for Cellular Imaging"
 author = (
     "UVA Keck Center for Cellular Imaging: Karsten Siller, Brian Mbogo, Jiaxin Zhang"

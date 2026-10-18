@@ -12,7 +12,7 @@ import argparse
 import sys
 import flim
 from flim._version import __version__
-from flim.gui.app import FlimAnalyzerApp
+from flim.gui.app import FLIMAnalyzerApp
 import flim.core.parser as cp
 import flim.analysis
 from flim.plugin import AbstractPlugin
@@ -193,7 +193,7 @@ def noninteractive_run(fa, args):
 
 
 def interactive_run(fa):
-    app = FlimAnalyzerApp(fa)
+    app = FLIMAnalyzerApp(fa)
     app.MainLoop()
 
 
@@ -219,7 +219,7 @@ def main():
     args = parse_arguments()
     init_logger(args.log.upper())
     version = __version__
-    logging.info(f"FlimAnalyzer version {version}")
+    logging.info(f"FLIMAnalyzer version {version}")
 
     logging.debug(args)
     fa = FLIMAnalyzer(executor=args.executor, execargs=args.execargs)
