@@ -9,7 +9,7 @@ Documentation: https://flimanalyzer.readthedocs.io
 ## Requirements
 
 * Python 3.12 or later
-* All Python dependencies, including [PyTorch](https://pytorch.org), [Prefect](https://www.prefect.io) and [vistiq](https://github.com/ksiller/vistiq), are declared in `pyproject.toml` and installed automatically.
+* All Python dependencies, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are declared in `pyproject.toml` and installed automatically.
 
 ## Installation
 
@@ -23,9 +23,10 @@ Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environ
 
 On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so an NVIDIA GPU can be used. On macOS (Apple Silicon only, as current PyTorch has no Intel Mac builds), the PyPI build is used, which supports the Apple GPU (MPS).
 
-To also install the test dependencies:
+To also install the test dependencies, or the optional Dask support (see [Parallel execution](#parallel-execution)):
 
     uv sync --extra test
+    uv sync --extra dask
 
 ### With pip
 
@@ -38,7 +39,7 @@ To also install the test dependencies:
 pip installs PyTorch from PyPI, which provides a different build on each platform:
 
 * **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
-* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
 * **macOS:** only Apple Silicon is supported; the PyPI build uses the Apple GPU (MPS).
 
 ## GPU acceleration
@@ -91,7 +92,9 @@ By default, up to one task per CPU core runs at a time, as threads. To change th
 
 `num_workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default.
 
-FLIMAnalyzer can also use [Dask](https://www.dask.org). On a *single node*, start a local Dask cluster:
+FLIMAnalyzer can also use [Dask](https://www.dask.org). Dask support is optional; install it with `uv sync --extra dask` (or `pip install -e ".[dask]"`).
+
+On a *single node*, start a local Dask cluster:
 
     uv run flimanalyzer -e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"
 
@@ -139,4 +142,4 @@ Build the documentation (output in `docs/_build/html`):
 
     uv run --group docs sphinx-build -b html docs docs/_build/html
 
-The `docs` dependency group contains only Sphinx and the lightweight packages needed to document the code; `docs/conf.py` imports `flim` from the source tree and mocks wxPython, PyTorch, Prefect and vistiq. This is also how the documentation is built on Read the Docs (see `.readthedocs.yaml`).
+The `docs` dependency group contains only Sphinx and the lightweight packages needed to document the code; `docs/conf.py` imports `flim` from the source tree and mocks wxPython, PyTorch and Prefect. This is also how the documentation is built on Read the Docs (see `.readthedocs.yaml`).

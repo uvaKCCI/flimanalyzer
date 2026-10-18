@@ -185,3 +185,29 @@ def test_result_figures_are_released_from_pyplot(flim_data):
     figures = [v for v in result.values() if isinstance(v, matplotlib.figure.Figure)]
     assert figures and plt.get_fignums() == []
     figures[0].savefig(__import__("io").BytesIO())  # still usable
+
+
+def test_dask_executors_need_the_dask_extra(monkeypatch):
+    import importlib.util
+    import sys
+
+    import flim.analyzerapp as analyzerapp
+    from flim.core.tools import FLIMAnalyzer, check_executor_available
+
+    real_find_spec = importlib.util.find_spec
+    monkeypatch.setattr(
+        importlib.util,
+        "find_spec",
+        lambda name, *a: None if name == "prefect_dask" else real_find_spec(name, *a),
+    )
+    check_executor_available("LocalExecutor")  # needs nothing extra
+    for executor in ("LocalDaskExecutor", "DaskExecutor"):
+        with pytest.raises(RuntimeError, match="uv sync --extra dask"):
+            check_executor_available(executor)
+        with pytest.raises(RuntimeError, match="optional Dask support"):
+            FLIMAnalyzer(executor=executor).get_task_runner()
+
+    # the command line stops with the message instead of an import error
+    monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-e", "LocalDaskExecutor"])
+    with pytest.raises(SystemExit, match="LocalDaskExecutor needs the optional Dask support"):
+        analyzerapp.main()

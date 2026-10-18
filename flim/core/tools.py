@@ -16,6 +16,20 @@ from flim.core.preprocessor import defaultpreprocessor
 from flim.core.analyzer import dataanalyzer
 
 
+DASK_EXECUTORS = ("LocalDaskExecutor", "DaskExecutor")
+
+
+def check_executor_available(executor: str) -> None:
+    """Raises RuntimeError if ``executor`` needs packages that are not installed."""
+    import importlib.util
+
+    if executor in DASK_EXECUTORS and importlib.util.find_spec("prefect_dask") is None:
+        raise RuntimeError(
+            f"{executor} needs the optional Dask support: uv sync --extra dask"
+            " (or pip install flimanalyzer[dask])"
+        )
+
+
 class FLIMAnalyzer:
     def __init__(
         self,
@@ -50,7 +64,7 @@ class FLIMAnalyzer:
         execargs = n
         self.executor = executor
         self.execargs = execargs
-        if executor not in ("LocalDaskExecutor", "DaskExecutor"):
+        if executor not in DASK_EXECUTORS:
             self.executor = "LocalExecutor"
             self.execargs = {
                 k: v for k, v in execargs.items() if k == "num_workers" and isinstance(v, int)
@@ -78,6 +92,7 @@ class FLIMAnalyzer:
             from flim.core.runner import default_task_runner
 
             return default_task_runner(self.execargs.get("num_workers"))
+        check_executor_available(self.executor)
         from prefect_dask import DaskTaskRunner
 
         args = dict(self.execargs)

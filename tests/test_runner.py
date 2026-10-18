@@ -150,7 +150,7 @@ def test_workflow_graph_plot(flim_data):
 
 
 def test_dask_task_runner(flim_data):
-    from prefect_dask import DaskTaskRunner
+    DaskTaskRunner = pytest.importorskip("prefect_dask").DaskTaskRunner
 
     def build():
         Sort().map(

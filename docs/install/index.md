@@ -3,7 +3,7 @@
 ## Requirements
 
 * Python 3.12 or later
-* All Python dependencies, including [PyTorch](https://pytorch.org), [Prefect](https://www.prefect.io) and [vistiq](https://github.com/ksiller/vistiq), are declared in the `pyproject.toml` file of the code Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git) and installed automatically.
+* All Python dependencies, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are declared in the `pyproject.toml` file of the code Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git) and installed automatically.
 
 ## Installing with uv (recommended)
 
@@ -27,7 +27,7 @@ pip install -e .
 pip installs PyTorch from PyPI, which provides a different build on each platform:
 
 * **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
-* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
 * **macOS:** only Apple Silicon is supported; the PyPI build uses the Apple GPU (MPS).
 
 Conda users can create the Python environment with conda instead of `venv` and install FLIMAnalyzer into it with pip:

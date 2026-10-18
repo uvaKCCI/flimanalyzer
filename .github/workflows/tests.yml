@@ -32,7 +32,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen --extra test --python 3.12
+        run: uv sync --frozen --extra test --extra dask --python 3.12
 
       - name: Run tests
         env:

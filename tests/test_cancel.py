@@ -140,7 +140,7 @@ def test_task_cancelling_itself_skips_only_its_dependents(dask):
 
     task_runner = None
     if dask:
-        from prefect_dask import DaskTaskRunner
+        DaskTaskRunner = pytest.importorskip("prefect_dask").DaskTaskRunner
 
         task_runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": False})
     run = run_flow("self cancel", build, task_runner=task_runner)
@@ -266,7 +266,7 @@ class MarkedLooper(Looper):
 
 
 def test_cancel_reaches_dask_worker_processes(tmp_path):
-    from prefect_dask import DaskTaskRunner
+    DaskTaskRunner = pytest.importorskip("prefect_dask").DaskTaskRunner
 
     marker = tmp_path / "started"
     token = CancelToken()

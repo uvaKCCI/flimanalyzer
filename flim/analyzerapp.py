@@ -16,7 +16,7 @@ from flim.gui.app import FLIMAnalyzerApp
 import flim.core.parser as cp
 import flim.analysis
 from flim.plugin import AbstractPlugin
-from flim.core.tools import FLIMAnalyzer
+from flim.core.tools import FLIMAnalyzer, check_executor_available
 from flim.core.prefect_server import use_prefect_server
 from flim.core.configuration import Config, CONFIG_PARSER_CLASS
 
@@ -226,6 +226,10 @@ def main():
     #    __version__ = vf.read().strip()
 
     args = parse_arguments()
+    try:
+        check_executor_available(args.executor)
+    except RuntimeError as e:
+        sys.exit(f"flimanalyzer: {e}")
     init_logger(args.log.upper())
     version = __version__
     logging.info(f"FLIMAnalyzer version {version}")

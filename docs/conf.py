@@ -21,8 +21,6 @@ autodoc_mock_imports = [
     "prefect",
     "prefect_dask",
     "torch",
-    "torchvision",
-    "vistiq",
     "wx",
 ]
 
