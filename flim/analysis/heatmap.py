@@ -176,7 +176,6 @@ class Heatmap(AbstractPlugin):
             ax=ax,
             vmin=-1,
             vmax=1,
-            center=0,
             cmap=sns.diverging_palette(20, 220, n=200),
             square=True,
             annot=self.params["numbers"],

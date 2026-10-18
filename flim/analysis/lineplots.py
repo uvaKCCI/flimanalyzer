@@ -15,6 +15,17 @@ from matplotlib.ticker import FixedLocator, FixedFormatter
 import seaborn as sns
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
+
+
+def ci_to_errorbar(ci):
+    """Converts the plugin's "ci" setting to seaborn's errorbar argument.
+
+    seaborn 0.12 replaced ci=<n> with errorbar=("ci", <n>), ci="sd" with
+    errorbar="sd" and ci=None with errorbar=None.
+    """
+    if ci is None or ci == "sd":
+        return ci
+    return ("ci", ci)
 from importlib_resources import files
 import flim.resources
 from flim import utils
@@ -140,7 +151,7 @@ class LinePlot(AbstractPlugin):
                     data=data,
                     x=categories[0],
                     y=feature,
-                    ci=self.params["ci"],
+                    errorbar=ci_to_errorbar(self.params["ci"]),
                     err_style=self.params["err_style"],
                     markers=self.params["markers"],
                 )
@@ -151,7 +162,7 @@ class LinePlot(AbstractPlugin):
                     x=categories[0],
                     y=feature,
                     hue=categories[1],
-                    ci=self.params["ci"],
+                    errorbar=ci_to_errorbar(self.params["ci"]),
                     err_style=self.params["err_style"],
                     markers=self.params["markers"],
                 )
@@ -163,7 +174,7 @@ class LinePlot(AbstractPlugin):
                     y=feature,
                     hue=categories[1],
                     style=categories[2],
-                    ci=self.params["ci"],
+                    errorbar=ci_to_errorbar(self.params["ci"]),
                     err_style=self.params["err_style"],
                     markers=self.params["markers"],
                 )
@@ -175,7 +186,7 @@ class LinePlot(AbstractPlugin):
                     hue=categories[1],
                     style=categories[2],
                     col=categories[3],
-                    ci=self.params["ci"],
+                    errorbar=ci_to_errorbar(self.params["ci"]),
                     err_style=self.params["err_style"],
                     markers=self.params["markers"],
                     kind="line",
@@ -190,7 +201,7 @@ class LinePlot(AbstractPlugin):
                     style=categories[2],
                     col=categories[3],
                     row=categories[4],
-                    ci=self.params["ci"],
+                    errorbar=ci_to_errorbar(self.params["ci"]),
                     err_style=self.params["err_style"],
                     markers=self.params["markers"],
                     kind="line",

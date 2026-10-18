@@ -9,7 +9,7 @@ from flim.analysis.gmm import GaussianMixedModel
 from flim.analysis.heatmap import Heatmap
 from flim.analysis.kde import KDE
 from flim.analysis.kmeans import KMeansClustering
-from flim.analysis.lineplots import LinePlot
+from flim.analysis.lineplots import LinePlot, ci_to_errorbar
 from flim.analysis.pca import PCAnalysis
 from flim.analysis.relativechange import RelativeChange
 from flim.analysis.scatterplots import ScatterPlot
@@ -107,3 +107,22 @@ def test_plugin_executes(plugin_cls, flim_data, features):
     assert results
     for value in results.values():
         assert isinstance(value, (pd.DataFrame, matplotlib.figure.Figure))
+
+
+@pytest.mark.parametrize(
+    "ci, errorbar", [(95, ("ci", 95)), (68, ("ci", 68)), ("sd", "sd"), (None, None)]
+)
+def test_ci_to_errorbar(ci, errorbar):
+    assert ci_to_errorbar(ci) == errorbar
+
+
+# seaborn/matplotlib API deprecations must not come back
+@pytest.mark.filterwarnings("error:.*deprecated:FutureWarning")
+@pytest.mark.filterwarnings("error::PendingDeprecationWarning")
+@pytest.mark.filterwarnings("error::matplotlib.MatplotlibDeprecationWarning")
+@pytest.mark.parametrize("plugin_cls", [LinePlot, Heatmap, BoxPlot])
+@pytest.mark.parametrize("grouping", [["Treatment"], ["Treatment", "FOV"]])
+def test_plots_without_deprecated_api(plugin_cls, flim_data, features, grouping):
+    results = run(plugin_cls, {"data": flim_data}, grouping=grouping, features=features)
+    assert results
+
