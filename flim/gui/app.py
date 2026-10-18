@@ -95,6 +95,11 @@ def app_icon():
     return wx.Icon(str(files(flim.resources).joinpath("flimanalyzer.png")), wx.BITMAP_TYPE_PNG)
 
 
+def app_icons():
+    """The application icon in all sizes, so each window picks a sharp one."""
+    return wx.IconBundle(str(files(flim.resources).joinpath("flimanalyzer.ico")), wx.BITMAP_TYPE_ICO)
+
+
 class FLIMAnalyzerApp(wx.App):
     def __init__(self, flimanalyzer, config=None):
         self.flimanalyzer = flimanalyzer
@@ -145,7 +150,7 @@ class AppFrame(wx.Frame):
             None, wx.ID_ANY, title=f"FLIMAnalyzer {version}"
         )  # , size=(600, 500))
 
-        self.SetIcon(app_icon())
+        self.SetIcons(app_icons())
 
         # tool buttons, one labeled box per group, laid out in two rows
         self.toolpanel = wx.Panel(self)

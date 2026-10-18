@@ -72,6 +72,20 @@ def arrow(d, x0, y0, x1, y1, color, w=1.6, head=3.2):
     d.polygon(s(x1, y1, bx + nx * h, by + ny * h, bx - nx * h, by - ny * h), fill=color)
 
 
+def double_arrow(d, x, y0, y1, color, w=1.8, head=3.4):
+    """Vertical double-headed arrow between y0 and y1."""
+    m = (y0 + y1) / 2
+    arrow(d, x, m, x, y0, color, w, head)
+    arrow(d, x, m, x, y1, color, w, head)
+
+
+def dashed(d, x0, x1, y, color, w=1.2, dash=2.2, gap=1.6):
+    x = x0
+    while x < x1:
+        d.line(s(x, y, min(x + dash, x1), y), fill=color, width=px(w))
+        x += dash + gap
+
+
 def arc_arrow(d, cx, cy, r, start, end, color, w=1.6, head=3.2):
     """Arrow along a circular arc from angle start to end (degrees, clockwise)."""
     n = 24
@@ -299,11 +313,12 @@ def summary_icon():
 
 def relchange_icon():
     im, d = canvas()
+    # change relative to a reference: bars grow up or down from the reference line
     axes(d)
-    d.rectangle(s(7, 18, 13, 29), fill=GRAY)
-    d.rectangle(s(19, 7, 25, 29), fill=BLUE)
-    arrow(d, 10, 15, 19.5, 4.5, ORANGE, w=1.8, head=3.6)
-    text(d, 8.5, 7, "%", 8, bold=0.35)
+    ref = 16
+    for x, h in ((6, -9), (12, 5), (18, -12), (24, 7)):
+        d.rectangle(s(x, min(ref, ref - h), x + 4.5, max(ref, ref - h)), fill=GREEN if h < 0 else MAGENTA)
+    dashed(d, 4, 30, ref, DARK, w=1.4)
     return im
 
 
@@ -435,14 +450,12 @@ def ks_icon():
     def ecdf(xs):
         pts, y = [(4, 28)], 28
         for x in xs:
-            pts += [(x, y), (x, y - 4.6)]
-            y -= 4.6
+            pts += [(x, y), (x, y - 4.8)]
+            y -= 4.8
         return pts + [(30, y)]
-    line(d, ecdf((7, 9.5, 12, 14, 17)), GREEN, 1.5)
-    line(d, ecdf((13, 17.5, 21, 24, 26.5)), MAGENTA, 1.5)
-    arrow(d, 15.5, 17, 15.5, 25.5, DARK, w=1.1, head=2.2)
-    arrow(d, 15.5, 22, 15.5, 13, DARK, w=1.1, head=2.2)
-    text(d, 24.5, 23.5, "KS", 7, bold=0.35)
+    line(d, ecdf((6, 8.5, 11, 13.5, 16)), GREEN, 1.8)
+    line(d, ecdf((14, 18.5, 22, 25, 27.5)), MAGENTA, 1.8)
+    double_arrow(d, 15, 8.5, 26.5, ORANGE, w=2.0, head=3.6)
     return im
 
 
@@ -499,17 +512,15 @@ def heatmap_icon():
 
 def seriesanalysis_icon():
     im, d = canvas()
-    # several time series reduced to a few values per series
-    axes(d, x0=2, y0=2, x1=19, y1=29)
-    for pts, c in ((((4, 10), (8, 6), (12, 9), (17, 5)), GREEN),
-                   (((4, 22), (8, 16), (12, 19), (17, 13)), MAGENTA)):
-        line(d, pts, c, 1.3)
-        for p in pts:
-            circle(d, *p, 1.3, c)
-    arrow(d, 19.5, 15.5, 24, 15.5, DARK, w=1.5, head=3)
-    table(d, 25, 4, 31, 27, 1, 4, header=LGRAY)
-    d.rectangle(s(25, 9.75, 31, 15.5), fill=GREEN, outline=DARK, width=px(1.1))
-    d.rectangle(s(25, 15.5, 31, 21.25), fill=MAGENTA, outline=DARK, width=px(1.1))
+    # one series across columns: its maximum, minimum and range
+    axes(d)
+    pts = ((6, 20), (11, 13), (16, 17), (21, 7), (25, 23))
+    dashed(d, 4, 30, 7, GREEN, w=1.3)
+    dashed(d, 4, 30, 23, MAGENTA, w=1.3)
+    line(d, pts, BLUE, 1.5)
+    for p in pts:
+        circle(d, *p, 1.7, BLUE)
+    double_arrow(d, 29, 7.5, 22.5, ORANGE, w=1.8, head=3.2)
     return im
 
 
@@ -641,39 +652,75 @@ def aefeatureworkflow_icon():
 NAVY = (22, 38, 84, 255)
 
 
-def app_icon(size=1024):
-    """Fluorescence decay: photon histogram after an excitation pulse, with its fit."""
-    k = size / 32
-    im = Image.new("RGBA", (size, size), CLEAR)
-    d = ImageDraw.Draw(im)
+def thick_line(pts, half):
+    """Outline of a polyline of width 2 * half, as one smooth polygon."""
+    left, right = [], []
+    for i, (x, y) in enumerate(pts):
+        (xa, ya), (xb, yb) = pts[max(i - 1, 0)], pts[min(i + 1, len(pts) - 1)]
+        n = math.hypot(xb - xa, yb - ya)
+        nx, ny = -(yb - ya) / n * half, (xb - xa) / n * half
+        left.append((x + nx, y + ny))
+        right.append((x - nx, y - ny))
+    return left + right[::-1]
 
-    def q(*v):
-        return [x * k for x in v]
 
-    d.rounded_rectangle(q(1, 1, 31, 31), radius=6.5 * k, fill=NAVY)
-    base, x0, x1 = 25.5, 6, 27.5
-    # excitation pulse
-    d.polygon(q(6, base, 7.3, 6.5, 8.6, base), fill=ORANGE)
-    # photon histogram of the decay
-    n, w = 11, (x1 - 9.2) / 11
-    for i in range(n):
-        x = 9.2 + i * w
-        h = 18.5 * math.exp(-(i + 0.5) / 3.2)
-        d.rectangle(q(x + 0.25, base - h, x + w - 0.25, base), fill=GREEN)
-    # fitted exponential through the bar centres
-    ts = [0.5 + (n - 1) * i / 60 for i in range(61)]
-    pts = [(9.2 + t * w, base - 18.5 * math.exp(-t / 3.2)) for t in ts]
-    d.line([v * k for p in pts for v in p], fill=MAGENTA, width=max(1, int(1.4 * k)), joint="curve")
-    # time axis
-    d.line(q(x0 - 1, base + 1.2, x1 + 0.8, base + 1.2), fill=WHITE, width=max(1, int(1.2 * k)))
-    return im
+def _app_icon_detailed(r):
+    """32-unit layout for 32 px and larger; r(x0, y0, x1, y1) draws a rectangle."""
+    d, k = r.draw, r.k
+    d.rounded_rectangle(r.q(1, 1, 31, 31), radius=7 * k, fill=NAVY)
+    r(6, 5, 8, 25, ORANGE)  # excitation pulse
+    heights = (17, 10, 6, 4, 2, 1)  # photon histogram of the decay
+    for i, h in enumerate(heights):
+        r(10 + 3 * i, 25 - h, 12 + 3 * i, 25, GREEN)
+    # fitted exponential, just above the bar tops
+    pts = [(11 + 3 * t, 23.6 - 17 * math.exp(-0.53 * t)) for t in (j / 20 for j in range(-4, 105))]
+    d.polygon(r.q(*[v for p in thick_line(pts, 0.75) for v in p]), fill=MAGENTA)
+    r(5, 25, 27, 27, WHITE)  # time axis
+
+
+def _app_icon_simple(r):
+    """16-unit layout for small sizes: whole-pixel shapes only, no curve."""
+    r.draw.rounded_rectangle(r.q(0, 0, 16, 16), radius=3.5 * r.k, fill=NAVY)
+    r(3, 3, 4, 12, ORANGE)
+    for i, h in enumerate((8, 5, 3, 2, 1)):
+        r(5 + 2 * i, 12 - h, 6 + 2 * i, 12, GREEN)
+    r(2, 12, 14, 13, WHITE)
+
+
+class _Grid:
+    """Draws on a grid of units that maps to whole pixels of the target size."""
+
+    def __init__(self, size, units, oversample=4):
+        self.size, self.os = size, oversample
+        self.k = size / units * oversample
+        self.im = Image.new("RGBA", (size * oversample, size * oversample), CLEAR)
+        self.draw = ImageDraw.Draw(self.im)
+
+    def q(self, *v):
+        return [x * self.k for x in v]
+
+    def __call__(self, x0, y0, x1, y1, color):
+        # PIL rectangles include the end pixel
+        self.draw.rectangle([round(x0 * self.k), round(y0 * self.k),
+                             round(x1 * self.k) - 1, round(y1 * self.k) - 1], fill=color)
+
+    def image(self):
+        return self.im.reduce(self.os)  # box filter: aligned edges stay sharp
+
+
+def app_icon(size):
+    """Fluorescence decay: excitation pulse, photon histogram and its fit."""
+    simple = size < 32 or size % 32
+    grid = _Grid(size, 16 if simple else 32)
+    (_app_icon_simple if simple else _app_icon_detailed)(grid)
+    return grid.image()
 
 
 def save_app_icon(outdir):
-    im = app_icon(1024)
-    im.resize((256, 256), Image.LANCZOS).save(outdir / "flimanalyzer.png")
-    im.save(outdir / "flimanalyzer.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-
+    app_icon(256).save(outdir / "flimanalyzer.png")
+    sizes = (16, 32, 48, 64, 128, 256)
+    images = [app_icon(n) for n in sizes]
+    images[-1].save(outdir / "flimanalyzer.ico", sizes=[(n, n) for n in sizes], append_images=images[:-1])
 
 ICONS = {
     # File
