@@ -40,8 +40,10 @@ def wxapp():
     import flim.gui  # noqa: F401  (configures wx for the dialogs)
 
     yield app
-    for window in wx.GetTopLevelWindows():
-        window.Destroy()
+    for window in list(wx.GetTopLevelWindows()):
+        # windows already destroyed by a test may still be listed until deleted
+        if window and not window.IsBeingDeleted():
+            window.Destroy()
 
 
 @pytest.fixture

@@ -16,8 +16,10 @@ def wxapp():
     import flim.gui  # noqa: F401  (selects the off-screen backend)
 
     yield app
-    for window in wx.GetTopLevelWindows():
-        window.Destroy()
+    for window in list(wx.GetTopLevelWindows()):
+        # windows already destroyed by a test may still be listed until deleted
+        if window and not window.IsBeingDeleted():
+            window.Destroy()
 
 
 @pytest.fixture
@@ -67,7 +69,7 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
     from flim.gui.events import EVT_PLOT_TYPE, PlotEvent
-    from flim.gui.plotframe import PlotFrame
+    from flim.gui.plotframe import PlotFrame, fit_to_screen
 
     results, errors = _plots_in_worker_thread(
         table, ["Box Plot", "KDE", "Scatter Plot", "Pair Plot"]
@@ -95,9 +97,16 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
         menu = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
         assert set(plots) <= set(menu)
         for title, window in plots.items():
-            # opens at the figure's size, on a wx canvas
-            assert window.canvas.get_width_height() == sizes[title]
+            # opens at the figure's size, scaled down to fit the screen if needed
+            fig_w, fig_h = sizes[title]
+            can_w, can_h = window.canvas.get_width_height()
             assert window.figure.canvas is window.canvas
+            assert window.canvas_size == fit_to_screen(
+                fig_w, fig_h, window.toolbar.GetBestSize().height, frame
+            )
+            assert (can_w, can_h) == window.canvas_size
+            assert can_w <= fig_w and can_h <= fig_h
+            assert abs(can_w / can_h - fig_w / fig_h) < 0.02  # same aspect ratio
 
         title, window = next(iter(plots.items()))
         window.Close()

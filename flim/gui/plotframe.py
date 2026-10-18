@@ -10,6 +10,17 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg
 
 
+def fit_to_screen(width, height, extra_height=0, window=None, fraction=0.9):
+    """Scales (width, height) down, keeping the aspect ratio, so that it fits into
+    ``fraction`` of the screen (of ``window``) together with ``extra_height``."""
+    index = wx.Display.GetFromWindow(window) if window else wx.NOT_FOUND
+    area = wx.Display(index if index != wx.NOT_FOUND else 0).GetClientArea()
+    max_width = area.width * fraction
+    max_height = area.height * fraction - extra_height
+    scale = min(1.0, max_width / max(width, 1), max_height / max(height, 1))
+    return int(width * scale), int(height * scale)
+
+
 class PlotFrame(wx.Frame):
     """Top-level window with a figure canvas and the matplotlib navigation toolbar.
 
@@ -33,5 +44,8 @@ class PlotFrame(wx.Frame):
         sizer.Add(self.canvas, 1, wx.EXPAND)
         sizer.Add(self.toolbar, 0, wx.EXPAND)
         self.SetSizer(sizer)
-        # open at the figure's size; the canvas then follows the window size
-        self.SetClientSize((width, height + self.toolbar.GetBestSize().height))
+        # open at the figure's size, scaled down (same aspect ratio) to fit 90% of
+        # the screen; the canvas then follows the window size
+        toolbar = self.toolbar.GetBestSize().height
+        self.canvas_size = fit_to_screen(width, height, toolbar, parent)
+        self.SetClientSize((self.canvas_size[0], self.canvas_size[1] + toolbar))

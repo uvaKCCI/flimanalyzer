@@ -133,6 +133,8 @@ class RunProgressDialog(wx.Dialog):
         wx.CallAfter(self._started, run)
 
     def _started(self, run):
+        if not self:  # destroyed before the update arrived
+            return
         self._flow_run = run
         url = run.ui_url
         if url:
@@ -156,6 +158,8 @@ class RunProgressDialog(wx.Dialog):
 
     def _refresh(self):
         """Shows the current task statuses: status line, count, bar and list."""
+        if not self:  # destroyed before the update arrived
+            return
         if self._flow_run is None:
             self.gauge.Pulse()
             return
@@ -196,6 +200,8 @@ class RunProgressDialog(wx.Dialog):
         self._refresh()
 
     def _finished(self):
+        if not self:
+            return
         self.timer.Stop()
         self._refresh()
         self.EndModal(wx.ID_CANCEL if self.cancel_token.is_set() else wx.ID_OK)
