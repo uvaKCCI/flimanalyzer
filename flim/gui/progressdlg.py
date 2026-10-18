@@ -6,7 +6,7 @@ import threading
 import wx
 import wx.adv
 
-from flim.core.runner import CancelToken
+from flim.core.runner import FINAL_STATUSES, CancelToken
 
 
 class RunProgressDialog(wx.Dialog):
@@ -34,7 +34,6 @@ class RunProgressDialog(wx.Dialog):
         self.cancel_token = CancelToken()
         self.run = None
         self.error = None
-        self._current = ""
         self._flow_run = None  # the FlowRun, once Prefect has created it
 
         self.task_text = wx.StaticText(self, label="Starting...")
@@ -69,10 +68,12 @@ class RunProgressDialog(wx.Dialog):
         sizer.Add(self.cancel_button, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
         self.SetSizerAndFit(sizer)
 
-        # the gauge pulses until the number of tasks is known
+        # status, count, bar and task list are refreshed together from the task
+        # statuses: on every progress event and regularly (the bar pulses until
+        # the number of tasks is known)
         self.timer = wx.Timer(self)
-        self.Bind(wx.EVT_TIMER, lambda event: self.gauge.Pulse(), self.timer)
-        self.timer.Start(100)
+        self.Bind(wx.EVT_TIMER, lambda event: self._refresh(), self.timer)
+        self.timer.Start(200)
         # start once the modal loop is running, so that a quick run can end it
         wx.CallAfter(self._start)
 
@@ -101,10 +102,17 @@ class RunProgressDialog(wx.Dialog):
             self.Fit()
 
     def _on_progress(self, done, total, label, complete):
-        wx.CallAfter(self._update, done, total, label, complete)
+        wx.CallAfter(self._refresh)
 
-    def _update_task_list(self):
+    @staticmethod
+    def _names(labels, shown=3):
+        names = ", ".join(labels[:shown])
+        return names + (f" and {len(labels) - shown} more" if len(labels) > shown else "")
+
+    def _refresh(self):
+        """Shows the current task statuses: status line, count, bar and list."""
         if self._flow_run is None:
+            self.gauge.Pulse()
             return
         tasks = self._flow_run.tasks()
         for row, (label, status) in enumerate(tasks):
@@ -113,22 +121,26 @@ class RunProgressDialog(wx.Dialog):
             elif self.task_list.GetItemText(row, 1) != status:
                 self.task_list.SetItem(row, 1, status)
 
-    def _update(self, done, total, label, complete):
-        self._update_task_list()
-        if label:
-            self._current = label
+        running = [label for label, status in tasks if status == "running"]
+        pending = sum(status == "pending" for _, status in tasks)
+        done = sum(status in FINAL_STATUSES for _, status in tasks)
         if self.cancel_token.is_set():
-            self.task_text.SetLabel(f"Cancelling, waiting for {self._current} to finish...")
-        elif label:
-            self.task_text.SetLabel(f"Running: {label}")
-        if complete:
-            if self.timer.IsRunning():
-                self.timer.Stop()
-            self.gauge.SetRange(max(total, 1))
-            self.gauge.SetValue(done)
-            self.count_text.SetLabel(f"{done} of {total} tasks completed")
+            what = self._names(running) if running else "the running tasks"
+            status_line = f"Cancelling, waiting for {what} to finish..."
+        elif running:
+            status_line = f"Running: {self._names(running)}"
+        elif pending:
+            status_line = f"Waiting for {pending} task{'s' if pending > 1 else ''} to start..."
         else:
-            self.count_text.SetLabel(f"{done} of {total} tasks completed so far")
+            status_line = "Starting..." if not tasks else "Finishing..."
+        self.task_text.SetLabel(status_line)
+        if self._flow_run.complete:
+            self.gauge.SetRange(max(len(tasks), 1))
+            self.gauge.SetValue(done)
+            self.count_text.SetLabel(f"{done} of {len(tasks)} tasks completed")
+        else:
+            self.gauge.Pulse()
+            self.count_text.SetLabel(f"{done} of {len(tasks)} tasks completed so far")
         self.Layout()
 
     def OnCancel(self, event):
@@ -136,13 +148,11 @@ class RunProgressDialog(wx.Dialog):
             return
         self.cancel_token.set()
         self.cancel_button.Disable()
-        task = self._current or "the running tasks"
-        self.task_text.SetLabel(f"Cancelling, waiting for {task} to finish...")
-        self.Layout()
+        self._refresh()
 
     def _finished(self):
         self.timer.Stop()
-        self._update_task_list()
+        self._refresh()
         self.EndModal(wx.ID_CANCEL if self.cancel_token.is_set() else wx.ID_OK)
 
 

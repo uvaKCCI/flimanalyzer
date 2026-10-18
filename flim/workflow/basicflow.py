@@ -324,7 +324,6 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
                 or ("NAD" in c and "a2" in c and "%" in c)
             )
         ]
-        print(scatter_features)
 
         # listtask = List()
         datatask = DataBucket("Input")  # None, name='Input')

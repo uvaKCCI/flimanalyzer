@@ -271,3 +271,42 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
         if isinstance(window, PandasFrame):
             window.modified = False
     frame.OnCloseAll(None)
+
+
+def test_status_line_matches_the_task_list(wxapp):
+    from flim.core.runner import default_task_runner
+    from flim.gui.progressdlg import RunProgressDialog
+
+    def build():
+        Task(name="Short", seconds=0.2)(input={})
+        Task(name="Long", seconds=2.5)(input={})
+
+    def start_run(cancel_token, on_progress, on_start):
+        return run_flow(
+            "status",
+            build,
+            default_task_runner(1),  # one task at a time
+            on_progress=on_progress,
+            cancel_token=cancel_token,
+            on_start=on_start,
+        )
+
+    seen = {}
+
+    def snapshot(dlg):
+        seen["line"] = dlg.task_text.GetLabel()
+        seen["list"] = {
+            dlg.task_list.GetItemText(r, 0): dlg.task_list.GetItemText(r, 1)
+            for r in range(dlg.task_list.GetItemCount())
+        }
+        seen["count"] = dlg.count_text.GetLabel()
+
+    dlg = RunProgressDialog(None, "Test", start_run)
+    wx.CallLater(1500, snapshot, dlg)  # Short has finished, Long is running
+    try:
+        assert dlg.ShowModal() == wx.ID_OK
+        assert seen["list"] == {"Short": "completed", "Long": "running"}
+        assert seen["line"] == "Running: Long"
+        assert seen["count"] == "1 of 2 tasks completed"
+    finally:
+        dlg.Destroy()
