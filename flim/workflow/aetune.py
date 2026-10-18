@@ -14,6 +14,7 @@ from importlib_resources import files
 
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
+from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES
 from importlib_resources import files
 from flim import utils
 from flim.core.runner import Parameter, select
@@ -60,7 +61,7 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
         weight_decay=1e-7,
         timeseries="",
         model="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
         rescale=False,
         checkpoint_interval=20,
         saveconfig=True,
@@ -185,7 +186,7 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.device,
-            choices=["cpu", "cuda"],
+            choices=DEVICES,
         )
         self.rescale_checkbox = wx.CheckBox(
             self.panel, wx.ID_ANY, label="Rescale decoded"
@@ -415,7 +416,7 @@ class AEWorkflow(AbsWorkFlow):
                     os.path.expanduser("~"), "FLIMAnalyzerResults"
                 ),
                 "model": "AE Simulator 1-6",
-                "device": "cpu",
+                "device": DEFAULT_DEVICE,
                 "rescale": True,
                 "checkpoint_interval": 2,  # 20
             }

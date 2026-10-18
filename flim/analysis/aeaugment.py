@@ -24,6 +24,7 @@ from importlib_resources import files, as_file
 
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
+from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES, resolve_device
 from flim.plugin import AbstractPlugin
 from flim.plugin import plugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -38,7 +39,7 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
         "selectedgrouping": ["None"],
         "selectedfeatures": "All",
         "modelfile": "",
-        "device": "cpu",
+        "device": DEFAULT_DEVICE,
         "sets": 1,
         "add_noise": True,
         "snr_db": 0.0,
@@ -58,7 +59,7 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
         selectedgrouping=["None"],
         selectedfeatures="All",
         modelfile="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
         sets=1,
         add_noise=True,
         snr_db=0.0,
@@ -127,7 +128,7 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.device,
-            choices=["cpu", "cuda"],
+            choices=DEVICES,
         )
         bottom_sizer.Add(
             wx.StaticText(self.panel, label="Device"),
@@ -275,7 +276,7 @@ class AEAugment(AbstractPlugin):
         params.update(
             {
                 "modelfile": "",
-                "device": "cpu",
+                "device": DEFAULT_DEVICE,
                 "sets": 1,
                 "add_noise": True,
                 "snr_db": 0.0,  # 0.0 < noise < 1.0
@@ -355,12 +356,7 @@ class AEAugment(AbstractPlugin):
         logging.debug(f"amplitudes={amplitudes}")
 
         # load an AE model
-        device = self.params["device"]
-        if device == "cuda" and not torch.cuda.is_available():
-            device = "cpu"
-            logging.info(
-                "CUDA selected, but no CUDA device available. Switching to CPU."
-            )
+        device = resolve_device(self.params["device"])
         sim_df = pd.DataFrame(columns=(cats + feat_cols))
         noise_df = pd.DataFrame()
         try:
@@ -371,6 +367,7 @@ class AEAugment(AbstractPlugin):
         mean_noise, std_noise = self._model_noise(data_feat, self.params["snr_db"])
         # ae = torch.load(self.params['modelfile'], map_location = device)
         ae_pipeline = load(modelfile)
+        ae_pipeline[-1].to(device)  # the autoencoder; transform() returns CPU tensors
 
         temps = []
         for simset in range(0, self.params["sets"]):

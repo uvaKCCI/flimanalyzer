@@ -21,7 +21,7 @@ Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environ
     cd flimanalyzer
     uv sync
 
-On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so an NVIDIA GPU can be used. On macOS (Apple Silicon only, as current PyTorch has no Intel Mac builds), the PyPI build is used and FLIMAnalyzer runs PyTorch on the CPU.
+On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so an NVIDIA GPU can be used. On macOS (Apple Silicon only, as current PyTorch has no Intel Mac builds), the PyPI build is used, which supports the Apple GPU (MPS).
 
 To also install the test dependencies:
 
@@ -39,7 +39,16 @@ pip installs PyTorch from PyPI, which provides a different build on each platfor
 
 * **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
 * **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
-* **macOS:** only Apple Silicon is supported, and FLIMAnalyzer runs PyTorch on the CPU.
+* **macOS:** only Apple Silicon is supported; the PyPI build uses the Apple GPU (MPS).
+
+## GPU acceleration
+
+The autoencoder tools (Autoencoder: Train, Run and Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting:
+
+* `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
+* `cpu`, `cuda` or `mps`: that device. If it is not available, the CPU is used and a warning is logged.
+
+Trained models are saved on the CPU, so a model trained on one machine can be used on any other.
 
 ## Run the application
 

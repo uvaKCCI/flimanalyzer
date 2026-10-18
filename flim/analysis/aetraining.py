@@ -11,6 +11,7 @@ import random
 from collections import defaultdict
 
 import flim.analysis.ml.autoencoder as autoencoder
+from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES, resolve_device
 import flim.resources
 import matplotlib.figure
 import matplotlib.pyplot as plt
@@ -66,7 +67,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         "timeseries": "",
         "model": "",
         "modelfile": "",
-        "device": "cpu",
+        "device": DEFAULT_DEVICE,
         "rescale": False,
         "checkpoint_interval": 20,
         "saveconfig": True,
@@ -90,7 +91,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         timeseries="",
         model="",
         modelfile="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
         rescale=False,
         checkpoint_interval=20,
         saveconfig=True,
@@ -234,7 +235,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.device,
-            choices=["cpu", "cuda"],
+            choices=DEVICES,
         )
         self.rescale_checkbox = wx.CheckBox(
             self.panel, wx.ID_ANY, label="Rescale decoded"
@@ -437,7 +438,8 @@ class AETraining(AbstractPlugin):
             "Train and save a new autoencoder model using selectable input features. "
             + "Training and validation datasets are randomly split based on the"
             " specified Data Grouping. "
-            + "Device selection supports modeling on CPU or GPU (cuda) if available."
+            + "Device: auto uses a CUDA GPU or the Apple GPU (mps) if available,"
+            " otherwise the CPU."
         )
         return descr
 
@@ -488,8 +490,8 @@ class AETraining(AbstractPlugin):
                     "NAD(P)H t2",
                     "NAD(P)H photons",
                 ],
-                "model": "Autoencoder 2",
-                "device": "cpu",
+                "model": "AE Dimensionality Reduction 2-10",
+                "device": DEFAULT_DEVICE,
                 "rescale": False,
                 "create_plots": True,
                 "train_size": 0.7,  # 0.0 < train_size < 1.0
@@ -670,12 +672,7 @@ class AETraining(AbstractPlugin):
         )
         logging.info("Training started.")
         aeclasses = autoencoder.get_autoencoder_classes()
-        device = self.params["device"]
-        if self.params["device"] == "cuda" and not torch.cuda.is_available():
-            device = "cpu"
-            logging.info(
-                "CUDA selected, but no CUDA device available. Switching to CPU."
-            )
+        device = resolve_device(self.params["device"])
         no_features = len(self.params["features"])
         ae = autoencoder.create_instance(
             aeclasses[self.params["model"]], nb_param=no_features
@@ -695,6 +692,7 @@ class AETraining(AbstractPlugin):
             cum_loss = 0
             train_samples = 0
             for i, (batchinputs, batchlabels) in enumerate(train_loader):
+                batchinputs = batchinputs.to(device)
                 encoder_out, decoder_out = ae(
                     batchinputs
                 )  # runs inputs through autoencoder
@@ -704,9 +702,9 @@ class AETraining(AbstractPlugin):
                     labelarray = np.array(length * [0]).reshape(length, 1)
                     labelarray = np.concatenate([batchlabels, labelarray], axis=1)
                     labels.append(labelarray)
-                    batchout = decoder_out.detach().numpy()
+                    batchout = decoder_out.detach().cpu().numpy()
                     decoded.append(batchout)
-                    encod = encoder_out.detach().numpy()
+                    encod = encoder_out.detach().cpu().numpy()
                     encoded.append(encod)
                     train_samples += len(batchinputs)
 
@@ -722,18 +720,19 @@ class AETraining(AbstractPlugin):
 
             cum_loss = 0
             for i, item in enumerate(val_loader):  # validation step
-                batchinputs = item[0]  # .cuda()
+                batchinputs = item[0].to(device)
                 batchlabels = item[1]
-                encoder_out, decoder_out = ae(batchinputs)
+                with torch.no_grad():
+                    encoder_out, decoder_out = ae(batchinputs)
                 if epoch == self.params["epoches"]:
                     length = len(batchlabels)
                     # use int 1 to label as 'validation'
                     labelarray = np.array(length * [1]).reshape(length, 1)
                     labelarray = np.concatenate([batchlabels, labelarray], axis=1)
                     labels.append(labelarray)
-                    batchout = decoder_out.detach().numpy()
+                    batchout = decoder_out.detach().cpu().numpy()
                     decoded.append(batchout)
-                    encod = encoder_out.detach().numpy()
+                    encod = encoder_out.detach().cpu().numpy()
                     encoded.append(encod)
 
                 loss = criterion(decoder_out, batchinputs)
@@ -746,9 +745,10 @@ class AETraining(AbstractPlugin):
                 epoch == self.params["epoches"]
                 or epoch % self.params["checkpoint_interval"] == 0
             ):
+                # checkpoints stay on the CPU, so saved models load on any machine
                 ae_clone = autoencoder.create_instance(
                     aeclasses[self.params["model"]], nb_param=no_features
-                ).to(device)
+                )
                 ae_clone.load_state_dict(ae.state_dict())
                 checkpoints.append((epoch, ae_clone))
 

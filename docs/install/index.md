@@ -13,7 +13,7 @@ git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
 uv sync
 ```
-On Windows and Linux (x86_64), uv installs the CUDA build of PyTorch; on macOS the standard PyPI build is used.
+On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so an NVIDIA GPU can be used. On macOS (Apple Silicon only, as current PyTorch has no Intel Mac builds), the PyPI build is used, which supports the Apple GPU (MPS).
 
 ## Installing with pip
 
@@ -24,7 +24,11 @@ python3.12 -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -e .
 ```
-pip installs the CPU build of PyTorch from PyPI. For GPU support, install PyTorch first by following the instructions at [pytorch.org](https://pytorch.org/get-started/locally/).
+pip installs PyTorch from PyPI, which provides a different build on each platform:
+
+* **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
+* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **macOS:** only Apple Silicon is supported; the PyPI build uses the Apple GPU (MPS).
 
 Conda users can create the Python environment with conda instead of `venv` and install FLIMAnalyzer into it with pip:
 ```
@@ -32,6 +36,15 @@ conda create -n flimenv python=3.12
 conda activate flimenv
 pip install -e .
 ```
+
+## GPU acceleration
+
+The autoencoder tools (Autoencoder: Train, Run and Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting:
+
+* `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
+* `cpu`, `cuda` or `mps`: that device. If it is not available, the CPU is used and a warning is logged.
+
+Trained models are saved on the CPU, so a model trained on one machine can be used on any other.
 
 ## Run the application
 

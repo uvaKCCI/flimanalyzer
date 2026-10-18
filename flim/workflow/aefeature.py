@@ -13,6 +13,7 @@ from prefect import task, unmapped
 
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
+from flim.analysis.ml.device import DEFAULT_DEVICE
 from importlib_resources import files
 from flim import utils
 from flim.core.runner import Parameter, select
@@ -70,7 +71,7 @@ class AEFeatureConfigDialog(AEAugmentTuneConfigDlg):
         weight_decay=1e-7,
         timeseries="",
         model="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
         rescale=False,
         checkpoint_interval=20,
         saveconfig=True,
@@ -231,7 +232,7 @@ class AEFeatureWorkflow(AbsWorkFlow):
                     os.path.expanduser("~"), "FLIMAnalyzerResults"
                 ),
                 "model": "AE Dimensionality Reduction 2-10",
-                "device": "cpu",
+                "device": DEFAULT_DEVICE,
                 "rescale": True,
                 "checkpoint_interval": 2,  # 20
             }
