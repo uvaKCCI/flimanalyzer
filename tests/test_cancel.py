@@ -200,9 +200,17 @@ def test_progress_callback():
         Counter(name="A")(input={})
         Counter(name="B")(input={})
 
-    run_flow("progress", build, on_progress=lambda done, total, label: progress.append((done, total)))
-    assert progress[-1] == (2, 2)
-    assert all(done <= total for done, total in progress)
+    run_flow(
+        "progress",
+        build,
+        on_progress=lambda done, total, label, complete: progress.append((done, total, complete)),
+    )
+    assert progress[-1] == (2, 2, True)
+    assert all(done <= total for done, total, _ in progress)
+    # all tasks are known once the script has made its calls
+    first_complete = next(i for i, p in enumerate(progress) if p[2])
+    assert all(p[2] for p in progress[first_complete:])
+    assert {p[1] for p in progress[first_complete:]} == {2}
 
 
 def test_autoencoder_training_stops_within_an_epoch(tmp_path):

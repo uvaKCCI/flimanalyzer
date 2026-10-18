@@ -243,16 +243,17 @@ class FlowRun:
         self,
         name: str,
         autosave_dir: str = None,
-        on_progress: Optional[Callable[[int, int, str], None]] = None,
+        on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
         cancel_token: Optional[CancelToken] = None,
     ):
         """
         Args:
             name: flow name.
             autosave_dir: directory to save task results in, ``None`` disables saving.
-            on_progress: called as ``on_progress(done, total, label)`` when a task is
-                submitted or finishes, from the thread that submitted or ran it;
-                ``total`` counts the tasks submitted so far.
+            on_progress: called as ``on_progress(done, total, label, complete)`` when
+                a task is submitted or finishes, from the thread that submitted or ran
+                it; ``total`` counts the tasks submitted so far, ``complete`` is True
+                once the workflow script has made all its calls (no more tasks).
             cancel_token: signal that cancels the run when set.
         """
         self.name = name
@@ -261,6 +262,7 @@ class FlowRun:
         self.cancel_token = cancel_token or CancelToken()
         self.flow_run_id = None
         self.state = "running"  # completed, cancelled or failed when the run ends
+        self.complete = False  # True once the workflow script has made all its calls
         self.start_time = datetime.datetime.now()
         self.end_time = None
         self.graph = nx.DiGraph()
@@ -382,7 +384,7 @@ class FlowRun:
             tasks = [a for _, a in self.graph.nodes(data=True) if "plugin" in a]
             done = sum(a["status"] != "pending" for a in tasks)
         try:
-            self.on_progress(done, len(tasks), label)
+            self.on_progress(done, len(tasks), label, self.complete)
         except Exception:
             logging.exception("Progress callback failed")
 
@@ -553,6 +555,8 @@ def _flow_body():
             build()
         except _RunCancelled:
             pass
+        run.complete = True
+        run._report_progress("")
         run.wait()
     finally:
         _CURRENT_RUN.reset(token)
@@ -565,7 +569,7 @@ def run_flow(
     build: Callable[[], Any],
     task_runner=None,
     autosave_dir: str = None,
-    on_progress: Optional[Callable[[int, int, str], None]] = None,
+    on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
     cancel_token: Optional[CancelToken] = None,
 ) -> FlowRun:
     """Runs ``build`` as a Prefect flow; plugin calls inside it become task runs.

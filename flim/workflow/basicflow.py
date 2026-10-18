@@ -158,18 +158,24 @@ class AbsWorkFlow(AbstractPlugin):
         plugin calls.
         """
 
-    def run_flow(self, task_runner=None, autosave_dir=None):
+    def run_flow(self, task_runner=None, autosave_dir=None, on_progress=None, cancel_token=None):
         """Runs the workflow as a Prefect flow.
 
         Args:
-            task_runner: Prefect task runner, ``None`` runs tasks sequentially.
+            task_runner: Prefect task runner, ``None`` uses the default thread pool.
             autosave_dir: directory to save task results in, ``None`` disables saving.
+            on_progress, cancel_token: see :func:`flim.core.runner.run_flow`.
 
         Returns:
             flim.core.runner.FlowRun: task graph and results.
         """
         return run_flow(
-            self.name, self.construct_flow, task_runner=task_runner, autosave_dir=autosave_dir
+            self.name,
+            self.construct_flow,
+            task_runner=task_runner,
+            autosave_dir=autosave_dir,
+            on_progress=on_progress,
+            cancel_token=cancel_token,
         )
 
     def configure(self, input=input, input_select=None, **kwargs):

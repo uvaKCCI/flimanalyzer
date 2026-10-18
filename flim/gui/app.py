@@ -46,6 +46,7 @@ from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.macos import set_bundle_name, set_display_name
 from flim.gui.plotframe import PlotFrame
+from flim.gui.progressdlg import RunCancelledDialog, RunProgressDialog
 from flim.gui.datapanel import PandasFrame
 from flim.gui.dialogs import ConfigureCategoriesDlg
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
@@ -607,7 +608,21 @@ class AppFrame(wx.Frame):
 
         # get list of configure parameters for parallel processing
         mapped_params = tool.get_mapped_parameters()
-        if not isinstance(tool, AbsWorkFlow):
+        task_runner = self.flimanalyzer.get_task_runner()
+        is_workflow = isinstance(tool, AbsWorkFlow)
+        if is_workflow:
+            # workflows always save their results
+            autosave_dir = os.path.join(parameters["working_dir"], tool.name)
+
+            def start_run(cancel_token, on_progress):
+                return tool.run_flow(
+                    task_runner=task_runner,
+                    autosave_dir=autosave_dir,
+                    on_progress=on_progress,
+                    cancel_token=cancel_token,
+                )
+
+        else:
             autosave_dir = None
             if parameters["autosave"]:
                 autosave_dir = (
@@ -620,12 +635,21 @@ class AppFrame(wx.Frame):
                 for p in mapped_params:
                     tool(**p, task_tags=tool.name)
 
-            flow_run = run_flow(
-                "Interactive Analysis",
-                interactive_analysis,
-                task_runner=self.flimanalyzer.get_task_runner(),
-                autosave_dir=autosave_dir,
-            )
+            def start_run(cancel_token, on_progress):
+                return run_flow(
+                    "Interactive Analysis",
+                    interactive_analysis,
+                    task_runner=task_runner,
+                    autosave_dir=autosave_dir,
+                    on_progress=on_progress,
+                    cancel_token=cancel_token,
+                )
+
+        flow_run = self.run_with_progress(pluginname, start_run)
+        if flow_run is None:
+            return  # cancelled or stopped by an error, already reported
+
+        if not is_workflow:
             result_list = flow_run.results()
             logging.debug(f"Results: {len(result_list)}")
 
@@ -645,11 +669,6 @@ class AppFrame(wx.Frame):
                             event.SetEventInfo(result, title, "createnew")
                             self.GetEventHandler().ProcessEvent(event)
         else:
-            flow_run = tool.run_flow(
-                task_runner=self.flimanalyzer.get_task_runner(),
-                autosave_dir=os.path.join(parameters["working_dir"], tool.name),
-            )
-
             # show flow graph
             wg = WorkflowGraph(flow_run)
             fig, _ = wg.get_plot(
@@ -666,6 +685,36 @@ class AppFrame(wx.Frame):
                 pluginname,
                 wx.OK | wx.ICON_WARNING,
             )
+
+    def run_with_progress(self, title, start_run):
+        """Runs a flow behind a modal progress dialog with a Cancel button.
+
+        Args:
+            title: name of the tool or workflow.
+            start_run: ``start_run(cancel_token, on_progress)`` runs the flow and
+                returns its FlowRun; it is called in a worker thread.
+
+        Returns:
+            The FlowRun of a run that ended normally, or None if it was cancelled
+            (the user is told where its results are) or stopped by an error.
+        """
+        dlg = RunProgressDialog(self, title, start_run)
+        dlg.ShowModal()
+        flow_run, error = dlg.run, dlg.error
+        dlg.Destroy()
+        if error is not None:
+            wx.MessageBox(
+                f"{title} stopped with an error, see the log for details:\n{error}",
+                title,
+                wx.OK | wx.ICON_ERROR,
+            )
+            return None
+        if flow_run.state == "cancelled":
+            msg = RunCancelledDialog(self, title, flow_run)
+            msg.ShowModal()
+            msg.Destroy()
+            return None
+        return flow_run
 
     def _on_hover(self, event):
         print(event)
