@@ -165,7 +165,7 @@ class GaussianMixedModel(AbstractPlugin):
         super().__init__(name=name, **kwargs)
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("kmeans.png")
+        source = files(flim.resources).joinpath("gmm.png")
         return wx.Bitmap(str(source))
 
     def get_required_categories(self):

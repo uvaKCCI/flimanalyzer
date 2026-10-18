@@ -36,3 +36,11 @@ def test_referenced_icons_exist():
     assert referenced, "no icon references found"
     missing = sorted(n for n in referenced if not (resources / n).exists())
     assert not missing, f"missing icon files: {missing}"
+
+
+def test_no_unused_icons():
+    resources = FLIM / "resources"
+    code = "\n".join(path.read_text() for path in SOURCES)
+    unused = sorted(p.name for p in resources.glob("*.png") if p.name not in code)
+    assert not unused, f"icon files not used anywhere in flim/: {unused}"
+
