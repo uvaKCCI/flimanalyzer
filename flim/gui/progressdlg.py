@@ -201,29 +201,46 @@ class RunProgressDialog(wx.Dialog):
         self.EndModal(wx.ID_CANCEL if self.cancel_token.is_set() else wx.ID_OK)
 
 
-class RunCancelledDialog(wx.Dialog):
-    """Tells the user that a run was cancelled and where its results are.
+class RunSummaryDialog(wx.Dialog):
+    """Says how a run ended and links to its results folder and Prefect flow run.
+
+    Shown after every workflow run and after a cancelled tool run.
 
     Args:
         parent: parent window.
         title: name of the tool or workflow.
-        run (flim.core.runner.FlowRun): the cancelled run.
+        run (flim.core.runner.FlowRun): the finished run.
     """
 
     def __init__(self, parent, title, run):
         super().__init__(parent, wx.ID_ANY, title=title)
         counts = run.task_counts()
         total = sum(counts.values())
+        completed = counts.get("completed", 0)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         def text(label):
             sizer.Add(wx.StaticText(self, label=label), 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
-        text(f"{title} was cancelled after {counts.get('completed', 0)} of {total} tasks.")
+        if run.state == "cancelled":
+            text(f"{title} was cancelled after {completed} of {total} tasks.")
+            folder_label = "Results of the completed tasks are in:"
+        elif run.failed:
+            failed = run.failed
+            names = ", ".join(failed[:5]) + (f" and {len(failed) - 5} more" if len(failed) > 5 else "")
+            text(
+                f"{title} finished: {completed} of {total} tasks completed,"
+                f" {len(failed)} failed: {names}"
+            )
+            text("See the log for details.")
+            folder_label = "Results of the completed tasks are in:"
+        else:
+            text(f"{title} completed all {total} tasks.")
+            folder_label = "Results are in:"
         self.results_dir = run.autosave_dir
         self.folder = None
         if self.results_dir:
-            text("Results of the completed tasks are in:")
+            text(folder_label)
             self.folder = FolderLink(self, self.results_dir)
             sizer.Add(self.folder, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
         else:

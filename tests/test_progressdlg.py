@@ -168,7 +168,7 @@ def _cancel_after_first_task(start_run):
 
 
 def _capture_cancelled_dialog(monkeypatch):
-    from flim.gui.progressdlg import RunCancelledDialog
+    from flim.gui.progressdlg import RunSummaryDialog
 
     shown = {}
 
@@ -178,7 +178,7 @@ def _capture_cancelled_dialog(monkeypatch):
         shown.update(texts=texts, paths=paths, link=dlg.link.GetURL() if dlg.link else None)
         return wx.ID_OK
 
-    monkeypatch.setattr(RunCancelledDialog, "ShowModal", show)
+    monkeypatch.setattr(RunSummaryDialog, "ShowModal", show)
     return shown
 
 
@@ -410,3 +410,86 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
     monkeypatch.setattr(analyzerapp, "interactive_run", lambda fa, files=None: started.update(files=files))
     analyzerapp.main()
     assert started["files"] == ["a.csv", "b.txt"]
+
+
+
+class Failing(Task):
+    def execute(self):
+        raise RuntimeError("boom")
+
+
+def _summary_texts(run, title="My Workflow"):
+    from flim.gui.progressdlg import RunSummaryDialog
+
+    dlg = RunSummaryDialog(None, title, run)
+    try:
+        texts = [c.GetLabel() for c in dlg.GetChildren() if isinstance(c, wx.StaticText)]
+        return texts, dlg.folder.path if dlg.folder else None, dlg.link.GetURL() if dlg.link else None
+    finally:
+        dlg.Destroy()
+
+
+def test_summary_of_a_completed_run(wxapp, tmp_path):
+    run = _starter(2, autosave_dir=str(tmp_path))(None, None, None)
+    texts, folder, link = _summary_texts(run)
+    assert texts[0] == "My Workflow completed all 2 tasks."
+    assert "Results are in:" in texts and folder == run.autosave_dir
+    assert link == run.ui_url
+
+
+def test_summary_of_a_run_with_failed_tasks(wxapp, tmp_path):
+    def build():
+        Task(name="Good")(input={})
+        Failing(name="Bad")(input={})
+
+    run = run_flow("partly failing", build, autosave_dir=str(tmp_path))
+    texts, folder, _ = _summary_texts(run)
+    assert texts[0] == "My Workflow finished: 1 of 2 tasks completed, 1 failed: Bad"
+    assert "See the log for details." in texts
+    assert folder == run.autosave_dir
+
+
+def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_path):
+    from flim.gui import progressdlg
+    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
+    from flim.workflow.basicflow import BasicFLIRRWorkFlow
+
+    data = flim_data.copy()
+    data["FLIRR"] = data["NAD(P)H a2[%]"] / data["FAD a1[%]"]
+    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
+    event.SetEventInfo(data, "Data", "createnew", modified=False)
+    frame.GetEventHandler().ProcessEvent(event)
+
+    def configure(tool, parent, data_choices={}):
+        tool.params.update(
+            grouping=["Treatment", "FOV", "Cell"],
+            features=["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"],
+            working_dir=str(tmp_path),
+        )
+        return tool.params
+
+    monkeypatch.setattr(BasicFLIRRWorkFlow, "run_configuration_dialog", configure)
+    monkeypatch.setattr(wx, "MessageBox", lambda *a, **k: pytest.fail(f"unexpected message {a}"))
+    summaries = []
+
+    def show(dlg):
+        texts = [c.GetLabel() for c in dlg.GetChildren() if isinstance(c, wx.StaticText)]
+        summaries.append((texts[0], dlg.folder.path if dlg.folder else None, dlg.link is not None))
+        return wx.ID_OK
+
+    monkeypatch.setattr(progressdlg.RunSummaryDialog, "ShowModal", show)
+    button = next(
+        c
+        for box in frame.toolpanel.GetChildren()
+        for c in box.GetChildren()
+        if isinstance(c, wx.BitmapButton) and c.GetName() == "Basic FLIRR Analysis"
+    )
+    click = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
+    click.SetEventObject(button)
+    frame.on_run_plugin(click)
+
+    ((first_line, folder, has_link),) = summaries
+    assert first_line.startswith("Basic FLIRR Analysis completed all ")
+    assert folder and folder.startswith(str(tmp_path)) and has_link
+    assert any("Graph" in title for title in frame.windowframes)  # graph window opened too
+    frame.OnCloseAll(None)

@@ -46,7 +46,7 @@ from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.macos import set_bundle_name, set_display_name
 from flim.gui.plotframe import PlotFrame
-from flim.gui.progressdlg import RunCancelledDialog, RunProgressDialog
+from flim.gui.progressdlg import RunProgressDialog, RunSummaryDialog
 from flim.gui.datapanel import PandasFrame
 from flim.gui.dialogs import ConfigureCategoriesDlg
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
@@ -720,7 +720,10 @@ class AppFrame(wx.Frame):
             event.SetEventInfo(fig, f"{flow_run.name} Graph", "createnew")
             self.GetEventHandler().ProcessEvent(event)
 
-        if flow_run.failed:
+        if is_workflow:
+            # always: how the run ended, its results folder and Prefect flow run
+            self.show_run_summary(pluginname, flow_run)
+        elif flow_run.failed:
             wx.MessageBox(
                 "The following tasks failed, see the log for details:\n"
                 + "\n".join(flow_run.failed),
@@ -752,11 +755,15 @@ class AppFrame(wx.Frame):
             )
             return None
         if flow_run.state == "cancelled":
-            msg = RunCancelledDialog(self, title, flow_run)
-            msg.ShowModal()
-            msg.Destroy()
+            self.show_run_summary(title, flow_run)
             return None
         return flow_run
+
+    def show_run_summary(self, title, flow_run):
+        """Shows how a run ended, with links to its results and Prefect flow run."""
+        dlg = RunSummaryDialog(self, title, flow_run)
+        dlg.ShowModal()
+        dlg.Destroy()
 
     def _on_hover(self, event):
         print(event)
