@@ -272,18 +272,31 @@ def pivot_icon(reverse=False):
 
 def order_icon():
     im, d = canvas()
-    text(d, 21, 8, "A", 13)
-    text(d, 21, 24.5, "Z", 13)
-    arrow(d, 7, 3, 7, 29, DARK, w=2.4, head=5)
+    # categorical columns swap places
+    table(d, 2, 11, 30, 30, 3, 4, header=None)
+    for i, c in enumerate((GREEN, MAGENTA, ORANGE)):
+        x = 2 + i * 28 / 3
+        d.rectangle(s(x, 11, x + 28 / 3, 15.75), fill=c, outline=DARK, width=px(1.1))
+    # two-headed arc from the first to the last column
+    x0, x1, y = 6.7, 25.3, 9.5
+    n = 30
+    pts = [(x0 + (x1 - x0) * i / n, y - 7 * math.sin(math.pi * i / n)) for i in range(n + 1)]
+    line(d, pts[3:-3], DARK, 1.6)
+    arrow(d, *pts[4], *pts[0], DARK, w=1.6, head=3.4)
+    arrow(d, *pts[-5], *pts[-1], DARK, w=1.6, head=3.4)
     return im
 
 
 def sort_icon():
     im, d = canvas()
-    for i, h in enumerate((26, 20, 14, 8)):
-        x = 2 + i * 6.2
-        d.rectangle(s(x, 30 - h, x + 4.6, 30), fill=BLUE)
-    arrow(d, 28.5, 3, 28.5, 29, DARK, w=2.2, head=4.5)
+    # rows reordered by a numerical column: its values increase downwards
+    table(d, 2, 2, 23, 30, 2, 5)
+    shades = ((220, 232, 250), (175, 200, 242), (125, 160, 230), (80, 125, 220), (40, 100, 210))
+    rh = 28 / 5
+    for j, c in enumerate(shades[:4]):
+        y = 2 + rh * (j + 1)
+        d.rectangle(s(12.5, y, 23, y + rh), fill=c + (255,), outline=DARK, width=px(1.1))
+    arrow(d, 27.5, 3, 27.5, 29, DARK, w=2.2, head=4.5)
     return im
 
 
