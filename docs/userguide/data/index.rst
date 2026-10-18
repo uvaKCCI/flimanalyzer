@@ -13,7 +13,7 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
    * - `Adjusting Precision <precision.html>`_
      - Adjusts the number of decimal places shown in the tables.
    * - `Filtering Data <filter.html>`_
-     - Displays only desired data columns. 
+     - Display desired identifiers and set numerical filters. 
    * - `Pivoting Data <pivot.html>`_
      - Rearranges data columns to emphasize trends. 
    * - `Unpivoting Data <unpivot.html>`_
@@ -29,7 +29,7 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
    * - `Sort <sort.html>`_
      - Reorders rows in ascending order of a selected data feature.
    * - `Saving Data <save.html>`_
-     - Saves altered data table.
+     - Saves data table.
    
 .. toctree::
     :maxdepth: 2
