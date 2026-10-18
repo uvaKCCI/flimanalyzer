@@ -53,3 +53,19 @@ def test_basic_flirr_workflow(flirr_data, tmp_path):
     fig, _ = WorkflowGraph(run).get_plot()
     assert isinstance(fig, matplotlib.figure.Figure)
     assert any((tmp_path / wf.name).rglob("*.txt"))
+
+
+def test_workflow_always_saves_its_results(flirr_data, tmp_path):
+    wf = BasicFLIRRWorkFlow()
+    wf.configure(
+        input={"data": flirr_data},
+        grouping=["Treatment", "FOV", "Cell"],
+        features=["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"],
+        working_dir=str(tmp_path),
+        autosave=False,  # e.g. from old saved settings
+    )
+    assert wf.params["autosave"] is True
+    wf.execute()
+    (summary,) = (tmp_path / wf.name).rglob("run_summary.txt")
+    assert "State:      completed" in summary.read_text()
+    assert any((tmp_path / wf.name).rglob("*.txt"))

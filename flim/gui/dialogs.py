@@ -112,6 +112,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         "saveconfig": True,
         "config_file": "",
         "autosave": True,
+        "autosave_locked": False,
         "working_dir": "",
     }
 
@@ -136,7 +137,13 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         config_file="",
         autosave=True,
         working_dir="",
+        autosave_locked=False,
     ):
+        """
+        Args:
+            autosave_locked: Autosave is always on and cannot be switched off (used
+                by workflows); the working directory can still be chosen.
+        """
         super().__init__(parent, wx.ID_ANY, title)  # , size= (650,400))
         self.panel = wx.Panel(self, wx.ID_ANY)
         # 5 col gridsizer
@@ -151,7 +158,8 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.settingspecs = settingspecs
         self.saveconfig = saveconfig
         self.config_file = config_file
-        self.autosave = autosave
+        self.autosave = autosave or autosave_locked
+        self.autosave_locked = autosave_locked
         self.working_dir = working_dir
 
         data = list(self.input.values())[0]
@@ -197,6 +205,9 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.autosave_cb = wx.CheckBox(self.panel, wx.ID_ANY, "Autosave")
         self.Bind(wx.EVT_CHECKBOX, self._on_checked)
         self.autosave_cb.SetValue(self.autosave)
+        if self.autosave_locked:
+            self.autosave_cb.Disable()
+            self.autosave_cb.SetToolTip("Workflows always save their results")
         self.workingdirtxt = wx.StaticText(self.panel, label=self.working_dir)
         self.workingdirtxt.Enable(self.autosave)
         self.save_browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")

@@ -96,6 +96,7 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
             config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
+            autosave_locked=True,  # used by workflows, which always save
         )
         self._update_model_info(None)
 

@@ -184,3 +184,51 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
         assert n_tools == 2 + sum(len(p) for p in plugin.PLUGINS.values())
     finally:
         frame.Destroy()
+
+
+def _autosave_controls(wxapp, monkeypatch, table, group, name, autosave):
+    import wx
+    import flim.plugin as plugin
+
+    seen = {}
+
+    def show(dlg):
+        seen.update(
+            checked=dlg.autosave_cb.GetValue(),
+            enabled=dlg.autosave_cb.IsEnabled(),
+            tooltip=dlg.autosave_cb.GetToolTipText(),
+            browse=dlg.save_browse_button.IsEnabled(),
+        )
+        return wx.ID_OK
+
+    monkeypatch.setattr(wx.Dialog, "ShowModal", show)
+    tool = plugin.PLUGINS[group][name]()
+    n_inputs = max(1, len(tool.input_definition()))
+    tool.configure(
+        input={f"t{i}": table for i in range(n_inputs)},
+        grouping=["Treatment"],
+        features=["x", "y"],
+        autosave=autosave,
+    )
+    params = tool.run_configuration_dialog(None, data_choices={"t0": table, "t1": table})
+    return seen, params
+
+
+@pytest.mark.parametrize(
+    "name", ["Basic FLIRR Analysis", "FLIM Data Augmentation Tuning", "FLIM Feature Analysis"]
+)
+def test_workflow_dialogs_always_autosave(wxapp, monkeypatch, table, name):
+    seen, params = _autosave_controls(wxapp, monkeypatch, table, "Workflow", name, autosave=False)
+    assert seen == {
+        "checked": True,
+        "enabled": False,
+        "tooltip": "Workflows always save their results",
+        "browse": True,  # the working directory can still be chosen
+    }
+    assert params["autosave"] is True
+
+
+def test_tool_dialog_autosave_can_be_switched(wxapp, monkeypatch, table):
+    seen, params = _autosave_controls(wxapp, monkeypatch, table, "Analysis", "Summarize", autosave=False)
+    assert seen == {"checked": False, "enabled": True, "tooltip": "", "browse": False}
+    assert params["autosave"] is False

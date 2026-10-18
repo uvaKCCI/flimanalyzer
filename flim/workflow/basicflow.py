@@ -140,6 +140,7 @@ class AbsWorkFlow(AbstractPlugin):
             config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
+            autosave_locked=True,
         )
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
@@ -171,11 +172,14 @@ class AbsWorkFlow(AbstractPlugin):
             self.name, self.construct_flow, task_runner=task_runner, autosave_dir=autosave_dir
         )
 
+    def configure(self, input=input, input_select=None, **kwargs):
+        super().configure(input=input, input_select=input_select, **kwargs)
+        self.params["autosave"] = True  # workflows always save their results
+
     def execute(self):
-        autosave_dir = None
-        if self.params["autosave"]:
-            autosave_dir = os.path.join(self.params["working_dir"], self.name)
-        flow_run = self.run_flow(autosave_dir=autosave_dir)
+        flow_run = self.run_flow(
+            autosave_dir=os.path.join(self.params["working_dir"], self.name)
+        )
 
         # plugin results are dicts; data buckets return the data itself
         results = {
