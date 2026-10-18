@@ -106,6 +106,44 @@ def test_filter_dialog_checkboxes(wxapp, table):
         dlg.Destroy()
 
 
+def test_list_checkboxes_notify_once_per_change(wxapp):
+    import wx
+    from flim.gui.listcontrol import AnalysisListCtrl
+
+    frame = wx.Frame(None)
+    try:
+        lc = AnalysisListCtrl(frame, style=wx.LC_REPORT)
+        for header in ("", "name", "low", "high"):
+            lc.AppendColumn(header)
+        lc.Append([" ", "a", "0", "1"])
+        lc.Append([" ", "b", "0", "1"])
+        calls = []
+        lc.OnCheckItem = lambda index, flag: calls.append((index, flag))
+
+        lc.CheckItem(0, True)
+        lc.CheckItem(0, True)  # no change, no notification
+        lc.ToggleItem(1)
+        assert calls == [(0, True), (1, True)]
+        assert lc.IsChecked(0) and lc.IsChecked(1)
+
+        # a click on the checkbox reaches the control as a native state change
+        wx.ListCtrl.CheckItem(lc, 0, False)
+        assert calls[-1] == (0, False) and not lc.IsChecked(0)
+    finally:
+        frame.Destroy()
+
+
+def test_filter_dialog_has_no_deprecated_checklist_mixin(wxapp, table, recwarn):
+    import flim.core.configuration as cfg
+    from flim.core.configuration import Config
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    config = Config()
+    config.create_default()
+    ConfigureFiltersDlg(None, config=config.get([cfg.CONFIG_FILTERS]), dataframe=table).Destroy()
+    assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]
+
+
 def test_import_dialog_resize(wxapp):
     import wx
     from flim.core.configuration import Config
