@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it using the metadata from this file."
+message: "If you use FLIMAnalyzer, please cite the original publication (Zhang et al. 2025) and the publication closest to the version you used (see the README)."
 type: software
 title: FLIMAnalyzer
 abstract: Python application for the analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data.
@@ -36,3 +36,46 @@ keywords:
   - FAD
   - machine learning
   - autoencoder
+preferred-citation:
+  type: article
+  title: "Measuring metabolic changes in cancer cells using two-photon fluorescence lifetime imaging microscopy and machine-learning analysis"
+  authors:
+    - family-names: Zhang
+      given-names: Jiaxin
+    - family-names: Wallrabe
+      given-names: Horst
+    - family-names: Siller
+      given-names: Karsten
+    - family-names: Mbogo
+      given-names: Brian
+    - family-names: Cassidy
+      given-names: Thomas
+    - family-names: Alam
+      given-names: Shagufta Rehman
+    - family-names: Periasamy
+      given-names: Ammasi
+  journal: Journal of Biophotonics
+  volume: 18
+  issue: 1
+  start: e202400426
+  year: 2025
+  doi: 10.1002/jbio.202400426
+references:
+  - type: article
+    title: "Label-free optical biomarker for prostate cancer diagnosis"
+    notes: "Used FLIMAnalyzer v0.5.0; cite for v0.5.0 and later"
+    authors:
+      - family-names: Alam
+        given-names: Shagufta Rehman
+      - family-names: Siller
+        given-names: Karsten
+      - family-names: Dreicer
+        given-names: Robert
+      - family-names: Periasamy
+        given-names: Ammasi
+    journal: Molecular Medicine
+    volume: 32
+    issue: 1
+    start: 165
+    year: 2026
+    doi: 10.1186/s10020-026-01605-2

@@ -80,14 +80,20 @@ To use an existing Dask cluster:
 
 ## How to cite
 
-If you use FLIMAnalyzer, please cite the software via its Zenodo DOI: [10.5281/zenodo.23426563](https://doi.org/10.5281/zenodo.23426563) (all versions). Citation metadata is also in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
+If you use FLIMAnalyzer, please cite:
 
-Archived releases and the publications they were used in:
+1. **The original publication**, in all cases:
 
-| Version | DOI | Used in |
+   Zhang J, Wallrabe H, Siller K, Mbogo B, Cassidy T, Alam SR, Periasamy A. Measuring metabolic changes in cancer cells using two-photon fluorescence lifetime imaging microscopy and machine-learning analysis. *Journal of Biophotonics* 18(1), e202400426 (2025). [doi:10.1002/jbio.202400426](https://doi.org/10.1002/jbio.202400426)
+
+2. **The publication closest to the version you used**, plus that release's software DOI, from the table below. Use the newest release that is not newer than your version. The version is shown in the FLIMAnalyzer window title.
+
+| Your version | Publication | Software DOI |
 |---|---|---|
-| v0.5.0 | [10.5281/zenodo.23438157](https://doi.org/10.5281/zenodo.23438157) | Rehman Alam S, Siller K, Dreicer R, Periasamy A. Label-free optical biomarker for prostate cancer diagnosis. *Molecular Medicine* 32, 165 (2026). [doi:10.1186/s10020-026-01605-2](https://doi.org/10.1186/s10020-026-01605-2) |
-| v0.4.1 | [10.5281/zenodo.23426564](https://doi.org/10.5281/zenodo.23426564) | Zhang J, Wallrabe H, Siller K, Mbogo B, Cassidy T, Alam SR, Periasamy A. Measuring metabolic changes in cancer cells using two-photon fluorescence lifetime imaging microscopy and machine-learning analysis. *Journal of Biophotonics* 18(1), e202400426 (2025). [doi:10.1002/jbio.202400426](https://doi.org/10.1002/jbio.202400426) |
+| v0.5.0 or later | Alam SR, Siller K, Dreicer R, Periasamy A. Label-free optical biomarker for prostate cancer diagnosis. *Molecular Medicine* 32(1), 165 (2026). [doi:10.1186/s10020-026-01605-2](https://doi.org/10.1186/s10020-026-01605-2) | [10.5281/zenodo.23438157](https://doi.org/10.5281/zenodo.23438157) |
+| v0.4.1 or earlier | Zhang et al. (2025), the original publication above | [10.5281/zenodo.23426564](https://doi.org/10.5281/zenodo.23426564) |
+
+The concept DOI [10.5281/zenodo.23426563](https://doi.org/10.5281/zenodo.23426563) covers all versions and always resolves to the latest one. Citation metadata is also in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
 
 ## Development
 
