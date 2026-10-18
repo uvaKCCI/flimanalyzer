@@ -299,8 +299,7 @@ class Categorizer(AbstractPlugin):
             cols.extend(selfeatures)
             cat_df = data[cols].copy()
         cat_df[colname] = pd.cut(data[feature], bins=bins, labels=values)
-        cat_df[colname].cat.add_categories(default, inplace=True)
-        cat_df[colname].fillna(default, inplace=True)
+        cat_df[colname] = cat_df[colname].cat.add_categories(default).fillna(default)
         orderedcols = [c for c in cat_df.columns.values if c != colname]
         orderedcols.insert(len(catcols), colname)
         cat_df = cat_df[orderedcols]

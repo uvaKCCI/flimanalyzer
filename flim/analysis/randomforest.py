@@ -260,7 +260,7 @@ class RandomForest(AbstractPlugin):
         featurecol = "Feature"
         importance_df = pd.DataFrame(
             {
-                featurecol: self.params["features"],
+                featurecol: data_features,
                 "Importance Score": clf.feature_importances_,
             }
         )

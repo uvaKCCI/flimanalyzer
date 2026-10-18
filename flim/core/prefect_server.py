@@ -101,6 +101,7 @@ def ensure_prefect_server(
         try:
             process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
         except OSError as err:
+            log.close()
             logging.error(f"Could not start Prefect server: {err}")
             return None
         atexit.register(_stop, process, log)

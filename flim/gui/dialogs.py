@@ -58,9 +58,9 @@ def save_dataframe(
             return None
         fname = fileDialog.GetPath()
         try:
-            data.reset_index()
-            # if indx was flattened in analyzer.summarize_data, multiindex col values were joined with '\n'--> revert here
-            data.columns = [c.replace("\n", " ") for c in data.columns.values]
+            # if indx was flattened in analyzer.summarize_data, multiindex col values
+            # were joined with '\n' --> revert in the saved copy, not in the data shown
+            data = data.rename(columns=lambda c: str(c).replace("\n", " "))
             data.to_csv(fname, index=saveindex, sep="\t")
         except IOError:
             wx.MessageBox("Error saving data in file %s" % fname, "Error", wx.OK)

@@ -215,71 +215,22 @@ class Config:
             return False
 
     def write_to_json(self, configfile, searchkey=None):
-        def make_item_serializable(cfgitem):
-            item = None
-            if isinstance(cfgitem, dict):
-                item = {}
-                for key in cfgitem.keys():
-                    if (
-                        not isinstance(cfgitem[key], dict)
-                        and not isinstance(cfgitem[key], list)
-                        and not isinstance(cfgitem[key], str)
-                        and not isinstance(cfgitem[key], bytes)
-                    ):
-                        item.update({key: str(cfgitem[key])})
+        """Writes the configuration, or only the part at ``searchkey``, as JSON.
 
-                    elif isinstance(cfgitem[key], dict) or isinstance(
-                        cfgitem[key], list
-                    ):
-                        item.update({key: make_item_serializable(cfgitem[key])})
-            elif isinstance(cfgitem, list):
-                item = []
-                for idx in range(0, len(cfgitem)):
-                    if (
-                        not isinstance(cfgitem[idx], dict)
-                        and not isinstance(cfgitem[idx], list)
-                        and not isinstance(cfgitem[idx], str)
-                        and not isinstance(cfgitem[idx], bytes)
-                    ):
-                        item[idx] = str(cfgitem[idx])
-
-                    elif isinstance(cfgitem[idx], dict) or isinstance(
-                        cfgitem[idx], list
-                    ):
-                        item[idx] = make_item_serializable(cfgitem[idx])
-
-            return item
-
-        def make_serializable(cfg):
-            serializable = dict()
-            serializable.update(cfg)
-
-            for key in cfg.keys():
-                if (
-                    not isinstance(cfg[key], dict)
-                    and not isinstance(cfg[key], list)
-                    and not isinstance(cfg[key], str)
-                    and not isinstance(cfg[key], bytes)
-                ):
-                    serializable[key] = str(cfg[key])
-                elif isinstance(cfg[key], dict) or isinstance(cfg[key], list):
-                    serializable[key] = make_item_serializable(cfg[key])
-
-            return serializable
-
+        Values JSON cannot represent are written as text.
+        """
         config_to_save = self.parameters
         if searchkey is not None:
             config_to_save = {searchkey[-1]: self.get(searchkey)}
-            config_to_save = make_serializable(config_to_save)
 
         try:
             with open(configfile, "w") as fp:
-                json.dump(config_to_save, fp, sort_keys=True, indent=4)
+                json.dump(config_to_save, fp, sort_keys=True, indent=4, default=str)
                 self.modified = False
                 self.filename = configfile
             logging.info(f"Configuration saved as {configfile}.")
-        except:
-            logging.error(f"Config file could not be saved to {configfile}")
+        except Exception:
+            logging.exception(f"Config file could not be saved to {configfile}")
 
     def is_not_None(self, searchkeys):
         logging.debug(
