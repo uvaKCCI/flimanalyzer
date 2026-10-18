@@ -731,7 +731,7 @@ def _app_icon_detailed(r):
     # fitted exponential, just above the bar tops
     pts = [(11 + 3 * t, 23.6 - 17 * math.exp(-0.53 * t)) for t in (j / 20 for j in range(-4, 105))]
     d.polygon(r.q(*[v for p in thick_line(pts, 0.75) for v in p]), fill=MAGENTA)
-    r(5, 25, 27, 27, WHITE)  # time axis
+    r(5, 25, 27, 26, WHITE)  # time axis
 
 
 def _app_icon_simple(r):
