@@ -17,3 +17,5 @@ flim/_version.py
 /references
 .venv/
 docs/codedocs/generated/
+coverage.xml
+.coverage
