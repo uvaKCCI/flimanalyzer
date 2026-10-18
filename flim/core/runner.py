@@ -210,6 +210,11 @@ def _run_plugin(plugin, kwargs: Dict[str, Any]):
     plugin.check_cancelled()  # tasks that start after a cancel stop right away
     draws = getattr(plugin, "draws_figures", False)
     with pyplot_lock if draws else contextlib.nullcontext():
+        if draws:
+            plugin.check_cancelled()  # the run may have been cancelled while waiting
+        started = getattr(plugin, "_notify_started", None)
+        if started is not None:
+            started()
         results = plugin.run(**_unwrap(kwargs))
     _release_figures(results)
     return results
@@ -251,6 +256,29 @@ def run_plugin(plugin, label: str, kwargs: Dict[str, Any], autosave: Optional[di
     if autosave:
         save_results(results, **autosave)
     return results
+
+
+class _StartNotifier:
+    """Marks a task as running when it starts.
+
+    Only works in this process: pickled into a Dask worker process it does
+    nothing, and the task goes from pending to its final status.
+    """
+
+    def __init__(self, run, node):
+        self.run, self.node = run, node
+
+    def __call__(self):
+        if self.run is not None:
+            self.run._mark_running(self.node)
+
+    def __getstate__(self):
+        return {"run": None, "node": self.node}
+
+
+# task statuses: pending (submitted, waiting for its inputs or a worker), running,
+# and the final ones
+FINAL_STATUSES = ("completed", "failed", "cancelled", "skipped")
 
 
 class FlowRun:
@@ -333,6 +361,7 @@ class FlowRun:
         tag_list = [task_tags] if isinstance(task_tags, str) else list(task_tags or [])
         label = self._unique_label(plugin.name)
         node = self._add_node(label, getattr(plugin, "graph_kind", "plugin"), plugin=plugin)
+        plugin._notify_started = _StartNotifier(self, node)
         upstream = set()
         payload = self._to_payload(kwargs, upstream)
         for u in upstream:
@@ -345,7 +374,9 @@ class FlowRun:
             raise _RunCancelled()
 
         failed = [
-            u for u in upstream if self.graph.nodes[u]["status"] in ("failed", "skipped")
+            u
+            for u in upstream
+            if self.graph.nodes[u]["status"] in ("failed", "skipped", "cancelled")
         ]
         if failed:
             logging.warning(f"Skipping {label}: upstream task failed.")
@@ -394,12 +425,25 @@ class FlowRun:
                 logging.error(f"{attrs['label']} failed: {state.message}")
         self._report_progress(attrs["label"])
 
+    def _mark_running(self, node: str):
+        with self._lock:
+            attrs = self.graph.nodes[node]
+            if attrs["status"] != "pending":
+                return
+            attrs["status"] = "running"
+        self._report_progress(attrs["label"])
+
+    def tasks(self) -> List[tuple]:
+        """(label, status) of every task so far, in call order."""
+        with self._lock:
+            return [(a["label"], a["status"]) for _, a in self.graph.nodes(data=True) if "plugin" in a]
+
     def _report_progress(self, label: str):
         if self.on_progress is None:
             return
         with self._lock:
             tasks = [a for _, a in self.graph.nodes(data=True) if "plugin" in a]
-            done = sum(a["status"] != "pending" for a in tasks)
+            done = sum(a["status"] in FINAL_STATUSES for a in tasks)
         try:
             self.on_progress(done, len(tasks), label, self.complete)
         except Exception:
@@ -557,10 +601,15 @@ def _flow_body():
     A module-level function (not a closure) so that the flow object, which Prefect
     sends to Dask workers, can be pickled by reference.
     """
-    run, build = _PENDING_FLOW.get()
+    run, build, on_start = _PENDING_FLOW.get()
     context = FlowRunContext.get()
     if context is not None and context.flow_run is not None:
         run.flow_run_id = context.flow_run.id
+    if on_start is not None:
+        try:
+            on_start(run)
+        except Exception:
+            logging.exception("Start callback failed")
     task_runner = getattr(context, "task_runner", None)
     if type(task_runner).__name__ == "DaskTaskRunner":
         # let tasks in other processes see a cancel; the client (and a local
@@ -588,6 +637,7 @@ def run_flow(
     autosave_dir: str = None,
     on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
     cancel_token: Optional[CancelToken] = None,
+    on_start: Optional[Callable[[FlowRun], None]] = None,
 ) -> FlowRun:
     """Runs ``build`` as a Prefect flow; plugin calls inside it become task runs.
 
@@ -600,6 +650,8 @@ def run_flow(
         on_progress: see :class:`FlowRun`.
         cancel_token: :class:`CancelToken` that cancels the run when set, e.g. from
             another thread.
+        on_start: called with the :class:`FlowRun` once Prefect has created the flow
+            run (``flow_run_id`` and ``ui_url`` are known), before the first task.
 
     Returns:
         FlowRun: recorded task graph and results; ``state`` is completed,
@@ -616,7 +668,7 @@ def run_flow(
     prefect_flow = flow(name=name, validate_parameters=False, task_runner=task_runner)(
         _flow_body
     )
-    token = _PENDING_FLOW.set((run, build))
+    token = _PENDING_FLOW.set((run, build, on_start))
     try:
         state = prefect_flow(return_state=True)
     finally:

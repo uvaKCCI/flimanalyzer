@@ -19,8 +19,9 @@ class RunProgressDialog(wx.Dialog):
     Args:
         parent: parent window.
         title: name of the tool or workflow.
-        start_run: callable ``start_run(cancel_token, on_progress)`` that runs the
-            flow (in the worker thread) and returns the
+        start_run: callable ``start_run(cancel_token, on_progress, on_start)`` that
+            runs the flow (in the worker thread), passing the three on to
+            :func:`~flim.core.runner.run_flow`, and returns the
             :class:`~flim.core.runner.FlowRun`.
 
     After :meth:`ShowModal` (``wx.ID_OK`` or ``wx.ID_CANCEL`` if cancelled),
@@ -34,11 +35,26 @@ class RunProgressDialog(wx.Dialog):
         self.run = None
         self.error = None
         self._current = ""
-        self._complete = False
+        self._flow_run = None  # the FlowRun, once Prefect has created it
 
         self.task_text = wx.StaticText(self, label="Starting...")
-        self.gauge = wx.Gauge(self, range=1, size=(360, -1))
+        self.gauge = wx.Gauge(self, range=1, size=(420, -1))
         self.count_text = wx.StaticText(self, label="")
+        # link to the flow run, shown once known if a Prefect server is used
+        self.link_text = wx.StaticText(self, label="Flow run on the Prefect server:")
+        self.link = wx.adv.HyperlinkCtrl(self, wx.ID_ANY, " ", "")
+        self.link_text.Hide()
+        self.link.Hide()
+        # expandable list of all tasks and their status
+        self.tasks_pane = wx.CollapsiblePane(self, label="Tasks")
+        pane = self.tasks_pane.GetPane()
+        self.task_list = wx.ListCtrl(pane, style=wx.LC_REPORT | wx.LC_SINGLE_SEL, size=(420, 200))
+        self.task_list.AppendColumn("Task", width=300)
+        self.task_list.AppendColumn("Status", width=100)
+        pane_sizer = wx.BoxSizer(wx.VERTICAL)
+        pane_sizer.Add(self.task_list, 1, wx.EXPAND)
+        pane.SetSizer(pane_sizer)
+        self.tasks_pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda event: self.Fit())
         self.cancel_button = wx.Button(self, wx.ID_CANCEL, "Cancel")
         self.cancel_button.Bind(wx.EVT_BUTTON, self.OnCancel)
         self.Bind(wx.EVT_CLOSE, self.OnCancel)
@@ -47,6 +63,9 @@ class RunProgressDialog(wx.Dialog):
         sizer.Add(self.task_text, 0, wx.ALL | wx.EXPAND, 10)
         sizer.Add(self.gauge, 0, wx.LEFT | wx.RIGHT | wx.EXPAND, 10)
         sizer.Add(self.count_text, 0, wx.ALL | wx.EXPAND, 10)
+        sizer.Add(self.link_text, 0, wx.LEFT | wx.RIGHT, 10)
+        sizer.Add(self.link, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        sizer.Add(self.tasks_pane, 1, wx.LEFT | wx.RIGHT | wx.EXPAND, 10)
         sizer.Add(self.cancel_button, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
         self.SetSizerAndFit(sizer)
 
@@ -62,16 +81,40 @@ class RunProgressDialog(wx.Dialog):
 
     def _work(self):
         try:
-            self.run = self.start_run(self.cancel_token, self._on_progress)
+            self.run = self.start_run(self.cancel_token, self._on_progress, self._on_start)
         except Exception as e:
             logging.exception("Run failed")
             self.error = e
         wx.CallAfter(self._finished)
 
+    def _on_start(self, run):
+        wx.CallAfter(self._started, run)
+
+    def _started(self, run):
+        self._flow_run = run
+        url = run.ui_url
+        if url:
+            self.link.SetLabel(url)
+            self.link.SetURL(url)
+            self.link_text.Show()
+            self.link.Show()
+            self.Fit()
+
     def _on_progress(self, done, total, label, complete):
         wx.CallAfter(self._update, done, total, label, complete)
 
+    def _update_task_list(self):
+        if self._flow_run is None:
+            return
+        tasks = self._flow_run.tasks()
+        for row, (label, status) in enumerate(tasks):
+            if row >= self.task_list.GetItemCount():
+                self.task_list.Append([label, status])
+            elif self.task_list.GetItemText(row, 1) != status:
+                self.task_list.SetItem(row, 1, status)
+
     def _update(self, done, total, label, complete):
+        self._update_task_list()
         if label:
             self._current = label
         if self.cancel_token.is_set():
@@ -99,6 +142,7 @@ class RunProgressDialog(wx.Dialog):
 
     def _finished(self):
         self.timer.Stop()
+        self._update_task_list()
         self.EndModal(wx.ID_CANCEL if self.cancel_token.is_set() else wx.ID_OK)
 
 

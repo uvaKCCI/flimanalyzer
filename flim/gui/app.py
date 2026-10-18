@@ -614,12 +614,13 @@ class AppFrame(wx.Frame):
             # workflows always save their results
             autosave_dir = os.path.join(parameters["working_dir"], tool.name)
 
-            def start_run(cancel_token, on_progress):
+            def start_run(cancel_token, on_progress, on_start):
                 return tool.run_flow(
                     task_runner=task_runner,
                     autosave_dir=autosave_dir,
                     on_progress=on_progress,
                     cancel_token=cancel_token,
+                    on_start=on_start,
                 )
 
         else:
@@ -635,7 +636,7 @@ class AppFrame(wx.Frame):
                 for p in mapped_params:
                     tool(**p, task_tags=tool.name)
 
-            def start_run(cancel_token, on_progress):
+            def start_run(cancel_token, on_progress, on_start):
                 return run_flow(
                     "Interactive Analysis",
                     interactive_analysis,
@@ -643,6 +644,7 @@ class AppFrame(wx.Frame):
                     autosave_dir=autosave_dir,
                     on_progress=on_progress,
                     cancel_token=cancel_token,
+                    on_start=on_start,
                 )
 
         flow_run = self.run_with_progress(pluginname, start_run)
@@ -691,8 +693,8 @@ class AppFrame(wx.Frame):
 
         Args:
             title: name of the tool or workflow.
-            start_run: ``start_run(cancel_token, on_progress)`` runs the flow and
-                returns its FlowRun; it is called in a worker thread.
+            start_run: ``start_run(cancel_token, on_progress, on_start)`` runs the
+                flow and returns its FlowRun; it is called in a worker thread.
 
         Returns:
             The FlowRun of a run that ended normally, or None if it was cancelled

@@ -53,13 +53,14 @@ def _starter(n=3, seconds=0.0, autosave_dir=None):
         for i in range(n):
             Task(name=f"T{i}", seconds=seconds)(input={})
 
-    def start_run(cancel_token, on_progress):
+    def start_run(cancel_token, on_progress, on_start):
         return run_flow(
             "test run",
             build,
             autosave_dir=autosave_dir,
             on_progress=on_progress,
             cancel_token=cancel_token,
+            on_start=on_start,
         )
 
     return start_run
@@ -85,6 +86,33 @@ def test_progress_dialog_closes_when_the_run_completes(wxapp):
         dlg.Destroy()
 
 
+def test_progress_dialog_shows_prefect_link_and_task_statuses(wxapp):
+    from flim.gui.progressdlg import RunProgressDialog
+
+    seen = {}
+
+    def snapshot(dlg):
+        # while the first task runs
+        seen["link"] = dlg.link.GetURL() if dlg.link.IsShown() else None
+        seen["statuses"] = [
+            dlg.task_list.GetItemText(row, 1) for row in range(dlg.task_list.GetItemCount())
+        ]
+
+    dlg = RunProgressDialog(None, "Test", _starter(2, seconds=1.5))
+    wx.CallLater(1000, snapshot, dlg)
+    try:
+        assert dlg.ShowModal() == wx.ID_OK
+        assert seen["link"] and seen["link"] == dlg.run.ui_url
+        assert "running" in seen["statuses"]
+        final = [
+            (dlg.task_list.GetItemText(row, 0), dlg.task_list.GetItemText(row, 1))
+            for row in range(dlg.task_list.GetItemCount())
+        ]
+        assert final == [("T0", "completed"), ("T1", "completed")]
+    finally:
+        dlg.Destroy()
+
+
 def test_cancel_button_cancels_the_run(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
@@ -104,7 +132,7 @@ def test_cancel_button_cancels_the_run(wxapp):
 def test_error_in_the_workflow_script_is_kept(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
-    def start_run(cancel_token, on_progress):
+    def start_run(cancel_token, on_progress, on_start):
         raise ValueError("bad workflow")
 
     dlg = RunProgressDialog(None, "Test", start_run)
@@ -128,13 +156,13 @@ def frame(wxapp):
 def _cancel_after_first_task(start_run):
     """Cancels the run once a task has completed."""
 
-    def start(cancel_token, on_progress):
+    def start(cancel_token, on_progress, on_start):
         def progress(done, total, label, complete):
             on_progress(done, total, label, complete)
             if done >= 1:
                 cancel_token.set()
 
-        return start_run(cancel_token, progress)
+        return start_run(cancel_token, progress, on_start)
 
     return start
 
@@ -184,7 +212,7 @@ def test_error_is_reported(frame, monkeypatch):
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: messages.append(message))
 
-    def start_run(cancel_token, on_progress):
+    def start_run(cancel_token, on_progress, on_start):
         raise ValueError("bad workflow")
 
     assert frame.run_with_progress("My Tool", start_run) is None

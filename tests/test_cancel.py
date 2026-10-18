@@ -287,3 +287,54 @@ def test_cancel_reaches_dask_worker_processes(tmp_path):
     assert time.monotonic() - started["at"] < 5  # the task alone would take 10 s
     assert _status(run) == {"Long": "cancelled"}
     assert run.state == "cancelled"
+
+
+def test_tasks_report_running_and_start_callback():
+    started, statuses = [], []
+    holder = {}
+
+    def on_start(run):
+        started.append(run.flow_run_id)
+        holder["run"] = run
+
+    def on_progress(done, total, label, complete):
+        statuses.append(dict(holder["run"].tasks()))
+
+    def build():
+        Looper(name="Long")(input={}).value()  # loops ~10 s unless cancelled
+
+    token = CancelToken()
+    threading.Timer(0.5, token.set).start()
+    run = run_flow("running", build, on_progress=on_progress, cancel_token=token, on_start=on_start)
+    assert started == [run.flow_run_id] and run.flow_run_id is not None
+    assert {"Long": "running"} in statuses
+    assert run.tasks() == [("Long", "cancelled")]
+
+
+class SlowPlot(Counter):
+    """Stands in for a plot tool: holds the plot lock for one second."""
+
+    draws_figures = True
+
+    def execute(self):
+        self.calls.append(self.name)
+        time.sleep(1.0)
+        return {f"{self.name} done": True}
+
+
+def test_cancel_stops_plot_tasks_waiting_for_the_plot_lock():
+    calls = []
+    token = CancelToken()
+
+    def build():
+        for i in range(4):
+            SlowPlot(name=f"Plot{i}", calls=calls)(input={})
+
+    threading.Timer(0.5, token.set).start()
+    start = time.monotonic()
+    run = run_flow("plots", build, default_task_runner(4), cancel_token=token)
+    # the first plot finishes, the three waiting for the lock stop at once
+    assert time.monotonic() - start < 2.5  # instead of 4 s
+    assert len(calls) == 1
+    counts = run.task_counts()
+    assert counts == {"completed": 1, "cancelled": 3}
