@@ -19,3 +19,6 @@ flim/_version.py
 docs/codedocs/generated/
 coverage.xml
 .coverage
+
+# IDE settings
+.idea/
