@@ -156,3 +156,31 @@ def test_import_dialog_resize(wxapp):
         dlg.OnRGridSize(wx.SizeEvent(wx.Size(640, 300)))
     finally:
         dlg.Destroy()
+
+
+def test_tool_panel_two_rows_groups_on_one_line(wxapp):
+    import wx
+    import flim.plugin as plugin
+    from flim.core.tools import FLIMAnalyzer
+    from flim.gui.app import AppFrame
+
+    frame = AppFrame(FLIMAnalyzer())
+    try:
+        frame.Layout()
+        boxes = [c for c in frame.toolpanel.GetChildren() if isinstance(c, wx.StaticBox)]
+        rows = {}
+        for box in boxes:
+            buttons = [c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)]
+            # all buttons of a group on the same line
+            assert len({b.GetPosition().y for b in buttons}) == 1, box.GetLabel()
+            rows.setdefault(box.GetPosition().y, []).append(box.GetLabel())
+        assert len(rows) == 2
+        labels = [label for y in sorted(rows) for label in rows[y]]
+        assert labels == ["File"] + list(plugin.PLUGINS)  # menu order is kept
+        n_tools = sum(
+            len([c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)])
+            for box in boxes
+        )
+        assert n_tools == 2 + sum(len(p) for p in plugin.PLUGINS.values())
+    finally:
+        frame.Destroy()

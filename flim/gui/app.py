@@ -124,10 +124,9 @@ class AppFrame(wx.Frame):
             None, wx.ID_ANY, title=f"FLIM Data Analyzer {version}"
         )  # , size=(600, 500))
 
-        # tool buttons wrap into additional rows when the window is too narrow
+        # tool buttons, one labeled box per group, laid out in two rows
         self.toolpanel = wx.Panel(self)
-        self.toolsizer = wx.FlexGridSizer(cols=2, vgap=6, hgap=10)
-        self.toolsizer.AddGrowableCol(1)
+        self.tool_groups = []
         self._add_tool_group(
             "File",
             [
@@ -175,17 +174,14 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
 
-        border = wx.BoxSizer(wx.VERTICAL)
-        border.Add(self.toolsizer, 1, wx.EXPAND | wx.ALL, 8)
-        self.toolpanel.SetSizer(border)
+        self._layout_tool_groups(rows=2)
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
         frame_sizer.Add(self.toolpanel, 1, wx.EXPAND)
         self.SetSizer(frame_sizer)
 
-        # fit height to the tool rows, keep the original default width
+        # size the window to the tool rows
         self.Fit()
-        width, height = self.GetSize()
-        self.SetSize((max(950, width), height))
+        self.SetMinSize(self.GetSize())
         self.Centre()
         self.Show(True)
 
@@ -223,25 +219,55 @@ class AppFrame(wx.Frame):
         # pub.subscribe(self.OnNewPlotWindow, NEW_PLOT_WINDOW)
 
     def _add_tool_group(self, label, tools):
-        """Adds a labeled row of icon buttons that wraps when space runs out.
+        """Adds a labeled box with a single row of icon buttons.
+
+        The boxes are placed by _layout_tool_groups().
 
         Args:
-            label (str): group label shown left of the buttons.
+            label (str): group label shown on the box.
             tools (list): (name, bitmap, handler) tuples; name is used as tooltip
                 and as the button name.
         """
-        self.toolsizer.Add(
-            wx.StaticText(self.toolpanel, label=label), 0, wx.ALIGN_CENTER_VERTICAL
-        )
-        row = wx.WrapSizer(wx.HORIZONTAL)
+        group = wx.StaticBoxSizer(wx.HORIZONTAL, self.toolpanel, label)
+        box = group.GetStaticBox()
         for name, bitmap, handler in tools:
-            button = wx.BitmapButton(
-                self.toolpanel, wx.ID_ANY, bitmap, name=name, style=wx.BORDER_NONE
-            )
+            button = wx.BitmapButton(box, wx.ID_ANY, bitmap, name=name, style=wx.BORDER_NONE)
             button.SetToolTip(name)
             button.Bind(wx.EVT_BUTTON, handler)
-            row.Add(button, 0, wx.ALL, 2)
-        self.toolsizer.Add(row, 1, wx.EXPAND)
+            group.Add(button, 0, wx.ALL, 2)
+        self.tool_groups.append(group)
+
+    def _layout_tool_groups(self, rows=2):
+        """Places the tool groups in rows, keeping each group on one line.
+
+        Groups keep their order; the row breaks are chosen so that the widest
+        row is as narrow as possible.
+        """
+        widths = [g.GetMinSize().width for g in self.tool_groups]
+        rows = max(1, min(rows, len(widths)))
+
+        def split(start, n_rows):
+            # (widest row, [end index of each row]) for groups[start:] in n_rows rows
+            if n_rows == 1:
+                return sum(widths[start:]), [len(widths)]
+            best = None
+            for end in range(start + 1, len(widths) - n_rows + 2):
+                rest, ends = split(end, n_rows - 1)
+                candidate = (max(sum(widths[start:end]), rest), [end] + ends)
+                if best is None or candidate[0] < best[0]:
+                    best = candidate
+            return best
+
+        _, ends = split(0, rows)
+        panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        start = 0
+        for end in ends:
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            for group in self.tool_groups[start:end]:
+                row.Add(group, 0, wx.ALL, 4)
+            panel_sizer.Add(row, 0, wx.LEFT | wx.RIGHT, 4)
+            start = end
+        self.toolpanel.SetSizer(panel_sizer)
 
     def _create_plugin_menu(self, menuname, add_tools=False):
         menu = wx.Menu()
