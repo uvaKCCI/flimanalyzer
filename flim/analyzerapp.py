@@ -11,12 +11,13 @@ import logging
 import argparse
 import sys
 import flim
-from setuptools_scm import get_version
-from flim.gui.app import FlimAnalyzerApp
+from flim._version import __version__
+from flim.gui.app import FLIMAnalyzerApp
 import flim.core.parser as cp
 import flim.analysis
 from flim.plugin import AbstractPlugin
-from flim.core.tools import FLIMAnalyzer
+from flim.core.tools import FLIMAnalyzer, check_executor_available
+from flim.core.prefect_server import use_prefect_server
 from flim.core.configuration import Config, CONFIG_PARSER_CLASS
 
 
@@ -24,7 +25,13 @@ def parse_arguments():
     """Parses command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-i", "--input", nargs="+", help="import set of files or directories"
+        "-i",
+        "--input",
+        nargs="+",
+        help=(
+            "data files to open in the application; with -o and -c: files or"
+            " directories to import without opening the application"
+        ),
     )
     parser.add_argument(
         "-x", "--exclude", nargs="+", default=[], help="exclude file from importing"
@@ -32,9 +39,9 @@ def parse_arguments():
     parser.add_argument(
         "-e",
         "--executor",
-        default="LocalCluster",
+        default="LocalExecutor",
         help=(
-            "executor to run pipeline. Options: LocalCluster, LocalDaskExecutor,"
+            "executor to run pipeline. Options: LocalExecutor, LocalDaskExecutor,"
             " DaskExecutor"
         ),
     )
@@ -42,7 +49,18 @@ def parse_arguments():
         "-a",
         "--execargs",
         default="",
-        help="comma separated list of arguments to pass to executor instance",
+        help=(
+            "comma separated list of arguments to pass to executor instance, e.g."
+            " num_workers=4 (LocalExecutor: number of tasks run at the same time)"
+        ),
+    )
+    parser.add_argument(
+        "--no-prefect-server",
+        action="store_true",
+        help=(
+            "don't start a local Prefect server if none is running; flows then use a"
+            " temporary server"
+        ),
     )
     parser.add_argument(
         "-o", "--output", default=None, help="save imported dataset to file/directory"
@@ -183,8 +201,8 @@ def noninteractive_run(fa, args):
         logging.debug("\tskipped %s" % sfunc)
 
 
-def interactive_run(fa):
-    app = FlimAnalyzerApp(fa)
+def interactive_run(fa, files=None):
+    app = FLIMAnalyzerApp(fa, files=files)
     app.MainLoop()
 
 
@@ -208,9 +226,13 @@ def main():
     #    __version__ = vf.read().strip()
 
     args = parse_arguments()
+    try:
+        check_executor_available(args.executor)
+    except RuntimeError as e:
+        sys.exit(f"flimanalyzer: {e}")
     init_logger(args.log.upper())
-    version = get_version()
-    logging.info(f"FlimAnalyzer version {version}")
+    version = __version__
+    logging.info(f"FLIMAnalyzer version {version}")
 
     logging.debug(args)
     fa = FLIMAnalyzer(executor=args.executor, execargs=args.execargs)
@@ -218,14 +240,16 @@ def main():
     # aes = analysis.ml.autoencoder.init_autoencoders()
     # config = analysis.absanalyzer.init_default_config(analyzers)
     # print (config)
-    if args.input is None or args.output is None or args.config is None:
-        interactive_run(fa)
-    else:
-        noninteractive_run(fa, args)
+    with use_prefect_server(start=not args.no_prefect_server):
+        if args.input is None or args.output is None or args.config is None:
+            interactive_run(fa, files=args.input)
+        else:
+            noninteractive_run(fa, args)
 
 
 if __name__ == "__main__":
     import platform, multiprocessing
+
     if platform.system() == "Darwin":
-        multiprocessing.set_start_method('spawn')
+        multiprocessing.set_start_method("spawn")
     main()

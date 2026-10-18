@@ -7,12 +7,15 @@ Created on Thu Dec 17 16:11:37 2020
 """
 
 import logging
+import warnings
 import pandas as pd
+from flim import utils
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
+from matplotlib import MatplotlibDeprecationWarning
 import seaborn as sns
 from importlib_resources import files
 import flim.resources
@@ -44,15 +47,20 @@ class BoxPlot(AbstractPlugin):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg = BasicAnalysisConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+
+        dlg_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), self.params
         )
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = BasicAnalysisConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -98,36 +106,45 @@ class BoxPlot(AbstractPlugin):
         else:
             data = data[cols]
 
-        if len(categories) == 0:
-            # data.boxplot(**newkwargs)
-            g = sns.catplot(data=data, y=feature, kind="box")  # , height=6, aspect=.7)
-        elif len(categories) == 1:
-            g = sns.catplot(
-                data=data, x=categories[0], y=feature, kind="box", color="blue"
-            )  # , height=6, aspect=.7)
-        elif len(categories) == 2:
-            g = sns.catplot(
-                data=data, x=categories[0], y=feature, hue=categories[1], kind="box"
-            )  # , height=6, aspect=.7)
-        elif len(categories) == 3:
-            g = sns.catplot(
-                data=data,
-                x=categories[0],
-                y=feature,
-                hue=categories[1],
-                col=categories[2],
-                kind="box",
-            )  # , height=6, aspect=.7)
-        elif len(categories) > 3:
-            g = sns.catplot(
-                data=data,
-                x=categories[0],
-                y=feature,
-                hue=categories[1],
-                col=categories[2],
-                row=categories[3],
-                kind="box",
-            )  # , height=6, aspect=.7)
+        with warnings.catch_warnings():
+            # seaborn 0.13.2 (latest release) still passes vert= to matplotlib's
+            # boxplot, which matplotlib 3.11 deprecates; see the matplotlib<3.13
+            # pin in pyproject.toml
+            warnings.filterwarnings(
+                "ignore",
+                message="vert: bool was deprecated",
+                category=MatplotlibDeprecationWarning,
+            )
+            if len(categories) == 0:
+                # data.boxplot(**newkwargs)
+                g = sns.catplot(data=data, y=feature, kind="box")  # , height=6, aspect=.7)
+            elif len(categories) == 1:
+                g = sns.catplot(
+                    data=data, x=categories[0], y=feature, kind="box", color="blue"
+                )  # , height=6, aspect=.7)
+            elif len(categories) == 2:
+                g = sns.catplot(
+                    data=data, x=categories[0], y=feature, hue=categories[1], kind="box"
+                )  # , height=6, aspect=.7)
+            elif len(categories) == 3:
+                g = sns.catplot(
+                    data=data,
+                    x=categories[0],
+                    y=feature,
+                    hue=categories[1],
+                    col=categories[2],
+                    kind="box",
+                )  # , height=6, aspect=.7)
+            elif len(categories) > 3:
+                g = sns.catplot(
+                    data=data,
+                    x=categories[0],
+                    y=feature,
+                    hue=categories[1],
+                    col=categories[2],
+                    row=categories[3],
+                    kind="box",
+                )  # , height=6, aspect=.7)
         fig = g.fig
 
         # data.set_index(groups, inplace=True)

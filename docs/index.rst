@@ -1,5 +1,5 @@
 
-Welcome to FLIM Analyzer's documentation!
+Welcome to FLIMAnalyzer's documentation!
 =========================================
 
 .. toctree::

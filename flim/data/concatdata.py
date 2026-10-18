@@ -29,6 +29,8 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
         data_choices={},
         type=False,
         numbers_only=False,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -45,6 +47,8 @@ class ConcatenatorConfigDlg(BasicAnalysisConfigDlg):
             enablegrouping=False,
             optgridrows=2,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
         )
@@ -163,6 +167,7 @@ class Concatenator(AbstractPlugin):
             # data_selected=input,
             type=type,
             numbers_only=numbers_only,
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

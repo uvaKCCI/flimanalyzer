@@ -19,30 +19,33 @@ import pandas as pd
 import json
 import ctypes
 import wx
+import wx.adv
 import wx.lib.agw.customtreectrl as CT
 
 from pubsub import pub
-from prefect import Flow
-from prefect.backend import FlowRunView
-from prefect.engine.state import State
-from setuptools_scm import get_version
+from flim._version import __version__
 from wx.lib.newevent import NewEvent
+from importlib_resources import files
 
 import flim.analysis
 import flim.core.configuration as cfg
 import flim.core.parser
-import flim.core.plots
 import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.plugin as plugin
+import flim.resources
 import flim.workflow
 from flim.core.configuration import Config
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.filter import RangeFilter
 from flim.core.graph import WorkflowGraph
+from flim.core.runner import run_flow
 from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
+from flim.gui.macos import set_bundle_name, set_display_name
+from flim.gui.plotframe import PlotFrame
+from flim.gui.progressdlg import RunProgressDialog, RunSummaryDialog
 from flim.gui.datapanel import PandasFrame
 from flim.gui.dialogs import ConfigureCategoriesDlg
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
@@ -80,7 +83,6 @@ from flim.gui.listcontrol import (
     EVT_ANALYSISUPDATED,
 )
 from flim.gui.seriesfiltertree import SeriesFilterCtrl
-from flim.results import LocalResultClear
 from flim.workflow.basicflow import AbsWorkFlow
 
 ImportEvent, EVT_IMPORT = NewEvent()
@@ -90,20 +92,67 @@ DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 DEFAULT_CONFIFG_FILE = "defaults.json"
 
 
-class FlimAnalyzerApp(wx.App):
-    def __init__(self, flimanalyzer, config=None):
+def app_icon():
+    """The FLIMAnalyzer application icon."""
+    return wx.Icon(str(files(flim.resources).joinpath("flimanalyzer.png")), wx.BITMAP_TYPE_PNG)
+
+
+def app_icons():
+    """The application icon in all sizes, so each window picks a sharp one."""
+    return wx.IconBundle(str(files(flim.resources).joinpath("flimanalyzer.ico")), wx.BITMAP_TYPE_ICO)
+
+
+class FLIMAnalyzerApp(wx.App):
+    def __init__(self, flimanalyzer, config=None, files=None):
+        """
+        Args:
+            files: data files to open at startup, each in its own data window.
+        """
         self.flimanalyzer = flimanalyzer
+        self.files = list(files or [])
         if config is None or not isinstance(config, Config):
             self.config = Config()
             self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
         else:
             self.config = config
+        set_bundle_name("FLIMAnalyzer")  # before wx registers the app with macOS
         super().__init__()
 
     def OnInit(self):
+        self.SetAppName("FLIMAnalyzer")
+        self.SetAppDisplayName("FLIMAnalyzer")
+        set_display_name("FLIMAnalyzer")
         self.frame = AppFrame(self.flimanalyzer, self.config)
+        self.dock_icon = None
+        if wx.Platform == "__WXMAC__":
+            # the Dock shows the Python icon unless it is replaced here
+            self.dock_icon = wx.adv.TaskBarIcon(wx.adv.TBI_DOCK)
+            self.dock_icon.SetIcon(app_icon(), "FLIMAnalyzer")
         self.frame.Show(True)
+        if self.files:
+            wx.CallAfter(self.open_files, self.files)
         return True
+
+    def open_files(self, files):
+        """Opens each file in a data window; reports files that cannot be read."""
+        failed = []
+        for f in files:
+            try:
+                if not os.path.isfile(f) or self.frame.open_data_files([f]) is None:
+                    failed.append(f)
+            except Exception as e:
+                logging.exception(f"Could not open {f}")
+                failed.append(f"{f} ({e})")
+        if failed:
+            wx.MessageBox(
+                "Could not open:\n" + "\n".join(failed), "Open files", wx.OK | wx.ICON_WARNING
+            )
+
+    def OnExit(self):
+        if self.dock_icon:
+            self.dock_icon.Destroy()
+            self.dock_icon = None
+        return super().OnExit()
 
 
 class AppFrame(wx.Frame):
@@ -122,50 +171,52 @@ class AppFrame(wx.Frame):
         self.windowframes = {}
         self.window_zorder = []
 
-        version = get_version()
+        version = __version__
         super(AppFrame, self).__init__(
-            None, wx.ID_ANY, title=f"FLIM Data Analyzer {version}"
+            None, wx.ID_ANY, title=f"FLIMAnalyzer {version}"
         )  # , size=(600, 500))
 
-        tb = wx.ToolBar(self, -1)
-        self.ToolBar = tb
-        fileopen_tool = tb.AddTool(
-            wx.NewId(),
-            "Open File",
-            wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN),
-            shortHelp="Open file",
-        )
-        self.Bind(wx.EVT_TOOL, self.OnLoadData, fileopen_tool)
-        fileimport_tool = tb.AddTool(
-            wx.NewId(),
-            "Import Files",
-            wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN),
-            shortHelp="Import files",
-        )
-        self.Bind(wx.EVT_TOOL, self.OnImportData, fileimport_tool)
+        self.SetIcons(app_icons())
 
-        tb.AddSeparator()
+        # tool buttons, one labeled box per group, laid out in two rows
+        self.toolpanel = wx.Panel(self)
+        self.tool_groups = []
+        self._add_tool_group(
+            "File",
+            [
+                (
+                    "Open file",
+                    wx.Bitmap(str(files(flim.resources).joinpath("fileopen.png"))),
+                    self.OnLoadData,
+                ),
+                (
+                    "Import files",
+                    wx.Bitmap(str(files(flim.resources).joinpath("import.png"))),
+                    self.OnImportData,
+                ),
+            ],
+        )
 
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
-        loadmenuitem = filemenu.Append(wx.NewId(), "&Open...", "Open single data file")
+        loadmenuitem = filemenu.Append(wx.ID_ANY, "&Open...", "Open single data file")
         importmenuitem = filemenu.Append(
-            wx.NewId(), "Import...", "Import and concatenate mutliple data files"
+            wx.ID_ANY, "Import...", "Import and concatenate mutliple data files"
         )
-        exitmenuitem = filemenu.Append(wx.NewId(), "Exit", "Exit the application")
+        exitmenuitem = filemenu.Append(wx.ID_ANY, "Exit", "Exit the application")
         settingsmenu = wx.Menu()
-        loadsettingsitem = settingsmenu.Append(wx.NewId(), "Load settings...")
-        savesettingsitem = settingsmenu.Append(wx.NewId(), "Save settings...")
+        loadsettingsitem = settingsmenu.Append(wx.ID_ANY, "Load settings...")
+        savesettingsitem = settingsmenu.Append(wx.ID_ANY, "Save settings...")
 
         self.windowmenu = wx.Menu()
-        closeallitem = self.windowmenu.Append(wx.NewId(), "Close all windows")
+        closeallitem = self.windowmenu.Append(wx.ID_ANY, "Close all windows")
         self.windowmenu.AppendSeparator()
 
         menubar.Append(filemenu, "&File")
         menubar.Append(settingsmenu, "&Settings")
         for plugintype in PLUGINS:
             menubar.Append(
-                self._create_plugin_menu(plugintype, toolbar=tb), f"&{plugintype}"
+                self._create_plugin_menu(plugintype, add_tools=True), f"&{plugintype}"
             )
         menubar.Append(self.windowmenu, "&Window")
 
@@ -177,9 +228,14 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
 
-        tb.Realize()
+        self._layout_tool_groups(rows=2)
+        frame_sizer = wx.BoxSizer(wx.VERTICAL)
+        frame_sizer.Add(self.toolpanel, 1, wx.EXPAND)
+        self.SetSizer(frame_sizer)
 
-        self.SetSize((950, 250))
+        # size the window to the tool rows
+        self.Fit()
+        self.SetMinSize(self.GetSize())
         self.Centre()
         self.Show(True)
 
@@ -216,16 +272,69 @@ class AppFrame(wx.Frame):
         pub.subscribe(self.OnRequestRenameDataWindow, REQUEST_RENAME_DATA_WINDOW)
         # pub.subscribe(self.OnNewPlotWindow, NEW_PLOT_WINDOW)
 
-    def _create_plugin_menu(self, menuname, toolbar=None):
+    def _add_tool_group(self, label, tools):
+        """Adds a labeled box with a single row of icon buttons.
+
+        The boxes are placed by _layout_tool_groups().
+
+        Args:
+            label (str): group label shown on the box.
+            tools (list): (name, bitmap, handler) tuples; name is used as tooltip
+                and as the button name.
+        """
+        group = wx.StaticBoxSizer(wx.HORIZONTAL, self.toolpanel, label)
+        box = group.GetStaticBox()
+        for name, bitmap, handler in tools:
+            button = wx.BitmapButton(box, wx.ID_ANY, bitmap, name=name, style=wx.BORDER_NONE)
+            button.SetToolTip(name)
+            button.Bind(wx.EVT_BUTTON, handler)
+            group.Add(button, 0, wx.ALL, 2)
+        self.tool_groups.append(group)
+
+    def _layout_tool_groups(self, rows=2):
+        """Places the tool groups in rows, keeping each group on one line.
+
+        Groups keep their order; the row breaks are chosen so that the widest
+        row is as narrow as possible.
+        """
+        widths = [g.GetMinSize().width for g in self.tool_groups]
+        rows = max(1, min(rows, len(widths)))
+
+        def split(start, n_rows):
+            # (widest row, [end index of each row]) for groups[start:] in n_rows rows
+            if n_rows == 1:
+                return sum(widths[start:]), [len(widths)]
+            best = None
+            for end in range(start + 1, len(widths) - n_rows + 2):
+                rest, ends = split(end, n_rows - 1)
+                candidate = (max(sum(widths[start:end]), rest), [end] + ends)
+                if best is None or candidate[0] < best[0]:
+                    best = candidate
+            return best
+
+        _, ends = split(0, rows)
+        panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        start = 0
+        for end in ends:
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            for group in self.tool_groups[start:end]:
+                row.Add(group, 0, wx.ALL, 4)
+            panel_sizer.Add(row, 0, wx.LEFT | wx.RIGHT, 4)
+            start = end
+        self.toolpanel.SetSizer(panel_sizer)
+
+    def _create_plugin_menu(self, menuname, add_tools=False):
         menu = wx.Menu()
         plugins = PLUGINS[menuname]
+        tools = []
         for pname, pclass in plugins.items():
             plg = plugin.create_instance(pclass)
-            menuitem = menu.Append(wx.NewId(), pname)
+            menuitem = menu.Append(wx.ID_ANY, pname)
             self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
-            if toolbar:
-                tool = toolbar.AddTool(wx.NewId(), pname, plg.get_icon(), shortHelp=pname)
-                self.Bind(wx.EVT_TOOL, self.on_run_plugin, tool)
+            if add_tools:
+                tools.append((pname, plg.get_icon(), self.on_run_plugin))
+        if tools:
+            self._add_tool_group(menuname, tools)
         return menu
 
     #    def OnNewDataWindow(self, data, frame):
@@ -243,7 +352,7 @@ class AppFrame(wx.Frame):
                     f" id={id(window.GetData())}"
                 )
                 return title, window
-            elif isinstance(window, matplotlib.figure.Figure) and id(window) == obj_id:
+            elif isinstance(window, PlotFrame) and id(window.figure) == obj_id:
                 logging.debug(
                     f"selected: title={title}, obj_id={obj_id}, id={id(window)}"
                 )
@@ -251,10 +360,7 @@ class AppFrame(wx.Frame):
         return
 
     def OnDataWindowFocused(self, data, frame):
-        if isinstance(frame, matplotlib.figure.Figure):
-            title = frame.canvas.manager.get_window_title()
-        else:
-            title = frame.GetTitle()
+        title = frame.GetTitle()
         self.window_zorder = [w for w in self.window_zorder if w != title]
         self.window_zorder.append(title)
 
@@ -269,30 +375,48 @@ class AppFrame(wx.Frame):
         )
         if dlg.ShowModal() == wx.ID_OK:
             config = dlg.get_config()
-
-            importer = dataimporter()
-            importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
-            importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
-            importer.set_parser(None)
-            importer.set_preprocessor(None)
-            data, filenames, fheaders = importer.import_data()
-
-            pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
-            windowtitle = os.path.basename(filenames[0])
-            if len(filenames) != 1:
-                windowtitlw = "Imported Data"
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(
-                data,
-                windowtitle,
-                "update",
-                config=None,
-                showcolindex=False,
-                analyzable=True,
-                savemodified=True,
-                enableclose=True,
+            self.open_data_files(
+                config.get([cfg.CONFIG_INCLUDE_FILES]), config.get([cfg.CONFIG_DELIMITER])
             )
-            self.GetEventHandler().ProcessEvent(event)
+
+    def open_data_files(self, files, delimiter=None):
+        """Opens data files in a data window, as File > Open does.
+
+        Args:
+            files: paths of the files; several files are combined in one table.
+            delimiter: column delimiter characters, default: from the settings
+                (tab and comma).
+
+        Returns:
+            str: title of the data window, or None if no file could be read.
+        """
+        importer = dataimporter()
+        importer.set_delimiter(delimiter or self.config.get([cfg.CONFIG_DELIMITER]))
+        importer.set_files(list(files))
+        importer.set_parser(None)
+        importer.set_preprocessor(None)
+        data, filenames, fheaders = importer.import_data()
+        if not filenames:
+            return None
+
+        pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
+        windowtitle = os.path.basename(filenames[0])
+        if len(filenames) != 1:
+            windowtitle = "Imported Data"
+        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+        event.SetEventInfo(
+            data,
+            windowtitle,
+            "update",
+            config=None,
+            showcolindex=False,
+            analyzable=True,
+            savemodified=True,
+            enableclose=True,
+            modified=False,  # just read from the file
+        )
+        self.GetEventHandler().ProcessEvent(event)
+        return windowtitle
 
     def OnImportData(self, event):
         dlg = ImportDlg(self, "Import File(s)", self.config)
@@ -300,7 +424,9 @@ class AppFrame(wx.Frame):
             config = dlg.get_config()
 
             parsername = config.get([cfg.CONFIG_PARSER_CLASS])
-            parser = flim.core.parser.instantiate_parser("flim.core.parser." + parsername)
+            parser = flim.core.parser.instantiate_parser(
+                "flim.core.parser." + parsername
+            )
             if parser is None:
                 logging.warning(f"Could not instantiate parser {parsername}")
                 return
@@ -317,11 +443,14 @@ class AppFrame(wx.Frame):
             importer.set_column_combos(config.get([cfg.CONFIG_CATEGORY_COMBINATIONS]))
             importer.set_preprocessor(preprocessor)
             data, filenames, fheaders = importer.import_data()
+            if data is None:
+                wx.MessageBox("None of the files could be read.", "Import", wx.OK | wx.ICON_WARNING)
+                return
 
             # pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
             windowtitle = os.path.basename(filenames[0])
             if len(filenames) != 1:
-                windowtitlw = "Imported Data"
+                windowtitle = "Imported Data"
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(
                 data,
@@ -434,8 +563,8 @@ class AppFrame(wx.Frame):
         itemid = event.GetId()
         evtobj = event.GetEventObject()
         pluginname = ""
-        if isinstance(evtobj, wx._core.ToolBar):
-            pluginname = evtobj.FindById(itemid).GetLabel()
+        if isinstance(evtobj, wx.BitmapButton):
+            pluginname = evtobj.GetName()
         else:
             pluginname = evtobj.FindItemById(itemid).GetItemLabelText()
         logging.debug(f"{event.GetId()}, {pluginname}")
@@ -478,6 +607,13 @@ class AppFrame(wx.Frame):
         if parameters is None:
             return
         self.config.update(parameters, keys)
+
+        if "saveconfig" in parameters and parameters["saveconfig"]:
+            self.config.write_to_json(
+                configfile=os.path.join(parameters["config_file"]),
+                searchkey=[cfg.CONFIG_PLUGINS, pluginname],
+            )
+
         logging.debug(f"Updating keys={keys}")
         features = parameters["features"]
         categories = parameters["grouping"]
@@ -514,39 +650,52 @@ class AppFrame(wx.Frame):
 
         # get list of configure parameters for parallel processing
         mapped_params = tool.get_mapped_parameters()
-        if not isinstance(tool, AbsWorkFlow):
-            # only need to set this up for tasks wrapped into new flow
+        task_runner = self.flimanalyzer.get_task_runner()
+        is_workflow = isinstance(tool, AbsWorkFlow)
+        if is_workflow:
+            # workflows always save their results
+            autosave_dir = os.path.join(parameters["working_dir"], tool.name)
+
+            def start_run(cancel_token, on_progress, on_start):
+                return tool.run_flow(
+                    task_runner=task_runner,
+                    autosave_dir=autosave_dir,
+                    on_progress=on_progress,
+                    cancel_token=cancel_token,
+                    on_start=on_start,
+                )
+
+        else:
+            autosave_dir = None
             if parameters["autosave"]:
-                dirname = (
+                autosave_dir = (
                     parameters["working_dir"]
                     if os.path.isdir(parameters["working_dir"])
                     else self.config.get(cfg.CONFIG_WORKINGDIR)
                 )
-                localresult = LocalResultClear(
-                    dir=f"{dirname}",
-                    location=(  # -{task_run_id}-{map_index}-
-                        "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/"
-                        "{task_tags}/pickled/"
-                        "{task_full_name}"
-                    ),
-                )
-            else:
-                localresult = None
-            with Flow(
-                name="Interactive Analysis",
-                result=localresult,
-                executor=self.flimanalyzer.get_executor(),
-            ) as flow:
+
+            def interactive_analysis():
                 for p in mapped_params:
-                    # if p.get("executor"):
-                    #    p["executor"] = self.flimanalyzer.get_executor()
-                    # for k,v in p.items():
-                    #    print (f'{k}={v}')
                     tool(**p, task_tags=tool.name)
-            state = flow.run()
-            task_refs = flow.get_tasks()
-            result_list = [state.result[tr]._result.value for tr in task_refs]
-            logging.debug (f"Results: {len(result_list)}")
+
+            def start_run(cancel_token, on_progress, on_start):
+                return run_flow(
+                    "Interactive Analysis",
+                    interactive_analysis,
+                    task_runner=task_runner,
+                    autosave_dir=autosave_dir,
+                    on_progress=on_progress,
+                    cancel_token=cancel_token,
+                    on_start=on_start,
+                )
+
+        flow_run = self.run_with_progress(pluginname, start_run)
+        if flow_run is None:
+            return  # cancelled or stopped by an error, already reported
+
+        if not is_workflow:
+            result_list = flow_run.results()
+            logging.debug(f"Results: {len(result_list)}")
 
             # handle results, DataFrames or Figure objects
             for results in result_list:
@@ -560,36 +709,63 @@ class AppFrame(wx.Frame):
                             )
                             self.GetEventHandler().ProcessEvent(event)
                         elif isinstance(result, matplotlib.figure.Figure):
-                            fig = result
-                            # fig.canvas.set_window_title(title)
-                            fig.canvas.manager.set_window_title(title)
                             event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-                            event.SetEventInfo(fig, title, "createnew")
+                            event.SetEventInfo(result, title, "createnew")
                             self.GetEventHandler().ProcessEvent(event)
         else:
-            localresult = LocalResultClear(
-                dir=f'{parameters["working_dir"]}',
-                location=(  # -{task_run_id}-{map_index}-
-                    "{flow_name}/"
-                    "{scheduled_start_time:%Y-%m-%d_%H-%M-%S}/{task_tags}/pickled/"
-                    "{task_full_name}"
-                ),
-            )
-            flow = tool.construct_flow(self.flimanalyzer.get_executor(), localresult)
-            flow.visualize()
-
-            state = flow.run()
-            flow.visualize(flow_state=state)
-
             # show flow graph
-            wg = WorkflowGraph(flow, state)
+            wg = WorkflowGraph(flow_run)
             fig, _ = wg.get_plot(
                 pick_event=self.OnPick,  # motion_notify_event=self._on_hover
             )
-            fig.canvas.manager.set_window_title(title)
             event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, f"{flow.name} Graph", "createnew")
+            event.SetEventInfo(fig, f"{flow_run.name} Graph", "createnew")
             self.GetEventHandler().ProcessEvent(event)
+
+        if is_workflow:
+            # always: how the run ended, its results folder and Prefect flow run
+            self.show_run_summary(pluginname, flow_run)
+        elif flow_run.failed:
+            wx.MessageBox(
+                "The following tasks failed, see the log for details:\n"
+                + "\n".join(flow_run.failed),
+                pluginname,
+                wx.OK | wx.ICON_WARNING,
+            )
+
+    def run_with_progress(self, title, start_run):
+        """Runs a flow behind a modal progress dialog with a Cancel button.
+
+        Args:
+            title: name of the tool or workflow.
+            start_run: ``start_run(cancel_token, on_progress, on_start)`` runs the
+                flow and returns its FlowRun; it is called in a worker thread.
+
+        Returns:
+            The FlowRun of a run that ended normally, or None if it was cancelled
+            (the user is told where its results are) or stopped by an error.
+        """
+        dlg = RunProgressDialog(self, title, start_run)
+        dlg.ShowModal()
+        flow_run, error = dlg.run, dlg.error
+        dlg.Destroy()
+        if error is not None:
+            wx.MessageBox(
+                f"{title} stopped with an error, see the log for details:\n{error}",
+                title,
+                wx.OK | wx.ICON_ERROR,
+            )
+            return None
+        if flow_run.state == "cancelled":
+            self.show_run_summary(title, flow_run)
+            return None
+        return flow_run
+
+    def show_run_summary(self, title, flow_run):
+        """Shows how a run ended, with links to its results and Prefect flow run."""
+        dlg = RunSummaryDialog(self, title, flow_run)
+        dlg.ShowModal()
+        dlg.Destroy()
 
     def _on_hover(self, event):
         print(event)
@@ -616,15 +792,6 @@ class AppFrame(wx.Frame):
                 return True
         return False
 
-    def remove_figure_from_menu(self, figure):
-        for mitem in self.windowmenu.GetMenuItems():
-            mlabel = mitem.GetItemLabelText()
-            if mlabel in self.windowframes and self.windowframes[mlabel] == figure:
-                self.windowmenu.Remove(mitem.GetId())
-                del self.windowframes[mlabel]
-                return True
-        return False
-
     def OnDataWindowRequest(self, event):
         data = event.GetData()
         config = self.config  # event.GetConfig()
@@ -636,6 +803,7 @@ class AppFrame(wx.Frame):
             if frame:
                 frame = self.windowframes[title]
                 frame.SetData(data)
+                frame.set_modified(event.IsModified())
                 # frame.SetConfog(config)
             else:
                 action = "createnew"
@@ -652,6 +820,7 @@ class AppFrame(wx.Frame):
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
             )
+            frame.set_modified(event.IsModified())
             frame.Show(True)
             self.append_window_to_menu(title, frame)
             pub.sendMessage(NEW_DATA_WINDOW, data=data, frame=frame)
@@ -757,19 +926,14 @@ class AppFrame(wx.Frame):
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
         title = self.unique_window_title(event.GetTitle())
-        # figure.canvas.set_window_title(title)
-        figure.canvas.manager.set_window_title(title)
-        # ON_CUSTOM_LEFT  = wx.NewId()
-        # tb = figure.canvas.toolbar
-        # tb.AddTool(ON_CUSTOM_LEFT, 'Axes', wx.NullBitmap,'Set range of Axes')
-        # tb.Realize()
         action = event.GetAction()
         logging.debug(f"{title}: {action}")
         if action == "createnew":
-            figure.show()
-            self.append_window_to_menu(title, figure)
-            figure.canvas.mpl_connect("close_event", self.OnClosingPlotWindow)
+            frame = PlotFrame(self, figure, title)
+            frame.Bind(wx.EVT_CLOSE, self.OnClosingPlotWindow)
             figure.canvas.mpl_connect("pick_event", self.OnPick)
+            self.append_window_to_menu(title, frame)
+            frame.Show()
 
     #    def OnNewPlotWindow(self, figure):
     #        title = figure.get_axes()[0].get_title()
@@ -781,7 +945,8 @@ class AppFrame(wx.Frame):
 
     def OnClosingPlotWindow(self, event):
         logging.debug("appframe.OnClosingPlotWindow")
-        self.remove_figure_from_menu(event.canvas.figure)
+        self.remove_window_from_menu(event.GetEventObject().GetTitle())
+        event.Skip()
 
     def _raise_window(self, title, window):
         if isinstance(window, wx.Frame):
@@ -789,8 +954,6 @@ class AppFrame(wx.Frame):
             if isinstance(window, PandasFrame) and self.window_zorder[-1] != title:
                 self.window_zorder = [w for w in self.window_zorder if w != title]
                 self.window_zorder.append(title)
-        elif isinstance(window, matplotlib.figure.Figure):
-            window.canvas.manager.show()
 
     def OnWindowSelectedInMenu(self, event):
         itemid = event.GetId()
@@ -809,7 +972,7 @@ class AppFrame(wx.Frame):
         return [
             x
             for x in self.GetChildren()
-            if isinstance(x, wx.Frame) or isinstance(x, matplotlib.figure.Figure)
+            if isinstance(x, wx.Frame)
         ]
 
     def unique_window_title(self, title):
@@ -835,11 +998,7 @@ class AppFrame(wx.Frame):
         for title in windowtitles:
             window = self.windowframes[title]
             if window:
-                if isinstance(window, matplotlib.figure.Figure):
-                    self.remove_figure_from_menu(window)
-                    window.canvas.manager.destroy()
-                else:
-                    window.Close()
+                window.Close()
         self.window_zorder = []
 
     def OnImport(self, event):

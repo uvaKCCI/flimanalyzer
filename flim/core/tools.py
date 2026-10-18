@@ -14,8 +14,20 @@ from flim.core.importer import dataimporter
 from flim.core.parser import defaultparser
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.analyzer import dataanalyzer
-from prefect.executors.local import LocalExecutor
-from prefect.executors.dask import LocalDaskExecutor, DaskExecutor
+
+
+DASK_EXECUTORS = ("LocalDaskExecutor", "DaskExecutor")
+
+
+def check_executor_available(executor: str) -> None:
+    """Raises RuntimeError if ``executor`` needs packages that are not installed."""
+    import importlib.util
+
+    if executor in DASK_EXECUTORS and importlib.util.find_spec("prefect_dask") is None:
+        raise RuntimeError(
+            f"{executor} needs the optional Dask support: uv sync --extra dask"
+            " (or pip install flimanalyzer[dask])"
+        )
 
 
 class FLIMAnalyzer:
@@ -24,7 +36,7 @@ class FLIMAnalyzer:
         importer=dataimporter(),
         preprocessor=defaultpreprocessor(),
         danalyzer=dataanalyzer(),
-        executor=LocalExecutor,
+        executor="LocalExecutor",
         execargs="",
         **kwargs,
     ):
@@ -50,24 +62,47 @@ class FLIMAnalyzer:
                 pass
             n[k] = v
         execargs = n
-        if executor == "LocalDaskExecutor":
-            self.executor = LocalDaskExecutor(**execargs)
-        elif executor == "DaskExecutor":
-            self.executor = DaskExecutor(**execargs)
-        else:
-            self.executor = LocalExecutor()
-            execargs = ""
-
+        self.executor = executor
+        self.execargs = execargs
+        if executor not in DASK_EXECUTORS:
+            self.executor = "LocalExecutor"
+            self.execargs = {
+                k: v for k, v in execargs.items() if k == "num_workers" and isinstance(v, int)
+            }
         #        self.outputgenerator = outputgenerator()
-        logging.info(f"Setting up {self.executor}: {execargs}")
+        logging.info(f"Setting up {self.executor}: {self.execargs}")
         logging.debug(
-            f"Initialized {__name__}.FlimAnalyzer with"
+            f"Initialized {__name__}.FLIMAnalyzer with"
             f" {importer}, {preprocessor}, {danalyzer}"
         )
-        logging.debug(f"Using {self.executor}, {execargs}")
+        logging.debug(f"Using {self.executor}, {self.execargs}")
 
-    def get_executor(self):
-        return self.executor
+    def get_task_runner(self):
+        """Returns the Prefect task runner for workflow execution.
+
+        Returns:
+            ``LocalExecutor``: a Prefect ``ThreadPoolTaskRunner`` with ``num_workers``
+            threads (default: :func:`flim.core.runner.default_max_workers`;
+            ``num_workers=1`` runs one task at a time). Otherwise a
+            ``prefect_dask.DaskTaskRunner``: ``LocalDaskExecutor`` starts a local Dask
+            cluster (args: ``num_workers``, ``scheduler=threads|processes``),
+            ``DaskExecutor`` connects to an existing cluster (arg: ``address``).
+        """
+        if self.executor == "LocalExecutor":
+            from flim.core.runner import default_task_runner
+
+            return default_task_runner(self.execargs.get("num_workers"))
+        check_executor_available(self.executor)
+        from prefect_dask import DaskTaskRunner
+
+        args = dict(self.execargs)
+        if self.executor == "DaskExecutor":
+            return DaskTaskRunner(**args)
+        cluster_kwargs = {}
+        if "num_workers" in args:
+            cluster_kwargs["n_workers"] = args.pop("num_workers")
+        cluster_kwargs["processes"] = args.pop("scheduler", "threads") == "processes"
+        return DaskTaskRunner(cluster_kwargs={**cluster_kwargs, **args})
 
     def get_data(self):
         return self.data

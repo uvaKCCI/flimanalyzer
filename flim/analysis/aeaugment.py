@@ -24,6 +24,7 @@ from importlib_resources import files, as_file
 
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
+from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES, resolve_device
 from flim.plugin import AbstractPlugin
 from flim.plugin import plugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -32,6 +33,23 @@ from joblib import load
 
 
 class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "modelfile": "",
+        "device": DEFAULT_DEVICE,
+        "sets": 1,
+        "add_noise": True,
+        "snr_db": 0.0,
+        "snr_unit": utils.NOISE_UNIT[-1],
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -41,14 +59,33 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
         selectedgrouping=["None"],
         selectedfeatures="All",
         modelfile="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
         sets=1,
         add_noise=True,
         snr_db=0.0,
         snr_unit=utils.NOISE_UNIT[-1],
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "optgridrows": 1,
+            "optgridcols": 0,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.modelfile = modelfile
         self.device = device
         self.sets = sets
@@ -57,18 +94,11 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
             snr_unit if snr_unit in utils.NOISE_UNIT else utils.NOISE_UNIT[-1]
         )
         self.snr = snr_db if self.snr_unit == "dB" else utils.db_to_linear(snr_db)
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            data_choices=data_choices,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         mf = (
@@ -98,7 +128,7 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.device,
-            choices=["cpu", "cuda"],
+            choices=DEVICES,
         )
         bottom_sizer.Add(
             wx.StaticText(self.panel, label="Device"),
@@ -204,6 +234,10 @@ class AEAugmentConfigDlg(BasicAnalysisConfigDlg):
             params["snr_db"] = utils.to_db(self.noise_input.GetValue())
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class AEAugment(AbstractPlugin):
@@ -217,7 +251,7 @@ class AEAugment(AbstractPlugin):
         self.snr_db = self.params["snr_db"]
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("aerun.png")
+        source = files(flim.resources).joinpath("aeaugment.png")
         return wx.Bitmap(str(source))
 
     def get_required_categories(self):
@@ -242,7 +276,7 @@ class AEAugment(AbstractPlugin):
         params.update(
             {
                 "modelfile": "",
-                "device": "cpu",
+                "device": DEFAULT_DEVICE,
                 "sets": 1,
                 "add_noise": True,
                 "snr_db": 0.0,  # 0.0 < noise < 1.0
@@ -254,21 +288,26 @@ class AEAugment(AbstractPlugin):
         return {"Table: Simulated": None}
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AEAugmentConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            data_choices=data_choices,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            modelfile=self.params["modelfile"],
-            device=self.params["device"],
-            sets=self.params["sets"],
-            add_noise=self.params["add_noise"],
-            snr_db=self.params["snr_db"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(AEAugmentConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = AEAugmentConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             params = dlg.get_selected()
             self.params.update(params)
@@ -317,12 +356,7 @@ class AEAugment(AbstractPlugin):
         logging.debug(f"amplitudes={amplitudes}")
 
         # load an AE model
-        device = self.params["device"]
-        if device == "cuda" and not torch.cuda.is_available():
-            device = "cpu"
-            logging.info(
-                "CUDA selected, but no CUDA device available. Switching to CPU."
-            )
+        device = resolve_device(self.params["device"])
         sim_df = pd.DataFrame(columns=(cats + feat_cols))
         noise_df = pd.DataFrame()
         try:
@@ -333,6 +367,7 @@ class AEAugment(AbstractPlugin):
         mean_noise, std_noise = self._model_noise(data_feat, self.params["snr_db"])
         # ae = torch.load(self.params['modelfile'], map_location = device)
         ae_pipeline = load(modelfile)
+        ae_pipeline[-1].to(device)  # the autoencoder; transform() returns CPU tensors
 
         temps = []
         for simset in range(0, self.params["sets"]):

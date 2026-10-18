@@ -34,6 +34,8 @@ class MergerConfigDlg(BasicAnalysisConfigDlg):
         right_on=None,
         left_index=False,
         right_index=False,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
     ):
@@ -197,6 +199,8 @@ class Merger(AbstractPlugin):
             how=self.params["how"],
             left_index=self.params["left_index"],
             right_index=self.params["right_index"],
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

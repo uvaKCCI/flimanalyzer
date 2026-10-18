@@ -47,9 +47,9 @@ The shown example table contains the following categorical columns that may be u
    * - .. image:: /images/analysis/aerun.png 
      - `Autoencoder Analysis <aerun.html>`_
      - Applies a pre-trained autoencoder model to data.
-   * - .. image:: /images/analysis/aerun.png 
-     - `Autoencoder Simulate <aesim.html>`_
-     - Simulate..
+   * - .. image:: /images/analysis/aeaugment.png 
+     - `Autoencoder Augment Data <aeaugment.html>`_
+     - Generates augmented data with a pre-trained autoencoder model.
 
 .. toctree::
     :maxdepth: 2
@@ -60,14 +60,12 @@ The shown example table contains the following categorical columns that may be u
     relchange
     seriesanalysis
     categorize
-    merge
-    heatmap
     randomforest
     pca
     kmeans
     ks
     aetrain
     aerun
-    aesim
+    aeaugment
 
 

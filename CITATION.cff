@@ -1,0 +1,81 @@
+cff-version: 1.2.0
+message: "If you use FLIMAnalyzer, please cite the original publication (Zhang et al. 2025) and the publication closest to the version you used (see the README)."
+type: software
+title: FLIMAnalyzer
+abstract: Python application for the analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data.
+authors:
+  - family-names: Siller
+    given-names: Karsten
+    orcid: "https://orcid.org/0009-0006-6010-0494"
+    affiliation: University of Virginia
+  - family-names: Zhang
+    given-names: Jiaxin
+    affiliation: University of Virginia
+  - family-names: Mbogo
+    given-names: Brian
+    affiliation: University of Virginia
+license: MIT
+repository-code: "https://github.com/uvaKCCI/flimanalyzer"
+url: "https://flimanalyzer.readthedocs.io"
+doi: 10.5281/zenodo.23426563
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23426563
+    description: All versions (always resolves to the latest version)
+  - type: doi
+    value: 10.5281/zenodo.23438157
+    description: Version v0.5.0
+  - type: doi
+    value: 10.5281/zenodo.23426564
+    description: Version v0.4.1
+keywords:
+  - fluorescence lifetime imaging
+  - FLIM
+  - FLIRR
+  - NAD(P)H
+  - FAD
+  - machine learning
+  - autoencoder
+preferred-citation:
+  type: article
+  title: "Measuring metabolic changes in cancer cells using two-photon fluorescence lifetime imaging microscopy and machine-learning analysis"
+  authors:
+    - family-names: Zhang
+      given-names: Jiaxin
+    - family-names: Wallrabe
+      given-names: Horst
+    - family-names: Siller
+      given-names: Karsten
+    - family-names: Mbogo
+      given-names: Brian
+    - family-names: Cassidy
+      given-names: Thomas
+    - family-names: Alam
+      given-names: Shagufta Rehman
+    - family-names: Periasamy
+      given-names: Ammasi
+  journal: Journal of Biophotonics
+  volume: 18
+  issue: 1
+  start: e202400426
+  year: 2025
+  doi: 10.1002/jbio.202400426
+references:
+  - type: article
+    title: "Label-free optical biomarker for prostate cancer diagnosis"
+    notes: "Used FLIMAnalyzer v0.5.0; cite for v0.5.0 and later"
+    authors:
+      - family-names: Alam
+        given-names: Shagufta Rehman
+      - family-names: Siller
+        given-names: Karsten
+      - family-names: Dreicer
+        given-names: Robert
+      - family-names: Periasamy
+        given-names: Ammasi
+    journal: Molecular Medicine
+    volume: 32
+    issue: 1
+    start: 165
+    year: 2026
+    doi: 10.1186/s10020-026-01605-2

@@ -189,7 +189,7 @@ class Config:
                 self._to_utf(key, ignore_dicts=True): self._to_utf(
                     value, ignore_dicts=True
                 )
-                for key, value in data.iteritems()
+                for key, value in data.items()
             }
         # if it's anything else, return it in its original form
         return data
@@ -197,7 +197,10 @@ class Config:
     def read_from_json(self, configfile, defaultonfail=True):
         try:
             with open(configfile, "r") as fp:
-                self.parameters = json.load(fp)  # , object_hook=self._to_utf)
+                default = Config()
+                default.create_default()
+                default.update(json.load(fp))
+                self.update(default.get())
                 self.modified = False
                 self.filename = configfile
             logging.info(f"Configuration loaded from {configfile}.")
@@ -211,15 +214,23 @@ class Config:
                 logging.info(f"Created default configuration.")
             return False
 
-    def write_to_json(self, configfile):
+    def write_to_json(self, configfile, searchkey=None):
+        """Writes the configuration, or only the part at ``searchkey``, as JSON.
+
+        Values JSON cannot represent are written as text.
+        """
+        config_to_save = self.parameters
+        if searchkey is not None:
+            config_to_save = {searchkey[-1]: self.get(searchkey)}
+
         try:
             with open(configfile, "w") as fp:
-                json.dump(self.parameters, fp, sort_keys=True, indent=4)
+                json.dump(config_to_save, fp, sort_keys=True, indent=4, default=str)
                 self.modified = False
                 self.filename = configfile
             logging.info(f"Configuration saved as {configfile}.")
-        except:
-            logging.error(f"Config file could not be saved to {configfile}")
+        except Exception:
+            logging.exception(f"Config file could not be saved to {configfile}")
 
     def is_not_None(self, searchkeys):
         logging.debug(

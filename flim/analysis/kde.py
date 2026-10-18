@@ -8,6 +8,7 @@ Created on Wed Dec 16 14:18:30 2020
 
 import logging
 import math
+from flim import utils
 from flim.plugin import AbstractPlugin
 import matplotlib
 import matplotlib.pyplot as plt
@@ -19,7 +20,6 @@ from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from importlib_resources import files
 import flim.resources
-from prefect import Task
 from flim.plugin import plugin, ALL_FEATURES
 
 
@@ -27,7 +27,7 @@ default_linestyles = ["-", "--", ":", "-."]
 
 
 @plugin(plugintype="Plot")
-class KDE(AbstractPlugin, Task):
+class KDE(AbstractPlugin):
     def __init__(self, name="KDE", **kwargs):
         # classifier=None, importancehisto=True, n_estimators=100, test_size=0.3, **kwargs):
         super().__init__(name=name, **kwargs)
@@ -52,7 +52,10 @@ class KDE(AbstractPlugin, Task):
             return_type["Plot: KDE"] = matplotlib.figure.Figure
         else:
             return_type.update(
-                {f"Plot: KDE {feature}": matplotlib.figure.Figure for feature in features}
+                {
+                    f"Plot: KDE {feature}": matplotlib.figure.Figure
+                    for feature in features
+                }
             )
         return return_type
 
@@ -81,15 +84,20 @@ class KDE(AbstractPlugin, Task):
     def run_configuration_dialog(self, parent, data_choices={}):
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        dlg = BasicAnalysisConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=selgrouping,
-            selectedfeatures=selfeatures,
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+
+        dlg_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), self.params
         )
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = BasicAnalysisConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -147,7 +155,7 @@ class KDE(AbstractPlugin, Task):
             if self.params.get("return_plot") and not self.params["single_plot"]:
                 fig.tight_layout()
                 results[f"Plot: KDE {header}"] = fig
-            results[f"Table: KDE {header}"] = kde_data
+            # results[f"Table: KDE {header}"] = kde_data
         if self.params.get("return_plot") and self.params["single_plot"]:
             fig.tight_layout()
             results[f"Plot: KDE"] = fig
@@ -182,7 +190,7 @@ class KDE(AbstractPlugin, Task):
             data = data[cols].dropna(how="any", subset=[column])
         df = pd.DataFrame()
         if len(groups) > 0:
-            gs = data.groupby(groups)
+            gs = data.groupby(groups, observed=False)
             styles = []
             if linestyles is None and len(groups) == 2:
                 uniquevalues = [data[g].unique() for g in groups]
@@ -190,7 +198,9 @@ class KDE(AbstractPlugin, Task):
                     uniquevalues[1]
                 ) <= len(default_linestyles):
                     colors = [c for c in sns.color_palette()[: len(uniquevalues[0])]]
-                    linestyles = [ls for ls in default_linestyles[: len(uniquevalues[1])]]
+                    linestyles = [
+                        ls for ls in default_linestyles[: len(uniquevalues[1])]
+                    ]
                     for c in colors:
                         for ls in linestyles:
                             styles.append({"color": c, "linestyle": ls})
