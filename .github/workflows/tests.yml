@@ -1,0 +1,39 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: tests
+    # macOS: wxPython has no Linux wheels on PyPI; the runner also has a GUI
+    # session, so the dialog tests run instead of being skipped
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # versioningit derives the version from the git tags
+
+      - uses: astral-sh/setup-uv@v10.3.0  # no moving major tag is published
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra test --python 3.12
+
+      - name: Run tests
+        env:
+          PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+        run: uv run --frozen --no-sync pytest -v
