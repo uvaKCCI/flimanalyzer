@@ -130,3 +130,26 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
         assert not any(isinstance(w, PlotFrame) for w in frame.windowframes.values())
     finally:
         frame.Destroy()
+
+
+def test_plot_window_fits_a_small_screen_without_resize_events(wxapp, monkeypatch):
+    """Like the CI runner: a 1024x768 screen whose window manager delivers no
+    resize events while the window is set up."""
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+
+    from flim.gui import plotframe
+
+    monkeypatch.setattr(plotframe, "_screen_area", lambda window=None: wx.Rect(0, 0, 1024, 768))
+    monkeypatch.setattr(FigureCanvasWxAgg, "_on_size", lambda self, event: None)
+    fig, _ = plt.subplots(figsize=(12, 6))  # 1200 x 600 px
+    window = plotframe.PlotFrame(None, fig, "big")
+    try:
+        planned = window.canvas_size
+        assert planned == (921, 460)  # 90% of the screen width, same aspect ratio
+        can_w, can_h = window.canvas.get_width_height()
+        assert abs(can_w - planned[0]) <= 2 and abs(can_h - planned[1]) <= 2, (can_w, can_h)
+        client_w, client_h = window.GetClientSize()
+        assert client_w == planned[0]
+    finally:
+        window.Destroy()

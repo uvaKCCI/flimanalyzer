@@ -10,11 +10,16 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg
 
 
+def _screen_area(window=None):
+    """Usable area of the screen that shows ``window`` (or the main screen)."""
+    index = wx.Display.GetFromWindow(window) if window else wx.NOT_FOUND
+    return wx.Display(index if index != wx.NOT_FOUND else 0).GetClientArea()
+
+
 def fit_to_screen(width, height, extra_height=0, window=None, fraction=0.9):
     """Scales (width, height) down, keeping the aspect ratio, so that it fits into
     ``fraction`` of the screen (of ``window``) together with ``extra_height``."""
-    index = wx.Display.GetFromWindow(window) if window else wx.NOT_FOUND
-    area = wx.Display(index if index != wx.NOT_FOUND else 0).GetClientArea()
+    area = _screen_area(window)
     max_width = area.width * fraction
     max_height = area.height * fraction - extra_height
     scale = min(1.0, max_width / max(width, 1), max_height / max(height, 1))
@@ -36,7 +41,8 @@ class PlotFrame(wx.Frame):
         plt.close(figure)
         self.figure = figure
         # the canvas resizes the figure to fit, so take the figure's size first
-        width, height = (figure.get_size_inches() * figure.dpi).round().astype(int)
+        dpi = figure.dpi  # before the canvas scales it for high-resolution screens
+        width, height = (figure.get_size_inches() * dpi).round().astype(int)
         self.canvas = FigureCanvasWxAgg(self, wx.ID_ANY, figure)
         self.toolbar = NavigationToolbar2WxAgg(self.canvas)
         self.toolbar.Realize()
@@ -49,4 +55,9 @@ class PlotFrame(wx.Frame):
         toolbar = self.toolbar.GetBestSize().height
         self.canvas_size = fit_to_screen(width, height, toolbar, parent)
         self.SetClientSize((self.canvas_size[0], self.canvas_size[1] + toolbar))
-        self.Layout()  # resize the canvas (and figure) now, not only once shown
+        self.Layout()
+        # resize the figure now: some window managers deliver the resize event late
+        # or not at all before the window is shown
+        figure.set_size_inches(
+            self.canvas_size[0] / dpi, self.canvas_size[1] / dpi, forward=False
+        )
