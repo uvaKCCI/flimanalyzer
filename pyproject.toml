@@ -33,8 +33,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# Dask executors (-e LocalDaskExecutor / DaskExecutor); the default executor needs
-# no extra packages
+# To use Dask executors (-e LocalDaskExecutor / DaskExecutor)
 dask = [
     "prefect-dask>=0.3.7,<1",  # Dask task runner for prefect 3
 ]
