@@ -36,9 +36,11 @@ class ListCtrlUpdatedEvent(wx.PyCommandEvent):
         return self.items
 
 
+# CheckListCtrlMixin comes first so that its CheckItem() is used instead of the
+# native wx.ListCtrl.CheckItem() added in wxPython 4.1 (needs EnableCheckBoxes)
 class AnalysisListCtrl(
-    wx.ListCtrl,
     listmix.CheckListCtrlMixin,
+    wx.ListCtrl,
     listmix.ListCtrlAutoWidthMixin,
     listmix.TextEditMixin,
 ):

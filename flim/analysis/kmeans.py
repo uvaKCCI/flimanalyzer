@@ -38,7 +38,7 @@ class KMeansClusteringConfigDlg(BasicAnalysisConfigDlg):
         "n_clusters": 2,
         "cluster_prefix": "Cluster",
         "init": "k-means++",
-        "algorithm": "auto",
+        "algorithm": "lloyd",
         "n_init": 4,
         "max_iter": 300,
         "tolerance": 1e-4,

@@ -259,7 +259,7 @@ class ImportDlg(wx.Dialog):
 
     def OnRGridSize(self, event):
         self.rgrid.SetDefaultColSize(
-            event.GetSize().GetWidth() / self.rgrid.GetTable().GetNumberCols(), True
+            event.GetSize().GetWidth() // self.rgrid.GetTable().GetNumberCols(), True
         )
         self.rgrid.Refresh()
 

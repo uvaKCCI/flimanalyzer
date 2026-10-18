@@ -223,7 +223,7 @@ class FreqHisto(AbstractPlugin):
         data = list(self.input.values())[0]
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        histmax = data.iloc[:, 1:].max(axis=1).max()
+        histmax = data.select_dtypes(np.number).max().max()
         # defines how to get input for values
         binspecs = {  # revised bins so that they can accept negative vals
             "bins": [wx.SpinCtrl, {"min": 1, "max": 500, "initial": 30}],

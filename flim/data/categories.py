@@ -32,7 +32,7 @@ class TablePanel(wx.Panel):
         self.grid = wx.grid.Grid(self, -1, size=(400, 200))
         self.grid.SetTable(table, takeOwnership=True)
         self.grid.AutoSizeColumns(setAsMin=True)
-        self.grid.SetSelectionMode(wx.grid.Grid.wxGridSelectRows)
+        self.grid.SetSelectionMode(wx.grid.Grid.GridSelectRows)
         for row in range(self.grid.GetNumberRows()):
             self.grid.SetReadOnly(row, 1)
         gridsizer = wx.BoxSizer(wx.VERTICAL)
@@ -91,7 +91,7 @@ class TablePanel(wx.Panel):
         self.grid.SetTable(PandasTable(self.catdf), takeOwnership=True)
         self.grid.SetColSizes(colsizes)
         self.grid.Refresh()
-        self.grid.SetSelectionMode(wx.grid.Grid.wxGridSelectRows)
+        self.grid.SetSelectionMode(wx.grid.Grid.GridSelectRows)
         for row in range(self.grid.GetNumberRows()):
             self.grid.SetReadOnly(row, 1)
         for i, row in enumerate(sel_rows):
