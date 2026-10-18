@@ -30,7 +30,6 @@ from importlib_resources import files
 import flim.analysis
 import flim.core.configuration as cfg
 import flim.core.parser
-import flim.core.plots
 import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.plugin as plugin

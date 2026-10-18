@@ -319,7 +319,6 @@ class FreqHisto(AbstractPlugin):
                     for i in range(len(binvalues)):
                         df[groupnames[i]] = binvalues[i]
                 df.reset_index()
-                # bindata = core.plots.bindata(binvalues,binedges, groupnames)
                 # bindata = bindata.reset_index()
                 results[f"Frequency Histo Table: {header}"] = df
         return results
