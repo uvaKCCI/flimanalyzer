@@ -45,6 +45,7 @@ from flim.core.runner import run_flow
 from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.macos import set_bundle_name, set_display_name
+from flim.gui.plotframe import PlotFrame
 from flim.gui.datapanel import PandasFrame
 from flim.gui.dialogs import ConfigureCategoriesDlg
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
@@ -329,7 +330,7 @@ class AppFrame(wx.Frame):
                     f" id={id(window.GetData())}"
                 )
                 return title, window
-            elif isinstance(window, matplotlib.figure.Figure) and id(window) == obj_id:
+            elif isinstance(window, PlotFrame) and id(window.figure) == obj_id:
                 logging.debug(
                     f"selected: title={title}, obj_id={obj_id}, id={id(window)}"
                 )
@@ -337,10 +338,7 @@ class AppFrame(wx.Frame):
         return
 
     def OnDataWindowFocused(self, data, frame):
-        if isinstance(frame, matplotlib.figure.Figure):
-            title = frame.canvas.manager.get_window_title()
-        else:
-            title = frame.GetTitle()
+        title = frame.GetTitle()
         self.window_zorder = [w for w in self.window_zorder if w != title]
         self.window_zorder.append(title)
 
@@ -643,11 +641,8 @@ class AppFrame(wx.Frame):
                             )
                             self.GetEventHandler().ProcessEvent(event)
                         elif isinstance(result, matplotlib.figure.Figure):
-                            fig = result
-                            # fig.canvas.set_window_title(title)
-                            fig.canvas.manager.set_window_title(title)
                             event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-                            event.SetEventInfo(fig, title, "createnew")
+                            event.SetEventInfo(result, title, "createnew")
                             self.GetEventHandler().ProcessEvent(event)
         else:
             flow_run = tool.run_flow(
@@ -660,7 +655,6 @@ class AppFrame(wx.Frame):
             fig, _ = wg.get_plot(
                 pick_event=self.OnPick,  # motion_notify_event=self._on_hover
             )
-            fig.canvas.manager.set_window_title(title)
             event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
             event.SetEventInfo(fig, f"{flow_run.name} Graph", "createnew")
             self.GetEventHandler().ProcessEvent(event)
@@ -695,15 +689,6 @@ class AppFrame(wx.Frame):
                     title = window.GetTitle()
                     self.window_zorder = [w for w in self.window_zorder if w != title]
                 logging.debug(f"remove window {self.window_zorder}")
-                return True
-        return False
-
-    def remove_figure_from_menu(self, figure):
-        for mitem in self.windowmenu.GetMenuItems():
-            mlabel = mitem.GetItemLabelText()
-            if mlabel in self.windowframes and self.windowframes[mlabel] == figure:
-                self.windowmenu.Remove(mitem.GetId())
-                del self.windowframes[mlabel]
                 return True
         return False
 
@@ -839,19 +824,14 @@ class AppFrame(wx.Frame):
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
         title = self.unique_window_title(event.GetTitle())
-        # figure.canvas.set_window_title(title)
-        figure.canvas.manager.set_window_title(title)
-        # ON_CUSTOM_LEFT  = wx.NewId()
-        # tb = figure.canvas.toolbar
-        # tb.AddTool(ON_CUSTOM_LEFT, 'Axes', wx.NullBitmap,'Set range of Axes')
-        # tb.Realize()
         action = event.GetAction()
         logging.debug(f"{title}: {action}")
         if action == "createnew":
-            figure.show()
-            self.append_window_to_menu(title, figure)
-            figure.canvas.mpl_connect("close_event", self.OnClosingPlotWindow)
+            frame = PlotFrame(self, figure, title)
+            frame.Bind(wx.EVT_CLOSE, self.OnClosingPlotWindow)
             figure.canvas.mpl_connect("pick_event", self.OnPick)
+            self.append_window_to_menu(title, frame)
+            frame.Show()
 
     #    def OnNewPlotWindow(self, figure):
     #        title = figure.get_axes()[0].get_title()
@@ -863,7 +843,8 @@ class AppFrame(wx.Frame):
 
     def OnClosingPlotWindow(self, event):
         logging.debug("appframe.OnClosingPlotWindow")
-        self.remove_figure_from_menu(event.canvas.figure)
+        self.remove_window_from_menu(event.GetEventObject().GetTitle())
+        event.Skip()
 
     def _raise_window(self, title, window):
         if isinstance(window, wx.Frame):
@@ -871,8 +852,6 @@ class AppFrame(wx.Frame):
             if isinstance(window, PandasFrame) and self.window_zorder[-1] != title:
                 self.window_zorder = [w for w in self.window_zorder if w != title]
                 self.window_zorder.append(title)
-        elif isinstance(window, matplotlib.figure.Figure):
-            window.canvas.manager.show()
 
     def OnWindowSelectedInMenu(self, event):
         itemid = event.GetId()
@@ -891,7 +870,7 @@ class AppFrame(wx.Frame):
         return [
             x
             for x in self.GetChildren()
-            if isinstance(x, wx.Frame) or isinstance(x, matplotlib.figure.Figure)
+            if isinstance(x, wx.Frame)
         ]
 
     def unique_window_title(self, title):
@@ -917,11 +896,7 @@ class AppFrame(wx.Frame):
         for title in windowtitles:
             window = self.windowframes[title]
             if window:
-                if isinstance(window, matplotlib.figure.Figure):
-                    self.remove_figure_from_menu(window)
-                    window.canvas.manager.destroy()
-                else:
-                    window.Close()
+                window.Close()
         self.window_zorder = []
 
     def OnImport(self, event):
