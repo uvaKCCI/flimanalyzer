@@ -174,7 +174,7 @@ def _capture_cancelled_dialog(monkeypatch):
 
     def show(dlg):
         texts = [c.GetLabel() for c in dlg.GetChildren() if isinstance(c, wx.StaticText)]
-        paths = [c.GetValue() for c in dlg.GetChildren() if isinstance(c, wx.TextCtrl)]
+        paths = [dlg.folder.path] if dlg.folder else []
         shown.update(texts=texts, paths=paths, link=dlg.link.GetURL() if dlg.link else None)
         return wx.ID_OK
 
@@ -310,3 +310,91 @@ def test_status_line_matches_the_task_list(wxapp):
         assert seen["count"] == "1 of 2 tasks completed"
     finally:
         dlg.Destroy()
+
+
+def test_results_folder_link_opens_the_file_browser(wxapp, monkeypatch, tmp_path):
+    from flim.gui import progressdlg
+    from flim.gui.progressdlg import RunProgressDialog
+
+    opened = []
+    monkeypatch.setattr(progressdlg, "open_in_file_browser", opened.append)
+    seen = {}
+
+    def snapshot(dlg):
+        seen["shown"] = dlg.folder.IsShown()
+        seen["label"] = dlg.folder.GetLabel()
+        click = wx.adv.HyperlinkEvent(dlg.folder, dlg.folder.GetId(), "")
+        dlg.folder.GetEventHandler().ProcessEvent(click)
+
+    dlg = RunProgressDialog(None, "Test", _starter(2, seconds=1.0, autosave_dir=str(tmp_path)))
+    wx.CallLater(700, snapshot, dlg)
+    try:
+        assert dlg.ShowModal() == wx.ID_OK
+        run_dir = dlg.run.autosave_dir
+        assert run_dir.startswith(str(tmp_path))
+        assert seen == {"shown": True, "label": run_dir}
+        assert opened == [run_dir]
+    finally:
+        dlg.Destroy()
+
+
+def test_open_in_file_browser_creates_the_folder(monkeypatch, tmp_path):
+    import subprocess
+    import sys
+
+    from flim.gui import progressdlg
+
+    calls = []
+    monkeypatch.setattr(subprocess, "Popen", lambda args, *a, **k: calls.append(args))
+    monkeypatch.setattr(progressdlg.os, "startfile", lambda p: calls.append(["startfile", p]), raising=False)
+    folder = tmp_path / "not yet created"
+    progressdlg.open_in_file_browser(str(folder))
+    assert folder.is_dir()
+    expected = {"darwin": "open", "win32": "startfile"}.get(sys.platform, "xdg-open")
+    assert calls == [[expected, str(folder)]]
+
+
+def test_open_data_files_opens_a_data_window(frame, tmp_path, flim_data):
+    from flim.gui.datapanel import PandasFrame
+
+    csv = tmp_path / "cells.csv"
+    flim_data.to_csv(csv, index=False)
+    assert frame.open_data_files([str(csv)]) == "cells.csv"
+    window = frame.windowframes["cells.csv"]
+    assert isinstance(window, PandasFrame)
+    assert len(window.GetViewData()) == len(flim_data)
+    window.modified = False
+    frame.OnCloseAll(None)
+
+
+def test_files_given_with_input_are_opened_at_startup(frame, monkeypatch, tmp_path, flim_data):
+    from flim.gui.app import FLIMAnalyzerApp
+
+    csv = tmp_path / "cells.csv"
+    flim_data.to_csv(csv, index=False)
+    messages = []
+    monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: messages.append(message))
+
+    class App:  # stands in for the running FLIMAnalyzerApp
+        pass
+
+    app = App()
+    app.frame = frame
+    FLIMAnalyzerApp.open_files(app, [str(csv), str(tmp_path / "missing.csv")])
+    assert "cells.csv" in frame.windowframes
+    assert len(messages) == 1 and "missing.csv" in messages[0]
+    frame.windowframes["cells.csv"].modified = False
+    frame.OnCloseAll(None)
+
+
+def test_input_option_is_passed_to_the_app(monkeypatch):
+    import sys
+
+    import flim.analyzerapp as analyzerapp
+
+    started = {}
+    monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-i", "a.csv", "b.txt", "--no-prefect-server"])
+    monkeypatch.setattr(analyzerapp, "init_logger", lambda level: None)
+    monkeypatch.setattr(analyzerapp, "interactive_run", lambda fa, files=None: started.update(files=files))
+    analyzerapp.main()
+    assert started["files"] == ["a.csv", "b.txt"]

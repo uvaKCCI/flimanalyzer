@@ -104,8 +104,13 @@ def app_icons():
 
 
 class FLIMAnalyzerApp(wx.App):
-    def __init__(self, flimanalyzer, config=None):
+    def __init__(self, flimanalyzer, config=None, files=None):
+        """
+        Args:
+            files: data files to open at startup, each in its own data window.
+        """
         self.flimanalyzer = flimanalyzer
+        self.files = list(files or [])
         if config is None or not isinstance(config, Config):
             self.config = Config()
             self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
@@ -125,7 +130,24 @@ class FLIMAnalyzerApp(wx.App):
             self.dock_icon = wx.adv.TaskBarIcon(wx.adv.TBI_DOCK)
             self.dock_icon.SetIcon(app_icon(), "FLIMAnalyzer")
         self.frame.Show(True)
+        if self.files:
+            wx.CallAfter(self.open_files, self.files)
         return True
+
+    def open_files(self, files):
+        """Opens each file in a data window; reports files that cannot be read."""
+        failed = []
+        for f in files:
+            try:
+                if not os.path.isfile(f) or self.frame.open_data_files([f]) is None:
+                    failed.append(f)
+            except Exception as e:
+                logging.exception(f"Could not open {f}")
+                failed.append(f"{f} ({e})")
+        if failed:
+            wx.MessageBox(
+                "Could not open:\n" + "\n".join(failed), "Open files", wx.OK | wx.ICON_WARNING
+            )
 
     def OnExit(self):
         if self.dock_icon:
@@ -354,30 +376,47 @@ class AppFrame(wx.Frame):
         )
         if dlg.ShowModal() == wx.ID_OK:
             config = dlg.get_config()
-
-            importer = dataimporter()
-            importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
-            importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
-            importer.set_parser(None)
-            importer.set_preprocessor(None)
-            data, filenames, fheaders = importer.import_data()
-
-            pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
-            windowtitle = os.path.basename(filenames[0])
-            if len(filenames) != 1:
-                windowtitlw = "Imported Data"
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(
-                data,
-                windowtitle,
-                "update",
-                config=None,
-                showcolindex=False,
-                analyzable=True,
-                savemodified=True,
-                enableclose=True,
+            self.open_data_files(
+                config.get([cfg.CONFIG_INCLUDE_FILES]), config.get([cfg.CONFIG_DELIMITER])
             )
-            self.GetEventHandler().ProcessEvent(event)
+
+    def open_data_files(self, files, delimiter=None):
+        """Opens data files in a data window, as File > Open does.
+
+        Args:
+            files: paths of the files; several files are combined in one table.
+            delimiter: column delimiter characters, default: from the settings
+                (tab and comma).
+
+        Returns:
+            str: title of the data window, or None if no file could be read.
+        """
+        importer = dataimporter()
+        importer.set_delimiter(delimiter or self.config.get([cfg.CONFIG_DELIMITER]))
+        importer.set_files(list(files))
+        importer.set_parser(None)
+        importer.set_preprocessor(None)
+        data, filenames, fheaders = importer.import_data()
+        if not filenames:
+            return None
+
+        pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
+        windowtitle = os.path.basename(filenames[0])
+        if len(filenames) != 1:
+            windowtitle = "Imported Data"
+        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+        event.SetEventInfo(
+            data,
+            windowtitle,
+            "update",
+            config=None,
+            showcolindex=False,
+            analyzable=True,
+            savemodified=True,
+            enableclose=True,
+        )
+        self.GetEventHandler().ProcessEvent(event)
+        return windowtitle
 
     def OnImportData(self, event):
         dlg = ImportDlg(self, "Import File(s)", self.config)

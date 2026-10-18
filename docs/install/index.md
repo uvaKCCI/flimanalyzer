@@ -58,6 +58,10 @@ In an activated environment:
 ```
 flimanalyzer
 ```
+To open data files (tab- or comma-separated) right away, each in its own window:
+```
+uv run flimanalyzer -i results.txt more-results.csv
+```
 Run `flimanalyzer --help` for all command line options.
 
 **Prefect server**

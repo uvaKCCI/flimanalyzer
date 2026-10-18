@@ -1,12 +1,46 @@
 """Dialogs shown while a tool or workflow runs and after it was cancelled."""
 
 import logging
+import os
+import subprocess
+import sys
 import threading
 
 import wx
 import wx.adv
 
 from flim.core.runner import FINAL_STATUSES, CancelToken
+
+
+def open_in_file_browser(path):
+    """Shows a folder in Finder, Explorer or the Linux file manager (creating it
+    if it does not exist yet)."""
+    os.makedirs(path, exist_ok=True)
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", path])
+    elif sys.platform == "win32":
+        os.startfile(path)
+    else:
+        subprocess.Popen(["xdg-open", path])
+
+
+class FolderLink(wx.adv.HyperlinkCtrl):
+    """Shows a folder path; clicking it opens the folder in the file browser."""
+
+    def __init__(self, parent, path=""):
+        super().__init__(parent, wx.ID_ANY, path or " ", "")
+        self.path = path
+        self.SetToolTip("Open in the file browser")
+        self.Bind(wx.adv.EVT_HYPERLINK, self.OnClick)
+
+    def SetPath(self, path):
+        self.path = path
+        self.SetLabel(path)
+
+    def OnClick(self, event):
+        # instead of opening a URL in the web browser
+        if self.path:
+            open_in_file_browser(self.path)
 
 
 class RunProgressDialog(wx.Dialog):
@@ -44,6 +78,11 @@ class RunProgressDialog(wx.Dialog):
         self.link = wx.adv.HyperlinkCtrl(self, wx.ID_ANY, " ", "")
         self.link_text.Hide()
         self.link.Hide()
+        # results folder, shown once known if results are saved
+        self.folder_text = wx.StaticText(self, label="Results are saved in:")
+        self.folder = FolderLink(self)
+        self.folder_text.Hide()
+        self.folder.Hide()
         # expandable list of all tasks and their status
         self.tasks_pane = wx.CollapsiblePane(self, label="Tasks")
         pane = self.tasks_pane.GetPane()
@@ -64,6 +103,8 @@ class RunProgressDialog(wx.Dialog):
         sizer.Add(self.count_text, 0, wx.ALL | wx.EXPAND, 10)
         sizer.Add(self.link_text, 0, wx.LEFT | wx.RIGHT, 10)
         sizer.Add(self.link, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
+        sizer.Add(self.folder_text, 0, wx.LEFT | wx.RIGHT, 10)
+        sizer.Add(self.folder, 0, wx.LEFT | wx.RIGHT | wx.BOTTOM, 10)
         sizer.Add(self.tasks_pane, 1, wx.LEFT | wx.RIGHT | wx.EXPAND, 10)
         sizer.Add(self.cancel_button, 0, wx.ALL | wx.ALIGN_RIGHT, 10)
         self.SetSizerAndFit(sizer)
@@ -99,7 +140,11 @@ class RunProgressDialog(wx.Dialog):
             self.link.SetURL(url)
             self.link_text.Show()
             self.link.Show()
-            self.Fit()
+        if run.autosave_dir:
+            self.folder.SetPath(run.autosave_dir)
+            self.folder_text.Show()
+            self.folder.Show()
+        self.Fit()
 
     def _on_progress(self, done, total, label, complete):
         wx.CallAfter(self._refresh)
@@ -176,10 +221,11 @@ class RunCancelledDialog(wx.Dialog):
 
         text(f"{title} was cancelled after {counts.get('completed', 0)} of {total} tasks.")
         self.results_dir = run.autosave_dir
+        self.folder = None
         if self.results_dir:
             text("Results of the completed tasks are in:")
-            path = wx.TextCtrl(self, value=self.results_dir, style=wx.TE_READONLY, size=(460, -1))
-            sizer.Add(path, 0, wx.LEFT | wx.RIGHT | wx.TOP | wx.EXPAND, 10)
+            self.folder = FolderLink(self, self.results_dir)
+            sizer.Add(self.folder, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
         else:
             text("No results were saved because Autosave is off.")
         self.link = None

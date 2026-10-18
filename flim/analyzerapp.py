@@ -25,7 +25,13 @@ def parse_arguments():
     """Parses command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-i", "--input", nargs="+", help="import set of files or directories"
+        "-i",
+        "--input",
+        nargs="+",
+        help=(
+            "data files to open in the application; with -o and -c: files or"
+            " directories to import without opening the application"
+        ),
     )
     parser.add_argument(
         "-x", "--exclude", nargs="+", default=[], help="exclude file from importing"
@@ -195,8 +201,8 @@ def noninteractive_run(fa, args):
         logging.debug("\tskipped %s" % sfunc)
 
 
-def interactive_run(fa):
-    app = FLIMAnalyzerApp(fa)
+def interactive_run(fa, files=None):
+    app = FLIMAnalyzerApp(fa, files=files)
     app.MainLoop()
 
 
@@ -232,7 +238,7 @@ def main():
     # print (config)
     with use_prefect_server(start=not args.no_prefect_server):
         if args.input is None or args.output is None or args.config is None:
-            interactive_run(fa)
+            interactive_run(fa, files=args.input)
         else:
             noninteractive_run(fa, args)
 
