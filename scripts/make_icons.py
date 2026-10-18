@@ -5,7 +5,7 @@ All icons share one flat style: 32x32 RGBA on a transparent background, drawn at
 
 The palette is colour-blind safe (based on Okabe & Ito): two groups are always
 green and magenta, never red and green; blue is used for single data series and
-orange marks processing steps.
+processing steps, gray for a third group. There is no red or orange.
 
 Usage:
     uv run python scripts/make_icons.py [outdir]   # default: flim/resources
@@ -27,7 +27,6 @@ GREEN = (0, 158, 115, 255)  # group 1
 LGREEN = (150, 215, 195, 255)
 MAGENTA = (204, 51, 170, 255)  # group 2
 LMAGENTA = (235, 170, 220, 255)
-ORANGE = (230, 159, 0, 255)  # processing steps, accents, group 3
 YELLOW = (240, 215, 70, 255)  # autoencoder bottleneck
 NODE = (100, 150, 240, 255)  # autoencoder nodes
 DARK = (32, 32, 32, 255)  # axes, outlines, text
@@ -188,9 +187,9 @@ def gear(d, cx, cy, r, color, teeth=8):
 
 
 def badge(d, cx, cy, r=6.2):
-    """White-rimmed orange disc for an action symbol in the corner of an icon."""
+    """White-rimmed blue disc for an action symbol in the corner of an icon."""
     circle(d, cx, cy, r + 1, WHITE)
-    circle(d, cx, cy, r, ORANGE)
+    circle(d, cx, cy, r, BLUE)
 
 
 def document(d, x0, y0, x1, y1, fold=4, fill=WHITE, w=1.2):
@@ -215,7 +214,7 @@ def fileopen_icon():
 def import_icon():
     im, d = canvas()
     # several documents merged into one table
-    for i, c in enumerate((GREEN, MAGENTA, ORANGE)):
+    for i, c in enumerate((GREEN, MAGENTA, GRAY)):
         x, y = 1 + i * 3.2, 1 + i * 3.2
         document(d, x, y, x + 10, y + 12, fold=3)
         d.rectangle(s(x + 2, y + 5, x + 8, y + 7), fill=c)
@@ -324,7 +323,7 @@ def categorize_icon():
     pts = [(3 + x * math.cos(a) - y * math.sin(a), 3 + x * math.sin(a) + y * math.cos(a)) for x, y in shape]
     d.polygon([v * S for p in pts for v in p], fill=BLUE)
     circle(d, 3 + 6 * math.cos(a), 3 + 6 * math.sin(a), 1.9, CLEAR)
-    for i, c in enumerate((GREEN, MAGENTA, ORANGE)):
+    for i, c in enumerate((GREEN, MAGENTA, GRAY)):
         d.rectangle(s(21, 20 + i * 4, 31, 22.6 + i * 4), fill=c)
     return im
 
@@ -451,10 +450,13 @@ def kmeans_icon():
     im, d = canvas()
     clusters = ((8, 9, GREEN, ((-3, -2), (2.5, -3), (-2, 3), (3, 2), (0, -0.5))),
                 (24, 10, MAGENTA, ((-3, -1), (2, -3.5), (-1, 3), (3, 2.5), (0.5, 0))),
-                (15, 24, ORANGE, ((-3.5, 0), (2.5, -2.5), (-1, 3.5), (3.5, 2), (0, 0))))
+                (15, 24, GRAY, ((-3.5, 0), (2.5, -2.5), (-1, 3.5), (3.5, 2), (0, 0))))
     for cx, cy, c, offs in clusters:
         for dx, dy in offs:
-            circle(d, cx + dx, cy + dy, 1.5, c)
+            if c == GRAY:  # third group: different shape, not only a different colour
+                d.rectangle(s(cx + dx - 1.4, cy + dy - 1.4, cx + dx + 1.4, cy + dy + 1.4), fill=c)
+            else:
+                circle(d, cx + dx, cy + dy, 1.5, c)
     for cx, cy, c, _ in clusters:
         for dx, dy in ((-1, -1), (1, -1)):
             d.line(s(cx - 2.3 * dx, cy - 2.3, cx + 2.3 * dx, cy + 2.3), fill=WHITE, width=px(2.6))
@@ -475,18 +477,31 @@ def gmm_icon():
 
 def ks_icon():
     im, d = canvas()
-    axes(d)
-    # two cumulative distributions and their largest distance D
-    def ecdf(xs):
-        pts, y = [(4, 28)], 28
-        for x in xs:
-            pts += [(x, y), (x, y - 4.8)]
-            y -= 4.8
-        return pts + [(30, y)]
-    line(d, ecdf((6, 8.5, 11, 13.5, 16)), GREEN, 1.8)
-    line(d, ecdf((14, 18.5, 22, 25, 27.5)), MAGENTA, 1.8)
-    double_arrow(d, 15, 8.5, 26.5, ORANGE, w=2.0, head=3.6)
-    label(d, 24, 21.5, "KS", 12)
+    # two cumulative distributions and their largest distance D; drawn on whole
+    # pixels (2 px lines) and reduced with a box filter, so every edge is sharp
+    im.info["crisp"] = True
+
+    def rect(x0, y0, x1, y1, color):
+        d.rectangle([x0 * S, y0 * S, x1 * S - 1, y1 * S - 1], fill=color)
+
+    def ecdf(steps, color):
+        levels = (27, 22, 17, 12, 7, 2)  # line centres, 5 px apart
+        x = 4
+        for xs, y0, y1 in zip(steps, levels, levels[1:]):
+            rect(x, y0 - 1, xs + 1, y0 + 1, color)  # horizontal run
+            rect(xs - 1, y1 - 1, xs + 1, y0 + 1, color)  # step up
+            x = xs
+        rect(x, levels[-1] - 1, 31, levels[-1] + 1, color)
+
+    ecdf((6, 8, 10, 12, 14), GREEN)
+    ecdf((13, 19, 22, 25, 28), MAGENTA)
+    # D: the largest vertical distance, between x = 14 and 19
+    rect(15, 6, 17, 18, BLUE)
+    d.polygon(s(16, 3.5, 13, 7, 19, 7), fill=BLUE)
+    d.polygon(s(16, 20.5, 13, 17, 19, 17), fill=BLUE)
+    rect(2, 2, 4, 30, DARK)  # axes
+    rect(2, 28, 31, 30, DARK)
+    label(d, 25.5, 23.5, "KS", 9, halo=1.2)
     return im
 
 
@@ -554,7 +569,7 @@ def seriesanalysis_icon():
     line(d, pts, BLUE, 1.5)
     for p in pts:
         circle(d, *p, 1.7, BLUE)
-    double_arrow(d, 29, 7.5, 22.5, ORANGE, w=1.8, head=3.2)
+    double_arrow(d, 29, 7.5, 22.5, DARK, w=1.8, head=3.2)
     return im
 
 
@@ -636,9 +651,9 @@ def workflow_icon():
     # generic workflow: data -> processing steps -> result
     table(d, 1, 2, 11, 11, 2, 3)
     arrow(d, 11.5, 6.5, 17, 6.5, GRAY, w=1.6, head=3)
-    circle(d, 23, 6.5, 5, ORANGE)
+    circle(d, 23, 6.5, 5, BLUE)
     arrow(d, 23, 12, 23, 17.5, GRAY, w=1.6, head=3)
-    circle(d, 23, 23.5, 5, ORANGE)
+    circle(d, 23, 23.5, 5, BLUE)
     arrow(d, 17.5, 23.5, 12, 23.5, GRAY, w=1.6, head=3)
     document(d, 2, 17, 11, 30, fold=3)
     for y, c in ((22, GREEN), (25.5, MAGENTA)):
@@ -651,7 +666,7 @@ def flirrworkflow_icon():
     # table -> FLIRR ratio -> bar chart
     table(d, 1, 3, 12, 14, 3, 3)
     arrow(d, 13.5, 8.5, 20, 8.5, GRAY, w=1.6, head=3)
-    circle(d, 25, 8.5, 5, ORANGE)
+    circle(d, 25, 8.5, 5, BLUE)
     d.line(s(22.5, 10.5, 27.5, 6.5), fill=WHITE, width=px(1.4))  # ratio slash
     arrow(d, 25, 14.5, 25, 19.5, GRAY, w=1.6, head=3)
     axes(d, x0=5, y0=21, x1=31, y1=31, w=1.2)
@@ -664,7 +679,7 @@ def flirrworkflow_icon():
 def aetuneworkflow_icon():
     im, d = canvas()
     ae_nodes(d, (5, 3, 2, 3, 5), 3, 25, 12, 20)
-    gear(d, 24.5, 24.5, 7, ORANGE)
+    gear(d, 24.5, 24.5, 7, BLUE)
     return im
 
 
@@ -702,7 +717,7 @@ def _app_icon_detailed(r):
     """32-unit layout for 32 px and larger; r(x0, y0, x1, y1) draws a rectangle."""
     d, k = r.draw, r.k
     d.rounded_rectangle(r.q(1, 1, 31, 31), radius=7 * k, fill=NAVY)
-    r(6, 5, 8, 25, ORANGE)  # excitation pulse
+    r(6, 5, 8, 25, LBLUE)  # excitation pulse (blue laser)
     heights = (17, 10, 6, 4, 2, 1)  # photon histogram of the decay
     for i, h in enumerate(heights):
         r(10 + 3 * i, 25 - h, 12 + 3 * i, 25, GREEN)
@@ -715,7 +730,7 @@ def _app_icon_detailed(r):
 def _app_icon_simple(r):
     """16-unit layout for small sizes: whole-pixel shapes only, no curve."""
     r.draw.rounded_rectangle(r.q(0, 0, 16, 16), radius=3.5 * r.k, fill=NAVY)
-    r(3, 3, 4, 12, ORANGE)
+    r(3, 3, 4, 12, LBLUE)
     for i, h in enumerate((8, 5, 3, 2, 1)):
         r(5 + 2 * i, 12 - h, 6 + 2 * i, 12, GREEN)
     r(2, 12, 14, 13, WHITE)
@@ -804,7 +819,9 @@ def main(outdir):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     for name, draw in ICONS.items():
-        draw().resize((SIZE, SIZE), Image.LANCZOS).save(outdir / name)
+        im = draw()
+        crisp = im.info.get("crisp")  # pixel-aligned drawing: average, don't sharpen
+        im.resize((SIZE, SIZE), Image.BOX if crisp else Image.LANCZOS).save(outdir / name)
     save_app_icon(outdir)
 
 

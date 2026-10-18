@@ -64,3 +64,25 @@ def test_app_icon():
     assert png.size == (256, 256) and png.mode == "RGBA"
     ico = Image.open(resources / "flimanalyzer.ico")
     assert {(16, 16), (32, 32), (256, 256)} <= set(ico.info["sizes"])
+
+
+def test_icons_have_no_red_or_orange():
+    # colour-blind safe palette: groups are green and magenta, never red/orange
+    # next to green (see scripts/make_icons.py)
+    Image = pytest.importorskip("PIL.Image")
+    import numpy as np
+
+    offenders = {}
+    for path in sorted((FLIM / "resources").glob("*.png")):
+        rgba = np.asarray(Image.open(path).convert("RGBA")).reshape(-1, 4)
+        hsv = np.asarray(Image.fromarray(rgba[None, :, :3]).convert("HSV"))[0] / 255.0
+        hue = hsv[:, 0] * 360
+        warm = (
+            (rgba[:, 3] > 200)
+            & (hsv[:, 1] > 0.45)
+            & (hsv[:, 2] > 0.35)
+            & ((hue < 50) | (hue > 345))
+        )
+        if warm.sum() > 4:
+            offenders[path.name] = int(warm.sum())
+    assert not offenders, f"icons with red/orange pixels: {offenders}"
