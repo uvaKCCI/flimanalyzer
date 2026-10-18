@@ -30,13 +30,16 @@ import logging
 import os
 import re
 import threading
+import uuid
 from typing import Any, Callable, Dict, List, Optional
 
 import networkx as nx
 from prefect import flow, tags, task, unmapped
 from prefect.cache_policies import NO_CACHE
+from prefect.context import FlowRunContext
 from prefect.futures import PrefectFuture
 from prefect.settings import get_current_settings
+from prefect.states import Cancelled
 from prefect.task_runners import ThreadPoolTaskRunner
 
 from flim.results import clean_path_component, save_results
@@ -51,6 +54,8 @@ __all__ = [
     "pyplot_lock",
     "default_max_workers",
     "default_task_runner",
+    "TaskCancelled",
+    "CancelToken",
 ]
 
 _CURRENT_RUN = contextvars.ContextVar("flim_flow_run", default=None)
@@ -59,6 +64,67 @@ _MARKER = "__flim_task_output__"
 # pyplot's figure registry and current-figure state are shared by all threads: tasks
 # that draw figures take turns, all other tasks run concurrently
 pyplot_lock = threading.RLock()
+
+
+class TaskCancelled(Exception):
+    """Raised by :meth:`flim.plugin.AbstractPlugin.cancel` to stop the running task.
+
+    Prefect handles it like any other exception (the task run ends Failed and tasks
+    that depend on it are not run); the runner records the task as cancelled.
+    """
+
+
+class _RunCancelled(Exception):
+    """Stops the workflow script once the run has been cancelled."""
+
+
+class CancelToken:
+    """Run-wide cancel signal, see :meth:`flim.plugin.AbstractPlugin.check_cancelled`.
+
+    A threading.Event in this process; with a Dask task runner it is mirrored in a
+    ``distributed.Event`` so that tasks running in other processes see it too.
+    """
+
+    def __init__(self):
+        self.name = f"flim-cancel-{uuid.uuid4()}"
+        self._local = threading.Event()
+        self._client = None  # Dask client, set when the flow uses Dask
+        self._dask = False
+
+    def use_dask(self, client):
+        self._client = client
+        self._dask = True
+
+    def set(self):
+        """Requests cancellation of the run."""
+        if self._local is not None:
+            self._local.set()
+        if self._dask:
+            try:
+                import distributed
+
+                distributed.Event(self.name, client=self._client).set()
+            except Exception:
+                logging.exception("Could not signal cancellation to the Dask workers")
+
+    def is_set(self) -> bool:
+        if self._local is not None:
+            return self._local.is_set()
+        if self._dask:  # unpickled in a Dask worker process
+            try:
+                import distributed
+
+                return distributed.Event(self.name).is_set()
+            except Exception:
+                return False
+        return False
+
+    def __getstate__(self):
+        # events and clients cannot be pickled; workers use the distributed.Event
+        return {"name": self.name, "_dask": self._dask}
+
+    def __setstate__(self, state):
+        self.__dict__.update(state, _local=None, _client=None)
 
 
 def default_max_workers() -> int:
@@ -140,12 +206,28 @@ def _run_plugin(plugin, kwargs: Dict[str, Any]):
     Kept out of the task function: Dask pickles that by value together with the
     globals it uses, and a lock cannot be pickled.
     """
+    plugin.check_cancelled()  # tasks that start after a cancel stop right away
     draws = getattr(plugin, "draws_figures", False)
     with pyplot_lock if draws else contextlib.nullcontext():
         return plugin.run(**_unwrap(kwargs))
 
 
-@task(cache_policy=NO_CACHE, task_run_name="{label}")
+def _retry_unless_cancelled(task, task_run, state) -> bool:
+    """A cancelled task is never retried, even if retries are configured."""
+    try:
+        state.result()  # re-raises the task's exception
+    except TaskCancelled:
+        return False
+    except Exception:
+        return True
+    return True
+
+
+@task(
+    cache_policy=NO_CACHE,
+    task_run_name="{label}",
+    retry_condition_fn=_retry_unless_cancelled,
+)
 def run_plugin(plugin, label: str, kwargs: Dict[str, Any], autosave: Optional[dict]):
     """Prefect task that runs a single plugin call."""
     results = _run_plugin(plugin, kwargs)
@@ -162,6 +244,7 @@ class FlowRun:
         name: str,
         autosave_dir: str = None,
         on_progress: Optional[Callable[[int, int, str], None]] = None,
+        cancel_token: Optional[CancelToken] = None,
     ):
         """
         Args:
@@ -170,11 +253,16 @@ class FlowRun:
             on_progress: called as ``on_progress(done, total, label)`` when a task is
                 submitted or finishes, from the thread that submitted or ran it;
                 ``total`` counts the tasks submitted so far.
+            cancel_token: signal that cancels the run when set.
         """
         self.name = name
         self.autosave_dir = autosave_dir
         self.on_progress = on_progress
+        self.cancel_token = cancel_token or CancelToken()
+        self.flow_run_id = None
+        self.state = "running"  # completed, cancelled or failed when the run ends
         self.start_time = datetime.datetime.now()
+        self.end_time = None
         self.graph = nx.DiGraph()
         self._label_counts = {}
         self._key_nodes = {}
@@ -221,6 +309,7 @@ class FlowRun:
         # each call gets its own copy so calls don't share configuration
         plugin = copy.copy(plugin)
         plugin.params = dict(plugin.params)
+        plugin._cancel_token = self.cancel_token
 
         tag_list = [task_tags] if isinstance(task_tags, str) else list(task_tags or [])
         label = self._unique_label(plugin.name)
@@ -229,6 +318,12 @@ class FlowRun:
         payload = self._to_payload(kwargs, upstream)
         for u in upstream:
             self.graph.add_edge(u, node)
+
+        if self.cancel_token.is_set():
+            with self._lock:
+                self.graph.nodes[node].update(status="cancelled", message="Run cancelled")
+            self._report_progress(label)
+            raise _RunCancelled()
 
         failed = [
             u for u in upstream if self.graph.nodes[u]["status"] in ("failed", "skipped")
@@ -272,6 +367,9 @@ class FlowRun:
             elif state.is_pending() and state.name == "NotReady":
                 attrs.update(status="skipped", ref=None, message=state.message)
                 logging.warning(f"Skipped {attrs['label']}: upstream task did not complete.")
+            elif isinstance(exc := ref.result(raise_on_failure=False), TaskCancelled):
+                attrs.update(status="cancelled", ref=None, message=str(exc) or "Cancelled")
+                logging.info(f"{attrs['label']} cancelled: {attrs['message']}")
             else:
                 attrs.update(status="failed", ref=None, message=state.message)
                 logging.error(f"{attrs['label']} failed: {state.message}")
@@ -304,13 +402,67 @@ class FlowRun:
             if "plugin" in attrs and attrs["status"] == "completed"
         ]
 
+    def _labels(self, status: str) -> List[str]:
+        return [a["label"] for _, a in self.graph.nodes(data=True) if a["status"] == status]
+
     @property
     def failed(self) -> List[str]:
-        return [
-            attrs["label"]
-            for _, attrs in self.graph.nodes(data=True)
-            if attrs["status"] == "failed"
+        return self._labels("failed")
+
+    @property
+    def cancelled(self) -> List[str]:
+        return self._labels("cancelled")
+
+    def cancel(self):
+        """Cancels the run: no new tasks start, and running tasks stop at their next
+        :meth:`~flim.plugin.AbstractPlugin.check_cancelled`."""
+        self.cancel_token.set()
+
+    def task_counts(self) -> Dict[str, int]:
+        """Number of tasks per status (completed, failed, cancelled, skipped, ...)."""
+        counts = {}
+        for _, attrs in self.graph.nodes(data=True):
+            if "plugin" in attrs:
+                counts[attrs["status"]] = counts.get(attrs["status"], 0) + 1
+        return counts
+
+    @property
+    def ui_url(self) -> Optional[str]:
+        """Link to the flow run in the Prefect UI, None without a Prefect server."""
+        if self.flow_run_id is None:
+            return None
+        from prefect.utilities.urls import url_for
+
+        return url_for("flow-run", obj_id=self.flow_run_id)
+
+    def write_summary(self) -> Optional[str]:
+        """Writes ``run_summary.txt`` into the results directory, if there is one."""
+        if not self.autosave_dir:
+            return None
+        os.makedirs(self.autosave_dir, exist_ok=True)
+        counts = self.task_counts()
+        tasks = [a for _, a in self.graph.nodes(data=True) if "plugin" in a]
+        width = max([len(a["label"]) for a in tasks] + [4])
+        lines = [
+            "FLIMAnalyzer run summary",
+            "",
+            f"Flow:       {self.name}",
+            f"State:      {self.state}",
+            f"Started:    {self.start_time:%Y-%m-%d %H:%M:%S}",
+            f"Finished:   {self.end_time:%Y-%m-%d %H:%M:%S}" if self.end_time else "Finished:",
+            f"Prefect:    {self.ui_url or self.flow_run_id or '-'}",
+            f"Results:    {self.autosave_dir}",
+            "Tasks:      " + ", ".join(f"{n} {s}" for s, n in sorted(counts.items())),
+            "",
+            f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  Message",
         ]
+        for a in tasks:
+            message = (a.get("message") or "").replace("\n", " ")
+            lines.append(f"{a['label'].ljust(width)}  {a['status'].ljust(9)}  {message}".rstrip())
+        path = os.path.join(self.autosave_dir, "run_summary.txt")
+        with open(path, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        return path
 
 
 def current_run() -> Optional[FlowRun]:
@@ -387,12 +539,25 @@ def _flow_body():
     sends to Dask workers, can be pickled by reference.
     """
     run, build = _PENDING_FLOW.get()
+    context = FlowRunContext.get()
+    if context is not None and context.flow_run is not None:
+        run.flow_run_id = context.flow_run.id
+    task_runner = getattr(context, "task_runner", None)
+    if type(task_runner).__name__ == "DaskTaskRunner":
+        # let tasks in other processes see a cancel; the client (and a local
+        # cluster) is created on first access, which submitting would do anyway
+        run.cancel_token.use_dask(task_runner.client)
     token = _CURRENT_RUN.set(run)
     try:
-        build()
+        try:
+            build()
+        except _RunCancelled:
+            pass
         run.wait()
     finally:
         _CURRENT_RUN.reset(token)
+    if run.cancel_token.is_set():
+        return Cancelled(message="Cancelled by the user")
 
 
 def run_flow(
@@ -401,6 +566,7 @@ def run_flow(
     task_runner=None,
     autosave_dir: str = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
+    cancel_token: Optional[CancelToken] = None,
 ) -> FlowRun:
     """Runs ``build`` as a Prefect flow; plugin calls inside it become task runs.
 
@@ -411,11 +577,14 @@ def run_flow(
         autosave_dir: if set, every task's results are saved below this directory
             (``<autosave_dir>/<timestamp>/<task tags>/``).
         on_progress: see :class:`FlowRun`.
+        cancel_token: :class:`CancelToken` that cancels the run when set, e.g. from
+            another thread.
 
     Returns:
-        FlowRun: recorded task graph and results.
+        FlowRun: recorded task graph and results; ``state`` is completed,
+        cancelled or failed (some tasks failed).
     """
-    run = FlowRun(name, on_progress=on_progress)
+    run = FlowRun(name, on_progress=on_progress, cancel_token=cancel_token)
     if autosave_dir:
         run.autosave_dir = os.path.join(
             autosave_dir, run.start_time.strftime("%Y-%m-%d_%H-%M-%S")
@@ -428,9 +597,19 @@ def run_flow(
     )
     token = _PENDING_FLOW.set((run, build))
     try:
-        # failed tasks are recorded in run.graph; errors raised while building the
-        # workflow itself propagate
-        prefect_flow()
+        state = prefect_flow(return_state=True)
     finally:
         _PENDING_FLOW.reset(token)
+        run.end_time = datetime.datetime.now()
+    if state.is_cancelled():
+        run.state = "cancelled"
+    elif state.is_completed():
+        run.state = "failed" if run.failed else "completed"
+    else:
+        run.state = "failed"
+    run.write_summary()
+    if not (state.is_completed() or state.is_cancelled()):
+        # failed tasks are recorded in run.graph; errors raised while building the
+        # workflow itself propagate
+        state.result()
     return run

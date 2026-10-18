@@ -30,7 +30,7 @@ from typing import (
     Type,
 )
 from abc import ABC, abstractmethod
-from flim.core.runner import call_plugin, map_plugin, select
+from flim.core.runner import TaskCancelled, call_plugin, map_plugin, select
 
 
 PLUGINS = {}
@@ -423,6 +423,28 @@ class AbstractPlugin:
                  objects.
         """
         return {}
+
+    def cancel(self, message: str = "Cancelled"):
+        """Stops this task by raising :class:`~flim.core.runner.TaskCancelled`.
+
+        Call it only from :meth:`execute`. Inside a flow, the task is recorded as
+        cancelled and tasks that use its results are not run; other tasks continue.
+        Outside a flow, the exception reaches the caller.
+
+        Args:
+            message: reason, shown in the log and the run summary.
+        """
+        raise TaskCancelled(message)
+
+    def check_cancelled(self):
+        """Stops this task (see :meth:`cancel`) if the user cancelled the run.
+
+        Call it regularly from long-running :meth:`execute` methods, e.g. once per
+        epoch or per group. Does nothing outside a flow.
+        """
+        token = getattr(self, "_cancel_token", None)
+        if token is not None and token.is_set():
+            self.cancel("Run cancelled by the user")
 
     def run(self, input={}, input_select=None, **kwargs):
         logging.debug(f"{self.name}: kwargs[features]={kwargs.get('features', None)}")

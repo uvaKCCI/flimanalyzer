@@ -690,6 +690,7 @@ class AETraining(AbstractPlugin):
         encoded = []  # np.zeros((len(self.data),len(self.params['features'])))
         checkpoints = []
         for epoch in range(1, self.params["epoches"] + 1):
+            self.check_cancelled()
             cum_loss = 0
             train_samples = 0
             for i, (batchinputs, batchlabels) in enumerate(train_loader):
