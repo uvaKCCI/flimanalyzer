@@ -210,6 +210,8 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
         return tool.params
 
     monkeypatch.setattr(SummaryStats, "run_configuration_dialog", configure)
+    # never wait for a click: any other prompt is answered with No
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: messages.append(message))
     outcomes = []
@@ -236,4 +238,8 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
     new = {t: w for t, w in frame.windowframes.items() if t not in before}
     assert new and all(isinstance(w, PandasFrame) for w in new.values())
     assert all(isinstance(w.GetViewData(), pd.DataFrame) for w in new.values())
+    # close the data windows without the "save the modified data?" prompt
+    for window in frame.windowframes.values():
+        if isinstance(window, PandasFrame):
+            window.modified = False
     frame.OnCloseAll(None)

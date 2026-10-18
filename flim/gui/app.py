@@ -178,17 +178,17 @@ class AppFrame(wx.Frame):
 
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
-        loadmenuitem = filemenu.Append(wx.NewId(), "&Open...", "Open single data file")
+        loadmenuitem = filemenu.Append(wx.ID_ANY, "&Open...", "Open single data file")
         importmenuitem = filemenu.Append(
-            wx.NewId(), "Import...", "Import and concatenate mutliple data files"
+            wx.ID_ANY, "Import...", "Import and concatenate mutliple data files"
         )
-        exitmenuitem = filemenu.Append(wx.NewId(), "Exit", "Exit the application")
+        exitmenuitem = filemenu.Append(wx.ID_ANY, "Exit", "Exit the application")
         settingsmenu = wx.Menu()
-        loadsettingsitem = settingsmenu.Append(wx.NewId(), "Load settings...")
-        savesettingsitem = settingsmenu.Append(wx.NewId(), "Save settings...")
+        loadsettingsitem = settingsmenu.Append(wx.ID_ANY, "Load settings...")
+        savesettingsitem = settingsmenu.Append(wx.ID_ANY, "Save settings...")
 
         self.windowmenu = wx.Menu()
-        closeallitem = self.windowmenu.Append(wx.NewId(), "Close all windows")
+        closeallitem = self.windowmenu.Append(wx.ID_ANY, "Close all windows")
         self.windowmenu.AppendSeparator()
 
         menubar.Append(filemenu, "&File")
@@ -308,7 +308,7 @@ class AppFrame(wx.Frame):
         tools = []
         for pname, pclass in plugins.items():
             plg = plugin.create_instance(pclass)
-            menuitem = menu.Append(wx.NewId(), pname)
+            menuitem = menu.Append(wx.ID_ANY, pname)
             self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
             if add_tools:
                 tools.append((pname, plg.get_icon(), self.on_run_plugin))

@@ -253,7 +253,7 @@ def grouped_scatterplot(
 
     logging.debug(f"NEWKWARGS: {newkwargs}")
     if len(groups) > 0:
-        grouped = data.groupby(groups)
+        grouped = data.groupby(groups, observed=False)
         for name, group in grouped:
             if len(group[col1]) > 0 and len(group[col2] > 0):
                 newkwargs.update({"label": name})
@@ -331,7 +331,7 @@ def histogram(
         if normalize is not None:
             weights = np.ones_like(data[column].values) / float(totalcounts) * normalize
     else:
-        groupeddata = data.groupby(groups)
+        groupeddata = data.groupby(groups, observed=False)
         newkwargs.update({"label": list(groupeddata.groups)})
         for name, group in groupeddata:
             if len(group[column]) > 0:
@@ -431,7 +431,7 @@ def stacked_histogram(
         if normalize is not None:
             weights = np.ones_like(data[column].values) / float(totalcounts) * normalize
     else:
-        groupeddata = data.groupby(groups)
+        groupeddata = data.groupby(groups, observed=False)
         newkwargs.update({"label": list(groupeddata.groups)})
         for name, group in groupeddata:
             pltdata.append(group[column].values)

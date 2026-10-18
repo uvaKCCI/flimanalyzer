@@ -565,7 +565,7 @@ class AETraining(AbstractPlugin):
         # encode labels of all category columns
         label_encoders = defaultdict(LabelEncoder)
         data = data.loc[:, columns]
-        data.loc[:, allcat_columns] = data.loc[:, allcat_columns].apply(
+        data[allcat_columns] = data[allcat_columns].apply(
             lambda x: label_encoders[x.name].fit_transform(x)
         )
 

@@ -33,6 +33,7 @@ import threading
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
+import matplotlib.figure
 import networkx as nx
 from prefect import flow, tags, task, unmapped
 from prefect.cache_policies import NO_CACHE
@@ -209,7 +210,23 @@ def _run_plugin(plugin, kwargs: Dict[str, Any]):
     plugin.check_cancelled()  # tasks that start after a cancel stop right away
     draws = getattr(plugin, "draws_figures", False)
     with pyplot_lock if draws else contextlib.nullcontext():
-        return plugin.run(**_unwrap(kwargs))
+        results = plugin.run(**_unwrap(kwargs))
+    _release_figures(results)
+    return results
+
+
+def _release_figures(results):
+    """Removes result figures from pyplot's registry, which keeps every figure it
+    created until it is closed. The figures stay usable (saving, showing)."""
+    if not isinstance(results, dict):
+        return
+    figures = [v for v in results.values() if isinstance(v, matplotlib.figure.Figure)]
+    if figures:
+        import matplotlib.pyplot as plt
+
+        with pyplot_lock:
+            for figure in figures:
+                plt.close(figure)
 
 
 def _retry_unless_cancelled(task, task_run, state) -> bool:

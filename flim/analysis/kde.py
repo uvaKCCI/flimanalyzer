@@ -190,7 +190,7 @@ class KDE(AbstractPlugin):
             data = data[cols].dropna(how="any", subset=[column])
         df = pd.DataFrame()
         if len(groups) > 0:
-            gs = data.groupby(groups)
+            gs = data.groupby(groups, observed=False)
             styles = []
             if linestyles is None and len(groups) == 2:
                 uniquevalues = [data[g].unique() for g in groups]

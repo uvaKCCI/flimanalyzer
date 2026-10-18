@@ -127,7 +127,7 @@ class ScatterPlot(AbstractPlugin):
 
         logging.debug(f"NEWKWARGS: {newkwargs}")
         if len(categories) > 0:
-            grouped = data.groupby(categories)
+            grouped = data.groupby(categories, observed=False)
             for name, group in grouped:
                 if len(group[col1]) > 0 and len(group[col2] > 0):
                     newkwargs.update({"label": name})

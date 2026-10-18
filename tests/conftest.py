@@ -45,3 +45,4 @@ def features():
 def close_figures():
     yield
     plt.close("all")
+

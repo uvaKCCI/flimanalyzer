@@ -242,9 +242,9 @@ class RelativeChange(AbstractPlugin):
 
         refdf = data.loc[data[refgroup] == refvalue]
         if method == "median":
-            transdf = refdf.groupby(grouping)[features].transform("median")
+            transdf = refdf.groupby(grouping, observed=False)[features].transform("median")
         else:
-            transdf = refdf.groupby(grouping)[features].transform("mean")
+            transdf = refdf.groupby(grouping, observed=False)[features].transform("mean")
         data = data.set_index(allcategories)
         transdf = pd.concat([refdf[nonrefcategories], transdf], axis=1)
         transdf = transdf.drop_duplicates()

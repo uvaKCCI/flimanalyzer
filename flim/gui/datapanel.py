@@ -744,7 +744,7 @@ class PandasFrame(wx.Frame):
             pivot_data = usedata.reset_index()
             selcolumns.extend(self.groups)
             pivot_data = pd.pivot_table(
-                pivot_data[selcolumns], index=indexgroups, columns=selgroups
+                pivot_data[selcolumns], index=indexgroups, columns=selgroups, observed=False
             )
             # flatten multiindex in column headers
             pivot_data.columns = [
@@ -782,7 +782,7 @@ class PandasFrame(wx.Frame):
         groups = dlg.get_selected()
         dlg.Destroy()
         if len(groups) > 0:
-            for name, splitdata in self.dataview.groupby(groups):
+            for name, splitdata in self.dataview.groupby(groups, observed=False):
                 windowtitle = "%s: %s" % (str(groups), str(name))
                 event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
                 event.SetEventInfo(

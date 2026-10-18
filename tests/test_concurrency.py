@@ -168,3 +168,20 @@ def test_workflow_results_do_not_depend_on_worker_count(flirr_data, tmp_path):
         axes_1, axes_n = figures_1[key].get_axes(), figures_n[key].get_axes()
         assert len(axes_1) == len(axes_n)
         assert [a.get_title() for a in axes_1] == [a.get_title() for a in axes_n]
+
+
+def test_result_figures_are_released_from_pyplot(flim_data):
+    import matplotlib.pyplot as plt
+
+    from flim.analysis.kde import KDE
+
+    plt.close("all")
+
+    def build():
+        KDE()(input={"data": flim_data}, grouping=["Treatment"], features=["NAD(P)H t1"])
+
+    run = run_flow("figures", build)
+    (result,) = run.results()
+    figures = [v for v in result.values() if isinstance(v, matplotlib.figure.Figure)]
+    assert figures and plt.get_fignums() == []
+    figures[0].savefig(__import__("io").BytesIO())  # still usable

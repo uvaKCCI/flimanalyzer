@@ -233,7 +233,7 @@ class KSStats(AbstractPlugin):
         else:
             # set groups based on categories excluding the comparison category
             groups = [g for g in groups if g != comparison]
-            groupvals = [name for name, _ in data.groupby(groups)]
+            groupvals = [name for name, _ in data.groupby(groups, observed=False)]
             cols = [c for c in groups]
         dissimilar_label = f"dissimilar (<{alpha})"
         allcategories = [c for c in cols]
@@ -272,7 +272,7 @@ class KSStats(AbstractPlugin):
             if len(fdata) == 0:
                 continue
             compgroups = {
-                name: splitdata for name, splitdata in fdata.groupby(comparison)
+                name: splitdata for name, splitdata in fdata.groupby(comparison, observed=False)
             }
             comb = combinations(compgroups.keys(), 2)
             for c in comb:

@@ -72,7 +72,7 @@ class Pivot(AbstractPlugin):
         logging.debug(f"pivoting {selgroups} in {groups}")
         data = data.reset_index()
         pivot_data = pd.pivot_table(
-            data[selfeatures], index=indexgroups, columns=selgroups
+            data[selfeatures], index=indexgroups, columns=selgroups, observed=False
         )
         # flatten multiindex in column headers
         pivot_data.columns = [
