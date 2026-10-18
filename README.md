@@ -21,7 +21,7 @@ Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environ
     cd flimanalyzer
     uv sync
 
-On Windows and Linux (x86_64), uv installs the CUDA build of PyTorch; on macOS the standard PyPI build is used.
+On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so an NVIDIA GPU can be used. On macOS (Apple Silicon only, as current PyTorch has no Intel Mac builds), the PyPI build is used and FLIMAnalyzer runs PyTorch on the CPU.
 
 To also install the test dependencies:
 
@@ -35,7 +35,11 @@ To also install the test dependencies:
     source .venv/bin/activate    # Windows: .venv\Scripts\activate
     pip install -e .
 
-pip installs the CPU build of PyTorch from PyPI. For GPU support, install PyTorch first by following the instructions at [pytorch.org](https://pytorch.org/get-started/locally/).
+pip installs PyTorch from PyPI, which provides a different build on each platform:
+
+* **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
+* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **macOS:** only Apple Silicon is supported, and FLIMAnalyzer runs PyTorch on the CPU.
 
 ## Run the application
 
