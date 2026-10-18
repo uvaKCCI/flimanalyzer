@@ -30,19 +30,30 @@ def clean_path_component(name: str) -> str:
 def save_results(results, directory: str, name: str) -> None:
     """Saves a plugin's results below ``directory``.
 
-    The complete result is pickled to ``<directory>/pickled/<name>``. If the result is a
-    dict, each DataFrame is also written as ``<key>.txt``, each Figure as ``<key>.png``
-    and any other value pickled as ``<key>`` in ``directory``.
+    The result without its figures is pickled to ``<directory>/pickled/<name>``. If
+    the result is a dict, each DataFrame is also written as ``<key>.txt``, each Figure
+    as ``<key>.png`` and any other value pickled as ``<key>`` in ``directory``.
+
+    Figures are only saved as PNG: pickling them is slow for figures with many
+    points, and the pickles only work with the matplotlib version that wrote them.
 
     Args:
         results: plugin result, usually a dict of DataFrames and/or Figures.
         directory (str): target directory, created if it does not exist.
         name (str): name of the task that produced the results.
     """
-    pickledir = os.path.join(directory, "pickled")
-    os.makedirs(pickledir, exist_ok=True)
-    dump(results, os.path.join(pickledir, clean_path_component(name)))
+    os.makedirs(directory, exist_ok=True)
     logging.debug(f"Saving results of {name} to {directory}")
+    if isinstance(results, dict):
+        to_pickle = {
+            k: v for k, v in results.items() if not isinstance(v, matplotlib.figure.Figure)
+        }
+    else:
+        to_pickle = None if isinstance(results, matplotlib.figure.Figure) else results
+    if to_pickle is not None and not (isinstance(to_pickle, dict) and not to_pickle):
+        pickledir = os.path.join(directory, "pickled")
+        os.makedirs(pickledir, exist_ok=True)
+        dump(to_pickle, os.path.join(pickledir, clean_path_component(name)))
     if not isinstance(results, dict):
         return
     for k, v in results.items():
