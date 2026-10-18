@@ -5,6 +5,7 @@ import pytest
 from flim.analysis.barplots import BarPlot
 from flim.analysis.boxplots import BoxPlot
 from flim.analysis.freqhisto import FreqHisto
+from flim.analysis.gmm import GaussianMixedModel
 from flim.analysis.heatmap import Heatmap
 from flim.analysis.kde import KDE
 from flim.analysis.kmeans import KMeansClustering
@@ -63,6 +64,27 @@ def test_kmeans_assigns_clusters(flim_data, features):
     results = run(KMeansClustering, {"data": flim_data}, features=features, n_clusters=2)
     tables = [v for v in results.values() if isinstance(v, pd.DataFrame)]
     assert any(len(t) == len(flim_data) for t in tables)
+
+
+@pytest.mark.parametrize("method", ["EM", "Variational Bayesian"])
+def test_gmm_assigns_components(flim_data, features, method):
+    results = run(
+        GaussianMixedModel,
+        {"data": flim_data},
+        features=features,
+        method=method,
+        n_components=2,
+        covar_type="full",
+    )
+    clusters = results["Table: GMM full, Feature Clustering"]
+    assert len(clusters) == len(flim_data)
+    assert set(clusters["GMM full"].cat.categories) <= {"GMM full 1", "GMM full 2"}
+    probs = clusters[["GMM Prob Component 1", "GMM Prob Component 2"]].sum(axis=1)
+    assert probs.to_numpy() == pytest.approx(1.0)
+    criteria = results["Table: GMM full, Component Information Criteria"]
+    assert list(criteria.columns) == ["Component", "BIC", "AIC"] and len(criteria) == 2
+    covariance = results["Table: GMM full, Covariance, component 1"]
+    assert covariance.shape == (len(features), len(features))
 
 
 @pytest.mark.parametrize(

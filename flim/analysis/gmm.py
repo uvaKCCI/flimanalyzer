@@ -15,6 +15,7 @@ from importlib_resources import files, as_file
 from flim.plugin import plugin, AbstractPlugin
 import flim.resources
 from flim.gui.dialogs import BasicAnalysisConfigDlg
+from flim import utils
 
 COVAR_OPTIONS = ["spherical", "tied", "diag", "full"]
 METHOD_OPTIONS = ["EM", "Variational Bayesian"]
@@ -40,6 +41,20 @@ def full_matrix(values, covar_type, n_components, n_features):
 
 
 class GaussianMixedModelConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "method": "EM",
+        "n_components": 2,
+        "covar_type": "full",
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -50,24 +65,35 @@ class GaussianMixedModelConfigDlg(BasicAnalysisConfigDlg):
         method="EM",
         n_components=2,
         covar_type="full",
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "enablegrouping": False,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "optgridrows": 0,
+            "optgridcols": 1,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+        basic_params.update(**kwargs)
+
         self.method = method
         self.n_components = n_components
         self.covar_type = covar_type
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            enablegrouping=False,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         option_sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -121,6 +147,10 @@ class GaussianMixedModelConfigDlg(BasicAnalysisConfigDlg):
 
         return [option_sizer]
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
     def _get_selected(self):
         params = super()._get_selected()
         params["method"] = self.method_combobox.GetValue()
@@ -159,18 +189,19 @@ class GaussianMixedModel(AbstractPlugin):
         return {"Table: Gaussian Mixed Model BIC": pd.DataFrame}
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = GaussianMixedModelConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            method=self.params["method"],
-            n_components=self.params["n_components"],
-            covar_type=self.params["covar_type"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(GaussianMixedModelConfigDlg.get_base_params())
+        dlg_params = utils.update_left(merged_base, self.params)
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=self.params["grouping"],
+                selectedfeatures=self.params["features"],
+            )
         )
+
+        dlg = GaussianMixedModelConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
