@@ -64,7 +64,7 @@ class AbsWorkFlow(AbstractPlugin):
         return self.name
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("sim_tuning1.png")
+        source = files(flim.resources).joinpath("workflow.png")
         return wx.Bitmap(str(source))
 
     def get_default_parameters(self):

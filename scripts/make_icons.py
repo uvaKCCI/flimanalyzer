@@ -1,0 +1,691 @@
+"""Draws the tool icons in flim/resources.
+
+All icons share one flat style: 32x32 RGBA on a transparent background, drawn at
+8x and downsampled, with the same axes, line weights and colour palette.
+
+The palette is colour-blind safe (based on Okabe & Ito): two groups are always
+green and magenta, never red and green; blue is used for single data series and
+orange marks processing steps.
+
+Usage:
+    uv run python scripts/make_icons.py [outdir]   # default: flim/resources
+"""
+
+import math
+import sys
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFont
+
+S = 8  # supersampling factor
+SIZE = 32
+
+# palette
+BLUE = (40, 100, 210, 255)  # single data series
+LBLUE = (165, 195, 240, 255)
+GREEN = (0, 158, 115, 255)  # group 1
+LGREEN = (150, 215, 195, 255)
+MAGENTA = (204, 51, 170, 255)  # group 2
+LMAGENTA = (235, 170, 220, 255)
+ORANGE = (230, 159, 0, 255)  # processing steps, accents, group 3
+YELLOW = (240, 215, 70, 255)  # autoencoder bottleneck
+NODE = (100, 150, 240, 255)  # autoencoder nodes
+DARK = (32, 32, 32, 255)  # axes, outlines, text
+GRAY = (128, 128, 128, 255)
+LGRAY = (190, 190, 190, 255)
+WHITE = (255, 255, 255, 255)
+CLEAR = (0, 0, 0, 0)
+# sequential, perceptually uniform (viridis samples)
+VIRIDIS = [(68, 1, 84), (59, 82, 139), (33, 145, 140), (94, 201, 98), (253, 231, 37)]
+
+
+# --- helpers ---------------------------------------------------------------
+
+
+def canvas():
+    im = Image.new("RGBA", (SIZE * S, SIZE * S), CLEAR)
+    return im, ImageDraw.Draw(im)
+
+
+def s(*v):
+    return [x * S for x in v]
+
+
+def px(w):
+    return max(1, int(round(w * S)))
+
+
+def circle(d, x, y, r, fill, outline=None, w=0):
+    d.ellipse(s(x - r, y - r, x + r, y + r), fill=fill, outline=outline, width=px(w) if w else 0)
+
+
+def line(d, pts, color, w=1.3):
+    d.line([v * S for p in pts for v in p], fill=color, width=px(w), joint="curve")
+
+
+def arrow(d, x0, y0, x1, y1, color, w=1.6, head=3.2):
+    ang = math.atan2(y1 - y0, x1 - x0)
+    bx, by = x1 - head * math.cos(ang), y1 - head * math.sin(ang)
+    d.line(s(x0, y0, bx, by), fill=color, width=px(w))
+    nx, ny = -math.sin(ang), math.cos(ang)
+    h = head * 0.7
+    d.polygon(s(x1, y1, bx + nx * h, by + ny * h, bx - nx * h, by - ny * h), fill=color)
+
+
+def arc_arrow(d, cx, cy, r, start, end, color, w=1.6, head=3.2):
+    """Arrow along a circular arc from angle start to end (degrees, clockwise)."""
+    n = 24
+    pts = [
+        (cx + r * math.cos(math.radians(start + (end - start) * i / n)),
+         cy + r * math.sin(math.radians(start + (end - start) * i / n)))
+        for i in range(n + 1)
+    ]
+    line(d, pts[:-3], color, w)
+    arrow(d, *pts[-4], *pts[-1], color, w=w, head=head)
+
+
+def axes(d, x0=3, y0=2, x1=30, y1=29, w=1.3):
+    d.line(s(x0, y0, x0, y1), fill=DARK, width=px(w))
+    d.line(s(x0, y1, x1, y1), fill=DARK, width=px(w))
+
+
+def table(d, x0, y0, x1, y1, cols, rows, header=LGRAY, w=1.1, fill=WHITE):
+    """A table with a shaded header row; cols/rows are the number of cells."""
+    d.rectangle(s(x0, y0, x1, y1), fill=fill, outline=DARK, width=px(w))
+    rh = (y1 - y0) / rows
+    if header:
+        d.rectangle(s(x0, y0, x1, y0 + rh), fill=header, outline=DARK, width=px(w))
+    for i in range(1, cols):
+        x = x0 + (x1 - x0) * i / cols
+        d.line(s(x, y0, x, y1), fill=DARK, width=px(w * 0.7))
+    for j in range(1, rows):
+        y = y0 + rh * j
+        d.line(s(x0, y, x1, y), fill=DARK, width=px(w * 0.7))
+
+
+def text(d, x, y, txt, size, color=DARK, bold=0.5):
+    font = ImageFont.load_default(size=size * S)
+    d.text((x * S, y * S), txt, fill=color, font=font, anchor="mm",
+           stroke_width=px(bold), stroke_fill=color)
+
+
+def gauss_pts(x0, x1, ybase, height, mu, sigma, n=40):
+    pts = []
+    for i in range(n + 1):
+        t = (i / n - mu) / sigma
+        pts.append((x0 + (x1 - x0) * i / n, ybase - height * math.exp(-0.5 * t * t)))
+    return pts
+
+
+def kde_curve(d, x0, x1, ybase, height, mu, sigma, color, w=0.9):
+    line(d, gauss_pts(x0, x1, ybase, height, mu, sigma), color, w)
+
+
+def rotated_ellipse(d, cx, cy, rx, ry, angle_deg, outline, width=1.0, fill=None):
+    a = math.radians(angle_deg)
+    pts = []
+    for i in range(72):
+        t = 2 * math.pi * i / 72
+        x, y = rx * math.cos(t), ry * math.sin(t)
+        pts.append((cx + x * math.cos(a) - y * math.sin(a), cy + x * math.sin(a) + y * math.cos(a)))
+    d.polygon([v * S for p in pts for v in p], outline=outline, fill=fill, width=px(width))
+
+
+def ae_nodes(d, layers, x0, x1, y_mid, span, r=1.9):
+    """Autoencoder: fully connected layers, the bottleneck layer in yellow."""
+    cols = [x0 + (x1 - x0) * i / (len(layers) - 1) for i in range(len(layers))]
+    pos = []
+    for x, n in zip(cols, layers):
+        h = span * (n - 1) / (max(layers) - 1)
+        pos.append([(x, y_mid - h / 2 + (h * j / (n - 1) if n > 1 else h / 2)) for j in range(n)])
+    for a, b in zip(pos, pos[1:]):
+        for p in a:
+            for q in b:
+                d.line(s(*p, *q), fill=LGRAY, width=px(0.5))
+    for li, layer in enumerate(pos):
+        bottleneck = layers[li] == min(layers)
+        for x, y in layer:
+            circle(d, x, y, r, YELLOW if bottleneck else NODE)
+    return pos
+
+
+def gear(d, cx, cy, r, color, teeth=8):
+    pts = []
+    for i in range(teeth * 2):
+        for k in (0, 1):
+            a = (i + k * 0.9) * math.pi / teeth
+            rr = r if i % 2 == 0 else r * 0.72
+            pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
+    d.polygon([v * S for p in pts for v in p], fill=color)
+    circle(d, cx, cy, r * 0.32, CLEAR)
+
+
+def badge(d, cx, cy, r=6.2):
+    """White-rimmed orange disc for an action symbol in the corner of an icon."""
+    circle(d, cx, cy, r + 1, WHITE)
+    circle(d, cx, cy, r, ORANGE)
+
+
+def document(d, x0, y0, x1, y1, fold=4, fill=WHITE, w=1.2):
+    d.polygon(s(x0, y0, x1 - fold, y0, x1, y0 + fold, x1, y1, x0, y1), fill=fill, outline=DARK, width=px(w))
+    d.line(s(x1 - fold, y0, x1 - fold, y0 + fold, x1, y0 + fold), fill=DARK, width=px(w))
+
+
+# --- File ------------------------------------------------------------------
+
+
+def fileopen_icon():
+    im, d = canvas()
+    # folder with a document coming out of it
+    d.polygon(s(2, 9, 11, 9, 13.5, 12, 29, 12, 29, 29, 2, 29), fill=LBLUE, outline=DARK, width=px(1.2))
+    document(d, 8, 4, 22, 22)
+    for y in (11, 14.5, 18):
+        d.line(s(10.5, y, 19.5, y), fill=GRAY, width=px(1.1))
+    d.polygon(s(2, 29, 6, 16, 31, 16, 29, 29), fill=BLUE, outline=DARK, width=px(1.2))
+    return im
+
+
+def import_icon():
+    im, d = canvas()
+    # several documents merged into one table
+    for i, c in enumerate((GREEN, MAGENTA, ORANGE)):
+        x, y = 1 + i * 3.2, 1 + i * 3.2
+        document(d, x, y, x + 10, y + 12, fold=3)
+        d.rectangle(s(x + 2, y + 5, x + 8, y + 7), fill=c)
+    arrow(d, 15, 12, 20.5, 17.5, DARK, w=1.7, head=3.4)
+    table(d, 15, 19, 31, 31, 3, 3)
+    return im
+
+
+# --- Data ------------------------------------------------------------------
+
+
+def filter_icon():
+    im, d = canvas()
+    # mixed dots enter a funnel, only one kind comes out
+    for x, y, c in ((5, 3, GREEN), (10, 2, MAGENTA), (15, 3.5, GREEN),
+                    (20, 2, MAGENTA), (25, 3, GREEN), (13, 6.5, MAGENTA), (20, 6.5, GREEN)):
+        circle(d, x, y, 1.7, c)
+    d.polygon(s(2, 9.5, 30, 9.5, 19, 20, 19, 27, 13, 30, 13, 20), fill=GRAY, outline=DARK, width=px(1.2))
+    circle(d, 25, 22, 1.7, GREEN)
+    circle(d, 25, 28, 1.7, GREEN)
+    return im
+
+
+def concatenate_icon():
+    im, d = canvas()
+    # two tables stacked into one longer table
+    table(d, 1, 2, 12, 12, 2, 3, header=GREEN)
+    table(d, 1, 18, 12, 28, 2, 3, header=MAGENTA)
+    arrow(d, 13, 7, 18, 10.5, DARK, w=1.5, head=3)
+    arrow(d, 13, 23, 18, 19.5, DARK, w=1.5, head=3)
+    table(d, 19.5, 2, 31, 15, 2, 4, header=GREEN)
+    table(d, 19.5, 15, 31, 28, 2, 4, header=None)
+    d.rectangle(s(19.5, 15, 31, 18.25), fill=LMAGENTA, outline=DARK, width=px(1.1))
+    d.line(s(25.25, 15, 25.25, 28), fill=DARK, width=px(0.8))
+    return im
+
+
+def merge_icon():
+    im, d = canvas()
+    # two tables joined side by side
+    table(d, 1, 2, 9, 13, 1, 4, header=GREEN)
+    table(d, 1, 17, 9, 28, 1, 4, header=MAGENTA)
+    arrow(d, 10, 7.5, 14.5, 11.5, DARK, w=1.5, head=3)
+    arrow(d, 10, 22.5, 14.5, 18.5, DARK, w=1.5, head=3)
+    table(d, 16, 9, 31, 22, 2, 4, header=None)
+    d.rectangle(s(16, 9, 23.5, 12.25), fill=GREEN, outline=DARK, width=px(1.1))
+    d.rectangle(s(23.5, 9, 31, 12.25), fill=MAGENTA, outline=DARK, width=px(1.1))
+    return im
+
+
+def pivot_icon(reverse=False):
+    im, d = canvas()
+    # a column of the table becomes the header row (pivot) or vice versa
+    table(d, 2, 2, 30, 30, 4, 4, header=None)
+    d.rectangle(s(2, 2, 30, 9), fill=LBLUE, outline=DARK, width=px(1.1))
+    d.rectangle(s(2, 2, 9, 30), fill=LGREEN, outline=DARK, width=px(1.1))
+    d.rectangle(s(2, 2, 9, 9), fill=LGRAY, outline=DARK, width=px(1.1))
+    for i in range(1, 4):
+        d.line(s(2 + 7 * i, 2, 2 + 7 * i, 9), fill=DARK, width=px(0.8))
+        d.line(s(2, 2 + 7 * i, 9, 2 + 7 * i), fill=DARK, width=px(0.8))
+    if reverse:
+        arc_arrow(d, 9, 9, 15, -5, 85, MAGENTA, w=2.2, head=4.2)
+    else:
+        arc_arrow(d, 9, 9, 15, 95, 5, MAGENTA, w=2.2, head=4.2)
+    return im
+
+
+def order_icon():
+    im, d = canvas()
+    text(d, 21, 8, "A", 13)
+    text(d, 21, 24.5, "Z", 13)
+    arrow(d, 7, 3, 7, 29, DARK, w=2.4, head=5)
+    return im
+
+
+def sort_icon():
+    im, d = canvas()
+    for i, h in enumerate((26, 20, 14, 8)):
+        x = 2 + i * 6.2
+        d.rectangle(s(x, 30 - h, x + 4.6, 30), fill=BLUE)
+    arrow(d, 28.5, 3, 28.5, 29, DARK, w=2.2, head=4.5)
+    return im
+
+
+# --- Analysis --------------------------------------------------------------
+
+
+def categorize_icon():
+    im, d = canvas()
+    # price tag: continuous values are put into categories
+    a = math.radians(45)
+    shape = [(0, 0), (7, -6.5), (20, -6.5), (20, 6.5), (7, 6.5)]
+    pts = [(3 + x * math.cos(a) - y * math.sin(a), 3 + x * math.sin(a) + y * math.cos(a)) for x, y in shape]
+    d.polygon([v * S for p in pts for v in p], fill=BLUE)
+    circle(d, 3 + 6 * math.cos(a), 3 + 6 * math.sin(a), 1.9, CLEAR)
+    for i, c in enumerate((GREEN, MAGENTA, ORANGE)):
+        d.rectangle(s(21, 20 + i * 4, 31, 22.6 + i * 4), fill=c)
+    return im
+
+
+def summary_icon():
+    im, d = canvas()
+    table(d, 2, 3, 30, 29, 3, 5)
+    d.rectangle(s(2, 23.8, 30, 29), fill=BLUE, outline=DARK, width=px(1.1))
+    text(d, 7, 26.2, "\u03a3", 7, WHITE, bold=0.3)
+    return im
+
+
+def relchange_icon():
+    im, d = canvas()
+    axes(d)
+    d.rectangle(s(7, 18, 13, 29), fill=GRAY)
+    d.rectangle(s(19, 7, 25, 29), fill=BLUE)
+    arrow(d, 10, 15, 19.5, 4.5, ORANGE, w=1.8, head=3.6)
+    text(d, 8.5, 7, "%", 8, bold=0.35)
+    return im
+
+
+def barplot_icon():
+    im, d = canvas()
+    axes(d)
+    for x, h, e in ((6, 13, 3), (13.5, 21, 4), (21, 9, 2.5)):
+        d.rectangle(s(x, 29 - h, x + 5.5, 29), fill=BLUE)
+        cx = x + 2.75
+        d.line(s(cx, 29 - h - e, cx, 29 - h + e), fill=DARK, width=px(1))
+        d.line(s(cx - 1.4, 29 - h - e, cx + 1.4, 29 - h - e), fill=DARK, width=px(1))
+    return im
+
+
+def boxplot_icon():
+    im, d = canvas()
+    axes(d)
+    for x, lo, q1, med, q3, hi, fill, c in ((6, 26, 21, 18, 14, 8, LGREEN, GREEN),
+                                            (17.5, 22, 15, 11, 8, 3, LMAGENTA, MAGENTA)):
+        cx = x + 3.5
+        d.line(s(cx, lo, cx, hi), fill=c, width=px(1.1))
+        for y in (lo, hi):
+            d.line(s(cx - 2, y, cx + 2, y), fill=c, width=px(1.1))
+        d.rectangle(s(x, q3, x + 7, q1), fill=fill, outline=c, width=px(1.2))
+        d.line(s(x, med, x + 7, med), fill=DARK, width=px(1.5))
+    return im
+
+
+def violin_icon():
+    im, d = canvas()
+    axes(d)
+    for cx, mu, c in ((10.5, 0.62, GREEN), (22, 0.38, MAGENTA)):
+        pts = gauss_pts(3, 27, 0, 1, mu, 0.17, n=48)
+        right = [(cx + 0.6 + 4.6 * (-w), y) for y, w in pts]
+        left = [(cx - 0.6 - 4.6 * (-w), y) for y, w in pts]
+        poly = right + left[::-1]
+        d.polygon([v * S for p in poly for v in p], fill=c)
+        my = 3 + 24 * mu
+        d.line(s(cx - 2.5, my, cx + 2.5, my), fill=WHITE, width=px(1.5))
+    return im
+
+
+def swarm_icon():
+    im, d = canvas()
+    axes(d)
+    rows = ((25, 1), (22, 3), (19, 4), (16, 3), (13, 2), (10, 1))
+    for cx, c, shift in ((10.5, GREEN, 0), (22, MAGENTA, -6)):
+        for y, n in rows:
+            for k in range(n):
+                circle(d, cx + (k - (n - 1) / 2) * 2.8, y + shift + (0 if shift == 0 else 2), 1.25, c)
+    return im
+
+
+def histogram_icon():
+    im, d = canvas()
+    axes(d)
+    hs = (2, 5, 10, 15, 12, 7, 5, 8, 13, 9, 4, 2)
+    for i, h in enumerate(hs):
+        x = 4.3 + i * 2.15
+        d.rectangle(s(x, 28.4 - h * 1.5, x + 1.9, 28.4), fill=BLUE)
+    return im
+
+
+def kde_icon():
+    im, d = canvas()
+    axes(d)
+    for mu, sg, h, fill, c in ((0.35, 0.15, 22, LGREEN, GREEN), (0.65, 0.17, 17, LMAGENTA, MAGENTA)):
+        pts = gauss_pts(4, 30, 28.3, h, mu, sg)
+        poly = pts + [(30, 28.3), (4, 28.3)]
+        tmp = Image.new("RGBA", (SIZE * S, SIZE * S), CLEAR)
+        ImageDraw.Draw(tmp).polygon([v * S for p in poly for v in p], fill=fill[:3] + (140,))
+        d._image.alpha_composite(tmp)
+        line(d, pts, c, 1.4)
+    return im
+
+
+def lineplot_icon():
+    im, d = canvas()
+    axes(d)
+    pts = ((6, 23), (12, 16), (18, 18), (24.5, 9), (29, 6))
+    band = [(x, y - 3.5) for x, y in pts] + [(x, y + 3.5) for x, y in pts[::-1]]
+    d.polygon([v * S for p in band for v in p], fill=LBLUE)
+    line(d, pts, BLUE, 1.5)
+    for x, y in pts:
+        circle(d, x, y, 1.6, BLUE)
+    return im
+
+
+def scatter_icon():
+    im, d = canvas()
+    axes(d)
+    for x, y in ((7, 24), (9.5, 20.5), (12, 25), (11, 17), (14.5, 21)):
+        circle(d, x, y, 1.7, GREEN)
+    for x, y in ((18, 10), (21, 13.5), (23, 7), (25.5, 11), (27, 5.5)):
+        circle(d, x, y, 1.7, MAGENTA)
+    return im
+
+
+def kmeans_icon():
+    im, d = canvas()
+    clusters = ((8, 9, GREEN, ((-3, -2), (2.5, -3), (-2, 3), (3, 2), (0, -0.5))),
+                (24, 10, MAGENTA, ((-3, -1), (2, -3.5), (-1, 3), (3, 2.5), (0.5, 0))),
+                (15, 24, ORANGE, ((-3.5, 0), (2.5, -2.5), (-1, 3.5), (3.5, 2), (0, 0))))
+    for cx, cy, c, offs in clusters:
+        for dx, dy in offs:
+            circle(d, cx + dx, cy + dy, 1.5, c)
+    for cx, cy, c, _ in clusters:
+        for dx, dy in ((-1, -1), (1, -1)):
+            d.line(s(cx - 2.3 * dx, cy - 2.3, cx + 2.3 * dx, cy + 2.3), fill=WHITE, width=px(2.6))
+        for dx in (-1, 1):
+            d.line(s(cx - 2 * dx, cy - 2, cx + 2 * dx, cy + 2), fill=DARK, width=px(1.4))
+    return im
+
+
+def gmm_icon():
+    im, d = canvas()
+    axes(d)
+    for cx, cy, ang, col, light in ((13, 18, -35, GREEN, LGREEN), (20, 12, 25, MAGENTA, LMAGENTA)):
+        rotated_ellipse(d, cx, cy, 10.5, 5.6, ang, outline=light, width=1.3)
+        rotated_ellipse(d, cx, cy, 6.6, 3.5, ang, outline=col, width=1.3)
+        rotated_ellipse(d, cx, cy, 2.6, 1.4, ang, outline=col, width=1.3, fill=col)
+    return im
+
+
+def ks_icon():
+    im, d = canvas()
+    axes(d)
+    # two cumulative distributions and their largest distance D
+    def ecdf(xs):
+        pts, y = [(4, 28)], 28
+        for x in xs:
+            pts += [(x, y), (x, y - 4.6)]
+            y -= 4.6
+        return pts + [(30, y)]
+    line(d, ecdf((7, 9.5, 12, 14, 17)), GREEN, 1.5)
+    line(d, ecdf((13, 17.5, 21, 24, 26.5)), MAGENTA, 1.5)
+    arrow(d, 15.5, 17, 15.5, 25.5, DARK, w=1.1, head=2.2)
+    arrow(d, 15.5, 22, 15.5, 13, DARK, w=1.1, head=2.2)
+    text(d, 24.5, 23.5, "KS", 7, bold=0.35)
+    return im
+
+
+def pca_icon():
+    im, d = canvas()
+    a = math.radians(-35)
+    import random
+
+    rnd = random.Random(3)
+    for _ in range(26):
+        u, v = rnd.gauss(0, 6.5), rnd.gauss(0, 2.2)
+        x, y = 16 + u * math.cos(a) - v * math.sin(a), 16 + u * math.sin(a) + v * math.cos(a)
+        circle(d, x, y, 1.2, NODE)
+    c, s_ = math.cos(a), math.sin(a)
+    arrow(d, 16, 16, 16 + 15 * c, 16 + 15 * s_, MAGENTA, w=2.0, head=4)
+    arrow(d, 16, 16, 16 + 7 * -s_, 16 + 7 * c, GREEN, w=2.0, head=3.6)
+    return im
+
+
+def randomforest_icon():
+    im, d = canvas()
+
+    def tree(x, y, w, h, leaves):
+        root = (x, y)
+        mids = [(x - w / 2, y + h), (x + w / 2, y + h)]
+        for m in mids:
+            d.line(s(*root, *m), fill=DARK, width=px(0.9))
+        lv = [(mids[0][0] - w / 4, y + 2 * h), (mids[0][0] + w / 4, y + 2 * h),
+              (mids[1][0] - w / 4, y + 2 * h), (mids[1][0] + w / 4, y + 2 * h)]
+        for i, l in enumerate(lv):
+            d.line(s(*mids[i // 2], *l), fill=DARK, width=px(0.9))
+        circle(d, *root, 1.9, BLUE)
+        for m in mids:
+            circle(d, *m, 1.6, BLUE)
+        for l, c in zip(lv, leaves):
+            circle(d, *l, 1.4, c)
+
+    tree(9, 3, 8, 5.5, (GREEN, MAGENTA, GREEN, GREEN))
+    tree(23, 3, 8, 5.5, (MAGENTA, GREEN, MAGENTA, MAGENTA))
+    tree(16, 17, 8, 5.5, (GREEN, GREEN, MAGENTA, GREEN))
+    return im
+
+
+def heatmap_icon():
+    im, d = canvas()
+    vals = ((0, 1, 2, 4), (1, 3, 4, 2), (2, 4, 3, 1), (4, 2, 1, 0))
+    for j, row in enumerate(vals):
+        for i, v in enumerate(row):
+            x, y = 2 + i * 7, 2 + j * 7
+            d.rectangle(s(x, y, x + 7, y + 7), fill=VIRIDIS[v] + (255,))
+    d.rectangle(s(2, 2, 30, 30), outline=DARK, width=px(1.1))
+    return im
+
+
+def seriesanalysis_icon():
+    im, d = canvas()
+    # several time series reduced to a few values per series
+    axes(d, x0=2, y0=2, x1=19, y1=29)
+    for pts, c in ((((4, 10), (8, 6), (12, 9), (17, 5)), GREEN),
+                   (((4, 22), (8, 16), (12, 19), (17, 13)), MAGENTA)):
+        line(d, pts, c, 1.3)
+        for p in pts:
+            circle(d, *p, 1.3, c)
+    arrow(d, 19.5, 15.5, 24, 15.5, DARK, w=1.5, head=3)
+    table(d, 25, 4, 31, 27, 1, 4, header=LGRAY)
+    d.rectangle(s(25, 9.75, 31, 15.5), fill=GREEN, outline=DARK, width=px(1.1))
+    d.rectangle(s(25, 15.5, 31, 21.25), fill=MAGENTA, outline=DARK, width=px(1.1))
+    return im
+
+
+def pairplot_icon():
+    im, d = canvas()
+    # 2x2 grid of panels: histograms on the diagonal, scatter off-diagonal
+    for cx, cy in ((1, 1), (17, 1), (1, 17), (17, 17)):
+        d.rectangle(s(cx, cy, cx + 14, cy + 14), outline=GRAY, width=px(1))
+    for (cx, cy), hs in (((1, 1), (4, 9, 12, 6, 3)), ((17, 17), (3, 7, 12, 10, 5))):
+        for i, h in enumerate(hs):
+            x = cx + 1.5 + i * 2.4
+            d.rectangle(s(x, cy + 13 - h, x + 2.0, cy + 13), fill=BLUE)
+    pts = ((3, 10, GREEN), (5, 11.5, GREEN), (6, 6.5, GREEN), (8.5, 8.5, MAGENTA), (10, 4, MAGENTA), (12, 6, MAGENTA))
+    for (cx, cy), flip in (((17, 1), False), ((1, 17), True)):
+        for x0, y0, c in pts:
+            x, y = (y0, x0) if flip else (x0, y0)
+            x, y = (14 - x, 14 - y) if flip else (x, y)
+            circle(d, cx + x, cy + y, 1.25, c)
+    return im
+
+
+def flirrplot_icon():
+    im, d = canvas()
+    # miniature of the FLIRR figure: scatter, three KDEs, FLIRR line plot, bar strip
+    panel = dict(outline=GRAY, width=px(0.9))
+    d.rectangle(s(0.5, 0.5, 13, 19), **panel)
+    for x, y in ((3, 15), (4.5, 12), (6, 14), (7, 10)):
+        circle(d, x, y, 1.2, GREEN)
+    for x, y in ((8, 7), (9.5, 9), (10.5, 4.5), (11, 7)):
+        circle(d, x, y, 1.2, MAGENTA)
+    for i in range(3):
+        x0 = 14.5 + i * 5.9
+        d.rectangle(s(x0, 0.5, x0 + 5.2, 8.5), **panel)
+        kde_curve(d, x0 + 0.5, x0 + 4.7, 7.8, 5.6, 0.38, 0.17, GREEN)
+        kde_curve(d, x0 + 0.5, x0 + 4.7, 7.8, 5.6, 0.62, 0.17, MAGENTA)
+    d.rectangle(s(14.5, 10, 31.5, 19), **panel)
+    pts = ((16.5, 16.5), (22, 13.5), (27, 15), (30, 11.5))
+    line(d, pts, BLUE, 1.4)
+    for x, y in pts:
+        circle(d, x, y, 1.1, BLUE)
+    d.rectangle(s(0.5, 20.5, 31.5, 31.5), **panel)
+    for i, (h, c) in enumerate(((6, GREEN), (8, MAGENTA), (4, GREEN), (7, MAGENTA), (5, GREEN), (9, MAGENTA))):
+        x = 3 + i * 4.7
+        d.rectangle(s(x, 30.5 - h, x + 3.2, 30.5), fill=c)
+    return im
+
+
+def _ae_with_badge(symbol):
+    im, d = canvas()
+    ae_nodes(d, (5, 3, 2, 3, 5), 3, 25, 12, 20)
+    badge(d, 24.5, 24.5)
+    symbol(d, 24.5, 24.5)
+    return im
+
+
+def aerun_icon():
+    # autoencoder + play: apply a trained model
+    return _ae_with_badge(lambda d, x, y: d.polygon(s(x - 2.2, y - 3.6, x - 2.2, y + 3.6, x + 3.8, y), fill=WHITE))
+
+
+def aetrain_icon():
+    # autoencoder + circular arrow: training iterations
+    return _ae_with_badge(lambda d, x, y: arc_arrow(d, x, y, 3.4, 200, 500, WHITE, w=1.5, head=2.6))
+
+
+def aeaugment_icon():
+    # autoencoder + plus: generate additional data
+    def plus(d, x, y):
+        d.rectangle(s(x - 3.8, y - 1, x + 3.8, y + 1), fill=WHITE)
+        d.rectangle(s(x - 1, y - 3.8, x + 1, y + 3.8), fill=WHITE)
+    return _ae_with_badge(plus)
+
+
+# --- Workflow --------------------------------------------------------------
+
+
+def workflow_icon():
+    im, d = canvas()
+    # generic workflow: data -> processing steps -> result
+    table(d, 1, 2, 11, 11, 2, 3)
+    arrow(d, 11.5, 6.5, 17, 6.5, GRAY, w=1.6, head=3)
+    circle(d, 23, 6.5, 5, ORANGE)
+    arrow(d, 23, 12, 23, 17.5, GRAY, w=1.6, head=3)
+    circle(d, 23, 23.5, 5, ORANGE)
+    arrow(d, 17.5, 23.5, 12, 23.5, GRAY, w=1.6, head=3)
+    document(d, 2, 17, 11, 30, fold=3)
+    for y, c in ((22, GREEN), (25.5, MAGENTA)):
+        d.rectangle(s(4, y - 1, 9, y + 1), fill=c)
+    return im
+
+
+def flirrworkflow_icon():
+    im, d = canvas()
+    # table -> FLIRR ratio -> bar chart
+    table(d, 1, 3, 12, 14, 3, 3)
+    arrow(d, 13.5, 8.5, 20, 8.5, GRAY, w=1.6, head=3)
+    circle(d, 25, 8.5, 5, ORANGE)
+    d.line(s(22.5, 10.5, 27.5, 6.5), fill=WHITE, width=px(1.4))  # ratio slash
+    arrow(d, 25, 14.5, 25, 19.5, GRAY, w=1.6, head=3)
+    axes(d, x0=5, y0=21, x1=31, y1=31, w=1.2)
+    for i, (h, c) in enumerate(((5, GREEN), (8, MAGENTA), (6, GREEN), (9, MAGENTA))):
+        x = 8 + i * 5.6
+        d.rectangle(s(x, 30 - h, x + 4, 30), fill=c)
+    return im
+
+
+def aetuneworkflow_icon():
+    im, d = canvas()
+    ae_nodes(d, (5, 3, 2, 3, 5), 3, 25, 12, 20)
+    gear(d, 24.5, 24.5, 7, ORANGE)
+    return im
+
+
+def aefeatureworkflow_icon():
+    im, d = canvas()
+    # encoder half of an autoencoder feeding a 2D latent space plot
+    ae_nodes(d, (5, 3, 2), 2.5, 12, 16, 24)
+    arrow(d, 14, 16, 18.5, 16, GRAY, w=1.6, head=3)
+    axes(d, x0=20, y0=5, x1=31.5, y1=30, w=1.2)
+    for x, y in ((23, 9), (25.5, 7.5), (24.5, 11.5), (26.5, 10.5)):
+        circle(d, x, y, 1.4, MAGENTA)
+    for x, y in ((27, 22), (29.5, 24), (28, 26), (25.5, 25)):
+        circle(d, x, y, 1.4, GREEN)
+    return im
+
+
+ICONS = {
+    # File
+    "fileopen.png": fileopen_icon,
+    "import.png": import_icon,
+    # Data
+    "concatenate.png": concatenate_icon,
+    "filter.png": filter_icon,
+    "merge.png": merge_icon,
+    "order.png": order_icon,
+    "pivot.png": pivot_icon,
+    "sort.png": sort_icon,
+    "unpivot.png": lambda: pivot_icon(reverse=True),
+    # Analysis
+    "aeaugment.png": aeaugment_icon,
+    "aerun.png": aerun_icon,
+    "aetrain.png": aetrain_icon,
+    "barplot.png": barplot_icon,
+    "boxplot.png": boxplot_icon,
+    "categorize.png": categorize_icon,
+    "flirrplot.png": flirrplot_icon,
+    "gmm.png": gmm_icon,
+    "heatmap.png": heatmap_icon,
+    "histogram.png": histogram_icon,
+    "kde.png": kde_icon,
+    "kmeans.png": kmeans_icon,
+    "ks.png": ks_icon,
+    "lineplot.png": lineplot_icon,
+    "pairplot.png": pairplot_icon,
+    "pca.png": pca_icon,
+    "randomforest.png": randomforest_icon,
+    "relchange.png": relchange_icon,
+    "scatter.png": scatter_icon,
+    "seriesanalysis.png": seriesanalysis_icon,
+    "summary.png": summary_icon,
+    "swarmplot.png": swarm_icon,
+    "violinplot.png": violin_icon,
+    # Workflow
+    "workflow.png": workflow_icon,
+    "flirrworkflow.png": flirrworkflow_icon,
+    "aetuneworkflow.png": aetuneworkflow_icon,
+    "aefeatureworkflow.png": aefeatureworkflow_icon,
+}
+
+
+def main(outdir):
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    for name, draw in ICONS.items():
+        draw().resize((SIZE, SIZE), Image.LANCZOS).save(outdir / name)
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "flim" / "resources")

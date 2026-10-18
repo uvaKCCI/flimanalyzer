@@ -44,3 +44,13 @@ def test_no_unused_icons():
     unused = sorted(p.name for p in resources.glob("*.png") if p.name not in code)
     assert not unused, f"icon files not used anywhere in flim/: {unused}"
 
+
+def test_icons_are_32px_rgba():
+    Image = pytest.importorskip("PIL.Image")
+    wrong = {
+        p.name: (im.size, im.mode)
+        for p in sorted((FLIM / "resources").glob("*.png"))
+        for im in [Image.open(p)]
+        if im.size != (32, 32) or im.mode != "RGBA"
+    }
+    assert not wrong, f"icons must be 32x32 RGBA: {wrong}"

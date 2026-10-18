@@ -250,7 +250,7 @@ class AEAugment(AbstractPlugin):
         self.snr_db = self.params["snr_db"]
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("aerun.png")
+        source = files(flim.resources).joinpath("aeaugment.png")
         return wx.Bitmap(str(source))
 
     def get_required_categories(self):

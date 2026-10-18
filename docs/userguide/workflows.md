@@ -10,14 +10,14 @@ The green color of each of the bubbles indicates that step of the workflow was s
 
 **Menu Access:** `Workflow` > `Test Workflow`
 
-**Toolbar Icon:** ![](/images/analysis/heatmap.png)
+**Toolbar Icon:** ![](/images/workflow/flirrworkflow.png)
 
 The `Test Workflow` tool performs the user-configured workflow on a set of data, outputting a visual model to show the workflow steps, along with results of running all of the analysis tools in a selected file directory.
 
 ## FLIM Data Augmentation Tuning
 **Menu Access:** `Workflow` > `FLIM Data Augmentation Tuning`
 
-**Toolbar Icon:** ![](/images/analysis/heatmap.png)
+**Toolbar Icon:** ![](/images/workflow/aetuneworkflow.png)
 
 The `FLIM Data Augmentation Tuning` tool uses an autoencoder to first train a model, then apply that model to the original dataset to generate a larger augmented dataset. The Keck Center currently has this tool configured to output various plots and data tables to check the precision of the augmented data. This includes heatmaps and training loss plots. The results of the workflow are saved in the selected file directory.
 
@@ -25,6 +25,6 @@ The `FLIM Data Augmentation Tuning` tool uses an autoencoder to first train a mo
 
 **Menu Access:** `Workflow` > `FLIM Feature Analysis`
 
-**Toolbar Icon:** ![](/images/analysis/heatmap.png)
+**Toolbar Icon:** ![](/images/workflow/aefeatureworkflow.png)
 
 The `FLIM Feature Analysis` tool requires two datasets: one that is the larger augmented dataset from the `FLIM Data Augmentation Tuning` tool, and the other being a real dataset. The tool is then trained on the augmented data and the resulting model is applied to the real data. Similar to PCA, this tool uses dimensionality reduction to generate feature values based on a particular data grouping. Unlike PCA, however, the `FLIM Feature Analysis` tool is nonlinear. The results of the workflow are saved in the selected file directory.

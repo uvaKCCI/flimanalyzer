@@ -4,6 +4,8 @@ A pivot table summarizes and rearranges data to emphasize specific information. 
 
 **Menu Access:** `Data` > `Pivot`
 
+**Toolbar Icon:** ![](/images/data/pivot.png)
+
 Let's take the following data table.
 
 ![](/images/data/pivot-original.png)

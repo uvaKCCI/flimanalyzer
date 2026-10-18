@@ -3,7 +3,7 @@ The `Sort` reorders the data rows in ascending order for a given data feature.
 
 **Menu Access:** `Data` > `Sort`
 
-**Toolbar Icon:** ![](/images/data/filter.png)
+**Toolbar Icon:** ![](/images/data/sort.png)
 
 ## Sorting the Data
 Once a data set is open, locate the `Sort` option either from the menu or from the toolbar. Select the data feature for the rows to be sorted by. A new sorted table will be created, with the rows reordered based on ascending value of the selected data feature.

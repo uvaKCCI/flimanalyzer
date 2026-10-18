@@ -2,4 +2,4 @@
 
 **Menu Access:** `Analysis` > `Autoencoder: Augment Data`
 
-**Toolbar Icon:** ![](/images/analysis/aerun.png)
+**Toolbar Icon:** ![](/images/analysis/aeaugment.png)

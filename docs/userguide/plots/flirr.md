@@ -4,7 +4,7 @@ The 'FLIRR Plot` tool creates a scatter plot, line plot, and KDE plots based on 
 
 **Menu Access:** `Plot` > `FLIRR Plot`
 
-**Toolbar Icon:** ![](/images/analysis/heatmap.png)
+**Toolbar Icon:** ![](/images/analysis/flirrplot.png)
 
 ## Creating the Plot
 

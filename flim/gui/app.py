@@ -24,6 +24,7 @@ import wx.lib.agw.customtreectrl as CT
 from pubsub import pub
 from flim._version import __version__
 from wx.lib.newevent import NewEvent
+from importlib_resources import files
 
 import flim.analysis
 import flim.core.configuration as cfg
@@ -32,6 +33,7 @@ import flim.core.plots
 import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.plugin as plugin
+import flim.resources
 import flim.workflow
 from flim.core.configuration import Config
 from flim.core.preprocessor import defaultpreprocessor
@@ -132,12 +134,12 @@ class AppFrame(wx.Frame):
             [
                 (
                     "Open file",
-                    wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_TOOLBAR, (32, 32)),
+                    wx.Bitmap(str(files(flim.resources).joinpath("fileopen.png"))),
                     self.OnLoadData,
                 ),
                 (
                     "Import files",
-                    wx.ArtProvider.GetBitmap(wx.ART_FOLDER_OPEN, wx.ART_TOOLBAR, (32, 32)),
+                    wx.Bitmap(str(files(flim.resources).joinpath("import.png"))),
                     self.OnImportData,
                 ),
             ],
