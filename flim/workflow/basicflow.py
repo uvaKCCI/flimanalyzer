@@ -367,6 +367,8 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
             x_vars=[f for f in sel_features if "FAD" in f],
             y_vars=[f for f in sel_features if "FAD" in f],
             diag_kind="KDE",
+            plotting="sample",  # many measurements make pair plots slow to draw
+            samples=20000,
             prefix="FAD-",
         )
         pairplots = pairplottask(
@@ -376,6 +378,8 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
             x_vars=[f for f in sel_features if "NAD" in f],
             y_vars=[f for f in sel_features if "NAD" in f],
             diag_kind="KDE",
+            plotting="sample",
+            samples=20000,
             prefix="NADPH-",
         )
         reltable = relchangetask(
