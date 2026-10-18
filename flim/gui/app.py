@@ -44,6 +44,7 @@ from flim.core.graph import WorkflowGraph
 from flim.core.runner import run_flow
 from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
+from flim.gui.macos import set_bundle_name, set_display_name
 from flim.gui.datapanel import PandasFrame
 from flim.gui.dialogs import ConfigureCategoriesDlg
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
@@ -108,11 +109,13 @@ class FLIMAnalyzerApp(wx.App):
             self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
         else:
             self.config = config
+        set_bundle_name("FLIMAnalyzer")  # before wx registers the app with macOS
         super().__init__()
 
     def OnInit(self):
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
+        set_display_name("FLIMAnalyzer")
         self.frame = AppFrame(self.flimanalyzer, self.config)
         self.dock_icon = None
         if wx.Platform == "__WXMAC__":
