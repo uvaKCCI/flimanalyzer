@@ -424,6 +424,17 @@ class AbstractPlugin:
         """
         return {}
 
+    def run_tool(self, tool_class, *inputs) -> dict:
+        """Runs a :class:`flim.core.tool.Tool` with this plugin's parameters.
+
+        Adapter for the plugins whose computation moved to ``flim.tools``; results are
+        keyed by display name, the prefix is added by :meth:`run`.
+        """
+        tool = tool_class()
+        tool._cancel_token = getattr(self, "_cancel_token", None)
+        config = tool.config_class.from_legacy_params(self.params)
+        return tool.display_names(tool.run(*inputs, config=config))
+
     def cancel(self, message: str = "Cancelled"):
         """Stops this task by raising :class:`~flim.core.runner.TaskCancelled`.
 

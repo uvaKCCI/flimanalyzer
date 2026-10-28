@@ -43,6 +43,7 @@ from prefect.settings import get_current_settings
 from prefect.states import Cancelled
 from prefect.task_runners import ThreadPoolTaskRunner
 
+from flim.core.tool import TaskCancelled
 from flim.results import clean_path_component, save_results
 
 __all__ = [
@@ -65,14 +66,6 @@ _MARKER = "__flim_task_output__"
 # pyplot's figure registry and current-figure state are shared by all threads: tasks
 # that draw figures take turns, all other tasks run concurrently
 pyplot_lock = threading.RLock()
-
-
-class TaskCancelled(Exception):
-    """Raised by :meth:`flim.plugin.AbstractPlugin.cancel` to stop the running task.
-
-    Prefect handles it like any other exception (the task run ends Failed and tasks
-    that depend on it are not run); the runner records the task as cancelled.
-    """
 
 
 class _RunCancelled(Exception):
@@ -215,7 +208,9 @@ def _run_plugin(plugin, kwargs: Dict[str, Any]):
         started = getattr(plugin, "_notify_started", None)
         if started is not None:
             started()
-        results = plugin.run(**_unwrap(kwargs))
+        # tools (flim.core.tool.Tool) run with run_task(inputs, config)
+        run = getattr(plugin, "run_task", plugin.run)
+        results = run(**_unwrap(kwargs))
     _release_figures(results)
     return results
 
@@ -355,7 +350,8 @@ class FlowRun:
         """Runs (or submits) one plugin call and returns a handle to its result."""
         # each call gets its own copy so calls don't share configuration
         plugin = copy.copy(plugin)
-        plugin.params = dict(plugin.params)
+        if hasattr(plugin, "params"):
+            plugin.params = dict(plugin.params)
         plugin._cancel_token = self.cancel_token
 
         tag_list = [task_tags] if isinstance(task_tags, str) else list(task_tags or [])
@@ -542,6 +538,16 @@ def call_plugin(plugin, **kwargs):
     if run is None:
         return plugin.run(**_resolve(kwargs))
     return run.call(plugin, kwargs, task_tags=task_tags)
+
+
+def call_tool(tool, inputs, config=None, task_tags=None):
+    """Calls a tool (:class:`flim.core.tool.Tool`) with its inputs and config: as a task
+    inside a flow, or directly otherwise."""
+    inputs = [v.value if isinstance(v, unmapped) else v for v in inputs]
+    run = current_run()
+    if run is None:
+        return tool.run_task(inputs=_resolve(inputs), config=config)
+    return run.call(tool, {"inputs": inputs, "config": config}, task_tags=task_tags)
 
 
 def map_plugin(plugin, **kwargs) -> List[Any]:

@@ -13,6 +13,7 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from flim.plugin import AbstractPlugin
+import flim.tools.data as tools
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 from wx.lib.masked import NumCtrl
@@ -212,21 +213,4 @@ class Merger(AbstractPlugin):
         return self.params
 
     def execute(self):
-        results = {}
-        data = list(self.input.values())
-        left = data[0]
-        right = data[1]
-        how = self.params["how"]
-        left_on = [c for c in list(left.select_dtypes(["category"]).columns.values)]
-        right_on = [c for c in list(right.select_dtypes(["category"]).columns.values)]
-        on = list(set(left_on).intersection(set(right_on)))
-        merged_df = pd.merge(left, right, how=how, on=on)
-        merged_df[on] = merged_df[on].astype("category")
-        neworder = [
-            c for c in list(merged_df.select_dtypes(["category"]).columns.values)
-        ]
-        noncategories = [c for c in merged_df.columns.values if c not in neworder]
-        neworder.extend(noncategories)
-        merged_df = merged_df[neworder]
-        results["Table: Merged"] = merged_df
-        return results
+        return self.run_tool(tools.Merge, *list(self.input.values())[:2])

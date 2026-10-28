@@ -17,6 +17,7 @@ from itertools import groupby
 
 import flim.resources
 from flim.plugin import plugin
+import flim.tools.data as tools
 from flim.plugin import AbstractPlugin
 from flim.gui.dicttablepanel import DictTable, ListTable
 from flim.gui.datapanel import PandasTable
@@ -312,28 +313,4 @@ class CategoryOrder(AbstractPlugin):
         return self.params
 
     def execute(self):
-        data = list(self.input.values())[0]
-        catcols = data.select_dtypes(["category"]).columns.values
-        if not self.params["inplace"]:
-            data = data.copy()
-        results = {}
-        # input = self.params['input']
-        # data = list(input.values())
-        # concat_df = pd.concat(data, axis=0, copy=True)
-        # results['Concatenated'] = concat_df
-        catparams = self.params["categories"]
-        newcatorder = list(catparams.keys())
-        neworder = []
-        for c in data.columns.values:
-            if c in catparams.keys():
-                neworder.append(newcatorder.pop(0))
-            else:
-                neworder.append(c)
-        data = data[neworder]
-        for cat in catparams:
-            data[cat] = pd.Categorical(
-                data[cat], categories=catparams[cat]["values"], ordered=True
-            )
-        data.sort_values(by=list(catparams.keys()), inplace=True)
-        results["Reordered"] = data
-        return results
+        return self.run_tool(tools.CategoryOrder, list(self.input.values())[0])

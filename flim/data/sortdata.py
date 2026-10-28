@@ -17,6 +17,7 @@ import numpy as np
 
 from flim.core.filter import RangeFilter
 from flim.plugin import plugin
+import flim.tools.data as tools
 from flim.plugin import AbstractPlugin
 from flim.gui.dicttablepanel import DictTable, ListTable
 from flim.gui.datapanel import PandasTable
@@ -73,14 +74,4 @@ class Sort(AbstractPlugin):
             return None
 
     def execute(self):
-        data = list(self.input.values())[0]
-        selfeatures = self.params["features"]
-        ascending = len(selfeatures) * [self.params["ascending"]]
-        ignore_index = self.params["ignore_index"]
-
-        df = data.sort_values(
-            by=selfeatures, ascending=ascending, ignore_index=ignore_index
-        )
-
-        results = {"Table: Sorted": df}
-        return results
+        return self.run_tool(tools.Sort, list(self.input.values())[0])

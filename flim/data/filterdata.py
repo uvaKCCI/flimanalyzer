@@ -17,6 +17,7 @@ import numpy as np
 
 from flim.core.filter import RangeFilter
 from flim.plugin import plugin
+import flim.tools.data as tools
 from flim.plugin import AbstractPlugin
 from flim.gui.dicttablepanel import DictTable, ListTable
 from flim.gui.datapanel import PandasTable
@@ -203,35 +204,4 @@ class Filter(AbstractPlugin):
         return self.params
 
     def execute(self):
-        data = list(self.input.values())[0]
-        if not self.params["inplace"]:
-            data = data.copy()
-
-        droppedrows = {}
-        for cat, values in self.params["category_filters"].items():
-            drop_values = [v for v in data[cat].unique() if v not in values]
-            droppedrows[cat] = np.flatnonzero(data[cat].isin(drop_values))
-
-        filter_params = {
-            f["name"]: f
-            for f in self._update_filter_params(data, self.params["range_filters"])
-        }
-        for fname in filter_params:
-            filter = RangeFilter(params=filter_params[fname])
-            if filter.is_selected():
-                droppedrows[fname] = filter.get_dropped(data)
-            # elif droppedrows.get(fname) is not None:
-            # 	del droppedrows[fname]
-
-        # all dropped rows are the unique elements of the union of rfilterdropped andcatdropped
-        arraylist = [drows for drows in droppedrows.values() if len(drows) > 0]
-        if len(arraylist) > 0:
-            arraylist = np.concatenate(arraylist)
-        droppedrows = np.unique(arraylist)
-
-        logging.debug(f"droppedrows={droppedrows}")
-        if len(droppedrows) != 0:
-            data = data.drop(data.index[droppedrows]).reset_index(drop=True)
-        results = {}
-        results["Table: Filtered"] = data
-        return results
+        return self.run_tool(tools.Filter, list(self.input.values())[0])

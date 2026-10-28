@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from flim.gui.dicttablepanel import DictTable, ListTable
 from flim.plugin import plugin
+import flim.tools.data as tools
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -179,42 +180,4 @@ class Concatenator(AbstractPlugin):
         return self.params
 
     def execute(self):
-        results = {}
-        # input = self.params['input']
-        horizontal = self.params["type"]
-        caxis = 1 if horizontal else 0
-        # if horizontal:
-        #    caxis = 1
-        # else:
-        #    caxis = 0
-        if horizontal and self.params["numbers_only"]:
-            # for df #2 and higher, select numeric columns only
-            data = [
-                df.select_dtypes(np.number) if i != 0 else df
-                for i, df in enumerate(self.input.values())
-            ]
-            concat_df = pd.concat(data, axis=caxis, copy=True)
-        else:
-            # data = [df for df in list(self.input.values())]
-            data = list(self.input.values())
-            catcols = list(
-                dict.fromkeys(
-                    [
-                        c
-                        for d in data
-                        for c in d.select_dtypes(["category"]).columns.values
-                    ]
-                )
-            )
-            concat_df = pd.concat(
-                data,
-                axis=caxis,
-                copy=True,
-                keys=list(self.input.keys()),
-                names=["Source", "Old Index"],
-            ).reset_index()
-            concat_df = concat_df.drop("Old Index", axis=1)
-            concat_df[catcols] = concat_df[catcols].astype("category")
-            concat_df["Source"] = concat_df["Source"].astype("category")
-        results["Table: Concatenated"] = concat_df
-        return results
+        return self.run_tool(tools.Concat, dict(self.input))

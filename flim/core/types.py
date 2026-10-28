@@ -94,6 +94,9 @@ class InputSpec:
     type: type[DataType]
     optional: bool = False
     description: str = ""
+    many: bool = (
+        False  # a dict of named values of this type, e.g. tables to concatenate
+    )
 
 
 @dataclass(frozen=True)
@@ -103,6 +106,7 @@ class OutputSpec:
     name: str
     type: type[DataType]
     description: str = ""
+    schema: Any = None  # flim.core.schema.TableSchema of a table, if known
 
     @property
     def display_name(self) -> str:

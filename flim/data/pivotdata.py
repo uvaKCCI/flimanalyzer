@@ -1,6 +1,7 @@
 import logging
 import flim
 from flim.plugin import AbstractPlugin, ALL_FEATURES
+import flim.tools.data as tools
 from flim.plugin import plugin
 from importlib_resources import files
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -58,27 +59,4 @@ class Pivot(AbstractPlugin):
             return None
 
     def execute(self):
-        data = list(self.input.values())[0]
-        selfeatures = [c for c in self.params["features"]]
-        selgroups = self.params["grouping"]
-        groups = list(data.select_dtypes("category").columns.values)
-        selfeatures.extend(groups)
-        data = data[selfeatures]
-        results = {}
-        indexgroups = [
-            g for g in data.columns.values if g in groups and g not in selgroups
-        ]
-        logging.debug(f"index groups: {indexgroups}")
-        logging.debug(f"pivoting {selgroups} in {groups}")
-        data = data.reset_index()
-        pivot_data = pd.pivot_table(
-            data[selfeatures], index=indexgroups, columns=selgroups, observed=False
-        )
-        # flatten multiindex in column headers
-        pivot_data.columns = [
-            "\n".join(col).strip() for col in pivot_data.columns.values
-        ]
-
-        pivot_data = pivot_data.reset_index()
-        results = {"Table: Pivoted": pivot_data}
-        return results
+        return self.run_tool(tools.Pivot, list(self.input.values())[0])

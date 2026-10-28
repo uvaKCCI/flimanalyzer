@@ -1,6 +1,7 @@
 import logging
 import flim
 from flim.plugin import AbstractPlugin, ALL_FEATURES
+import flim.tools.data as tools
 from flim.plugin import plugin
 from importlib_resources import files
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -137,27 +138,4 @@ class UnPivot(AbstractPlugin):
         return name
 
     def execute(self):
-        data = list(self.input.values())[0]
-        cat_cols = list(data.select_dtypes("category").columns.values)
-        sel_features = [c for c in self.params["features"]]
-        new_cat_name = self._create_unique_name(
-            self.params["category_name"], "Category", existing=cat_cols
-        )
-        new_feature_name = self._create_unique_name(
-            self.params["feature_name"], "Feature", existing=sel_features
-        )
-        unpivot_data = pd.melt(
-            data,
-            id_vars=cat_cols,
-            value_vars=sel_features,
-            var_name=new_cat_name,
-            value_name=new_feature_name,
-        )
-        unpivot_data[new_cat_name] = (
-            unpivot_data[new_cat_name]
-            .str.replace(new_feature_name + "\n", "", regex=False)
-            .str.replace("\n", "|", regex=False)
-            .astype("category")
-        )
-        results = {"Table: Unpivoted": unpivot_data}
-        return results
+        return self.run_tool(tools.Unpivot, list(self.input.values())[0])

@@ -34,8 +34,12 @@ class BaseConfig(BaseModel):
         # Resources
         if data.get("version") is None:
             data.pop("version", None)
-        if data.get("classname") is None and not isinstance(self, TaskConfig):
-            data.pop("classname", None)
+        if data.get("classname") is None:
+            if isinstance(self, TaskConfig):
+                # created before its tool was registered
+                data["classname"] = self._registered_classname()
+            else:
+                data.pop("classname", None)
         return self._after_dump(data)
 
     def _after_dump(self, data: dict) -> dict:
@@ -139,18 +143,28 @@ class TaskConfig(BaseConfig):
     def _set_classname(self):
         """Names the registered tool of this config, unless a classname is given."""
         if self.classname is None:
-            from flim.core.registry import tools
-
-            tool = tools.for_config(self)
-            if tool is not None:
-                # not setattr: that would run the validators again
-                self.__dict__["classname"] = f"{tool.__module__}.{tool.__qualname__}"
+            # not setattr: that would run the validators again
+            self.__dict__["classname"] = self._registered_classname()
         return self
+
+    def _registered_classname(self) -> Optional[str]:
+        """``module.Class`` of the registered tool of this config, None if none is.
+
+        Tools are registered when their module is imported, so configs are best
+        created after that (the application imports the tools at startup).
+        """
+        from flim.core.registry import tools
+
+        tool = tools.for_config(self)
+        return f"{tool.__module__}.{tool.__qualname__}" if tool else None
 
     @classmethod
     def from_legacy_params(cls, params: dict) -> Self:
         """The config for a plugin's parameter dict; unknown keys are logged."""
-        params = copy.deepcopy(dict(params))
+        # ignored keys first: "input" holds the input tables at run time
+        params = copy.deepcopy(
+            {k: v for k, v in params.items() if k not in LEGACY_IGNORED}
+        )
         values = cls._from_legacy(params)
         for name in cls.model_fields:
             key = cls.legacy_keys.get(name, name)
@@ -160,7 +174,7 @@ class TaskConfig(BaseConfig):
                 values[name] = params.pop(key)
         if values.get("features") == LEGACY_ALL_FEATURES:
             values["features"] = "all"
-        unknown = set(params) - LEGACY_IGNORED - cls.legacy_dropped
+        unknown = set(params) - cls.legacy_dropped
         if unknown:
             logging.warning(
                 f"{cls.__name__}: ignoring unknown parameters {sorted(unknown)}"
@@ -192,8 +206,46 @@ class TaskConfig(BaseConfig):
 
 @dataclass(frozen=True)
 class Issue:
-    """A problem found when validating a config, e.g. against its input data."""
+    """A problem found when validating a config, e.g. against its input data.
+
+    ``field`` is a path into the config, e.g. ``"x_vars[1]"`` or
+    ``"range_filters[0].column"``. A ``"guessed"`` issue reports a value that was
+    replaced (``old``) by the closest match (``suggestion``) after an upstream change.
+    """
 
     field: Optional[str]
     message: str
-    severity: Literal["error", "warning"] = "error"
+    severity: Literal["error", "warning", "guessed"] = "error"
+    step: Optional[str] = None  # workflow step, None for a single tool
+    old: Any = None
+    suggestion: Any = None
+
+
+def column_references(config: BaseModel, path: str = ""):
+    """Yields ``(path, column, role)`` for every column a config names, also in nested
+    models (e.g. range filters) and in lists and dict keys of column fields."""
+    for name, field in type(config).model_fields.items():
+        value = getattr(config, name)
+        field_path = f"{path}{name}"
+        role = column_role(field)
+        if role is not None:
+            if name == "features" and value == "all":
+                continue
+            if isinstance(value, str):
+                yield field_path, value, role
+            elif isinstance(value, (list, tuple)):
+                for i, v in enumerate(value):
+                    yield f"{field_path}[{i}]", v, role
+            elif isinstance(value, dict):
+                for k in value:
+                    yield f"{field_path}[{k!r}]", k, role
+        elif isinstance(value, BaseModel):
+            yield from column_references(value, f"{field_path}.")
+        elif isinstance(value, (list, tuple)):
+            for i, v in enumerate(value):
+                if isinstance(v, BaseModel):
+                    yield from column_references(v, f"{field_path}[{i}].")
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                if isinstance(v, BaseModel):
+                    yield from column_references(v, f"{field_path}[{k!r}].")
