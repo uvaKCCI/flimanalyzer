@@ -528,6 +528,37 @@ def test_kde_single_figure_legend_with_a_constant_feature(data):
     assert {label: len(c) for label, c in colors.items()} == {"KO": 1, "WT": 1}
 
 
+def test_too_many_plots():
+    from flim.core.schema import ColumnInfo
+    from flim.tools.plot import MANY_PLOTS, TOO_MANY_PLOTS
+
+    def schema(n):
+        columns = [
+            ColumnInfo(name=f"f{i}", role="feature", dtype="float64") for i in range(n)
+        ]
+        return TableSchema(columns=columns)
+
+    def severities(tool, config, n):
+        return [
+            i.severity
+            for i in tool.validate(config, [schema(n)])
+            if "plots" in i.message or "panels" in i.message
+        ]
+
+    assert (
+        severities(ScatterPlot, ScatterPlotConfig(features="all"), 10) == []
+    )  # 45 pairs
+    assert severities(ScatterPlot, ScatterPlotConfig(features="all"), 12) == [
+        "warning"
+    ]  # 66
+    assert severities(ScatterPlot, ScatterPlotConfig(features="all"), 52) == [
+        "error"
+    ]  # 1326
+    assert severities(PairPlot, PairPlotConfig(features="all"), 7) == []  # 49 panels
+    assert severities(PairPlot, PairPlotConfig(features="all"), 20) == ["error"]  # 400
+    assert MANY_PLOTS < TOO_MANY_PLOTS
+
+
 def _legends(figure):
     return [ax.get_legend() for ax in figure.axes if ax.get_legend() is not None]
 
@@ -588,3 +619,75 @@ def test_legend_position_where_there_is_none():
     assert BarPlotConfig.from_legacy_params({"legend": False}).legend_position == "none"
     assert BarPlotConfig(legend_position="none").to_legacy_params()["legend"] is False
     assert BarPlotConfig().to_legacy_params()["legend"] is True
+
+
+def test_swarms_are_placed_once(data):
+    import seaborn.categorical as sc
+
+    plt.close("all")
+    placed = []
+    beeswarm = sc.Beeswarm.beeswarm
+
+    def counted(self, xyr):
+        swarm = beeswarm(self, xyr)
+        placed.append(not np.array_equal(swarm, np.asarray(xyr)))
+        return swarm
+
+    sc.Beeswarm.beeswarm = counted
+    try:
+        config = SwarmPlotConfig(features=["t1"], grouping=["Treatment"])
+        (figure,) = SwarmPlot()(data, config=config).values()
+        during_run = placed.count(True)
+        figure.set_size_inches(10, 8)
+        figure.draw_without_rendering()  # a repaint or resize of its window
+    finally:
+        sc.Beeswarm.beeswarm = beeswarm
+    assert during_run == 2  # once per swarm (WT, KO), for the final layout
+    assert placed.count(True) == during_run  # not again when redrawn
+    swarms = [c for ax in figure.axes for c in ax.collections]
+    assert all(np.ptp(c.get_offsets()[:, 0]) > 0 for c in swarms)  # spread out
+
+
+def test_beeswarm_positions_as_seaborn():
+    import seaborn.categorical as sc
+
+    from flim.tools.plot import _beeswarm
+
+    rng = np.random.default_rng(0)
+    xyr = np.c_[np.full(300, 100.0), np.sort(rng.normal(300, 10, 300)), np.full(300, 2.5)]
+    swarm = sc.Beeswarm(width=0.8, orient="x")
+    expected = np.atleast_2d(xyr[0])  # seaborn's loop
+    for xyr_i in xyr[1:]:
+        neighbors = swarm.could_overlap(xyr_i, expected)
+        candidates = swarm.position_candidates(xyr_i, neighbors)
+        candidates = candidates[np.argsort(np.abs(candidates[:, 0] - xyr[0, 0]))]
+        new = swarm.first_non_overlapping_candidate(candidates, neighbors)
+        expected = np.vstack([expected, new])
+    assert np.allclose(_beeswarm(swarm, np.ma.asarray(xyr)), expected)
+
+
+def test_cancel_while_placing_swarms(data):
+    import threading
+    import traceback
+
+    from flim.core.tool import TaskCancelled
+
+    plt.close("all")
+    big = pd.concat([data] * 30, ignore_index=True)  # 960 points per swarm
+    tool = SwarmPlot()
+    token = threading.Event()
+    tool._cancel_token = token
+    checks = []
+    check = tool.check_cancelled
+
+    def cancel_on_placing():
+        checks.append(any("_beeswarm" in f.name for f in traceback.extract_stack()))
+        if checks[-1]:
+            token.set()  # the user cancels while the points are being placed
+        check()
+
+    tool.check_cancelled = cancel_on_placing
+    config = SwarmPlotConfig(features=["t1"], grouping=["Treatment"])
+    with pytest.raises(TaskCancelled):
+        tool(big, config=config)
+    assert checks[-1] and checks.count(True) == 1

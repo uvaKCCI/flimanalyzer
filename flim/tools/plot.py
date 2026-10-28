@@ -1,5 +1,6 @@
 """Plot tools. They draw with pyplot and seaborn, holding pyplot_lock (draws_figures)."""
 
+import contextvars
 import functools
 import itertools
 from typing import Optional
@@ -16,6 +17,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import MatplotlibDeprecationWarning
+from seaborn.categorical import Beeswarm as _SeabornBeeswarm
 
 from flim.configs.plot import (
     BarPlotConfig,
@@ -157,6 +159,33 @@ def tidy_tiles(figure, axes) -> None:
     figure.suptitle(text[:1].upper() + text[1:])
 
 
+# more plots than this (one window each, or tiles): a warning, an error
+MANY_PLOTS, TOO_MANY_PLOTS = 50, 300
+
+
+def _feature_names(config, inputs) -> list:
+    """The features a config selects: its list, or (for "all") the input's."""
+    if config.features != "all":
+        return list(config.features)
+    schema = inputs[0] if inputs else None
+    return schema.by_role("feature") if schema is not None else []
+
+
+def plot_count_issues(field: str, n: int, what: str) -> list:
+    """A warning for many plots, an error for too many (they take long and each
+    plot or tile is drawn): e.g. scatter plots of all pairs of 50 features."""
+    if n > TOO_MANY_PLOTS:
+        return [
+            Issue(
+                field,
+                f"{what}: too many (at most {TOO_MANY_PLOTS}); select fewer features",
+            )
+        ]
+    if n > MANY_PLOTS:
+        return [Issue(field, f"{what}: drawing them takes long", "warning")]
+    return []
+
+
 def per_feature(config) -> list:
     """One config per feature (all features in one config if they are "all"); a
     dict of per-feature settings keeps each feature's."""
@@ -178,19 +207,33 @@ class _Plot:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if "run" in cls.__dict__:  # the legends of its figures, as configured
+        if "run" in cls.__dict__:  # legends arranged as configured, figures finished
             run = cls.__dict__["run"]
 
             @functools.wraps(run)
-            def run_and_arrange_legends(self, *inputs, config):
-                results = run(self, *inputs, config=config)
-                if getattr(config, "legend_grouping", None) is not None:
-                    for value in results.values():
-                        if isinstance(value, matplotlib.figure.Figure):
-                            arrange_legends(value, config.legend_position)
-                return results
+            def run_plot(self, *inputs, config):
+                running = _running.set(self)  # e.g. to cancel placing swarms
+                placing = _place_swarms.set(False)
+                try:
+                    results = run(self, *inputs, config=config)
+                    figures = [
+                        v
+                        for v in results.values()
+                        if isinstance(v, matplotlib.figure.Figure)
+                    ]
+                    for figure in figures:
+                        if getattr(config, "legend_grouping", None) is not None:
+                            arrange_legends(figure, config.legend_position)
+                        self.finish(figure)
+                    return results
+                finally:
+                    _place_swarms.reset(placing)
+                    _running.reset(running)
 
-            cls.run = run_and_arrange_legends
+            cls.run = run_plot
+
+    def finish(self, figure) -> None:
+        """Called for each figure of a run once its layout is final."""
 
     @classmethod
     def output_names(cls, config, features: list[str]) -> dict[str, type]:
@@ -333,11 +376,11 @@ def sampled_rows(data: pd.DataFrame, points) -> tuple[pd.DataFrame, Optional[str
     )
 
 
-def add_note(figure, note: Optional[str]) -> None:
+def add_note(figure, note: Optional[str], y: float = 0.005) -> None:
     """A small note below the plots, e.g. that a sample of the points is shown."""
     if note:
         figure.text(
-            0.5, 0.005, note, ha="center", va="bottom", fontsize="small", color="0.3"
+            0.5, y, note, ha="center", va="bottom", fontsize="small", color="0.3"
         )
         if not figure.get_constrained_layout():
             figure.subplots_adjust(bottom=figure.subplotpars.bottom + 0.03)
@@ -379,6 +422,70 @@ class SwarmPlot(_CategoricalPlot, Tool[SwarmPlotConfig]):
     description = "Swarm plots of the features, grouped by up to 4 category columns."
     icon = "swarmplot.png"
     kind = "swarm"
+
+    def finish(self, figure) -> None:
+        freeze_swarms(figure)
+
+
+_running = contextvars.ContextVar("running_plot_tool", default=None)
+# False while a tool plots: its swarms are placed once, by freeze_swarms
+_place_swarms = contextvars.ContextVar("place_swarms", default=True)
+
+
+def _beeswarm(self, orig_xyr):
+    """seaborn's Beeswarm.beeswarm, with the same positions: on a plain array
+    (seaborn passes a masked one, whose indexing makes it twice as slow), and
+    cancellable, as placing a few thousand points can take seconds."""
+    orig_xyr = np.asarray(orig_xyr, dtype=float)
+    if not _place_swarms.get():
+        return orig_xyr
+    midline = orig_xyr[0, 0]
+    swarm = np.empty_like(orig_xyr)
+    swarm[0] = orig_xyr[0]
+    tool = _running.get()
+    for i in range(1, len(orig_xyr)):
+        if tool is not None and i % 50 == 0:
+            tool.check_cancelled()
+        xyr_i = orig_xyr[i]
+        neighbors = self.could_overlap(xyr_i, swarm[:i])
+        candidates = self.position_candidates(xyr_i, neighbors)
+        candidates = candidates[np.argsort(np.abs(candidates[:, 0] - midline))]
+        swarm[i] = self.first_non_overlapping_candidate(candidates, neighbors)
+    return swarm
+
+
+_SeabornBeeswarm.beeswarm = _beeswarm
+
+
+def freeze_swarms(figure) -> None:
+    """Places the points of seaborn's swarms once, for the figure's final layout.
+
+    seaborn places them again at every draw (each repaint or resize of a plot
+    window), which takes seconds for a few thousand points. A note says how many
+    points did not fit in their swarm (seaborn piles them up at its edges).
+    """
+    swarms = [
+        c for ax in figure.axes for c in ax.collections if "draw" in c.__dict__
+    ]
+    if not swarms:
+        return
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        placing = _place_swarms.set(True)
+        try:
+            figure.draw_without_rendering()
+        finally:
+            _place_swarms.reset(placing)
+    for collection in swarms:
+        del collection.draw  # the points stay where they are
+    misplaced = [w for w in caught if "cannot be placed" in str(w.message)]
+    if misplaced:
+        add_note(
+            figure,
+            "Some points do not fit in their swarm and are drawn at its edges: "
+            "sample fewer points, or use a strip plot",
+            y=0.03,
+        )
 
 
 @register_tool
@@ -1089,6 +1196,11 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
             issues.append(Issue("x_vars", "Select the features of the grid columns"))
         if not config.symmetric and not config.y_vars:
             issues.append(Issue("y_vars", "Select the features of the grid rows"))
+        columns = config.x_vars or _feature_names(config, inputs)
+        rows = columns if config.symmetric else config.y_vars
+        issues += plot_count_issues(
+            "x_vars", len(columns) * len(rows), f"{len(columns)} x {len(rows)} panels"
+        )
         return issues
 
 
@@ -1166,6 +1278,15 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
         if own_figure:
             add_picker(figure)
         return figure
+
+    @classmethod
+    def validate(cls, config, inputs):
+        issues = super().validate(config, inputs)
+        n = len(_feature_names(config, inputs))
+        pairs = n * (n - 1) // 2
+        return issues + plot_count_issues(
+            "features", pairs, f"{n} features: {pairs:,} feature pairs (plots)"
+        )
 
     def map_configs(self, config):
         if config.features == "all" or config.single_figure:
