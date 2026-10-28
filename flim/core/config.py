@@ -4,11 +4,13 @@ Configs are Pydantic models: validated when created and when a field changes, sa
 JSON, and the source from which the GUI builds configuration dialogs.
 """
 
+import copy
+import logging
 import typing
 from dataclasses import dataclass
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, ClassVar, Literal, Optional, Self, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 from pydantic.fields import FieldInfo
 
 
@@ -23,6 +25,22 @@ class BaseConfig(BaseModel):
         None  # tool class, "module.Class", for loading/reproducing
     )
     version: Optional[str] = None  # FLIMAnalyzer version that wrote the config
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler):
+        data = handler(self)
+        # the version is set once per settings file; classname names the tool of a
+        # task config (see TaskConfig) and means nothing in nested models such as
+        # Resources
+        if data.get("version") is None:
+            data.pop("version", None)
+        if data.get("classname") is None and not isinstance(self, TaskConfig):
+            data.pop("classname", None)
+        return self._after_dump(data)
+
+    def _after_dump(self, data: dict) -> dict:
+        """Adjusts the dumped fields of this model (subclasses)."""
+        return data
 
 
 # --- annotated field types: meaning for validation and for the GUI's widgets ---
@@ -90,13 +108,86 @@ class Resources(BaseConfig):
     preferred_threads: Literal[1] = 1
 
 
+# legacy parameters of every plugin that are not part of a config: the input (1),
+# execution (3) and the dialogs' "save configuration" option
+LEGACY_IGNORED = frozenset(
+    {"input", "autosave", "working_dir", "saveconfig", "config_file"}
+)
+LEGACY_ALL_FEATURES = "all_features"
+_NOT_LEGACY = ("classname", "version", "resources")
+
+
 class TaskConfig(BaseConfig):
-    """Base of the configs of all tools and workflows."""
+    """Base of the configs of all tools and workflows.
+
+    ``from_legacy_params`` and ``to_legacy_params`` convert from and to the parameter
+    dicts of the current plugins (``AbstractPlugin.params``). Fields are matched by
+    name; ``legacy_keys`` names the legacy key where it differs, or None for fields the
+    hooks ``_from_legacy`` and ``_to_legacy`` convert (or that have no legacy key).
+    """
+
+    legacy_keys: ClassVar[dict[str, Optional[str]]] = {}
+    # legacy keys that are dropped: unused, or meaningless for tasks
+    legacy_dropped: ClassVar[frozenset[str]] = frozenset()
 
     grouping: list[CategoryColumn] = []
     features: Union[list[FeatureColumn], AllFeatures] = []
     prefix: Optional[str] = None  # prefix for result names
     resources: Resources = Field(default_factory=Resources)
+
+    @model_validator(mode="after")
+    def _set_classname(self):
+        """Names the registered tool of this config, unless a classname is given."""
+        if self.classname is None:
+            from flim.core.registry import tools
+
+            tool = tools.for_config(self)
+            if tool is not None:
+                # not setattr: that would run the validators again
+                self.__dict__["classname"] = f"{tool.__module__}.{tool.__qualname__}"
+        return self
+
+    @classmethod
+    def from_legacy_params(cls, params: dict) -> Self:
+        """The config for a plugin's parameter dict; unknown keys are logged."""
+        params = copy.deepcopy(dict(params))
+        values = cls._from_legacy(params)
+        for name in cls.model_fields:
+            key = cls.legacy_keys.get(name, name)
+            if name in values or name in _NOT_LEGACY or key is None:
+                continue
+            if key in params:
+                values[name] = params.pop(key)
+        if values.get("features") == LEGACY_ALL_FEATURES:
+            values["features"] = "all"
+        unknown = set(params) - LEGACY_IGNORED - cls.legacy_dropped
+        if unknown:
+            logging.warning(
+                f"{cls.__name__}: ignoring unknown parameters {sorted(unknown)}"
+            )
+        return cls(**values)
+
+    def to_legacy_params(self) -> dict:
+        """The plugin parameter dict for this config."""
+        params = {}
+        for name in type(self).model_fields:
+            key = self.legacy_keys.get(name, name)
+            if name in _NOT_LEGACY or key is None:
+                continue
+            params[key] = copy.deepcopy(getattr(self, name))
+        if params.get("features") == "all":
+            params["features"] = LEGACY_ALL_FEATURES
+        params.update(self._to_legacy())
+        return params
+
+    @classmethod
+    def _from_legacy(cls, params: dict) -> dict:
+        """Converts (and pops) the legacy parameters that need more than a rename."""
+        return {}
+
+    def _to_legacy(self) -> dict:
+        """Legacy parameters that need more than a rename."""
+        return {}
 
 
 @dataclass(frozen=True)
