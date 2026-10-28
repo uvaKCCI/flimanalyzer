@@ -1,10 +1,15 @@
 """Plot tools. They draw with pyplot and seaborn, holding pyplot_lock (draws_figures)."""
 
+import functools
 import itertools
+from typing import Optional
 import logging
 import math
 import warnings
 
+import matplotlib.artist
+import matplotlib.figure
+import matplotlib.container
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
@@ -49,15 +54,120 @@ def add_picker(figure) -> None:
 
 
 def clean_label(label) -> str:
-    """A group name, e.g. ``('WT', '1')``, as a label without quotes and parentheses."""
+    """A group name, e.g. ``('WT', '1')``, as a label without quotes and parentheses;
+    a group of one column (``('WT',)``) is its value."""
+    if isinstance(label, tuple) and len(label) == 1:
+        label = label[0]
     return str(label).replace("'", "").replace("(", "").replace(")", "")
 
 
+def tiles(n: int, per_row: int = 0, size=(4.5, 3.5)):
+    """A figure of ``n`` plots, ``per_row`` (0: about square) per row: (figure, axes)."""
+    cols = min(per_row or math.ceil(math.sqrt(n)), n)
+    rows = math.ceil(n / cols)
+    figure, axes = plt.subplots(
+        rows,
+        cols,
+        squeeze=False,
+        figsize=(size[0] * cols, size[1] * rows),
+        layout="constrained",
+    )
+    axes = list(axes.flatten())
+    for ax in axes[n:]:
+        figure.delaxes(ax)
+    return figure, axes[:n]
+
+
+OUTSIDE_LOC = {
+    "right": "outside right upper",
+    "left": "outside left upper",
+    "top": "outside upper center",
+    "bottom": "outside lower center",
+}
+
+
+def arrange_legends(figure, position: str) -> None:
+    """Places the legends of a figure: one legend for the figure outside its plots
+    (right, top, bottom, left), inside the first plot with one, or none.
+
+    Legends with the same title (e.g. one per tile of a single figure) become one,
+    with all their entries. Legends with different titles (e.g. the panels of a FLIRR
+    plot) stay as they are.
+    """
+    axes_legends = [ax for ax in figure.axes if ax.get_legend() is not None]
+    legends = [ax.get_legend() for ax in axes_legends] + list(figure.legends)
+    if not legends:
+        return
+    if position == "none":
+        for legend in legends:
+            legend.remove()
+        return
+    titles = {legend.get_title().get_text() for legend in legends}
+    if len(titles) > 1:
+        return
+    entries = {}
+    for legend in legends:
+        for handle, text in zip(legend.legend_handles, legend.get_texts()):
+            entries.setdefault(text.get_text(), handle)
+    for legend in legends:
+        legend.remove()
+    options = dict(title=titles.pop() or None, fontsize="small")
+    if position == "inside":
+        host = axes_legends[0] if axes_legends else figure.axes[0]
+        host.legend(list(entries.values()), list(entries), loc="best", **options)
+        return
+    figure.set_layout_engine("constrained")  # leaves room for the legend
+    columns = (
+        min(len(entries), 6)
+        if position in ("top", "bottom")
+        else len(entries) // 30 + 1
+    )
+    figure.legend(
+        list(entries.values()),
+        list(entries),
+        loc=OUTSIDE_LOC[position],
+        ncol=columns,
+        **options,
+    )
+
+
+def tidy_tiles(figure, axes) -> None:
+    """For tiles of a single figure: the words all tile titles share (at their start
+    or end) as the figure title, each tile keeping its own part. (Their legends are
+    combined by arrange_legends.)"""
+    axes = [ax for ax in axes if ax.get_visible()]
+    if len(axes) < 2:
+        return
+    titles = [ax.get_title().split() for ax in axes]
+    if not all(titles):
+        return
+    shortest = min(len(t) for t in titles)
+    start = 0
+    while start < shortest and len({t[start] for t in titles}) == 1:
+        start += 1
+    end = 0
+    while end < shortest - start and len({t[-1 - end] for t in titles}) == 1:
+        end += 1
+    if start == 0 and end == 0:
+        return
+    shared = titles[0][:start] + (titles[0][len(titles[0]) - end :] if end else [])
+    for ax, words in zip(axes, titles):
+        ax.set_title(" ".join(words[start : len(words) - end]))
+    text = " ".join(shared)
+    figure.suptitle(text[:1].upper() + text[1:])
+
+
 def per_feature(config) -> list:
-    """One config per feature (all features in one config if they are "all")."""
-    if config.features == "all":
+    """One config per feature (all features in one config if they are "all"); a
+    dict of per-feature settings keeps each feature's."""
+    features = config.features
+    if features == "all":
         return [config]
-    return [config.model_copy(update={"features": [f]}) for f in config.features]
+    if isinstance(features, dict):
+        return [
+            config.model_copy(update={"features": {f: s}}) for f, s in features.items()
+        ]
+    return [config.model_copy(update={"features": [f]}) for f in features]
 
 
 class _Plot:
@@ -66,9 +176,28 @@ class _Plot:
     category = "Plot"
     draws_figures = True
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if "run" in cls.__dict__:  # the legends of its figures, as configured
+            run = cls.__dict__["run"]
+
+            @functools.wraps(run)
+            def run_and_arrange_legends(self, *inputs, config):
+                results = run(self, *inputs, config=config)
+                if getattr(config, "legend_grouping", None) is not None:
+                    for value in results.values():
+                        if isinstance(value, matplotlib.figure.Figure):
+                            arrange_legends(value, config.legend_position)
+                return results
+
+            cls.run = run_and_arrange_legends
+
     @classmethod
     def output_names(cls, config, features: list[str]) -> dict[str, type]:
-        """Output name → type for the selected features (default: one plot each)."""
+        """Output name → type for the selected features (default: one plot each, or
+        a single figure named after the tool)."""
+        if getattr(config, "single_figure", False):
+            return {cls.name: PlotType}
         return {cls.plot_name(f): PlotType for f in sorted(features)}
 
     @classmethod
@@ -92,7 +221,38 @@ class _Plot:
         }
 
     def map_configs(self, config):
+        if getattr(config, "single_figure", False):
+            return [config]
         return per_feature(config)
+
+
+def tile_columns(n: int, per_row: int = 0) -> int:
+    """Plots per row of a single figure of ``n`` plots (0: about square)."""
+    return max(1, min(per_row or math.ceil(math.sqrt(n)), n))
+
+
+def long_format(data, features, keep) -> pd.DataFrame:
+    """``features`` stacked into one value column (with a feature column), for
+    seaborn's facets; ``keep``: the columns kept with each value."""
+    return data[list(keep) + list(features)].melt(
+        id_vars=list(keep),
+        value_vars=list(features),
+        var_name=TILE_FEATURE,
+        value_name=TILE_VALUE,
+    )
+
+
+# column names in long_format tables (unlikely to clash with the data's columns)
+TILE_FEATURE, TILE_VALUE = "__feature__", "__value__"
+
+
+def label_tiles(grid, features, ylim=None) -> None:
+    """Titles (the feature), y labels and y limits of a facet grid's plots."""
+    for ax, feature in zip(grid.axes.flat, features):
+        ax.set_title(str(feature).replace("\n", " "))
+        ax.set_ylabel(str(feature).replace("\n", " "))
+        if ylim is not None:
+            ax.set_ylim(*ylim(feature))
 
 
 # --- categorical plots ---
@@ -126,17 +286,83 @@ def catplot_figure(data, feature, grouping, kind):
     return figure
 
 
+def catplot_tiles(data, features, grouping, kind, per_row):
+    """One seaborn catplot of all ``features``, a tile each (x and hue from the
+    first two grouping columns)."""
+    long = long_format(data, features, grouping).dropna(subset=[TILE_VALUE])
+    roles = dict(zip(("x", "hue"), grouping))
+    if len(grouping) == 1:
+        roles["color"] = "blue"
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="vert: bool was deprecated",
+            category=MatplotlibDeprecationWarning,
+        )
+        grid = sns.catplot(
+            data=long,
+            y=TILE_VALUE,
+            col=TILE_FEATURE,
+            col_order=list(features),
+            col_wrap=tile_columns(len(features), per_row),
+            sharey=False,
+            kind=kind,
+            **roles,
+        )
+
+    def ylim(feature):
+        values = data[feature]
+        return min(0, values.min()) * 0.95, max(0, values.max()) * 1.05
+
+    label_tiles(grid, features, ylim)
+    add_picker(grid.figure)
+    return grid.figure
+
+
+def sampled_rows(data: pd.DataFrame, points) -> tuple[pd.DataFrame, Optional[str]]:
+    """The rows to draw: all, or a random sample that is the same on every run; and
+    a note saying how many are shown (None for all)."""
+    total = len(data)
+    if points is None or points.mode != "sample" or not 0 < points.samples < total:
+        return data, None
+    rng = np.random.default_rng(points.random_seed)
+    rows = np.sort(rng.choice(total, size=points.samples, replace=False))
+    return (
+        data.iloc[rows],
+        f"{points.samples:,} samples of {total:,} measurements shown",
+    )
+
+
+def add_note(figure, note: Optional[str]) -> None:
+    """A small note below the plots, e.g. that a sample of the points is shown."""
+    if note:
+        figure.text(
+            0.5, 0.005, note, ha="center", va="bottom", fontsize="small", color="0.3"
+        )
+        if not figure.get_constrained_layout():
+            figure.subplots_adjust(bottom=figure.subplotpars.bottom + 0.03)
+
+
 class _CategoricalPlot(_Plot):
     kind = ""
 
     def run(self, data, *, config):
         data = strings_for_categories(data)
-        return {
-            self.plot_name(feature): catplot_figure(
-                data, feature, config.grouping, self.kind
+        features = sorted(selected_features(data, config.features))
+        data, note = sampled_rows(data, getattr(config, "points", None))
+        if config.single_figure and features:
+            figure = catplot_tiles(
+                data, features, config.grouping, self.kind, config.plots_per_row
             )
-            for feature in sorted(selected_features(data, config.features))
-        }
+            add_note(figure, note)
+            return {self.name: figure}
+        results = {}
+        for feature in features:
+            self.check_cancelled()  # plots of many points take long
+            figure = catplot_figure(data, feature, config.grouping, self.kind)
+            add_note(figure, note)
+            results[self.plot_name(feature)] = figure
+        return results
 
 
 @register_tool
@@ -181,7 +407,8 @@ def grouped_meanbarplot(
     stacked = not bartype == "single"
     if data is None or not all(e in data.columns.values for e in feature):
         return None
-    if ax is None:
+    own_figure = ax is None  # only a figure of its own is sized and adjusted here
+    if own_figure:
         fig, ax = plt.subplots()
     else:
         fig = ax.get_figure()
@@ -259,8 +486,9 @@ def grouped_meanbarplot(
             stacked_error[1::2, :] = error
             error = stacked_error.reshape([dim[0], 2, dim[1]])
         ticklabels = mean.index.values
-        fig.set_figheight(1 + num_bars // 8)
-        fig.set_figwidth(6)
+        if own_figure:
+            fig.set_figheight(1 + num_bars // 8)
+            fig.set_figwidth(6)
         if orientation == "horizontal":
             mean.plot.barh(
                 ax=ax, xerr=error, width=0.8, stacked=stacked, capsize=capsize
@@ -285,17 +513,8 @@ def grouped_meanbarplot(
             else:
                 ax.set_xlabel(", ".join(categories[pivot_level:]))
         no_legendcols = len(categories) // 30 + 1
-        chartbox = ax.get_position()
         if bartype == "100% stacked":
             ax.yaxis.set_major_formatter(mtick.PercentFormatter())
-        ax.set_position(
-            [
-                chartbox.x0,
-                chartbox.y0,
-                chartbox.width * (1 - 0.2 * no_legendcols),
-                chartbox.height,
-            ]
-        )
         if legend:
             ax.legend(
                 labels=labels,
@@ -316,10 +535,51 @@ def grouped_meanbarplot(
     if title is None:
         title = "|".join(feature).replace("\n", " ")
         if len(categories) > 0:
-            title = f"{title} grouped by {categories}"
+            title = f"{title} grouped by {', '.join(categories)}"
     if len(title) > 0:
         ax.set_title(title)
+    limit_error_caps(ax, capsize, horizontal=orientation == "horizontal")
     return fig
+
+
+class _CapLimiter(matplotlib.artist.Artist):
+    """Keeps the error bar caps of bars at most ``fraction`` of the bars' width.
+
+    Caps are sized in points, bars by the axes: drawn first in its axes (before the
+    bars), at every draw (saving, resized windows), it sets the caps' size from the
+    bars' width at that moment.
+    """
+
+    def __init__(self, caplines, bars, capsize, horizontal, fraction=0.8):
+        super().__init__()
+        self.caplines, self.bars = list(caplines), list(bars)
+        self.cap_width = 2 * capsize  # matplotlib draws caps 2 * capsize wide
+        self.horizontal, self.fraction = horizontal, fraction
+        self.set_zorder(-1e9)
+
+    def draw(self, renderer):
+        if not self.bars or not self.get_visible():
+            return
+        sizes = [b.get_window_extent(renderer) for b in self.bars]
+        pixels = min(box.height if self.horizontal else box.width for box in sizes)
+        points = pixels * 72 / self.axes.figure.dpi
+        width = max(0.0, min(self.cap_width, self.fraction * points))
+        for line in self.caplines:
+            line.set_markersize(width)
+
+
+def limit_error_caps(ax, capsize, horizontal=False, fraction=0.8) -> None:
+    """Error bar caps of the bars in ``ax``: at most ``fraction`` of a bar's width."""
+    for container in ax.containers:
+        errorbar = getattr(container, "errorbar", None)
+        if isinstance(container, matplotlib.container.BarContainer) and errorbar:
+            _, caplines, _ = errorbar.lines
+            if caplines:
+                ax.add_artist(
+                    _CapLimiter(
+                        caplines, container.patches, capsize, horizontal, fraction
+                    )
+                )
 
 
 @register_tool
@@ -340,30 +600,39 @@ class BarPlot(_Plot, Tool[BarPlotConfig]):
 
     def run(self, data, *, config):
         features = selected_features(data, config.features)
-        groups = (
-            [features]
-            if config.bar_type != "single"
-            else [[f] for f in sorted(features)]
+        options = dict(
+            categories=config.grouping,
+            dropna=config.dropna,
+            bartype=config.bar_type,
+            orientation=config.orientation,
+            error_bar=config.error_bar,
+            error_type=config.error_type,
+            legend=True,  # placed by arrange_legends
         )
-        results = {}
-        for group in groups:
-            figure = grouped_meanbarplot(
-                data,
-                group,
-                categories=config.grouping,
-                dropna=config.dropna,
-                bartype=config.bar_type,
-                orientation=config.orientation,
-                error_bar=config.error_bar,
-                error_type=config.error_type,
-                legend=config.legend,
-            )
+        if config.bar_type != "single":  # all features in one plot
+            figure = grouped_meanbarplot(data, features, **options)
             add_picker(figure)
-            results["|".join(group)] = figure
+            return {"|".join(features): figure}
+        features = sorted(features)
+        if config.single_figure and features:
+            figure, axes = tiles(len(features), config.plots_per_row, size=(6, 4.5))
+            for ax, feature in zip(axes, features):
+                self.check_cancelled()
+                grouped_meanbarplot(data, [feature], ax=ax, **options)
+            tidy_tiles(figure, axes)
+            add_picker(figure)
+            return {self.name: figure}
+        results = {}
+        for feature in features:
+            figure = grouped_meanbarplot(data, [feature], **options)
+            add_picker(figure)
+            results[feature] = figure
         return results
 
     def map_configs(self, config):
-        return per_feature(config) if config.bar_type == "single" else [config]
+        if config.bar_type != "single" or config.single_figure:
+            return [config]
+        return per_feature(config)
 
 
 def ci_to_errorbar(ci):
@@ -395,10 +664,41 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
         for column in category_columns(data):
             if data[column].nunique() > 1:
                 data[column] = data[column].astype("str")
+        features = sorted(selected_features(data, config.features))
+        if config.single_figure and features:
+            return {self.name: self.line_tiles(data, features, config)}
         return {
             self.plot_name(feature): self.line_figure(data, feature, config)
-            for feature in sorted(selected_features(data, config.features))
+            for feature in features
         }
+
+    def line_tiles(self, data, features, config):
+        """All features as tiles of one figure (up to 3 grouping columns)."""
+        grouping = list(config.grouping)
+        per_row = config.plots_per_row
+        if not grouping:  # each feature along the rows of the table
+            figure, axes = tiles(len(features), per_row)
+            for ax, feature in zip(axes, features):
+                data[feature].plot(ax=ax)
+                ax.set_title(str(feature).replace("\n", " "))
+            add_picker(figure)
+            return figure
+        grid = sns.relplot(
+            data=long_format(data, features, grouping),
+            y=TILE_VALUE,
+            col=TILE_FEATURE,
+            col_order=list(features),
+            col_wrap=tile_columns(len(features), per_row),
+            kind="line",
+            facet_kws={"sharey": False},
+            errorbar=ci_to_errorbar(config.errorbar),
+            err_style=config.err_style,
+            markers=config.markers,
+            **dict(zip(("x", "hue", "style"), grouping)),
+        )
+        label_tiles(grid, features)
+        add_picker(grid.figure)
+        return grid.figure
 
     def line_figure(self, data, feature, config):
         grouping = list(config.grouping)
@@ -422,45 +722,44 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
         return figure
 
 
+def group_styles(data, groups) -> list[dict]:
+    """Colour (and, for two grouping columns, line style) of each group, in the order
+    of ``data.groupby(groups, observed=False)``: the same in every plot."""
+    if len(groups) == 2:
+        values = [
+            data[g].cat.categories if hasattr(data[g], "cat") else data[g].unique()
+            for g in groups
+        ]
+        if len(values[1]) <= len(DEFAULT_LINESTYLES):
+            colors = sns.color_palette(n_colors=len(values[0]))
+            return [
+                {"color": c, "linestyle": ls}
+                for c in colors
+                for ls in DEFAULT_LINESTYLES[: len(values[1])]
+            ]
+    n = data.groupby(list(groups), observed=False).ngroups
+    return [{"color": c} for c in sns.color_palette(n_colors=n)]
+
+
 def grouped_kdeplot(data, column, ax, groups=(), show_legend=True, **kwargs):
-    """KDE curves of ``column``, one per group."""
+    """KDE curves of ``column``, one per group, labelled with the group."""
     kwargs = {**kwargs, "ax": ax, "warn_singular": False}
     data = data[list(groups) + [column]].dropna(how="any", subset=[column])
     if groups:
-        styles = []
-        if len(groups) == 2:
-            values = [data[g].unique() for g in groups]
-            palette = sns.color_palette()
-            if len(values[0]) <= len(palette) and len(values[1]) <= len(
-                DEFAULT_LINESTYLES
-            ):
-                styles = [
-                    {"color": c, "linestyle": ls}
-                    for c in palette[: len(values[0])]
-                    for ls in DEFAULT_LINESTYLES[: len(values[1])]
-                ]
-        labels = []
+        styles = group_styles(data, groups)
         for index, (name, group) in enumerate(
             data.groupby(list(groups), observed=False)
         ):
             if len(group[column]) == 0:
                 continue
-            if len(styles) > index:
-                kwargs.update(styles[index])
+            style = styles[index] if index < len(styles) else {}
             try:
-                sns.kdeplot(group[column], **kwargs)
+                sns.kdeplot(group[column], label=clean_label(name), **kwargs, **style)
             except Exception as err:
                 logging.error(err)
-            labels.append(clean_label(name))
-        if show_legend:
-            ax.legend(
-                labels=labels,
-                loc="upper left",
-                title=", ".join(groups),
-                bbox_to_anchor=(1.0, 1.0),
-                fontsize="small",
-                ncol=len(groups) // 30 + 1,
-            )
+        # from the curves drawn (none for e.g. a constant column)
+        if show_legend and ax.get_legend_handles_labels()[0]:
+            ax.legend(**group_legend_options(groups))
     else:
         try:
             sns.kdeplot(data[column], **kwargs)
@@ -468,6 +767,16 @@ def grouped_kdeplot(data, column, ax, groups=(), show_legend=True, **kwargs):
             logging.error(err)
     ax.autoscale(enable=True, axis="y")
     ax.set_ylim(0, None)
+
+
+def group_legend_options(groups) -> dict:
+    return dict(
+        loc="upper left",
+        title=", ".join(groups),
+        bbox_to_anchor=(1.0, 1.0),
+        fontsize="small",
+        ncol=len(groups) // 30 + 1,
+    )
 
 
 @register_tool
@@ -478,7 +787,7 @@ class KDE(_Plot, Tool[KDEConfig]):
 
     @classmethod
     def output_names(cls, config, features):
-        if config.single_plot:
+        if config.single_figure:
             return {"KDE": PlotType}
         return super().output_names(config, features)
 
@@ -486,16 +795,9 @@ class KDE(_Plot, Tool[KDEConfig]):
         features = sorted(selected_features(data, config.features))
         if not features:
             return {}
-        single = config.single_plot
+        single = config.single_figure
         if single:
-            n = len(features)
-            cols = config.col_wrap or math.ceil(math.sqrt(n))
-            cols = min(cols, n)
-            rows = math.ceil(n / cols)
-            figure, axes = plt.subplots(rows, cols, squeeze=False)
-            axes = axes.flatten()
-            for ax in axes[n:]:
-                figure.delaxes(ax)
+            figure, axes = tiles(len(features), config.plots_per_row)
         results = {}
         for i, feature in enumerate(features):
             if single:
@@ -510,23 +812,21 @@ class KDE(_Plot, Tool[KDEConfig]):
                 ax,
                 groups=config.grouping,
                 clip=(low, high),
-                # one legend, next to the last plot of the first row
-                show_legend=not single or i == min(cols, len(features)) - 1,
+                show_legend=True,  # a single figure: combined by arrange_legends
             )
-            if np.isfinite([low, high]).all():
+            if np.isfinite([low, high]).all() and low < high:  # not for constants
                 ax.set_xlim(low, high)
             if not single:
                 figure.tight_layout()
                 add_picker(figure)
                 results[self.plot_name(feature)] = figure
         if single:
-            figure.tight_layout()
             add_picker(figure)
             results["KDE"] = figure
         return results
 
     def map_configs(self, config):
-        return [config] if config.single_plot else per_feature(config)
+        return [config] if config.single_figure else per_feature(config)
 
 
 @register_tool
@@ -544,34 +844,40 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
 
     @classmethod
     def output_names(cls, config, features):
-        names = {}
+        names = {"Frequency Histogram": PlotType} if config.single_figure else {}
         for feature in sorted(features):
-            names[cls.plot_name(feature)] = PlotType
+            if not config.single_figure:
+                names[cls.plot_name(feature)] = PlotType
             if config.table:
                 names[f"Frequency Histo Table: {feature}"] = TableType
         return names
 
     def run(self, data, *, config):
         results = {}
-        for feature in sorted(selected_features(data, config.features)):
-            settings = config.per_feature.get(feature)
-            if settings is not None:
-                value_range, bins = (settings.min, settings.max), settings.bins
-            else:
-                value_range = (data[feature].min(), data[feature].max())
-                bins = config.bins
-            values, edges, names, figure = self.histogram(
+        features = sorted(selected_features(data, config.features))
+        if config.single_figure and features:
+            figure, axes = tiles(len(features), config.plots_per_row, size=(5, 4.5))
+            results["Frequency Histogram"] = figure
+        for i, feature in enumerate(features):
+            settings = config.features[feature]
+            auto = config.auto_range
+            low = data[feature].min() if auto or settings.min is None else settings.min
+            high = data[feature].max() if auto or settings.max is None else settings.max
+            value_range, bins = (low, high), settings.bins
+            values, edges, names, feature_figure = self.histogram(
                 data,
                 feature,
                 groups=config.grouping,
                 stacked=config.stacked,
+                ax=axes[i] if config.single_figure else None,
                 range=value_range,
                 bins=bins,
                 histtype=config.histtype,
                 cumulative=config.cumulative,
                 density=config.density,
             )
-            results[self.plot_name(feature)] = figure
+            if not config.single_figure:
+                results[self.plot_name(feature)] = feature_figure
             if config.table:
                 table = pd.DataFrame(
                     {"bin edge low": edges[:-1], "bin edge high": edges[1:]}
@@ -579,12 +885,30 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
                 for name, column in zip(names, np.atleast_2d(values)):
                     table[name] = column
                 results[f"Frequency Histo Table: {feature}"] = table
+        if config.single_figure and features:
+            tidy_tiles(figure, axes)
         return results
 
+    def map_configs(self, config):
+        return [config] if config.single_figure else per_feature(config)
+
+    @classmethod
+    def validate(cls, config, inputs):
+        issues = super().validate(config, inputs)
+        if not config.features:
+            issues.append(Issue("features", "Check the features to plot"))
+        return issues
+
     @staticmethod
-    def histogram(data, column, groups, stacked, normalize=100, **kwargs):
-        """Histogram in percent of all (stacked) or of each group's measurements."""
-        figure, ax = plt.subplots(constrained_layout=True)
+    def histogram(data, column, groups, stacked, normalize=100, ax=None, **kwargs):
+        """Histogram in percent of all (stacked) or of each group's measurements, in
+        ``ax`` (default: a new figure)."""
+        own_figure = ax is None
+        if own_figure:
+            figure, ax = plt.subplots(constrained_layout=True)
+            figure.set_size_inches(8, 8)
+        else:
+            figure = ax.get_figure()
         total = data[column].dropna(axis=0, how="all").count()
         values, weights, names = [], [], []
         if not groups:
@@ -610,9 +934,8 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
         ax.set_xlabel(column)
         title = column.replace("\n", " ")
         if groups:
-            title = f"{title} grouped by {list(groups)}"
+            title = f"{title} grouped by {', '.join(groups)}"
         ax.set_title(title)
-        figure.set_size_inches(8, 8)
         counts, edges, _ = ax.hist(
             values, weights=weights, stacked=stacked, alpha=0.5, **kwargs
         )
@@ -658,7 +981,9 @@ class Heatmap(_Plot, Tool[HeatmapConfig]):
             ax.get_xticklabels(), rotation=45, horizontalalignment="right"
         )
         grouping = config.grouping
-        ax.set_title(f"Data grouped by {grouping}" if grouping else "Data ungrouped")
+        ax.set_title(
+            f"Data grouped by {', '.join(grouping)}" if grouping else "Data ungrouped"
+        )
         corr = corr.reset_index().rename(columns={"index": "Feature"})
         corr["Feature"] = corr["Feature"].astype("category")
         return {"Heatmap": ax.get_figure(), "Heatmap Correlation": corr}
@@ -697,9 +1022,12 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
         return {f"Pair Plot: {config.grouping}": PlotType}
 
     def run(self, data, *, config):
-        features = selected_features(data, config.features)
-        x_vars = config.x_vars or features
-        y_vars = config.y_vars or features
+        x_vars, y_vars = self.grid_vars(data, config)
+        if not x_vars or not y_vars:
+            raise ValueError(f"{self.name}: select the features to plot")
+        # a lower half exists only if the columns and rows are the same features
+        # (seaborn fails otherwise); the config allows it only for symmetric grids
+        corner = config.corner and list(x_vars) == list(y_vars)
         hue = config.grouping[0] if config.grouping else None
         columns = list(
             dict.fromkeys(list(x_vars) + list(y_vars) + ([hue] if hue else []))
@@ -721,7 +1049,7 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
             y_vars=y_vars,
             hue=hue,
             dropna=True,
-            corner=config.corner,
+            corner=corner,
         )
         if config.diagonal == "Histogram":
             grid.map_diag(sns.histplot, bins=config.hist_bins)
@@ -743,8 +1071,25 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
             grid.figure.subplots_adjust(bottom=grid.figure.subplotpars.bottom + 0.03)
         return {f"Pair Plot: {config.grouping}": grid.figure}
 
+    @staticmethod
+    def grid_vars(data, config) -> tuple[list, list]:
+        """The features of the grid's columns and rows; all numeric columns if the
+        config selects "all" features (older settings)."""
+        x_vars = config.x_vars or selected_features(data, config.features)
+        y_vars = x_vars if config.symmetric else config.y_vars
+        return x_vars, y_vars
+
     def map_configs(self, config):
         return [config]
+
+    @classmethod
+    def validate(cls, config, inputs):
+        issues = super().validate(config, inputs)
+        if not config.x_vars and config.features != "all":
+            issues.append(Issue("x_vars", "Select the features of the grid columns"))
+        if not config.symmetric and not config.y_vars:
+            issues.append(Issue("y_vars", "Select the features of the grid rows"))
+        return issues
 
 
 @register_tool
@@ -755,6 +1100,8 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
 
     @classmethod
     def output_names(cls, config, features):
+        if config.single_figure:
+            return {cls.name: PlotType}
         return {
             f"Scatter Plot: {pair}": PlotType
             for pair in sorted(itertools.combinations(features, 2))
@@ -762,23 +1109,43 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
 
     def run(self, data, *, config):
         features = selected_features(data, config.features)
-        return {
-            f"Scatter Plot: {pair}": self.scatter_figure(data, pair, config.grouping)
-            for pair in sorted(itertools.combinations(features, 2))
-        }
+        pairs = sorted(itertools.combinations(features, 2))
+        # the same sample in every plot: the same cells
+        data, note = sampled_rows(data, config.points)
+        if config.single_figure and pairs:
+            figure, axes = tiles(len(pairs), config.plots_per_row, size=(6, 4.5))
+            for ax, pair in zip(axes, pairs):
+                self.check_cancelled()  # many points take long
+                self.scatter_figure(data, pair, config.grouping, ax=ax)
+            tidy_tiles(figure, axes)
+            add_note(figure, note)
+            add_picker(figure)
+            return {self.name: figure}
+        results = {}
+        for pair in pairs:
+            self.check_cancelled()
+            figure = self.scatter_figure(data, pair, config.grouping)
+            add_note(figure, note)
+            results[f"Scatter Plot: {pair}"] = figure
+        return results
 
     @staticmethod
-    def scatter_figure(data, pair, groups):
+    def scatter_figure(data, pair, groups, ax=None):
+        """A scatter plot of ``pair``, in ``ax`` (default: a figure of its own)."""
         x, y = pair
-        figure, ax = plt.subplots(constrained_layout=True)
+        own_figure = ax is None
+        if own_figure:
+            figure, ax = plt.subplots(constrained_layout=True)
+            figure.set_figheight(6)
+            figure.set_figwidth(12)
+        else:
+            figure = ax.get_figure()
         data = data[list(groups) + list(pair)].dropna(how="any", subset=list(pair))
-        figure.set_figheight(6)
-        figure.set_figwidth(12)
         options = {"alpha": 0.5, "marker": "o", "s": 10}
         if groups:
             for name, group in data.groupby(list(groups), observed=False):
                 if len(group[x]) > 0 and len(group[y]) > 0:
-                    ax.scatter(group[x], group[y], label=name, **options)
+                    ax.scatter(group[x], group[y], label=clean_label(name), **options)
         else:
             ax.scatter(data[x], data[y], **options)
         ax.set_xlim(min(0, data[x].min()) * 1.05, max(0, data[x].max()) * 1.05)
@@ -795,12 +1162,13 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
                 fontsize="small",
                 ncol=len(groups) // 30 + 1,
             )
-            ax.set_title(f"Data grouped by {list(groups)}")
-        add_picker(figure)
+            ax.set_title(f"Data grouped by {', '.join(groups)}")
+        if own_figure:
+            add_picker(figure)
         return figure
 
     def map_configs(self, config):
-        if config.features == "all":
+        if config.features == "all" or config.single_figure:
             return [config]
         return [
             config.model_copy(update={"features": list(pair)})
@@ -848,7 +1216,8 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
                 f"{self.name}: needs a FLIRR column, and FAD a1 % and NAD(P)H a2 % columns"
             )
         hue = grouping[0]
-        figure = plt.figure()
+        # constrained layout: panels and labels without overlap
+        figure = plt.figure(figsize=(16, 10), layout="constrained")
         ax1 = plt.subplot2grid((3, 5), (0, 0), colspan=2, rowspan=2, fig=figure)
         ax2 = plt.subplot2grid((3, 5), (0, 2), colspan=1, fig=figure)
         ax3 = plt.subplot2grid((3, 5), (0, 3), colspan=1, fig=figure)
@@ -881,7 +1250,6 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
             error_type="sem",
             legend=False,
         )
-        figure.tight_layout()
         add_picker(figure)
         return {f"FLIRR Plot: {config.grouping}": figure}
 

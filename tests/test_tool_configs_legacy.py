@@ -4,6 +4,7 @@ import pytest
 
 from flim.configs import LEGACY_TOOL_CONFIGS
 from flim.core.config import LEGACY_IGNORED
+import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.plugin import PLUGINS, create_instance
 
 PLUGIN_CLASSES = {

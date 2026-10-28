@@ -61,12 +61,11 @@ CHANGED = [
     ),
     AERunConfig(model_files=[Path("a.pth"), Path("b.pth")]),
     AEAugmentConfig(model_files=[Path("a.pth")], sets=3, snr_db=10),
-    BarPlotConfig(orientation="horizontal", error_type="s.e.m.", legend=False),
+    BarPlotConfig(orientation="horizontal", error_type="s.e.m.", legend_position="none"),
     LinePlotConfig(errorbar="sd", err_style="band"),
     HistogramConfig(
-        bins=50,
         table=True,
-        per_feature={"FLIRR": HistogramRange(min=0, max=2.4, bins=81)},
+        features={"FLIRR": HistogramRange(min=0, max=2.4, bins=81), "FAD t1": {}},
     ),
     PairPlotConfig(
         features=["a", "b", "c"],
@@ -241,16 +240,43 @@ def test_categorizer_rules():
     )
 
 
-def test_histogram_skips_unread_list_settings():
+def test_histogram_features_from_legacy():
     params = {
+        "features": ["FLIRR", "FAD t1", "FAD t2", "NAD(P)H t1"],
         "featuresettings": {
             "FLIRR": [0, 2.4, 81, ["Treatment"]],  # never read by the plugin
             "FAD t1": {"min": 0, "max": 4000, "bins": 81},
             "FAD t2": {"min": 5, "max": 5, "bins": 30},  # invalid range
-        }
+        },
     }
     cfg = HistogramConfig.from_legacy_params(params)
-    assert cfg.per_feature == {"FAD t1": HistogramRange(min=0, max=4000, bins=81)}
+    assert cfg.features == {
+        "FLIRR": HistogramRange(),  # data range, default bins
+        "FAD t1": HistogramRange(min=0, max=4000, bins=81),
+        "FAD t2": HistogramRange(),
+        "NAD(P)H t1": HistogramRange(),
+    }
+    legacy = cfg.to_legacy_params()
+    assert legacy["features"] == ["FLIRR", "FAD t1", "FAD t2", "NAD(P)H t1"]
+    assert legacy["featuresettings"] == {"FAD t1": {"min": 0, "max": 4000, "bins": 81}}
+
+
+def test_histogram_sync_bins():
+    config = HistogramConfig(features={"a": {"bins": 10}, "b": {"bins": 20}})
+    assert [r.bins for r in config.features.values()] == [10, 20]
+    config.sync_bins = True  # the same bins for all: the first feature's
+    assert [r.bins for r in config.features.values()] == [10, 10]
+    # configs with a global "bins": the bins of features without their own
+    older = HistogramConfig.model_validate(
+        {"bins": 12, "features": {"a": {}, "b": {"bins": 5}}}
+    )
+    assert [r.bins for r in older.features.values()] == [12, 5]
+
+
+def test_histogram_features_as_list_or_dict():
+    assert HistogramConfig(features=["a"]).features == {"a": HistogramRange()}
+    with pytest.raises(ValidationError):
+        HistogramConfig(features={"a": {"min": 2, "max": 1}})
 
 
 def test_pair_plot():
@@ -260,9 +286,22 @@ def test_pair_plot():
     assert cfg.points.mode == "sample" and cfg.points.samples == 500
     assert cfg.points.random_seed == 3
     with pytest.raises(ValidationError):
-        PairPlotConfig(features=["a"], x_vars=["b"])
-    with pytest.raises(ValidationError):
         PairPlotConfig(points={"samples": 0})
+
+
+def test_pair_plot_grid():
+    symmetric = PairPlotConfig(x_vars=["a", "b"])
+    assert symmetric.y_vars == ["a", "b"] and symmetric.features == ["a", "b"]
+    separate = PairPlotConfig(symmetric=False, x_vars=["a", "b"], y_vars=["c", "a"])
+    assert separate.y_vars == ["c", "a"] and separate.features == ["a", "b", "c"]
+    # older settings: the features are the columns
+    assert PairPlotConfig(features=["a", "b"]).x_vars == ["a", "b"]
+    legacy = PairPlotConfig.from_legacy_params(
+        {"features": ["a", "b", "c"], "x_vars": ["a"], "y_vars": ["b", "c"]}
+    )
+    assert not legacy.symmetric and legacy.y_vars == ["b", "c"]
+    symmetric.x_vars = ["b"]  # assignment keeps rows and features in step
+    assert symmetric.y_vars == ["b"] and symmetric.features == ["b"]
 
 
 def test_line_plot_errorbar():
