@@ -8,6 +8,7 @@ CORE_MODULES = [
     "flim.core.registry",
     "flim.core.execution",
     "flim.configs",
+    "flim.core.fields",
     "flim.core.schema",
     "flim.core.tool",
     "flim.tools",

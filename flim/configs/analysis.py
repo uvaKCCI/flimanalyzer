@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from flim.core.config import (
     BaseConfig,
@@ -219,13 +219,14 @@ class CategorizerConfig(AnalysisConfig):
     default: str = "unassigned"  # category of rows no rule matches
     merge_input: bool = True
 
-    @model_validator(mode="after")
-    def _check_overlaps(self):
-        for i, a in enumerate(self.rules):
-            for b in self.rules[i + 1 :]:
+    @field_validator("rules")
+    @classmethod
+    def _check_overlaps(cls, rules):
+        for i, a in enumerate(rules):
+            for b in rules[i + 1 :]:
                 if a.feature == b.feature and a.min < b.max and b.min < a.max:
                     raise ValueError(f"Rules '{a.value}' and '{b.value}' overlap")
-        return self
+        return rules
 
     @classmethod
     def _from_legacy(cls, params):
