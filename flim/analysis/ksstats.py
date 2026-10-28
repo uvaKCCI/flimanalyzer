@@ -7,6 +7,7 @@ Created on Wed Dec 16 14:18:30 2020
 """
 
 import logging
+import flim.tools.statistics as statistics
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -205,102 +206,5 @@ class KSStats(AbstractPlugin):
         return parallel_params
 
     def execute(self):
-        data = list(self.input.values())[0]
-        results = {}
-        comparison = self.params["comparison"]
-        alpha = self.params["alpha"]
-        for header in sorted(self.params["features"]):
-            logging.debug(f"Calculating ks-statistics for {str(header)}")
-            result = self.feature_kststats(
-                data,
-                header,
-                groups=self.params["grouping"],
-                comparison=comparison,
-                alpha=alpha,
-            )
-            results[f"KS-stats: {header}"] = result
-        return results
+        return self.run_tool(statistics.KSStats, list(self.input.values())[0])
 
-    def feature_kststats(
-        self, data, column, groups=[], comparison="", alpha=0.05, dropna=True
-    ):
-        logging.debug(f"data.columns.values={data.columns.values}")
-        if data is None or not column in data.columns.values:
-            return None, None
-        # the comparison column splits the data; the other groups are compared separately
-        groups = [g for g in groups if g != comparison]
-        if len(groups) == 0:
-            groupvals = [("none",)]
-            cols = ["Grouping"]
-        else:
-            groupvals = [name for name, _ in data.groupby(groups, observed=False)]
-            cols = [c for c in groups]
-        dissimilar_label = f"dissimilar (<{alpha})"
-        allcategories = [c for c in cols]
-        allcategories.extend(
-            [
-                f"{comparison} 1",
-                f"{comparison} 2",
-                f"{comparison} 1 & 2",
-                dissimilar_label,
-            ]
-        )
-        cols.extend(
-            [
-                f"{comparison} 1",
-                f"{comparison} 2",
-                f"{comparison} 1 & 2",
-                dissimilar_label,
-                f"n ({comparison} 1)",
-                f"n ({comparison} 2)",
-                "p-values",
-                "statistic",
-                f"critical D ({alpha})",
-            ]
-        )
-        rdata = []
-        for groupval in groupvals:
-            if len(groups) == 0:
-                fdata = data
-            else:
-                # bracket group and grpupvals with backticks in case they contain whitespaces or special characters
-                querystr = " and ".join(
-                    [f'`{groups[i]}` == "{groupval[i]}"' for i in range(len(groupval))]
-                )
-                logging.debug(f"QUERY={querystr}, cols={data.columns.values}")
-                fdata = data.query(querystr)
-            if len(fdata) == 0:
-                continue
-            compgroups = {
-                name: splitdata for name, splitdata in fdata.groupby(comparison, observed=False)
-            }
-            comb = combinations(compgroups.keys(), 2)
-            for c in comb:
-                data1 = compgroups[c[0]][column]
-                data2 = compgroups[c[1]][column]
-                if len(data1) == 0 or len(data2) == 0:
-                    continue
-                ks = stats.ks_2samp(data1, data2)
-                critical_d = calpha[alpha] * np.sqrt(
-                    (len(data1) + len(data2)) / (len(data1) * len(data2))
-                )
-                row = [v for v in groupval]
-                dissimilar = ks.statistic > critical_d and ks.pvalue < alpha
-                row.extend(
-                    [
-                        c[0],
-                        c[1],
-                        f"{c[0]}-{c[1]}",
-                        f"Yes" if dissimilar else "No",
-                        len(data1),
-                        len(data2),
-                        ks.pvalue,
-                        ks.statistic,
-                        critical_d,
-                    ]
-                )
-                rdata.append(row)
-        ksdata = pd.DataFrame(rdata, columns=cols)
-        for ckey in allcategories:
-            ksdata[ckey] = ksdata[ckey].astype("category")
-        return ksdata

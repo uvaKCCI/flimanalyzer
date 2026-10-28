@@ -9,6 +9,7 @@ Created on Thu Dec 17 09:50:44 2020
 import numpy as np
 import pandas as pd
 import wx
+import flim.tools.statistics as statistics
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -226,38 +227,4 @@ class RelativeChange(AbstractPlugin):
         return params
 
     def execute(self):
-        data = list(self.input.values())[0]
-        method = self.params["method"]
-        allcategories = list(data.select_dtypes(["category"]).columns.values)
-        features = self.params["features"]
-        grouping = list(self.params["grouping"])
-        refgroup = self.params["reference_group"]
-        refvalue = self.params["reference_value"]
-        if refgroup not in grouping:
-            grouping.insert(0, refgroup)
-        cols = allcategories + features
-        data = data[cols]
-
-        nonrefcategories = [c for c in allcategories if c != refgroup]
-
-        refdf = data.loc[data[refgroup] == refvalue]
-        if method == "median":
-            transdf = refdf.groupby(grouping, observed=False)[features].transform("median")
-        else:
-            transdf = refdf.groupby(grouping, observed=False)[features].transform("mean")
-        data = data.set_index(allcategories)
-        transdf = pd.concat([refdf[nonrefcategories], transdf], axis=1)
-        transdf = transdf.drop_duplicates()
-        transdf = transdf.set_index(nonrefcategories)
-        transdef = transdf.reindex(data.index)
-        reldf = data[features].div(transdf).reset_index()
-        for ckey in allcategories:
-            reldf[ckey] = reldf[ckey].astype("category")
-        columnlabels = [
-            col if col in allcategories else f"rel {col}"
-            for col in reldf.columns.values
-        ]
-        reldf.columns = columnlabels
-
-        title = f"Table: Relative Change"  # -{method}'
-        return {title: reldf}
+        return self.run_tool(statistics.RelativeChange, list(self.input.values())[0])

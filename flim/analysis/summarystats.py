@@ -13,6 +13,7 @@ from collections import OrderedDict
 from importlib_resources import files
 
 from flim import utils
+import flim.tools.statistics as statistics
 from flim.plugin import plugin, ALL_FEATURES
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -252,51 +253,4 @@ class SummaryStats(AbstractPlugin):
             return [self.params]
 
     def execute(self):
-        summaries = OrderedDict()
-        data = list(self.input.values())[0]
-        sel_functions = [self.agg_functions[f] for f in self.params["aggs"]]
-        features = self.params["features"]
-        if features == ALL_FEATURES:
-            features = list(data.select_dtypes(np.number).columns.values)
-        if features is None or len(features) == 0:
-            return summaries
-        for header in features:
-            # categories = [col for col in self.flimanalyzer.get_importer().get_parser().get_regexpatterns()]
-            allcats = [x for x in self.params["grouping"]]
-            allcats.append(header)
-            dftitle = self._create_df_title(header)
-            if self.params["grouping"] is None or len(self.params["grouping"]) == 0:
-                # create fake group by --> creates 'index' column that needs to removed from aggregate results
-                summary = (
-                    data[allcats]
-                    .groupby(lambda _: True, group_keys=False)
-                    .agg(sel_functions)
-                )
-            else:
-                # data = data.copy()
-                # data.reset_index(inplace=True)
-                grouped_data = data[allcats].groupby(
-                    self.params["grouping"], observed=True
-                )
-                summary = grouped_data.agg(sel_functions)
-                # summary = summary.dropna()
-                summary.reset_index(inplace=True)
-            if self.params["flattenindex"]:
-                summary.columns = [
-                    "\n".join(col).strip() for col in summary.columns.values
-                ]
-            summaries[dftitle] = summary  # .reset_index()
-        if self.params["singledf"]:
-            if len(self.params["grouping"]) > 0:
-                concat_df = pd.concat(
-                    [
-                        summaries[key].set_index(self.params["grouping"])
-                        for key in summaries
-                    ],
-                    axis=1,
-                ).reset_index()
-            else:
-                concat_df = pd.concat([summaries[key] for key in summaries], axis=1)
-            return {self._create_df_title(None): concat_df}
-        else:
-            return summaries
+        return self.run_tool(statistics.Summarize, list(self.input.values())[0])

@@ -43,7 +43,7 @@ from prefect.settings import get_current_settings
 from prefect.states import Cancelled
 from prefect.task_runners import ThreadPoolTaskRunner
 
-from flim.core.tool import TaskCancelled
+from flim.core.tool import TaskCancelled, pyplot_lock
 from flim.results import clean_path_component, save_results
 
 __all__ = [
@@ -63,9 +63,6 @@ __all__ = [
 _CURRENT_RUN = contextvars.ContextVar("flim_flow_run", default=None)
 _MARKER = "__flim_task_output__"
 
-# pyplot's figure registry and current-figure state are shared by all threads: tasks
-# that draw figures take turns, all other tasks run concurrently
-pyplot_lock = threading.RLock()
 
 
 class _RunCancelled(Exception):

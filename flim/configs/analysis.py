@@ -116,7 +116,8 @@ class SeriesAnalysisConfig(StatisticsConfig):
 class MLConfig(AnalysisConfig):
     legacy_keys = {"random_seed": None}
 
-    random_seed: Optional[int] = None  # None: different results on every run
+    # the same results on every run; None: different results on every run
+    random_seed: Optional[int] = 0
 
 
 class ParallelResources(Resources):
@@ -188,7 +189,7 @@ class RandomForestConfig(MLConfig):
 
 
 class CategoryRule(BaseConfig):
-    """Rows whose ``feature`` lies in [min, max) get the category ``value``."""
+    """Rows whose ``feature`` lies in (min, max] get the category ``value``."""
 
     value: str
     feature: FeatureColumn

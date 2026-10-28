@@ -19,20 +19,14 @@ from flim.core.filter import RangeFilter
 from flim.core.registry import register_tool
 from flim.core.tool import Tool
 from flim.core.types import InputSpec, OutputSpec, TableType
-
-
-def category_columns(data: pd.DataFrame) -> list[str]:
-    return list(data.select_dtypes("category").columns.values)
-
-
-def feature_columns(data: pd.DataFrame) -> list[str]:
-    """The numeric columns (category columns are never numeric)."""
-    return list(data.select_dtypes(np.number).columns.values)
-
-
-def selected_features(data: pd.DataFrame, features) -> list[str]:
-    """The feature columns a config selects; "all" selects every numeric column."""
-    return feature_columns(data) if features == "all" else list(features)
+from flim.tools.common import (
+    categories_first,
+    category_columns,
+    feature_columns,
+    first_line,
+    selected_features,
+    set_lineage,
+)
 
 
 @register_tool
@@ -155,9 +149,7 @@ class Merge(Tool[MergeConfig]):
             on = [c for c in category_columns(left) if c in right_cats]
         merged = pd.merge(left, right, how=config.how, on=on)
         merged[on] = merged[on].astype("category")
-        categories = category_columns(merged)
-        merged = merged[categories + [c for c in merged.columns if c not in categories]]
-        return {"Merged": merged}
+        return {"Merged": categories_first(merged)}
 
 
 @register_tool
@@ -184,19 +176,8 @@ class Pivot(Tool[PivotConfig]):
 
     @classmethod
     def output_schema(cls, config, inputs):
-        outputs = super().output_schema(config, inputs)
-        schema = outputs["Pivoted"].schema
-        if schema is not None and schema.complete:
-            # "<feature>\n<value>[\n<value>...]" columns come from <feature>
-            schema.columns = [
-                (
-                    c.model_copy(update={"derived_from": [c.name.split("\n")[0]]})
-                    if "\n" in c.name
-                    else c
-                )
-                for c in schema.columns
-            ]
-        return outputs
+        # "<feature>\n<value>[\n<value>...]" columns come from <feature>
+        return set_lineage(super().output_schema(config, inputs), first_line)
 
 
 @register_tool

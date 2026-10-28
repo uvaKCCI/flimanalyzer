@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+import flim.tools.ml as ml
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -225,78 +226,4 @@ class PCAnalysis(AbstractPlugin):
             return {"Table: PCA Components": None, "Table: PCA explained": None}
 
     def execute(self):
-        data = list(self.input.values())[0]
-        features = self.params["features"]
-        data_no_na = data[features].dropna(how="any", axis=0).reset_index()
-        if len(features) == 1:
-            # reshape 1d array
-            data_no_class = data_no_na.values.reshape((-1, 1))
-        else:
-            data_no_class = data_no_na[features].values
-        scaler = StandardScaler()
-        scaler.fit(data_no_class)
-        standard_data = scaler.transform(data_no_class)
-
-        pca_params = {k: self.params[k] for k in self.params if k in ["n_components"]}
-        pca = PCA(**pca_params)
-        principalComponents = pca.fit_transform(standard_data)
-
-        pca_df = pd.DataFrame(
-            data=principalComponents,
-            columns=["PC %d" % x for x in range(1, principalComponents.shape[1] + 1)],
-        )
-        pca_eigen_df = pd.DataFrame(
-            data=pca.components_,
-            columns=features,
-        )
-        if self.params["keeporig"] and self.params["keepstd"]:
-            standard_df = pd.DataFrame(
-                data=standard_data, columns=["%s\nstandardized" % c for c in features]
-            )
-            pca_df = pd.concat(
-                [
-                    data.select_dtypes(include="category"),
-                    data[features],
-                    standard_df,
-                    pca_df,
-                ],
-                axis=1,
-            )  # .reset_index(drop=True)
-        elif self.params["keeporig"]:
-            pca_df = pd.concat(
-                [data.select_dtypes(include="category"), data[features], pca_df], axis=1
-            )  # .reset_index(drop=True)
-        elif self.params["keepstd"]:
-            standard_df = pd.DataFrame(
-                data=standard_data, columns=["%s\nstandardized" % f for f in features]
-            )
-            pca_df = pd.concat(
-                [data.select_dtypes(include="category"), standard_df, pca_df], axis=1
-            )  # .reset_index(drop=True)
-        else:
-            pca_df = pd.concat(
-                [data.select_dtypes(include="category"), pca_df], axis=1
-            )  # .reset_index(drop=True)
-        pca_comp_label = "PC"
-        explained_label = "explained var ratio"
-        pca_explained_df = pd.DataFrame(
-            data={
-                pca_comp_label: [
-                    str(c) for c in range(1, len(pca.explained_variance_ratio_) + 1)
-                ],
-                explained_label: pca.explained_variance_ratio_,
-            }
-        )
-        pca_explained_df[pca_comp_label] = pca_explained_df[pca_comp_label].astype(
-            "category"
-        )
-
-        results = {
-            "Table: PCA Components": pca_df,
-            "Table: PCA Explained": pca_explained_df,
-            "Table: PCA Eigen": pca_eigen_df,
-        }
-        if self.params["explainedhisto"]:
-            plot = pca_explained_df.set_index(pca_comp_label).plot.bar()
-            results["Plot: PCA Explained"] = plot.get_figure()
-        return results
+        return self.run_tool(ml.PCAnalysis, list(self.input.values())[0])

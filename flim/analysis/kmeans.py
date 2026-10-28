@@ -18,6 +18,7 @@ from wx.lib.masked import NumCtrl
 from importlib_resources import files, as_file
 
 from flim import utils
+import flim.tools.ml as ml
 from flim.plugin import plugin, AbstractPlugin
 import flim.resources
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -286,68 +287,4 @@ class KMeansClustering(AbstractPlugin):
         return self.params
 
     def execute(self):
-        original = list(self.input.values())[0]
-        data = original[self.params["features"]]
-        data = data.dropna(how="any", axis=0).reset_index()
-        oldidx = data["index"]
-        features = self.params["features"]
-        if len(features) == 1:
-            # reshape 1d array
-            data_no_class = data[features].values.reshape((-1, 1))
-        else:
-            data_no_class = data[features].values
-        scaler = StandardScaler()
-        scaler.fit(data_no_class)
-        standard_data = scaler.transform(data_no_class)
-        kmeans = KMeans(
-            n_clusters=self.params["n_clusters"],
-            init=self.params["init"],
-            algorithm=LEGACY_ALGOS.get(
-                self.params["algorithm"], self.params["algorithm"]
-            ),
-            n_init=self.params["n_init"],
-            max_iter=self.params["max_iter"],
-            tol=self.params["tolerance"],
-            random_state=0,
-        )
-        predict = kmeans.fit(standard_data)
-        cat_cols = list(original.select_dtypes(["category"]).columns.values)
-        cat_df = original.iloc[
-            oldidx
-        ].reset_index()  # match cat_df index w/ index of used prediction data
-        cat_df = cat_df[cat_cols].copy()
-
-        predict_df = pd.DataFrame(data, columns=features)
-        labelcol = self.params["cluster_prefix"]
-        predict_df[labelcol] = [f"{labelcol} {l + 1}" for l in predict.labels_]
-        predict_df[labelcol] = predict_df[labelcol].astype("category")
-        predict_df = pd.concat([cat_df, predict_df], axis=1)
-        neworder = [
-            c for c in list(predict_df.select_dtypes(["category"]).columns.values)
-        ]
-        noncategories = [c for c in predict_df.columns.values if c not in neworder]
-        neworder.extend(noncategories)
-        predict_df = predict_df[neworder]
-
-        """
-        estimator = make_pipeline(StandardScaler(), kmeans).fit(data)
-        fit_time = time() - t0
-        results = [name, fit_time, estimator[-1].inertia_]
-        
-        # Define the metrics which require only the true labels and estimator
-        # labels
-        clustering_metrics = [
-            metrics.homogeneity_score,
-            metrics.completeness_score,
-            metrics.v_measure_score,
-            metrics.adjusted_rand_score,
-            metrics.adjusted_mutual_info_score,
-        ]
-        results += [m(labels, estimator[-1].labels_) for m in clustering_metrics]
-        # The silhouette score requires the full dataset
-        results += [
-            metrics.silhouette_score(data, estimator[-1].labels_, metric="euclidean", sample_size=300,)
-        ]
-        print (results)
-        """
-        return {"Table: K-Means": predict_df}
+        return self.run_tool(ml.KMeansClustering, list(self.input.values())[0])

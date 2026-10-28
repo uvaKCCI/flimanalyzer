@@ -13,6 +13,7 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from flim import utils
+import flim.tools.ml as ml
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -278,32 +279,4 @@ class Categorizer(AbstractPlugin):
         return self.params
 
     def execute(self):
-        data = list(self.input.values())[0]
-        colname = self.params["name"]
-        categories = self.params["categories"]
-        selfeatures = self.params["features"]
-        default = self.params["default"]
-        mins = [c["criteria"]["min"] for c in categories]
-        maxs = [c["criteria"]["max"] for c in categories]
-        values = [v["value"] for v in categories]
-        bins = mins
-        bins.append(maxs[-1])
-        feature = categories[0]["criteria"]["feature"]
-
-        catcols = data.select_dtypes("category").columns.values
-
-        if self.params["merge_input"]:
-            cat_df = data.copy()
-        else:
-            cols = list(catcols)
-            cols.extend(selfeatures)
-            cat_df = data[cols].copy()
-        cat_df[colname] = pd.cut(data[feature], bins=bins, labels=values)
-        cat_df[colname] = cat_df[colname].cat.add_categories(default).fillna(default)
-        orderedcols = [c for c in cat_df.columns.values if c != colname]
-        orderedcols.insert(len(catcols), colname)
-        cat_df = cat_df[orderedcols]
-        results = {
-            "Categorized": cat_df,
-        }
-        return results
+        return self.run_tool(ml.Categorizer, list(self.input.values())[0])

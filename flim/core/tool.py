@@ -11,6 +11,7 @@ Results are keyed by display name (``"Table: Summary"``), with the config's pref
 
 import logging
 import os
+import threading
 import typing
 from dataclasses import dataclass, replace
 from typing import Any, ClassVar, Generic, Optional, Sequence, TypeVar
@@ -21,6 +22,10 @@ from flim.core.schema import TableSchema
 from flim.core.types import DataType, InputSpec, OutputSpec, TableType
 
 ConfigT = TypeVar("ConfigT", bound=TaskConfig)
+
+# pyplot's figure registry and current-figure state are shared by all threads: tasks
+# that draw figures take turns, all other tasks run concurrently
+pyplot_lock = threading.RLock()
 
 
 class TaskCancelled(Exception):
@@ -97,7 +102,7 @@ class Tool(Generic[ConfigT]):
     icon: ClassVar[Optional[str]] = None  # resource name; the GUI loads the bitmap
     api_version: ClassVar[int] = API_VERSION
     graph_kind: ClassVar[str] = "plugin"  # node style in the workflow graph
-    # True if the whole task draws with pyplot (see flim.core.runner.pyplot_lock)
+    # True if the whole task draws with pyplot (see pyplot_lock)
     draws_figures: ClassVar[bool] = False
     inputs: ClassVar[tuple[InputSpec, ...]] = (InputSpec("data", TableType),)
     # outputs whose names don't depend on config or input; see output_schema

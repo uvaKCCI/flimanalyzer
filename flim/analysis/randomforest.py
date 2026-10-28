@@ -12,6 +12,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn import metrics
+import flim.tools.ml as ml
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -237,48 +238,4 @@ class RandomForest(AbstractPlugin):
         return
 
     def execute(self):
-        data = list(self.input.values())[0]
-        results = {}
-        data = data.dropna(how="any", axis=0)
-        data_features = [
-            f for f in self.params["features"] if f not in self.params["grouping"]
-        ]
-        X = data[data_features]  # Features
-        y = data[self.params["classifier"]]  # one of the categorical columns
-        # Split dataset into training set and test set
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=self.params["test_size"]
-        )
-        # Create a Gaussian Classifier
-        clf = RandomForestClassifier(n_estimators=self.params["n_estimators"])
-        # Train the model using the training sets y_pred=clf.predict(X_test)
-        clf.fit(X_train, y_train)
-
-        y_pred = clf.predict(X_test)
-
-        accuracy = metrics.accuracy_score(y_test, y_pred)
-        featurecol = "Feature"
-        importance_df = pd.DataFrame(
-            {
-                featurecol: data_features,
-                "Importance Score": clf.feature_importances_,
-            }
-        )
-        importance_df[featurecol] = importance_df[featurecol].astype("category")
-        importance_df.sort_values(by="Importance Score", ascending=False, inplace=True)
-        if self.params["importancehisto"]:
-            importance_plot = importance_df.set_index("Feature").plot.bar()
-            fig = importance_plot.get_figure()
-            ax = fig.get_axes()[0]
-            ax.text(
-                0.95,
-                0.80,
-                f"accuracy={accuracy:.3f}",
-                horizontalalignment="right",
-                verticalalignment="center",
-                transform=ax.transAxes,
-            )
-            results["Importance Score Plot"] = fig
-        # results['Accuracy'] = accuracy
-        results["Importance Score Data"] = importance_df
-        return results
+        return self.run_tool(ml.RandomForest, list(self.input.values())[0])

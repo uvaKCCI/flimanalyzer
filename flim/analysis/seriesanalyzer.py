@@ -17,6 +17,7 @@ from collections import OrderedDict
 
 import flim.resources
 from flim import utils
+import flim.tools.statistics as statistics
 from flim.plugin import AbstractPlugin, plugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 
@@ -336,84 +337,4 @@ class SeriesAnalyzer(AbstractPlugin):
             return None
 
     def execute(self):
-        data = list(self.input.values())[0]
-        logging.debug(
-            f"data columns={data.columns.values}, sel"
-            f" features={self.params['features']}"
-        )
-        results = {}
-        logging.debug(f"\tcreating series analysis for {self.params['features']}")
-        categories = data.select_dtypes("category").columns.values
-        features = self.params["features"]
-        sfeatures = [f.split("\n") for f in features]
-        common_all = set(sfeatures[0]).intersection(*sfeatures[1:])
-        logging.debug(f"sfeatures: {sfeatures}")
-        logging.debug(f"common_all: {common_all}")
-        # ncommon_all = list(dict.fromkeys(sfeatures[0]).intersection(*sfeatures[1:]))
-        common = [
-            f for f in sfeatures[0] if f in common_all
-        ]  # needed to ensure maintaining propper order
-        uniquef = ["\n".join([f for f in s if f not in common]) for s in sfeatures]
-        # logging.debug(f"ncommon_all: {common_all}")
-        logging.debug(f"common: {common}")
-        logging.debug(f"uniquef: {uniquef}")
-        label = "\n".join(common)
-        if self.params["merge_input"]:
-            cols = list(categories)
-            cols.extend(features)
-            df = data[cols].copy()
-        else:
-            df = data[categories].copy()
-        if self.params["series_min"]:
-            df[f"{label}\nSeries min"] = data[features].min(axis=1)
-        if self.params["series_max"]:
-            df[f"{label}\nSeries max"] = data[features].max(axis=1)
-        if self.params["series_range"]:
-            df[f"{label}\nSeries max-min"] = data[features].max(axis=1) - data[
-                features
-            ].min(axis=1)
-        if self.params["series_mean"]:
-            df[f"{label}\nSeries mean"] = data[features].mean(axis=1)
-        if self.params["series_median"]:
-            df[f"{label}\nSeries median"] = data[features].median(axis=1)
-        if (
-            self.params["delta"]
-            or self.params["delta_max"]
-            or self.params["delta_min"]
-            or self.params["delta_sum"]
-            or self.params["delta_cum"]
-            or self.params["delta_norm"]
-        ):
-            dfdelta = data[features].diff(axis=1)
-            dfcum = dfdelta.cumsum(axis=1)
-            dfnorm = dfdelta.divide(dfcum.iloc[:, -1], axis=0)
-            uniquef.insert(0, "None")
-            dcolheaders = [
-                f"{label}\ndelta {uniquef[i]}:{uniquef[i+1]}"
-                for i in range(len(uniquef) - 1)
-            ]
-            ccolheaders = [
-                f"{label}\ncumulative delta {uniquef[1]}:{uniquef[i+1]}"
-                for i in range(len(uniquef) - 1)
-            ]
-            ncolheaders = [
-                f"{label}\nnormalized delta {uniquef[i]}:{uniquef[i+1]}"
-                for i in range(len(uniquef) - 1)
-            ]
-            dfdelta.columns = dcolheaders
-            dfcum.columns = ccolheaders
-            dfnorm.columns = ncolheaders
-            if self.params["delta"]:
-                df = df.join(dfdelta.iloc[:, 1:])
-            if self.params["delta_cum"]:
-                df = df.join(dfcum.iloc[:, 1:])
-            if self.params["delta_norm"]:
-                df = df.join(dfnorm.iloc[:, 1:])
-            if self.params["delta_min"]:
-                df[f"{label}\ndelta min"] = dfdelta.iloc[:, 1:].min(axis=1)
-            if self.params["delta_max"]:
-                df[f"{label}\ndelta max"] = dfdelta.iloc[:, 1:].max(axis=1)
-            if self.params["delta_sum"]:
-                df[f"{label}\ndelta sum"] = dfdelta.iloc[:, 1:].sum(axis=1)
-        results["Table: Series Analysis"] = df
-        return results
+        return self.run_tool(statistics.SeriesAnalysis, list(self.input.values())[0])
