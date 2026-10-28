@@ -6,23 +6,9 @@ Created on Wed Dec 16 14:18:30 2020
 @author: khs3z
 """
 
-import logging
-import wx
-import wx.grid
-from wx.lib.masked import NumCtrl
-import pandas as pd
-from importlib_resources import files
-from itertools import groupby
-import numpy as np
-
-from flim.core.filter import RangeFilter
 from flim.plugin import plugin
 import flim.tools.data as tools
 from flim.plugin import AbstractPlugin
-from flim.gui.dicttablepanel import DictTable, ListTable
-from flim.gui.datapanel import PandasTable
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import flim.resources
 
 
 @plugin(plugintype="Data")
@@ -32,10 +18,6 @@ class Sort(AbstractPlugin):
 
     def get_required_categories(self):
         return []
-
-    def get_icon(self):
-        source = files(flim.resources).joinpath("sort.png")
-        return wx.Bitmap(str(source))
 
     def get_required_features(self):
         return []
@@ -52,26 +34,6 @@ class Sort(AbstractPlugin):
 
     def output_definition(self):
         return {"Table: Sorted": None}
-
-    def run_configuration_dialog(self, parent, data_choices={}):
-        selfeatures = self.params["features"]
-        dlg = BasicAnalysisConfigDlg(
-            parent,
-            "Sort Data",
-            input=self.input,
-            enablegrouping=False,
-            selectedfeatures=selfeatures,
-            saveconfig=self.params["saveconfig"],
-            config_file=self.params["config_file"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
-        )
-        if dlg.ShowModal() == wx.ID_OK:
-            results = dlg.get_selected()
-            self.params.update(results)
-            return self.params
-        else:
-            return None
 
     def execute(self):
         return self.run_tool(tools.Sort, list(self.input.values())[0])

@@ -182,8 +182,11 @@ def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
     assert frame.config.get(["plugins", "Sort"])["working_dir"] == str(tmp_path)
 
 
-def test_tools_with_plugin_dialogs_use_them(frame, monkeypatch):
-    calls = []
-    monkeypatch.setattr(frame, "run_plugin", calls.append)
+def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):
+    def change(dialog):
+        dialog.fields.editors["category_filters"].set({"Treatment": ["Ctrl"]})
+
+    answer_dialog(monkeypatch, change)
     frame.run_tool(tools.get("Filter"))
-    assert calls == ["Filter"]
+    (results,) = frame.shown
+    assert set(results["Table: Filtered"]["Treatment"]) == {"Ctrl"}

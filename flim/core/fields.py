@@ -116,7 +116,8 @@ def describe_annotation(annotation, metadata=()) -> dict:
 
     Kinds: bool, choice, multichoice, int, float, number (int or float), mixed (a
     number or one of ``choices``), text, value (a value of the column another field
-    names), column, columns, path, paths, numbers, model, models, json (anything else).
+    names), column, columns, path, paths, numbers, model, models, modelmap (a dict of
+    configs, e.g. per feature), json (anything else).
     """
     annotation, metadata = _unwrap(annotation, list(metadata))
     optional = False
@@ -184,4 +185,10 @@ def describe_annotation(annotation, metadata=()) -> dict:
             return {"kind": "paths"}
         if _is_model(item):
             return {"kind": "models", "model": item}
+    if origin is dict:
+        key, value = typing.get_args(annotation) or (Any, Any)
+        key, key_metadata = _unwrap(key, [])
+        if _is_model(value):
+            # e.g. a range per feature
+            return {"kind": "modelmap", "model": value, "role": _role(key_metadata)}
     return {"kind": "json"}

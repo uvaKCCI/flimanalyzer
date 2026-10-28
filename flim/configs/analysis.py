@@ -385,9 +385,12 @@ AE_FEATURES = [
 ]
 
 
+DEFAULT_DEVICE = "auto"  # see flim.analysis.ml.device (that module needs torch)
+
+
 class AutoencoderResources(Resources):
     preferred_device: Device = Field(
-        default="auto",
+        default=DEFAULT_DEVICE,
         title="Device",
         description="auto: a GPU if there is one where the task runs, else the CPU.",
     )

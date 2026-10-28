@@ -43,6 +43,12 @@ class Editor:
     def set_schema(self, schema: Optional[TableSchema]) -> None:
         """The input's columns (None: unknown)."""
 
+    def set_data(self, tables: list) -> None:
+        """The selected input tables (DataFrames), e.g. for ranges of values."""
+
+    def refresh(self, panel: "FieldsPanel") -> None:
+        """Called when any field of the panel changed (fields that depend on others)."""
+
     def changed(self, event=None):
         if self.on_change is not None:
             self.on_change(self)
@@ -222,6 +228,9 @@ class ValueEditor(Editor):
 
     def set_schema(self, schema):
         self.schema = schema
+
+    def refresh(self, panel):
+        self.update_choices(panel.value_of(self.spec.column_field))
 
     def update_choices(self, column: Optional[str]) -> None:
         """Offers the values of ``column`` (if the input's schema knows them)."""
@@ -489,33 +498,47 @@ class ModelEditor(Editor):
     def set_schema(self, schema):
         self.fields.set_schema(schema)
 
+    def set_data(self, tables):
+        self.fields.set_data(tables)
+
 
 class ModelsEditor(Editor):
-    """A list of nested configs (with simple fields) as an editable table."""
+    """A list of nested configs (with simple fields) as an editable table.
+
+    Subclasses may add buttons (``extra_buttons``) and a first column for dict keys
+    (``key_title``: the value is then a dict key -> config).
+    """
 
     expands = True
+    key_title = None
+
+    def extra_buttons(self) -> list:
+        """(label, handler) of further buttons below the table."""
+        return []
 
     def create(self, parent):
+        model = self.spec.model
         self.columns = [
-            s
-            for s in visible(describe(self.spec.model))
-            if s.kind not in ("model", "models")
+            s for s in visible(describe(model)) if s.kind not in ("model", "models")
         ]
+        self.offset = 1 if self.key_title else 0
         panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.grid = wx.grid.Grid(panel)
-        self.grid.CreateGrid(0, len(self.columns))
+        self.grid.CreateGrid(0, len(self.columns) + self.offset)
+        if self.key_title:
+            self.grid.SetColLabelValue(0, self.key_title)
         for i, column in enumerate(self.columns):
-            self.grid.SetColLabelValue(i, column.title)
+            self.grid.SetColLabelValue(i + self.offset, column.title)
         self.grid.SetRowLabelSize(30)
         self.grid.SetMinSize((-1, 110))
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.changed)
         sizer.Add(self.grid, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
-        for label, handler in (
+        for label, handler in [
             ("Add Row", self._on_add),
             ("Remove Rows", self._on_remove),
-        ):
+        ] + self.extra_buttons():
             button = wx.Button(panel, label=label, style=wx.BU_EXACTFIT)
             button.Bind(wx.EVT_BUTTON, handler)
             buttons.Add(button, 0, wx.TOP | wx.RIGHT, 3)
@@ -537,27 +560,54 @@ class ModelsEditor(Editor):
                 self.grid.DeleteRows(row)
         self.changed()
 
-    def get(self):
+    def rows(self) -> list[tuple[str, dict]]:
+        """(key, values) of each row; text is converted by the config's validation."""
         rows = []
         for row in range(self.grid.GetNumberRows()):
             values = {}
             for col, column in enumerate(self.columns):
-                text = self.grid.GetCellValue(row, col).strip()
+                text = self.grid.GetCellValue(row, col + self.offset).strip()
                 if text != "":
-                    values[column.name] = text  # converted by the config's validation
-            rows.append(values)
+                    values[column.name] = text
+            key = self.grid.GetCellValue(row, 0).strip() if self.key_title else ""
+            rows.append((key, values))
         return rows
+
+    def add_row(self, values: dict, key: str = "") -> None:
+        row = self.grid.GetNumberRows()
+        self.grid.AppendRows(1)
+        if self.key_title:
+            self.grid.SetCellValue(row, 0, key)
+        for col, column in enumerate(self.columns):
+            cell = values.get(column.name)
+            self.grid.SetCellValue(
+                row, col + self.offset, "" if cell is None else str(cell)
+            )
+
+    def get(self):
+        if self.key_title:
+            return {key: values for key, values in self.rows() if key}
+        return [values for _, values in self.rows()]
 
     def set(self, value):
         if self.grid.GetNumberRows():
             self.grid.DeleteRows(0, self.grid.GetNumberRows())
-        self.grid.AppendRows(len(value or []))
-        for row, item in enumerate(value or []):
-            data = item if isinstance(item, dict) else item.model_dump()
-            for col, column in enumerate(self.columns):
-                cell = data.get(column.name)
-                self.grid.SetCellValue(row, col, "" if cell is None else str(cell))
+        items = (
+            value.items() if isinstance(value, dict) else [("", v) for v in value or []]
+        )
+        for key, item in items:
+            self.add_row(
+                item if isinstance(item, dict) else item.model_dump(), str(key)
+            )
         self.grid.AutoSizeColumns()
+
+
+class ModelMapEditor(ModelsEditor):
+    """A dict of nested configs by key (e.g. per feature): the key is the first column."""
+
+    @property
+    def key_title(self):
+        return {"feature": "Feature", "category": "Column"}.get(self.spec.role, "Key")
 
 
 class JsonEditor(Editor):
@@ -610,6 +660,7 @@ def editor_class(spec: FieldSpec) -> type[Editor]:
         "paths": PathsEditor,
         "model": ModelEditor,
         "models": ModelsEditor,
+        "modelmap": ModelMapEditor,
         "json": JsonEditor,
     }.get(spec.kind, TextEditor)
 
@@ -707,7 +758,7 @@ class FieldsPanel(wx.Panel):
     def set_values(self, config) -> None:
         for name, editor in self.editors.items():
             editor.set(getattr(config, name))
-        self.update_value_choices()
+        self.refresh()
 
     def values(self, config) -> dict:
         """The config's values with the edited ones; raises FieldErrors."""
@@ -723,25 +774,31 @@ class FieldsPanel(wx.Panel):
         return values
 
     def _on_editor_change(self, editor):
-        self.update_value_choices()
+        self.refresh()
         if self.on_change:
             self.on_change()
 
-    def update_value_choices(self) -> None:
-        """Value editors offer the values of the column their column field names."""
+    def value_of(self, name: str):
+        """The edited value of a field; None if it is not shown or not valid."""
+        editor = self.editors.get(name)
+        try:
+            return editor.get() if editor else None
+        except ValueError:
+            return None
+
+    def refresh(self) -> None:
+        """Lets editors that depend on other fields update (e.g. value choices)."""
         for editor in self.editors.values():
-            if isinstance(editor, ValueEditor):
-                column_editor = self.editors.get(editor.spec.column_field)
-                try:
-                    column = column_editor.get() if column_editor else None
-                except ValueError:
-                    column = None
-                editor.update_choices(column)
+            editor.refresh(self)
 
     def set_schema(self, schema) -> None:
         for editor in self.editors.values():
             editor.set_schema(schema)
-        self.update_value_choices()
+        self.refresh()
+
+    def set_data(self, tables: list) -> None:
+        for editor in self.editors.values():
+            editor.set_data(tables)
 
     def show_issue(self, name: str, severity: Optional[str], message: str = "") -> None:
         marker = self.markers.get(name)

@@ -6,23 +6,13 @@ Created on Wed Dec 16 14:18:30 2020
 @author: khs3z
 """
 
-import logging
-import math
-from flim import utils
 import flim.tools.plot as plot
 from flim.plugin import AbstractPlugin
 import matplotlib
-import matplotlib.pyplot as plt
 import matplotlib.figure
-import seaborn as sns
 import numpy as np
 import pandas as pd
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import wx
-from importlib_resources import files
-import flim.resources
 from flim.plugin import plugin, ALL_FEATURES
-
 
 default_linestyles = ["-", "--", ":", "-."]
 
@@ -35,10 +25,6 @@ class KDE(AbstractPlugin):
 
     def get_required_categories(self):
         return []
-
-    def get_icon(self):
-        source = files(flim.resources).joinpath("kde.png")
-        return wx.Bitmap(str(source))
 
     def get_required_features(self):
         return ["any"]
@@ -82,30 +68,5 @@ class KDE(AbstractPlugin):
                 parallel_params.append(pair_param)
             return parallel_params
 
-    def run_configuration_dialog(self, parent, data_choices={}):
-        selgrouping = self.params["grouping"]
-        selfeatures = self.params["features"]
-
-        dlg_params = utils.update_left(
-            BasicAnalysisConfigDlg.get_base_params(), self.params
-        )
-        dlg_params.update(
-            dict(
-                title=f"Configuration: {self.name}",
-                input=self.input,
-                selectedgrouping=selgrouping,
-                selectedfeatures=selfeatures,
-            )
-        )
-
-        dlg = BasicAnalysisConfigDlg(parent, **dlg_params)
-        if dlg.ShowModal() == wx.ID_OK:
-            results = dlg.get_selected()
-            self.params.update(results)
-            return self.params
-        else:
-            return None
-
     def execute(self):
         return self.run_tool(plot.KDE, list(self.input.values())[0])
-

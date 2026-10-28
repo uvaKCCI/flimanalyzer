@@ -6,176 +6,15 @@ Created on Wed Dec 16 14:18:30 2020
 @author: khs3z
 """
 
-import logging
-import wx
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn import metrics
 import flim.tools.ml as ml
 from flim.plugin import AbstractPlugin
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import wx
-from wx.lib.masked import NumCtrl
-from importlib_resources import files
-import flim.resources
-from flim import utils
 from flim.plugin import plugin
-
-
-class RandomForestConfigDlg(BasicAnalysisConfigDlg):
-    __base_params = {
-        "title": "",
-        "input": None,
-        "selectedgrouping": ["None"],
-        "selectedfeatures": "All",
-        "classifier": "",
-        "importancehisto": True,
-        "n_estimators": 100,
-        "test_size": 0.3,
-        "saveconfig": True,
-        "config_file": "",
-        "autosave": True,
-        "working_dir": "",
-    }
-
-    def __init__(
-        self,
-        parent,
-        title,
-        input=None,
-        selectedgrouping=["None"],
-        selectedfeatures="All",
-        classifier="",
-        importancehisto=True,
-        n_estimators=100,
-        test_size=0.3,
-        saveconfig=True,
-        config_file="",
-        autosave=True,
-        working_dir="",
-        **kwargs,
-    ):
-        basic_params = {
-            "title": title,
-            "input": input,
-            "selectedgrouping": selectedgrouping,
-            "selectedfeatures": selectedfeatures,
-            "classifier": classifier,
-            "importancehisto": importancehisto,
-            "n_estimators": n_estimators,
-            "test_size": test_size,
-            "saveconfig": saveconfig,
-            "config_file": config_file,
-            "autosave": autosave,
-            "working_dir": working_dir,
-        }
-
-        basic_params.update(**kwargs)
-
-        data = list(input.values())[0]
-        self.classifieropts = data.select_dtypes(["category"]).columns.values
-        if classifier in self.classifieropts:
-            self.classifier = classifier
-        else:
-            self.classifier = self.classifieropts[0]
-        self.importancehisto = importancehisto
-        self.n_estimators = n_estimators
-        self.test_size = test_size
-
-        init_params = utils.update_left(
-            BasicAnalysisConfigDlg.get_base_params(), basic_params
-        )
-        super().__init__(parent, **init_params)
-
-    def get_option_panels(self):
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.classifier_selector = wx.ComboBox(
-            self.panel,
-            wx.ID_ANY,
-            style=wx.CB_READONLY,
-            value=self.classifier,
-            choices=self.classifieropts,
-        )
-        sizer.Add(
-            wx.StaticText(self.panel, id=wx.ID_ANY, label="Classifier"),
-            0,
-            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
-            5,
-        )
-        sizer.Add(
-            self.classifier_selector,
-            0,
-            wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL,
-            5,
-        )
-
-        self.n_estimators_spinner = wx.SpinCtrl(
-            self.panel, wx.ID_ANY, min=1, max=500, initial=self.n_estimators
-        )
-        sizer.Add(
-            wx.StaticText(self.panel, label="N-estimator"),
-            0,
-            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
-            5,
-        )
-        sizer.Add(
-            self.n_estimators_spinner,
-            0,
-            wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL,
-            5,
-        )
-
-        self.test_size_input = NumCtrl(
-            self.panel,
-            wx.ID_ANY,
-            min=0.0,
-            max=1.0,
-            value=self.test_size,
-            fractionWidth=10,
-        )
-        sizer.Add(
-            wx.StaticText(self.panel, label="Test size"),
-            0,
-            wx.ALL | wx.ALIGN_CENTER_VERTICAL,
-            5,
-        )
-        sizer.Add(
-            self.test_size_input, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
-        )
-
-        self.importancehisto_cb = wx.CheckBox(
-            self.panel, id=wx.ID_ANY, label="Importance histogram"
-        )
-        self.importancehisto_cb.SetValue(self.importancehisto)
-        sizer.Add(
-            self.importancehisto_cb, 0, wx.ALL | wx.EXPAND | wx.ALIGN_CENTER_VERTICAL, 5
-        )
-
-        return [sizer]
-
-    def _get_selected(self):
-        params = super()._get_selected()
-        params["classifier"] = self.classifier_selector.GetValue()
-        params["importancehisto"] = self.importancehisto_cb.GetValue()
-        params["n_estimators"] = self.n_estimators_spinner.GetValue()
-        params["test_size"] = self.test_size_input.GetValue()
-        return params
-
-    @classmethod
-    def get_base_params(cls):
-        return cls.__base_params
 
 
 @plugin(plugintype="Analysis")
 class RandomForest(AbstractPlugin):
     def __init__(self, name="Random Forest", **kwargs):
         super().__init__(name=name, **kwargs)
-
-    def get_icon(self):
-        source = files(flim.resources).joinpath("randomforest.png")
-        return wx.Bitmap(str(source))
 
     def get_required_categories(self):
         return ["any"]
@@ -194,48 +33,6 @@ class RandomForest(AbstractPlugin):
             }
         )
         return params
-
-    def run_configuration_dialog(self, parent, data_choices={}):
-        selgrouping = self.params["grouping"]
-        selfeatures = self.params["features"]
-
-        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
-        merged_base.update(RandomForestConfigDlg.get_base_params())
-        dlg_params = utils.update_left(
-            merged_base,
-            self.params,
-        )
-
-        dlg_params.update(
-            dict(
-                title=f"Configuration: {self.name}",
-                input=self.input,
-                selectedgrouping=selgrouping,
-                selectedfeatures=selfeatures,
-            )
-        )
-
-        dlg = RandomForestConfigDlg(parent, **dlg_params)
-        if dlg.ShowModal() == wx.ID_CANCEL:
-            dlg.Destroy()
-            return
-        params = dlg.get_selected()
-        self.configure(**params)
-        return params
-
-        data = list(self.input.values())[0]
-        category_cols = data.select_dtypes(["category"]).columns.values
-        dlg = wx.SingleChoiceDialog(
-            parent,
-            "Choose feature to be used as classifier",
-            "Random Forest Classifier",
-            category_cols,
-        )
-        if dlg.ShowModal() == wx.ID_OK:
-            params = {"classifier": dlg.GetStringSelection()}
-            self.configure(**params)
-            return params
-        return
 
     def execute(self):
         return self.run_tool(ml.RandomForest, list(self.input.values())[0])

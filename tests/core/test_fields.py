@@ -96,8 +96,4 @@ def test_titles_and_descriptions():
 )
 def test_every_config_can_be_described(config_class):
     for s in visible(describe(config_class)):
-        assert s.kind != "json" or s.name in (
-            "categories",
-            "category_filters",
-            "per_feature",
-        ), s
+        assert s.kind != "json" or s.name in ("categories", "category_filters"), s

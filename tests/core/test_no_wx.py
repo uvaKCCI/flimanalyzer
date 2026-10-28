@@ -13,18 +13,45 @@ CORE_MODULES = [
     "flim.core.tool",
     "flim.tools",
 ]
+# every module of these packages (not subpackages: flim.analysis.ml needs torch)
+CORE_PACKAGES = ["flim.core", "flim.data", "flim.analysis", "flim.tools", "flim.configs"]
+
+# raises ImportError for wx and torch, as when they are not installed
+BLOCK = """
+import importlib.abc, sys
+class Block(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path, target=None):
+        if name.split('.')[0] in ('wx', 'torch'):
+            raise ModuleNotFoundError(f'No module named {name!r}')
+sys.meta_path.insert(0, Block())
+"""
+
+
+def run(code):
+    result = subprocess.run(
+        [sys.executable, "-c", BLOCK + code], capture_output=True, text=True
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_core_imports_without_wx():
     """The core modules must import with wx unavailable (CI also runs them without wx)."""
-    code = (
-        "import sys\n"
-        "sys.modules['wx'] = None\n"  # any 'import wx' now raises ImportError
+    run(
         f"for m in {CORE_MODULES!r}:\n"
         "    __import__(m)\n"
         "assert 'flim.plugin' not in sys.modules, 'importing flim must not load the tools'\n"
     )
-    result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
+
+
+def test_all_core_modules_import_without_wx_and_torch():
+    """Everything but the GUI and the workflows (which keep wx dialogs until Phase 5)."""
+    run(
+        "import importlib, pkgutil\n"
+        f"for package in {CORE_PACKAGES!r}:\n"
+        "    for m in pkgutil.iter_modules(importlib.import_module(package).__path__):\n"
+        "        if not m.ispkg:\n"
+        "            importlib.import_module(f'{package}.{m.name}')\n"
+        "from flim.plugin import PLUGINS\n"
+        "assert sorted(PLUGINS) == ['Analysis', 'Data', 'Plot'], PLUGINS\n"
+        "assert sum(len(p) for p in PLUGINS.values()) == 30\n"
     )
-    assert result.returncode == 0, result.stderr

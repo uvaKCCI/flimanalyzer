@@ -61,18 +61,20 @@ def table():
     )
 
 
-def _plugins():
+def _workflows():
+    # the tools are configured in generated dialogs (tests/test_configdialog.py); the
+    # workflows keep their own until Phase 5
     import flim.plugin as plugin
+    import flim.workflow  # noqa: F401  (registers the workflows)
 
     return [
-        pytest.param(cls, id=f"{group}/{name}")
-        for group, plugins in plugin.PLUGINS.items()
-        for name, cls in plugins.items()
+        pytest.param(cls, id=f"Workflow/{name}")
+        for name, cls in plugin.PLUGINS["Workflow"].items()
     ]
 
 
-@pytest.mark.parametrize("plugin_cls", _plugins())
-def test_plugin_configuration_dialog_opens(wxapp, table, monkeypatch, plugin_cls):
+@pytest.mark.parametrize("plugin_cls", _workflows())
+def test_workflow_configuration_dialog_opens(wxapp, table, monkeypatch, plugin_cls):
     import wx
 
     shown = []
@@ -191,6 +193,7 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
 def _autosave_controls(wxapp, monkeypatch, table, group, name, autosave):
     import wx
     import flim.plugin as plugin
+    import flim.workflow  # noqa: F401
 
     seen = {}
 
@@ -228,12 +231,6 @@ def test_workflow_dialogs_always_autosave(wxapp, monkeypatch, table, name):
         "browse": True,  # the working directory can still be chosen
     }
     assert params["autosave"] is True
-
-
-def test_tool_dialog_autosave_can_be_switched(wxapp, monkeypatch, table):
-    seen, params = _autosave_controls(wxapp, monkeypatch, table, "Analysis", "Summarize", autosave=False)
-    assert seen == {"checked": False, "enabled": True, "tooltip": "", "browse": False}
-    assert params["autosave"] is False
 
 
 def test_config_dialog_shows_all_features_and_resizes(wxapp):

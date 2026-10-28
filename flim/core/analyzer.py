@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import flim.core.preprocessor
 import numbers
-from flim.gui.events import DataWindowEvent, EVT_DATA_TYPE
 
 
 class dataanalyzer:

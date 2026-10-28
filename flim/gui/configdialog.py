@@ -162,7 +162,7 @@ class ConfigDialog(wx.Dialog):
         self.SetSizer(sizer)
 
         self.fields.set_values(self.config)
-        self.fields.set_schema(combined_schema(self.input_schemas()))
+        self._update_inputs()
         self.fields.set_values(self.config)  # columns are listed now
         self.validate()
         self._fit()
@@ -233,8 +233,16 @@ class ConfigDialog(wx.Dialog):
     # --- inputs ---
 
     def _on_input(self, event):
-        self.fields.set_schema(combined_schema(self.input_schemas()))
+        self._update_inputs()
         self.validate()
+
+    def _update_inputs(self):
+        """Tells the editors the columns and tables of the selected inputs."""
+        self.fields.set_schema(combined_schema(self.input_schemas()))
+        tables = []
+        for value in self.selected_inputs():
+            tables.extend(value.values() if isinstance(value, dict) else [value])
+        self.fields.set_data([t for t in tables if isinstance(t, pd.DataFrame)])
 
     def selected_names(self) -> list:
         names = []

@@ -62,7 +62,7 @@ def plugin(plugintype):
     return wrapper_register_plugin
 
 
-def discover_plugin_classes(dirs=["data", "analysis", "workflow"]):
+def discover_plugin_classes(dirs=["data", "analysis"]):
     """Creates labels and class objects for all Plugin subclasses in this package.
 
     Returns:
@@ -247,6 +247,8 @@ class AbstractPlugin:
             wx.Bitmap: The bitmap of the icon.
 
         """
+        import wx
+
         return wx.ArtProvider.GetBitmap(wx.ART_EXECUTABLE_FILE)
 
     def _fix_label(self, label: str) -> str:
@@ -535,5 +537,6 @@ class DataBucket(AbstractPlugin):
         return next(iter(self.input.values()))
 
 
-# auto run on import to populate the PLUGIN dictionary
+# auto run on import to populate the PLUGIN dictionary; the workflows register when
+# flim.workflow is imported (they still use wx, the tool plugins don't)
 discover_plugin_classes()

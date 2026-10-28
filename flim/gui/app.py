@@ -89,13 +89,11 @@ from flim.gui.seriesfiltertree import SeriesFilterCtrl
 from flim.workflow.basicflow import AbsWorkFlow
 import flim.tools  # noqa: F401  (registers the built-in tools)
 
-# tools that keep the dialogs of their plugins until those move to flim/gui/dialogs
-LEGACY_DIALOG_TOOLS = {
-    "Order Categories",
-    "Filter",
-    "Frequency Histogram",
-    "Autoencoder: Train",
-}
+# field editors of the tools that need more than the generated dialog
+import flim.gui.dialogs.autoencoder  # noqa: F401
+import flim.gui.dialogs.categoryorder  # noqa: F401
+import flim.gui.dialogs.filter  # noqa: F401
+import flim.gui.dialogs.histogram  # noqa: F401
 # key of the full config in a tool's settings, next to its plugin parameters
 CONFIG_KEY = "_config"
 
@@ -640,8 +638,6 @@ class AppFrame(wx.Frame):
 
     def run_tool(self, tool):
         """Configures a tool in its dialog and runs it on the selected tables."""
-        if tool.name in LEGACY_DIALOG_TOOLS:
-            return self.run_plugin(tool.name)
         data_choices = self.tool_data_choices()
         if not data_choices:
             wx.MessageBox("Open or import data first.", tool.name, wx.OK)
@@ -718,8 +714,7 @@ class AppFrame(wx.Frame):
                     self.GetEventHandler().ProcessEvent(event)
 
     def run_plugin(self, pluginname):
-        """Runs a plugin with its own dialog (workflows, and the tools listed in
-        LEGACY_DIALOG_TOOLS)."""
+        """Runs a plugin with its own dialog (the workflows, until Phase 5)."""
 
         plugin_class = next(
             plugin.get_plugin_class(pluginname)

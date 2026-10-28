@@ -6,17 +6,8 @@ Created on Thu Dec 17 16:11:37 2020
 @author: khs3z
 """
 
-import logging
-import pandas as pd
 import flim.tools.plot as plot
 from flim.plugin import AbstractPlugin
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import wx
-import matplotlib.pyplot as plt
-import seaborn as sns
-from importlib_resources import files
-import flim.resources
-from flim import utils
 from flim.plugin import plugin
 
 
@@ -24,13 +15,6 @@ from flim.plugin import plugin
 class SwarmPlot(AbstractPlugin):
     def __init__(self, name="Swarm Plot", **kwargs):
         super().__init__(name=name, **kwargs)
-
-    def get_icon(self):
-        try:
-            source = files(flim.resources).joinpath("swarmplot.png")
-        except:
-            return
-        return wx.Bitmap(str(source))
 
     def get_required_categories(self):
         return []
@@ -46,39 +30,5 @@ class SwarmPlot(AbstractPlugin):
             parallel_params.append(pair_param)
         return parallel_params
 
-    def run_configuration_dialog(self, parent, data_choices={}):
-        data = list(self.input.values())[0].copy()
-        selgrouping = self.params["grouping"]
-        selfeatures = self.params["features"]
-        if len(data) > 1000:
-            wx.MessageBox(
-                "Too many data points to plot. Consider aggregating the data in a"
-                " summary table first.",
-                "Warning",
-                wx.OK,
-            )
-            return None
-
-        dlg_params = utils.update_left(
-            BasicAnalysisConfigDlg.get_base_params(), self.params
-        )
-        dlg_params.update(
-            dict(
-                title=f"Configuration: {self.name}",
-                input=self.input,
-                selectedgrouping=selgrouping,
-                selectedfeatures=selfeatures,
-            )
-        )
-
-        dlg = BasicAnalysisConfigDlg(parent, **dlg_params)
-        if dlg.ShowModal() == wx.ID_OK:
-            results = dlg.get_selected()
-            self.params.update(results)
-            return self.params
-        else:
-            return None
-
     def execute(self):
         return self.run_tool(plot.SwarmPlot, list(self.input.values())[0])
-

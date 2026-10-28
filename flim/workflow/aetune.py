@@ -26,7 +26,7 @@ from flim.data.filterdata import Filter
 from flim.data.concatdata import Concatenator
 from flim.data.mergedata import Merger
 from flim.analysis.aerun import RunAE
-from flim.analysis.aetraining import AETraining, AETrainingConfigDlg
+from flim.analysis.aetraining import AETraining
 from flim.analysis.aeaugment import AEAugment
 from flim.analysis.barplots import BarPlot
 from flim.analysis.heatmap import Heatmap

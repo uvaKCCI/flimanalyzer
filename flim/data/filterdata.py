@@ -6,86 +6,12 @@ Created on Wed Dec 16 14:18:30 2020
 @author: khs3z
 """
 
-import logging
-import wx
-import wx.grid
-from wx.lib.masked import NumCtrl
-import pandas as pd
-from importlib_resources import files
-from itertools import groupby
 import numpy as np
 
 from flim.core.filter import RangeFilter
 from flim.plugin import plugin
 import flim.tools.data as tools
 from flim.plugin import AbstractPlugin
-from flim.gui.dicttablepanel import DictTable, ListTable
-from flim.gui.datapanel import PandasTable
-from flim.gui.dialogs import BasicAnalysisConfigDlg
-import flim.resources
-
-
-class FilterConfigDlg(BasicAnalysisConfigDlg):
-    def __init__(
-        self,
-        parent,
-        title,
-        input=None,
-        filter_params={},
-        use=True,
-        show_dropped=False,
-        inplace=False,
-        saveconfig=True,
-        config_file="",
-        autosave=True,
-        working_dir="",
-    ):
-        self.filter_params = filter_params
-        self.use = use
-        self.show_dropped = show_dropped
-        self.inplace = inplace
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            enablegrouping=False,
-            enablefeatures=False,
-            optgridrows=1,
-            optgridcols=0,
-            saveconfig=saveconfig,
-            config_file=config_file,
-            autosave=autosave,
-            working_dir=working_dir,
-        )
-
-    def get_option_panels(self):
-        fsizer = wx.BoxSizer(wx.VERTICAL)
-        label = wx.StaticText(self.panel, wx.ID_ANY, "Filter data")
-        fsizer.Add(label, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-
-        return [fsizer]
-
-    def _get_selected(self):
-        # self.cfggrid.EnableEditing(False)
-        params = super()._get_selected()
-        params["category_filters"] = {}
-        params["range_filters"] = self.filter_params
-        params["use"] = self.use
-        params["show_dropped"] = self.show_dropped
-        params["inplace"] = self.inplace  # leave unchanged
-        return params
-
-    def OnSelectAll(self, event):
-        col = 0
-        for row in range(self.cfgtable.GetNumberRows()):
-            self.cfgtable.SetValue(row, col, True)
-        self.cfggrid.ForceRefresh()
-
-    def OnDeselectAll(self, event):
-        col = 0
-        for row in range(self.cfgtable.GetNumberRows()):
-            self.cfgtable.SetValue(row, col, False)
-        self.cfggrid.ForceRefresh()
 
 
 @plugin(plugintype="Data")
@@ -140,10 +66,6 @@ class Filter(AbstractPlugin):
     def get_required_categories(self):
         return []
 
-    def get_icon(self):
-        source = files(flim.resources).joinpath("filter.png")
-        return wx.Bitmap(str(source))
-
     def get_required_features(self):
         return []
 
@@ -180,28 +102,6 @@ class Filter(AbstractPlugin):
 
     def output_definition(self):
         return {"Table: Filtered": None}
-
-    def run_configuration_dialog(self, parent, data_choices={}):
-        data = list(self.input.values())[0]
-        filter_params = self._update_filter_params(data, self.params["range_filters"])
-        logging.debug(filter_params)
-
-        dlg = FilterConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            filter_params=filter_params,
-            inplace=self.params["inplace"],
-            saveconfig=self.params["saveconfig"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
-        )
-        if dlg.ShowModal() == wx.ID_CANCEL:
-            dlg.Destroy()
-            return  # implicit None
-        params = dlg.get_selected()
-        self.configure(**params)
-        return self.params
 
     def execute(self):
         return self.run_tool(tools.Filter, list(self.input.values())[0])
