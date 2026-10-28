@@ -33,6 +33,8 @@ class FieldSpec:
     item_type: Optional[type] = None  # numbers: int or float
     model: Optional[type] = None  # model, models: the nested config class
     column_field: Optional[str] = None  # value: the field naming the column
+    order: Optional[float] = None  # position in dialogs, see field_order
+    advanced: bool = False  # model: a collapsed section (else shown inline)
     bounds: dict = field(default_factory=dict)  # ge, gt, le, lt
     hidden: bool = False  # only one value is allowed, or metadata
 
@@ -53,16 +55,44 @@ def describe(model: type[BaseModel]) -> list[FieldSpec]:
             or fixed_value(model, name)[0]
         )
         spec = describe_annotation(info.annotation, list(info.metadata))
+        extra = (
+            info.json_schema_extra if isinstance(info.json_schema_extra, dict) else {}
+        )
         specs.append(
             FieldSpec(
                 name=name,
                 title=info.title or title_of(name),
                 description=info.description or "",
+                order=extra.get("order"),
+                advanced=bool(
+                    extra.get("advanced", getattr(spec.get("model"), "advanced", False))
+                ),
                 hidden=hidden or spec.get("hidden", False),
                 **{k: v for k, v in spec.items() if k != "hidden"},
             )
         )
     return specs
+
+
+# where the fields every tool has go, see field_order
+GENERAL_ORDER = {"prefix": 200, "random_seed": 210, "grouping": 400, "features": 410}
+
+
+def field_order(spec: FieldSpec, index: int, large: bool) -> float:
+    """Position of a field in dialogs (increasing).
+
+    A field's ``order`` (``Field(..., json_schema_extra={"order": 409})``) sets it; as
+    a float, subclasses can place fields between inherited ones. Without one: a
+    tool's own settings ~100, result prefix 200, random seed 210, a tool's own lists
+    and tables ~300, grouping 400, features 410, nested sections ~900; ``index`` (the
+    definition order) orders fields within these.
+    """
+    if spec.order is not None:
+        return spec.order
+    if spec.name in GENERAL_ORDER:
+        return GENERAL_ORDER[spec.name]
+    base = 900 if spec.kind == "model" else 300 if large else 100
+    return base + index / 1000
 
 
 def visible(specs: list[FieldSpec]) -> list[FieldSpec]:

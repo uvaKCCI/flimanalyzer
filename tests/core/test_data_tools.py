@@ -13,7 +13,7 @@ from flim.configs import (
     SortConfig,
     UnpivotConfig,
 )
-from flim.configs.data import RangeFilterSpec
+from flim.configs.data import RangeSettings
 from flim.core.schema import TableSchema
 from flim.tools.data import (
     CategoryOrder,
@@ -85,15 +85,22 @@ def test_filter(data):
     low, high = data["t1"].quantile([0.25, 0.75])
     config = FilterConfig(
         category_filters={"Treatment": ["WT"]},
-        range_filters=[
-            RangeFilterSpec(column="t1", low=low, high=high, selected=True),
-            RangeFilterSpec(column="t2", low=0, high=1, selected=False),  # not applied
-        ],
+        range_filters={"t1": RangeSettings(low=low, high=high)},
     )
     df = table(Filter()(data, config=config))
     expected = data[(data["Treatment"] == "WT") & data["t1"].between(low, high)]
     assert len(df) == len(expected) > 0
     assert list(df.index) == list(range(len(df)))
+
+
+def test_filter_open_ranges_and_missing_values(data):
+    data.loc[0, "t1"] = np.nan
+    above = table(
+        Filter()(data, config=FilterConfig(range_filters={"t1": {"low": 400}}))
+    )
+    assert (above["t1"] >= 400).all() and len(above) < len(data)
+    keep_missing = FilterConfig(range_filters={"t1": {"low": 400, "dropna": False}})
+    assert table(Filter()(data, config=keep_missing))["t1"].isna().sum() == 1
 
 
 def test_merge(data):

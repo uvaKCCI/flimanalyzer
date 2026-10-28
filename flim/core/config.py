@@ -26,6 +26,29 @@ class BaseConfig(BaseModel):
     )
     version: Optional[str] = None  # FLIMAnalyzer version that wrote the config
 
+    @classmethod
+    def allowed_values(cls, values: dict) -> dict[str, tuple]:
+        """Fields that allow only some of their values, given the other ``values``:
+        name -> the allowed values (the first: the default).
+
+        E.g. a lower half of a grid only exists if the grid is symmetric; legends of
+        a single figure are not inside a plot. Dialogs offer only the allowed values,
+        and hide a field with one. Configs that define this apply it with
+        ``_apply_allowed_values`` at the end of their validator.
+        """
+        return {}
+
+    @classmethod
+    def fixed_fields(cls, values: dict) -> dict:
+        """Fields with one allowed value: name -> the value."""
+        return {n: v[0] for n, v in cls.allowed_values(values).items() if len(v) == 1}
+
+    def _apply_allowed_values(self) -> None:
+        # through __dict__: assignments would run the validators again
+        for name, allowed in self.allowed_values(self.__dict__).items():
+            if self.__dict__.get(name) not in allowed:
+                self.__dict__[name] = allowed[0]
+
     @model_serializer(mode="wrap")
     def _serialize(self, handler):
         data = handler(self)
@@ -114,6 +137,9 @@ class Resources(BaseConfig):
     Defaults are conservative (CPU, one thread); tools that can use more widen the
     allowed values in a subclass.
     """
+
+    # shown collapsed in dialogs (rarely changed)
+    advanced: ClassVar[bool] = True
 
     preferred_device: Literal["cpu"] = Field(
         default="cpu",

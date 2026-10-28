@@ -2,7 +2,7 @@
 
 from typing import Any, Literal, Optional, Union
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from flim.core.config import (
     AllFeatures,
@@ -76,15 +76,21 @@ class ConcatConfig(DataTaskConfig):
         return {"type": self.mode == "horizontal"}
 
 
-class RangeFilterSpec(BaseConfig):
-    """Keeps the rows whose value in ``column`` lies in [low, high] (if selected)."""
+def range_of_legacy(spec: dict) -> dict:
+    """low, high and dropna of a plugin's range filter; infinite: no limit."""
+    low, high = spec.get("rangelow"), spec.get("rangehigh")
+    return {
+        "low": None if low is None or low == float("-inf") else low,
+        "high": None if high is None or high == float("inf") else high,
+        "dropna": spec.get("dropna", True),
+    }
 
-    column: FeatureColumn = Field(title="Column")
-    low: float = Field(default=0, title="Low")
-    high: float = Field(default=100, title="High")
-    allowed_min: Optional[float] = Field(default=None, title="Allowed min")
-    allowed_max: Optional[float] = Field(default=None, title="Allowed max")
-    selected: bool = Field(default=False, title="Use", description="Apply this filter.")
+
+class RangeSettings(BaseConfig):
+    """Rows whose value lies outside [low, high] are dropped; empty: no limit."""
+
+    low: Optional[float] = Field(default=None, title="Low")
+    high: Optional[float] = Field(default=None, title="High")
     dropna: bool = Field(
         default=True,
         title="Drop missing",
@@ -93,32 +99,9 @@ class RangeFilterSpec(BaseConfig):
 
     @model_validator(mode="after")
     def _check_range(self):
-        if self.low > self.high:
-            raise ValueError(f"{self.column}: low ({self.low}) > high ({self.high})")
+        if self.low is not None and self.high is not None and self.low > self.high:
+            raise ValueError(f"low ({self.low}) > high ({self.high})")
         return self
-
-    @classmethod
-    def from_legacy(cls, params: dict) -> "RangeFilterSpec":
-        return cls(
-            column=params["name"],
-            low=params.get("rangelow", 0),
-            high=params.get("rangehigh", 100),
-            allowed_min=params.get("allowedmin"),
-            allowed_max=params.get("allowedmax"),
-            selected=params.get("selected", False),
-            dropna=params.get("dropna", True),
-        )
-
-    def to_legacy(self) -> dict:
-        return {
-            "name": self.column,
-            "rangelow": self.low,
-            "rangehigh": self.high,
-            "allowedmin": self.allowed_min,
-            "allowedmax": self.allowed_max,
-            "selected": self.selected,
-            "dropna": self.dropna,
-        }
 
 
 class FilterConfig(DataTaskConfig):
@@ -131,19 +114,49 @@ class FilterConfig(DataTaskConfig):
         title="Category values to keep",
         description="For each category column, the values whose rows are kept.",
     )
-    range_filters: list[RangeFilterSpec] = Field(
-        default=[],
+    range_filters: dict[FeatureColumn, RangeSettings] = Field(
+        default={},
         title="Range filters",
-        description="Rows outside the range of a used filter are dropped.",
+        description=(
+            "Check the columns to filter: rows outside [low, high] are dropped (empty:"
+            " no limit)."
+        ),
     )
+
+    @field_validator("range_filters", mode="before")
+    @classmethod
+    def _filters_from_list(cls, filters):
+        """A list of columns: filters without limits (dropping missing values)."""
+        if isinstance(filters, (list, tuple)):
+            return {f: {} for f in filters}
+        return filters
 
     @classmethod
     def _from_legacy(cls, params):
-        filters = params.pop("range_filters", []) or []
-        return {"range_filters": [RangeFilterSpec.from_legacy(f) for f in filters]}
+        # the plugin: a list of {"name", "rangelow", "rangehigh", "selected", ...};
+        # it applied the selected ones
+        filters = {}
+        for spec in params.pop("range_filters", []) or []:
+            if spec.get("selected", True):
+                filters[spec["name"]] = RangeSettings(**range_of_legacy(spec))
+        return {"range_filters": filters}
 
     def _to_legacy(self):
-        return {"range_filters": [f.to_legacy() for f in self.range_filters]}
+        inf = float("inf")
+        return {
+            "range_filters": [
+                {
+                    "name": column,
+                    "rangelow": -inf if r.low is None else r.low,
+                    "rangehigh": inf if r.high is None else r.high,
+                    "allowedmin": None,
+                    "allowedmax": None,
+                    "selected": True,
+                    "dropna": r.dropna,
+                }
+                for column, r in self.range_filters.items()
+            ]
+        }
 
 
 class MergeConfig(DataTaskConfig):

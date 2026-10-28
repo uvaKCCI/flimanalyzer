@@ -15,7 +15,6 @@ from flim.configs.data import (
     UnpivotConfig,
 )
 from flim.core.config import Issue
-from flim.core.filter import RangeFilter
 from flim.core.registry import register_tool
 from flim.core.tool import Tool
 from flim.core.types import InputSpec, OutputSpec, TableType
@@ -100,9 +99,16 @@ class Filter(Tool[FilterConfig]):
             drop = [v for v in data[column].unique() if v not in keep]
             dropped.append(np.flatnonzero(data[column].isin(drop)))
         numeric = set(feature_columns(data))
-        for spec in config.range_filters:
-            if spec.selected and spec.column in numeric:
-                dropped.append(RangeFilter(params=spec.to_legacy()).get_dropped(data))
+        for column, limits in config.range_filters.items():
+            if column not in numeric:
+                continue
+            values = data[column]
+            outside = values.isna() if limits.dropna else pd.Series(False, values.index)
+            if limits.low is not None:
+                outside |= values < limits.low
+            if limits.high is not None:
+                outside |= values > limits.high
+            dropped.append(np.flatnonzero(outside))
         dropped = [rows for rows in dropped if len(rows) > 0]
         if dropped:
             rows = np.unique(np.concatenate(dropped))

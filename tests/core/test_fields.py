@@ -97,3 +97,32 @@ def test_titles_and_descriptions():
 def test_every_config_can_be_described(config_class):
     for s in visible(describe(config_class)):
         assert s.kind != "json" or s.name in ("categories", "category_filters"), s
+
+
+def test_field_order():
+    from flim.core.fields import field_order
+
+    class Base(TaskConfig):
+        a: int = 1
+        b: int = Field(2, json_schema_extra={"order": 50})
+        c: list[int] = []
+
+    class Sub(Base):
+        # between the inherited b (50) and the defaults of a tool's settings (100)
+        d: int = Field(4, json_schema_extra={"order": 50.5})
+
+    specs = [s for s in visible(describe(Sub))]
+    large = {"c": True, "features": True, "grouping": True}
+    ordered = sorted(
+        specs, key=lambda s: field_order(s, specs.index(s), large.get(s.name, False))
+    )
+    assert [s.name for s in ordered] == [
+        "b",
+        "d",
+        "a",
+        "prefix",
+        "c",
+        "grouping",
+        "features",
+    ]
+    assert spec(Sub, "d").order == 50.5 and spec(Sub, "a").order is None

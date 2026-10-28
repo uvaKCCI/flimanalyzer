@@ -29,7 +29,7 @@ from flim.configs import (
     SummaryConfig,
 )
 from flim.configs.analysis import CategoryRule
-from flim.configs.data import RangeFilterSpec
+from flim.configs.data import RangeSettings
 from flim.configs.plot import HistogramRange
 from flim.core.config import TaskConfig, fixed_value
 from flim.core.registry import tools
@@ -42,7 +42,7 @@ CHANGED = [
     ConcatConfig(mode="horizontal", numbers_only=True),
     FilterConfig(
         category_filters={"Cell": ["1", "2"]},
-        range_filters=[RangeFilterSpec(column="FLIRR", low=0, high=2, selected=True)],
+        range_filters={"FLIRR": RangeSettings(low=0, high=2), "t1": {"high": 5}},
     ),
     MergeConfig(how="outer"),
     SortConfig(features=["FLIRR"], ascending=False),
@@ -179,11 +179,18 @@ def test_range_filter():
         "selected": True,
         "dropna": True,
     }
-    cfg = FilterConfig.from_legacy_params({"range_filters": [legacy]})
-    assert cfg.range_filters[0].column == "FLIRR" and cfg.range_filters[0].low == 0.1
+    unused = {**legacy, "name": "t1", "selected": False}  # the plugin did not apply it
+    cfg = FilterConfig.from_legacy_params({"range_filters": [legacy, unused]})
+    assert cfg.range_filters == {"FLIRR": RangeSettings(low=0.1, high=2)}
     assert cfg.to_legacy_params()["range_filters"] == [legacy]
+    # no limit: infinite for older versions
+    cfg = FilterConfig(range_filters={"x": {"low": 1}})
+    (legacy,) = cfg.to_legacy_params()["range_filters"]
+    assert (legacy["rangelow"], legacy["rangehigh"]) == (1, float("inf"))
+    assert FilterConfig.from_legacy_params(cfg.to_legacy_params()) == cfg
+    assert FilterConfig(range_filters=["x"]).range_filters == {"x": RangeSettings()}
     with pytest.raises(ValidationError):
-        RangeFilterSpec(column="x", low=2, high=1)
+        RangeSettings(low=2, high=1)
 
 
 def test_merge_empty_how_means_inner():

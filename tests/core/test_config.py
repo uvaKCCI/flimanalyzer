@@ -1,7 +1,7 @@
 from typing import Literal, Optional, Union
 
 import pytest
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 
 from flim.core.config import (
     BaseConfig,
@@ -105,3 +105,31 @@ def test_issue():
 def test_base_config_metadata_fields():
     cfg = BaseConfig(classname="flim.plugins.Summary", version="1.2")
     assert cfg.classname == "flim.plugins.Summary"
+
+
+def test_allowed_values():
+    class Grid(TaskConfig):
+        symmetric: bool = True
+        corner: bool = False
+        legend: Literal["right", "inside"] = "right"
+
+        @classmethod
+        def allowed_values(cls, values):
+            allowed = {"legend": ("right",)} if values.get("corner") else {}
+            if not values.get("symmetric"):
+                allowed["corner"] = (False,)
+            return allowed
+
+        @model_validator(mode="after")
+        def _allowed(self):
+            self._apply_allowed_values()
+            return self
+
+    assert Grid(corner=True).corner
+    assert not Grid(symmetric=False, corner=True).corner
+    grid = Grid(corner=True)
+    grid.symmetric = False  # assignments apply them too
+    assert not grid.corner
+    assert Grid(corner=True, legend="inside").legend == "right"  # not allowed: default
+    assert Grid.fixed_fields({"symmetric": False}) == {"corner": False}
+    assert TaskConfig.allowed_values({}) == {} and TaskConfig.fixed_fields({}) == {}

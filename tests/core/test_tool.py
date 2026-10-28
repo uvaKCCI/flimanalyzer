@@ -164,12 +164,10 @@ def test_validate_columns(table):
 def test_validate_nested_columns(table):
     from flim.configs import FilterConfig
 
-    config = FilterConfig(
-        range_filters=[{"column": "y"}], category_filters={"T": ["a", "c"]}
-    )
+    config = FilterConfig(range_filters={"y": {}}, category_filters={"T": ["a", "c"]})
     issues = Filter.validate(config, [TableSchema.from_frame(table)])
     assert [(i.field, i.severity) for i in issues] == [
-        ("range_filters[0].column", "error"),
+        ("range_filters['y']", "error"),
         ("category_filters['T']", "warning"),
     ]
 

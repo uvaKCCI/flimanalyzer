@@ -93,7 +93,6 @@ import flim.tools  # noqa: F401  (registers the built-in tools)
 import flim.gui.dialogs.autoencoder  # noqa: F401
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
-import flim.gui.dialogs.histogram  # noqa: F401
 # key of the full config in a tool's settings, next to its plugin parameters
 CONFIG_KEY = "_config"
 

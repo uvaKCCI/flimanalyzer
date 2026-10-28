@@ -218,6 +218,12 @@ class ConfigDialog(wx.Dialog):
         row.Add(self.folder, 1, wx.EXPAND)
         return row
 
+    def fit_contents(self) -> None:
+        """Fits the dialog to fields that appeared or disappeared (up to most of the
+        screen; it scrolls beyond)."""
+        self.fields.Layout()
+        self._fit()
+
     def _fit(self):
         # a scrolled panel does not ask for its content's size: show all fields, up to
         # most of the screen, and scroll beyond that
@@ -317,8 +323,9 @@ class ConfigDialog(wx.Dialog):
                 by_field.setdefault(name, []).append(issue)
             else:
                 general.append(issue)
-        for name in self.fields.editors:
+        for name, editor in self.fields.editors.items():
             field_issues = by_field.get(name, [])
+            editor.show_issues(field_issues)  # e.g. markers in the rows of a table
             if field_issues:
                 severity = min(
                     (i.severity for i in field_issues), key=SEVERITY_ORDER.index

@@ -312,3 +312,44 @@ def test_registered_field_editor(dialog):
         assert d.result().config.cluster_prefix == "CLUSTER"
     finally:
         editors._FIELD_EDITORS.pop((KMeansConfig, "cluster_prefix"))
+
+
+def test_all_features_checks_every_feature(dialog):
+    d = dialog("Box Plot")
+    features = d.fields.editors["features"]
+    features.set(["x"])
+    features.all.SetValue(True)
+    features._on_all(wx.CommandEvent())
+    assert features.checked() == features.items == ["FLIRR", "x", "y"]
+    assert not features.list.IsEnabled() and not features.buttons[0].IsEnabled()
+    assert d.result().config.features == "all"
+    # unchecked again: the selection made before
+    features.all.SetValue(False)
+    features._on_all(wx.CommandEvent())
+    assert features.checked() == ["x"] and features.list.IsEnabled()
+    assert d.result().config.features == ["x"]
+
+
+def test_all_features_from_a_config_and_new_inputs(dialog):
+    from flim.configs import BoxPlotConfig
+
+    d = dialog("Box Plot", BoxPlotConfig(features="all"))
+    features = d.fields.editors["features"]
+    assert features.checked() == ["FLIRR", "x", "y"]
+    d.input_controls[0].SetStringSelection("Table: other")
+    d._on_input(None)
+    assert features.checked() == ["x"]  # all features of the other table
+    features.all.SetValue(False)
+    features._on_all(wx.CommandEvent())  # no selection before: all stay checked
+    assert features.checked() == ["x"]
+
+
+def test_nested_settings_are_inline_and_advanced_ones_collapsed(dialog):
+    d = dialog("Scatter Plot")
+    points = d.fields.editors["points"]
+    assert not isinstance(points.control, wx.CollapsiblePane)  # no extra click
+    points.fields.editors["mode"].set("sample")
+    points.fields.refresh()
+    assert points.fields.editors["samples"].control.IsShown()
+    training = dialog("Autoencoder: Train")
+    assert isinstance(training.fields.editors["resources"].control, wx.CollapsiblePane)

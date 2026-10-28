@@ -18,7 +18,8 @@ def feature_columns(data: pd.DataFrame) -> list[str]:
 
 
 def selected_features(data: pd.DataFrame, features) -> list[str]:
-    """The feature columns a config selects; "all" selects every numeric column."""
+    """The feature columns a config selects: a list, the keys of a dict of
+    per-feature settings, or "all" (every numeric column)."""
     return feature_columns(data) if features == "all" else list(features)
 
 

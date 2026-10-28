@@ -12,7 +12,7 @@ from typing import Any, Callable, Optional
 import wx
 import wx.grid
 
-from flim.core.fields import FieldSpec, describe, visible
+from flim.core.fields import FieldSpec, describe, field_order, visible
 from flim.core.schema import TableSchema
 
 NONE_LABEL = "(none)"
@@ -46,8 +46,15 @@ class Editor:
     def set_data(self, tables: list) -> None:
         """The selected input tables (DataFrames), e.g. for ranges of values."""
 
+    def show_issues(self, issues: list) -> None:
+        """The issues of this field (paths like ``"features['FLIRR']"``), e.g. to mark
+        the rows of a table they are about; the dialog marks the field itself."""
+
     def refresh(self, panel: "FieldsPanel") -> None:
         """Called when any field of the panel changed (fields that depend on others)."""
+
+    def set_allowed(self, allowed: Optional[tuple]) -> None:
+        """The values allowed now (None: all), see BaseConfig.allowed_values."""
 
     def changed(self, event=None):
         if self.on_change is not None:
@@ -81,6 +88,7 @@ class ChoiceEditor(Editor):
                 self.spec.choices
             )
             labels = [NONE_LABEL if v is None else str(v) for v in self.values]
+        self.all_values = list(self.values)
         control = wx.Choice(parent, choices=labels)
         control.Bind(wx.EVT_CHOICE, self.changed)
         return control
@@ -94,6 +102,16 @@ class ChoiceEditor(Editor):
     def set(self, value):
         if value in self.values:
             self.control.SetSelection(self.values.index(value))
+
+    def set_allowed(self, allowed):
+        values = [v for v in self.all_values if allowed is None or v in allowed]
+        if values == self.values:
+            return
+        current = self.values[self.control.GetSelection()] if self.values else None
+        self.values = values
+        self.control.Set([NONE_LABEL if v is None else str(v) for v in values])
+        # keep the value if still allowed, else the first allowed (the default)
+        self.control.SetSelection(values.index(current) if current in values else 0)
 
 
 class TextEditor(Editor):
@@ -266,10 +284,12 @@ class _CheckList(Editor):
         self.list.Bind(wx.EVT_CHECKLISTBOX, self.changed)
         sizer.Add(self.list, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
+        self.buttons = []
         for label, checked in (("Select All", True), ("Deselect All", False)):
             button = wx.Button(self.panel, label=label, style=wx.BU_EXACTFIT)
             button.Bind(wx.EVT_BUTTON, lambda e, c=checked: self.check_all(c))
             buttons.Add(button, 0, wx.TOP | wx.RIGHT, 3)
+            self.buttons.append(button)
         sizer.Add(buttons)
         self.panel.SetSizer(sizer)
         self.items: list = []
@@ -310,23 +330,43 @@ class FeaturesEditor(_CheckList):
 
     def extra_controls(self, panel, sizer):
         self.all = None
+        self.selection: list = []  # the selection before "All features" was checked
         if self.spec.allow_all:
             self.all = wx.CheckBox(panel, label="All features")
             self.all.Bind(wx.EVT_CHECKBOX, self._on_all)
             sizer.Add(self.all, 0, wx.BOTTOM, 3)
 
+    def is_all(self) -> bool:
+        return self.all is not None and self.all.GetValue()
+
+    def _show_all(self, is_all: bool) -> None:
+        """All features: all shown checked, the list and its buttons disabled."""
+        if is_all:
+            self.list.SetCheckedItems(list(range(len(self.items))))
+        for control in [self.list] + self.buttons:
+            control.Enable(not is_all)
+
     def _on_all(self, event):
-        self.list.Enable(not self.all.GetValue())
+        if self.is_all():
+            self.selection = self.checked()
+        elif self.selection:  # back to the selection made before; else all stay checked
+            self.list.SetCheckedItems(
+                [self.items.index(f) for f in self.selection if f in self.items]
+            )
+        self._show_all(self.is_all())
         self.changed(event)
 
     def set_schema(self, schema):
-        checked = self.checked()
+        # a selection keeps features the input lacks (to uncheck them); all features
+        # are the input's
+        checked = [] if self.is_all() else self.checked()
         self.set_items(
             [] if schema is None else schema.by_role(self.spec.role), checked
         )
+        self._show_all(self.is_all())
 
     def get(self):
-        if self.all is not None and self.all.GetValue():
+        if self.is_all():
             return "all"
         return self.checked()
 
@@ -334,8 +374,9 @@ class FeaturesEditor(_CheckList):
         is_all = value == "all"
         if self.all is not None:
             self.all.SetValue(is_all)
-            self.list.Enable(not is_all)
+        self.selection = []
         self.set_items(self.items, [] if is_all or value is None else list(value))
+        self._show_all(is_all)
 
 
 class CategoriesEditor(Editor):
@@ -462,26 +503,42 @@ class PathsEditor(Editor):
         self.list.Set([str(p) for p in value or []])
 
 
+def relayout(window) -> None:
+    """Fits the dialog of ``window`` to fields that appeared or disappeared."""
+    top = wx.GetTopLevelParent(window)
+    if hasattr(top, "fit_contents"):
+        top.fit_contents()
+    elif top is not None:
+        top.Layout()
+
+
 class ModelEditor(Editor):
-    """A nested config, in a collapsible section."""
+    """A nested config: its fields in a titled group, or in a collapsed section if
+    it is advanced (``Field(json_schema_extra={"advanced": True})``, or a class with
+    ``advanced = True``, such as Resources)."""
 
     expands = True
 
     def create(self, parent):
-        self.pane = wx.CollapsiblePane(parent, label=self.spec.title)
-        self.pane.Bind(wx.EVT_COLLAPSIBLEPANE_CHANGED, self._on_toggle)
-        self.fields = FieldsPanel(self.pane.GetPane(), self.spec.model)
-        self.fields.on_change = lambda: self.changed()
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        sizer.Add(self.fields, 1, wx.EXPAND)
-        self.pane.GetPane().SetSizer(sizer)
         self.value = None
-        return self.pane
-
-    def _on_toggle(self, event):
-        window = wx.GetTopLevelParent(self.pane)
-        window.Layout()
-        window.Fit()
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        if self.spec.advanced:
+            self.pane = wx.CollapsiblePane(parent, label=self.spec.title)
+            self.pane.Bind(
+                wx.EVT_COLLAPSIBLEPANE_CHANGED, lambda e: relayout(self.pane)
+            )
+            self.fields = FieldsPanel(self.pane.GetPane(), self.spec.model)
+            sizer.Add(self.fields, 1, wx.EXPAND)
+            self.pane.GetPane().SetSizer(sizer)
+            control = self.pane
+        else:
+            control = wx.Panel(parent)
+            box = wx.StaticBoxSizer(wx.VERTICAL, control, self.spec.title)
+            self.fields = FieldsPanel(box.GetStaticBox(), self.spec.model)
+            box.Add(self.fields, 1, wx.EXPAND)
+            control.SetSizer(box)
+        self.fields.on_change = lambda: self.changed()
+        return control
 
     def get(self):
         try:
@@ -502,7 +559,46 @@ class ModelEditor(Editor):
         self.fields.set_data(tables)
 
 
-class ModelsEditor(Editor):
+class _RowIssues:
+    """Marks the rows of a grid editor that issues are about (``_row_of``): a marker
+    drawn by _MarkedTextRenderer, and the messages as the row's tooltip."""
+
+    def _init_row_issues(self) -> wx.grid.GridCellAttr:
+        self.marks: dict = {}  # row -> severity of its issues
+        self.row_messages: dict = {}  # row -> its issues' messages
+        attr = wx.grid.GridCellAttr()
+        attr.SetRenderer(_MarkedTextRenderer(self.marks))
+        return attr
+
+    def show_issues(self, issues):
+        self.marks.clear()
+        self.row_messages.clear()
+        for issue in issues:
+            row = self._row_of(issue.field)
+            if row is None:
+                continue
+            current = self.marks.get(row)
+            if current is None or SEVERITIES.index(issue.severity) < SEVERITIES.index(
+                current
+            ):
+                self.marks[row] = issue.severity
+            self.row_messages.setdefault(row, []).append(issue.message)
+        self.grid.ForceRefresh()
+
+    def _on_motion(self, event):
+        x, y = self.grid.CalcUnscrolledPosition(event.GetPosition())
+        messages = self.row_messages.get(self.grid.YToRow(y))
+        window = self.grid.GetGridWindow()
+        text = "\n".join(messages) if messages else ""
+        if window.GetToolTipText() != text:
+            window.SetToolTip(text)
+        event.Skip()
+
+
+SEVERITIES = ("error", "guessed", "warning")  # first: most severe
+
+
+class ModelsEditor(_RowIssues, Editor):
     """A list of nested configs (with simple fields) as an editable table.
 
     Subclasses may add buttons (``extra_buttons``) and a first column for dict keys
@@ -532,6 +628,9 @@ class ModelsEditor(Editor):
             self.grid.SetColLabelValue(i + self.offset, column.title)
         self.grid.SetRowLabelSize(30)
         self.grid.SetMinSize((-1, 110))
+        # rows with issues: a marker in the first column, the messages as tooltip
+        self.grid.SetColAttr(0, self._init_row_issues())
+        self.grid.GetGridWindow().Bind(wx.EVT_MOTION, self._on_motion)
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.changed)
         sizer.Add(self.grid, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
@@ -545,6 +644,18 @@ class ModelsEditor(Editor):
         sizer.Add(buttons)
         panel.SetSizer(sizer)
         return panel
+
+    def _row_of(self, path) -> Optional[int]:
+        """The row of a path into this field: "rules[1].min" (a list) or
+        "ranges['FLIRR']" (a dict with keys in the first column)."""
+        rest = (path or "")[len(self.spec.name) :].lstrip(".")
+        if self.key_title:
+            rest = rest.removeprefix("['")
+            keys = [key for key, _ in self.rows()]
+            matches = [i for i, k in enumerate(keys) if k and rest.startswith(k)]
+            return max(matches, key=lambda i: len(keys[i])) if matches else None
+        number = rest.removeprefix("[").split("]")[0].split(".")[0]
+        return int(number) if number.isdigit() else None
 
     def _on_add(self, event):
         self.grid.AppendRows(1)
@@ -610,6 +721,454 @@ class ModelMapEditor(ModelsEditor):
         return {"feature": "Feature", "category": "Column"}.get(self.spec.role, "Key")
 
 
+class _MarkedTextRenderer(wx.grid.GridCellStringRenderer):
+    """Draws a cell's text and, in rows with issues, the issue marker at its right."""
+
+    def __init__(self, marks: dict):
+        super().__init__()
+        self.marks = marks  # row -> severity
+
+    def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+        super().Draw(grid, attr, dc, rect, row, col, isSelected)
+        severity = self.marks.get(row)
+        if severity:
+            bitmap = _marker_bitmap(severity)
+            x = rect.x + rect.width - bitmap.GetWidth() - 2
+            y = rect.y + (rect.height - bitmap.GetHeight()) // 2
+            dc.DrawBitmap(bitmap, x, y, True)
+
+    def GetBestSize(self, grid, attr, dc, row, col):
+        size = super().GetBestSize(grid, attr, dc, row, col)
+        return wx.Size(size.width + 20, size.height)  # room for the marker
+
+    def Clone(self):
+        return _MarkedTextRenderer(self.marks)
+
+
+class FeatureSettingsEditor(_RowIssues, Editor):
+    """Features with settings (a dict of configs by feature, e.g. ranges): one row
+    for each feature of the input; "Use" selects it, and its settings are edited in
+    the same row. Empty settings are the config's defaults. Checking a feature fills
+    an empty min and max with the feature's range in the data."""
+
+    expands = True
+
+    def create(self, parent):
+        self.columns = [
+            s
+            for s in visible(describe(self.spec.model))
+            if s.kind not in ("model", "models", "modelmap")
+        ]
+        self.features: list[str] = []
+        self.ranges: dict = {}  # feature -> (min, max) in the data
+        self.panel = None  # the FieldsPanel, known once it refreshes this editor
+        self.synced: set = set()  # settings now kept the same in all rows
+        self.last_edited: dict = (
+            {}
+        )  # setting -> the feature whose value was edited last
+        self.disabled: set = set()  # settings now not used (greyed out)
+        panel = wx.Panel(parent)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.grid = wx.grid.Grid(panel)
+        self.grid.CreateGrid(0, 2 + len(self.columns))
+        self.grid.SetColLabelValue(0, "Use")
+        self.grid.SetColLabelValue(1, "Feature")
+        for i, column in enumerate(self.columns):
+            self.grid.SetColLabelValue(i + 2, column.title)
+        use = wx.grid.GridCellAttr()
+        use.SetRenderer(wx.grid.GridCellBoolRenderer())
+        use.SetReadOnly(True)  # toggled by a click, see _on_click
+        use.SetAlignment(wx.ALIGN_CENTER, wx.ALIGN_CENTER)
+        self.grid.SetColAttr(0, use)
+        name = self._init_row_issues()  # the feature column shows the markers
+        name.SetReadOnly(True)
+        self.grid.SetColAttr(1, name)
+        self.grid.GetGridWindow().Bind(wx.EVT_MOTION, self._on_motion)
+        self.grid.SetRowLabelSize(0)
+        self.grid.SetMinSize((-1, 150))
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self._on_click)
+        self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self._on_cell_changed)
+        sizer.Add(self.grid, 1, wx.EXPAND)
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        for label, handler in (
+            ("Select All", lambda e: self.use_all(True)),
+            ("Deselect All", lambda e: self.use_all(False)),
+            ("Load Settings...", self._on_load),
+            ("Save Settings...", self._on_save),
+        ):
+            button = wx.Button(panel, label=label, style=wx.BU_EXACTFIT)
+            button.Bind(wx.EVT_BUTTON, handler)
+            buttons.Add(button, 0, wx.TOP | wx.RIGHT, 3)
+        sizer.Add(buttons)
+        self.message = wx.StaticText(panel, label="")
+        sizer.Add(self.message, 0, wx.TOP, 3)
+        panel.SetSizer(sizer)
+        return panel
+
+    # --- settings files ---
+
+    def _on_load(self, event):
+        with wx.FileDialog(
+            self.control,
+            "Load feature settings",
+            wildcard="JSON files (*.json)|*.json|All files|*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                self.load_settings(dialog.GetPath())
+
+    def _on_save(self, event):
+        with wx.FileDialog(
+            self.control,
+            "Save feature settings",
+            wildcard="JSON files (*.json)|*.json",
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+        ) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                self.save_settings(dialog.GetPath())
+
+    def load_settings(self, path) -> tuple[list, list]:
+        """Applies the settings in a file to the matching features (which stay
+        checked or unchecked); returns the applied and the skipped features."""
+        names = [c.name for c in self.columns]
+        try:
+            with open(path) as f:
+                settings = find_feature_settings(json.load(f), names)
+        except (OSError, ValueError) as err:
+            self.message.SetLabel(f"Could not read {Path(path).name}: {err}")
+            return [], []
+        if settings is None:
+            self.message.SetLabel(f"No feature settings in {Path(path).name}")
+            return [], []
+        state = self._state()
+        applied = [f for f in settings if f in state]
+        skipped = [f for f in settings if f not in state]
+        for feature in applied:
+            used, _ = state[feature]
+            texts = [_cell_text(settings[feature].get(c.name)) for c in self.columns]
+            state[feature] = (used, texts)
+        self._show(self.features, state)
+        # loaded settings are per feature and used: settings kept the same in all
+        # rows, or not used, no more
+        flags = {**self.synced_settings(), **self.disabled_settings()}
+        for flag in flags.values():
+            if self.panel is not None and flag in self.panel.editors:
+                self.panel.editors[flag].set(False)
+        self.synced.clear()
+        if self.panel is not None:
+            self.refresh(self.panel)
+        message = f"Applied the settings of {len(applied)} features"
+        if skipped:
+            message += f"; {len(skipped)} are not in the table"
+        self.message.SetLabel(message)
+        self.changed()
+        return applied, skipped
+
+    def save_settings(self, path) -> None:
+        """Writes the settings of the checked features, {feature: {name: value}};
+        settings that are not valid are left out."""
+        settings = {}
+        for feature, values in self.get().items():
+            try:
+                model = self.spec.model.model_validate(values)
+            except ValueError:
+                continue
+            settings[feature] = model.model_dump(exclude={"classname", "version"})
+        with open(path, "w") as f:
+            json.dump(settings, f, indent=2)
+        self.message.SetLabel(f"Saved the settings of {len(settings)} features")
+
+    # --- rows ---
+
+    def is_used(self, row) -> bool:
+        return self.grid.GetCellValue(row, 0) == "1"
+
+    def use(self, row, used=True) -> None:
+        self.grid.SetCellValue(row, 0, "1" if used else "")
+        if used:
+            self._take_synced(row)
+            # empty settings with a default (e.g. bins): show the default
+            for column in self.columns:
+                default = self.spec.model.model_fields[column.name].default
+                col = self._column(column.name)
+                if default is not None and self.grid.GetCellValue(row, col) == "":
+                    self.grid.SetCellValue(row, col, _cell_text(default))
+        if used:  # empty limits: the feature's range in the data
+            feature = self.features[row]
+            names = [c.name for c in self.columns]
+            limits = next(
+                (p for p in (("min", "max"), ("low", "high")) if set(p) <= set(names)),
+                None,
+            )
+            # one value only (constant column): no range, the plot handles it
+            constant = feature in self.ranges and len(set(self.ranges[feature])) == 1
+            fill = limits and not set(limits) & self.disabled and not constant
+            if feature in self.ranges and fill:
+                for name, value in zip(limits, self.ranges[feature]):
+                    col = names.index(name) + 2
+                    if self.grid.GetCellValue(row, col) == "":
+                        self.grid.SetCellValue(row, col, f"{value:g}")
+        self._style_row(row)
+        self.grid.ForceRefresh()
+
+    def _take_synced(self, row) -> None:
+        """A newly checked row gets the settings that are the same in all rows."""
+        for name in self.synced:
+            col = self._column(name)
+            others = [
+                r for r in range(len(self.features)) if r != row and self.is_used(r)
+            ]
+            if col is not None and others:
+                self.grid.SetCellValue(row, col, self.grid.GetCellValue(others[0], col))
+
+    def use_all(self, used: bool) -> None:
+        for row in range(len(self.features)):
+            self.use(row, used)
+        self._fit_columns()
+        self.changed()
+
+    def _fit_columns(self) -> None:
+        """Columns as wide as their values (filled-in ranges)."""
+        self.grid.AutoSizeColumns(setAsMin=False)
+        self.grid.SetColSize(0, max(self.grid.GetColSize(0), 40))
+
+    # --- settings that are the same in all rows (e.g. bins, config.synced_settings) ---
+
+    def synced_settings(self) -> dict:
+        """settings field -> config field that keeps it the same in all rows."""
+        model = getattr(self.panel, "model", None)
+        return dict(getattr(model, "synced_settings", {}))
+
+    def _column(self, name):
+        names = [c.name for c in self.columns]
+        return names.index(name) + 2 if name in names else None
+
+    def sync_column(self, name, value=None) -> None:
+        """Sets setting ``name`` of all rows to ``value`` (default: the value of the
+        row edited last; else of the first checked row, or the first row)."""
+        col = self._column(name)
+        if col is None or not self.features:
+            return
+        if value is None:
+            feature = self.last_edited.get(name)
+            if feature in self.features:
+                row = self.features.index(feature)
+            else:
+                rows = [r for r in range(len(self.features)) if self.is_used(r)] or [0]
+                row = rows[0]
+            value = self.grid.GetCellValue(row, col)
+        for row in range(len(self.features)):
+            self.grid.SetCellValue(row, col, value)
+
+    # --- issues in rows ---
+
+    def _row_of(self, path) -> Optional[int]:
+        """The row a path into this field is about, e.g. "features['FAD t1'].min"."""
+        rest = (path or "")[len(self.spec.name) :].lstrip(".").removeprefix("['")
+        matches = [i for i, f in enumerate(self.features) if rest.startswith(f)]
+        return max(matches, key=lambda i: len(self.features[i])) if matches else None
+
+    def disabled_settings(self) -> dict:
+        """settings field -> config field that makes it unused (greyed out)."""
+        model = getattr(self.panel, "model", None)
+        return dict(getattr(model, "disabled_settings", {}))
+
+    def _set_disabled(self, disabled: set) -> None:
+        """Greys out (and makes read-only) the columns of settings that are not used;
+        their values are kept."""
+        if disabled == self.disabled:
+            return
+        self.disabled = disabled
+        self._style_rows()
+
+    def _style_row(self, row) -> None:
+        """Unchecked rows are grey, and their settings read-only; so are the settings
+        not used now (disabled), also in checked rows."""
+        grey = wx.SystemSettings.GetColour(wx.SYS_COLOUR_GRAYTEXT)
+        normal = self.grid.GetDefaultCellTextColour()
+        used = self.is_used(row)
+        self.grid.SetCellTextColour(row, 1, normal if used else grey)
+        for column in self.columns:
+            col = self._column(column.name)
+            editable = used and column.name not in self.disabled
+            self.grid.SetReadOnly(row, col, not editable)
+            self.grid.SetCellTextColour(row, col, normal if editable else grey)
+
+    def _style_rows(self) -> None:
+        for row in range(len(self.features)):
+            self._style_row(row)
+        self.grid.ForceRefresh()
+
+    def refresh(self, panel):
+        self.panel = panel
+        for setting, flag in self.synced_settings().items():
+            on = bool(panel.value_of(flag))
+            if on and setting not in self.synced:
+                self.synced.add(setting)
+                self.sync_column(setting)
+            elif not on:
+                self.synced.discard(setting)
+        self._set_disabled(
+            {s for s, flag in self.disabled_settings().items() if panel.value_of(flag)}
+        )
+
+    def _on_cell_changed(self, event):
+        col = event.GetCol()
+        name = self.columns[col - 2].name if col >= 2 else None
+        if name is not None:
+            self.last_edited[name] = self.features[event.GetRow()]
+        if name in self.synced:
+            self.sync_column(name, self.grid.GetCellValue(event.GetRow(), col))
+        self.changed(event)
+
+    def _on_click(self, event):
+        if event.GetCol() == 0:
+            row = event.GetRow()
+            self.use(row, not self.is_used(row))
+            self._fit_columns()
+            self.changed()
+        else:
+            event.Skip()
+
+    def _state(self) -> dict:
+        """feature -> (used, cell texts)."""
+        return {
+            feature: (
+                self.is_used(row),
+                [
+                    self.grid.GetCellValue(row, col + 2)
+                    for col in range(len(self.columns))
+                ],
+            )
+            for row, feature in enumerate(self.features)
+        }
+
+    def _show(self, features, state) -> None:
+        if self.grid.GetNumberRows():
+            self.grid.DeleteRows(0, self.grid.GetNumberRows())
+        self.features = list(features) + [
+            f for f in state if f not in features and state[f][0]
+        ]
+        self.grid.AppendRows(len(self.features))
+        for row, feature in enumerate(self.features):
+            used, texts = state.get(feature, (False, [""] * len(self.columns)))
+            self.grid.SetCellValue(row, 0, "1" if used else "")
+            self.grid.SetCellValue(row, 1, feature.replace("\n", " "))
+            for col, text in enumerate(texts):
+                self.grid.SetCellValue(row, col + 2, text)
+        self._fit_columns()
+
+        # --- Editor ---
+        self._style_rows()
+
+    def set_schema(self, schema):
+        features = [] if schema is None else schema.by_role("feature")
+        self._show(features, self._state())
+
+    def set_data(self, tables):
+        self.ranges = {}
+        if tables:
+            data = tables[0]
+            for column in data.select_dtypes("number").columns:
+                values = data[column].replace(
+                    [float("inf"), float("-inf")], float("nan")
+                )
+                if values.notna().any():
+                    self.ranges[column] = (float(values.min()), float(values.max()))
+
+    def get(self):
+        result = {}
+        for feature, (used, texts) in self._state().items():
+            if used:
+                result[feature] = {
+                    c.name: t.strip() for c, t in zip(self.columns, texts) if t.strip()
+                }
+        return result
+
+    def set(self, value):
+        state = {}
+        for feature, settings in (value or {}).items():
+            data = settings if isinstance(settings, dict) else settings.model_dump()
+            state[feature] = (
+                True,
+                [_cell_text(data.get(c.name)) for c in self.columns],
+            )
+        self._show(self.features, state)  # the input's features, checked as configured
+
+
+def find_feature_settings(data, names: list) -> Optional[dict]:
+    """Per-feature settings in a loaded settings file: {feature: {name: value}}.
+
+    ``names`` are the settings' names (e.g. min, max, bins). Reads the files written by
+    "Save Settings...", configs ({"features": {...}}) and the application's settings
+    files (searched for such entries). Also reads two older forms: histogram
+    "featuresettings" lists [min, max, bins, ...], and range filter lists of
+    {"name", "rangelow", "rangehigh", "dropna"}.
+    """
+    allowed = set(names) | {"classname", "version"}
+
+    def dict_settings(value) -> Optional[dict]:
+        """{feature: {name: value}} with only these names."""
+        if not isinstance(value, dict) or not value:
+            return None
+        if not all(
+            isinstance(e, dict) and e and set(e) <= allowed for e in value.values()
+        ):
+            return None
+        return {f: {k: v for k, v in e.items() if k in names} for f, e in value.items()}
+
+    def histogram_lists(value) -> Optional[dict]:
+        if names[:3] != ["min", "max", "bins"] or not isinstance(value, dict):
+            return None
+        rows = {}
+        for feature, entry in value.items():
+            if isinstance(entry, list) and len(entry) >= 3:
+                rows[feature] = dict(zip(names, entry[:3]))
+        return rows or None
+
+    def range_filter_list(value) -> Optional[dict]:
+        if not ({"low", "high"} <= set(names)) or not isinstance(value, list):
+            return None
+        from flim.configs.data import range_of_legacy
+
+        rows = {
+            e["name"]: {k: v for k, v in range_of_legacy(e).items() if k in names}
+            for e in value
+            if isinstance(e, dict)
+            and "name" in e
+            and ("rangelow" in e or "rangehigh" in e)
+        }
+        return rows or None
+
+    def search(value) -> Optional[dict]:
+        if isinstance(value, list):
+            return range_filter_list(value)
+        if not isinstance(value, dict):
+            return None
+        found = (
+            dict_settings(value.get("features"))
+            or dict_settings(value.get("range_filters"))
+            or histogram_lists(value.get("featuresettings"))
+            or dict_settings(value.get("featuresettings"))
+            or dict_settings(value)
+        )
+        if found:
+            return found
+        for child in value.values():
+            found = search(child)
+            if found:
+                return found
+        return None
+
+    return search(data)
+
+
+def _cell_text(value) -> str:
+    if value is None:
+        return ""
+    return f"{value:g}" if isinstance(value, float) else str(value)
+
+
 class JsonEditor(Editor):
     """Anything else, as JSON text."""
 
@@ -651,6 +1210,8 @@ def editor_class(spec: FieldSpec) -> type[Editor]:
         return IntEditor
     if spec.kind == "columns":
         return FeaturesEditor if spec.role == "feature" else CategoriesEditor
+    if spec.kind == "modelmap" and spec.role == "feature":
+        return FeatureSettingsEditor
     return {
         "choice": ChoiceEditor,
         "multichoice": MultiChoiceEditor,
@@ -686,15 +1247,12 @@ def editor_for(model: type, spec: FieldSpec) -> type[Editor]:
     return editor_class(spec)
 
 
-# fields shared by many tools, shown after a tool's own settings
-GENERAL_FIELDS = ("grouping", "features", "prefix", "random_seed")
-
-
 class FieldsPanel(wx.Panel):
     """Editors for the visible fields of a config class, with issue markers.
 
-    Small fields share a two-column grid (label, editor); lists and tables take the
-    full width; nested configs come last, in collapsible sections.
+    Fields are shown in their order (flim.core.fields.field_order): small fields that
+    follow each other share a grid (label, editor); lists and tables take the full
+    width; nested configs are collapsible sections.
     """
 
     def __init__(self, parent, model: type, exclude=()):
@@ -703,50 +1261,55 @@ class FieldsPanel(wx.Panel):
         self.on_change: Optional[Callable[[], None]] = None
         self.editors: dict[str, Editor] = {}
         self.markers: dict[str, wx.StaticBitmap] = {}
+        self.widgets: dict[str, list] = {}  # field -> its label and editor
+        self.fixed: set = set()  # fields that allow only one value now (not shown)
         specs = [s for s in visible(describe(model)) if s.name not in exclude]
-        # the tool's own settings first, general ones (prefix, seed) after
-        small = [s for s in specs if not editor_for(model, s).expands]
-        small = [s for s in small if s.name not in GENERAL_FIELDS] + [
-            s for s in small if s.name in GENERAL_FIELDS
-        ]
-        large = [s for s in specs if editor_for(model, s).expands and s.kind != "model"]
-        large = [s for s in large if s.name not in GENERAL_FIELDS] + [
-            s for s in large if s.name in GENERAL_FIELDS
-        ]
-        nested = [s for s in specs if s.kind == "model"]
+        large = {s.name: editor_for(model, s).expands for s in specs}
+        specs = sorted(
+            specs, key=lambda s: field_order(s, specs.index(s), large[s.name])
+        )
 
+        # in order: consecutive small fields share a grid (label, editor, marker);
+        # lists, tables and nested sections take the full width between them
         sizer = wx.BoxSizer(wx.VERTICAL)
-        grid = wx.FlexGridSizer(cols=3, vgap=4, hgap=6)
-        grid.AddGrowableCol(1)
-        for spec in small:
-            grid.Add(self._label(spec), 0, wx.ALIGN_CENTER_VERTICAL)
-            grid.Add(self._editor(spec).control, 1, wx.EXPAND)
-            grid.Add(self._marker(spec), 0, wx.ALIGN_CENTER_VERTICAL)
-        sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
-        for spec in large:
+        grid = None
+        for spec in specs:
+            if not large[spec.name]:
+                if grid is None:
+                    grid = wx.FlexGridSizer(cols=3, vgap=4, hgap=6)
+                    grid.AddGrowableCol(1)
+                    sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
+                grid.Add(self._label(spec), 0, wx.ALIGN_CENTER_VERTICAL)
+                grid.Add(self._editor(spec).control, 1, wx.EXPAND)
+                grid.Add(self._marker(spec), 0, wx.ALIGN_CENTER_VERTICAL)
+                continue
+            grid = None
+            if spec.kind == "model":  # a collapsible section with its own title
+                row = wx.BoxSizer(wx.HORIZONTAL)
+                row.Add(self._editor(spec).control, 1, wx.EXPAND)
+                row.Add(self._marker(spec), 0, wx.TOP, 4)
+                sizer.Add(row, 0, wx.EXPAND | wx.ALL, 4)
+                continue
             row = wx.BoxSizer(wx.HORIZONTAL)
             row.Add(self._label(spec), 0, wx.RIGHT, 6)
             row.Add(self._marker(spec), 0)
             sizer.Add(row, 0, wx.LEFT | wx.TOP, 4)
             editor = self._editor(spec)
             sizer.Add(editor.control, 1 if editor.grows else 0, wx.EXPAND | wx.ALL, 4)
-        for spec in nested:
-            row = wx.BoxSizer(wx.HORIZONTAL)
-            row.Add(self._editor(spec).control, 1, wx.EXPAND)
-            row.Add(self._marker(spec), 0, wx.TOP, 4)
-            sizer.Add(row, 0, wx.EXPAND | wx.ALL, 4)
         self.SetSizer(sizer)
 
     def _label(self, spec):
         label = wx.StaticText(self, label=spec.title)
         if spec.description:
             label.SetToolTip(spec.description)
+        self.widgets.setdefault(spec.name, []).append(label)
         return label
 
     def _editor(self, spec):
         editor = editor_for(self.model, spec)(self, spec)
         editor.on_change = self._on_editor_change
         self.editors[spec.name] = editor
+        self.widgets.setdefault(spec.name, []).append(editor.control)
         return editor
 
     def _marker(self, spec):
@@ -787,9 +1350,28 @@ class FieldsPanel(wx.Panel):
             return None
 
     def refresh(self) -> None:
-        """Lets editors that depend on other fields update (e.g. value choices)."""
+        """Lets editors that depend on other fields update (e.g. value choices), and
+        hides the fields that allow only one value given the others."""
         for editor in self.editors.values():
             editor.refresh(self)
+        allowed_values = getattr(self.model, "allowed_values", None)
+        if allowed_values is None:
+            return
+        values = {name: self.value_of(name) for name in self.editors}
+        allowed = allowed_values(values)
+        for name, editor in self.editors.items():
+            editor.set_allowed(allowed.get(name))
+        fixed = {n for n, a in allowed.items() if len(a) == 1} & set(self.editors)
+        if fixed == self.fixed:
+            return
+        self.fixed = fixed
+        for name, widgets in self.widgets.items():
+            for widget in widgets:
+                widget.Show(name not in fixed)
+            if name in fixed:
+                self.markers[name].Hide()
+        self.Layout()
+        relayout(self)
 
     def set_schema(self, schema) -> None:
         for editor in self.editors.values():
@@ -804,7 +1386,7 @@ class FieldsPanel(wx.Panel):
         marker = self.markers.get(name)
         if marker is None:
             return
-        if severity is None:
+        if severity is None or name in self.fixed:
             marker.Hide()
         else:
             marker.SetBitmap(_marker_bitmap(severity))

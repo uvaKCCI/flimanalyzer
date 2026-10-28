@@ -1,21 +1,9 @@
-"""Filter: category values to keep and range filters."""
+"""Filter: category values to keep (the range filters use the generic table)."""
 
-import numpy as np
 import wx
 
 from flim.configs.data import FilterConfig
-from flim.gui.editors import Editor, ModelsEditor, fit_rows, register_editor
-
-
-def numeric_ranges(tables) -> dict:
-    """column -> (min, max) of the numeric columns of the first table."""
-    if not tables:
-        return {}
-    data = tables[0]
-    return {
-        column: (float(data[column].min()), float(data[column].max()))
-        for column in data.select_dtypes(np.number).columns
-    }
+from flim.gui.editors import Editor, fit_rows, register_editor
 
 
 @register_editor(FilterConfig, "category_filters")
@@ -96,29 +84,3 @@ class CategoryFiltersEditor(Editor):
     def set(self, value):
         self.kept = {column: list(values) for column, values in (value or {}).items()}
         self._show_columns()
-
-
-@register_editor(FilterConfig, "range_filters")
-class RangeFiltersEditor(ModelsEditor):
-    """The range filter table; "Add Features" adds a row (not used yet) for each
-    numeric column, with the column's range in the data."""
-
-    def create(self, parent):
-        self.tables = []
-        return super().create(parent)
-
-    def extra_buttons(self):
-        return [("Add Features", self._on_add_features)]
-
-    def set_data(self, tables):
-        self.tables = tables
-
-    def _on_add_features(self, event=None):
-        present = {key_values.get("column") for _, key_values in self.rows()}
-        for column, (low, high) in numeric_ranges(self.tables).items():
-            if column not in present:
-                self.add_row(
-                    {"column": column, "low": low, "high": high, "selected": False}
-                )
-        self.grid.AutoSizeColumns()
-        self.changed()
