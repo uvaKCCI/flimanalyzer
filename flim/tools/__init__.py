@@ -2,4 +2,5 @@
 
 import flim.tools.data  # noqa: F401
 import flim.tools.ml  # noqa: F401
+import flim.tools.plot  # noqa: F401
 import flim.tools.statistics  # noqa: F401

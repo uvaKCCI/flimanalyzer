@@ -18,6 +18,7 @@ import logging
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import flim.tools.plot as plot
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -183,22 +184,6 @@ class PairPlotConfigDlg(BasicAnalysisConfigDlg):
         return cls.__base_params
 
 
-def _sampled(func, keep):
-    """Wraps a seaborn plot function to draw only the rows where ``keep`` is True.
-
-    PairGrid passes each panel's x, y and hue columns of the whole table; ``keep``
-    is a boolean array over the table's (reset, 0..n-1) index.
-    """
-
-    def plot(x, y, hue=None, **kwargs):
-        mask = keep[x.index.to_numpy()]
-        if hue is not None:
-            hue = hue[mask]
-        return func(x=x[mask], y=y[mask], hue=hue, **kwargs)
-
-    return plot
-
-
 @plugin(plugintype="Plot")
 class PairPlot(AbstractPlugin):
     def __init__(self, name="Pair Plot", **kwargs):
@@ -263,76 +248,5 @@ class PairPlot(AbstractPlugin):
         return {f"Pair Plot: {self.params['grouping']}": matplotlib.figure.Figure}
 
     def execute(self):
-        data = list(self.input.values())[0]
-        features = self.params["features"]
-        x_vars = self.params["x_vars"]
-        if not x_vars or len(x_vars) == 0:
-            x_vars = features
-        y_vars = self.params["y_vars"]
-        if not y_vars or len(y_vars) == 0:
-            y_vars = features
-        hue = self.params["grouping"][0] if len(self.params["grouping"]) > 0 else None
-        corner = self.params["corner"]
-        results = {}
-        logging.debug(f"\tcreating pair plot for {features}, grouped by {hue}")
-        # fig, ax = plt.subplots()
-        fig = self.grouped_pairplot(
-            data,
-            x_vars=x_vars,
-            y_vars=y_vars,
-            hue=hue,
-            corner=corner,
-        )  # , facecolors='none', edgecolors='r')
-        results[f"Pair Plot: {self.params['grouping']}"] = fig
-        return results
+        return self.run_tool(plot.PairPlot, list(self.input.values())[0])
 
-    def grouped_pairplot(
-        self,
-        data,
-        x_vars,
-        y_vars,
-        hue=None,
-        corner=False,
-        dropna=True,
-    ):
-        # g = sns.pairplot(data, x_vars=features, y_vars=features, hue=hue, dropna=dropna)
-        columns = list(dict.fromkeys(list(x_vars) + list(y_vars) + ([hue] if hue else [])))
-        data = data[columns].reset_index(drop=True)
-        total = len(data)
-        samples = int(self.params.get("samples", 0) or 0)
-        sampled = self.params.get("plotting") == "sample" and 0 < samples < total
-        scatter = sns.scatterplot
-        if sampled:
-            rng = np.random.default_rng(self.params.get("random_seed", 0))
-            keep = np.zeros(total, dtype=bool)
-            keep[rng.choice(total, size=samples, replace=False)] = True
-            scatter = _sampled(sns.scatterplot, keep)
-        g = sns.PairGrid(
-            data,
-            diag_sharey=False,
-            x_vars=x_vars,
-            y_vars=y_vars,
-            hue=hue,
-            dropna=dropna,
-            corner=corner,
-        )
-        if self.params["diag_kind"] == "Histogram":
-            g.map_diag(sns.histplot, bins=self.params["hist_bins"])
-        else:
-            g.map_diag(sns.kdeplot)
-        g.map_upper(scatter)
-        g.map_lower(scatter)  # sns.kdeplot
-        g.add_legend()
-        if sampled:
-            g.figure.text(
-                0.5,
-                0.005,
-                f"{samples:,} samples of {total:,} measurements shown",
-                ha="center",
-                va="bottom",
-                fontsize="small",
-                color="0.3",
-            )
-            # room for the note; keeps the right margin seaborn made for the legend
-            g.figure.subplots_adjust(bottom=g.figure.subplotpars.bottom + 0.03)
-        return g.fig

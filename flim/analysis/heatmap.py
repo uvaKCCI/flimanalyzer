@@ -4,6 +4,7 @@
 # @Author: Jiaxin_Zhang
 
 import seaborn as sns
+import flim.tools.plot as plot
 from flim.plugin import AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
@@ -165,39 +166,4 @@ class Heatmap(AbstractPlugin):
             return None
 
     def execute(self):
-        data = list(self.input.values())[0]
-        data_c = data[self.params["features"]]
-
-        results = {}
-        corr = data_c.corr(method=self.params["corr_type"])
-        fig, ax = plt.subplots(constrained_layout=True)
-        ax = sns.heatmap(
-            corr,
-            ax=ax,
-            vmin=-1,
-            vmax=1,
-            cmap=sns.diverging_palette(20, 220, n=200),
-            square=True,
-            annot=self.params["numbers"],
-        )
-        ax.set_yticklabels(
-            ax.get_yticklabels(),
-            rotation=0,
-        )
-        ax.set_xticklabels(
-            ax.get_xticklabels(), rotation=45, horizontalalignment="right"
-        )
-        title = "Data ungrouped"
-        if len(self.params["grouping"]) > 0:
-            title = f"Data grouped by {self.params['grouping']}"
-        ax.set_title(title)
-        corr = corr.reset_index()
-        corr = corr.rename(columns={"index": "Feature"})
-        corr["Feature"] = corr["Feature"].astype("category")
-
-        fig = ax.get_figure()
-        results["Plot: Heatmap"] = fig
-        results["Table: Heatmap"] = corr
-
-        # self._add_picker(fig)
-        return results
+        return self.run_tool(plot.Heatmap, list(self.input.values())[0])

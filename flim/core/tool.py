@@ -9,8 +9,10 @@ Inside :func:`flim.core.runner.run_flow` the call becomes a Prefect task and ret
 Results are keyed by display name (``"Table: Summary"``), with the config's prefix.
 """
 
+import contextlib
 import logging
 import os
+import sys
 import threading
 import typing
 from dataclasses import dataclass, replace
@@ -26,6 +28,20 @@ ConfigT = TypeVar("ConfigT", bound=TaskConfig)
 # pyplot's figure registry and current-figure state are shared by all threads: tasks
 # that draw figures take turns, all other tasks run concurrently
 pyplot_lock = threading.RLock()
+
+
+def release_figures(results):
+    """Removes result figures from pyplot's registry, which keeps every figure it
+    created until it is closed. The figures stay usable (saving, showing)."""
+    if not isinstance(results, dict) or "matplotlib.pyplot" not in sys.modules:
+        return
+    import matplotlib.figure
+    import matplotlib.pyplot as plt
+
+    figures = [v for v in results.values() if isinstance(v, matplotlib.figure.Figure)]
+    with pyplot_lock:
+        for figure in figures:
+            plt.close(figure)
 
 
 class TaskCancelled(Exception):
@@ -152,7 +168,9 @@ class Tool(Generic[ConfigT]):
         self.context = RunContext.for_config(
             config, cancel_token=getattr(self, "_cancel_token", None)
         )
-        results = self.display_names(self.run(*inputs, config=config))
+        with pyplot_lock if self.draws_figures else contextlib.nullcontext():
+            results = self.display_names(self.run(*inputs, config=config))
+        release_figures(results)
         if config.prefix:
             results = {f"{config.prefix}{k}": v for k, v in results.items()}
         return results

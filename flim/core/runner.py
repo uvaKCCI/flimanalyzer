@@ -33,7 +33,6 @@ import threading
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-import matplotlib.figure
 import networkx as nx
 from prefect import flow, tags, task, unmapped
 from prefect.cache_policies import NO_CACHE
@@ -43,7 +42,7 @@ from prefect.settings import get_current_settings
 from prefect.states import Cancelled
 from prefect.task_runners import ThreadPoolTaskRunner
 
-from flim.core.tool import TaskCancelled, pyplot_lock
+from flim.core.tool import TaskCancelled, pyplot_lock, release_figures
 from flim.results import clean_path_component, save_results
 
 __all__ = [
@@ -208,22 +207,8 @@ def _run_plugin(plugin, kwargs: Dict[str, Any]):
         # tools (flim.core.tool.Tool) run with run_task(inputs, config)
         run = getattr(plugin, "run_task", plugin.run)
         results = run(**_unwrap(kwargs))
-    _release_figures(results)
+    release_figures(results)
     return results
-
-
-def _release_figures(results):
-    """Removes result figures from pyplot's registry, which keeps every figure it
-    created until it is closed. The figures stay usable (saving, showing)."""
-    if not isinstance(results, dict):
-        return
-    figures = [v for v in results.values() if isinstance(v, matplotlib.figure.Figure)]
-    if figures:
-        import matplotlib.pyplot as plt
-
-        with pyplot_lock:
-            for figure in figures:
-                plt.close(figure)
 
 
 def _retry_unless_cancelled(task, task_run, state) -> bool:

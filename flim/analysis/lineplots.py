@@ -9,27 +9,18 @@ Created on Wed Dec 16 14:18:30 2020
 import logging
 import itertools
 import pandas as pd
+import flim.tools.plot as plot
 from flim.plugin import AbstractPlugin
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator, FixedFormatter
 import seaborn as sns
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
-
-
-def ci_to_errorbar(ci):
-    """Converts the plugin's "ci" setting to seaborn's errorbar argument.
-
-    seaborn 0.12 replaced ci=<n> with errorbar=("ci", <n>), ci="sd" with
-    errorbar="sd" and ci=None with errorbar=None.
-    """
-    if ci is None or ci == "sd":
-        return ci
-    return ("ci", ci)
 from importlib_resources import files
 import flim.resources
 from flim import utils
 from flim.plugin import plugin
+from flim.tools.plot import ci_to_errorbar  # noqa: F401
 
 
 @plugin(plugintype="Plot")
@@ -99,128 +90,5 @@ class LinePlot(AbstractPlugin):
         return parallel_params
 
     def execute(self):
-        data = list(self.input.values())[0].copy()
-        results = {}
-        categories = data.select_dtypes("category").columns.values
-        categories = [c for c in categories if len(data[c].unique()) > 1]
-        ticklabels = [", ".join(str(row)) for row in data[categories].values]
-        for c in categories:
-            data[c] = data[c].astype("str")
-        for feature in sorted(self.params["features"]):
-            logging.debug(f"\tcreating line plot for {feature}")
-            fig, ax = plt.subplots()
-            fig = self.grouped_lineplot(
-                data, feature, categories=self.params["grouping"], ax=ax, fig=fig
-            )
-            # x_formatter = FixedFormatter(ticklabels)
-            # x_locator = FixedLocator(range(len(ticklabels)))
-            # ax.xaxis.set_major_formatter(x_formatter)
-            # ax.xaxis.set_major_locator(x_locator)
+        return self.run_tool(plot.LinePlot, list(self.input.values())[0])
 
-            # ax.tick_params(axis='x', labelrotation=70)
-            # h, labels = ax.get_legend_handles_labels()
-            # labels = [l.replace('\n', ', ').replace('\'','').replace('(','').replace(')','') for l in labels]
-            # print (f"labels={labels}")
-            # legend = ax.legend(loc='upper left', bbox_to_anchor= (1.0, 1.0), fontsize='small', ncol=1)
-            results[f"Line Plot: {feature}"] = fig
-        return results
-
-    def grouped_lineplot(
-        self,
-        data,
-        feature,
-        title=None,
-        categories=[],
-        dropna=True,
-        ax=None,
-        fig=None,
-        **kwargs,
-    ):
-        if data is None or not feature in data.columns.values:
-            return None, None
-        if categories is None:
-            categories = []
-        if len(categories) == 0:
-            data[feature].plot(ax=ax)
-        else:
-            cols = [c for c in categories]
-            cols.append(feature)
-            if len(categories) == 1:
-                sns.lineplot(
-                    ax=ax,
-                    data=data,
-                    x=categories[0],
-                    y=feature,
-                    errorbar=ci_to_errorbar(self.params["ci"]),
-                    err_style=self.params["err_style"],
-                    markers=self.params["markers"],
-                )
-            elif len(categories) == 2:
-                sns.lineplot(
-                    ax=ax,
-                    data=data,
-                    x=categories[0],
-                    y=feature,
-                    hue=categories[1],
-                    errorbar=ci_to_errorbar(self.params["ci"]),
-                    err_style=self.params["err_style"],
-                    markers=self.params["markers"],
-                )
-            elif len(categories) == 3:
-                sns.lineplot(
-                    ax=ax,
-                    data=data,
-                    x=categories[0],
-                    y=feature,
-                    hue=categories[1],
-                    style=categories[2],
-                    errorbar=ci_to_errorbar(self.params["ci"]),
-                    err_style=self.params["err_style"],
-                    markers=self.params["markers"],
-                )
-            elif len(categories) == 4:
-                g = sns.relplot(
-                    data=data,
-                    x=categories[0],
-                    y=feature,
-                    hue=categories[1],
-                    style=categories[2],
-                    col=categories[3],
-                    errorbar=ci_to_errorbar(self.params["ci"]),
-                    err_style=self.params["err_style"],
-                    markers=self.params["markers"],
-                    kind="line",
-                )
-                fig = g.fig
-            elif len(categories) > 4:
-                g = sns.relplot(
-                    data=data,
-                    x=categories[0],
-                    y=feature,
-                    hue=categories[1],
-                    style=categories[2],
-                    col=categories[3],
-                    row=categories[4],
-                    errorbar=ci_to_errorbar(self.params["ci"]),
-                    err_style=self.params["err_style"],
-                    markers=self.params["markers"],
-                    kind="line",
-                )
-                fig = g.fig
-
-            # if dropna:
-            #    groupeddata = data[cols].dropna(how='any', subset=[feature]).groupby(categories, observed=True)
-            # else:
-            #    groupeddata = data[cols].groupby(categories, observed=True)
-            # for label, df in groupeddata:
-            #    df[feature].plot(ax=ax, label=label)
-
-        # if title is None:
-        #    title = feature.replace('\n', ' ') #.encode('utf-8')
-        #    if len(categories) > 0:
-        #        title = f"{title} grouped by {categories}"
-        # if len(title) > 0:
-        #    ax.set_title(title)
-
-        self._add_picker(fig)
-        return fig
