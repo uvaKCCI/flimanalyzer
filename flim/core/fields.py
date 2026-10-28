@@ -14,7 +14,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 import annotated_types
 from pydantic import BaseModel
 
-from flim.core.config import ColumnRole, fixed_value
+from flim.core.config import ColumnRole, ValueOf, fixed_value
 
 # fields of every config that are not edited
 METADATA_FIELDS = ("classname", "version")
@@ -32,6 +32,7 @@ class FieldSpec:
     allow_all: bool = False  # columns: "all" is allowed (all features)
     item_type: Optional[type] = None  # numbers: int or float
     model: Optional[type] = None  # model, models: the nested config class
+    column_field: Optional[str] = None  # value: the field naming the column
     bounds: dict = field(default_factory=dict)  # ge, gt, le, lt
     hidden: bool = False  # only one value is allowed, or metadata
 
@@ -46,7 +47,11 @@ def describe(model: type[BaseModel]) -> list[FieldSpec]:
     """The editable fields of a config class, in definition order."""
     specs = []
     for name, info in model.model_fields.items():
-        hidden = name in METADATA_FIELDS or fixed_value(model, name)[0]
+        hidden = (
+            name in METADATA_FIELDS
+            or name in getattr(model, "hidden_fields", ())
+            or fixed_value(model, name)[0]
+        )
         spec = describe_annotation(info.annotation, list(info.metadata))
         specs.append(
             FieldSpec(
@@ -110,8 +115,8 @@ def describe_annotation(annotation, metadata=()) -> dict:
     """Kind and details of a field type.
 
     Kinds: bool, choice, multichoice, int, float, number (int or float), mixed (a
-    number or one of ``choices``), text, column, columns, path, paths, numbers, model,
-    models, json (anything else).
+    number or one of ``choices``), text, value (a value of the column another field
+    names), column, columns, path, paths, numbers, model, models, json (anything else).
     """
     annotation, metadata = _unwrap(annotation, list(metadata))
     optional = False
@@ -151,6 +156,9 @@ def describe_annotation(annotation, metadata=()) -> dict:
     if origin is Literal:
         return {"kind": "choice", "choices": typing.get_args(annotation)}
     if annotation is str:
+        value_of = next((m for m in metadata if isinstance(m, ValueOf)), None)
+        if value_of is not None:
+            return {"kind": "value", "column_field": value_of.column_field}
         return {"kind": "column", "role": role} if role else {"kind": "text"}
     if annotation in (int, float):
         return {"kind": annotation.__name__, "bounds": _bounds(metadata)}

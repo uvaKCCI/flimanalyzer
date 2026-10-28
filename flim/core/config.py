@@ -57,6 +57,14 @@ class ColumnRole:
     role: str
 
 
+@dataclass(frozen=True)
+class ValueOf:
+    """Marks a field as holding a value of the category column that the field
+    ``column_field`` of the same config names."""
+
+    column_field: str
+
+
 CategoryColumn = Annotated[str, ColumnRole("category")]
 FeatureColumn = Annotated[str, ColumnRole("feature")]
 AllFeatures = Literal["all"]
@@ -107,15 +115,23 @@ class Resources(BaseConfig):
     allowed values in a subclass.
     """
 
-    preferred_device: Literal["cpu"] = "cpu"
+    preferred_device: Literal["cpu"] = Field(
+        default="cpu",
+        title="Device",
+        description="The device to compute on, if available where the task runs.",
+    )
     # threads/processes inside one task; -1 = all cores allocated to the task
-    preferred_threads: Literal[1] = 1
+    preferred_threads: Literal[1] = Field(
+        default=1,
+        title="Threads",
+        description="Threads within the task; -1: all cores allocated to the task.",
+    )
 
 
 # legacy parameters of every plugin that are not part of a config: the input (1),
 # execution (3) and the dialogs' "save configuration" option
 LEGACY_IGNORED = frozenset(
-    {"input", "autosave", "working_dir", "saveconfig", "config_file"}
+    {"input", "autosave", "working_dir", "saveconfig", "config_file", "_config"}
 )
 LEGACY_ALL_FEATURES = "all_features"
 _NOT_LEGACY = ("classname", "version", "resources")
@@ -133,11 +149,23 @@ class TaskConfig(BaseConfig):
     legacy_keys: ClassVar[dict[str, Optional[str]]] = {}
     # legacy keys that are dropped: unused, or meaningless for tasks
     legacy_dropped: ClassVar[frozenset[str]] = frozenset()
+    # inherited fields the tool does not use; not shown in dialogs
+    hidden_fields: ClassVar[frozenset[str]] = frozenset()
 
-    grouping: list[CategoryColumn] = []
-    features: Union[list[FeatureColumn], AllFeatures] = []
-    prefix: Optional[str] = None  # prefix for result names
-    resources: Resources = Field(default_factory=Resources)
+    grouping: list[CategoryColumn] = Field(
+        default=[],
+        title="Grouping",
+        description="Category columns to group the data by, in this order.",
+    )
+    features: Union[list[FeatureColumn], AllFeatures] = Field(
+        default=[], title="Features", description="The feature columns to use."
+    )
+    prefix: Optional[str] = Field(
+        default=None,
+        title="Result prefix",
+        description="Text put in front of the names of the results.",
+    )
+    resources: Resources = Field(default_factory=Resources, title="Resources")
 
     @model_validator(mode="after")
     def _set_classname(self):

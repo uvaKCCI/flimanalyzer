@@ -22,6 +22,7 @@ class Editor:
     """Base of the field editors."""
 
     expands = False  # takes the full width of the dialog (lists, tables)
+    grows = True  # if it expands: also gets taller when the dialog does
 
     def __init__(self, parent: wx.Window, spec: FieldSpec):
         self.spec = spec
@@ -159,6 +160,29 @@ class IntEditor(Editor):
         self.control.SetValue(int(value))
 
 
+def set_combo_items(combo: wx.ComboBox, items: list) -> None:
+    """Replaces the items of a combo box (``Set`` appends to them on macOS, and
+    ``Clear`` only clears the text)."""
+    for index in reversed(range(combo.GetCount())):
+        combo.Delete(index)
+    if items:
+        combo.Append(items)
+
+
+def fit_rows(
+    control: wx.Window, rows: int, fewest: int = 3, most: int = 10, fixed=False
+) -> None:
+    """Makes a list control tall enough for ``rows`` items (within fewest..most);
+    ``fixed``: exactly that tall (lists that should not grow with the dialog)."""
+    height = control.GetCharHeight() + 6  # about one row of a list
+    size = (-1, max(fewest, min(rows, most)) * height + 6)
+    control.SetMinSize(size)
+    if fixed:
+        control.SetMaxSize(size)
+        control.SetInitialSize(size)
+    control.GetParent().Layout()
+
+
 class ColumnEditor(Editor):
     """One column of the input; any name can be typed if the columns are unknown."""
 
@@ -171,7 +195,7 @@ class ColumnEditor(Editor):
     def set_schema(self, schema):
         value = self.control.GetValue()
         names = [] if schema is None else schema.by_role(self.spec.role)
-        self.control.Set(([""] if self.spec.optional else []) + names)
+        set_combo_items(self.control, ([""] if self.spec.optional else []) + names)
         self.control.ChangeValue(value)
 
     def get(self):
@@ -180,6 +204,40 @@ class ColumnEditor(Editor):
             if self.spec.optional:
                 return None
             raise ValueError("Select a column")
+        return value
+
+    def set(self, value):
+        self.control.ChangeValue("" if value is None else str(value))
+
+
+class ValueEditor(Editor):
+    """A value of the category column named by another field (``column_field``)."""
+
+    def create(self, parent):
+        control = wx.ComboBox(parent, choices=[])
+        control.Bind(wx.EVT_COMBOBOX, self.changed)
+        control.Bind(wx.EVT_TEXT, self.changed)
+        self.schema = None
+        return control
+
+    def set_schema(self, schema):
+        self.schema = schema
+
+    def update_choices(self, column: Optional[str]) -> None:
+        """Offers the values of ``column`` (if the input's schema knows them)."""
+        info = None if self.schema is None or not column else self.schema.column(column)
+        levels = (
+            [] if info is None or info.levels is None else [str(v) for v in info.levels]
+        )
+        value = self.control.GetValue()
+        if levels != self.control.GetItems():
+            set_combo_items(self.control, levels)
+            self.control.ChangeValue(value)
+
+    def get(self):
+        value = self.control.GetValue().strip()
+        if value == "" and self.spec.optional:
+            return None
         return value
 
     def set(self, value):
@@ -196,7 +254,6 @@ class _CheckList(Editor):
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.extra_controls(self.panel, sizer)
         self.list = wx.CheckListBox(self.panel, choices=[])
-        self.list.SetMinSize((-1, 90))
         self.list.Bind(wx.EVT_CHECKLISTBOX, self.changed)
         sizer.Add(self.list, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
@@ -216,6 +273,7 @@ class _CheckList(Editor):
         self.items = list(items) + [c for c in checked if c not in items]
         self.list.Set([str(i).replace("\n", " ") for i in self.items])
         self.list.SetCheckedItems([self.items.index(c) for c in checked])
+        fit_rows(self.list, len(self.items), most=10)
 
     def checked(self) -> list:
         return [self.items[i] for i in self.list.GetCheckedItems()]
@@ -275,6 +333,7 @@ class CategoriesEditor(Editor):
     """Category columns in a chosen order (grouping): check them and move them."""
 
     expands = True
+    grows = False  # as tall as its columns
 
     def create(self, parent):
         self.panel = wx.Panel(parent)
@@ -286,7 +345,6 @@ class CategoriesEditor(Editor):
             sizer.Add(self.automatic, 0, wx.BOTTOM, 3)
         self.items: list = []
         self.rearrange = wx.RearrangeCtrl(self.panel, order=[], items=[])
-        self.rearrange.GetList().SetMinSize((-1, 70))
         self.rearrange.GetList().Bind(wx.EVT_CHECKLISTBOX, self.changed)
         for button in self.rearrange.GetChildren():
             if isinstance(button, wx.Button):
@@ -314,6 +372,7 @@ class CategoriesEditor(Editor):
         rearrange_list.Set(labels)
         for position, i in enumerate(order):
             rearrange_list.Check(position, i >= 0)
+        fit_rows(rearrange_list, len(labels), fewest=2, most=8, fixed=True)
 
     def checked(self) -> list:
         rearrange_list = self.rearrange.GetList()
@@ -546,6 +605,7 @@ def editor_class(spec: FieldSpec) -> type[Editor]:
         "choice": ChoiceEditor,
         "multichoice": MultiChoiceEditor,
         "column": ColumnEditor,
+        "value": ValueEditor,
         "path": PathEditor,
         "paths": PathsEditor,
         "model": ModelEditor,
@@ -575,6 +635,10 @@ def editor_for(model: type, spec: FieldSpec) -> type[Editor]:
     return editor_class(spec)
 
 
+# fields shared by many tools, shown after a tool's own settings
+GENERAL_FIELDS = ("grouping", "features", "prefix", "random_seed")
+
+
 class FieldsPanel(wx.Panel):
     """Editors for the visible fields of a config class, with issue markers.
 
@@ -589,8 +653,15 @@ class FieldsPanel(wx.Panel):
         self.editors: dict[str, Editor] = {}
         self.markers: dict[str, wx.StaticBitmap] = {}
         specs = [s for s in visible(describe(model)) if s.name not in exclude]
+        # the tool's own settings first, general ones (prefix, seed) after
         small = [s for s in specs if not editor_for(model, s).expands]
+        small = [s for s in small if s.name not in GENERAL_FIELDS] + [
+            s for s in small if s.name in GENERAL_FIELDS
+        ]
         large = [s for s in specs if editor_for(model, s).expands and s.kind != "model"]
+        large = [s for s in large if s.name not in GENERAL_FIELDS] + [
+            s for s in large if s.name in GENERAL_FIELDS
+        ]
         nested = [s for s in specs if s.kind == "model"]
 
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -606,7 +677,8 @@ class FieldsPanel(wx.Panel):
             row.Add(self._label(spec), 0, wx.RIGHT, 6)
             row.Add(self._marker(spec), 0)
             sizer.Add(row, 0, wx.LEFT | wx.TOP, 4)
-            sizer.Add(self._editor(spec).control, 1, wx.EXPAND | wx.ALL, 4)
+            editor = self._editor(spec)
+            sizer.Add(editor.control, 1 if editor.grows else 0, wx.EXPAND | wx.ALL, 4)
         for spec in nested:
             row = wx.BoxSizer(wx.HORIZONTAL)
             row.Add(self._editor(spec).control, 1, wx.EXPAND)
@@ -622,7 +694,7 @@ class FieldsPanel(wx.Panel):
 
     def _editor(self, spec):
         editor = editor_for(self.model, spec)(self, spec)
-        editor.on_change = lambda e: self.on_change() if self.on_change else None
+        editor.on_change = self._on_editor_change
         self.editors[spec.name] = editor
         return editor
 
@@ -635,6 +707,7 @@ class FieldsPanel(wx.Panel):
     def set_values(self, config) -> None:
         for name, editor in self.editors.items():
             editor.set(getattr(config, name))
+        self.update_value_choices()
 
     def values(self, config) -> dict:
         """The config's values with the edited ones; raises FieldErrors."""
@@ -649,9 +722,26 @@ class FieldsPanel(wx.Panel):
             raise FieldErrors(errors)
         return values
 
+    def _on_editor_change(self, editor):
+        self.update_value_choices()
+        if self.on_change:
+            self.on_change()
+
+    def update_value_choices(self) -> None:
+        """Value editors offer the values of the column their column field names."""
+        for editor in self.editors.values():
+            if isinstance(editor, ValueEditor):
+                column_editor = self.editors.get(editor.spec.column_field)
+                try:
+                    column = column_editor.get() if column_editor else None
+                except ValueError:
+                    column = None
+                editor.update_choices(column)
+
     def set_schema(self, schema) -> None:
         for editor in self.editors.values():
             editor.set_schema(schema)
+        self.update_value_choices()
 
     def show_issue(self, name: str, severity: Optional[str], message: str = "") -> None:
         marker = self.markers.get(name)

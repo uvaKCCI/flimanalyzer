@@ -7,7 +7,7 @@ validated, hidden in dialogs and not saved.
 """
 
 import copy
-from typing import ClassVar, Optional
+from typing import Annotated, ClassVar, Optional
 
 from pydantic import Field, model_validator
 
@@ -18,7 +18,7 @@ from flim.configs.analysis import (
     AETrainConfig,
     AutoencoderResources,
 )
-from flim.core.config import CategoryColumn, FeatureColumn, TaskConfig
+from flim.core.config import CategoryColumn, FeatureColumn, TaskConfig, ValueOf
 
 
 class WorkflowConfig(TaskConfig):
@@ -32,7 +32,14 @@ class WorkflowConfig(TaskConfig):
     # False: step settings naming columns that changed upstream are replaced by the
     # closest match (and reported); True: they are errors to fix before running.
     # None: the mode's default, False in the GUI and True in batch runs.
-    strict: Optional[bool] = None
+    strict: Optional[bool] = Field(
+        default=None,
+        title="Strict",
+        description=(
+            "Columns that changed upstream are errors to fix; otherwise they are"
+            " replaced by the closest match. Automatic: strict in batch runs only."
+        ),
+    )
 
     @model_validator(mode="after")
     def _share_fields(self):
@@ -104,7 +111,7 @@ class _AEWorkflowConfig(WorkflowConfig):
 
     grouping: list[CategoryColumn] = ["Treatment", "FOV", "Cell"]
     features: list[FeatureColumn] = Field(default_factory=lambda: list(AE_FEATURES))
-    timeseries: CategoryColumn = "Treatment"
+    timeseries: CategoryColumn = Field(default="Treatment", title="Time series")
     resources: AutoencoderResources = Field(default_factory=AutoencoderResources)
     training: AETrainConfig
 
@@ -167,4 +174,8 @@ class AEFeatureConfig(_AEWorkflowConfig):
 
     training: AETrainConfig = Field(default_factory=_workflow_training)
     run: AERunConfig = Field(default_factory=AERunConfig)
-    control_group: str = "Ctrl"  # value of the timeseries column used as control
+    control_group: Annotated[str, ValueOf("timeseries")] = Field(
+        default="Ctrl",
+        title="Control",
+        description="The value of the time series column used as control.",
+    )

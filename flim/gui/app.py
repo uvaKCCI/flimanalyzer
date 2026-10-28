@@ -40,7 +40,10 @@ from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.filter import RangeFilter
 from flim.core.graph import WorkflowGraph
+from flim.core.registry import CATEGORY_ORDER, GUI_GROUP, TOOLS_GROUP, discover, tools
 from flim.core.runner import run_flow
+from flim.gui.configdialog import open_config_dialog
+from flim.gui.icons import tool_bitmap
 from flim.plugin import PLUGINS, AbstractPlugin
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.macos import set_bundle_name, set_display_name
@@ -84,6 +87,42 @@ from flim.gui.listcontrol import (
 )
 from flim.gui.seriesfiltertree import SeriesFilterCtrl
 from flim.workflow.basicflow import AbsWorkFlow
+import flim.tools  # noqa: F401  (registers the built-in tools)
+
+# tools that keep the dialogs of their plugins until those move to flim/gui/dialogs
+LEGACY_DIALOG_TOOLS = {
+    "Order Categories",
+    "Filter",
+    "Frequency Histogram",
+    "Autoencoder: Train",
+}
+# key of the full config in a tool's settings, next to its plugin parameters
+CONFIG_KEY = "_config"
+
+
+def config_from_settings(tool, params):
+    """The tool's config from its saved settings: the full config if it was saved,
+    else converted from the plugin parameters; the defaults if neither is valid."""
+    params = params if isinstance(params, dict) else {}
+    try:
+        if CONFIG_KEY in params:
+            return tool.config_class.model_validate(params[CONFIG_KEY])
+        return tool.config_class.from_legacy_params(params)
+    except Exception as err:
+        logging.warning(f"{tool.name}: settings not valid, using the defaults ({err})")
+        return tool.config_class()
+
+
+def settings_from_config(config, execution):
+    """Settings to save: the plugin parameters (read by older versions), the full
+    config, and autosave and the results folder."""
+    params = config.to_legacy_params()
+    params[CONFIG_KEY] = config.model_dump(mode="json")
+    params["autosave"] = execution.autosave
+    if execution.results_dir is not None:
+        params["working_dir"] = str(execution.results_dir)
+    return params
+
 
 ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
@@ -110,6 +149,9 @@ class FLIMAnalyzerApp(wx.App):
         """
         self.flimanalyzer = flimanalyzer
         self.files = list(files or [])
+        # tools of other packages, and their dialogs (entry points)
+        discover(TOOLS_GROUP)
+        discover(GUI_GROUP)
         if config is None or not isinstance(config, Config):
             self.config = Config()
             self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
@@ -214,10 +256,12 @@ class AppFrame(wx.Frame):
 
         menubar.Append(filemenu, "&File")
         menubar.Append(settingsmenu, "&Settings")
-        for plugintype in PLUGINS:
-            menubar.Append(
-                self._create_plugin_menu(plugintype, add_tools=True), f"&{plugintype}"
-            )
+        for category in self._tool_categories():
+            if category in tools.categories():
+                menu = self._create_tool_menu(category)
+            else:  # workflows: plugins until they move to the tool API
+                menu = self._create_plugin_menu(category, add_tools=True)
+            menubar.Append(menu, f"&{category}")
         menubar.Append(self.windowmenu, "&Window")
 
         self.SetMenuBar(menubar)
@@ -322,6 +366,23 @@ class AppFrame(wx.Frame):
             panel_sizer.Add(row, 0, wx.LEFT | wx.RIGHT, 4)
             start = end
         self.toolpanel.SetSizer(panel_sizer)
+
+    def _tool_categories(self):
+        """Menu order: the known categories, then those of other packages."""
+        present = set(tools.categories()) | set(PLUGINS)
+        known = [c for c in CATEGORY_ORDER if c in present]
+        return known + sorted(present - set(CATEGORY_ORDER))
+
+    def _create_tool_menu(self, category):
+        menu = wx.Menu()
+        buttons = []
+        for tool in tools.by_category()[category]:
+            item = menu.Append(wx.ID_ANY, tool.name)
+            handler = lambda event, tool=tool: self.run_tool(tool)
+            self.Bind(wx.EVT_MENU, handler, item)
+            buttons.append((tool.name, tool_bitmap(tool), handler))
+        self._add_tool_group(category, buttons)
+        return menu
 
     def _create_plugin_menu(self, menuname, add_tools=False):
         menu = wx.Menu()
@@ -568,6 +629,97 @@ class AppFrame(wx.Frame):
         else:
             pluginname = evtobj.FindItemById(itemid).GetItemLabelText()
         logging.debug(f"{event.GetId()}, {pluginname}")
+        self.run_plugin(pluginname)
+
+    def tool_data_choices(self):
+        """The open tables, the current one first."""
+        title, currentdata = self.get_currentdata()
+        data_choices = {title: currentdata} if title else {}
+        data_choices.update(self.get_alldata())
+        return data_choices
+
+    def run_tool(self, tool):
+        """Configures a tool in its dialog and runs it on the selected tables."""
+        if tool.name in LEGACY_DIALOG_TOOLS:
+            return self.run_plugin(tool.name)
+        data_choices = self.tool_data_choices()
+        if not data_choices:
+            wx.MessageBox("Open or import data first.", tool.name, wx.OK)
+            return
+        params, keys = self.config.get([cfg.CONFIG_PLUGINS, tool.name], returnkeys=True)
+        params = params if isinstance(params, dict) else {}
+        config = config_from_settings(tool, params)
+        folder = params.get("working_dir") or self.config.get(cfg.CONFIG_WORKINGDIR)
+        execution = self.flimanalyzer.execution.model_copy(
+            update={
+                "autosave": bool(params.get("autosave")) and bool(folder),
+                "results_dir": folder,
+            }
+        )
+        result = open_config_dialog(
+            self, tool, config, data_choices=data_choices, execution=execution
+        )
+        if result is None:
+            return
+        settings = settings_from_config(result.config, result.execution)
+        if keys:
+            self.config.update(settings, keys)
+        else:  # a tool without saved settings, e.g. of another package
+            _, plugin_keys = self.config.get([cfg.CONFIG_PLUGINS], returnkeys=True)
+            self.config.update(
+                {tool.name: settings}, plugin_keys or [cfg.CONFIG_PLUGINS]
+            )
+
+        configs = tool().map_configs(result.config)
+        task_runner = self.flimanalyzer.get_task_runner()
+        execution = result.execution
+        autosave_dir = str(execution.results_dir) if execution.autosave else None
+
+        def interactive_analysis():
+            for config in configs:
+                tool()(*result.inputs, config=config, task_tags=tool.name)
+
+        def start_run(cancel_token, on_progress, on_start):
+            return run_flow(
+                "Interactive Analysis",
+                interactive_analysis,
+                task_runner=task_runner,
+                autosave_dir=autosave_dir,
+                on_progress=on_progress,
+                cancel_token=cancel_token,
+                on_start=on_start,
+            )
+
+        flow_run = self.run_with_progress(tool.name, start_run)
+        if flow_run is None:
+            return  # cancelled or stopped by an error, already reported
+        self.show_results(flow_run)
+        if flow_run.failed:
+            wx.MessageBox(
+                "The following tasks failed, see the log for details:\n"
+                + "\n".join(flow_run.failed),
+                tool.name,
+                wx.OK | wx.ICON_WARNING,
+            )
+
+    def show_results(self, flow_run):
+        """Opens a window for each table and figure the run produced."""
+        for results in flow_run.results():
+            if not isinstance(results, dict):
+                continue
+            for title, result in results.items():
+                if isinstance(result, pd.DataFrame):
+                    event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                    event.SetEventInfo(result, title, "createnew", showcolindex=False)
+                    self.GetEventHandler().ProcessEvent(event)
+                elif isinstance(result, matplotlib.figure.Figure):
+                    event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+                    event.SetEventInfo(result, title, "createnew")
+                    self.GetEventHandler().ProcessEvent(event)
+
+    def run_plugin(self, pluginname):
+        """Runs a plugin with its own dialog (workflows, and the tools listed in
+        LEGACY_DIALOG_TOOLS)."""
 
         plugin_class = next(
             plugin.get_plugin_class(pluginname)
@@ -694,24 +846,7 @@ class AppFrame(wx.Frame):
             return  # cancelled or stopped by an error, already reported
 
         if not is_workflow:
-            result_list = flow_run.results()
-            logging.debug(f"Results: {len(result_list)}")
-
-            # handle results, DataFrames or Figure objects
-            for results in result_list:
-                if isinstance(results, dict):
-                    for title, result in results.items():
-                        if isinstance(result, pd.DataFrame):
-                            # result = result.reset_index()
-                            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-                            event.SetEventInfo(
-                                result, title, "createnew", showcolindex=False
-                            )
-                            self.GetEventHandler().ProcessEvent(event)
-                        elif isinstance(result, matplotlib.figure.Figure):
-                            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-                            event.SetEventInfo(result, title, "createnew")
-                            self.GetEventHandler().ProcessEvent(event)
+            self.show_results(flow_run)
         else:
             # show flow graph
             wg = WorkflowGraph(flow_run)

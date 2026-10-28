@@ -13,6 +13,7 @@ from flim.core.config import (
     Probability,
     Resources,
     TaskConfig,
+    ValueOf,
 )
 
 Threads = Annotated[int, Field(ge=-1)]  # -1: all cores allocated to the task
@@ -51,9 +52,19 @@ class SummaryConfig(StatisticsConfig):
         "flatten_index": "flattenindex",
     }
 
-    aggs: list[Aggregate] = Field(default_factory=lambda: list(AGGREGATES))
-    single_table: bool = True  # False: one table per feature
-    flatten_index: bool = True
+    aggs: list[Aggregate] = Field(
+        default_factory=lambda: list(AGGREGATES), title="Statistics"
+    )
+    single_table: bool = Field(
+        default=True,
+        title="Single table",
+        description="One table for all features; otherwise one table per feature.",
+    )
+    flatten_index: bool = Field(
+        default=True,
+        title="Flat column names",
+        description='Column names like "FLIRR\nmean" instead of two header rows.',
+    )
 
 
 # alpha levels of the KS critical value table (flim.analysis.ksstats.calpha)
@@ -61,14 +72,31 @@ KSAlpha = Literal[0.1, 0.05, 0.025, 0.01, 0.005, 0.001]
 
 
 class KSStatsConfig(StatisticsConfig):
-    comparison: CategoryColumn = "Treatment"
-    alpha: KSAlpha = 0.05
+    comparison: CategoryColumn = Field(
+        default="Treatment",
+        title="Compare",
+        description=(
+            "Its values are compared pairwise, separately within each group of the"
+            " other grouping columns."
+        ),
+    )
+    alpha: KSAlpha = Field(default=0.05, title="Significance level")
 
 
 class RelativeChangeConfig(StatisticsConfig):
-    method: Literal["mean", "median"] = "mean"
-    reference_group: CategoryColumn = "Treatment"
-    reference_value: str = "Ctrl"
+    method: Literal["mean", "median"] = Field(
+        default="mean", title="Reference statistic"
+    )
+    reference_group: CategoryColumn = Field(
+        default="Treatment",
+        title="Reference column",
+        description="The category column that holds the reference value.",
+    )
+    reference_value: Annotated[str, ValueOf("reference_group")] = Field(
+        default="Ctrl",
+        title="Reference value",
+        description="Features are divided by their mean or median in these rows.",
+    )
 
 
 SeriesStatistic = Literal[
@@ -92,9 +120,14 @@ class SeriesAnalysisConfig(StatisticsConfig):
 
     statistics: set[SeriesStatistic] = Field(
         default_factory=lambda: set(SERIES_STATISTICS)
-        - {"series_mean", "series_median"}
+        - {"series_mean", "series_median"},
+        title="Statistics",
     )
-    merge_input: bool = False
+    merge_input: bool = Field(
+        default=False,
+        title="Include the input",
+        description="Also include the series' features in the result.",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -115,15 +148,23 @@ class SeriesAnalysisConfig(StatisticsConfig):
 
 class MLConfig(AnalysisConfig):
     legacy_keys = {"random_seed": None}
+    hidden_fields = frozenset({"grouping"})
 
-    # the same results on every run; None: different results on every run
-    random_seed: Optional[int] = 0
+    random_seed: Optional[int] = Field(
+        default=0,
+        title="Random seed",
+        description="The same results on every run; empty: different on every run.",
+    )
 
 
 class ParallelResources(Resources):
     """For tools using scikit-learn's ``n_jobs``."""
 
-    preferred_threads: Threads = -1
+    preferred_threads: Threads = Field(
+        default=-1,
+        title="Threads",
+        description="Threads within the task; -1: all cores allocated to the task.",
+    )
 
 
 class PCAConfig(MLConfig):
@@ -134,22 +175,53 @@ class PCAConfig(MLConfig):
         "explained_plot": "explainedhisto",
     }
 
-    keep_original: bool = False
-    keep_standardized: bool = True
-    explained_plot: bool = False
-    # number of components, or the fraction of variance to explain; None: all
-    n_components: Union[Annotated[int, Field(ge=1)], Probability, None] = 0.999
+    keep_original: bool = Field(
+        default=False,
+        title="Include the features",
+        description="Also include the original features in the result.",
+    )
+    keep_standardized: bool = Field(
+        default=True,
+        title="Include standardized features",
+        description="Also include the standardized features in the result.",
+    )
+    explained_plot: bool = Field(
+        default=False,
+        title="Explained variance plot",
+        description="A bar plot of the variance each component explains.",
+    )
+    n_components: Union[Annotated[int, Field(ge=1)], Probability, None] = Field(
+        default=0.999,
+        title="Components",
+        description=(
+            "A number of components, or the fraction of the variance to explain"
+            " (0 to 1); empty: all components."
+        ),
+    )
 
 
 class KMeansConfig(MLConfig):
-    n_clusters: int = Field(default=2, ge=1)
-    cluster_prefix: str = "Cluster"
-    init: Literal["k-means++", "random"] = "k-means++"
-    algorithm: Literal["lloyd", "elkan"] = "lloyd"
-    n_init: int = Field(default=4, ge=1)
-    max_iter: int = Field(default=300, ge=1)
-    tolerance: float = Field(default=1e-4, gt=0)
-    resources: ParallelResources = Field(default_factory=ParallelResources)
+    n_clusters: int = Field(default=2, ge=1, title="Clusters")
+    cluster_prefix: str = Field(
+        default="Cluster",
+        title="Cluster column",
+        description='Name of the new column; clusters are named "<name> 1", ...',
+    )
+    init: Literal["k-means++", "random"] = Field(
+        default="k-means++", title="Initialization"
+    )
+    algorithm: Literal["lloyd", "elkan"] = Field(default="lloyd", title="Algorithm")
+    n_init: int = Field(
+        default=4,
+        ge=1,
+        title="Runs",
+        description="Runs with different starting centers; the best is kept.",
+    )
+    max_iter: int = Field(default=300, ge=1, title="Max iterations")
+    tolerance: float = Field(default=1e-4, gt=0, title="Tolerance")
+    resources: ParallelResources = Field(
+        default_factory=ParallelResources, title="Resources"
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -162,9 +234,16 @@ class KMeansConfig(MLConfig):
 class GMMConfig(MLConfig):
     legacy_keys = {**MLConfig.legacy_keys, "covariance": "covar_type"}
 
-    method: Literal["EM", "Variational Bayesian"] = "EM"
-    n_components: int = Field(default=2, ge=1)
-    covariance: Literal["full", "tied", "diag", "spherical"] = "full"
+    method: Literal["EM", "Variational Bayesian"] = Field(default="EM", title="Method")
+    n_components: int = Field(
+        default=2,
+        ge=1,
+        title="Components",
+        description="Components of the model; BIC and AIC are reported for 1 to n.",
+    )
+    covariance: Literal["full", "tied", "diag", "spherical"] = Field(
+        default="full", title="Covariance"
+    )
 
 
 class RandomForestConfig(MLConfig):
@@ -174,11 +253,22 @@ class RandomForestConfig(MLConfig):
         "importance_plot": "importancehisto",
     }
 
-    target: Optional[CategoryColumn] = None  # the category column to predict
-    n_estimators: int = Field(default=100, ge=1)
-    test_size: Probability = 0.3
-    importance_plot: bool = True
-    resources: ParallelResources = Field(default_factory=ParallelResources)
+    # the grouping columns are left out of the features
+    hidden_fields = frozenset()
+
+    target: Optional[CategoryColumn] = Field(
+        default=None, title="Predict", description="The category column to predict."
+    )
+    n_estimators: int = Field(default=100, ge=1, title="Trees")
+    test_size: Probability = Field(
+        default=0.3,
+        title="Test fraction",
+        description="Fraction of the rows kept for testing the accuracy.",
+    )
+    importance_plot: bool = Field(default=True, title="Importance plot")
+    resources: ParallelResources = Field(
+        default_factory=ParallelResources, title="Resources"
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -191,10 +281,10 @@ class RandomForestConfig(MLConfig):
 class CategoryRule(BaseConfig):
     """Rows whose ``feature`` lies in (min, max] get the category ``value``."""
 
-    value: str
-    feature: FeatureColumn
-    min: float
-    max: float
+    value: str = Field(title="Value")
+    feature: FeatureColumn = Field(title="Feature")
+    min: float = Field(title="Min")
+    max: float = Field(title="Max")
 
     @model_validator(mode="after")
     def _check_range(self):
@@ -213,11 +303,31 @@ def _default_rules():
 
 class CategorizerConfig(AnalysisConfig):
     legacy_keys = {"rules": None}
+    hidden_fields = frozenset({"grouping"})
 
-    name: str = "New Cat"  # name of the new category column
-    rules: list[CategoryRule] = Field(default_factory=_default_rules)
-    default: str = "unassigned"  # category of rows no rule matches
-    merge_input: bool = True
+    name: str = Field(
+        default="New Cat",
+        title="New column",
+        description="Name of the new category column.",
+    )
+    rules: list[CategoryRule] = Field(
+        default_factory=_default_rules,
+        title="Rules",
+        description=(
+            "Rows whose feature lies in a rule's range (min < value <= max) get the"
+            " rule's value; the first matching rule wins."
+        ),
+    )
+    default: str = Field(
+        default="unassigned",
+        title="Default value",
+        description="The value of rows that no rule matches.",
+    )
+    merge_input: bool = Field(
+        default=True,
+        title="Include the input",
+        description="Keep all input columns; otherwise only categories and features.",
+    )
 
     @field_validator("rules")
     @classmethod
@@ -276,8 +386,16 @@ AE_FEATURES = [
 
 
 class AutoencoderResources(Resources):
-    preferred_device: Device = "auto"
-    preferred_threads: Threads = -1
+    preferred_device: Device = Field(
+        default="auto",
+        title="Device",
+        description="auto: a GPU if there is one where the task runs, else the CPU.",
+    )
+    preferred_threads: Threads = Field(
+        default=-1,
+        title="Threads",
+        description="Threads within the task; -1: all cores allocated to the task.",
+    )
 
 
 class AutoencoderConfig(AnalysisConfig):
@@ -309,21 +427,67 @@ class AETrainConfig(AutoencoderConfig):
         "random_seed": None,
     }
 
-    grouping: list[CategoryColumn] = ["FOV", "Cell"]
-    features: list[FeatureColumn] = Field(default_factory=lambda: list(AE_FEATURES))
-    epochs: PositiveInt = 20
+    grouping: list[CategoryColumn] = Field(
+        default=["FOV", "Cell"],
+        title="Grouping",
+        description=(
+            "Training and validation sets are split by these groups (e.g. cells)."
+        ),
+    )
+    features: list[FeatureColumn] = Field(
+        default_factory=lambda: list(AE_FEATURES), title="Features"
+    )
+    epochs: PositiveInt = Field(default=20, title="Epochs")
     # each combination of learning rate, weight decay and batch size trains a model
-    learning_rates: list[PositiveFloat] = Field(default=[1e-4], min_length=1)
-    weight_decays: list[NonNegativeFloat] = Field(default=[1e-8], min_length=1)
-    batch_sizes: list[PositiveInt] = Field(default=[128], min_length=1)
-    timeseries: CategoryColumn = "Treatment"
-    model_name: str = "AEModel"  # base name of the saved model files
-    architecture: AutoencoderName = "AE Dimensionality Reduction 2-10"
-    rescale: bool = False
-    create_plots: bool = True
-    train_size: Probability = 0.7
-    checkpoint_interval: PositiveInt = 20  # epochs
-    random_seed: Optional[int] = None
+    learning_rates: list[PositiveFloat] = Field(
+        default=[1e-4],
+        min_length=1,
+        title="Learning rates",
+        description="Comma-separated; one model per combination with the others.",
+    )
+    weight_decays: list[NonNegativeFloat] = Field(
+        default=[1e-8],
+        min_length=1,
+        title="Weight decays",
+        description="Comma-separated.",
+    )
+    batch_sizes: list[PositiveInt] = Field(
+        default=[128], min_length=1, title="Batch sizes", description="Comma-separated."
+    )
+    timeseries: CategoryColumn = Field(
+        default="Treatment",
+        title="Time series",
+        description="Not used to split the training and validation sets.",
+    )
+    model_name: str = Field(
+        default="AEModel",
+        title="Model name",
+        description="Base name of the saved model files.",
+    )
+    architecture: AutoencoderName = Field(
+        default="AE Dimensionality Reduction 2-10", title="Architecture"
+    )
+    rescale: bool = Field(
+        default=False,
+        title="Rescale",
+        description="Reconstructed values in the units of the input (not 0..1).",
+    )
+    create_plots: bool = Field(default=True, title="Loss plots")
+    train_size: Probability = Field(
+        default=0.7,
+        title="Training fraction",
+        description="Fraction of the groups used for training; the rest validates.",
+    )
+    checkpoint_interval: PositiveInt = Field(
+        default=20,
+        title="Checkpoint every",
+        description="Save the model every n epochs (and after the last).",
+    )
+    random_seed: Optional[int] = Field(
+        default=None,
+        title="Random seed",
+        description="The same split and starting weights on every run; empty: random.",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -337,7 +501,11 @@ class AETrainConfig(AutoencoderConfig):
 class _ModelFilesConfig(AutoencoderConfig):
     legacy_keys = {"model_files": None}
 
-    model_files: list[Path] = []
+    model_files: list[Path] = Field(
+        default=[],
+        title="Model files",
+        description="Models saved by Autoencoder: Train (one result per model).",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -353,10 +521,21 @@ class _ModelFilesConfig(AutoencoderConfig):
 
 
 class AERunConfig(_ModelFilesConfig):
-    pass
+    hidden_fields = frozenset({"grouping"})
 
 
 class AEAugmentConfig(_ModelFilesConfig):
-    sets: PositiveInt = 1  # augmented copies of the data
-    add_noise: bool = True
-    snr_db: float = 0.0
+    grouping: list[CategoryColumn] = Field(
+        default=[],
+        title="Grouping",
+        description="The last column (e.g. Cell) is renumbered in each copy.",
+    )
+    sets: PositiveInt = Field(
+        default=1, title="Copies", description="Simulated copies."
+    )
+    add_noise: bool = Field(
+        default=True,
+        title="Add noise",
+        description="Add white noise before simulating.",
+    )
+    snr_db: float = Field(default=0.0, title="Signal-to-noise (dB)")

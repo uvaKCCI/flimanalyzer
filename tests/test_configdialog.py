@@ -88,7 +88,6 @@ def test_edit_and_result(dialog):
     d = dialog("K-Means", KMeansConfig(features=["x"]))
     editors = d.fields.editors
     editors["n_clusters"].set(5)
-    editors["grouping"].set(["FOV", "Treatment"])  # order kept
     editors["features"].set(["x", "FLIRR"])
     editors["init"].set("random")
     editors["random_seed"].set(None)
@@ -97,10 +96,40 @@ def test_edit_and_result(dialog):
     result = d.result()
     config = result.config
     assert (config.n_clusters, config.init, config.random_seed) == (5, "random", None)
-    assert config.grouping == ["FOV", "Treatment"]
     assert config.features == ["FLIRR", "x"]  # in the table's column order
     assert result.input_names == ["Table: data"]
     assert result.inputs[0] is d.data_choices["Table: data"]
+
+
+def test_grouping_order(dialog):
+    d = dialog("Summarize")
+    d.fields.editors["grouping"].set(["FOV", "Treatment"])
+    assert d.result().config.grouping == ["FOV", "Treatment"]
+    d.fields.editors["grouping"].set(["Treatment", "Cell", "FOV"])
+    assert d.result().config.grouping == ["Treatment", "Cell", "FOV"]
+
+
+def test_unused_fields_and_order(dialog):
+    d = dialog("K-Means")
+    assert "grouping" not in d.fields.editors  # K-Means does not group
+    names = list(d.fields.editors)
+    # the tool's own settings first, the general ones after
+    assert names.index("n_clusters") < names.index("prefix")
+    assert names.index("tolerance") < names.index("random_seed")
+    label = next(
+        w.GetLabel()
+        for w in d.fields.GetChildren()
+        if isinstance(w, wx.StaticText) and w.GetLabel() == "Clusters"
+    )
+    assert label == "Clusters"  # the field's title
+
+
+def test_reference_values_are_offered(dialog):
+    d = dialog("Relative Change", RelativeChangeConfig(features=["x"]))
+    reference = d.fields.editors["reference_value"]
+    assert reference.control.GetItems() == ["Ctrl", "Drug"]
+    d.fields.editors["reference_group"].control.SetValue("FOV")
+    assert reference.control.GetItems() == ["1", "2"]
 
 
 def test_invalid_text_marks_the_field(dialog):
@@ -135,7 +164,7 @@ def test_issues_against_the_input(dialog):
 
 
 def test_columns_follow_the_selected_input(dialog):
-    d = dialog("K-Means", KMeansConfig(features=["x"]))
+    d = dialog("Summarize")
     features = d.fields.editors["features"]
     assert features.items == ["FLIRR", "x", "y"]
     d.input_controls[0].SetStringSelection("Table: other")

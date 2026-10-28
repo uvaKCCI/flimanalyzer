@@ -43,7 +43,6 @@ CHANGED = [
     FilterConfig(
         category_filters={"Cell": ["1", "2"]},
         range_filters=[RangeFilterSpec(column="FLIRR", low=0, high=2, selected=True)],
-        show_dropped=True,
     ),
     MergeConfig(how="outer"),
     SortConfig(features=["FLIRR"], ascending=False),

@@ -2,7 +2,7 @@
 
 from typing import Any, Literal, Optional, Union
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from flim.core.config import (
     AllFeatures,
@@ -22,8 +22,13 @@ class CategoryOrderConfig(DataTaskConfig):
 
     legacy_keys = {"categories": None}
     legacy_dropped = frozenset({"inplace"})
+    hidden_fields = frozenset({"grouping", "features"})
 
-    categories: dict[CategoryColumn, list[Any]] = {}
+    categories: dict[CategoryColumn, list[Any]] = Field(
+        default={},
+        title="Value order",
+        description="For each category column, its values in the order to use.",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -46,10 +51,19 @@ class CategoryOrderConfig(DataTaskConfig):
 
 class ConcatConfig(DataTaskConfig):
     legacy_keys = {"mode": None}
+    legacy_dropped = frozenset({"source_suffix"})  # unused
+    hidden_fields = frozenset({"grouping", "features"})
 
-    mode: Literal["vertical", "horizontal"] = "vertical"  # append rows or columns
-    numbers_only: bool = False
-    source_suffix: bool = True
+    mode: Literal["vertical", "horizontal"] = Field(
+        default="vertical",
+        title="Direction",
+        description="vertical: append the rows of the tables; horizontal: their columns.",
+    )
+    numbers_only: bool = Field(
+        default=False,
+        title="Numeric columns only",
+        description="Horizontal: append only the numeric columns of the other tables.",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -65,13 +79,17 @@ class ConcatConfig(DataTaskConfig):
 class RangeFilterSpec(BaseConfig):
     """Keeps the rows whose value in ``column`` lies in [low, high] (if selected)."""
 
-    column: FeatureColumn
-    low: float = 0
-    high: float = 100
-    allowed_min: Optional[float] = None
-    allowed_max: Optional[float] = None
-    selected: bool = False
-    dropna: bool = True
+    column: FeatureColumn = Field(title="Column")
+    low: float = Field(default=0, title="Low")
+    high: float = Field(default=100, title="High")
+    allowed_min: Optional[float] = Field(default=None, title="Allowed min")
+    allowed_max: Optional[float] = Field(default=None, title="Allowed max")
+    selected: bool = Field(default=False, title="Use", description="Apply this filter.")
+    dropna: bool = Field(
+        default=True,
+        title="Drop missing",
+        description="Also drop rows without a value.",
+    )
 
     @model_validator(mode="after")
     def _check_range(self):
@@ -105,12 +123,19 @@ class RangeFilterSpec(BaseConfig):
 
 class FilterConfig(DataTaskConfig):
     legacy_keys = {"range_filters": None}
-    legacy_dropped = frozenset({"use", "inplace"})
+    legacy_dropped = frozenset({"use", "inplace", "show_dropped"})  # unused
+    hidden_fields = frozenset({"grouping", "features"})
 
-    # values to keep per category column
-    category_filters: dict[CategoryColumn, list[Any]] = {}
-    range_filters: list[RangeFilterSpec] = []
-    show_dropped: bool = False
+    category_filters: dict[CategoryColumn, list[Any]] = Field(
+        default={},
+        title="Category values to keep",
+        description="For each category column, the values whose rows are kept.",
+    )
+    range_filters: list[RangeFilterSpec] = Field(
+        default=[],
+        title="Range filters",
+        description="Rows outside the range of a used filter are dropped.",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -124,10 +149,21 @@ class FilterConfig(DataTaskConfig):
 class MergeConfig(DataTaskConfig):
     legacy_keys = {"how": None, "on": None}
     legacy_dropped = frozenset({"left_index", "right_index"})
+    hidden_fields = frozenset({"grouping", "features"})
 
-    how: Literal["inner", "outer", "left", "right"] = "inner"
-    # columns to merge on; None: the category columns both tables have
-    on: Optional[list[CategoryColumn]] = None
+    how: Literal["inner", "outer", "left", "right"] = Field(
+        default="inner",
+        title="Join",
+        description=(
+            "inner: rows in both tables; outer: in either; left/right: all rows of"
+            " that table."
+        ),
+    )
+    on: Optional[list[CategoryColumn]] = Field(
+        default=None,
+        title="Merge on",
+        description="Columns to merge on; automatic: the category columns both have.",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
@@ -141,18 +177,45 @@ class MergeConfig(DataTaskConfig):
 class PivotConfig(DataTaskConfig):
     """Pivots the ``grouping`` columns."""
 
-    grouping: list[CategoryColumn] = ["Treatment"]
-    features: Union[list[FeatureColumn], AllFeatures] = "all"
+    grouping: list[CategoryColumn] = Field(
+        default=["Treatment"],
+        title="Columns to pivot",
+        description="Their values become columns; the other category columns stay rows.",
+    )
+    features: Union[list[FeatureColumn], AllFeatures] = Field(
+        default="all", title="Features"
+    )
 
 
 class SortConfig(DataTaskConfig):
     """Sorts by the ``features`` columns."""
 
-    ascending: bool = True
-    ignore_index: bool = True
+    hidden_fields = frozenset({"grouping"})
+
+    features: Union[list[FeatureColumn], AllFeatures] = Field(
+        default=[], title="Sort by", description="The columns to sort by, in order."
+    )
+    ascending: bool = Field(default=True, title="Ascending")
+    ignore_index: bool = Field(
+        default=True,
+        title="Renumber rows",
+        description="Number the sorted rows 0, 1, ...",
+    )
 
 
 class UnpivotConfig(DataTaskConfig):
-    features: Union[list[FeatureColumn], AllFeatures] = "all"
-    category_name: str = "Category"
-    feature_name: str = "Feature"
+    hidden_fields = frozenset({"grouping"})
+
+    features: Union[list[FeatureColumn], AllFeatures] = Field(
+        default="all", title="Columns to stack"
+    )
+    category_name: str = Field(
+        default="Category",
+        title="New category column",
+        description="Holds the names of the stacked columns.",
+    )
+    feature_name: str = Field(
+        default="Feature",
+        title="New value column",
+        description="Holds the values of the stacked columns.",
+    )
