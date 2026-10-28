@@ -247,7 +247,9 @@ class CategoryOrder(AbstractPlugin):
     def _sort_category(values, sort_algo):
         return values
 
-    def _update_category_params(self, data, catparams={}):
+    def _update_category_params(self, data, catparams=None):
+        if catparams is None:
+            catparams = {}
         if data is not None:
             allcats = data.select_dtypes("category").columns.values
             for cat in allcats:
