@@ -16,6 +16,7 @@ from sklearn import preprocessing
 import wx
 from wx.lib.masked import NumCtrl
 
+import flim.tools.autoencoder as ae_tools
 from flim.plugin import plugin, AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import flim.analysis.ml.autoencoder as autoencoder
@@ -197,65 +198,5 @@ class RunAE(AbstractPlugin):
         return {"Table: Reconstructed": None, "Table: Features": None}
 
     def execute(self):
-        if isinstance(self.params["modelfile"], list):
-            results = {}
-            for mfile in self.params["modelfile"]:
-                r = self.run_model(mfile)
-                results.update(r)
-        else:
-            results = self.run_model(self.params["modelfile"])
-        return results
+        return self.run_tool(ae_tools.RunAE, list(self.input.values())[0])
 
-    def run_model(self, modelfile):
-        data = list(self.input.values())[0]
-        data_feat = data[self.params["features"]]
-
-        # load an AE model
-        device = resolve_device(self.params["device"])
-        # ae = torch.load(self.params['modelfile'], map_location = device)
-        ae_pipeline = load(modelfile)
-        ae_pipeline[-1].to(device)  # the autoencoder; transform() returns CPU tensors
-
-        data_feat = data_feat.astype(float)
-        data_input = data_feat.to_numpy(dtype=np.float32)
-
-        features, reconstructed = ae_pipeline.transform(data_input)
-        logging.debug(f"Reconstructed shape: {reconstructed.shape}")
-
-        features = torch.squeeze(features)
-        logging.debug(f"Features shape: {features.shape}")
-
-        criterion = nn.MSELoss()
-        reconstructed = torch.FloatTensor(reconstructed)
-        data_feat = np.asarray(data_feat)
-        data_feat = torch.FloatTensor(data_feat)
-        loss = criterion(Variable(reconstructed), Variable(data_feat))
-        logging.debug(f"Loss: {loss.data}")
-
-        recon_data = reconstructed.detach().numpy()
-        features_data = features.detach().numpy()
-        len_features = 1 if len(features_data.shape) == 1 else features_data.shape[1]
-
-        lcols = [n for n in data.select_dtypes("category").columns]
-
-        recon_df = pd.DataFrame(
-            recon_data,
-            columns=[f"Recon Feature {i}" for i in range(1, recon_data.shape[1] + 1)],
-        )
-        recon_df = pd.concat(
-            [data[lcols], recon_df],
-            axis=1,
-        )
-
-        features_df = pd.DataFrame(
-            features_data, columns=[f"Feature {i}" for i in range(1, len_features + 1)]
-        )
-        features_df = pd.concat(
-            [data[lcols], features_df],
-            axis=1,
-        )
-
-        return {
-            f"Table: Reconstructed-{os.path.basename(modelfile)}": recon_df,
-            f"Table: Features-{os.path.basename(modelfile)}": features_df,
-        }

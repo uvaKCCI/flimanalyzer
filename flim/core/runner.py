@@ -371,6 +371,9 @@ class FlowRun:
                 "name": label,
             }
 
+        # tools write files they produce (e.g. models) next to the saved results
+        plugin._output_dir = autosave["directory"] if autosave else None
+
         # Prefect starts the task once the futures among its inputs are completed and
         # skips it (state NotReady) if one of them did not complete
         with tags(*tag_list):

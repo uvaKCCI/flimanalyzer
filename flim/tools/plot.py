@@ -237,6 +237,14 @@ def grouped_meanbarplot(
             if error is not None:
                 error = error.div(total, axis=0) * 100.0
         num_bars = len(mean)
+        if mean.dropna(how="all").empty:  # e.g. all values missing
+            ax.text(
+                0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes
+            )
+            ax.set_title(
+                "|".join(feature).replace("\n", " ") if title is None else title
+            )
+            return fig
         if not stacked and pivot_level < len(categories):
             unstack_level = list(range(pivot_level))
             mean = mean.unstack(unstack_level).dropna(how="all", axis=0)

@@ -324,6 +324,14 @@ class AETrainConfig(AutoencoderConfig):
     checkpoint_interval: PositiveInt = 20  # epochs
     random_seed: Optional[int] = None
 
+    @classmethod
+    def _from_legacy(cls, params):
+        # workflows pass one value of each grid when they map over the combinations
+        for key in ("learning_rate", "weight_decay", "batch_size"):
+            if key in params and not isinstance(params[key], (list, tuple)):
+                params[key] = [params[key]]
+        return super()._from_legacy(params)
+
 
 class _ModelFilesConfig(AutoencoderConfig):
     legacy_keys = {"model_files": None}

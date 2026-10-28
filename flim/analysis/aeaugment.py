@@ -25,6 +25,7 @@ from importlib_resources import files, as_file
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
 from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES, resolve_device
+import flim.tools.autoencoder as ae_tools
 from flim.plugin import AbstractPlugin
 from flim.plugin import plugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
@@ -315,119 +316,6 @@ class AEAugment(AbstractPlugin):
         else:
             return None
 
-    def _model_noise(self, signal, snr_db):
-        logging.debug(f"Adding {snr_db} dB white noise.")
-        # Calculate signal power and convert its mean to dB
-        signal_power = signal**2
-        signal_avg_power = np.mean(signal_power)
-        signal_avg_db = 10 * np.log10(signal_avg_power)
-        # Calculate power of noise
-        noise_avg_db = signal_avg_db - snr_db
-        noise_avg_power = 10 ** (noise_avg_db / 10)
-
-        std_noise = np.sqrt(noise_avg_power)
-        mean_noise = np.zeros(std_noise.shape)
-        return mean_noise, std_noise
-
     def execute(self):
-        results = {}
-        for mfile in self.params["modelfile"]:
-            r = self.simulate(mfile)
-            results.update(r)
-        return results
+        return self.run_tool(ae_tools.AEAugment, list(self.input.values())[0])
 
-    def simulate(self, modelfile):
-        data = list(self.input.values())[0]
-        cats = list(data.select_dtypes(["category"]).columns.values)
-        data_feat = data[self.params["features"]]
-        grouping = self.params["grouping"]
-        feat_cols = list(data_feat.columns)
-        fc_lower = [x.lower() for x in feat_cols]
-
-        signals = set([re.findall(r"\S+", col)[0] for col in feat_cols])
-        amplitudes = {
-            k: [
-                col
-                for col in feat_cols
-                if len(re.findall(rf"^{re.escape(k)}\sa\d$", col, re.IGNORECASE)) > 0
-            ]
-            for k in signals
-        }
-        logging.debug(f"amplitudes={amplitudes}")
-
-        # load an AE model
-        device = resolve_device(self.params["device"])
-        sim_df = pd.DataFrame(columns=(cats + feat_cols))
-        noise_df = pd.DataFrame()
-        try:
-            maxcell = np.amax(data[grouping[-1]].astype(int).to_numpy())
-        except:
-            pass
-
-        mean_noise, std_noise = self._model_noise(data_feat, self.params["snr_db"])
-        # ae = torch.load(self.params['modelfile'], map_location = device)
-        ae_pipeline = load(modelfile)
-        ae_pipeline[-1].to(device)  # the autoencoder; transform() returns CPU tensors
-
-        temps = []
-        for simset in range(0, self.params["sets"]):
-            if self.params["add_noise"]:
-                noise = np.random.normal(
-                    mean_noise, scale=std_noise, size=data_feat.shape
-                )
-                sdata_feat = data_feat + noise
-            else:
-                sdata_feat = data_feat
-
-            sdata_feat = sdata_feat.to_numpy(dtype=np.float32)
-
-            features, reconstructed = ae_pipeline.transform(sdata_feat)
-
-            sdata_feat = torch.FloatTensor(sdata_feat)
-            logging.debug(f"Sim set {simset+1}, original shape: {sdata_feat.shape}")
-
-            # features, reconstructed = ae(data_input)
-            logging.debug(f"Reconstructed shape: {reconstructed.shape}")
-
-            features = torch.squeeze(features)
-            logging.debug(f"Features shape: {features.shape}")
-
-            criterion = nn.MSELoss()
-            loss = criterion(reconstructed, sdata_feat)
-            logging.debug(f"Sim set {simset+1}, loss: {loss.data}")
-
-            recon_data = reconstructed.detach().numpy()
-            scaler = ae_pipeline.named_steps["minmaxscaler"]
-            sim_data = scaler.inverse_transform(recon_data)
-            temp = pd.DataFrame(columns=(cats + feat_cols))
-            temp[cats] = data[cats]
-            try:
-                temp[grouping[-1]] = temp[grouping[-1]].astype(int) + maxcell * simset
-            except:
-                temp[grouping[-1]] = temp[grouping[-1]].astype(str) + f".{simset}"
-            temp[feat_cols] = sim_data
-            temps.append(temp)
-
-        sim_df = pd.concat(temps).reset_index()
-        # calculate the rel amplitudes, e.g. a1%, a2% etc.
-        for k, amps in amplitudes.items():
-            total_col = f"{k} total"
-            total_amp = sim_df[amps].sum(axis=1)
-            for a in amps:
-                calc_col = [
-                    c
-                    for c in data.columns.values
-                    if (a in c and "%" in c and "/" not in c)
-                ]
-                calc_col = calc_col[0] if len(calc_col) > 0 else f"{a}%"
-                logging.debug(f"Calculating {calc_col}.")
-                sim_df[calc_col] = sim_df[a] / total_amp * 100.0
-
-        outfeats = list([c for c in sim_df.columns.values if c not in cats])
-        outfeats.sort()  # ensure feature vectors will be applied correctly
-        sim_df = sim_df[cats + outfeats]
-        sim_df[grouping[-1]] = sim_df[grouping[-1]].astype(str).astype("category")
-
-        return {
-            f"Table: Simulated-{os.path.basename(modelfile)}": sim_df,
-        }

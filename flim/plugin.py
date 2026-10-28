@@ -5,6 +5,7 @@ Created on Thu Feb 10 12:45:21 2022
 
 @author: khs3z
 """
+
 import importlib
 import inspect
 import logging
@@ -31,7 +32,7 @@ from typing import (
 )
 from abc import ABC, abstractmethod
 from flim.core.runner import TaskCancelled, call_plugin, map_plugin, select
-
+from flim.core.tool import RunContext
 
 PLUGINS = {}
 ALL_FEATURES = "all_features"
@@ -432,7 +433,11 @@ class AbstractPlugin:
         """
         tool = tool_class()
         tool._cancel_token = getattr(self, "_cancel_token", None)
+        tool._output_dir = self.params.get("working_dir")
         config = tool.config_class.from_legacy_params(self.params)
+        tool.context = RunContext.for_config(
+            config, cancel_token=tool._cancel_token, output_dir=tool._output_dir
+        )
         return tool.display_names(tool.run(*inputs, config=config))
 
     def cancel(self, message: str = "Cancelled"):

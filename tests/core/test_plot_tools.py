@@ -234,3 +234,13 @@ def test_flirr_plot_has_no_empty_axes(data):
         "Plot: FLIRR Plot: ['Treatment']"
     ]
     assert len(figure.axes) == 6
+
+
+def test_bar_plot_without_values(data):
+    # e.g. a feature that is missing (NaN) in every row; this used to raise IndexError
+    data["t1"] = np.nan
+    results = BarPlot()(
+        data, config=BarPlotConfig(grouping=["Treatment"], features=["t1"])
+    )
+    (figure,) = results.values()
+    assert "No data" in [t.get_text() for t in figure.axes[0].texts]

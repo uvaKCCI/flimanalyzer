@@ -91,9 +91,13 @@ class RunContext:
     threads: int = 1
     note: Optional[str] = None  # e.g. why the preferred device was not used
     cancel_token: Any = None  # flim.core.runner.CancelToken
+    # where tools write files they produce (e.g. models); None: not set by the caller
+    output_dir: Optional[str] = None
 
     @classmethod
-    def for_config(cls, config: TaskConfig, cancel_token=None) -> "RunContext":
+    def for_config(
+        cls, config: TaskConfig, cancel_token=None, output_dir=None
+    ) -> "RunContext":
         device, note = resolve_device(config.resources.preferred_device)
         if note:
             logging.info(note)
@@ -102,6 +106,7 @@ class RunContext:
             threads=resolve_threads(config.resources.preferred_threads),
             note=note,
             cancel_token=cancel_token,
+            output_dir=output_dir,
         )
 
 
@@ -166,7 +171,9 @@ class Tool(Generic[ConfigT]):
                 f" not a {type(config).__name__}"
             )
         self.context = RunContext.for_config(
-            config, cancel_token=getattr(self, "_cancel_token", None)
+            config,
+            cancel_token=getattr(self, "_cancel_token", None),
+            output_dir=getattr(self, "_output_dir", None),
         )
         with pyplot_lock if self.draws_figures else contextlib.nullcontext():
             results = self.display_names(self.run(*inputs, config=config))
