@@ -12,6 +12,7 @@ CORE_MODULES = [
     "flim.core.schema",
     "flim.core.tool",
     "flim.tools",
+    "flim.batch",
 ]
 # every module of these packages (not subpackages: flim.analysis.ml needs torch)
 CORE_PACKAGES = [

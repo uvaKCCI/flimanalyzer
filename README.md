@@ -67,6 +67,24 @@ To open data files (tab- or comma-separated) right away, each in its own window:
 
 Run `flimanalyzer --help` for all command line options.
 
+## Batch mode
+
+`flimbatch` imports data files and runs tools or workflows without the
+application, e.g. on a cluster. It uses a settings file saved by the application
+(Settings > Save Settings): its import settings, and each tool's settings.
+
+    uv run flimbatch -i data/ -o results/ -c settings.json \
+        --run Summarize --run "Basic FLIRR Analysis"
+
+The imported table is saved as `results/Imported.txt`, each tool's results in
+`results/<tool name>/`. Workflow columns that are not in the data (e.g. `FAD a1%`
+for `FAD a1[%]`) are errors; `--allow-guesses` uses the closest column instead and
+lists it in the run summary. The exit code is 1 if a check or task failed. Run
+`flimbatch --help` for all options.
+
+`flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`:
+`flimanalyzer` starts without a console there, so its messages are not shown.
+
 ## Prefect server
 
 FLIMAnalyzer runs analyses and workflows as [Prefect](https://www.prefect.io) flows. At startup it looks for a Prefect server in this order:
