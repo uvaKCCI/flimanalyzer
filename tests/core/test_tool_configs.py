@@ -31,6 +31,7 @@ from flim.configs import (
 from flim.configs.analysis import CategoryRule
 from flim.configs.data import RangeSettings
 from flim.configs.plot import HistogramRange
+import flim.workflow  # noqa: F401  (registers the workflows, which configs name)
 from flim.core.config import TaskConfig, fixed_value
 from flim.core.registry import tools
 
@@ -83,7 +84,7 @@ CHANGED = [
             rescale=True,
             checkpoint_interval=2,
         ),
-        augment=AEAugmentConfig(sets=7),
+        augment=AEAugmentConfig(sets=7, add_noise=False),  # older versions: no noise
     ),
     AEFeatureConfig(grouping=["Treatment", "Cell"], control_group="Untreated"),
 ]
@@ -435,10 +436,13 @@ def test_classname_names_the_registered_tool():
         assert AETrainConfig().classname == expected
         cfg = AEFeatureConfig()
         assert cfg.training.classname == expected
-        assert cfg.classname is None  # no tool registered for the workflow
+        # the workflow's: registered once flim.workflow is imported
+        workflow = tools.for_config(AEFeatureConfig)
+        own = workflow and f"{workflow.__module__}.{workflow.__qualname__}"
+        assert cfg.classname == own
         data = cfg.model_dump()
         assert data["training"]["classname"] == expected
-        assert "classname" in data and data["classname"] is None
+        assert "classname" in data and data["classname"] == own
         assert AEFeatureConfig.model_validate(data) == cfg
         assert AETrainConfig(classname="my.Tool").classname == "my.Tool"
     finally:

@@ -1,7 +1,3 @@
-# The workflow modules import flim.plugin, which imports the tool plugin modules.
-# Loading flim.plugin first means no module is imported half-initialized; importing
-# the workflow modules registers the workflows.
-import flim.plugin  # noqa: F401
-from flim.plugin import discover_plugin_classes
+"""The workflows; importing this package registers them (category "Workflow")."""
 
-discover_plugin_classes(["workflow"])
+from flim.workflow import aefeature, aetune, basicflow  # noqa: F401

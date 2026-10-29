@@ -61,6 +61,7 @@ __all__ = [
 
 _CURRENT_RUN = contextvars.ContextVar("flim_flow_run", default=None)
 _MARKER = "__flim_task_output__"
+_AFTER = "__flim_after__"  # tasks a tool call waits for, see call_tool
 
 
 
@@ -206,7 +207,9 @@ def _run_plugin(plugin, kwargs: Dict[str, Any]):
             started()
         # tools (flim.core.tool.Tool) run with run_task(inputs, config)
         run = getattr(plugin, "run_task", plugin.run)
-        results = run(**_unwrap(kwargs))
+        kwargs = _unwrap(kwargs)
+        kwargs.pop(_AFTER, None)  # only waited for
+        results = run(**kwargs)
     release_figures(results)
     return results
 
@@ -525,14 +528,21 @@ def call_plugin(plugin, **kwargs):
     return run.call(plugin, kwargs, task_tags=task_tags)
 
 
-def call_tool(tool, inputs, config=None, task_tags=None):
+def call_tool(tool, inputs, config=None, task_tags=None, after=()):
     """Calls a tool (:class:`flim.core.tool.Tool`) with its inputs and config: as a task
-    inside a flow, or directly otherwise."""
+    inside a flow, or directly otherwise.
+
+    ``after``: TaskOutput handles of tasks this one waits for although they are not
+    its inputs, e.g. those whose results (model files) its config names.
+    """
     inputs = [v.value if isinstance(v, unmapped) else v for v in inputs]
     run = current_run()
     if run is None:
         return tool.run_task(inputs=_resolve(inputs), config=config)
-    return run.call(tool, {"inputs": inputs, "config": config}, task_tags=task_tags)
+    kwargs = {"inputs": inputs, "config": config}
+    if after:
+        kwargs[_AFTER] = list(after)
+    return run.call(tool, kwargs, task_tags=task_tags)
 
 
 def map_plugin(plugin, **kwargs) -> List[Any]:

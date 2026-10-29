@@ -314,6 +314,8 @@ class dataanalyzer:
                 )
                 joineddata = joineddata.fillna(value={category_colheader: unassigned})
             logging.debug(joineddata.columns.values)
-            return med, core.preprocessor.reorder_columns(joineddata)
+            return med, flim.core.preprocessor.defaultpreprocessor().reorder_columns(
+                joineddata
+            )
         else:
             return med, data

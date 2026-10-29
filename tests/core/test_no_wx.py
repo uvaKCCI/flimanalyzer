@@ -14,7 +14,14 @@ CORE_MODULES = [
     "flim.tools",
 ]
 # every module of these packages (not subpackages: flim.analysis.ml needs torch)
-CORE_PACKAGES = ["flim.core", "flim.data", "flim.analysis", "flim.tools", "flim.configs"]
+CORE_PACKAGES = [
+    "flim.core",
+    "flim.data",
+    "flim.analysis",
+    "flim.tools",
+    "flim.configs",
+    "flim.workflow",
+]
 
 # raises ImportError for wx and torch, as when they are not installed
 BLOCK = """
@@ -44,7 +51,7 @@ def test_core_imports_without_wx():
 
 
 def test_all_core_modules_import_without_wx_and_torch():
-    """Everything but the GUI and the workflows (which keep wx dialogs until Phase 5)."""
+    """Everything but the GUI."""
     run(
         "import importlib, pkgutil\n"
         f"for package in {CORE_PACKAGES!r}:\n"
@@ -54,4 +61,6 @@ def test_all_core_modules_import_without_wx_and_torch():
         "from flim.plugin import PLUGINS\n"
         "assert sorted(PLUGINS) == ['Analysis', 'Data', 'Plot'], PLUGINS\n"
         "assert sum(len(p) for p in PLUGINS.values()) == 30\n"
+        "from flim.core.registry import tools\n"
+        "assert len(tools.by_category()['Workflow']) == 3\n"
     )

@@ -133,7 +133,8 @@ class Tool(Generic[ConfigT]):
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         for base in getattr(cls, "__orig_bases__", ()):
-            if typing.get_origin(base) is Tool:
+            origin = typing.get_origin(base)  # Tool, or a generic subclass of it
+            if isinstance(origin, type) and issubclass(origin, Tool):
                 (config_class,) = typing.get_args(base)
                 if isinstance(config_class, type):
                     cls.config_class = config_class
@@ -156,10 +157,12 @@ class Tool(Generic[ConfigT]):
 
     # --- calling ---
 
-    def __call__(self, *inputs, config: Optional[ConfigT] = None, task_tags=None):
+    def __call__(
+        self, *inputs, config: Optional[ConfigT] = None, task_tags=None, after=()
+    ):
         from flim.core.runner import call_tool
 
-        return call_tool(self, inputs, config, task_tags=task_tags)
+        return call_tool(self, inputs, config, task_tags=task_tags, after=after)
 
     def run_task(self, inputs: Sequence, config: Optional[ConfigT] = None) -> dict:
         """Runs the tool as one task: resolves the resources, validates the config

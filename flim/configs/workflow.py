@@ -144,7 +144,10 @@ class AETuneConfig(_AEWorkflowConfig):
     training: AETrainConfig = Field(
         default_factory=lambda: _workflow_training(architecture="AE Simulator 1-6")
     )
-    augment: AEAugmentConfig = Field(default_factory=lambda: AEAugmentConfig(sets=4))
+    # the workflow simulates without noise
+    augment: AEAugmentConfig = Field(
+        default_factory=lambda: AEAugmentConfig(sets=4, add_noise=False)
+    )
 
     @classmethod
     def _from_legacy(cls, params):

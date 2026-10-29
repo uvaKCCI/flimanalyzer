@@ -537,6 +537,6 @@ class DataBucket(AbstractPlugin):
         return next(iter(self.input.values()))
 
 
-# auto run on import to populate the PLUGIN dictionary; the workflows register when
-# flim.workflow is imported (they still use wx, the tool plugins don't)
+# auto run on import to populate the PLUGIN dictionary (the workflows are tools,
+# registered when flim.workflow is imported)
 discover_plugin_classes()

@@ -224,9 +224,8 @@ def test_error_is_reported(frame, monkeypatch):
 def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypatch, flim_data):
     import pandas as pd
 
-    from flim.gui import progressdlg
+    from flim.gui import configdialog, progressdlg
     from flim.gui.datapanel import PandasFrame
-    from flim.analysis.summarystats import SummaryStats
     from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
 
     # an open data table to analyze
@@ -235,11 +234,13 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
     frame.GetEventHandler().ProcessEvent(event)
 
     # stands in for the user's choices in the tool's configuration dialog
-    def configure(tool, parent, data_choices={}):
-        tool.params.update(grouping=["Treatment"], features=["NAD(P)H t1"])
-        return tool.params
+    def configure(dialog):
+        dialog.fields.editors["grouping"].set(["Treatment"])
+        dialog.fields.editors["features"].set(["NAD(P)H t1"])
+        dialog.validate()
+        return wx.ID_OK
 
-    monkeypatch.setattr(SummaryStats, "run_configuration_dialog", configure)
+    monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", configure)
     # never wait for a click: any other prompt is answered with No
     monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)
     messages = []
@@ -261,7 +262,7 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
     click = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
     click.SetEventObject(button)
     before = set(frame.windowframes)
-    frame.on_run_plugin(click)
+    button.GetEventHandler().ProcessEvent(click)
 
     assert messages == []
     assert outcomes == [wx.ID_OK]
@@ -452,9 +453,8 @@ def test_summary_of_a_run_with_failed_tasks(wxapp, tmp_path):
 
 
 def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_path):
-    from flim.gui import progressdlg
+    from flim.gui import configdialog, progressdlg
     from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
-    from flim.workflow.basicflow import BasicFLIRRWorkFlow
 
     data = flim_data.copy()
     data["FLIRR"] = data["NAD(P)H a2[%]"] / data["FAD a1[%]"]
@@ -462,15 +462,19 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_pa
     event.SetEventInfo(data, "Data", "createnew", modified=False)
     frame.GetEventHandler().ProcessEvent(event)
 
-    def configure(tool, parent, data_choices={}):
-        tool.params.update(
-            grouping=["Treatment", "FOV", "Cell"],
-            features=["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"],
-            working_dir=str(tmp_path),
-        )
-        return tool.params
+    locked = []
 
-    monkeypatch.setattr(BasicFLIRRWorkFlow, "run_configuration_dialog", configure)
+    def configure(dialog):
+        dialog.fields.editors["grouping"].set(["Treatment", "FOV", "Cell"])
+        dialog.fields.editors["features"].set(
+            ["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"]
+        )
+        dialog.folder.SetPath(str(tmp_path))
+        locked.append(not dialog.autosave.IsEnabled() and dialog.autosave.GetValue())
+        dialog.validate()
+        return wx.ID_OK
+
+    monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", configure)
     monkeypatch.setattr(wx, "MessageBox", lambda *a, **k: pytest.fail(f"unexpected message {a}"))
     summaries = []
 
@@ -488,8 +492,9 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_pa
     )
     click = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
     click.SetEventObject(button)
-    frame.on_run_plugin(click)
+    button.GetEventHandler().ProcessEvent(click)
 
+    assert locked == [True]  # workflows always save their results
     ((first_line, folder, has_link),) = summaries
     assert first_line.startswith("Basic FLIRR Analysis completed all ")
     assert folder and folder.startswith(str(tmp_path)) and has_link
