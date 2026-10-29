@@ -236,7 +236,14 @@ def test_flirr_plot_needs_grouping_and_columns(data):
         )
     schema = TableSchema.from_frame(data.drop(columns="FLIRR"))
     issues = FLIRRPlot.validate(FLIRRPlotConfig(), [schema])
-    assert [i.field for i in issues] == ["grouping", None]
+    assert [i.field for i in issues] == ["grouping", "flirr"]
+    assert "No FLIRR column found by name" in issues[1].message
+    # a column chosen instead
+    other = data.drop(columns="FLIRR").assign(ratio=data["FLIRR"])
+    config = FLIRRPlotConfig(grouping=["Treatment"], flirr="ratio")
+    assert FLIRRPlot.validate(config, [TableSchema.from_frame(other)]) == []
+    figure = next(iter(FLIRRPlot()(other, config=config).values()))
+    assert "ratio" in [ax.get_xlabel() for ax in figure.axes]
 
 
 def test_flirr_plot_has_no_empty_axes(data):

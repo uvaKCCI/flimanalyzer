@@ -12,6 +12,15 @@ def category_columns(data: pd.DataFrame) -> list[str]:
     return list(data.select_dtypes("category").columns.values)
 
 
+def ordered_values(column: pd.Series) -> list[str]:
+    """The values that occur in a column, in the order of its categories (see Order
+    Categories), else in the order they occur."""
+    present = set(column.dropna().unique())
+    if isinstance(column.dtype, pd.CategoricalDtype):
+        return [str(v) for v in column.cat.categories if v in present]
+    return [str(v) for v in column.dropna().unique()]
+
+
 def feature_columns(data: pd.DataFrame) -> list[str]:
     """The numeric columns (category columns are never numeric)."""
     return list(data.select_dtypes(np.number).columns.values)

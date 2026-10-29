@@ -61,6 +61,26 @@ class WorkflowConfig(TaskConfig):
 
 class BasicFLIRRConfig(WorkflowConfig):
     grouping: list[CategoryColumn] = ["Treatment", "FOV", "Cell"]
+    # values the workflow used to take from the data, now settings with that default
+    reference_value: Annotated[Optional[str], ValueOf("grouping")] = Field(
+        default=None,
+        title="Reference value",
+        description=(
+            "Relative changes: the features are divided by their mean in the rows with"
+            " this value of the first grouping column. Empty: its first value (in the"
+            " order of its categories)."
+        ),
+    )
+    fad_a1: Optional[FeatureColumn] = Field(
+        default=None,
+        title="Scatter x (FAD a1 %)",
+        description="Empty: found by name (FAD, a1, %).",
+    )
+    nadph_a2: Optional[FeatureColumn] = Field(
+        default=None,
+        title="Scatter y (NAD(P)H a2 %)",
+        description="Empty: found by name (NAD, a2, %).",
+    )
     features: list[FeatureColumn] = [
         "FAD a1",
         "FAD a1%",

@@ -83,7 +83,7 @@ class ColumnRole:
 @dataclass(frozen=True)
 class ValueOf:
     """Marks a field as holding a value of the category column that the field
-    ``column_field`` of the same config names."""
+    ``column_field`` of the same config names (of a list of columns: the first)."""
 
     column_field: str
 

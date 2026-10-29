@@ -265,7 +265,10 @@ class ValueEditor(Editor):
         self.schema = schema
 
     def refresh(self, panel):
-        self.update_choices(panel.value_of(self.spec.column_field))
+        column = panel.value_of(self.spec.column_field)
+        if isinstance(column, list):  # e.g. grouping: its first column
+            column = column[0] if column else None
+        self.update_choices(column)
 
     def update_choices(self, column: Optional[str]) -> None:
         """Offers the values of ``column`` (if the input's schema knows them)."""

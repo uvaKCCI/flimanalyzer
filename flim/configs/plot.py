@@ -497,5 +497,30 @@ class HeatmapConfig(PlotConfig):
 
 class FLIRRPlotConfig(PlotConfig):
     legend_grouping = None  # each panel has its own
-    # the FLIRR, FAD a1 % and NAD(P)H a2 % columns are found by name
+    # the plotted columns are the three below (not plugin parameters: found by name)
     hidden_fields = frozenset({"features"})
+    legacy_keys = {
+        **PlotConfig.legacy_keys,
+        "flirr": None,
+        "fad_a1": None,
+        "nadph_a2": None,
+    }
+
+    flirr: Optional[FeatureColumn] = Field(
+        default=None,
+        title="FLIRR",
+        description="Empty: the column whose name contains FLIRR.",
+        json_schema_extra={"order": 411},
+    )
+    fad_a1: Optional[FeatureColumn] = Field(
+        default=None,
+        title="FAD a1 %",
+        description="The x axis of the scatter plot. Empty: found by name (FAD, a1, %).",
+        json_schema_extra={"order": 412},
+    )
+    nadph_a2: Optional[FeatureColumn] = Field(
+        default=None,
+        title="NAD(P)H a2 %",
+        description="The y axis of the scatter plot. Empty: found by name (NAD, a2, %).",
+        json_schema_extra={"order": 413},
+    )

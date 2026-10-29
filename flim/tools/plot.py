@@ -1321,21 +1321,23 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
         ]
 
 
-def flirr_columns(columns) -> tuple[str, list[str]]:
-    """The FLIRR column and the two scatter features (FAD a1 %, NAD(P)H a2 %), found by
-    name."""
-    flirr = [c for c in columns if "FLIRR" in c.upper()]
-    scatter = [
-        c
-        for c in columns
-        if "FLIRR" not in c.upper()
-        and "/" not in c
-        and (
-            ("FAD" in c and "a1" in c and "%" in c)
-            or ("NAD" in c and "a2" in c and "%" in c)
+def flirr_columns(columns, flirr=None, fad_a1=None, nadph_a2=None) -> tuple:
+    """The FLIRR, FAD a1 % and NAD(P)H a2 % columns: as given, else found by name (the
+    first that fits; None if none does)."""
+
+    def first(fits):
+        return next((c for c in columns if fits(c)), None)
+
+    def percent(c, *parts):
+        return "FLIRR" not in c.upper() and "/" not in c and "%" in c and all(
+            p in c for p in parts
         )
-    ]
-    return (flirr[0] if flirr else None), scatter
+
+    return (
+        flirr or first(lambda c: "FLIRR" in c.upper()),
+        fad_a1 or first(lambda c: percent(c, "FAD", "a1")),
+        nadph_a2 or first(lambda c: percent(c, "NAD", "a2")),
+    )
 
 
 @register_tool
@@ -1355,11 +1357,17 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
         grouping = list(config.grouping)
         if not grouping:
             raise ValueError(f"{self.name}: select at least one grouping column")
-        flirr, scatter = flirr_columns(data.select_dtypes(include=np.number).columns)
-        if flirr is None or len(scatter) < 2:
+        flirr, fad, nadph = flirr_columns(
+            data.select_dtypes(include=np.number).columns,
+            config.flirr,
+            config.fad_a1,
+            config.nadph_a2,
+        )
+        if None in (flirr, fad, nadph):
             raise ValueError(
                 f"{self.name}: needs a FLIRR column, and FAD a1 % and NAD(P)H a2 % columns"
             )
+        scatter = [fad, nadph]
         hue = grouping[0]
         # constrained layout: panels and labels without overlap
         figure = plt.figure(figsize=(16, 10), layout="constrained")
@@ -1408,13 +1416,13 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
             issues.append(Issue("grouping", "Select at least one grouping column"))
         schema = inputs[0] if inputs else None
         if schema is not None and schema.complete:
-            flirr, scatter = flirr_columns(schema.by_role("feature"))
-            if flirr is None or len(scatter) < 2:
-                issues.append(
-                    Issue(
-                        None,
-                        "The input needs a FLIRR column, and FAD a1 % and NAD(P)H a2 %"
-                        " columns",
+            found = flirr_columns(
+                schema.by_role("feature"), config.flirr, config.fad_a1, config.nadph_a2
+            )
+            for field, column in zip(("flirr", "fad_a1", "nadph_a2"), found):
+                if column is None:
+                    title = type(config).model_fields[field].title
+                    issues.append(
+                        Issue(field, f"No {title} column found by name: choose one")
                     )
-                )
         return issues

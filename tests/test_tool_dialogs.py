@@ -11,6 +11,7 @@ import flim.gui.dialogs.categoryorder  # noqa: E402,F401
 import flim.gui.dialogs.filter  # noqa: E402,F401
 import flim.gui.dialogs.unpivot  # noqa: E402,F401
 import flim.tools  # noqa: E402,F401
+import flim.workflow  # noqa: E402,F401  (registers the workflows)
 from flim.configs import (  # noqa: E402
     AETrainConfig,
     CategoryOrderConfig,
@@ -565,3 +566,15 @@ def test_scatter_plot_x_axis_with_two_features(dialog):
     d.fields.editors["features"].set(["t1"])
     d.fields.refresh()
     assert hidden()
+
+
+# --- workflows ---
+
+
+def test_basic_flirr_reference_value_of_the_first_grouping_column(dialog):
+    d = dialog("Basic FLIRR Analysis")
+    d.fields.editors["grouping"].set(["FOV", "Treatment"])
+    d.fields.refresh()
+    reference = d.fields.editors["reference_value"]
+    assert reference.control.GetItems() == ["1", "2"]  # FOV's
+    assert d.result().config.reference_value is None  # empty: the first value

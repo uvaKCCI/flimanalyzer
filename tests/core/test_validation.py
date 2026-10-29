@@ -133,6 +133,39 @@ def test_unknown_inputs_are_not_checked():
     assert report.issues == [] and report.steps == []
 
 
+def step_config(report, tool_name):
+    return next(s.config for s in report.steps if s.name.startswith(tool_name))
+
+
+def test_basic_flirr_settings_taken_from_the_data(data):
+    config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=["FLIRR"])
+    report = BasicFLIRR().resolve(config, [data])
+    # empty: the first value of the first grouping column; the columns by name
+    first = list(data["Treatment"].cat.categories)[0]  # in category order
+    assert step_config(report, "Relative Change").reference_value == first
+    scatter = step_config(report, "Scatter Plot")
+    assert (scatter.features, scatter.x_axis) == (["FAD a1[%]", "NAD(P)H a2[%]"], "FAD a1[%]")
+    # set: used
+    config = config.model_copy(
+        update={"reference_value": "Dox30", "fad_a1": "NAD(P)H a2", "nadph_a2": "FAD a1"}
+    )
+    report = BasicFLIRR().resolve(config, [data])
+    assert step_config(report, "Relative Change").reference_value == "Dox30"
+    scatter = step_config(report, "Scatter Plot")
+    assert (scatter.features, scatter.x_axis) == (["NAD(P)H a2", "FAD a1"], "NAD(P)H a2")
+
+
+def test_time_points_in_category_order():
+    from flim.tools.common import ordered_values as series_values
+
+    column = pd.Series(
+        pd.Categorical(["Dox30", "ctrl", "Dox15"], categories=["ctrl", "Dox15", "Dox30", "Dox60"])
+    )
+    # all values (none skipped for containing "15"), unused categories left out
+    assert series_values(column) == ["ctrl", "Dox15", "Dox30"]
+    assert series_values(pd.Series(["b", "a", "b"])) == ["b", "a"]
+
+
 class TestRuns:
     @pytest.fixture(scope="class", autouse=True)
     def prefect_harness(self):
@@ -155,4 +188,8 @@ class TestRuns:
         )
         assert run.failed == []
         (summary,) = tmp_path.rglob("run_summary.txt")
-        assert "features[0]: 'flirr' -> 'FLIRR' (guessed)" in summary.read_text()
+        text = summary.read_text()
+        assert "features[0]: 'flirr' -> 'FLIRR' (guessed)" in text
+        # the resources each task was granted
+        assert "Resources" in text and "cpu, 1 thread" in text
+        assert [label for label, _ in run.resources()] == ["Summarize", "Pivot"]

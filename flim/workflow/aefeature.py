@@ -18,6 +18,7 @@ from flim.core.registry import register_tool
 from flim.core.types import InputSpec, TableType
 from flim.core.workflow import Workflow, workflow_input
 from flim.tools.autoencoder import RunAE
+from flim.tools.common import ordered_values
 from flim.tools.data import Concat, Filter, Pivot, Sort
 from flim.tools.ml import PCAnalysis
 from flim.tools.plot import KDE, BarPlot
@@ -45,7 +46,7 @@ class AEFeature(Workflow[AEFeatureConfig]):
         features = config.features
         last_epoch = config.training.epochs
         timeseries = config.timeseries
-        series = [v for v in data_train[timeseries].unique() if "15" not in v]
+        series = ordered_values(data_train[timeseries])  # the time points
         pairs = list(zip(series, series[1:]))
 
         def filtered(data, name):

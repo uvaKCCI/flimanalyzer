@@ -13,25 +13,12 @@ from flim.configs import (
 from flim.configs.workflow import BasicFLIRRConfig
 from flim.core.registry import register_tool
 from flim.core.workflow import Workflow, workflow_input
-from flim.tools.plot import KDE, LinePlot, PairPlot, ScatterPlot
+from flim.tools.common import ordered_values
+from flim.tools.plot import KDE, LinePlot, PairPlot, ScatterPlot, flirr_columns
 from flim.tools.statistics import RelativeChange, Summarize
 
 # many measurements make pair plots slow to draw
 PAIR_PLOT_POINTS = {"mode": "sample", "samples": 20000}
-
-
-def scatter_features(data) -> list:
-    """The FAD a1% and NAD(P)H a2% columns (not FLIRR or ratios)."""
-    return [
-        c
-        for c in data.select_dtypes(include=np.number)
-        if "FLIRR" not in c.upper()
-        and "/" not in c
-        and (
-            ("FAD" in c and "a1" in c and "%" in c)
-            or ("NAD" in c and "a2" in c and "%" in c)
-        )
-    ]
 
 
 @register_tool
@@ -80,7 +67,8 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
                 grouping=grouping[1:],
                 features=features,
                 reference_group=grouping[0],
-                reference_value=str(data[grouping[0]].unique()[0]),
+                reference_value=config.reference_value
+                or ordered_values(data[grouping[0]])[0],
                 method="mean",
             ),
         )["Table: Relative Change"]
@@ -93,10 +81,15 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
                 prefix="Relative Stats-",
             ),
         )
-        ScatterPlot()(
-            input,
-            config=ScatterPlotConfig(grouping=first, features=scatter_features(data)),
-        )
+        numbers = list(data.select_dtypes(include=np.number))
+        _, fad, nadph = flirr_columns(numbers, None, config.fad_a1, config.nadph_a2)
+        if fad and nadph:
+            ScatterPlot()(
+                input,
+                config=ScatterPlotConfig(
+                    grouping=first, features=[fad, nadph], x_axis=fad
+                ),
+            )
         for feature in rel_features:
             LinePlot()(
                 relative,

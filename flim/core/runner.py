@@ -399,6 +399,7 @@ class FlowRun:
             state = ref.state
             if state.is_completed():
                 attrs.update(status="completed", ref=ref.result())
+                attrs["resources"] = _granted(attrs.get("plugin"))
             elif state.is_pending() and state.name == "NotReady":
                 attrs.update(status="skipped", ref=None, message=state.message)
                 logging.warning(f"Skipped {attrs['label']}: upstream task did not complete.")
@@ -409,6 +410,15 @@ class FlowRun:
                 attrs.update(status="failed", ref=None, message=state.message)
                 logging.error(f"{attrs['label']} failed: {state.message}")
         self._report_progress(attrs["label"])
+
+    def resources(self) -> List[tuple]:
+        """(label, resources) of every completed task whose resources are known."""
+        with self._lock:
+            return [
+                (a["label"], a["resources"])
+                for _, a in self.graph.nodes(data=True)
+                if a.get("resources")
+            ]
 
     def _mark_running(self, node: str):
         with self._lock:
@@ -505,14 +515,35 @@ class FlowRun:
         ]
         if self.notes:
             lines += ["Notes:"] + [f"  {note}" for note in self.notes] + [""]
-        lines.append(f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  Message")
-        for a in tasks:
+        granted = [a.get("resources") or "" for a in tasks]
+        res_width = max([len(r) for r in granted] + [len("Resources")])
+        lines.append(
+            f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  {'Resources'.ljust(res_width)}"
+            "  Message"
+        )
+        for a, resources in zip(tasks, granted):
             message = (a.get("message") or "").replace("\n", " ")
-            lines.append(f"{a['label'].ljust(width)}  {a['status'].ljust(9)}  {message}".rstrip())
+            lines.append(
+                f"{a['label'].ljust(width)}  {a['status'].ljust(9)}"
+                f"  {resources.ljust(res_width)}  {message}".rstrip()
+            )
         path = os.path.join(self.autosave_dir, "run_summary.txt")
         with open(path, "w") as f:
             f.write("\n".join(lines) + "\n")
         return path
+
+
+def _granted(plugin) -> Optional[str]:
+    """The device and threads a tool ran with, e.g. "cpu, 4 threads" (None if unknown:
+    a plugin, or a task run in another process)."""
+    if plugin is None or getattr(plugin, "graph_kind", "plugin") != "plugin":
+        return None  # e.g. a workflow's input
+    context = vars(plugin).get("context")
+    if context is None or not hasattr(context, "device"):
+        return None
+    threads = f"{context.threads} thread{'s' if context.threads != 1 else ''}"
+    note = f" ({context.note})" if context.note else ""
+    return f"{context.device}, {threads}{note}"
 
 
 def current_run() -> Optional[FlowRun]:
