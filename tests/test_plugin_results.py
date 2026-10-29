@@ -11,14 +11,22 @@ FEATURE = "NAD(P)H t1"
 
 def _run(plugin_cls, data, **params):
     tool = plugin_cls()
-    tool.configure(input={"data": data} if not isinstance(data, dict) else data, **params)
+    tool.configure(
+        input={"data": data} if not isinstance(data, dict) else data, **params
+    )
     return tool.execute()
 
 
 def test_ks_statistics_match_scipy(flim_data):
     from flim.analysis.ksstats import KSStats
 
-    (table,) = _run(KSStats, flim_data, grouping=["Treatment"], features=[FEATURE], comparison="Treatment").values()
+    (table,) = _run(
+        KSStats,
+        flim_data,
+        grouping=["Treatment"],
+        features=[FEATURE],
+        comparison="Treatment",
+    ).values()
     row = table.iloc[0]
     wt = flim_data.loc[flim_data["Treatment"] == "WT", FEATURE]
     ko = flim_data.loc[flim_data["Treatment"] == "KO", FEATURE]
@@ -32,7 +40,11 @@ def test_ks_statistics_per_group(flim_data):
     from flim.analysis.ksstats import KSStats
 
     (table,) = _run(
-        KSStats, flim_data, grouping=["FOV", "Treatment"], features=[FEATURE], comparison="Treatment"
+        KSStats,
+        flim_data,
+        grouping=["FOV", "Treatment"],
+        features=[FEATURE],
+        comparison="Treatment",
     ).values()
     assert sorted(table["FOV"].astype(str)) == ["1", "2", "3"]  # one comparison per FOV
 
@@ -76,11 +88,11 @@ def test_random_forest_importances(flim_data):
         n_estimators=20,
         importancehisto=True,
     )
-    importances = results["Importance Score Data"]
+    importances = results["Table: Importance Score Data"]
     assert set(importances["Feature"]) == set(features)
     assert importances["Importance Score"].sum() == pytest.approx(1.0)
     assert importances["Importance Score"].is_monotonic_decreasing
-    assert isinstance(results["Importance Score Plot"], matplotlib.figure.Figure)
+    assert isinstance(results["Plot: Importance Score Plot"], matplotlib.figure.Figure)
 
 
 def test_random_forest_ignores_grouping_columns_among_the_features(flim_data):
@@ -97,7 +109,7 @@ def test_random_forest_ignores_grouping_columns_among_the_features(flim_data):
         n_estimators=10,
         importancehisto=False,
     )
-    assert list(results["Importance Score Data"]["Feature"]) == ["NAD(P)H t1"]
+    assert list(results["Table: Importance Score Data"]["Feature"]) == ["NAD(P)H t1"]
 
 
 def test_merge_on_shared_categories(flim_data):
@@ -119,24 +131,42 @@ def test_order_categories(flim_data):
         "Treatment": {"values": ["WT", "KO"]},
         "FOV": {"values": ["3", "2", "1"]},
     }
-    (table,) = _run(CategoryOrder, flim_data, categories=categories, inplace=False).values()
+    (table,) = _run(
+        CategoryOrder, flim_data, categories=categories, inplace=False
+    ).values()
     assert list(table["Treatment"].cat.categories) == ["WT", "KO"]
     assert table["Treatment"].cat.ordered
     assert list(table["FOV"].iloc[:10]) == ["3"] * 10  # sorted by the new order
     assert table.iloc[0]["Treatment"] == "WT"
 
 
-@pytest.mark.parametrize("plugin", ["SwarmPlot", "KDE", "BoxPlot", "ViolinPlot", "LinePlot", "FreqHisto"])
+@pytest.mark.parametrize(
+    "plugin", ["SwarmPlot", "KDE", "BoxPlot", "ViolinPlot", "LinePlot", "FreqHisto"]
+)
 def test_plots_draw_one_figure_per_feature(flim_data, plugin):
     import flim.plugin as registry
 
-    cls = next(c for group in registry.PLUGINS.values() for c in group.values() if c.__name__ == plugin)
+    cls = next(
+        c
+        for group in registry.PLUGINS.values()
+        for c in group.values()
+        if c.__name__ == plugin
+    )
     tool = cls()
-    tool.configure(input={"data": flim_data}, grouping=["Treatment"], features=[FEATURE, "FAD a1[%]"])
-    figures = [v for v in tool.execute().values() if isinstance(v, matplotlib.figure.Figure)]
+    tool.configure(
+        input={"data": flim_data},
+        grouping=["Treatment"],
+        features=[FEATURE, "FAD a1[%]"],
+    )
+    figures = [
+        v for v in tool.execute().values() if isinstance(v, matplotlib.figure.Figure)
+    ]
     assert len(figures) == 2
     # mapped parameters: one call per feature when run in parallel
-    assert [p["features"] for p in tool.get_mapped_parameters()] == [[FEATURE], ["FAD a1[%]"]]
+    assert [p["features"] for p in tool.get_mapped_parameters()] == [
+        [FEATURE],
+        ["FAD a1[%]"],
+    ]
 
 
 def test_flirr_plot(flim_data):
@@ -159,8 +189,20 @@ def test_bar_plot_heights_are_group_means(flim_data, error_bar):
     from flim.analysis.barplots import BarPlot
 
     tool = BarPlot()
-    tool.configure(input={"data": flim_data}, grouping=["Treatment"], features=[FEATURE], error_bar=error_bar)
-    (fig,) = [v for v in tool.execute().values() if isinstance(v, matplotlib.figure.Figure)]
-    heights = sorted(round(p.get_height(), 6) for p in fig.axes[0].patches if p.get_height())
-    expected = sorted(round(v, 6) for v in flim_data.groupby("Treatment", observed=True)[FEATURE].mean())
+    tool.configure(
+        input={"data": flim_data},
+        grouping=["Treatment"],
+        features=[FEATURE],
+        error_bar=error_bar,
+    )
+    (fig,) = [
+        v for v in tool.execute().values() if isinstance(v, matplotlib.figure.Figure)
+    ]
+    heights = sorted(
+        round(p.get_height(), 6) for p in fig.axes[0].patches if p.get_height()
+    )
+    expected = sorted(
+        round(v, 6)
+        for v in flim_data.groupby("Treatment", observed=True)[FEATURE].mean()
+    )
     assert heights == expected

@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import flim.core.preprocessor
 import numbers
-from flim.gui.events import DataWindowEvent, EVT_DATA_TYPE
 
 
 class dataanalyzer:
@@ -315,6 +314,8 @@ class dataanalyzer:
                 )
                 joineddata = joineddata.fillna(value={category_colheader: unassigned})
             logging.debug(joineddata.columns.values)
-            return med, core.preprocessor.reorder_columns(joineddata)
+            return med, flim.core.preprocessor.defaultpreprocessor().reorder_columns(
+                joineddata
+            )
         else:
             return med, data

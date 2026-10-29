@@ -4,7 +4,8 @@ import pytest
 from prefect.testing.utilities import prefect_test_harness
 
 from flim.core.graph import WorkflowGraph
-from flim.workflow.basicflow import BasicFLIRRWorkFlow
+from flim.configs.workflow import BasicFLIRRConfig
+from flim.workflow.basicflow import BasicFLIRR
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -20,16 +21,13 @@ def flirr_data(flim_data):
     return df
 
 
+FEATURES = ["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"]
+CONFIG = BasicFLIRRConfig(grouping=["Treatment", "FOV", "Cell"], features=FEATURES)
+
+
 def test_basic_flirr_workflow(flirr_data, tmp_path):
-    features = ["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"]
-    wf = BasicFLIRRWorkFlow()
-    wf.configure(
-        input={"data": flirr_data},
-        grouping=["Treatment", "FOV", "Cell"],
-        features=features,
-        working_dir=str(tmp_path),
-    )
-    run = wf.run_flow(autosave_dir=str(tmp_path / wf.name))
+    wf = BasicFLIRR()
+    run = wf.run_flow(flirr_data, config=CONFIG, autosave_dir=str(tmp_path / wf.name))
 
     assert run.failed == []
     statuses = {a["status"] for _, a in run.graph.nodes(data=True) if "plugin" in a}
@@ -44,28 +42,20 @@ def test_basic_flirr_workflow(flirr_data, tmp_path):
     ]
     assert any("Stats-" in k for r in run.results() if isinstance(r, dict) for k in r)
     assert len(tables) > 0 and len(figures) > 0
-    # one mapped line plot and KDE per feature; the workflow creates its plugins with
-    # name=None, so their labels are the class names
+    # one line plot and KDE per feature, after the input
     labels = [a["label"] for _, a in run.graph.nodes(data=True)]
-    assert sum(l.startswith("KDE") for l in labels) == len(features)
-    assert sum(l.startswith("LinePlot") for l in labels) == len(features)
+    assert labels[0] == "Input"
+    assert sum(l.startswith("KDE") for l in labels) == len(FEATURES)
+    assert sum(l.startswith("Line Plot") for l in labels) == len(FEATURES)
 
     fig, _ = WorkflowGraph(run).get_plot()
     assert isinstance(fig, matplotlib.figure.Figure)
     assert any((tmp_path / wf.name).rglob("*.txt"))
-
-
-def test_workflow_always_saves_its_results(flirr_data, tmp_path):
-    wf = BasicFLIRRWorkFlow()
-    wf.configure(
-        input={"data": flirr_data},
-        grouping=["Treatment", "FOV", "Cell"],
-        features=["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"],
-        working_dir=str(tmp_path),
-        autosave=False,  # e.g. from old saved settings
-    )
-    assert wf.params["autosave"] is True
-    wf.execute()
     (summary,) = (tmp_path / wf.name).rglob("run_summary.txt")
     assert "State:      completed" in summary.read_text()
-    assert any((tmp_path / wf.name).rglob("*.txt"))
+
+
+def test_workflow_run_returns_all_results(flirr_data):
+    results = BasicFLIRR().run(flirr_data, config=CONFIG)
+    assert "Stats-Table: Summary" in results
+    assert any(k.startswith("Plot: KDE") for k in results)

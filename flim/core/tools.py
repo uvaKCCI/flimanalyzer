@@ -14,9 +14,9 @@ from flim.core.importer import dataimporter
 from flim.core.parser import defaultparser
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.analyzer import dataanalyzer
+from flim.core.execution import DASK, LEGACY_EXECUTORS, ExecutionOptions
 
-
-DASK_EXECUTORS = ("LocalDaskExecutor", "DaskExecutor")
+DASK_EXECUTORS = tuple(k for k, v in LEGACY_EXECUTORS.items() if v in DASK)
 
 
 def check_executor_available(executor: str) -> None:
@@ -44,38 +44,12 @@ class FLIMAnalyzer:
         self.preprocessor = preprocessor
         self.analyzer = danalyzer
         self.data = pd.DataFrame()
-        try:
-            execargs = {
-                item.split("=")[0]: item.split("=")[1]
-                for item in execargs.split(",")
-                if len(item.split("=")) == 2
-            }
-        except:
-            logging.error(
-                f'Failed to parse executor arguments "{execargs}" for {executor}'
-            )
-        n = {}
-        for k, v in execargs.items():
-            try:
-                v = int(v)
-            except:
-                pass
-            n[k] = v
-        execargs = n
-        self.executor = executor
-        self.execargs = execargs
-        if executor not in DASK_EXECUTORS:
-            self.executor = "LocalExecutor"
-            self.execargs = {
-                k: v for k, v in execargs.items() if k == "num_workers" and isinstance(v, int)
-            }
-        #        self.outputgenerator = outputgenerator()
-        logging.info(f"Setting up {self.executor}: {self.execargs}")
+        self.execution = ExecutionOptions.from_legacy(executor, execargs)
+        logging.info(f"Setting up {self.execution.executor} executor: {self.execution}")
         logging.debug(
             f"Initialized {__name__}.FLIMAnalyzer with"
             f" {importer}, {preprocessor}, {danalyzer}"
         )
-        logging.debug(f"Using {self.executor}, {self.execargs}")
 
     def get_task_runner(self):
         """Returns the Prefect task runner for workflow execution.
@@ -88,21 +62,7 @@ class FLIMAnalyzer:
             cluster (args: ``num_workers``, ``scheduler=threads|processes``),
             ``DaskExecutor`` connects to an existing cluster (arg: ``address``).
         """
-        if self.executor == "LocalExecutor":
-            from flim.core.runner import default_task_runner
-
-            return default_task_runner(self.execargs.get("num_workers"))
-        check_executor_available(self.executor)
-        from prefect_dask import DaskTaskRunner
-
-        args = dict(self.execargs)
-        if self.executor == "DaskExecutor":
-            return DaskTaskRunner(**args)
-        cluster_kwargs = {}
-        if "num_workers" in args:
-            cluster_kwargs["n_workers"] = args.pop("num_workers")
-        cluster_kwargs["processes"] = args.pop("scheduler", "threads") == "processes"
-        return DaskTaskRunner(cluster_kwargs={**cluster_kwargs, **args})
+        return self.execution.task_runner()
 
     def get_data(self):
         return self.data

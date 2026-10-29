@@ -11,7 +11,6 @@ import numpy as np
 import numbers
 import flim.core
 import flim.core.configuration as cfg
-from flim.core.analyzer import dataanalyzer
 
 TRP_RZERO = 2.1
 ONE_SIXTH = 1.0 / 6

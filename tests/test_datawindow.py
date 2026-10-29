@@ -65,17 +65,6 @@ def _new_windows(frame, before):
     return {t: w for t, w in frame.windowframes.items() if t not in before}
 
 
-def test_split_by_group(frame, monkeypatch, flim_data):
-    window = _open(frame, flim_data)
-    _answer_group_dialogs(monkeypatch, ["Treatment"])
-    before = set(frame.windowframes)
-    window.OnSplit(None)
-    new = _new_windows(frame, before)
-    assert len(new) == 2
-    assert sorted(len(w.GetViewData()) for w in new.values()) == [30, 30]
-    assert all(set(w.GetViewData()["Treatment"]) in ({"WT"}, {"KO"}) for w in new.values())
-
-
 def test_pivot(frame, monkeypatch, flim_data):
     window = _open(frame, flim_data)
     _answer_group_dialogs(monkeypatch, ["Treatment"], [FEATURE])

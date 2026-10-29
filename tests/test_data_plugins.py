@@ -68,10 +68,11 @@ def test_unpivot(flim_data):
     features = ["NAD(P)H t1", "NAD(P)H t2"]
     df = run(UnPivot, {"data": flim_data}, features=features)["Table: Unpivoted"]
     assert len(df) == 2 * len(flim_data)
-    assert set(df["Category"]) == set(features)
-    assert df["Category"].dtype == "category"
+    # single-line columns: the feature names in "Feature", their values in "Value"
+    assert set(df["Feature"]) == set(features)
+    assert df["Feature"].dtype == "category"
     np.testing.assert_allclose(
-        df.loc[df["Category"] == "NAD(P)H t1", "Feature"].to_numpy(),
+        df.loc[df["Feature"] == "NAD(P)H t1", "Value"].to_numpy(),
         flim_data["NAD(P)H t1"].to_numpy(),
     )
 

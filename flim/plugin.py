@@ -5,6 +5,7 @@ Created on Thu Feb 10 12:45:21 2022
 
 @author: khs3z
 """
+
 import importlib
 import inspect
 import logging
@@ -31,7 +32,7 @@ from typing import (
 )
 from abc import ABC, abstractmethod
 from flim.core.runner import TaskCancelled, call_plugin, map_plugin, select
-
+from flim.core.tool import RunContext
 
 PLUGINS = {}
 ALL_FEATURES = "all_features"
@@ -61,7 +62,7 @@ def plugin(plugintype):
     return wrapper_register_plugin
 
 
-def discover_plugin_classes(dirs=["data", "analysis", "workflow"]):
+def discover_plugin_classes(dirs=["data", "analysis"]):
     """Creates labels and class objects for all Plugin subclasses in this package.
 
     Returns:
@@ -246,6 +247,8 @@ class AbstractPlugin:
             wx.Bitmap: The bitmap of the icon.
 
         """
+        import wx
+
         return wx.ArtProvider.GetBitmap(wx.ART_EXECUTABLE_FILE)
 
     def _fix_label(self, label: str) -> str:
@@ -424,6 +427,21 @@ class AbstractPlugin:
         """
         return {}
 
+    def run_tool(self, tool_class, *inputs) -> dict:
+        """Runs a :class:`flim.core.tool.Tool` with this plugin's parameters.
+
+        Adapter for the plugins whose computation moved to ``flim.tools``; results are
+        keyed by display name, the prefix is added by :meth:`run`.
+        """
+        tool = tool_class()
+        tool._cancel_token = getattr(self, "_cancel_token", None)
+        tool._output_dir = self.params.get("working_dir")
+        config = tool.config_class.from_legacy_params(self.params)
+        tool.context = RunContext.for_config(
+            config, cancel_token=tool._cancel_token, output_dir=tool._output_dir
+        )
+        return tool.display_names(tool.run(*inputs, config=config))
+
     def cancel(self, message: str = "Cancelled"):
         """Stops this task by raising :class:`~flim.core.runner.TaskCancelled`.
 
@@ -519,5 +537,6 @@ class DataBucket(AbstractPlugin):
         return next(iter(self.input.values()))
 
 
-# auto run on import to populate the PLUGIN dictionary
+# auto run on import to populate the PLUGIN dictionary (the workflows are tools,
+# registered when flim.workflow is imported)
 discover_plugin_classes()
