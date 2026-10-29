@@ -56,8 +56,9 @@ class SummaryConfig(StatisticsConfig):
     legacy_keys = {
         "aggs": "aggs",
         "single_table": "singledf",
-        "flatten_index": "flattenindex",
     }
+    # flat headers ("FLIRR\nmean") always: other tools name columns by text
+    legacy_dropped = frozenset({"flattenindex"})
 
     aggs: list[Aggregate] = Field(
         default_factory=lambda: list(AGGREGATES), title="Statistics"
@@ -66,11 +67,6 @@ class SummaryConfig(StatisticsConfig):
         default=True,
         title="Single table",
         description="One table for all features; otherwise one table per feature.",
-    )
-    flatten_index: bool = Field(
-        default=True,
-        title="Flat column names",
-        description='Column names like "FLIRR\nmean" instead of two header rows.',
     )
 
 

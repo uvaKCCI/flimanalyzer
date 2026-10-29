@@ -21,6 +21,7 @@ from flim.configs.data import (
     MergeConfig,
     PivotConfig,
     SortConfig,
+    SplitConfig,
     UnpivotConfig,
 )
 from flim.configs.plot import (

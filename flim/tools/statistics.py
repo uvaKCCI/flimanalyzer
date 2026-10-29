@@ -13,6 +13,7 @@ from flim.configs.analysis import (
     SeriesAnalysisConfig,
     SummaryConfig,
 )
+from flim.core import headers
 from flim.core.config import Issue
 from flim.core.registry import register_tool
 from flim.core.tool import Tool
@@ -32,6 +33,9 @@ def percentile(n):
     percentile_.__name__ = f"{n} percentile"
     return percentile_
 
+
+# the levels of the summary's headers, "<feature>\n<aggregate>"
+SUMMARY_LEVELS = [headers.FEATURE_LEVEL, "Statistic"]
 
 AGGREGATE_FUNCTIONS = {
     "count": "count",
@@ -72,9 +76,10 @@ class Summarize(Tool[SummaryConfig]):
                 summary = summary.reset_index()
             else:
                 summary = data[columns].groupby(lambda _: True).agg(functions)
-            if config.flatten_index:
-                summary.columns = ["\n".join(col).strip() for col in summary.columns]
+            summary.columns = [headers.join(col).strip() for col in summary.columns]
             summaries[self.output_name(feature)] = summary
+        for summary in summaries.values():  # "<feature>\n<aggregate>"
+            headers.set_level_names(summary, SUMMARY_LEVELS)
         if not config.single_table or not summaries:
             return summaries
         if grouping:
@@ -83,7 +88,7 @@ class Summarize(Tool[SummaryConfig]):
             ).reset_index()
         else:
             table = pd.concat(list(summaries.values()), axis=1)
-        return {self.output_name(): table}
+        return {self.output_name(): headers.set_level_names(table, SUMMARY_LEVELS)}
 
     def map_configs(self, config):
         if config.single_table or config.features == "all":

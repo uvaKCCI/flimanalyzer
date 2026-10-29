@@ -12,8 +12,10 @@ from flim.configs.data import (
     MergeConfig,
     PivotConfig,
     SortConfig,
+    SplitConfig,
     UnpivotConfig,
 )
+from flim.core import headers
 from flim.core.config import Issue
 from flim.core.registry import register_tool
 from flim.core.tool import Tool
@@ -48,13 +50,15 @@ class CategoryOrder(Tool[CategoryOrderConfig]):
         data = data[columns]
         for column, values in categories.items():
             data[column] = pd.Categorical(data[column], categories=values, ordered=True)
-        data = data.sort_values(by=list(categories))
+        # stable: rows with the same values keep their order (e.g. of other columns)
+        data = data.sort_values(by=list(categories), kind="stable")
         return {"Reordered": data}
 
 
 @register_tool
 class Concat(Tool[ConcatConfig]):
-    name = "Concat Data"
+    name = "Concatenate"
+    former_names = ("Concat Data",)
     category = "Data"
     description = "Appends tables below (rows) or next to (columns) each other."
     icon = "concatenate.png"
@@ -177,8 +181,17 @@ class Pivot(Tool[PivotConfig]):
             columns=config.grouping,
             observed=False,
         )
-        table.columns = ["\n".join(col).strip() for col in table.columns.values]
-        return {"Pivoted": table.reset_index()}
+        table.columns = [headers.join(col).strip() for col in table.columns.values]
+        # levels: the features' own (e.g. of a summary), then the pivoted columns
+        feature_levels = headers.names_for(
+            headers.depth(features), headers.level_names(data)
+        )
+        table = table.reset_index()
+        return {
+            "Pivoted": headers.set_level_names(
+                table, feature_levels + list(config.grouping)
+            )
+        }
 
     @classmethod
     def output_schema(cls, config, inputs):
@@ -205,6 +218,31 @@ class Sort(Tool[SortConfig]):
         }
 
 
+@register_tool
+class Split(Tool[SplitConfig]):
+    name = "Split"
+    category = "Data"
+    description = (
+        "Splits the table into one table for each combination of the values of the"
+        " selected category columns."
+    )
+    icon = "split.png"
+
+    @staticmethod
+    def table_name(grouping, values) -> str:
+        """``Split: Treatment=ctrl, FOV=1``."""
+        values = values if isinstance(values, tuple) else (values,)
+        return "Split: " + ", ".join(f"{c}={v}" for c, v in zip(grouping, values))
+
+    def run(self, data, *, config):
+        grouping = list(config.grouping)
+        # in the order of the categories; combinations without rows are left out
+        return {
+            self.table_name(grouping, values): group.copy()
+            for values, group in data.groupby(grouping, observed=True, sort=True)
+        }
+
+
 def unique_name(name: str, default: str, existing) -> str:
     """``name`` (or ``default`` if empty), numbered if it is already taken."""
     name = name or default
@@ -220,28 +258,44 @@ class Unpivot(Tool[UnpivotConfig]):
     name = "Unpivot"
     category = "Data"
     description = (
-        "Stacks the selected feature columns into one category and one value column."
+        "Moves one level (line) of the selected columns' headers into a category"
+        " column; the other lines name the value columns. The inverse of Pivot."
     )
     icon = "unpivot.png"
     outputs = (OutputSpec("Unpivoted", TableType),)
 
+    # the value column of single-line columns (no other level names it)
+    VALUE = "Value"
+
     def run(self, data, *, config):
         categories = category_columns(data)
-        features = selected_features(data, config.features)
-        category_name = unique_name(config.category_name, "Category", categories)
-        feature_name = unique_name(config.feature_name, "Feature", features)
-        table = pd.melt(
-            data,
-            id_vars=categories,
-            value_vars=features,
-            var_name=category_name,
-            value_name=feature_name,
-        )
-        # pivoted headers have the form "<feature>\n<category>[\n<category>...]"
-        table[category_name] = (
-            table[category_name]
-            .str.replace(feature_name + "\n", "", regex=False)
-            .str.replace("\n", "|", regex=False)
-            .astype("category")
-        )
-        return {"Unpivoted": table}
+        columns = selected_features(data, config.features)
+        if not columns:
+            raise ValueError(f"{self.name}: select the columns to unpivot")
+        depth = headers.depth(columns)
+        if any(len(headers.split(c)) != depth for c in columns):
+            raise ValueError(
+                f"{self.name}: the columns have different numbers of header lines"
+            )
+        names = headers.names_for(depth, headers.level_names(data))
+        index = headers.level_index(config.level, names)
+        category = unique_name(config.category_name or "", names[index], categories)
+        # level value -> {value column: input column}, in the columns' order
+        values: dict = {}
+        for column in columns:
+            parts = headers.split(column)
+            value = parts.pop(index)
+            values.setdefault(value, {})[headers.join(parts) or self.VALUE] = column
+        pieces = []
+        for value, sources in values.items():
+            piece = data[categories].copy()
+            piece[category] = value
+            for name, column in sources.items():
+                piece[name] = data[column]
+            pieces.append(piece)
+        table = pd.concat(pieces, ignore_index=True)
+        table[category] = pd.Categorical(table[category], categories=list(values))
+        first = categories + [category]
+        table = table[first + [c for c in table if c not in first]]
+        rest = names[:index] + names[index + 1 :]
+        return {"Unpivoted": headers.set_level_names(table, rest)}

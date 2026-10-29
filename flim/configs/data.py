@@ -57,12 +57,19 @@ class ConcatConfig(DataTaskConfig):
     mode: Literal["vertical", "horizontal"] = Field(
         default="vertical",
         title="Direction",
-        description="vertical: append the rows of the tables; horizontal: their columns.",
+        description="Append the rows of the tables below each other, or their columns"
+        " side by side.",
+        json_schema_extra={
+            "labels": {
+                "vertical": "Rows (stack below)",
+                "horizontal": "Columns (side by side)",
+            }
+        },
     )
     numbers_only: bool = Field(
         default=False,
         title="Numeric columns only",
-        description="Horizontal: append only the numeric columns of the other tables.",
+        description="Columns: append only the numeric columns of the other tables.",
     )
 
     @classmethod
@@ -216,19 +223,56 @@ class SortConfig(DataTaskConfig):
     )
 
 
+class SplitConfig(DataTaskConfig):
+    """Splits a table by the values of the ``grouping`` columns."""
+
+    hidden_fields = frozenset({"features"})
+
+    grouping: list[CategoryColumn] = Field(
+        default=[],
+        title="Split by",
+        description="A table for each combination of the values of these columns.",
+    )
+
+    @field_validator("grouping")
+    @classmethod
+    def _some_columns(cls, grouping):
+        if not grouping:
+            raise ValueError("Select the columns to split by")
+        return grouping
+
+
 class UnpivotConfig(DataTaskConfig):
+    """Moves one level (line) of the columns' headers into a category column: the
+    inverse of Pivot. E.g. the level Treatment of "FLIRR\nctrl", "FLIRR\nDox15":
+    a column Treatment (ctrl, Dox15) and a column FLIRR."""
+
+    legacy_keys = {"category_name": None}
+    legacy_dropped = frozenset({"feature_name"})  # now named by the other levels
     hidden_fields = frozenset({"grouping"})
 
     features: Union[list[FeatureColumn], AllFeatures] = Field(
-        default="all", title="Columns to stack"
+        default="all", title="Columns", description="The columns to unpivot."
     )
-    category_name: str = Field(
-        default="Category",
-        title="New category column",
-        description="Holds the names of the stacked columns.",
+    level: str = Field(
+        default="",
+        title="Level",
+        description=(
+            "The header line that becomes a category column; empty: the last. The"
+            " other lines name the value columns."
+        ),
     )
-    feature_name: str = Field(
-        default="Feature",
-        title="New value column",
-        description="Holds the values of the stacked columns.",
+    category_name: Optional[str] = Field(
+        default=None,
+        title="Category column",
+        description="Name of the new category column; empty: the level's name.",
     )
+
+    @classmethod
+    def _from_legacy(cls, params):
+        # "Category" (the plugin's default name): the level's name
+        name = params.pop("category_name", None)
+        return {"category_name": None if name in (None, "", "Category") else name}
+
+    def _to_legacy(self):
+        return {"category_name": self.category_name or "Category"}

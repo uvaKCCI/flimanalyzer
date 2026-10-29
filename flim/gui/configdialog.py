@@ -98,7 +98,10 @@ def combined_schema(schemas) -> Optional[TableSchema]:
         for c in s.columns:
             columns.setdefault(c.name, c)
     return TableSchema(
-        columns=list(columns.values()), complete=all(s.complete for s in flat)
+        columns=list(columns.values()),
+        complete=all(s.complete for s in flat),
+        # the level names of the first input's headers that has them
+        header_levels=next((s.header_levels for s in flat if s.header_levels), []),
     )
 
 

@@ -91,6 +91,7 @@ import flim.tools  # noqa: F401  (registers the built-in tools)
 import flim.gui.dialogs.autoencoder  # noqa: F401
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
+import flim.gui.dialogs.unpivot  # noqa: F401
 # key of the full config in a tool's settings, next to its plugin parameters
 CONFIG_KEY = "_config"
 
@@ -605,6 +606,11 @@ class AppFrame(wx.Frame):
             wx.MessageBox("Open or import data first.", tool.name, wx.OK)
             return
         params, keys = self.config.get([cfg.CONFIG_PLUGINS, tool.name], returnkeys=True)
+        for name in tool.former_names if not params else ():
+            # settings saved under an earlier name; saved under the new one below
+            params = self.config.get([cfg.CONFIG_PLUGINS, name])
+            if params:
+                break
         params = params if isinstance(params, dict) else {}
         config = config_from_settings(tool, params)
         folder = params.get("working_dir") or self.config.get(cfg.CONFIG_WORKINGDIR)

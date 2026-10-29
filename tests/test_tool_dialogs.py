@@ -9,6 +9,7 @@ wx = pytest.importorskip("wx")
 import flim.gui.dialogs.autoencoder  # noqa: E402,F401  (register the editors)
 import flim.gui.dialogs.categoryorder  # noqa: E402,F401
 import flim.gui.dialogs.filter  # noqa: E402,F401
+import flim.gui.dialogs.unpivot  # noqa: E402,F401
 import flim.tools  # noqa: E402,F401
 from flim.configs import (  # noqa: E402
     AETrainConfig,
@@ -479,6 +480,37 @@ def test_categorize_features_only_without_the_input(dialog):
     d.fields.editors["merge_input"].set(False)
     d.fields.refresh()
     assert features.IsShown()
+
+
+# --- Unpivot ---
+
+
+def test_unpivot_offers_the_levels_of_the_headers(wxapp, table):
+    from flim.configs import PivotConfig
+    from flim.gui.configdialog import ConfigDialog
+    from flim.tools.data import Pivot
+
+    pivoted = Pivot().run(table, config=PivotConfig(grouping=["Treatment"]))["Pivoted"]
+    d = ConfigDialog(
+        None, tools.get("Unpivot"), None, data_choices={"Table: pivoted": pivoted}
+    )
+    try:
+        level = d.fields.editors["level"]
+        # each line with its name and values; the last line selected
+        assert level.control.GetStrings() == [
+            "Feature: t1, t2",
+            "Treatment: Ctrl, Drug, Placebo",
+        ]
+        assert level.control.GetSelection() == 1
+        assert d.result().config.level == ""  # the last
+        level.control.SetSelection(0)
+        level._on_choice(wx.CommandEvent())
+        assert d.result().config.level == "Feature"
+        # single-line columns: one level, the feature
+        level.show_levels(["t1"])
+        assert level.control.GetStrings() == ["Feature: t1"]
+    finally:
+        d.Destroy()
 
 
 # --- feature lists ---

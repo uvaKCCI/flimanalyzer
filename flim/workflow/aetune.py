@@ -88,16 +88,14 @@ def loss_summary(trained, tags: str):
     long = Unpivot()(
         losses,
         config=UnpivotConfig(
-            features=["Training Loss", "Validation Loss"],
-            category_name="Loss Type",
-            feature_name="Loss Value",
+            features=["Training Loss", "Validation Loss"], category_name="Loss Type"
         ),
         task_tags=tags,
     )["Table: Unpivoted"]
     LinePlot()(
         long,
         config=LinePlotConfig(
-            grouping=["Epoch", "Loss Type"] + LOSS_GROUPING, features=["Loss Value"]
+            grouping=["Epoch", "Loss Type"] + LOSS_GROUPING, features=[Unpivot.VALUE]
         ),
         task_tags=tags,
     )

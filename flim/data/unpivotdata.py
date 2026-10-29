@@ -21,8 +21,8 @@ class UnPivot(AbstractPlugin):
             {
                 "grouping": [],
                 "features": ALL_FEATURES,
+                "level": "",
                 "category_name": "Category",
-                "feature_name": "Feature",
             }
         )
         return params

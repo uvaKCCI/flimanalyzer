@@ -190,3 +190,19 @@ def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):
     frame.run_tool(tools.get("Filter"))
     (results,) = frame.shown
     assert set(results["Table: Filtered"]["Treatment"]) == {"Ctrl"}
+
+
+def test_settings_saved_under_a_former_name(frame, monkeypatch):
+    from flim.gui import configdialog
+
+    old = frame.config.get(["plugins", "Concat Data"])  # the plugin's defaults
+    old["type"] = True  # "Horizontal Concatenate"
+    seen = {}
+
+    def show(dialog):
+        seen["mode"] = dialog.fields.editors["mode"].get()
+        return wx.ID_CANCEL
+
+    monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", show)
+    frame.run_tool(tools.get("Concatenate"))
+    assert seen["mode"] == "horizontal"

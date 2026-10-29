@@ -245,9 +245,17 @@ def test_model_files(dialog, tmp_path):
 def test_inputs_of_tools_with_several(dialog, table):
     merge = dialog("Merge")
     assert merge.selected_names() == ["Table: data", "Table: other"]
-    concat = dialog("Concat Data")
+    concat = dialog("Concatenate")
     assert concat.selected_names() == [["Table: data", "Table: other"]]
     assert set(concat.result().inputs[0]) == {"Table: data", "Table: other"}
+    # choices shown by their labels, stored by their values
+    direction = concat.fields.editors["mode"]
+    assert direction.control.GetStrings() == [
+        "Rows (stack below)",
+        "Columns (side by side)",
+    ]
+    direction.control.SetSelection(1)
+    assert concat.result().config.mode == "horizontal"
 
 
 def test_execution_options(dialog, tmp_path):

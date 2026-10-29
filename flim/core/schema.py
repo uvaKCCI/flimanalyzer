@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, ConfigDict
 
+from flim.core.headers import HEADER_LEVELS
+
 ColumnKind = Literal["category", "feature", "other"]
 
 
@@ -28,6 +30,8 @@ class TableSchema(BaseModel):
     columns: list[ColumnInfo] = []
     rows: Optional[int] = None  # usually unknown (filters, grouping)
     complete: bool = True  # False: the table may have columns not listed
+    # names of the lines of multi-line headers, see flim.core.headers
+    header_levels: list[str] = []
 
     @property
     def names(self) -> list[str]:
@@ -77,7 +81,11 @@ class TableSchema(BaseModel):
                     derived_from=[name] if name in input_names else [],
                 )
             )
-        return cls(columns=columns, rows=len(df) if rows else None)
+        return cls(
+            columns=columns,
+            rows=len(df) if rows else None,
+            header_levels=list(df.attrs.get(HEADER_LEVELS) or []),
+        )
 
     def sample(self, rows: int = 3) -> pd.DataFrame:
         """A small DataFrame with these columns, for computing output schemas.
@@ -100,4 +108,7 @@ class TableSchema(BaseModel):
                     data[c.name] = values
             else:
                 data[c.name] = [f"{c.name} {j}" for j in range(n)]
-        return pd.DataFrame(data, columns=self.names)
+        sample = pd.DataFrame(data, columns=self.names)
+        if self.header_levels:
+            sample.attrs[HEADER_LEVELS] = list(self.header_levels)
+        return sample

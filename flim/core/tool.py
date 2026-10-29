@@ -118,6 +118,8 @@ class Tool(Generic[ConfigT]):
     """
 
     name: ClassVar[str] = ""
+    # earlier names, under which settings may have been saved
+    former_names: ClassVar[tuple[str, ...]] = ()
     category: ClassVar[str] = ""
     description: ClassVar[str] = ""
     icon: ClassVar[Optional[str]] = None  # resource name; the GUI loads the bitmap
