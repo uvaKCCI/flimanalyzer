@@ -35,6 +35,7 @@ import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.configuration import Config
+from flim.core.settings import AppSettings, load_settings, save_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.filter import RangeFilter
@@ -93,38 +94,33 @@ import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.unpivot  # noqa: F401
 # key of the full config in a tool's settings, next to its plugin parameters
-CONFIG_KEY = "_config"
+# settings read at startup, if there are (else the defaults)
+DEFAULT_SETTINGS_FILE = "defaults.json"
 
 
-def config_from_settings(tool, params):
-    """The tool's config from its saved settings: the full config if it was saved,
-    else converted from the plugin parameters; the defaults if neither is valid."""
-    params = params if isinstance(params, dict) else {}
-    try:
-        if CONFIG_KEY in params:
-            return tool.config_class.model_validate(params[CONFIG_KEY])
-        return tool.config_class.from_legacy_params(params)
-    except Exception as err:
-        logging.warning(f"{tool.name}: settings not valid, using the defaults ({err})")
-        return tool.config_class()
+def startup_settings() -> AppSettings:
+    """The settings in DEFAULT_SETTINGS_FILE (of any version), else the defaults."""
+    if os.path.isfile(DEFAULT_SETTINGS_FILE):
+        try:
+            return load_settings(DEFAULT_SETTINGS_FILE)
+        except Exception:
+            logging.exception(f"Settings in {DEFAULT_SETTINGS_FILE} could not be read")
+    return AppSettings.default()
 
 
-def settings_from_config(config, execution):
-    """Settings to save: the plugin parameters (read by older versions), the full
-    config, and autosave and the results folder."""
-    params = config.to_legacy_params()
-    params[CONFIG_KEY] = config.model_dump(mode="json")
-    params["autosave"] = execution.autosave
-    if execution.results_dir is not None:
-        params["working_dir"] = str(execution.results_dir)
-    return params
+def settings_config(settings: AppSettings) -> Config:
+    """The import, preprocess and filter settings as the dict ``Config`` the import
+    dialog and the data windows read and change."""
+    config = Config()
+    config.update(settings.to_config_parameters())
+    config.modified = False
+    return config
 
 
 ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
 DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
-DEFAULT_CONFIFG_FILE = "defaults.json"
 
 
 def app_icon():
@@ -148,11 +144,8 @@ class FLIMAnalyzerApp(wx.App):
         # tools of other packages, and their dialogs (entry points)
         discover(TOOLS_GROUP)
         discover(GUI_GROUP)
-        if config is None or not isinstance(config, Config):
-            self.config = Config()
-            self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
-        else:
-            self.config = config
+        # AppSettings (or a dict Config); default: startup_settings()
+        self.settings = config if config is not None else startup_settings()
         set_bundle_name("FLIMAnalyzer")  # before wx registers the app with macOS
         super().__init__()
 
@@ -160,7 +153,7 @@ class FLIMAnalyzerApp(wx.App):
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
         set_display_name("FLIMAnalyzer")
-        self.frame = AppFrame(self.flimanalyzer, self.config)
+        self.frame = AppFrame(self.flimanalyzer, self.settings)
         self.dock_icon = None
         if wx.Platform == "__WXMAC__":
             # the Dock shows the Python icon unless it is replaced here
@@ -194,13 +187,18 @@ class FLIMAnalyzerApp(wx.App):
 
 
 class AppFrame(wx.Frame):
-    def __init__(self, flimanalyzer, config=None):
+    def __init__(self, flimanalyzer, settings=None):
+        """
+        Args:
+            settings: AppSettings (default: their defaults), or a dict ``Config``.
+        """
         self.flimanalyzer = flimanalyzer
-        if config:
-            self.config = config
-        else:
-            self.config = cfg.Config()
-            self.config.create_default()
+        if isinstance(settings, Config):  # e.g. read by an older caller
+            config, settings = settings, AppSettings.default()
+            settings.update_from_config(config)
+        self.settings = settings if settings is not None else AppSettings.default()
+        # the import, preprocess and filter settings, as the dialogs read them
+        self.config = settings_config(self.settings)
         # self.analyzers = flim.analysis.absanalyzer.get_analyzer_classes()
         # self.workflows = flim.workflow.basicflow.get_workflow_classes()
         # self.rawdata = None
@@ -498,76 +496,49 @@ class AppFrame(wx.Frame):
             self.GetEventHandler().ProcessEvent(event)
 
     def OnLoadSettings(self, event):
-        logging.debug("Loading settings.")
         with wx.FileDialog(
             self,
-            "Load Configuration file",
+            "Load Settings",
             wildcard="json files (*.json)|*.json",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            configfile = fileDialog.GetPath()
-            config = Config()
-            if config.read_from_json(configfile):
-                missing, invalid = config.validate()
-                if len(missing) == 0 and len(invalid) == 0:
-                    self.config = config
-                else:
-                    message = ""
-                    if len(missing) > 0:
-                        message += "Missing keys:\n%s\n\n" % "\n".join(
-                            [str(m) for m in missing]
-                        )
-                    if len(invalid) > 0:
-                        message += "Missing values:\n%s\n\n" % "\n".join(
-                            [str(i) for i in invalid]
-                        )
-                    dlg = wx.MessageDialog(
-                        None,
-                        message + "\nDo you want to try to fix them?",
-                        "Error: Loaded settings are not valid.",
-                        wx.YES_NO | wx.ICON_QUESTION,
-                    )
-                    result = dlg.ShowModal()
-                    if result == wx.ID_YES:
-                        if config.fix():
-                            self.config = config
-                        else:
-                            wx.MessageBox(
-                                "Attempt to fix settings failed",
-                                "Error",
-                                wx.OK | wx.ICON_INFORMATION,
-                            )
-                            return
-                    else:
-                        return
-                pub.sendMessage(
-                    CONFIG_UPDATED,
-                    source=self,
-                    config=self.config,
-                    updated=self.config.get(),
-                )
-            else:
-                wx.MessageBox(
-                    "Error loading settings from %s" % configfile,
-                    "Error",
-                    wx.OK | wx.ICON_INFORMATION,
-                )
+            path = fileDialog.GetPath()
+        try:
+            self.load_settings(path)
+        except Exception as err:
+            logging.exception(f"Settings in {path} could not be read")
+            wx.MessageBox(
+                f"Could not load the settings in {path}:\n{err}",
+                "Load Settings",
+                wx.OK | wx.ICON_ERROR,
+            )
+
+    def load_settings(self, path) -> None:
+        """Uses the settings in a file (of any version, see flim.core.settings)."""
+        self.settings = load_settings(path)
+        self.config = settings_config(self.settings)
+        pub.sendMessage(
+            CONFIG_UPDATED, source=self, config=self.config, updated=self.config.get()
+        )
 
     def OnSaveSettings(self, event):
-        logging.debug("appframe.OnSaveSettings")
-        logging.debug(self.config.get())
         with wx.FileDialog(
             self,
-            "Save Configuration file",
+            "Save Settings",
             wildcard="json files (*.json)|*.json",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            configfile = fileDialog.GetPath()
-            self.config.write_to_json(configfile)
+            self.save_settings(fileDialog.GetPath())
+
+    def save_settings(self, path) -> None:
+        """Saves the settings (the current version), with the dialogs' changes."""
+        self.settings.update_from_config(self.config)
+        save_settings(self.settings, path)
+        self.config.modified = False
 
     def get_currentdata(self):
         if len(self.window_zorder) == 0:
@@ -605,18 +576,12 @@ class AppFrame(wx.Frame):
         if not data_choices:
             wx.MessageBox("Open or import data first.", tool.name, wx.OK)
             return
-        params, keys = self.config.get([cfg.CONFIG_PLUGINS, tool.name], returnkeys=True)
-        for name in tool.former_names if not params else ():
-            # settings saved under an earlier name; saved under the new one below
-            params = self.config.get([cfg.CONFIG_PLUGINS, name])
-            if params:
-                break
-        params = params if isinstance(params, dict) else {}
-        config = config_from_settings(tool, params)
-        folder = params.get("working_dir") or self.config.get(cfg.CONFIG_WORKINGDIR)
+        config = self.settings.tool_settings.config(tool)
+        entry = self.settings.tool_settings.entry(tool)
+        folder = (entry and entry.results_dir) or self.settings.working_dir
         execution = self.flimanalyzer.execution.model_copy(
             update={
-                "autosave": bool(params.get("autosave")) and bool(folder),
+                "autosave": bool(entry and entry.autosave) and bool(folder),
                 "results_dir": folder,
             }
         )
@@ -631,19 +596,17 @@ class AppFrame(wx.Frame):
         )
         if result is None:
             return
-        settings = settings_from_config(result.config, result.execution)
-        if keys:
-            self.config.update(settings, keys)
-        else:  # a tool without saved settings, e.g. of another package
-            _, plugin_keys = self.config.get([cfg.CONFIG_PLUGINS], returnkeys=True)
-            self.config.update(
-                {tool.name: settings}, plugin_keys or [cfg.CONFIG_PLUGINS]
-            )
+        self.settings.tool_settings.set(
+            tool,
+            result.config,
+            result.execution.autosave,
+            result.execution.results_dir,
+        )
 
         task_runner = self.flimanalyzer.get_task_runner()
         execution = result.execution
         if is_workflow:
-            folder = execution.results_dir or self.config.get(cfg.CONFIG_WORKINGDIR)
+            folder = execution.results_dir or self.settings.working_dir
             autosave_dir = os.path.join(str(folder), tool.name)
 
             def start_run(cancel_token, on_progress, on_start):
