@@ -28,13 +28,11 @@ from wx.lib.newevent import NewEvent
 from importlib_resources import files
 
 import flim.analysis
-import flim.core.configuration as cfg
 import flim.core.parser
 import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
-from flim.core.configuration import Config
 from flim.core.settings import AppSettings, load_settings, save_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
@@ -64,7 +62,6 @@ from flim.gui.events import (
     EVT_PLOT,
     EVT_PLOT_TYPE,
 )
-from flim.gui.events import REQUEST_CONFIG_UPDATE, CONFIG_UPDATED
 from flim.gui.events import (
     FOCUSED_DATA_WINDOW,
     NEW_DATA_WINDOW,
@@ -93,7 +90,6 @@ import flim.gui.dialogs.autoencoder  # noqa: F401
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.unpivot  # noqa: F401
-# key of the full config in a tool's settings, next to its plugin parameters
 # settings read at startup, if there are (else the defaults)
 DEFAULT_SETTINGS_FILE = "defaults.json"
 
@@ -106,15 +102,6 @@ def startup_settings() -> AppSettings:
         except Exception:
             logging.exception(f"Settings in {DEFAULT_SETTINGS_FILE} could not be read")
     return AppSettings.default()
-
-
-def settings_config(settings: AppSettings) -> Config:
-    """The import, preprocess and filter settings as the dict ``Config`` the import
-    dialog and the data windows read and change."""
-    config = Config()
-    config.update(settings.to_config_parameters())
-    config.modified = False
-    return config
 
 
 ImportEvent, EVT_IMPORT = NewEvent()
@@ -144,7 +131,7 @@ class FLIMAnalyzerApp(wx.App):
         # tools of other packages, and their dialogs (entry points)
         discover(TOOLS_GROUP)
         discover(GUI_GROUP)
-        # AppSettings (or a dict Config); default: startup_settings()
+        # AppSettings; default: startup_settings()
         self.settings = config if config is not None else startup_settings()
         set_bundle_name("FLIMAnalyzer")  # before wx registers the app with macOS
         super().__init__()
@@ -190,15 +177,10 @@ class AppFrame(wx.Frame):
     def __init__(self, flimanalyzer, settings=None):
         """
         Args:
-            settings: AppSettings (default: their defaults), or a dict ``Config``.
+            settings: AppSettings (default: their defaults).
         """
         self.flimanalyzer = flimanalyzer
-        if isinstance(settings, Config):  # e.g. read by an older caller
-            config, settings = settings, AppSettings.default()
-            settings.update_from_config(config)
         self.settings = settings if settings is not None else AppSettings.default()
-        # the import, preprocess and filter settings, as the dialogs read them
-        self.config = settings_config(self.settings)
         # self.analyzers = flim.analysis.absanalyzer.get_analyzer_classes()
         # self.workflows = flim.workflow.basicflow.get_workflow_classes()
         # self.rawdata = None
@@ -399,16 +381,14 @@ class AppFrame(wx.Frame):
         dlg = ImportDlg(
             self,
             "Open File",
-            self.config,
+            self.settings,
             parsefname=False,
             preprocess=False,
             singlefile=True,
         )
         if dlg.ShowModal() == wx.ID_OK:
-            config = dlg.get_config()
-            self.open_data_files(
-                config.get([cfg.CONFIG_INCLUDE_FILES]), config.get([cfg.CONFIG_DELIMITER])
-            )
+            imported = dlg.get_settings().import_
+            self.open_data_files(imported.include_files, imported.delimiter)
 
     def open_data_files(self, files, delimiter=None):
         """Opens data files in a data window, as File > Open does.
@@ -422,7 +402,7 @@ class AppFrame(wx.Frame):
             str: title of the data window, or None if no file could be read.
         """
         importer = dataimporter()
-        importer.set_delimiter(delimiter or self.config.get([cfg.CONFIG_DELIMITER]))
+        importer.set_delimiter(delimiter or self.settings.import_.delimiter)
         importer.set_files(list(files))
         importer.set_parser(None)
         importer.set_preprocessor(None)
@@ -450,28 +430,29 @@ class AppFrame(wx.Frame):
         return windowtitle
 
     def OnImportData(self, event):
-        dlg = ImportDlg(self, "Import File(s)", self.config)
+        dlg = ImportDlg(self, "Import File(s)", self.settings)
         if dlg.ShowModal() == wx.ID_OK:
-            config = dlg.get_config()
+            settings = dlg.get_settings()
+            imported, preprocess = settings.import_, settings.preprocess
 
-            parsername = config.get([cfg.CONFIG_PARSER_CLASS])
+            parsername = imported.filename_parser.parser
             parser = flim.core.parser.instantiate_parser(
                 "flim.core.parser." + parsername
             )
             if parser is None:
                 logging.warning(f"Could not instantiate parser {parsername}")
                 return
-            parser.set_regexpatterns(config.get([cfg.CONFIG_PARSER_PATTERNS]))
+            parser.set_regexpatterns(imported.filename_parser.patterns)
 
             preprocessor = defaultpreprocessor()
-            preprocessor.set_replacementheaders(config.get([cfg.CONFIG_HEADERS]))
-            preprocessor.set_dropcolumns(config.get([cfg.CONFIG_DROP_COLUMNS]))
+            preprocessor.set_replacementheaders(preprocess.rename)
+            preprocessor.set_dropcolumns(preprocess.drop)
 
             importer = dataimporter()
             importer.set_parser(parser)
-            importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
-            importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
-            importer.set_column_combos(config.get([cfg.CONFIG_CATEGORY_COMBINATIONS]))
+            importer.set_delimiter(imported.delimiter)
+            importer.set_files(imported.include_files)
+            importer.set_column_combos(imported.category_combinations)
             importer.set_preprocessor(preprocessor)
             data, filenames, fheaders = importer.import_data()
             if data is None:
@@ -518,10 +499,6 @@ class AppFrame(wx.Frame):
     def load_settings(self, path) -> None:
         """Uses the settings in a file (of any version, see flim.core.settings)."""
         self.settings = load_settings(path)
-        self.config = settings_config(self.settings)
-        pub.sendMessage(
-            CONFIG_UPDATED, source=self, config=self.config, updated=self.config.get()
-        )
 
     def OnSaveSettings(self, event):
         with wx.FileDialog(
@@ -535,10 +512,8 @@ class AppFrame(wx.Frame):
             self.save_settings(fileDialog.GetPath())
 
     def save_settings(self, path) -> None:
-        """Saves the settings (the current version), with the dialogs' changes."""
-        self.settings.update_from_config(self.config)
+        """Saves the settings (in the current version)."""
         save_settings(self.settings, path)
-        self.config.modified = False
 
     def get_currentdata(self):
         if len(self.window_zorder) == 0:
@@ -740,7 +715,6 @@ class AppFrame(wx.Frame):
 
     def OnDataWindowRequest(self, event):
         data = event.GetData()
-        config = self.config  # event.GetConfig()
         action = event.GetAction()
         title = event.GetTitle()
         logging.debug(f"{title}: {action}")
@@ -758,7 +732,7 @@ class AppFrame(wx.Frame):
             frame = PandasFrame(
                 self,
                 title,
-                config,
+                self.settings.filters,  # shared: changed in any data window
                 data,
                 showcolindex=event.ShowColIndex(),
                 analyzable=event.IsAnalyzable(),

@@ -127,23 +127,6 @@ class AppSettings(_Settings):
     def to_json(self) -> dict:
         return self.model_dump(mode="json", by_alias=True)
 
-    # --- the dict Config of the GUI (until it is replaced) ---
-
-    def to_config_parameters(self) -> dict:
-        """The settings as the parameters of a dict ``Config`` (without tools)."""
-        data = _v1_to_v0(self.to_json())
-        data["root"].pop("plugins", None)
-        return data
-
-    def update_from_config(self, config) -> None:
-        """Takes the import, preprocess, display and filter settings of a ``Config``."""
-        tools = self.tool_settings
-        updated = AppSettings.model_validate(_v0_to_v1(config.parameters, convert=False))
-        for name in AppSettings.model_fields:
-            if name not in ("tool_settings", "schema_version"):
-                setattr(self, name, getattr(updated, name))
-        self.tool_settings = tools
-
 
 # --- versions ---
 
@@ -238,22 +221,19 @@ def _v0_tools(plugins: dict) -> dict:
     return entries
 
 
-def _v1_to_v0(data: dict) -> dict:
-    """Version 1 as the dict ``Config`` parameters (for the GUI, until it is replaced)."""
-    data = copy.deepcopy(data)
-    root = {"working_dir": data.get("working_dir")}
-    for key, (field, names) in _V0_SECTIONS.items():
-        back = {v: k for k, v in names.items()}
-        section = data.get(field)
-        if isinstance(section, dict):
-            root[key] = _renamed(section, back)
-    parser = root.get("import", {}).get("fname parser")
-    if isinstance(parser, dict):
-        root["import"]["fname parser"] = _renamed(
-            parser, {v: k for k, v in _V0_PARSER.items()}
-        )
-    root["display"] = data.get("display", [])
-    return {"root": root}
+def import_settings(config: dict) -> ImportSettings:
+    """From the importer's ``get_config()`` (version 0 keys)."""
+    data = _renamed(config, _V0_SECTIONS["import"][1])
+    if isinstance(data.get("filename_parser"), dict):
+        data["filename_parser"] = _renamed(data["filename_parser"], _V0_PARSER)
+    return ImportSettings.model_validate(data)
+
+
+def preprocess_settings(config: dict) -> PreprocessSettings:
+    """From the preprocessor's ``get_config()`` (version 0 keys)."""
+    return PreprocessSettings.model_validate(
+        _renamed(config, _V0_SECTIONS["preprocess"][1])
+    )
 
 
 # version n -> the settings of version n + 1

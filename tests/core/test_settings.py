@@ -90,14 +90,19 @@ def test_invalid_tool_settings_give_the_defaults(caplog):
     assert "not valid" in caplog.text
 
 
-def test_dict_config_round_trip():
-    from flim.core.configuration import Config
+def test_settings_from_the_importer_and_preprocessor(tmp_path):
+    from flim.core.importer import dataimporter
+    from flim.core.preprocessor import defaultpreprocessor
+    from flim.core.settings import import_settings, preprocess_settings
 
-    settings = load_settings(V0_FILE)
-    config = Config()
-    config.update(settings.to_config_parameters())
-    assert config.get("delimiter") == "\t"  # as the import dialog reads it
-    config.update({"delimiter": ","}, ["root", "import"])
-    settings.update_from_config(config)
-    assert settings.import_.delimiter == ","
-    assert settings.tool_settings.config(tools.get("K-Means")).n_clusters == 4  # kept
+    importer = dataimporter()
+    importer.set_delimiter(";")
+    data_file = tmp_path / "a.txt"
+    data_file.write_text("x\n1\n")
+    importer.set_files([str(data_file)])
+    imported = import_settings(importer.get_config())
+    assert (imported.delimiter, imported.include_files) == (";", [str(data_file)])
+    assert imported.filename_parser.parser == "defaultparser"
+    preprocessor = defaultpreprocessor()
+    preprocessor.set_dropcolumns(["x"])
+    assert preprocess_settings(preprocessor.get_config()).drop == ["x"]

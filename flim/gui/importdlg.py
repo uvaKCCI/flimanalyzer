@@ -1,4 +1,3 @@
-from calendar import c
 import logging
 import itertools
 import wx
@@ -6,6 +5,7 @@ import os
 import flim.core
 import flim.core.configuration as cfg
 from flim.core.importer import dataimporter
+from flim.core.settings import import_settings, preprocess_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.gui.events import DataWindowEvent, EVT_DATA_TYPE
 from flim.gui.delimpanel import DelimiterPanel
@@ -19,7 +19,7 @@ class ImportDlg(wx.Dialog):
         self,
         parent,
         title,
-        config,
+        settings,
         parsefname=True,
         preprocess=True,
         excludefiles=False,
@@ -27,7 +27,7 @@ class ImportDlg(wx.Dialog):
     ):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         self.importer = dataimporter()
-        self.config = config
+        self.settings = settings  # AppSettings: updated by Open and Import
         self.parsefname = parsefname
         self.preprocess = preprocess
         self.excludefiles = excludefiles
@@ -51,7 +51,7 @@ class ImportDlg(wx.Dialog):
         box = wx.BoxSizer(wx.VERTICAL)
 
         delimiter_label = wx.StaticText(self, wx.ID_ANY, "Column Delimiter:")
-        self.delimiter_panel = DelimiterPanel(self, config.get(cfg.CONFIG_DELIMITER))
+        self.delimiter_panel = DelimiterPanel(self, settings.import_.delimiter)
         configsizer.Add(
             delimiter_label, 0, wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL, 5
         )
@@ -62,7 +62,9 @@ class ImportDlg(wx.Dialog):
         if parsefname:
             parser_label = wx.StaticText(self, wx.ID_ANY, "Filename Parser:")
             self.avail_parsers = flim.core.parser.get_available_parsers()
-            sel_parser = self.avail_parsers.get(config.get(cfg.CONFIG_PARSER_CLASS))
+            sel_parser = self.avail_parsers.get(
+                settings.import_.filename_parser.parser
+            )
             if sel_parser is None:
                 sel_parser = next(
                     iter(self.avail_parsers)
@@ -122,7 +124,7 @@ class ImportDlg(wx.Dialog):
             self.rgrid = wx.grid.Grid(self, -1)  # , size=(200, 100))
             self.rgrid.SetDefaultColSize(200, True)
             self.headertable = DictTable(
-                config.get(cfg.CONFIG_HEADERS), headers=["Original name", "New name"]
+                settings.preprocess.rename, headers=["Original name", "New name"]
             )
             self.rgrid.SetTable(self.headertable, takeOwnership=True)
             self.rgrid.SetRowLabelSize(0)
@@ -133,7 +135,7 @@ class ImportDlg(wx.Dialog):
                 self,
                 wx.ID_ANY,
                 size=(200, 100),
-                value="\n".join(config.get(cfg.CONFIG_DROP_COLUMNS)),
+                value="\n".join(settings.preprocess.drop),
                 style=wx.TE_MULTILINE | wx.EXPAND,
             )
 
@@ -153,7 +155,7 @@ class ImportDlg(wx.Dialog):
             self.exclude_files_list = wx.TextCtrl(
                 self,
                 wx.ID_ANY,
-                value="\n".join(config.get(cfg.CONFIG_EXCLUDE_FILES)),
+                value="\n".join(settings.import_.exclude_files),
                 style=wx.TE_MULTILINE | wx.EXPAND,
             )
             filesizer.Add(exclude_label, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 5)
@@ -222,40 +224,9 @@ class ImportDlg(wx.Dialog):
         self.SetSizerAndFit(box)
         # self.update_files(0)
 
-    def get_config(self):
-        # config = {}
-        # config.update(self.get_import_settings())
-        # config.update(self.get_preprocess_settings())
-        return self.config
-
-    """            
-    def update_config_gui_elements(self, config):
-        logging.debug ("update_config_gui_elements")
-        logging.debug (f"\t{cfg.CONFIG_IMPORT}, {config.get(cfg.CONFIG_IMPORT, returnkeys=True)}")
-        logging.debug (f"\t{cfg.CONFIG_PREPROCESS}, {config.get(cfg.CONFIG_PREPROCESS, returnkeys=True)}")
-        self.delimiter_panel.set_delimiters(config.get(cfg.CONFIG_DELIMITER))
-        parsername = config.get(cfg.CONFIG_PARSER_CLASS)
-        sel_parser = self.avail_parsers.get(parsername)
-        if sel_parser is None:
-            parsername =  self.parser_chooser.GetStringSelection()
-            parsercfg = {cfg.CONFIG_PARSER_CLASS: parsername}
-            config.update(parsercfg)
-            pub.sendMessage(CONFIG_UPDATED, source=self, config=config, updated=parsercfg)
-            # config[CONFIG_PARSER_CLASS] = self.parser
-        else:
-            self.parser_chooser.SetStringSelection(parsername)
-        if config.get(cfg.CONFIG_EXCLUDE_FILES) is not None:    
-            self.exclude_files_list.SetValue('\n'.join(config.get(cfg.CONFIG_EXCLUDE_FILES)))
-        else:
-            self.exclude_files_list.SetValue('')            
-        if config.get(cfg.CONFIG_DROP_COLUMNS) is not None:    
-            self.drop_col_list.SetValue('\n'.join(config.get(cfg.CONFIG_DROP_COLUMNS)))
-        else:
-            self.exclude_files_list.SetValue('')            
-        self.headertable = DictTable(config.get(cfg.CONFIG_HEADERS), headers=['Original name', 'New name'])
-        self.rgrid.SetTable(self.headertable,takeOwnership=True) 
-        self.rgrid.Refresh()
-    """
+    def get_settings(self):
+        """The settings, with those of the files opened or imported."""
+        return self.settings
 
     def OnRGridSize(self, event):
         self.rgrid.SetDefaultColSize(
@@ -419,7 +390,7 @@ class ImportDlg(wx.Dialog):
             files = fileDialog.GetPaths()
             self.importer.set_delimiter("\t,")
             self.configure_importer(self.importer, files)
-            self.config.update(self.importer.get_config(), [cfg.CONFIG_IMPORT])
+            self.settings.import_ = import_settings(self.importer.get_config())
             self.EndModal(wx.ID_OK)
 
     def OnImportFiles(self, event):
@@ -433,10 +404,9 @@ class ImportDlg(wx.Dialog):
             )
         else:
             self.configure_importer(self.importer, files)
-            self.config.update(self.importer.get_config(), [cfg.CONFIG_IMPORT])
+            self.settings.import_ = import_settings(self.importer.get_config())
             if self.preprocess:
-                self.config.update(
-                    self.importer.get_preprocessor().get_config(),
-                    [cfg.CONFIG_PREPROCESS],
+                self.settings.preprocess = preprocess_settings(
+                    self.importer.get_preprocessor().get_config()
                 )
             self.EndModal(wx.ID_OK)

@@ -48,11 +48,9 @@ def frame(wxapp, table, monkeypatch, tmp_path):
     from flim.core.runner import CancelToken
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
-    import flim.core.configuration as cfg
+    from flim.core.settings import AppSettings
 
-    config = cfg.Config()
-    config.create_default()
-    frame = AppFrame(FLIMAnalyzer(), config)
+    frame = AppFrame(FLIMAnalyzer(), AppSettings.default())
     frame.shown = []
     monkeypatch.setattr(frame, "tool_data_choices", lambda: {"Table: data": table})
     # run in this thread, without the progress dialog
@@ -198,12 +196,12 @@ def test_save_and_load_settings(frame, monkeypatch, tmp_path):
     from flim.core.settings import SETTINGS_VERSION
 
     frame.settings.tool_settings.set(tools.get("K-Means"), KMeansConfig(n_clusters=5))
-    frame.config.update({"delimiter": ","}, ["root", "import"])  # e.g. the import dialog
+    frame.settings.import_.delimiter = ","  # e.g. by the import dialog
     path = tmp_path / "settings.json"
     frame.save_settings(path)
     assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
 
     frame.settings.tool_settings.tools.clear()
     frame.load_settings(path)
-    assert frame.config.get("delimiter") == ","
+    assert frame.settings.import_.delimiter == ","
     assert frame.settings.tool_settings.config(tools.get("K-Means")).n_clusters == 5

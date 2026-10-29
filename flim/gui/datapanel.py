@@ -10,14 +10,14 @@ import wx.grid
 import wx.lib.mixins.gridlabelrenderer as glr
 from pubsub import pub
 
-import flim.core.configuration as cfg
 from flim.core.configuration import (
-    CONFIG_FILTERS,
     CONFIG_RANGEFILTERS,
+    CONFIG_SERIESFILTERS,
     CONFIG_USE,
     CONFIG_SHOW_DROPPED,
 )
 from flim.core.filter import RangeFilter
+from flim.core.settings import AppSettings
 from flim.gui.listcontrol import AnalysisListCtrl, FilterListCtrl
 from flim.gui.events import (
     EVT_DATA_TYPE,
@@ -160,12 +160,22 @@ class PandasTable(wx.grid.GridTableBase):
             return wx.grid.GridTableBase.GetAttr(self, row, col, prop)
 
 
+def filter_dialog_config(filters) -> dict:
+    """FilterSettings as ConfigureFiltersDlg takes them."""
+    return {
+        CONFIG_USE: filters.use,
+        CONFIG_SHOW_DROPPED: filters.show_dropped,
+        CONFIG_RANGEFILTERS: list(filters.range_filters),
+        CONFIG_SERIESFILTERS: list(filters.series_filters),
+    }
+
+
 class PandasFrame(wx.Frame):
     def __init__(
         self,
         parent,
         title,
-        config,
+        filters=None,
         data=None,
         showcolindex=False,
         groups=None,
@@ -175,11 +185,8 @@ class PandasFrame(wx.Frame):
         enableclose=True,
     ):
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
-        if config is None:
-            self.config = cfg.Config()
-            self.config.create_default()
-        else:
-            self.config = config
+        # the app's filter settings (shared by its data windows), else the defaults
+        self.filters = filters if filters is not None else AppSettings.default().filters
         self.enableclose = enableclose
         # *****
         # data = data.copy()
@@ -291,7 +298,7 @@ class PandasFrame(wx.Frame):
         autosizebutton.Bind(wx.EVT_BUTTON, self.OnAutosize)
 
         self.filtercb = wx.CheckBox(self, wx.ID_ANY, label="Filter Data")
-        self.filtercb.SetValue(self.config.get([CONFIG_FILTERS, CONFIG_USE]))
+        self.filtercb.SetValue(self.filters.use)
         self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnFilterData)
 
         self.filterbutton = wx.Button(self, wx.ID_ANY, "Filter Settings...")
@@ -356,10 +363,7 @@ class PandasFrame(wx.Frame):
 
     def apply_filters(self, filtercfg, showdiscarded=False):
         if len(filtercfg) == 0:
-            cfg, keys = self.config.get(
-                [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
-            )
-            filternames = [f["name"] for f in cfg]
+            filternames = [f["name"] for f in self.filters.range_filters]
             for fname in filternames:
                 if self.droppedrows.get(fname) is not None:
                     del self.droppedrows[fname]
@@ -396,11 +400,9 @@ class PandasFrame(wx.Frame):
         self.grid.Refresh()
 
     def updateusefilter(self, enabled, showdiscarded=False):
-        self.config.update({CONFIG_USE: enabled}, parentkeys=[CONFIG_FILTERS])
+        self.filters.use = enabled
         self.filterbutton.Enable(enabled)
-        filtercfg, keys = self.config.get(
-            [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
-        )
+        filtercfg = self.filters.range_filters
         if enabled:
             # apply
             self.apply_filters(
@@ -427,11 +429,8 @@ class PandasFrame(wx.Frame):
         return rangefilters
 
     def OnFilterSettings(self, event):
-        rfilterlist, keys = self.config.get(
-            [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
-        )
-        filterconfig = self.config.get([CONFIG_FILTERS]).copy()
-        # filterconfig[CONFIG_USE] = self.config.get([CONFIG_FILTERS,CONFIG_USE])
+        rfilterlist = self.filters.range_filters
+        filterconfig = filter_dialog_config(self.filters)
         filterconfig[CONFIG_RANGEFILTERS] = self._existing_rangefilters(rfilterlist)
 
         # need to make sure we pass copy of dropped rows so we can cancel without affecting droppedrows
@@ -446,16 +445,9 @@ class PandasFrame(wx.Frame):
             currentfilters = {f["name"]: f for f in rfilterlist}
             currentfilters.update(newfilters)
             newfilterlist = [currentfilters[key] for key in currentfilters]
-            self.config.update(
-                {CONFIG_RANGEFILTERS: newfilterlist}, parentkeys=keys[:-1]
-            )
-            self.config.update(
-                {CONFIG_SHOW_DROPPED: filterconfig[CONFIG_SHOW_DROPPED]},
-                parentkeys=keys[:-1],
-            )
-            self.config.update(
-                {CONFIG_USE: filterconfig[CONFIG_USE]}, parentkeys=keys[:-1]
-            )
+            self.filters.range_filters = newfilterlist
+            self.filters.show_dropped = filterconfig[CONFIG_SHOW_DROPPED]
+            self.filters.use = filterconfig[CONFIG_USE]
             self.filtercb.SetValue(filterconfig[CONFIG_USE])
             self.updateusefilter(
                 self.filtercb.GetValue(),
@@ -508,10 +500,7 @@ class PandasFrame(wx.Frame):
 
     def update_view(self, showdiscarded=False):
         # get RangeFilter names and rows dropped by them
-        filterlist, keys = self.config.get(
-            [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
-        )
-        rfilters = self._existing_rangefilters(filterlist)
+        rfilters = self._existing_rangefilters(self.filters.range_filters)
         rfilter_names = [rfilter["name"] for rfilter in rfilters]
         rfilterdropped = self._flatten_array(
             [
@@ -554,9 +543,6 @@ class PandasFrame(wx.Frame):
         self.grid.Refresh()
 
         if showdiscarded:
-            newcfg = cfg.Config()
-            newcfg.update(self.config.parameters)
-            newcfg.update({CONFIG_RANGEFILTERS: list()}, parentkeys=keys[:-1])
             rangediscarded = np.setdiff1d(rfilterdropped, catdropped)
             windowtitle = f"{self.GetTitle()} - Discarded"
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
@@ -630,10 +616,8 @@ class PandasFrame(wx.Frame):
         elif (
             event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue()
         ):
-            rfilterlist, keys = self.config.get(
-                [CONFIG_FILTERS, CONFIG_RANGEFILTERS], returnkeys=True
-            )
-            filterconfig = self.config.get([CONFIG_FILTERS]).copy()
+            rfilterlist = self.filters.range_filters
+            filterconfig = filter_dialog_config(self.filters)
             # set single RangeFilter config for current column (group)
             filterconfig[CONFIG_RANGEFILTERS] = self._existing_rangefilters(
                 rfilterlist, columns=[group]
@@ -654,7 +638,7 @@ class PandasFrame(wx.Frame):
                 currentfilters = {f["name"]: f for f in rfilterlist}
                 currentfilters.update(newfilters)
                 newfilterlist = [currentfilters[key] for key in currentfilters]
-                self.config.update({CONFIG_RANGEFILTERS: newfilterlist}, keys[:-1])
+                self.filters.range_filters = newfilterlist
                 self.apply_filters(newfilters)
 
     def OnAutosize(self, event):
