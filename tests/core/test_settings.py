@@ -28,6 +28,7 @@ def test_defaults():
     assert settings.schema_version == SETTINGS_VERSION
     assert settings.import_.delimiter == "\t,"
     assert settings.import_.filename_parser.parser == "defaultparser"
+    assert len(settings.filters.range_filters) == 39 and settings.display
     assert settings.preprocess.rename["Exc2_-Ch3-_"] == "FAD "
     assert settings.filters.range_filters[0]["name"] == "trp t1"
     assert settings.tool_settings.tools == {}  # the tools' defaults: their configs'
@@ -92,17 +93,20 @@ def test_invalid_tool_settings_give_the_defaults(caplog):
 
 def test_settings_from_the_importer_and_preprocessor(tmp_path):
     from flim.core.importer import dataimporter
+    from flim.core.parser import treatment_fov_cell_parser
     from flim.core.preprocessor import defaultpreprocessor
-    from flim.core.settings import import_settings, preprocess_settings
 
     importer = dataimporter()
     importer.set_delimiter(";")
+    importer.set_parser(treatment_fov_cell_parser())
     data_file = tmp_path / "a.txt"
     data_file.write_text("x\n1\n")
     importer.set_files([str(data_file)])
-    imported = import_settings(importer.get_config())
+    imported = importer.settings()
     assert (imported.delimiter, imported.include_files) == (";", [str(data_file)])
-    assert imported.filename_parser.parser == "defaultparser"
+    # the parser's own name (was "defaultparser" for every parser)
+    assert imported.filename_parser.parser == "treatment_fov_cell_parser"
+    assert imported.filename_parser.patterns[0]["Category"] == "Treatment"
     preprocessor = defaultpreprocessor()
     preprocessor.set_dropcolumns(["x"])
-    assert preprocess_settings(preprocessor.get_config()).drop == ["x"]
+    assert preprocessor.settings().drop == ["x"]

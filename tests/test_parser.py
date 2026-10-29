@@ -1,4 +1,4 @@
-import flim.core.configuration as cfg
+from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE
 from flim.core import parser
 
 
@@ -22,8 +22,8 @@ def test_unused_patterns_are_skipped():
     p = parser.defaultparser()
     p.set_regexpatterns(
         [
-            {cfg.CONFIG_PARSER_USE: True, cfg.CONFIG_PARSER_CATEGORY: "A", cfg.CONFIG_PARSER_REGEX: r"/(\w+)_"},
-            {cfg.CONFIG_PARSER_USE: False, cfg.CONFIG_PARSER_CATEGORY: "B", cfg.CONFIG_PARSER_REGEX: r"_(\w+)\."},
+            {PATTERN_USE: True, PATTERN_CATEGORY: "A", PATTERN_REGEX: r"/(\w+)_"},
+            {PATTERN_USE: False, PATTERN_CATEGORY: "B", PATTERN_REGEX: r"_(\w+)\."},
         ]
     )
     result = p.parsefilename("/x/foo_bar.txt")

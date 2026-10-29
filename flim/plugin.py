@@ -108,24 +108,6 @@ def init_plugins():
     return plugins
 
 
-def init_plugins_configs():
-    """Creates a single configuration with default settings for a given group of Plugin objects.
-
-    Args:
-        list: plugin objects.
-
-    Returns:
-        dict: configuration parameters.
-    """
-    # plugins = init_plugins()
-    config = {}
-    for plugintype, subplugins in PLUGINS.items():
-        for pname, pclass in subplugins.items():
-            p = create_instance(pclass)
-            config.update({p.name: p.get_default_parameters()})
-    return config
-
-
 def create_instance(clazz):
     """Creates analyzer instance.
 

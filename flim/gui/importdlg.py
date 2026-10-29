@@ -3,9 +3,8 @@ import itertools
 import wx
 import os
 import flim.core
-import flim.core.configuration as cfg
 from flim.core.importer import dataimporter
-from flim.core.settings import import_settings, preprocess_settings
+from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE
 from flim.core.preprocessor import defaultpreprocessor
 from flim.gui.events import DataWindowEvent, EVT_DATA_TYPE
 from flim.gui.delimpanel import DelimiterPanel
@@ -89,9 +88,9 @@ class ImportDlg(wx.Dialog):
             self.parsetable = ListTable(
                 hparser.get_regexpatterns(),
                 headers=[
-                    cfg.CONFIG_PARSER_USE,
-                    cfg.CONFIG_PARSER_CATEGORY,
-                    cfg.CONFIG_PARSER_REGEX,
+                    PATTERN_USE,
+                    PATTERN_CATEGORY,
+                    PATTERN_REGEX,
                 ],
                 sort=False,
             )
@@ -256,7 +255,7 @@ class ImportDlg(wx.Dialog):
             comboscb = self.combo_panel.GetChildren()[0]
             if comboscb.GetValue():
                 catlist = [
-                    pattern[cfg.CONFIG_PARSER_CATEGORY]
+                    pattern[PATTERN_CATEGORY]
                     for pattern in self.parsetable.GetData()
                 ]
                 combolist = [combo for combo in itertools.combinations(catlist, 2)]
@@ -297,9 +296,9 @@ class ImportDlg(wx.Dialog):
         self.parsetable = ListTable(
             hparser.get_regexpatterns(),
             headers=[
-                cfg.CONFIG_PARSER_USE,
-                cfg.CONFIG_PARSER_CATEGORY,
-                cfg.CONFIG_PARSER_REGEX,
+                PATTERN_USE,
+                PATTERN_CATEGORY,
+                PATTERN_REGEX,
             ],
             sort=False,
         )
@@ -366,16 +365,12 @@ class ImportDlg(wx.Dialog):
             for index in range(self.files_list.GetCount())
         ]
         if len(files) > 0:
-            # delimiter = self.delimiter_panel.get_delimiters()
             importer = dataimporter()
             selected = self.files_list.GetSelections()
-            if selected is None or len(selected) == 0:
-                self.configure_importer(importer, [files[0]])
-            else:
-                logging.debug(
-                    f"PREVIEWING: delimiter={delimiter}, {self.files_list.GetString(selected[0])}"
-                )
-            self.configure_importer(importer, [self.files_list.GetString(selected[0])])
+            # the first selected file, else the first file
+            file = self.files_list.GetString(selected[0]) if selected else files[0]
+            logging.debug(f"Previewing {file}")
+            self.configure_importer(importer, [file])
 
     def OnOpenFile(self, event):
         with wx.FileDialog(
@@ -390,7 +385,7 @@ class ImportDlg(wx.Dialog):
             files = fileDialog.GetPaths()
             self.importer.set_delimiter("\t,")
             self.configure_importer(self.importer, files)
-            self.settings.import_ = import_settings(self.importer.get_config())
+            self.settings.import_ = self.importer.settings()
             self.EndModal(wx.ID_OK)
 
     def OnImportFiles(self, event):
@@ -404,9 +399,7 @@ class ImportDlg(wx.Dialog):
             )
         else:
             self.configure_importer(self.importer, files)
-            self.settings.import_ = import_settings(self.importer.get_config())
+            self.settings.import_ = self.importer.settings()
             if self.preprocess:
-                self.settings.preprocess = preprocess_settings(
-                    self.importer.get_preprocessor().get_config()
-                )
+                self.settings.preprocess = self.importer.get_preprocessor().settings()
             self.EndModal(wx.ID_OK)

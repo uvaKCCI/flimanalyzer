@@ -99,6 +99,53 @@ class ToolSettings(BaseModel):
         )
 
 
+def default_range_filters() -> list:
+    """The range filters of new settings (flim.core.filter.RangeFilter)."""
+    from flim.core.filter import RangeFilter
+
+    return [
+    RangeFilter("trp t1", 0, 2500),
+    RangeFilter("trp t2", 0, 8000),
+    RangeFilter("trp tm", 0, 4000, selected=False),
+    RangeFilter("trp a1[%]", 0, 100),
+    RangeFilter("trp a2[%]", 0, 100),
+    RangeFilter("trp a1[%]/a2[%]", 0, 2),
+    RangeFilter("trp E%1", 0, 100),
+    RangeFilter("trp E%2", 0, 100),
+    RangeFilter("trp E%3", 0, 100),
+    RangeFilter("trp r1", 0, 15),
+    RangeFilter("trp r2", 0, 3),
+    RangeFilter("trp r3", 0, 3),
+    RangeFilter("trp chi", 0, 4.7, selected=True),
+    RangeFilter("trp photons", 0, 160),
+    RangeFilter("NAD(P)H a1", 0, 1000),
+    RangeFilter("NAD(P)H a1[%]", 0, 100),
+    RangeFilter("NAD(P)H a2", 5, 300),
+    RangeFilter("NAD(P)H a2[%]", 0, 100),
+    RangeFilter("NAD(P)H t1", 10, 1000),
+    RangeFilter("NAD(P)H t2", 2000, 7000),
+    RangeFilter("NAD(P)H tm", 0, 2000),
+    RangeFilter("NAD(P)H photons", 10, 2000),
+    RangeFilter("NAD(P)H a2[%]", 0, 100),
+    RangeFilter("NADPH %", 0, 99),
+    RangeFilter("NADH %", 0, 100),
+    RangeFilter("NADPH/NADH", 0, 3),
+    RangeFilter("NAD(P)H chi", 0.7, 4.7, selected=True),
+    RangeFilter("FAD t1", 10, 1500),
+    RangeFilter("FAD t2", 1000, 6000),
+    RangeFilter("FAD tm", 0, 2500),
+    RangeFilter("FAD a1", 10, 500),
+    RangeFilter("FAD a1[%]", 0, 100),
+    RangeFilter("FAD a2", 10, 300),
+    RangeFilter("FAD a2[%]", 0, 100),
+    RangeFilter("FAD a1[%]/a2[%]", 0, 16),
+    RangeFilter("FLIRR", 0, 2.4),
+    RangeFilter("FAD chi", 0.7, 4.7, selected=True),
+    RangeFilter("FAD photons", 10, 1000),
+    RangeFilter("FAD photons/NAD(P)H photons", 0, 2),
+    ]
+
+
 class AppSettings(_Settings):
     schema_version: int = SETTINGS_VERSION
     working_dir: str = Field(
@@ -117,12 +164,20 @@ class AppSettings(_Settings):
     @classmethod
     def default(cls) -> "AppSettings":
         """The defaults: those of the importer, preprocessor and filters."""
-        from flim.core.configuration import Config
+        from flim.core.importer import dataimporter
+        from flim.core.preprocessor import defaultpreprocessor
 
-        config = Config()
-        config.create_default()
-        # the plugins' default parameters are not tool settings
-        return cls.model_validate(_v0_to_v1(config.parameters, convert=False))
+        return cls(
+            import_=dataimporter().settings(),
+            preprocess=defaultpreprocessor().settings(),
+            display=[
+                {"name": name, "min": "auto", "max": "auto", "bins": 100}
+                for name in ["trp t1", "trp t2", "trp tm"]
+            ],
+            filters=FilterSettings(
+                range_filters=[f.get_params() for f in default_range_filters()]
+            ),
+        )
 
     def to_json(self) -> dict:
         return self.model_dump(mode="json", by_alias=True)
@@ -130,7 +185,7 @@ class AppSettings(_Settings):
 
 # --- versions ---
 
-# version 0 keys (flim.core.configuration) -> AppSettings fields
+# version 0 keys (the dict Config of 0.5) -> AppSettings fields
 _V0_SECTIONS = {
     "import": (
         "import",
@@ -219,21 +274,6 @@ def _v0_tools(plugins: dict) -> dict:
                 entry["legacy"] = legacy
         entries[name] = entry
     return entries
-
-
-def import_settings(config: dict) -> ImportSettings:
-    """From the importer's ``get_config()`` (version 0 keys)."""
-    data = _renamed(config, _V0_SECTIONS["import"][1])
-    if isinstance(data.get("filename_parser"), dict):
-        data["filename_parser"] = _renamed(data["filename_parser"], _V0_PARSER)
-    return ImportSettings.model_validate(data)
-
-
-def preprocess_settings(config: dict) -> PreprocessSettings:
-    """From the preprocessor's ``get_config()`` (version 0 keys)."""
-    return PreprocessSettings.model_validate(
-        _renamed(config, _V0_SECTIONS["preprocess"][1])
-    )
 
 
 # version n -> the settings of version n + 1

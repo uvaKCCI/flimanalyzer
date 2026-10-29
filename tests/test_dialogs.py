@@ -36,11 +36,10 @@ def table():
 
 def test_filter_dialog_checkboxes(wxapp, table):
     from flim.core.settings import AppSettings
-    from flim.gui.datapanel import filter_dialog_config
     from flim.gui.dialogs import ConfigureFiltersDlg
 
-    filters = filter_dialog_config(AppSettings.default().filters)
-    dlg = ConfigureFiltersDlg(None, config=filters, dataframe=table)
+    filters = AppSettings.default().filters
+    dlg = ConfigureFiltersDlg(None, filters=filters, dataframe=table)
     try:
         filters = dlg.filterlist
         assert filters.GetItemCount() > 0
@@ -80,11 +79,10 @@ def test_list_checkboxes_notify_once_per_change(wxapp):
 
 def test_filter_dialog_has_no_deprecated_checklist_mixin(wxapp, table, recwarn):
     from flim.core.settings import AppSettings
-    from flim.gui.datapanel import filter_dialog_config
     from flim.gui.dialogs import ConfigureFiltersDlg
 
-    filters = filter_dialog_config(AppSettings.default().filters)
-    ConfigureFiltersDlg(None, config=filters, dataframe=table).Destroy()
+    filters = AppSettings.default().filters
+    ConfigureFiltersDlg(None, filters=filters, dataframe=table).Destroy()
     assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]
 
 
