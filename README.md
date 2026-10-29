@@ -15,7 +15,7 @@ Documentation: https://flimanalyzer.readthedocs.io
 
 ### With uv (recommended)
 
-Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environment. `uv sync` creates `.venv`, installs a matching Python if needed, and installs FLIMAnalyzer in editable mode with the exact package versions from `uv.lock`:
+Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environment. `uv sync` creates `.venv`, installs a matching Python if needed, and installs FLIMAnalyzer with the application in editable mode, with the exact package versions from `uv.lock`:
 
     git clone https://github.com/uvaKCCI/flimanalyzer.git
     cd flimanalyzer
@@ -28,13 +28,19 @@ To also install the test dependencies, or the optional Dask support (see [Parall
     uv sync --extra test
     uv sync --extra dask
 
+Without the application (wxPython), e.g. on a cluster for [batch mode](#batch-mode):
+
+    uv sync --no-dev
+
 ### With pip
 
     git clone https://github.com/uvaKCCI/flimanalyzer.git
     cd flimanalyzer
     python3.12 -m venv .venv
     source .venv/bin/activate    # Windows: .venv\Scripts\activate
-    pip install -e .
+    pip install -e ".[gui]"
+
+The `gui` extra installs the application (wxPython). Without it, `pip install -e .` installs only what [batch mode](#batch-mode) needs.
 
 pip installs PyTorch from PyPI, which provides a different build on each platform:
 

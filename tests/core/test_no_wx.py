@@ -65,3 +65,16 @@ def test_all_core_modules_import_without_wx_and_torch():
         "from flim.core.registry import tools\n"
         "assert len(tools.by_category()['Workflow']) == 3\n"
     )
+
+
+def test_the_application_explains_a_missing_wxpython():
+    script = (
+        "import sys\n"
+        "sys.modules['wx'] = None  # as if not installed\n"
+        "from flim import analyzerapp\n"
+        "sys.argv = ['flimanalyzer', '--no-prefect-server']\n"
+        "analyzerapp.main()\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 1
+    assert 'pip install "flimanalyzer[gui]"' in result.stderr

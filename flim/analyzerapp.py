@@ -67,6 +67,13 @@ def parse_arguments():
 
 
 def interactive_run(fa, files=None, settings=None):
+    try:
+        import wx  # noqa: F401
+    except ImportError:
+        sys.exit(
+            "flimanalyzer: the application needs wxPython, which is not installed:"
+            ' pip install "flimanalyzer[gui]". Without it, use flimbatch.'
+        )
     from flim.gui.app import FLIMAnalyzerApp  # here: batch runs never import wx
 
     app = FLIMAnalyzerApp(fa, config=settings, files=files)

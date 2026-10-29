@@ -10,12 +10,10 @@ dependencies = [
     "pandas>=2.2.2,<3",  # 2.2.2 is the first release built against numpy 2
     "prefect>=3.4.7,<4",
     "pydantic>=2.7,<3",
-    "pypubsub<5",
     "scikit-learn>=1.5,<2",
     "scipy>=1.13,<2",
     "seaborn>=0.13.2,<0.14",
     "torch>2.7,<3",
-    "wxpython>=4.2.2,<4.3",
     "xlsxwriter<4",
 ]
 requires-python = ">=3.12"
@@ -34,6 +32,11 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
+# The application (flimanalyzer command); without it: the core and flimbatch
+gui = [
+    "pypubsub<5",
+    "wxpython>=4.2.2,<4.3",
+]
 # To use Dask executors (-e LocalDaskExecutor / DaskExecutor)
 dask = [
     "prefect-dask>=0.3.7,<1",  # Dask task runner for prefect 3
@@ -45,6 +48,10 @@ test = [
 ]
 
 [dependency-groups]
+# installed by `uv sync` (and `uv run`) unless --no-dev: the application too
+dev = [
+    "flimanalyzer[gui]",
+]
 # Builds the documentation without installing flimanalyzer itself (wxPython has no
 # Linux wheels): docs/conf.py imports flim from the source tree and mocks wx, torch
 # and prefect. Install with `uv sync --only-group docs`.
