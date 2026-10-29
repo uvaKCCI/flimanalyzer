@@ -159,7 +159,7 @@ class dataanalyzer:
             # pivot data to find incomplete series
             indexgroups = [c for c in cats if c != seriesname]
             pdata = sdata.pivot_table(
-                index=indexgroups, columns=[seriesname], aggfunc="count"
+                index=indexgroups, columns=[seriesname], aggfunc="count", observed=False
             )
             # restrict to seriesfilter columns of interest
             pdata = pdata.loc[
@@ -229,9 +229,9 @@ class dataanalyzer:
             f" ref_values={str(ref_values)}"
         )
         #        med = data.groupby(grouping)[col].median().unstack(level=0)#.rename(columns=str).reset_index()
-        logging.debug(data.groupby(grouping)[col].median())
+        logging.debug(data.groupby(grouping, observed=False)[col].median())
         med = (
-            data.groupby(grouping)[col].median().unstack(unstack_levels)
+            data.groupby(grouping, observed=False)[col].median().unstack(unstack_levels)
         )  # .rename(columns=str).reset_index()
         # keep only columns where topindex matches the outermost ref_value for unstacking
         logging.debug(f"unstacked med\t{med}")

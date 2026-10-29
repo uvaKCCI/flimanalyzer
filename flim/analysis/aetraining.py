@@ -11,6 +11,7 @@ import random
 from collections import defaultdict
 
 import flim.analysis.ml.autoencoder as autoencoder
+from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES, resolve_device
 import flim.resources
 import matplotlib.figure
 import matplotlib.pyplot as plt
@@ -23,6 +24,7 @@ import torch.optim as optim
 import torch.utils.data
 import wx
 from flim import utils
+from flim.core.runner import pyplot_lock
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 from flim.plugin import AbstractPlugin, plugin
 from importlib_resources import files
@@ -53,6 +55,28 @@ class datasets(Dataset):
 
 
 class AETrainingConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "description": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "epoches": 20,
+        "batch_size": 200,
+        "learning_rate": 1e-4,
+        "weight_decay": 1e-7,
+        "timeseries": "",
+        "model": "",
+        "modelfile": "",
+        "device": DEFAULT_DEVICE,
+        "rescale": False,
+        "checkpoint_interval": 20,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": ""
+    }
+
     def __init__(
         self,
         parent,
@@ -68,12 +92,39 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         timeseries="",
         model="",
         modelfile="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
         rescale=False,
         checkpoint_interval=20,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
+        **kwargs
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "description": description,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "epoches": epoches,
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "weight_decay": weight_decay,
+            "timeseries": timeseries,
+            "model": model,
+            "modelfile": modelfile,
+            "device": device,
+            "rescale": rescale,
+            "checkpoint_interval": checkpoint_interval,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir
+        }
+
+        basic_params.update(**kwargs)
+
         data = next(iter(input.values()))
         self.timeseries_opts = data.select_dtypes(include=["category"]).columns.values
         self.timeseries = timeseries
@@ -88,18 +139,14 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.device = device
         self.rescale = rescale
         self.checkpoint_interval = checkpoint_interval
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
+        )
+
         super().__init__(
             parent,
-            title,
-            input=input,
-            description=description,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            autosave=autosave,
-            working_dir=working_dir,
-        )
+            **init_params)
         self._update_model_info(None)
 
     def get_option_panels(self):
@@ -189,7 +236,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.device,
-            choices=["cpu", "cuda"],
+            choices=DEVICES,
         )
         self.rescale_checkbox = wx.CheckBox(
             self.panel, wx.ID_ANY, label="Rescale decoded"
@@ -252,7 +299,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
 
         self.modelfiletxt = wx.StaticText(self.panel, label=self.modelfile)
         browsebutton = wx.Button(self.panel, wx.ID_ANY, "Choose...")
-        browsebutton.Bind(wx.EVT_BUTTON, self._on_browse)
+        browsebutton.Bind(wx.EVT_BUTTON, self._on_result_browse)
 
         timeseries_sizer.Add(
             wx.StaticText(self.panel, label="Model Architecture"),
@@ -333,7 +380,7 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         self.model_descr.Replace(0, self.model_descr.GetLastPosition(), descr)
         self.model_layers.Replace(0, self.model_layers.GetLastPosition(), layer_txt)
 
-    def _on_browse(self, event):
+    def _on_result_browse(self, event):
         with wx.FileDialog(
             self, "Model File", style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
         ) as fileDialog:
@@ -366,6 +413,10 @@ class AETrainingConfigDlg(BasicAnalysisConfigDlg):
         params["checkpoint_interval"] = self.checkpoint_spinner.GetValue()
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class AETraining(AbstractPlugin):
@@ -388,7 +439,8 @@ class AETraining(AbstractPlugin):
             "Train and save a new autoencoder model using selectable input features. "
             + "Training and validation datasets are randomly split based on the"
             " specified Data Grouping. "
-            + "Device selection supports modeling on CPU or GPU (cuda) if available."
+            + "Device: auto uses a CUDA GPU or the Apple GPU (mps) if available,"
+            " otherwise the CPU."
         )
         return descr
 
@@ -439,8 +491,8 @@ class AETraining(AbstractPlugin):
                     "NAD(P)H t2",
                     "NAD(P)H photons",
                 ],
-                "model": "Autoencoder 2",
-                "device": "cpu",
+                "model": "AE Dimensionality Reduction 2-10",
+                "device": DEFAULT_DEVICE,
                 "rescale": False,
                 "create_plots": True,
                 "train_size": 0.7,  # 0.0 < train_size < 1.0
@@ -473,26 +525,26 @@ class AETraining(AbstractPlugin):
         return output
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AETrainingConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            description=self.get_description(),
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            epoches=self.params["epoches"],
-            batch_size=self.params["batch_size"],
-            weight_decay=self.params["weight_decay"],
-            learning_rate=self.params["learning_rate"],
-            timeseries=self.params["timeseries"],
-            model=self.params["model"],
-            modelfile=self.params["modelfile"],
-            device=self.params["device"],
-            rescale=self.params["rescale"],
-            checkpoint_interval=self.params["checkpoint_interval"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(AETrainingConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures
+            )
+        )
+
+        dlg = AETrainingConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
@@ -513,7 +565,7 @@ class AETraining(AbstractPlugin):
         # encode labels of all category columns
         label_encoders = defaultdict(LabelEncoder)
         data = data.loc[:, columns]
-        data.loc[:, allcat_columns] = data.loc[:, allcat_columns].apply(
+        data[allcat_columns] = data[allcat_columns].apply(
             lambda x: label_encoders[x.name].fit_transform(x)
         )
 
@@ -621,12 +673,7 @@ class AETraining(AbstractPlugin):
         )
         logging.info("Training started.")
         aeclasses = autoencoder.get_autoencoder_classes()
-        device = self.params["device"]
-        if self.params["device"] == "cuda" and not torch.cuda.is_available():
-            device = "cpu"
-            logging.info(
-                "CUDA selected, but no CUDA device available. Switching to CPU."
-            )
+        device = resolve_device(self.params["device"])
         no_features = len(self.params["features"])
         ae = autoencoder.create_instance(
             aeclasses[self.params["model"]], nb_param=no_features
@@ -643,19 +690,23 @@ class AETraining(AbstractPlugin):
         encoded = []  # np.zeros((len(self.data),len(self.params['features'])))
         checkpoints = []
         for epoch in range(1, self.params["epoches"] + 1):
+            self.check_cancelled()
             cum_loss = 0
             train_samples = 0
             for i, (batchinputs, batchlabels) in enumerate(train_loader):
-                encoder_out, decoder_out = ae(batchinputs) #runs inputs through autoencoder
+                batchinputs = batchinputs.to(device)
+                encoder_out, decoder_out = ae(
+                    batchinputs
+                )  # runs inputs through autoencoder
                 if epoch == self.params["epoches"]:
                     length = len(batchlabels)
                     # use int 0 to label as 'train'
                     labelarray = np.array(length * [0]).reshape(length, 1)
                     labelarray = np.concatenate([batchlabels, labelarray], axis=1)
                     labels.append(labelarray)
-                    batchout = decoder_out.detach().numpy()
+                    batchout = decoder_out.detach().cpu().numpy()
                     decoded.append(batchout)
-                    encod = encoder_out.detach().numpy()
+                    encod = encoder_out.detach().cpu().numpy()
                     encoded.append(encod)
                     train_samples += len(batchinputs)
 
@@ -664,25 +715,26 @@ class AETraining(AbstractPlugin):
 
                 optimizer.zero_grad()
                 loss.backward()
-                optimizer.step() #improve by one step based on the loss
+                optimizer.step()  # improve by one step based on the loss
 
             loss_train.append(cum_loss / (i + 1))
             logging.debug("Epoch %d., Train loss: %.4f" % (epoch, loss_train[-1]))
 
             cum_loss = 0
-            for i, item in enumerate(val_loader): #validation step
-                batchinputs = item[0]  # .cuda()
+            for i, item in enumerate(val_loader):  # validation step
+                batchinputs = item[0].to(device)
                 batchlabels = item[1]
-                encoder_out, decoder_out = ae(batchinputs)
+                with torch.no_grad():
+                    encoder_out, decoder_out = ae(batchinputs)
                 if epoch == self.params["epoches"]:
                     length = len(batchlabels)
                     # use int 1 to label as 'validation'
                     labelarray = np.array(length * [1]).reshape(length, 1)
                     labelarray = np.concatenate([batchlabels, labelarray], axis=1)
                     labels.append(labelarray)
-                    batchout = decoder_out.detach().numpy()
+                    batchout = decoder_out.detach().cpu().numpy()
                     decoded.append(batchout)
-                    encod = encoder_out.detach().numpy()
+                    encod = encoder_out.detach().cpu().numpy()
                     encoded.append(encod)
 
                 loss = criterion(decoder_out, batchinputs)
@@ -695,9 +747,10 @@ class AETraining(AbstractPlugin):
                 epoch == self.params["epoches"]
                 or epoch % self.params["checkpoint_interval"] == 0
             ):
+                # checkpoints stay on the CPU, so saved models load on any machine
                 ae_clone = autoencoder.create_instance(
                     aeclasses[self.params["model"]], nb_param=no_features
-                ).to(device)
+                )
                 ae_clone.load_state_dict(ae.state_dict())
                 checkpoints.append((epoch, ae_clone))
 
@@ -792,15 +845,16 @@ class AETraining(AbstractPlugin):
             }
         )
         if self.params["create_plots"]:
-            fig, ax = plt.subplots(constrained_layout=True)
-            ax.plot(range(1, len(loss_train) + 1), loss_train, "b-", label="train-loss")
-            ax.plot(range(1, len(loss_val) + 1), loss_val, "r-", label="val-loss")
-            ax.grid("on")
-            ax.set_ylabel("loss")
-            ax.set_xlabel("epoch")
-            ax.legend(["training", "testing"], loc="upper right")
-            ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-            self._add_picker(fig)
+            with pyplot_lock:  # training runs concurrently, plotting takes turns
+                fig, ax = plt.subplots(constrained_layout=True)
+                ax.plot(range(1, len(loss_train) + 1), loss_train, "b-", label="train-loss")
+                ax.plot(range(1, len(loss_val) + 1), loss_val, "r-", label="val-loss")
+                ax.grid("on")
+                ax.set_ylabel("loss")
+                ax.set_xlabel("epoch")
+                ax.legend(["training", "testing"], loc="upper right")
+                ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+                self._add_picker(fig)
             results.update(
                 {
                     f"Plot: AE Loss-{batch_size}-{learning_rate}-{weight_decay}": fig,

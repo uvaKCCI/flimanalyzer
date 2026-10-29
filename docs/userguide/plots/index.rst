@@ -50,7 +50,7 @@ Create a Plot
    * - .. image:: /images/analysis/heatmap.png 
      - `Heatmap <heatmap.html>`_
      - Creates heatmap for matrix of data features based on mean of grouped data. 
-   * - .. image:: /images/analysis/heatmap.png 
+   * - .. image:: /images/analysis/flirrplot.png 
      - `FLIRR Plot <flirr.html>`_
      - Creates several plots for FLIRR visualization.  
 

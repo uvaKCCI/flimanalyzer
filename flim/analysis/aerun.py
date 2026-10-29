@@ -20,11 +20,26 @@ from flim.plugin import plugin, AbstractPlugin
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
+from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES, resolve_device
+from flim import utils
 from importlib_resources import files, as_file
 from joblib import load
 
 
 class AERunningConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "modelfile": "",
+        "device": DEFAULT_DEVICE,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -33,23 +48,35 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
         selectedgrouping=["None"],
         selectedfeatures="All",
         modelfile="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "optgridrows": 1,
+            "optgridcols": 0,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.modelfile = modelfile
         self.device = device
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=0,
-            optgridcols=1,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         self.modelfiletxt = wx.StaticText(self.panel, label=self.modelfile)
@@ -74,7 +101,7 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.device,
-            choices=["cpu", "cuda"],
+            choices=DEVICES,
         )
         device_sizer.Add(
             wx.StaticText(self.panel, label="Device"),
@@ -105,6 +132,10 @@ class AERunningConfigDlg(BasicAnalysisConfigDlg):
         params["device"] = self.device_combobox.GetValue()
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class RunAE(AbstractPlugin):
@@ -129,23 +160,32 @@ class RunAE(AbstractPlugin):
         params.update(
             {
                 "modelfile": "",
-                "device": "cpu",
+                "device": DEFAULT_DEVICE,
             }
         )
         return params
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = AERunningConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            modelfile=self.params["modelfile"],
-            device=self.params["device"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(AERunningConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = AERunningConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_CANCEL:
             dlg.Destroy()
             return  # implicit None
@@ -171,14 +211,10 @@ class RunAE(AbstractPlugin):
         data_feat = data[self.params["features"]]
 
         # load an AE model
-        device = self.params["device"]
-        if device == "cuda" and not torch.cuda.is_available():
-            device = "cpu"
-            logging.info(
-                "CUDA selected, but no CUDA device available. Switching to CPU."
-            )
+        device = resolve_device(self.params["device"])
         # ae = torch.load(self.params['modelfile'], map_location = device)
-        ae_pipeline = load(modelfile)  # currently no way to remap device
+        ae_pipeline = load(modelfile)
+        ae_pipeline[-1].to(device)  # the autoencoder; transform() returns CPU tensors
 
         data_feat = data_feat.astype(float)
         data_input = data_feat.to_numpy(dtype=np.float32)

@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from itertools import combinations
+from flim import utils
 from flim.plugin import plugin
 
 
@@ -23,6 +24,19 @@ calpha = {0.10: 1.22, 0.05: 1.36, 0.025: 1.48, 0.01: 1.63, 0.005: 1.73, 0.001: 1
 
 
 class KSStatsConfigDlg(BasicAnalysisConfigDlg):
+    __base_params = {
+        "title": "",
+        "input": None,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": "All",
+        "comparison": "Treatment",
+        "alpha": 0.05,
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -32,22 +46,35 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
         selectedfeatures="All",
         comparison="Treatment",
         alpha=0.05,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
+        **kwargs,
     ):
+        basic_params = {
+            "title": title,
+            "input": input,
+            "selectedgrouping": selectedgrouping,
+            "selectedfeatures": selectedfeatures,
+            "comparison": comparison,
+            "alpha": alpha,
+            "saveconfig": saveconfig,
+            "config_file": config_file,
+            "autosave": autosave,
+            "working_dir": working_dir,
+        }
+
+        basic_params.update(**kwargs)
+
         self.comparison = comparison
         self.alpha = alpha
-        super().__init__(
-            parent,
-            title,
-            input=input,
-            selectedgrouping=selectedgrouping,
-            selectedfeatures=selectedfeatures,
-            optgridrows=1,
-            optgridcols=0,
-            autosave=autosave,
-            working_dir=working_dir,
+
+        init_params = utils.update_left(
+            BasicAnalysisConfigDlg.get_base_params(), basic_params
         )
+
+        super().__init__(parent, **init_params)
 
     def get_option_panels(self):
         data = list(self.input.values())[0]
@@ -108,6 +135,10 @@ class KSStatsConfigDlg(BasicAnalysisConfigDlg):
         params["alpha"] = float(self.alpha_combobox.GetValue())
         return params
 
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
+
 
 @plugin(plugintype="Analysis")
 class KSStats(AbstractPlugin):
@@ -138,17 +169,26 @@ class KSStats(AbstractPlugin):
         return {"Table: KS-Stats": pd.DataFrame}
 
     def run_configuration_dialog(self, parent, data_choices={}):
-        dlg = KSStatsConfigDlg(
-            parent,
-            f"Configuration: {self.name}",
-            input=self.input,
-            selectedgrouping=self.params["grouping"],
-            selectedfeatures=self.params["features"],
-            comparison=self.params["comparison"],
-            alpha=self.params["alpha"],
-            autosave=self.params["autosave"],
-            working_dir=self.params["working_dir"],
+        selgrouping = self.params["grouping"]
+        selfeatures = self.params["features"]
+
+        merged_base = dict(BasicAnalysisConfigDlg.get_base_params())
+        merged_base.update(KSStatsConfigDlg.get_base_params())
+        dlg_params = utils.update_left(
+            merged_base,
+            self.params,
         )
+
+        dlg_params.update(
+            dict(
+                title=f"Configuration: {self.name}",
+                input=self.input,
+                selectedgrouping=selgrouping,
+                selectedfeatures=selfeatures,
+            )
+        )
+
+        dlg = KSStatsConfigDlg(parent, **dlg_params)
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
             self.params.update(results)
@@ -187,13 +227,13 @@ class KSStats(AbstractPlugin):
         logging.debug(f"data.columns.values={data.columns.values}")
         if data is None or not column in data.columns.values:
             return None, None
+        # the comparison column splits the data; the other groups are compared separately
+        groups = [g for g in groups if g != comparison]
         if len(groups) == 0:
             groupvals = [("none",)]
             cols = ["Grouping"]
         else:
-            # set groups based on categories excluding the comparison category
-            groups = [g for g in groups if g != comparison]
-            groupvals = [name for name, _ in data.groupby(groups)]
+            groupvals = [name for name, _ in data.groupby(groups, observed=False)]
             cols = [c for c in groups]
         dissimilar_label = f"dissimilar (<{alpha})"
         allcategories = [c for c in cols]
@@ -232,7 +272,7 @@ class KSStats(AbstractPlugin):
             if len(fdata) == 0:
                 continue
             compgroups = {
-                name: splitdata for name, splitdata in fdata.groupby(comparison)
+                name: splitdata for name, splitdata in fdata.groupby(comparison, observed=False)
             }
             comb = combinations(compgroups.keys(), 2)
             for c in comb:

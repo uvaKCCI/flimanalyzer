@@ -9,6 +9,7 @@ Created on Tue Jun 12 13:35:51 2018
 import logging
 import itertools
 import re
+import json
 from collections import OrderedDict
 import wx.grid
 from pubsub import pub
@@ -57,9 +58,9 @@ def save_dataframe(
             return None
         fname = fileDialog.GetPath()
         try:
-            data.reset_index()
-            # if indx was flattened in analyzer.summarize_data, multiindex col values were joined with '\n'--> revert here
-            data.columns = [c.replace("\n", " ") for c in data.columns.values]
+            # if indx was flattened in analyzer.summarize_data, multiindex col values
+            # were joined with '\n' --> revert in the saved copy, not in the data shown
+            data = data.rename(columns=lambda c: str(c).replace("\n", " "))
             data.to_csv(fname, index=saveindex, sep="\t")
         except IOError:
             wx.MessageBox("Error saving data in file %s" % fname, "Error", wx.OK)
@@ -93,6 +94,28 @@ def save_figure(
 
 
 class BasicAnalysisConfigDlg(wx.Dialog):
+    __base_params = {
+        "title": "",
+        "input": {},
+        "description": None,
+        "data_choices": {},
+        "chooseinput": False,
+        "enablegrouping": True,
+        "enablefeatures": True,
+        "selectedgrouping": ["None"],
+        "selectedfeatures": ALL_FEATURES,
+        "optgridrows": 0,
+        "optgridcols": 2,
+        "enablefeatsettings": False,
+        "featuresettings": {},
+        "settingspecs": {},
+        "saveconfig": True,
+        "config_file": "",
+        "autosave": True,
+        "autosave_locked": False,
+        "working_dir": "",
+    }
+
     def __init__(
         self,
         parent,
@@ -110,10 +133,20 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         enablefeatsettings=False,
         featuresettings={},
         settingspecs={},
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir="",
+        autosave_locked=False,
     ):
-        super().__init__(parent, wx.ID_ANY, title)  # , size= (650,400))
+        """
+        Args:
+            autosave_locked: Autosave is always on and cannot be switched off (used
+                by workflows); the working directory can still be chosen.
+        """
+        super().__init__(
+            parent, wx.ID_ANY, title, style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
+        )
         self.panel = wx.Panel(self, wx.ID_ANY)
         # 5 col gridsizer
         self.input = input
@@ -125,17 +158,24 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         self.enablefeatsettings = enablefeatsettings
         self.featuresettings = featuresettings
         self.settingspecs = settingspecs
-        self.autosave = autosave
+        self.saveconfig = saveconfig
+        self.config_file = config_file
+        self.autosave = autosave or autosave_locked
+        self.autosave_locked = autosave_locked
         self.working_dir = working_dir
 
         data = list(self.input.values())[0]
         allfeatures = self.get_selectable_features()
         # ordered dict with label:columm items; column headers are converted to single line labels
-        self.allfeatures = OrderedDict((" ".join(c.split("\n")), c) for c in allfeatures)
+        self.allfeatures = OrderedDict(
+            (" ".join(c.split("\n")), c) for c in allfeatures
+        )
         if isinstance(selectedfeatures, str):
             self.selectedfeatures = {selectedfeatures: selectedfeatures}
         else:
-            self.selectedfeatures = {" ".join(c.split("\n")): c for c in selectedfeatures}
+            self.selectedfeatures = {
+                " ".join(c.split("\n")): c for c in selectedfeatures
+            }
 
         sizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -161,18 +201,38 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
         )
 
-        storagesizer = wx.BoxSizer(wx.HORIZONTAL)
+        storagesizer = wx.BoxSizer(wx.VERTICAL)
+
+        resultsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.autosave_cb = wx.CheckBox(self.panel, wx.ID_ANY, "Autosave")
         self.Bind(wx.EVT_CHECKBOX, self._on_checked)
         self.autosave_cb.SetValue(self.autosave)
-        self.browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
-        self.browse_button.Bind(wx.EVT_BUTTON, self._on_browse)
-        self.browse_button.Enable(self.autosave)
+        if self.autosave_locked:
+            self.autosave_cb.Disable()
+            self.autosave_cb.SetToolTip("Workflows always save their results")
         self.workingdirtxt = wx.StaticText(self.panel, label=self.working_dir)
         self.workingdirtxt.Enable(self.autosave)
-        storagesizer.Add(self.autosave_cb)
-        storagesizer.Add(self.browse_button)
-        storagesizer.Add(self.workingdirtxt)
+        self.save_browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
+        self.save_browse_button.Bind(wx.EVT_BUTTON, self._on_result_browse)
+        self.save_browse_button.Enable(self.autosave)
+        resultsizer.Add(self.autosave_cb)
+        resultsizer.Add(self.save_browse_button)
+        resultsizer.Add(self.workingdirtxt)
+        storagesizer.Add(resultsizer)
+
+        configsizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.saveconfig_cb = wx.CheckBox(self.panel, wx.ID_ANY, "Save Config")
+        self.saveconfig_cb.SetValue(self.saveconfig)
+        self.config_browse_button = wx.Button(self.panel, wx.ID_ANY, "Choose...")
+        self.config_browse_button.Bind(wx.EVT_BUTTON, self._on_config_browse)
+        self.config_browse_button.Enable(self.saveconfig)
+        self.configfiletxt = wx.StaticText(self.panel, label=self.config_file)
+        self.configfiletxt.Enable(self.saveconfig)
+        configsizer.Add(self.saveconfig_cb)
+        configsizer.Add(self.config_browse_button)
+        configsizer.Add(self.configfiletxt)
+        storagesizer.Add(configsizer)
+
         sizer.Add(storagesizer)
         sizer.Add(
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
@@ -230,12 +290,16 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
         buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.enablefeatures:
-            self.scrolledpanel = ScrolledPanel(
-                self.panel, wx.ID_ANY, size=(-1, self.GetSize().y / 3)
-            )
+            self.scrolledpanel = ScrolledPanel(self.panel, wx.ID_ANY)
             self.cbsizer = wx.GridSizer(4, 0, 0)
             self._update_feature_cbs()
-            sizer.Add(self.scrolledpanel, 0, wx.EXPAND | wx.ALIGN_CENTER)
+            # tall enough for all features (up to 45% of the screen); the list grows
+            # and shrinks when the dialog is resized
+            needed = self.cbsizer.GetMinSize().height + 10
+            self.scrolledpanel.SetMinSize(
+                (-1, min(needed, int(wx.GetDisplaySize().height * 0.45)))
+            )
+            sizer.Add(self.scrolledpanel, 1, wx.EXPAND)
 
             sizer.Add(
                 wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL),
@@ -260,17 +324,26 @@ class BasicAnalysisConfigDlg(wx.Dialog):
 
         sizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 5)
         self.panel.SetSizer(sizer)
-        self.panel.Fit()
-        self.panel.Layout()
+        dialogsizer = wx.BoxSizer(wx.VERTICAL)
+        dialogsizer.Add(self.panel, 1, wx.EXPAND)
+        self.SetSizer(dialogsizer)
         self.Fit()
+        if self.enablefeatures:
+            # can be made smaller, down to a few rows of features
+            listheight = self.scrolledpanel.GetMinSize().height
+            minheight = self.GetSize().height - listheight + min(listheight, 90)
+            self.scrolledpanel.SetMinSize((-1, min(listheight, 90)))
+            self.SetMinSize((self.GetSize().width, minheight))
 
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
-        self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
-        self.DoLayoutAdaptation()
+        if self.GetSize().height > wx.GetDisplaySize().height * 0.9:
+            # too tall for the screen: let wx make the dialog scrollable
+            self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
+            self.DoLayoutAdaptation()
         self.Show()
 
     def _update_feature_cbs(self):
-        if self.cbsizer: 
+        if self.cbsizer:
             self.cbsizer.Clear(delete_windows=True)
         if self.allfeatures is None:
             self.allfeatures = {}
@@ -299,11 +372,16 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         return allfeatures
 
     def _on_checked(self, event):
-        is_checked = self.autosave_cb.GetValue()
-        self.workingdirtxt.Enable(is_checked)
-        self.browse_button.Enable(is_checked)
+        if event.GetEventObject() is self.autosave_cb:
+            is_checked = self.autosave_cb.GetValue()
+            self.workingdirtxt.Enable(is_checked)
+            self.save_browse_button.Enable(is_checked)
+        elif event.GetEventObject() is self.saveconfig_cb:
+            is_checked = self.saveconfig_cb.GetValue()
+            self.configfiletxt.Enable(is_checked)
+            self.config_browse_button.Enable(is_checked)
 
-    def _on_browse(self, event):
+    def _on_result_browse(self, event):
         dirname = self.workingdirtxt.GetLabel()
         with wx.DirDialog(
             self,
@@ -317,6 +395,19 @@ class BasicAnalysisConfigDlg(wx.Dialog):
                 return
             dirname = dirDialog.GetPath()
             self.workingdirtxt.SetLabel(dirname)
+
+    def _on_config_browse(self, event):
+        filename = self.configfiletxt.GetLabel()
+        with wx.FileDialog(
+            self,
+            "Tool Config File",
+            defaultFile=filename,
+            style=wx.FD_DEFAULT_STYLE,
+        ) as fileDialog:
+            if fileDialog.ShowModal() == wx.ID_CANCEL:
+                return
+            filename = fileDialog.GetPath()
+            self.configfiletxt.SetLabel(filename)
 
     def get_option_panels(self):
         return []
@@ -346,6 +437,7 @@ class BasicAnalysisConfigDlg(wx.Dialog):
         if self.cboxes:
             for key in self.cboxes:
                 self.cboxes[key].SetValue(True)
+                pub.sendMessage
 
     def OnDeselectAll(self, event):
         if self.cboxes:
@@ -379,6 +471,8 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             params["input"] = self.input
         else:
             params["input"] = self.input
+        params["saveconfig"] = self.saveconfig_cb.GetValue()
+        params["config_file"] = self.configfiletxt.GetLabel()
         params["autosave"] = self.autosave_cb.GetValue()
         params["working_dir"] = self.workingdirtxt.GetLabel()
         return params
@@ -391,6 +485,10 @@ class BasicAnalysisConfigDlg(wx.Dialog):
             wx.MessageDialog(self, "Select at least one function.")
         else:
             self.EndModal(wx.ID_OK)
+
+    @classmethod
+    def get_base_params(cls):
+        return cls.__base_params
 
 
 class SelectGroupsDlg(wx.Dialog):
@@ -425,7 +523,9 @@ class SelectGroupsDlg(wx.Dialog):
         buttonsizer.Add(self.cancelButton, 0, wx.ALL, 10)
 
         mainsizer.Add(cbsizer, 0, wx.ALIGN_CENTER, 5)
-        mainsizer.Add(wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5)
+        mainsizer.Add(
+            wx.StaticLine(self, style=wx.LI_VERTICAL), 0, wx.ALL | wx.EXPAND, 5
+        )
         mainsizer.Add(selectbsizer, 0, wx.ALIGN_CENTER, 5)
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(mainsizer, 0, wx.ALIGN_CENTER, 5)
@@ -433,8 +533,10 @@ class SelectGroupsDlg(wx.Dialog):
         self.SetSizer(sizer)
 
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
-        self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
-        self.DoLayoutAdaptation()
+        if self.GetSize().height > wx.GetDisplaySize().height * 0.9:
+            # too tall for the screen: let wx make the dialog scrollable
+            self.SetLayoutAdaptationMode(wx.DIALOG_ADAPTATION_MODE_ENABLED)
+            self.DoLayoutAdaptation()
         self.Show()
 
     def OnSelectAll(self, event):

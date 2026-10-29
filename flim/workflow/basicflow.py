@@ -15,24 +15,15 @@ import pkgutil
 from abc import ABC, abstractmethod
 
 import flim.resources
-import graphviz
 import math
 import matplotlib.pyplot as plt
 import networkx as nx
-import networkx.classes.function
-import networkx.drawing.nx_agraph
-import networkx.drawing.nx_pydot
 import numpy as np
 import pandas as pd
-import pydot
 import wx
 
 from importlib_resources import files
-from prefect import Flow, Parameter, Task, task, unmapped
-from prefect.executors import DaskExecutor
-from prefect.executors.base import Executor
-from prefect.tasks.core.collections import List
-from prefect.tasks.core.constants import Constant
+from prefect import task, unmapped
 
 from flim.analysis.aerun import RunAE
 from flim.analysis.aeaugment import AEAugment
@@ -50,6 +41,7 @@ from flim.analysis.scatterplots import ScatterPlot
 from flim.analysis.seriesanalyzer import SeriesAnalyzer
 from flim.analysis.summarystats import SummaryStats
 from flim.core.graph import WorkflowGraph
+from flim.core.runner import Parameter, pyplot_lock, run_flow
 from flim.data.concatdata import Concatenator
 from flim.data.filterdata import Filter
 from flim.data.mergedata import Merger
@@ -57,7 +49,6 @@ from flim.data.pivotdata import Pivot
 from flim.data.unpivotdata import UnPivot
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 from flim.plugin import ALL_FEATURES, AbstractPlugin, DataBucket, plugin
-from flim.results import LocalResultClear
 
 
 class AbsWorkFlow(AbstractPlugin):
@@ -73,7 +64,7 @@ class AbsWorkFlow(AbstractPlugin):
         return self.name
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("sim_tuning1.png")
+        source = files(flim.resources).joinpath("workflow.png")
         return wx.Bitmap(str(source))
 
     def get_default_parameters(self):
@@ -83,12 +74,6 @@ class AbsWorkFlow(AbstractPlugin):
                 "grouping": self.get_required_categories(),
                 "features": self.get_required_features(),
                 "autosave": True,
-                "executor": {
-                    "class": "prefect.executors.local.LocalExecutor",
-                    "args": {},
-                },
-                "register": False,
-                "project": "FLIM",  # self.name,
             }
         )
         return params
@@ -151,8 +136,11 @@ class AbsWorkFlow(AbstractPlugin):
             input=self.input,
             selectedgrouping=selgrouping,
             selectedfeatures=selfeatures,
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
+            autosave_locked=True,
         )
         if dlg.ShowModal() == wx.ID_OK:
             results = dlg.get_selected()
@@ -162,43 +150,56 @@ class AbsWorkFlow(AbstractPlugin):
             return None
 
     @abstractmethod
-    def construct_flow(self, executor, result):
-        return Flow(name=self.name, executor=executor, result=result)
+    def construct_flow(self):
+        """Makes the plugin calls that define this workflow.
+
+        Called inside a Prefect flow by :meth:`run_flow`; plugin calls return
+        :class:`flim.core.runner.TaskOutput` handles that can be passed on to other
+        plugin calls.
+        """
+
+    def run_flow(
+        self, task_runner=None, autosave_dir=None, on_progress=None, cancel_token=None, on_start=None
+    ):
+        """Runs the workflow as a Prefect flow.
+
+        Args:
+            task_runner: Prefect task runner, ``None`` uses the default thread pool.
+            autosave_dir: directory to save task results in, ``None`` disables saving.
+            on_progress, cancel_token, on_start: see :func:`flim.core.runner.run_flow`.
+
+        Returns:
+            flim.core.runner.FlowRun: task graph and results.
+        """
+        return run_flow(
+            self.name,
+            self.construct_flow,
+            task_runner=task_runner,
+            autosave_dir=autosave_dir,
+            on_progress=on_progress,
+            cancel_token=cancel_token,
+            on_start=on_start,
+        )
+
+    def configure(self, input=input, input_select=None, **kwargs):
+        super().configure(input=input, input_select=input_select, **kwargs)
+        self.params["autosave"] = True  # workflows always save their results
 
     def execute(self):
-        # self.set_result()
-        # self.set_executor(self.params["executor"])
-        logging.info(f"Using {self.executor} for flow {self.name}")
-        flow = self.construct_flow()
-        if self.params["register"]:
-            flow.register(
-                project_name=self.params["project"],
-                idempotency_key=flow.serialized_hash(),
-            )  # prevent version bump when reregistering an unchanged flow
+        flow_run = self.run_flow(
+            autosave_dir=os.path.join(self.params["working_dir"], self.name)
+        )
 
-        flow.visualize()
-        with open(f"{self.name}.json", "w") as fp:
-            json.dump(flow.serialize(), fp, indent=4)
-
-        results = {}
-        state = flow.run()
-        task_refs = flow.get_tasks()
-        task_results = [state.result[tr]._result.value for tr in task_refs]
-        output_results = [tr for tr in list(task_results) if not isinstance(tr, dict)]
-        plugin_results = [
-            tr for tr in list(task_results) if isinstance(tr, dict)
-        ]  # state.result[tr]._result.value not in output_results]
+        # plugin results are dicts; data buckets return the data itself
         results = {
             f"{k}-{str(id(v))}": v
-            for d in plugin_results
+            for d in flow_run.results()
             if isinstance(d, dict)
             for k, v in d.items()
         }
-
-        wg = WorkflowGraph(flow)
-        fig, _ = wg.get_plot()
+        with pyplot_lock:
+            fig, _ = WorkflowGraph(flow_run).get_plot()
         results[f"{self.name} Graph"] = fig
-
         return results
 
 
@@ -276,9 +277,9 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
         # self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("flirr_img.png")
+        source = files(flim.resources).joinpath("flirrworkflow.png")
         return wx.Bitmap(str(source))
-        
+
     def get_default_parameters(self):
         params = super().get_default_parameters()
         params.update(
@@ -307,7 +308,7 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
     def get_required_features(self):
         return ["any"]
 
-    def construct_flow(self, executor, result):
+    def construct_flow(self):
         data = list(self.input.values())[0].copy()
         sel_grouping = self.params["grouping"]
         sel_features = self.params["features"]
@@ -323,7 +324,6 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
                 or ("NAD" in c and "a2" in c and "%" in c)
             )
         ]
-        print(scatter_features)
 
         # listtask = List()
         datatask = DataBucket("Input")  # None, name='Input')
@@ -338,96 +338,98 @@ class BasicFLIRRWorkFlow(AbsWorkFlow):
         barplottask = BarPlot(None)
         kdetask = KDE()
         # cats = list(data.select_dtypes('category').columns.values)
-        with Flow(f"{self.name}", executor=executor, result=result) as flow:
-            # input = Parameter('input', default=data)
-            inputresult = datatask(
-                name="Input", input=self.input, input_select=[0], task_tags="Input"
-            )
-            summary = stask(
-                input=inputresult,
-                input_select=[0],
-                grouping=[sel_grouping[0]],
-                features=sel_features,
-                aggs=["count", "median", "mean", "std", "sem"],
-                singledf=True,
-                prefix="Stats-",
-            )
-            counts = stask(
-                input=inputresult,
-                input_select=[0],
-                grouping=sel_grouping,
-                features=[sel_features[0]],
-                aggs=["count"],
-                singledf=True,
-                prefix="Counts-",
-            )
-            pairplots = pairplottask(
-                input=inputresult,
-                input_select=[0],
-                grouping=[sel_grouping[0]],
-                x_vars=[f for f in sel_features if "FAD" in f],
-                y_vars=[f for f in sel_features if "FAD" in f],
-                diag_kind="KDE",
-                prefix="FAD-",
-            )
-            pairplots = pairplottask(
-                input=inputresult,
-                input_select=[0],
-                grouping=[sel_grouping[0]],
-                x_vars=[f for f in sel_features if "NAD" in f],
-                y_vars=[f for f in sel_features if "NAD" in f],
-                diag_kind="KDE",
-                prefix="NADPH-",
-            )
-            reltable = relchangetask(
-                input=inputresult,
-                input_select=[0],
-                grouping=sel_grouping[1:],
-                features=sel_features,
-                reference_group=sel_grouping[0],
-                reference_value=data[sel_grouping[0]].unique()[0],
-                method="mean",
-            )
-            srelresult = stask(
-                input=reltable["Table: Relative Change"],
-                input_select=[0],
-                grouping=sel_grouping[::-1],
-                features=[f"rel {f}" for f in sel_features],
-                aggs=["mean"],
-                singledf=True,
-                prefix="Relative Stats-",
-            )
-            # pivotresult = results_to_tasks(pivottask(data=srelresult['Data: Summarize'], input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean']))
-            scatter = scattertask(
-                input=inputresult,
-                input_select=[0],
-                grouping=[sel_grouping[0]],
-                features=scatter_features,
-            )
-            lineplotresult = lineplottask.map(
-                input=unmapped(reltable["Table: Relative Change"]),
-                input_select=unmapped([0]),
-                grouping=unmapped(
-                    sel_grouping[0:2] if len(sel_grouping) > 1 else sel_grouping
-                ),
-                features=[["rel " + c] for c in sel_features],
-            )
+        # input = Parameter('input', default=data)
+        inputresult = datatask(
+            name="Input", input=self.input, input_select=[0], task_tags="Input"
+        )
+        summary = stask(
+            input=inputresult,
+            input_select=[0],
+            grouping=[sel_grouping[0]],
+            features=sel_features,
+            aggs=["count", "median", "mean", "std", "sem"],
+            singledf=True,
+            prefix="Stats-",
+        )
+        counts = stask(
+            input=inputresult,
+            input_select=[0],
+            grouping=sel_grouping,
+            features=[sel_features[0]],
+            aggs=["count"],
+            singledf=True,
+            prefix="Counts-",
+        )
+        pairplots = pairplottask(
+            input=inputresult,
+            input_select=[0],
+            grouping=[sel_grouping[0]],
+            x_vars=[f for f in sel_features if "FAD" in f],
+            y_vars=[f for f in sel_features if "FAD" in f],
+            diag_kind="KDE",
+            plotting="sample",  # many measurements make pair plots slow to draw
+            samples=20000,
+            prefix="FAD-",
+        )
+        pairplots = pairplottask(
+            input=inputresult,
+            input_select=[0],
+            grouping=[sel_grouping[0]],
+            x_vars=[f for f in sel_features if "NAD" in f],
+            y_vars=[f for f in sel_features if "NAD" in f],
+            diag_kind="KDE",
+            plotting="sample",
+            samples=20000,
+            prefix="NADPH-",
+        )
+        reltable = relchangetask(
+            input=inputresult,
+            input_select=[0],
+            grouping=sel_grouping[1:],
+            features=sel_features,
+            reference_group=sel_grouping[0],
+            reference_value=data[sel_grouping[0]].unique()[0],
+            method="mean",
+        )
+        srelresult = stask(
+            input=reltable["Table: Relative Change"],
+            input_select=[0],
+            grouping=sel_grouping[::-1],
+            features=[f"rel {f}" for f in sel_features],
+            aggs=["mean"],
+            singledf=True,
+            prefix="Relative Stats-",
+        )
+        # pivotresult = results_to_tasks(pivottask(data=srelresult['Data: Summarize'], input_select=[0], grouping=['Treatment'],features=['rel FLIRR\nmean']))
+        scatter = scattertask(
+            input=inputresult,
+            input_select=[0],
+            grouping=[sel_grouping[0]],
+            features=scatter_features,
+        )
+        lineplotresult = lineplottask.map(
+            input=unmapped(reltable["Table: Relative Change"]),
+            input_select=unmapped([0]),
+            grouping=unmapped(
+                sel_grouping[0:2] if len(sel_grouping) > 1 else sel_grouping
+            ),
+            features=[["rel " + c] for c in sel_features],
+        )
 
-            # sresult = results_to_tasks(stask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=allfeatures,aggs=['max','mean','median','count']))
-            # listtask = to_list(scattertask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=sel_features))
-            # scatter = data_task.map(listtask)
+        # sresult = results_to_tasks(stask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=allfeatures,aggs=['max','mean','median','count']))
+        # listtask = to_list(scattertask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'],features=sel_features))
+        # scatter = data_task.map(listtask)
 
-            # reltable = datatask(name='Relative Change', data=relchresult)
-            # lineplotresult = results_to_tasks(lineplottask(data=reltable['Table: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel '+c for c in sel_features]))
+        # reltable = datatask(name='Relative Change', data=relchresult)
+        # lineplotresult = results_to_tasks(lineplottask(data=reltable['Table: Relative Change'], input_select=[0], grouping=['Treatment','FOV'], features=['rel '+c for c in sel_features]))
 
-            # barplot = results_to_tasks(barplottask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'], features=['FLIRR']))
-            kdeplot = kdetask.map(
-                input=unmapped(inputresult),
-                input_select=unmapped([0]),
-                grouping=unmapped([sel_grouping[0]]),
-                features=[[c] for c in sel_features],
-            )
-            # sresult2 = results_to_tasks(stask(data=sresult['Data: Summarize'], input_select=[0], grouping=['FOV'], features=['FLIRR\nmean'], aggs=['max']))
-            # sresult3 = results_to_tasks(stask(data=pcaresult, input_select=[0], grouping=[], features=['Principal component 1'], aggs=['max']))
-            # sresult4 = results_to_tasks(stask(data=pcaresult['PCA explained'], input_select=[0], grouping=['PCA component'], features=['explained var ratio'], aggs=['max']))
-        return flow
+        # barplot = results_to_tasks(barplottask(data=input, input_select=[0], grouping=['Treatment', 'FOV', 'Cell'], features=['FLIRR']))
+        kdeplot = kdetask.map(
+            input=unmapped(inputresult),
+            input_select=unmapped([0]),
+            grouping=unmapped([sel_grouping[0]]),
+            features=[[c] for c in sel_features],
+        )
+        # sresult2 = results_to_tasks(stask(data=sresult['Data: Summarize'], input_select=[0], grouping=['FOV'], features=['FLIRR\nmean'], aggs=['max']))
+        # sresult3 = results_to_tasks(stask(data=pcaresult, input_select=[0], grouping=[], features=['Principal component 1'], aggs=['max']))
+        # sresult4 = results_to_tasks(stask(data=pcaresult['PCA explained'], input_select=[0], grouping=['PCA component'], features=['explained var ratio'], aggs=['max']))

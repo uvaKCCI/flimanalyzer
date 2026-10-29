@@ -38,23 +38,55 @@ class ListCtrlUpdatedEvent(wx.PyCommandEvent):
 
 class AnalysisListCtrl(
     wx.ListCtrl,
-    listmix.CheckListCtrlMixin,
     listmix.ListCtrlAutoWidthMixin,
     listmix.TextEditMixin,
 ):
+    """Report list with a native checkbox in the first column.
+
+    Checking an item, by the user or with CheckItem(), calls OnCheckItem(index,
+    flag) once per state change (as the former CheckListCtrlMixin did).
+    """
+
     def __init__(self, *args, **kwargs):
         wx.ListCtrl.__init__(self, *args, **kwargs)
-        listmix.CheckListCtrlMixin.__init__(self)
         listmix.TextEditMixin.__init__(self)
         listmix.ListCtrlAutoWidthMixin.__init__(self)
+        self.EnableCheckBoxes(True)
         self.data = {}
         self.editable = []
         self.setResizeColumn(2)
         self.checked_indices = []
+        self._checking = False
 
         self.enableevents = True
         self.Bind(wx.EVT_LIST_BEGIN_LABEL_EDIT, self.BeginLabelEdit)
         self.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.EndLabelEdit)
+        self.Bind(wx.EVT_LIST_ITEM_CHECKED, self._on_item_checked)
+        self.Bind(wx.EVT_LIST_ITEM_UNCHECKED, self._on_item_checked)
+
+    def IsChecked(self, index):
+        return self.IsItemChecked(index)
+
+    def CheckItem(self, index, check=True):
+        if self.IsItemChecked(index) == check:
+            return
+        # the native CheckItem() sends EVT_LIST_ITEM_(UN)CHECKED synchronously;
+        # notify OnCheckItem() once, here, instead of from the event handler
+        self._checking = True
+        try:
+            wx.ListCtrl.CheckItem(self, index, check)
+        finally:
+            self._checking = False
+        self.OnCheckItem(index, check)
+
+    def ToggleItem(self, index):
+        self.CheckItem(index, not self.IsItemChecked(index))
+
+    def _on_item_checked(self, event):
+        if not self._checking:
+            # checkbox clicked by the user
+            self.OnCheckItem(event.GetIndex(), self.IsItemChecked(event.GetIndex()))
+        event.Skip()
 
     def fire_rowsupdated_event(self, items):
         # event = ListCtrlUpdatedEvent(EVT_AU_TYPE, self.GetId())
@@ -163,7 +195,7 @@ class AnalysisListCtrl(
     def BeginLabelEdit(self, event):
         col = event.GetColumn()
         if col == 0:
-            self.ToggleItem(event.GetIndex())
+            # column 0 holds the checkbox, which toggles itself when clicked
             event.Veto()
         elif col > len(self.editable) or self.editable[col]:
             event.Skip()

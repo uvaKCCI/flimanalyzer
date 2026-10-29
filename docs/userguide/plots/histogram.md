@@ -17,7 +17,7 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data.
 
     In the example, input data is grouped by `Treatment` and uses the `bar` histogram style.  
 
-    ![](/images/analysis/histogram-config.png)
+    % TODO: add screenshot of the configuration dialog as /images/analysis/histogram-config.png
 
 4. Click `OK`.
 

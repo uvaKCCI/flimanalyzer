@@ -1,11 +1,8 @@
 Code Documentation
 ==================
 
-.. automodule:: flim.plugin
-   :members:
-   :undoc-members:
-   :show-inheritance:
+.. autosummary::
+   :toctree: generated
+   :recursive:
 
-
-         
-
+   flim

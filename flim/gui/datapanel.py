@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import re
-import collections
+import collections.abc
 
 import wx
 import wx.grid
@@ -80,12 +80,12 @@ class PandasTable(wx.grid.GridTableBase):
         self.floatcols = [
             col
             for col in self.colheaders
-            if col in self.data.select_dtypes(include=[np.float]).columns.values
+            if col in self.data.select_dtypes(include=[float]).columns.values
         ]
         self.intcols = [
             col
             for col in self.colheaders
-            if col in self.data.select_dtypes(include=[np.int]).columns.values
+            if col in self.data.select_dtypes(include=[np.integer]).columns.values
         ]
 
     def GetData(self):
@@ -581,8 +581,9 @@ class PandasFrame(wx.Frame):
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         for chitem in self.data[colheader].unique():
             mitem = menu.AppendCheckItem(-1, str(chitem))
-            mitem.Check(True)
-            self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
+            if mitem is not None:
+                mitem.Check(True)
+                self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
         menu.InsertSeparator(2)
         return menu
 
@@ -672,8 +673,8 @@ class PandasFrame(wx.Frame):
             colindex = 1
         else:
             colindex = 0
-        mins = self.dataview.min()
-        maxs = self.dataview.max()
+        mins = numericcols.min()
+        maxs = numericcols.max()
         for col in self.dataview.columns.values:
             # autosize header first and get new col width
             self.grid.AutoSizeColLabelSize(colindex)
@@ -681,7 +682,7 @@ class PandasFrame(wx.Frame):
             # determine best size for values in this col
             colseries = self.dataview[col]
             if col not in numericcols.columns.values and (
-                isinstance(colseries, (str, bytes, collections.Iterable))
+                isinstance(colseries, (str, bytes, collections.abc.Iterable))
             ):
                 # handle strings, categories, objects
                 logging.debug(f"AUTOSIZE col {col}")
@@ -743,7 +744,7 @@ class PandasFrame(wx.Frame):
             pivot_data = usedata.reset_index()
             selcolumns.extend(self.groups)
             pivot_data = pd.pivot_table(
-                pivot_data[selcolumns], index=indexgroups, columns=selgroups
+                pivot_data[selcolumns], index=indexgroups, columns=selgroups, observed=False
             )
             # flatten multiindex in column headers
             pivot_data.columns = [
@@ -781,7 +782,7 @@ class PandasFrame(wx.Frame):
         groups = dlg.get_selected()
         dlg.Destroy()
         if len(groups) > 0:
-            for name, splitdata in self.dataview.groupby(groups):
+            for name, splitdata in self.dataview.groupby(groups, observed=False):
                 windowtitle = "%s: %s" % (str(groups), str(name))
                 event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
                 event.SetEventInfo(

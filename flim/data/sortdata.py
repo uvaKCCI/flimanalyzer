@@ -27,15 +27,13 @@ import flim.resources
 @plugin(plugintype="Data")
 class Sort(AbstractPlugin):
     def __init__(self, name="Sort", **kwargs):
-        super().__init__(
-            name=name, **kwargs
-        )  # categories={}, default='unassigned')
+        super().__init__(name=name, **kwargs)  # categories={}, default='unassigned')
 
     def get_required_categories(self):
         return []
 
     def get_icon(self):
-        source = files(flim.resources).joinpath("filter.png")
+        source = files(flim.resources).joinpath("sort.png")
         return wx.Bitmap(str(source))
 
     def get_required_features(self):
@@ -62,6 +60,8 @@ class Sort(AbstractPlugin):
             input=self.input,
             enablegrouping=False,
             selectedfeatures=selfeatures,
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )

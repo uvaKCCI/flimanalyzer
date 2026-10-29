@@ -11,7 +11,6 @@ import logging
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from torch.autograd import Variable
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from abc import abstractmethod
@@ -69,15 +68,28 @@ class AbsAutoencoder(nn.Module, BaseEstimator, TransformerMixin):
     def fit(self, X):
         return self
 
+    def __sklearn_is_fitted__(self):
+        # trained with PyTorch before it is put into a scikit-learn pipeline
+        return True
+
     def transform(self, X):
-        return X
+        """Runs X through the model on the model's device.
+
+        Returns the encoder and decoder outputs as CPU tensors, wherever the
+        model runs (cpu, cuda or mps).
+        """
+        device = next(self.parameters()).device
+        X = torch.as_tensor(np.asarray(X), dtype=torch.float32, device=device)
+        with torch.no_grad():
+            encoder_out, decoder_out = self(X)
+        return encoder_out.cpu(), decoder_out.cpu()
 
     @abstractmethod
     def get_description(self):
         return None
 
 
-class Autoencoder_One_Six(AbsAutoencoder): #used for simulation
+class Autoencoder_One_Six(AbsAutoencoder):  # used for simulation
     def __init__(self, nb_param=2, hidden_size=6):
         super().__init__()
         self.name = "AE Simulator 1-6"
@@ -87,11 +99,6 @@ class Autoencoder_One_Six(AbsAutoencoder): #used for simulation
 
     def fit(self, loaders):
         return self
-
-    def transform(self, X):
-        # return only decoder output
-        X = Variable(torch.from_numpy(X))
-        return self(X)
 
     def forward(self, x):
         encoder_out = self.activation2(self.fc1(x))
@@ -105,7 +112,7 @@ class Autoencoder_One_Six(AbsAutoencoder): #used for simulation
         )
 
 
-class Autoencoder_One_Three(AbsAutoencoder): #also for simulation but isnt used
+class Autoencoder_One_Three(AbsAutoencoder):  # also for simulation but isnt used
     def __init__(self, nb_param=2, hidden_size=3):
         super().__init__()
         self.name = "AE Simulator 1-3"
@@ -115,11 +122,6 @@ class Autoencoder_One_Three(AbsAutoencoder): #also for simulation but isnt used
 
     def fit(self, loaders):
         return self
-
-    def transform(self, X):
-        # return only decoder output
-        X = Variable(torch.from_numpy(X))
-        return self(X)
 
     def forward(self, x):
         encoder_out = self.activation2(self.fc1(x))
@@ -146,11 +148,6 @@ class Autoencoder_Two_Ten(AbsAutoencoder):
     def fit(self, loaders):
         return self
 
-    def transform(self, X):
-        # return only decoder output
-        X = Variable(torch.from_numpy(X))
-        return self(X)
-
     def forward(self, x):
         x_out = self.activation2(self.fc1(x))
         encoder_out = self.activation2(self.fc2(x_out))
@@ -165,7 +162,7 @@ class Autoencoder_Two_Ten(AbsAutoencoder):
         )
 
 
-class Autoencoder_Two_Five(AbsAutoencoder): #also not really used
+class Autoencoder_Two_Five(AbsAutoencoder):  # also not really used
     def __init__(self, nb_param=2, hidden_size_1=5, hidden_size_2=1):
         super().__init__()
         self.name = "AE Dimensionality Reduction 2-5"
@@ -177,11 +174,6 @@ class Autoencoder_Two_Five(AbsAutoencoder): #also not really used
 
     def fit(self, loaders):
         return self
-
-    def transform(self, X):
-        # return only decoder output
-        X = Variable(torch.from_numpy(X))
-        return self(X)
 
     def forward(self, x):
         x_out = self.activation2(self.fc1(x))

@@ -45,6 +45,8 @@ class Pivot(AbstractPlugin):
             input=self.input,
             selectedgrouping=selgrouping,
             selectedfeatures=selfeatures,
+            saveconfig=self.params["saveconfig"],
+            config_file=self.params["config_file"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )
@@ -70,7 +72,7 @@ class Pivot(AbstractPlugin):
         logging.debug(f"pivoting {selgroups} in {groups}")
         data = data.reset_index()
         pivot_data = pd.pivot_table(
-            data[selfeatures], index=indexgroups, columns=selgroups
+            data[selfeatures], index=indexgroups, columns=selgroups, observed=False
         )
         # flatten multiindex in column headers
         pivot_data.columns = [

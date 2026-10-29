@@ -4,22 +4,21 @@ import itertools
 import numpy as np
 import os
 import pandas as pd
-import prefect
 import re
 import wx
 import matplotlib.pyplot as plt
 
-from prefect import Task, Flow, Parameter, task, unmapped, flatten
-from prefect.tasks.core.constants import Constant
-from prefect.tasks.core.collections import List
-from prefect.executors import DaskExecutor
-from prefect.executors.base import Executor
-from prefect.engine.results import LocalResult
+from prefect import task, unmapped
+
+from importlib_resources import files
 
 import flim.analysis.ml.autoencoder as autoencoder
 import flim.resources
+from flim.analysis.ml.device import DEFAULT_DEVICE, DEVICES
+from importlib_resources import files
 from flim import utils
-from flim.plugin import plugin, perm, product, select
+from flim.core.runner import Parameter, select
+from flim.plugin import plugin
 from flim.plugin import AbstractPlugin, DataBucket, ALL_FEATURES
 from flim.data.pivotdata import Pivot
 from flim.data.unpivotdata import UnPivot
@@ -62,9 +61,11 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
         weight_decay=1e-7,
         timeseries="",
         model="",
-        device="cpu",
+        device=DEFAULT_DEVICE,
         rescale=False,
         checkpoint_interval=20,
+        saveconfig=True,
+        config_file="",
         autosave=True,
         working_dir=os.path.expanduser("~"),
     ):
@@ -91,8 +92,11 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
             selectedfeatures=selectedfeatures,
             optgridrows=0,
             optgridcols=1,
+            saveconfig=saveconfig,
+            config_file=config_file,
             autosave=autosave,
             working_dir=working_dir,
+            autosave_locked=True,  # used by workflows, which always save
         )
         self._update_model_info(None)
 
@@ -183,7 +187,7 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
             wx.ID_ANY,
             style=wx.CB_READONLY,
             value=self.device,
-            choices=["cpu", "cuda"],
+            choices=DEVICES,
         )
         self.rescale_checkbox = wx.CheckBox(
             self.panel, wx.ID_ANY, label="Rescale decoded"
@@ -327,7 +331,7 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
         self.model_descr.Replace(0, self.model_descr.GetLastPosition(), descr)
         self.model_layers.Replace(0, self.model_layers.GetLastPosition(), layer_txt)
 
-    def _on_browse(self, event):
+    def _on_result_browse(self, event):
         dirname = self.workingdirtxt.GetLabel()
         with wx.DirDialog(
             self,
@@ -343,7 +347,9 @@ class AEAugmentTuneConfigDlg(BasicAnalysisConfigDlg):
             self.workingdirtxt.SetLabel(dirname)
 
     def _get_selected(self):
-        logging.debug(f"epoches:{self.epoches_spinner.GetValue()}, batch_size:{self.batchsize_input.GetValue()}, learning_rate:{self.learning_input.GetValue()}, weight_decay:{self.weight_input.GetValue()}")
+        logging.debug(
+            f"epoches:{self.epoches_spinner.GetValue()}, batch_size:{self.batchsize_input.GetValue()}, learning_rate:{self.learning_input.GetValue()}, weight_decay:{self.weight_input.GetValue()}"
+        )
         params = super()._get_selected()
         params["epoches"] = self.epoches_spinner.GetValue()
         params["batch_size"] = [
@@ -370,8 +376,16 @@ class AEWorkflow(AbsWorkFlow):
         super().__init__(name=name, **kwargs)
         # self.executor = None #DaskExecutor(address="tcp://172.18.75.87:8786")
 
+    def get_icon(self):
+        source = files(flim.resources).joinpath("aetuneworkflow.png")
+        return wx.Bitmap(str(source))
+
     def get_required_features(self):
         return ["any"]
+
+    # def get_icon(self):
+    #     source = files(flim.resources).joinpath("heatmap.png")
+    #     return wx.Bitmap(str(source))
 
     def get_default_parameters(self):
         params = super().get_default_parameters()
@@ -403,7 +417,7 @@ class AEWorkflow(AbsWorkFlow):
                     os.path.expanduser("~"), "FLIMAnalyzerResults"
                 ),
                 "model": "AE Simulator 1-6",
-                "device": "cpu",
+                "device": DEFAULT_DEVICE,
                 "rescale": True,
                 "checkpoint_interval": 2,  # 20
             }
@@ -427,6 +441,7 @@ class AEWorkflow(AbsWorkFlow):
             device=self.params["device"],
             rescale=self.params["rescale"],
             checkpoint_interval=self.params["checkpoint_interval"],
+            saveconfig=self.params["saveconfig"],
             autosave=self.params["autosave"],
             working_dir=self.params["working_dir"],
         )
@@ -437,7 +452,7 @@ class AEWorkflow(AbsWorkFlow):
         self.configure(**params)
         return self.params
 
-    def construct_flow(self, executor, result):
+    def construct_flow(self):
         checkpoint_interval = self.params["checkpoint_interval"]
 
         data = list(self.input.values())[0]
@@ -479,166 +494,163 @@ class AEWorkflow(AbsWorkFlow):
         heatmaptask = Heatmap()
         kdetask = KDE()
 
-        with Flow(f"{self.name}", executor=executor, result=result) as flow:
-            working_dir = Parameter("working_dir", self.params["working_dir"])
-            modelfile = f'AEAugment-{len(self.params["features"])}'
+        working_dir = Parameter("working_dir", self.params["working_dir"])
+        modelfile = f'AEAugment-{len(self.params["features"])}'
 
-            timeseries = Parameter("timeseries", default=self.params["timeseries"])
-            grouping = Parameter("grouping", default=self.params["grouping"])
-            epoches = Parameter("epoches", default=self.params["epoches"])
-            rates = Parameter("learning rate", default=rates)
-            decays = Parameter("weight decay", default=decays)
-            batch_sizes = Parameter("batch size", default=batch_sizes)
-            train_features = Parameter(
-                f'features: {len(self.params["features"])}',
-                default=sel_features,
-            )
-            model = Parameter("model", default=self.params["model"])
-            add_noise = Parameter("add noise", default=add_noise)
-            sets = Parameter("sets", default=self.params["sets"])
+        timeseries = Parameter("timeseries", default=self.params["timeseries"])
+        grouping = Parameter("grouping", default=self.params["grouping"])
+        epoches = Parameter("epoches", default=self.params["epoches"])
+        rates = Parameter("learning rate", default=rates)
+        decays = Parameter("weight decay", default=decays)
+        batch_sizes = Parameter("batch size", default=batch_sizes)
+        train_features = Parameter(
+            f'features: {len(self.params["features"])}',
+            default=sel_features,
+        )
+        model = Parameter("model", default=self.params["model"])
+        add_noise = Parameter("add noise", default=add_noise)
+        sets = Parameter("sets", default=self.params["sets"])
 
-            input = datatask(
-                name="Input",
-                input=self.input,
-                input_select=[0],
-                task_tags="Input",
-            )
+        input = datatask(
+            name="Input",
+            input=self.input,
+            input_select=[0],
+            task_tags="Input",
+        )
 
-            input_filtered = filtertask(
-                input=input,
-                input_select=[0],
-                task_tags="Input_Filtered",
-            )
+        input_filtered = filtertask(
+            input=input,
+            input_select=[0],
+            task_tags="Input_Filtered",
+        )
 
-            heatmapexp = heatmaptask(
-                input=input_filtered,
-                input_select=unmapped([0]),
-                grouping=unmapped([]),
-                features=unmapped(train_features),
-                corr_type=unmapped("spearman"),
-                task_tags="Input_Filtered",
-            )
+        heatmapexp = heatmaptask(
+            input=input_filtered,
+            input_select=unmapped([0]),
+            grouping=unmapped([]),
+            features=unmapped(train_features),
+            corr_type=unmapped("spearman"),
+            task_tags="Input_Filtered",
+        )
 
-            kdeexp = kdetask(
-                input=input_filtered,
-                input_select=unmapped([0]),
-                grouping=unmapped(["Treatment"]),
-                features=unmapped(train_features),
-                task_tags="Input_Filtered",
-            )
+        kdeexp = kdetask(
+            input=input_filtered,
+            input_select=unmapped([0]),
+            grouping=unmapped(["Treatment"]),
+            features=unmapped(train_features),
+            task_tags="Input_Filtered",
+        )
 
-            aeresults = aetraintask_10.map(
-                input=unmapped(input_filtered),
-                input_select=unmapped([0]),
-                grouping=unmapped(grouping),
-                features=unmapped(train_features),
-                epoches=unmapped(epoches),
-                learning_rate=rates,
-                weight_decay=decays,
-                batch_size=batch_sizes,
-                checkpoint_interval=unmapped(checkpoint_interval),
-                timeseries=unmapped(timeseries),
-                rescale=unmapped(True),
-                model=unmapped(model),
-                working_dir=unmapped(working_dir),
-                modelfile=unmapped(modelfile),
-                create_plots=unmapped(False),
-                checkpoint=unmapped(True),
-                task_tags=combinations,
-            )
+        aeresults = aetraintask_10.map(
+            input=unmapped(input_filtered),
+            input_select=unmapped([0]),
+            grouping=unmapped(grouping),
+            features=unmapped(train_features),
+            epoches=unmapped(epoches),
+            learning_rate=rates,
+            weight_decay=decays,
+            batch_size=batch_sizes,
+            checkpoint_interval=unmapped(checkpoint_interval),
+            timeseries=unmapped(timeseries),
+            rescale=unmapped(True),
+            model=unmapped(model),
+            working_dir=unmapped(working_dir),
+            modelfile=unmapped(modelfile),
+            create_plots=unmapped(False),
+            checkpoint=unmapped(True),
+            task_tags=combinations,
+        )
 
-            concatresults = concattask(
-                input=aeresults,
-                input_select=["Table: AE Loss"],
-                type=False,
-                task_tags="AE1_Training_Summary",
-            )
+        concatresults = concattask(
+            input=aeresults,
+            input_select=["Table: AE Loss"],
+            type=False,
+            task_tags="AE1_Training_Summary",
+        )
 
-            summaryresults = summarytask(
-                input=concatresults,
-                input_select=[0],
-                grouping=["Source", "Batch Size", "Learning Rate", "Weight Decay"],
-                features=["Training Loss", "Validation Loss", "Model File"],
-                singledf=True,
-                aggs=["min"],
-                task_tags="AE1_Training_Summary",
-            )
+        summaryresults = summarytask(
+            input=concatresults,
+            input_select=[0],
+            grouping=["Source", "Batch Size", "Learning Rate", "Weight Decay"],
+            features=["Training Loss", "Validation Loss", "Model File"],
+            singledf=True,
+            aggs=["min"],
+            task_tags="AE1_Training_Summary",
+        )
 
-            unpivotresults = unpivottask(
-                input=concatresults,
-                input_select=[0],
-                features=["Training Loss", "Validation Loss"],
-                category_name="Loss Type",
-                feature_name="Loss Value",
-                task_tags="AE1_Training_Summary",
-            )
+        unpivotresults = unpivottask(
+            input=concatresults,
+            input_select=[0],
+            features=["Training Loss", "Validation Loss"],
+            category_name="Loss Type",
+            feature_name="Loss Value",
+            task_tags="AE1_Training_Summary",
+        )
 
-            lineplotresults = lineplottask(
-                input=unpivotresults,
-                input_select=[0],
-                grouping=[
-                    "Epoch",
-                    "Loss Type",
-                    "Batch Size",
-                    "Learning Rate",
-                    "Weight Decay",
-                ],
-                features=["Loss Value"],
-                task_tags="AE1_Training_Summary",
-            )
+        lineplotresults = lineplottask(
+            input=unpivotresults,
+            input_select=[0],
+            grouping=[
+                "Epoch",
+                "Loss Type",
+                "Batch Size",
+                "Learning Rate",
+                "Weight Decay",
+            ],
+            features=["Loss Value"],
+            task_tags="AE1_Training_Summary",
+        )
 
-            barplotresults = barplottask.map(
-                input=unmapped(concatresults),
-                input_select=unmapped([0]),
-                grouping=unmapped(
-                    ["Epoch", "Batch Size", "Learning Rate", "Weight Decay"]
-                ),
-                features=[["Training Loss"], ["Validation Loss"]],
-                task_tags=unmapped("AE1_Training_Summary"),
-            )
+        barplotresults = barplottask.map(
+            input=unmapped(concatresults),
+            input_select=unmapped([0]),
+            grouping=unmapped(
+                ["Epoch", "Batch Size", "Learning Rate", "Weight Decay"]
+            ),
+            features=[["Training Loss"], ["Validation Loss"]],
+            task_tags=unmapped("AE1_Training_Summary"),
+        )
 
-            simresults = simtask.map(
-                input=unmapped(input_filtered),
-                input_select=unmapped([0]),
-                modelfile=select(aeresults, "Model File"),
-                add_noise=unmapped(add_noise),
-                sets=unmapped(sets),
-                features=unmapped(train_features),
-                grouping=unmapped(grouping),
-                task_tags=combinations,
-            )
+        simresults = simtask.map(
+            input=unmapped(input_filtered),
+            input_select=unmapped([0]),
+            modelfile=select(aeresults, "Model File"),
+            add_noise=unmapped(add_noise),
+            sets=unmapped(sets),
+            features=unmapped(train_features),
+            grouping=unmapped(grouping),
+            task_tags=combinations,
+        )
 
-            simresults_filtered = filtertask.map(
-                input=simresults,
-                input_select=unmapped([0]),
-                task_tags=combinations,
-            )
+        simresults_filtered = filtertask.map(
+            input=simresults,
+            input_select=unmapped([0]),
+            task_tags=combinations,
+        )
 
-            heatmapresults = heatmaptask.map(
-                input=simresults_filtered,
-                input_select=unmapped([0]),
-                grouping=unmapped([]),
-                features=unmapped(train_features),
-                corr_type=unmapped("spearman"),
-                task_tags=combinations,
-            )
+        heatmapresults = heatmaptask.map(
+            input=simresults_filtered,
+            input_select=unmapped([0]),
+            grouping=unmapped([]),
+            features=unmapped(train_features),
+            corr_type=unmapped("spearman"),
+            task_tags=combinations,
+        )
 
-            kderesults = kdetask.map(
-                input=simresults_filtered,
-                input_select=unmapped([0]),
-                grouping=unmapped(["Treatment"]),
-                features=unmapped(train_features),
-                task_tags=combinations,
-            )
+        kderesults = kdetask.map(
+            input=simresults_filtered,
+            input_select=unmapped([0]),
+            grouping=unmapped(["Treatment"]),
+            features=unmapped(train_features),
+            task_tags=combinations,
+        )
 
-            summaryresults2 = summarytask.map(
-                input=simresults_filtered,
-                input_select=unmapped([0]),
-                grouping=unmapped(["Treatment"]),
-                features=unmapped(train_features),
-                singledf=unmapped(False),
-                aggs=unmapped(["min", "max", "median", "count"]),
-                task_tags=combinations,
-            )
-
-        return flow
+        summaryresults2 = summarytask.map(
+            input=simresults_filtered,
+            input_select=unmapped([0]),
+            grouping=unmapped(["Treatment"]),
+            features=unmapped(train_features),
+            singledf=unmapped(False),
+            aggs=unmapped(["min", "max", "median", "count"]),
+            task_tags=combinations,
+        )
