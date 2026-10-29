@@ -301,10 +301,18 @@ def label_tiles(grid, features, ylim=None) -> None:
 # --- categorical plots ---
 
 
+def as_strings(values: pd.Series) -> pd.Series:
+    """Values as text (not numbers, e.g. for hue); categories keep their order (of
+    the axes and legends) without the unused ones."""
+    if isinstance(values.dtype, pd.CategoricalDtype):
+        return values.cat.remove_unused_categories().cat.rename_categories(str)
+    return values.astype("str")
+
+
 def strings_for_categories(data: pd.DataFrame) -> pd.DataFrame:
     data = data.copy()
     for column in category_columns(data):
-        data[column] = data[column].astype("str")
+        data[column] = as_strings(data[column])
     return data
 
 
@@ -770,7 +778,7 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
         data = data.copy()
         for column in category_columns(data):
             if data[column].nunique() > 1:
-                data[column] = data[column].astype("str")
+                data[column] = as_strings(data[column])
         features = sorted(selected_features(data, config.features))
         if config.single_figure and features:
             return {self.name: self.line_tiles(data, features, config)}
@@ -1025,8 +1033,7 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
             weights = np.ones_like(values) / float(total) * normalize
         else:
             grouped = data.groupby(list(groups), observed=True)
-            kwargs["label"] = list(grouped.groups)
-            for name, group in grouped:
+            for name, group in grouped:  # in the order of the categories
                 if len(group[column]) == 0:
                     continue
                 names.append(name)
@@ -1035,6 +1042,9 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
                 weights.append(
                     np.ones_like(group[column].values) / float(count) * normalize
                 )
+        labels = [clean_label(n) for n in names]
+        if groups:  # the labels of the groups shown (grouped.groups: in data order)
+            kwargs["label"] = labels
         in_group = "" if stacked else "in each group "
         ax.set_ylabel(f"relative counts {in_group}[%]")
         names = [f"{n} [rel %]" for n in names]
@@ -1047,9 +1057,11 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
             values, weights=weights, stacked=stacked, alpha=0.5, **kwargs
         )
         if groups and len(counts) > 1:
-            h, labels = ax.get_legend_handles_labels()
+            # in the order of the groups (stacked and step histograms: reversed)
+            handles = dict(zip(*reversed(ax.get_legend_handles_labels())))
             ax.legend(
-                labels=[clean_label(label) for label in labels],
+                [handles[label] for label in labels if label in handles],
+                [label for label in labels if label in handles],
                 loc="upper left",
                 title=", ".join(groups),
                 bbox_to_anchor=(1.0, 1.0),
@@ -1158,12 +1170,17 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
             dropna=True,
             corner=corner,
         )
-        if config.diagonal == "Histogram":
-            grid.map_diag(sns.histplot, bins=config.hist_bins)
+        if grid.square_grid:
+            if config.diagonal == "Histogram":
+                grid.map_diag(sns.histplot, bins=config.hist_bins)
+            else:
+                grid.map_diag(sns.kdeplot)
+            grid.map_upper(scatter)
+            grid.map_lower(scatter)
         else:
-            grid.map_diag(sns.kdeplot)
-        grid.map_upper(scatter)
-        grid.map_lower(scatter)
+            # no diagonal: map_upper and map_lower would leave the panels whose row
+            # and column numbers are equal empty
+            grid.map(scatter)
         grid.add_legend()
         if sampled:
             grid.figure.text(
@@ -1210,18 +1227,25 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
     description = "A scatter plot for each pair of features, colored by group."
     icon = "scatter.png"
 
+    @staticmethod
+    def pairs(config, features) -> list[tuple]:
+        """(x, y) of each plot: in the features' order, or as ``x_axis`` sets it."""
+        pairs = sorted(itertools.combinations(features, 2))
+        if len(pairs) == 1 and config.x_axis is not None:
+            (pair,) = pairs
+            if config.x_axis == pair[1]:
+                return [pair[::-1]]
+        return pairs
+
     @classmethod
     def output_names(cls, config, features):
         if config.single_figure:
             return {cls.name: PlotType}
-        return {
-            f"Scatter Plot: {pair}": PlotType
-            for pair in sorted(itertools.combinations(features, 2))
-        }
+        return {f"Scatter Plot: {pair}": PlotType for pair in cls.pairs(config, features)}
 
     def run(self, data, *, config):
         features = selected_features(data, config.features)
-        pairs = sorted(itertools.combinations(features, 2))
+        pairs = self.pairs(config, features)
         # the same sample in every plot: the same cells
         data, note = sampled_rows(data, config.points)
         if config.single_figure and pairs:

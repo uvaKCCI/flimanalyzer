@@ -691,3 +691,99 @@ def test_cancel_while_placing_swarms(data):
     with pytest.raises(TaskCancelled):
         tool(big, config=config)
     assert checks[-1] and checks.count(True) == 1
+
+
+def test_pair_plot_with_other_rows_than_columns_fills_all_panels(data):
+    plt.close("all")
+    config = PairPlotConfig(
+        grouping=["Treatment"],
+        symmetric=False,
+        x_vars=["t1", "t2", "FLIRR"],
+        y_vars=["t2", "FAD a1%"],
+    )
+    (figure,) = PairPlot()(data, config=config).values()
+    panels = [ax for ax in figure.axes if ax.get_visible()]
+    assert len(panels) == 6
+    assert all(sum(len(c.get_offsets()) for c in ax.collections) for ax in panels)
+
+
+ORDERED = ["ctrl", "Dox60", "Dox15"]  # not alphabetical, not the order in the data
+
+
+@pytest.fixture
+def ordered_table():
+    """Groups in an order of their own, with values far apart (10, 20, 30)."""
+    treatment = ["Dox15", "Dox60", "ctrl"] * 20
+    return pd.DataFrame(
+        {
+            "Treatment": pd.Categorical(treatment, categories=ORDERED),
+            "FOV": pd.Categorical(["c", "a", "b", "a"] * 15, categories=["c", "b", "a"]),
+            "f1": [10.0 * (ORDERED.index(t) + 1) for t in treatment],
+        }
+    )
+
+
+def the_legend(figure):
+    return next(
+        legend
+        for legend in [ax.get_legend() for ax in figure.axes] + list(figure.legends)
+        if legend
+    )
+
+
+def legend_texts(figure) -> list[str]:
+    return [text.get_text() for text in the_legend(figure).get_texts()]
+
+
+@pytest.mark.parametrize("single", [False, True])
+def test_line_plot_legend_in_category_order(ordered_table, single):
+    config = LinePlotConfig(
+        grouping=["Treatment", "FOV"], features=["f1"], single_figure=single
+    )
+    figure = next(iter(LinePlot().run(ordered_table, config=config).values()))
+    assert legend_texts(figure) == ["c", "b", "a"]
+
+
+@pytest.mark.parametrize("histtype", ["bar", "step"])
+def test_histogram_legend_in_category_order_with_the_groups_colors(
+    ordered_table, histtype
+):
+    config = HistogramConfig(
+        grouping=["Treatment"],
+        features={"f1": HistogramRange(min=0, max=40, bins=40)},
+        histtype=histtype,
+    )
+    figure = next(iter(FrequencyHistogram().run(ordered_table, config=config).values()))
+    ax = figure.axes[0]
+    assert legend_texts(figure) == ORDERED
+    for label, handle in zip(ORDERED, the_legend(figure).legend_handles):
+        attr = "get_edgecolor" if histtype == "step" else "get_facecolor"
+        color = getattr(handle, attr)()
+        peaks = set()  # where the patches of the label's colour are highest
+        for patch in ax.patches:
+            if not np.allclose(getattr(patch, attr)(), color):
+                continue
+            xy = ax.transData.inverted().transform(
+                patch.get_path().transformed(patch.get_transform()).vertices
+            )
+            if xy[:, 1].max() > 0:
+                peaks.add(round(xy[xy[:, 1].argmax(), 0]))
+        expected = 10 * (ORDERED.index(label) + 1)  # the group's value
+        assert peaks <= {expected, expected + 1} and peaks, (label, peaks)
+
+
+def test_scatter_plot_x_axis_of_two_features(ordered_table):
+    data = ordered_table.assign(f2=ordered_table["f1"] * 2)
+    config = ScatterPlotConfig(features=["f1", "f2"])
+    assert config.x_axis == "f1"  # the first, by default
+    figure = next(iter(ScatterPlot().run(data, config=config).values()))
+    assert figure.axes[0].get_xlabel() == "f1"  # the first
+    config = ScatterPlotConfig(features=["f1", "f2"], x_axis="f2")
+    assert ScatterPlot.output_names(config, ["f1", "f2"]) == {
+        "Scatter Plot: ('f2', 'f1')": PlotType
+    }
+    (name, figure), = ScatterPlot().run(data, config=config).items()
+    assert name == "Scatter Plot: ('f2', 'f1')"
+    assert (figure.axes[0].get_xlabel(), figure.axes[0].get_ylabel()) == ("f2", "f1")
+    # more features: one plot per pair, no x axis to choose
+    assert ScatterPlotConfig(features=["f1", "f2", "f3"], x_axis="f2").x_axis is None

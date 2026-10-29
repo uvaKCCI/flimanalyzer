@@ -373,9 +373,30 @@ class HistogramConfig(DistributionPlotConfig):
 class ScatterPlotConfig(TiledPlotConfig):
     """A scatter plot for each pair of ``features``."""
 
-    legacy_keys = {**TiledPlotConfig.legacy_keys, "points": None}
+    legacy_keys = {
+        **TiledPlotConfig.legacy_keys,
+        "points": None,
+        "x_axis": None,
+    }
 
     points: PointSampling = Field(default_factory=PointSampling, title="Points")
+    x_axis: Optional[FeatureColumn] = Field(
+        default=None,
+        title="X axis",
+        description="With two features: the one on the x axis (else the first of"
+        " each pair).",
+        json_schema_extra={"order": 411},  # right after the features
+    )
+
+    @classmethod
+    def allowed_values(cls, values):
+        allowed = super().allowed_values(values)
+        features = values.get("features")
+        if isinstance(features, list) and len(set(features)) == 2:
+            allowed["x_axis"] = tuple(dict.fromkeys(features))  # first: the default
+        else:  # one plot per pair: the first of the pair on the x axis
+            allowed["x_axis"] = (None,)
+        return allowed
 
 
 class PairPlotConfig(PlotConfig):
