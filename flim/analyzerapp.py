@@ -18,7 +18,7 @@ import flim.analysis
 from flim.plugin import AbstractPlugin
 from flim.core.tools import FLIMAnalyzer, check_executor_available
 from flim.core.prefect_server import use_prefect_server
-from flim.core.configuration import Config, CONFIG_PARSER_CLASS
+from flim.core.settings import load_settings
 
 
 def parse_arguments():
@@ -90,17 +90,13 @@ def noninteractive_run(fa, args):
     logging.debug("\nFound %d file(s), skipping %d file(s)." % (a, s))
     if len(impo.get_files()) == 0:
         return
-    if args.config:
-        if not os.path.isfile(args.config):
-            logging.debug("Configuration file %s does not exist." % args.config)
-        else:
-            config = Config()
-            config.read_from_json(args.config)
+    if args.config and os.path.isfile(args.config):
+        parser = load_settings(args.config).import_.filename_parser.parser
     else:
-        config = Config()
-        config.create_default()
-        config.update({CONFIG_PARSER_CLASS: args.parser})
-    hparser = cp.instantiate_parser(config.get(CONFIG_PARSER_CLASS))
+        if args.config:
+            logging.warning(f"Settings file {args.config} does not exist")
+        parser = args.parser
+    hparser = cp.instantiate_parser(parser)
     if hparser is None:
         logging.debug("Error instantiating filename parser %s" % args.parser)
         return
