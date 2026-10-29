@@ -28,6 +28,7 @@ class FieldSpec:
     description: str = ""
     optional: bool = False  # None is allowed
     choices: tuple = ()  # choice, multichoice
+    labels: dict = field(default_factory=dict)  # choice: value -> label shown
     role: Optional[str] = None  # column, columns: "category" or "feature"
     allow_all: bool = False  # columns: "all" is allowed (all features)
     item_type: Optional[type] = None  # numbers: int or float
@@ -64,6 +65,7 @@ def describe(model: type[BaseModel]) -> list[FieldSpec]:
                 title=info.title or title_of(name),
                 description=info.description or "",
                 order=extra.get("order"),
+                labels=dict(extra.get("labels", {})),
                 advanced=bool(
                     extra.get("advanced", getattr(spec.get("model"), "advanced", False))
                 ),

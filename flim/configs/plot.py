@@ -23,7 +23,7 @@ class PlotConfig(TaskConfig):
         default="right",
         title="Legend",
         description="Outside the plots (right, top, bottom, left), inside, or none.",
-        json_schema_extra={"order": 401},  # after the grouping it shows
+        json_schema_extra={"order": 422},  # figure layout: after the features
     )
 
     @classmethod
@@ -88,19 +88,19 @@ class TiledPlotConfig(PlotConfig):
     # with more grouping columns, the tool's plots are facets already: no single figure
     max_tiled_grouping: ClassVar[Optional[int]] = None
 
-    # right above the features (410): what is plotted, and how
+    # the figure's layout: after grouping and features (410), before sections (900)
     single_figure: bool = Field(
         default=False,
         title="Single figure",
         description="All plots as tiles of one figure; otherwise one figure each.",
-        json_schema_extra={"order": 408},
+        json_schema_extra={"order": 420},
     )
     plots_per_row: int = Field(
         default=5,
         ge=0,
         title="Plots per row",
         description="Plots per row of the single figure; 0: automatic.",
-        json_schema_extra={"order": 408.5},
+        json_schema_extra={"order": 421},
     )
 
     @classmethod
@@ -432,6 +432,7 @@ class PairPlotConfig(PlotConfig):
         default=False,
         title="Lower half only",
         description="Omit the upper triangle of the (symmetric) grid.",
+        json_schema_extra={"order": 420},  # the figure's layout, after the features
     )
     hist_bins: int = Field(default=20, ge=1, title="Histogram bins")
     points: PointSampling = Field(default_factory=PointSampling, title="Scatter points")

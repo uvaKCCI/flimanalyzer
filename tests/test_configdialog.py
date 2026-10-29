@@ -174,11 +174,13 @@ def test_columns_follow_the_selected_input(dialog):
     assert grouping.items == ["Treatment"]
 
 
-def test_missing_columns_are_marked(dialog):
+def test_missing_features_are_noted_not_listed(dialog):
     d = dialog("K-Means", KMeansConfig(features=["gone"]))
-    shown, text = marker(d, "features")
-    assert shown and "'gone' is not in the input" in text
-    assert d.fields.editors["features"].items[-1] == "gone"  # still listed, to uncheck
+    features = d.fields.editors["features"]
+    assert "gone" not in features.items  # only the input's features
+    assert features.get() == []
+    assert features.note.IsShown()
+    assert features.note.GetLabel() == "Not in this input (not used): gone"
 
 
 def test_all_features(dialog):

@@ -13,6 +13,7 @@ from typing import Optional
 
 import pandas as pd
 import wx
+import wx.grid
 from pydantic import ValidationError
 from wx.lib.scrolledpanel import ScrolledPanel
 
@@ -157,7 +158,8 @@ class ConfigDialog(wx.Dialog):
         sizer.Add(self.status, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
         sizer.Add(self._execution_controls(), 0, wx.EXPAND | wx.ALL, 8)
         buttons = self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
-        self.ok_button = self.FindWindowById(wx.ID_OK)
+        self.ok_button = self.FindWindow(wx.ID_OK)  # FindWindowById: any window's
+        self.ok_button.Bind(wx.EVT_BUTTON, self._on_ok)
         sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 8)
         self.SetSizer(sizer)
 
@@ -344,6 +346,26 @@ class ConfigDialog(wx.Dialog):
         return issues
 
     # --- result ---
+
+    def _on_ok(self, event):
+        # a table cell still being edited keeps its text in the cell editor (clicking
+        # OK does not end the edit on all platforms): take it, then check again
+        if self.commit_edits():
+            self.validate()
+        if self.ok_button.IsEnabled():
+            event.Skip()  # closes the dialog
+
+    def commit_edits(self) -> bool:
+        """Ends the edits of table cells, keeping the edited values; True if any."""
+        committed = False
+        windows = [self]
+        while windows:
+            window = windows.pop()
+            if isinstance(window, wx.grid.Grid) and window.IsCellEditControlEnabled():
+                window.DisableCellEditControl()  # saves the value (cell changed)
+                committed = True
+            windows.extend(window.GetChildren())
+        return committed
 
     def result(self) -> DialogResult:
         config, issues = self.current_config()

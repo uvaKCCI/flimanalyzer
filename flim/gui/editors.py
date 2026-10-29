@@ -87,11 +87,16 @@ class ChoiceEditor(Editor):
             self.values = ([None] if self.spec.optional else []) + list(
                 self.spec.choices
             )
-            labels = [NONE_LABEL if v is None else str(v) for v in self.values]
+            labels = [self._label(v) for v in self.values]
         self.all_values = list(self.values)
         control = wx.Choice(parent, choices=labels)
         control.Bind(wx.EVT_CHOICE, self.changed)
         return control
+
+    def _label(self, value) -> str:
+        if value is None:
+            return NONE_LABEL
+        return str(self.spec.labels.get(value, value))
 
     def get(self):
         index = self.control.GetSelection()
@@ -109,7 +114,7 @@ class ChoiceEditor(Editor):
             return
         current = self.values[self.control.GetSelection()] if self.values else None
         self.values = values
-        self.control.Set([NONE_LABEL if v is None else str(v) for v in values])
+        self.control.Set([self._label(v) for v in values])
         # keep the value if still allowed, else the first allowed (the default)
         self.control.SetSelection(values.index(current) if current in values else 0)
 
@@ -233,6 +238,17 @@ class ColumnEditor(Editor):
     def set(self, value):
         self.control.ChangeValue("" if value is None else str(value))
 
+    def set_allowed(self, allowed):
+        # only some columns allowed (e.g. one of the selected features): those
+        if allowed is None or len(allowed) < 2:
+            return
+        names = [str(a) for a in allowed if a is not None]
+        if names == self.control.GetItems():
+            return
+        value = self.control.GetValue()
+        set_combo_items(self.control, names)
+        self.control.ChangeValue(value if value in names else names[0])
+
 
 class ValueEditor(Editor):
     """A value of the category column named by another field (``column_field``)."""
@@ -328,9 +344,24 @@ class MultiChoiceEditor(_CheckList):
 class FeaturesEditor(_CheckList):
     """Feature columns, or "all" (if allowed)."""
 
+    def create(self, parent):
+        panel = super().create(parent)
+        self.list.Unbind(wx.EVT_CHECKLISTBOX)
+        self.list.Bind(wx.EVT_CHECKLISTBOX, self._on_check)
+        return panel
+
     def extra_controls(self, panel, sizer):
         self.all = None
         self.selection: list = []  # the selection before "All features" was checked
+        # the checked features, also those the input lacks (e.g. the settings of a run
+        # on another table): checked again with an input that has them
+        self.wanted: list = []
+        self.features: list = []  # the input's features
+        self.known = False  # all of the input's features are known
+        self.note = wx.StaticText(panel, label="")  # the wanted ones not shown
+        self.note.SetForegroundColour(wx.Colour(120, 120, 120))
+        self.note.Hide()
+        sizer.Add(self.note, 0, wx.BOTTOM, 3)
         if self.spec.allow_all:
             self.all = wx.CheckBox(panel, label="All features")
             self.all.Bind(wx.EVT_CHECKBOX, self._on_all)
@@ -356,14 +387,42 @@ class FeaturesEditor(_CheckList):
         self._show_all(self.is_all())
         self.changed(event)
 
+    def _remember(self) -> None:
+        """The checked features, and the wanted ones the input lacks."""
+        self.wanted = self.checked() + [w for w in self.wanted if w not in self.items]
+
+    def _on_check(self, event):
+        self._remember()
+        self.changed(event)
+
+    def check_all(self, checked: bool):
+        self.list.SetCheckedItems(list(range(len(self.items))) if checked else [])
+        self._remember()
+        self.changed()
+
     def set_schema(self, schema):
-        # a selection keeps features the input lacks (to uncheck them); all features
-        # are the input's
-        checked = [] if self.is_all() else self.checked()
-        self.set_items(
-            [] if schema is None else schema.by_role(self.spec.role), checked
-        )
+        if not self.is_all():
+            self._remember()
+        self.known = schema is not None and schema.complete
+        self.features = [] if schema is None else schema.by_role(self.spec.role)
+        self.set_items(self.features, [] if self.is_all() else self._shown())
         self._show_all(self.is_all())
+
+    def _shown(self) -> list:
+        """The wanted features shown checked: those of the input if all are known
+        (else all of them: they may be in the input)."""
+        missing = [f for f in self.wanted if f not in self.features]
+        shown_note = bool(self.known and missing)
+        if shown_note:
+            names = ", ".join(str(f).replace("\n", " ") for f in missing)
+            self.note.SetLabel(f"Not in this input (not used): {names}")
+            self.note.SetToolTip(self.note.GetLabel())
+        if shown_note != self.note.IsShown():
+            self.note.Show(shown_note)
+            self.panel.Layout()
+        if not self.known:
+            return list(self.wanted)
+        return [f for f in self.wanted if f in self.features]
 
     def get(self):
         if self.is_all():
@@ -375,7 +434,8 @@ class FeaturesEditor(_CheckList):
         if self.all is not None:
             self.all.SetValue(is_all)
         self.selection = []
-        self.set_items(self.items, [] if is_all or value is None else list(value))
+        self.wanted = [] if is_all or value is None else list(value)
+        self.set_items(self.features, self._shown())
         self._show_all(is_all)
 
 
@@ -629,14 +689,16 @@ class ModelsEditor(_RowIssues, Editor):
         self.grid.SetRowLabelSize(30)
         self.grid.SetMinSize((-1, 110))
         # rows with issues: a marker in the first column, the messages as tooltip
-        self.grid.SetColAttr(0, self._init_row_issues())
+        self._init_row_issues()
+        self._set_choices({c.name: c.choices for c in self.columns if c.choices})
         self.grid.GetGridWindow().Bind(wx.EVT_MOTION, self._on_motion)
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.changed)
         sizer.Add(self.grid, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
+        item = self.item_name()
         for label, handler in [
-            ("Add Row", self._on_add),
-            ("Remove Rows", self._on_remove),
+            (f"Add {item}", self._on_add),
+            (f"Remove {item}s", self._on_remove),
         ] + self.extra_buttons():
             button = wx.Button(panel, label=label, style=wx.BU_EXACTFIT)
             button.Bind(wx.EVT_BUTTON, handler)
@@ -644,6 +706,41 @@ class ModelsEditor(_RowIssues, Editor):
         sizer.Add(buttons)
         panel.SetSizer(sizer)
         return panel
+
+    def item_name(self) -> str:
+        """What a row is, for the buttons: "Rules" → "Rule"."""
+        title = self.spec.title
+        return title[:-1] if title.endswith("s") and len(title) > 1 else "Row"
+
+    def _set_choices(self, choices: dict) -> None:
+        """Cells of the columns in ``choices`` (name -> values) are edited with a
+        drop-down of the values (none: text); the first column marks rows with
+        issues."""
+        for col, column in enumerate(self.columns):
+            col += self.offset
+            values = choices.get(column.name)
+            if col and values is None:
+                continue
+            attr = wx.grid.GridCellAttr()
+            if col == 0:
+                attr.SetRenderer(_MarkedTextRenderer(self.marks))
+            if values is not None:
+                attr.SetEditor(wx.grid.GridCellChoiceEditor([str(v) for v in values]))
+            self.grid.SetColAttr(col, attr)
+        if self.offset:  # the key column
+            attr = wx.grid.GridCellAttr()
+            attr.SetRenderer(_MarkedTextRenderer(self.marks))
+            self.grid.SetColAttr(0, attr)
+
+    def set_schema(self, schema):
+        # column cells: a drop-down of the input's columns of the role (unknown: text)
+        if schema is None:
+            return
+        choices = {c.name: c.choices for c in self.columns if c.choices}
+        for column in self.columns:
+            if column.kind == "column":
+                choices[column.name] = schema.by_role(column.role)
+        self._set_choices(choices)
 
     def _row_of(self, path) -> Optional[int]:
         """The row of a path into this field: "rules[1].min" (a list) or
@@ -1247,12 +1344,16 @@ def editor_for(model: type, spec: FieldSpec) -> type[Editor]:
     return editor_class(spec)
 
 
+# small fields that need a row of their own (a text field and a button)
+WIDE_KINDS = ("path",)
+
+
 class FieldsPanel(wx.Panel):
     """Editors for the visible fields of a config class, with issue markers.
 
     Fields are shown in their order (flim.core.fields.field_order): small fields that
-    follow each other share a grid (label, editor); lists and tables take the full
-    width; nested configs are collapsible sections.
+    follow each other share a grid of 2 or 3 columns (label, editor); lists and tables
+    take the full width; nested configs are collapsible sections.
     """
 
     def __init__(self, parent, model: type, exclude=()):
@@ -1272,18 +1373,20 @@ class FieldsPanel(wx.Panel):
         # in order: consecutive small fields share a grid (label, editor, marker);
         # lists, tables and nested sections take the full width between them
         sizer = wx.BoxSizer(wx.VERTICAL)
-        grid = None
-        for spec in specs:
-            if not large[spec.name]:
-                if grid is None:
-                    grid = wx.FlexGridSizer(cols=3, vgap=4, hgap=6)
-                    grid.AddGrowableCol(1)
-                    sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
-                grid.Add(self._label(spec), 0, wx.ALIGN_CENTER_VERTICAL)
-                grid.Add(self._editor(spec).control, 1, wx.EXPAND)
-                grid.Add(self._marker(spec), 0, wx.ALIGN_CENTER_VERTICAL)
+        small = []
+        for spec in specs + [None]:  # None: the end
+            if spec is not None and not large[spec.name]:
+                if spec.kind in WIDE_KINDS:  # a row of its own
+                    self._add_grid(sizer, small)
+                    self._add_grid(sizer, [spec])
+                    small = []
+                else:
+                    small.append(spec)
                 continue
-            grid = None
+            self._add_grid(sizer, small)
+            small = []
+            if spec is None:
+                break
             if spec.kind == "model":  # a collapsible section with its own title
                 row = wx.BoxSizer(wx.HORIZONTAL)
                 row.Add(self._editor(spec).control, 1, wx.EXPAND)
@@ -1297,6 +1400,21 @@ class FieldsPanel(wx.Panel):
             editor = self._editor(spec)
             sizer.Add(editor.control, 1 if editor.grows else 0, wx.EXPAND | wx.ALL, 4)
         self.SetSizer(sizer)
+
+    def _add_grid(self, sizer, specs) -> None:
+        """Small fields in a grid: 2 or 3 per row (one alone takes the row)."""
+        if not specs:
+            return
+        n = len(specs)
+        per_row = 1 if n == 1 else 2 if n in (2, 4) else 3
+        grid = wx.FlexGridSizer(cols=3 * per_row, vgap=4, hgap=6)
+        for i in range(per_row):
+            grid.AddGrowableCol(3 * i + 1)
+        for spec in specs:
+            grid.Add(self._label(spec), 0, wx.ALIGN_CENTER_VERTICAL)
+            grid.Add(self._editor(spec).control, 1, wx.EXPAND)
+            grid.Add(self._marker(spec), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
 
     def _label(self, spec):
         label = wx.StaticText(self, label=spec.title)

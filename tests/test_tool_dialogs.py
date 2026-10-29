@@ -207,6 +207,25 @@ def test_histogram_features_table(dialog, table):
     assert d.result().config.features["t1"].bins == 12
 
 
+def test_ok_takes_the_value_of_a_cell_still_being_edited(dialog):
+    d = dialog("Frequency Histogram")
+    editor = d.fields.editors["features"]
+    editor.use(0)
+    d.validate()
+    grid = editor.grid
+    grid.SetGridCursor(0, 4)  # bins
+    grid.EnableCellEditControl()
+    grid.GetCellEditor(0, 4).GetControl().SetValue("12")  # typed, cell not left
+    closing = []  # the click reaches the dialog, which then closes
+    d.Bind(wx.EVT_BUTTON, lambda e: closing.append(e.GetId()), id=wx.ID_OK)
+    click = wx.CommandEvent(wx.EVT_BUTTON.typeId, wx.ID_OK)
+    click.SetEventObject(d.ok_button)
+    d.ok_button.GetEventHandler().ProcessEvent(click)
+    assert not grid.IsCellEditControlEnabled()
+    assert closing == [wx.ID_OK]
+    assert d.result().config.features["t1"].bins == 12
+
+
 def test_histogram_features_keep_saved_settings(dialog):
     config = HistogramConfig(features={"t2": HistogramRange(min=0, max=1, bins=10)})
     d = dialog("Frequency Histogram", config)
@@ -385,7 +404,10 @@ def test_rule_rows_with_issues_are_marked(dialog):
 def test_histogram_flags_are_above_the_features_table(dialog):
     d = dialog("Frequency Histogram")
     names = list(d.fields.editors)
-    assert names[-3:] == ["auto_range", "sync_bins", "features"]
+    at = names.index("features")
+    assert names[at - 2 : at + 1] == ["auto_range", "sync_bins", "features"]
+    # then the figure's layout
+    assert names[at + 1 :] == ["single_figure", "plots_per_row", "legend_position"]
     labels = [
         w.GetLabel()
         for w in d.fields.widgets["auto_range"]
@@ -426,3 +448,88 @@ def test_settings_of_unchecked_rows_are_not_editable(dialog):
     d.fields.editors["auto_range"].set(True)
     d.fields.refresh()
     assert table.grid.IsReadOnly(0, 2) and not table.grid.IsReadOnly(0, 4)
+
+
+# --- Categorize Data ---
+
+
+def test_categorize_rules_table(dialog):
+    d = dialog("Categorize Data")
+    editor = d.fields.editors["rules"]
+    labels = [
+        w.GetLabel()
+        for w in editor.control.GetChildren()
+        if isinstance(w, wx.Button)
+    ]
+    assert labels[:2] == ["Add Rule", "Remove Rules"]
+    # the feature column: a drop-down of the input's features
+    col = [c.name for c in editor.columns].index("feature")
+    choice = editor.grid.GetCellEditor(0, col)
+    assert isinstance(choice, wx.grid.GridCellChoiceEditor)
+    editor.grid.SetGridCursor(0, col)
+    editor.grid.EnableCellEditControl()
+    assert editor.grid.GetCellEditor(0, col).GetControl().GetItems() == ["t1", "t2"]
+    editor.grid.DisableCellEditControl()
+
+
+def test_categorize_features_only_without_the_input(dialog):
+    d = dialog("Categorize Data")
+    features = d.fields.widgets["features"][0]
+    assert not features.IsShown()  # all input columns are kept
+    d.fields.editors["merge_input"].set(False)
+    d.fields.refresh()
+    assert features.IsShown()
+
+
+# --- feature lists ---
+
+
+def test_features_of_another_table_are_not_listed(wxapp, table):
+    """Settings of a run on the raw data, opened on its summary: the summary's
+    features only; the raw ones are checked again on the raw data."""
+    from flim.configs import SummaryConfig
+    from flim.gui.configdialog import ConfigDialog
+    from flim.tools.statistics import Summarize
+
+    summary = Summarize().run(
+        table,
+        config=SummaryConfig(grouping=["Treatment"], features=["t1"], aggs=["mean"]),
+    )["Summary"]
+    d = ConfigDialog(
+        None,
+        tools.get("Summarize"),
+        SummaryConfig(features=["t1", "t2"]),
+        data_choices={"Table: Summary": summary, "Table: data": table},
+    )
+    try:
+        features = d.fields.editors["features"]
+        assert features.items == ["t1\nmean"]
+        assert features.get() == []
+        features.list.Check(0)
+        features._on_check(wx.CommandEvent())
+        d.input_controls[0].SetSelection(1)  # the raw data
+        d._update_inputs()
+        assert features.items == ["t1", "t2"]
+        assert features.get() == ["t1", "t2"]
+    finally:
+        d.Destroy()
+
+
+# --- Scatter Plot ---
+
+
+def test_scatter_plot_x_axis_with_two_features(dialog):
+    d = dialog("Scatter Plot")
+    x_axis = d.fields.editors["x_axis"]
+    hidden = lambda: not d.fields.widgets["x_axis"][0].IsShown()  # noqa: E731
+    assert hidden()  # no features checked
+    d.fields.editors["features"].set(["t1", "t2"])
+    d.fields.refresh()
+    assert not hidden()
+    assert x_axis.control.GetItems() == ["t1", "t2"]
+    assert d.result().config.x_axis == "t1"
+    x_axis.control.SetValue("t2")
+    assert d.result().config.x_axis == "t2"
+    d.fields.editors["features"].set(["t1"])
+    d.fields.refresh()
+    assert hidden()

@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Annotated, Literal, Optional, Union
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import AfterValidator, Field, field_validator, model_validator
 
 from flim.core.config import (
     BaseConfig,
@@ -16,7 +16,14 @@ from flim.core.config import (
     ValueOf,
 )
 
-Threads = Annotated[int, Field(ge=-1)]  # -1: all cores allocated to the task
+def _not_zero(threads: int) -> int:
+    if threads == 0:
+        raise ValueError("0 threads: use -1 (all cores) or a positive number")
+    return threads
+
+
+# -1: all cores allocated to the task
+Threads = Annotated[int, Field(ge=-1), AfterValidator(_not_zero)]
 
 
 class AnalysisConfig(TaskConfig):
@@ -163,7 +170,7 @@ class ParallelResources(Resources):
     preferred_threads: Threads = Field(
         default=-1,
         title="Threads",
-        description="Threads within the task; -1: all cores allocated to the task.",
+        description="Threads within the task (1 or more); -1: all cores allocated to the task.",
     )
 
 
@@ -329,6 +336,13 @@ class CategorizerConfig(AnalysisConfig):
         description="Keep all input columns; otherwise only categories and features.",
     )
 
+    @classmethod
+    def allowed_values(cls, values):
+        # the features kept: only without the input's columns (dialogs hide them)
+        if values.get("merge_input", True):
+            return {"features": (values.get("features"),)}
+        return {}
+
     @field_validator("rules")
     @classmethod
     def _check_overlaps(cls, rules):
@@ -397,7 +411,7 @@ class AutoencoderResources(Resources):
     preferred_threads: Threads = Field(
         default=-1,
         title="Threads",
-        description="Threads within the task; -1: all cores allocated to the task.",
+        description="Threads within the task (1 or more); -1: all cores allocated to the task.",
     )
 
 

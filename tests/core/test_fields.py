@@ -126,3 +126,22 @@ def test_field_order():
         "features",
     ]
     assert spec(Sub, "d").order == 50.5 and spec(Sub, "a").order is None
+
+
+FIGURE_LAYOUT = {"single_figure", "plots_per_row", "legend_position", "corner"}
+SELECTION = {"grouping", "features", "x_vars", "y_vars"}
+
+
+def test_figure_layout_after_grouping_and_features():
+    from flim.core.fields import field_order
+    from flim.core.registry import tools
+
+    for tool in tools.by_category()["Plot"]:
+        specs = visible(describe(tool.config_class))
+        # large: lists and tables, as the dialogs' editors
+        large = {s.name: s.kind in ("columns", "modelmap", "models") for s in specs}
+        order = {s.name: field_order(s, i, large[s.name]) for i, s in enumerate(specs)}
+        layout = [order[n] for n in FIGURE_LAYOUT & set(order)]
+        selection = [order[n] for n in SELECTION & set(order)]
+        if layout and selection:
+            assert min(layout) > max(selection), (tool.name, order)

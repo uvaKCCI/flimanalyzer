@@ -133,3 +133,14 @@ def test_allowed_values():
     assert Grid(corner=True, legend="inside").legend == "right"  # not allowed: default
     assert Grid.fixed_fields({"symmetric": False}) == {"corner": False}
     assert TaskConfig.allowed_values({}) == {} and TaskConfig.fixed_fields({}) == {}
+
+
+@pytest.mark.parametrize("threads, valid", [(-1, True), (1, True), (4, True), (0, False)])
+def test_threads_are_all_cores_or_a_positive_number(threads, valid):
+    from flim.configs.analysis import ParallelResources
+
+    if valid:
+        assert ParallelResources(preferred_threads=threads).preferred_threads == threads
+    else:
+        with pytest.raises(ValueError, match="0 threads"):
+            ParallelResources(preferred_threads=threads)
