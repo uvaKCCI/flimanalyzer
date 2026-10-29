@@ -14,6 +14,7 @@ import wx.grid
 
 from flim.core.fields import FieldSpec, describe, field_order, visible
 from flim.core.schema import TableSchema
+from flim.core.validation import guess_column
 
 NONE_LABEL = "(none)"
 
@@ -341,6 +342,10 @@ class MultiChoiceEditor(_CheckList):
         self.set_items(self.spec.choices, [v for v in self.spec.choices if v in value])
 
 
+def _one_line(name) -> str:
+    return str(name).replace("\n", " ")
+
+
 class FeaturesEditor(_CheckList):
     """Feature columns, or "all" (if allowed)."""
 
@@ -410,19 +415,38 @@ class FeaturesEditor(_CheckList):
 
     def _shown(self) -> list:
         """The wanted features shown checked: those of the input if all are known
-        (else all of them: they may be in the input)."""
-        missing = [f for f in self.wanted if f not in self.features]
-        shown_note = bool(self.known and missing)
-        if shown_note:
-            names = ", ".join(str(f).replace("\n", " ") for f in missing)
-            self.note.SetLabel(f"Not in this input (not used): {names}")
-            self.note.SetToolTip(self.note.GetLabel())
-        if shown_note != self.note.IsShown():
-            self.note.Show(shown_note)
-            self.panel.Layout()
+        (else all of them: they may be in the input). A wanted feature the input
+        lacks is replaced by the closest of its features (a guess), if there is one."""
         if not self.known:
+            self._show_note([])
             return list(self.wanted)
-        return [f for f in self.wanted if f in self.features]
+        shown, notes, unused = [], [], []
+        for f in self.wanted:
+            if f in self.features:
+                shown.append(f)
+                continue
+            guess, _ = guess_column(f, self.features)
+            if guess is None or guess in self.wanted:
+                unused.append(f)
+            else:
+                shown.append(guess)
+                notes.append(f"{_one_line(f)} \u2192 {_one_line(guess)}")
+        lines = []
+        if notes:
+            lines.append("Guessed: " + ", ".join(notes))
+        if unused:
+            names = ", ".join(_one_line(f) for f in unused)
+            lines.append(f"Not in this input (not used): {names}")
+        self._show_note(lines)
+        return list(dict.fromkeys(shown))
+
+    def _show_note(self, lines: list) -> None:
+        if lines:
+            self.note.SetLabel("\n".join(lines))
+            self.note.SetToolTip(self.note.GetLabel())
+        if bool(lines) != self.note.IsShown():
+            self.note.Show(bool(lines))
+            self.panel.Layout()
 
     def get(self):
         if self.is_all():

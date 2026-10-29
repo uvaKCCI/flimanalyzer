@@ -262,6 +262,10 @@ class Tool(Generic[ConfigT]):
             column = columns.get(name)
             if column is None:
                 issues.append(Issue(path, f"Column '{name}' is not in the input"))
+            elif column.role == "other" and role == "feature":
+                # e.g. a text column: some tools take it (min, max), others fail
+                message = f"'{name}' is a text column, not a feature"
+                issues.append(Issue(path, message, severity="warning"))
             elif column.role != role:
                 issues.append(Issue(path, f"'{name}' is not a {role} column"))
         return issues

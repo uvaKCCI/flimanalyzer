@@ -655,6 +655,7 @@ class AppFrame(wx.Frame):
                     on_progress=on_progress,
                     cancel_token=cancel_token,
                     on_start=on_start,
+                    strict=False,  # in the GUI: columns guessed, as the dialog showed
                 )
 
         else:

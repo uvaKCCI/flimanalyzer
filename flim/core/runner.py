@@ -31,7 +31,7 @@ import os
 import re
 import threading
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import networkx as nx
 from prefect import flow, tags, task, unmapped
@@ -290,6 +290,7 @@ class FlowRun:
         self.complete = False  # True once the workflow script has made all its calls
         self.start_time = datetime.datetime.now()
         self.end_time = None
+        self.notes: List[str] = []  # for the run summary, e.g. guessed columns
         self.graph = nx.DiGraph()
         self._label_counts = {}
         self._key_nodes = {}
@@ -501,8 +502,10 @@ class FlowRun:
             f"Results:    {self.autosave_dir}",
             "Tasks:      " + ", ".join(f"{n} {s}" for s, n in sorted(counts.items())),
             "",
-            f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  Message",
         ]
+        if self.notes:
+            lines += ["Notes:"] + [f"  {note}" for note in self.notes] + [""]
+        lines.append(f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  Message")
         for a in tasks:
             message = (a.get("message") or "").replace("\n", " ")
             lines.append(f"{a['label'].ljust(width)}  {a['status'].ljust(9)}  {message}".rstrip())
@@ -536,6 +539,11 @@ def call_tool(tool, inputs, config=None, task_tags=None, after=()):
     its inputs, e.g. those whose results (model files) its config names.
     """
     inputs = [v.value if isinstance(v, unmapped) else v for v in inputs]
+    from flim.core.validation import current_tracer  # imports this module
+
+    tracer = current_tracer()
+    if tracer is not None:  # a dry run, see flim.core.validation
+        return tracer.call(tool, inputs, config, task_tags)
     run = current_run()
     if run is None:
         return tool.run_task(inputs=_resolve(inputs), config=config)
@@ -639,6 +647,7 @@ def run_flow(
     on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
     cancel_token: Optional[CancelToken] = None,
     on_start: Optional[Callable[[FlowRun], None]] = None,
+    notes: Sequence[str] = (),
 ) -> FlowRun:
     """Runs ``build`` as a Prefect flow; plugin calls inside it become task runs.
 
@@ -653,12 +662,14 @@ def run_flow(
             another thread.
         on_start: called with the :class:`FlowRun` once Prefect has created the flow
             run (``flow_run_id`` and ``ui_url`` are known), before the first task.
+        notes: lines for the run summary, e.g. the guesses a validation applied.
 
     Returns:
         FlowRun: recorded task graph and results; ``state`` is completed,
         cancelled or failed (some tasks failed).
     """
     run = FlowRun(name, on_progress=on_progress, cancel_token=cancel_token)
+    run.notes = list(notes)
     if autosave_dir:
         run.autosave_dir = os.path.join(
             autosave_dir, run.start_time.strftime("%Y-%m-%d_%H-%M-%S")

@@ -342,7 +342,9 @@ class ConfigDialog(wx.Dialog):
                 self.fields.show_issue(name, severity, message)
             else:
                 self.fields.show_issue(name, None)
-        self.status.SetLabel("\n".join(i.message for i in general))
+        self.status.SetLabel(
+            "\n".join(f"{i.step}: {i.message}" if i.step else i.message for i in general)
+        )
         errors = [i for i in issues if i.severity == "error"]
         self.ok_button.Enable(config is not None and not errors)
         self.Layout()

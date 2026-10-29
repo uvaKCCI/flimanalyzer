@@ -363,3 +363,12 @@ def test_nested_settings_are_inline_and_advanced_ones_collapsed(dialog):
     assert points.fields.editors["samples"].control.IsShown()
     training = dialog("Autoencoder: Train")
     assert isinstance(training.fields.editors["resources"].control, wx.CollapsiblePane)
+
+
+def test_missing_features_are_guessed(dialog):
+    d = dialog("K-Means", KMeansConfig(features=["X", "gone"]))  # the input has "x"
+    features = d.fields.editors["features"]
+    assert features.get() == ["x"]
+    assert features.note.GetLabel() == (
+        "Guessed: X → x\nNot in this input (not used): gone"
+    )
