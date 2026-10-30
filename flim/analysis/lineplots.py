@@ -10,6 +10,7 @@ import logging
 import itertools
 import pandas as pd
 from flim.plugin import AbstractPlugin
+from flim.utils import as_strings
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator, FixedFormatter
 import seaborn as sns
@@ -88,7 +89,7 @@ class LinePlot(AbstractPlugin):
         categories = [c for c in categories if len(data[c].unique()) > 1]
         ticklabels = [", ".join(str(row)) for row in data[categories].values]
         for c in categories:
-            data[c] = data[c].astype("str")
+            data[c] = as_strings(data[c])
         for feature in sorted(self.params["features"]):
             logging.debug(f"\tcreating line plot for {feature}")
             fig, ax = plt.subplots()

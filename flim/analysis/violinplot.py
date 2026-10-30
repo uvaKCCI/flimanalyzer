@@ -9,6 +9,7 @@ Created on Thu Dec 17 16:11:37 2020
 import logging
 import pandas as pd
 from flim.plugin import AbstractPlugin
+from flim.utils import as_strings
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
@@ -68,7 +69,7 @@ class ViolinPlot(AbstractPlugin):
         results = {}
         categories = data.select_dtypes("category").columns.values
         for c in categories:
-            data[c] = data[c].astype("str")
+            data[c] = as_strings(data[c])
 
         for feature in sorted(self.params["features"]):
             logging.debug(f"\tcreating {self.name} for {feature}")

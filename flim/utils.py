@@ -59,3 +59,13 @@ def get_version():
         return scm_version(root="..", relative_to=__file__)
     except Exception:
         return "unknown"
+
+
+def as_strings(values):
+    """Values as text (e.g. for seaborn's hue); categories keep their order (of the
+    axes and legends), without the unused ones."""
+    import pandas as pd
+
+    if isinstance(values.dtype, pd.CategoricalDtype):
+        return values.cat.remove_unused_categories().cat.rename_categories(str)
+    return values.astype("str")
