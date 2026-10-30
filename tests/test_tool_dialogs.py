@@ -228,6 +228,36 @@ def test_ok_takes_the_value_of_a_cell_still_being_edited(dialog):
     assert d.result().config.features["t1"].bins == 12
 
 
+def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
+    import json
+
+    from flim.configs import SummaryConfig
+    from flim.core.settings import AppSettings, load_settings, save_settings
+
+    path = tmp_path / "settings.json"
+    app = AppSettings.default()
+    app.filters.use = True
+    save_settings(app, path)  # an application settings file
+    d = dialog("Summarize")
+    d.fields.editors["aggs"].set(["max"])
+    d.autosave.SetValue(True)
+    d.folder.SetPath(str(tmp_path))
+    assert d.save_settings(str(path))
+    saved = load_settings(path)
+    assert saved.filters.use  # the other sections are kept
+    entry = saved.tool_settings.entry(tools.get("Summarize"))
+    assert entry.config["aggs"] == ["max"] and entry.autosave
+    assert list(json.loads(path.read_text())["tools"]) == ["Summarize"]
+
+    again = dialog("Summarize", SummaryConfig(aggs=["min"]))
+    assert again.load_settings(str(path))
+    assert again.result().config.aggs == ["max"]
+    assert str(again.result().execution.results_dir) == str(tmp_path)
+    other = dialog("Sort")
+    assert not other.load_settings(str(path))
+    assert "No Sort settings" in other.settings_message.GetLabel()
+
+
 def test_tab_stays_in_the_features_table(dialog):
     d = dialog("Frequency Histogram")
     editor = d.fields.editors["features"]

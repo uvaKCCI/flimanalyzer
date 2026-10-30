@@ -918,8 +918,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         for label, handler in (
             ("Select All", lambda e: self.use_all(True)),
             ("Deselect All", lambda e: self.use_all(False)),
-            ("Load Settings...", self._on_load),
-            ("Save Settings...", self._on_save),
+            ("Load Feature Settings...", self._on_load),
+            ("Save Feature Settings...", self._on_save),
         ):
             button = wx.Button(panel, label=label, style=wx.BU_EXACTFIT)
             button.Bind(wx.EVT_BUTTON, handler)
@@ -1247,7 +1247,7 @@ def find_feature_settings(data, names: list) -> Optional[dict]:
     """Per-feature settings in a loaded settings file: {feature: {name: value}}.
 
     ``names`` are the settings' names (e.g. min, max, bins). Reads the files written by
-    "Save Settings...", configs ({"features": {...}}) and the application's settings
+    "Save Feature Settings...", configs ({"features": {...}}) and the application's settings
     files (searched for such entries). Also reads two older forms: histogram
     "featuresettings" lists [min, max, bins, ...], and range filter lists of
     {"name", "rangelow", "rangehigh", "dropna"}.

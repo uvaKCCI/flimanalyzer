@@ -510,8 +510,9 @@ class AppFrame(wx.Frame):
             )
 
     def load_settings(self, path) -> None:
-        """Uses the settings in a file (of any version, see flim.core.settings)."""
-        self.settings = load_settings(path)
+        """Uses the settings in a file (of any version, see flim.core.settings); the
+        sections it does not have (e.g. other tools') stay as they are."""
+        self.settings = load_settings(path, self.settings)
 
     def OnSaveSettings(self, event):
         with wx.FileDialog(

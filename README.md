@@ -77,7 +77,9 @@ Run `flimanalyzer --help` for all command line options.
 
 `flimbatch` imports data files and runs tools or workflows without the
 application, e.g. on a cluster. It uses a settings file saved by the application
-(File > Export Settings...): its import settings, and each tool's settings.
+(File > Export Settings...): its import settings, and each tool's settings. A tool's
+dialog can add its settings to such a file with Save Settings..., which keeps the
+file's other sections; Load Settings... reads the tool's own section back.
 
     uv run flimbatch -i data/ -o results/ -c settings.json \
         --run Summarize --run "Basic FLIRR Analysis"
