@@ -695,9 +695,10 @@ class AETraining(AbstractPlugin):
                 epoch == self.params["epoches"]
                 or epoch % self.params["checkpoint_interval"] == 0
             ):
+                # saved on the CPU: the model files load on machines without CUDA
                 ae_clone = autoencoder.create_instance(
                     aeclasses[self.params["model"]], nb_param=no_features
-                ).to(device)
+                ).to("cpu")
                 ae_clone.load_state_dict(ae.state_dict())
                 checkpoints.append((epoch, ae_clone))
 
