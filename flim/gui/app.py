@@ -92,6 +92,7 @@ import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.unpivot  # noqa: F401
 # settings read at startup, if there are (else the defaults)
 DEFAULT_SETTINGS_FILE = "defaults.json"
+DOCS_URL = "https://flimanalyzer.readthedocs.io"
 
 
 def startup_settings() -> AppSettings:
@@ -221,20 +222,30 @@ class AppFrame(wx.Frame):
         importmenuitem = filemenu.Append(
             wx.ID_ANY, "Import...", "Import and concatenate mutliple data files"
         )
-        exitmenuitem = filemenu.Append(wx.ID_ANY, "Exit", "Exit the application")
-        settingsmenu = wx.Menu()
-        loadsettingsitem = settingsmenu.Append(wx.ID_ANY, "Load settings...")
-        savesettingsitem = settingsmenu.Append(wx.ID_ANY, "Save settings...")
+        filemenu.AppendSeparator()
+        loadsettingsitem = filemenu.Append(
+            wx.ID_ANY, "Import Settings...", "Use the settings in a settings file"
+        )
+        savesettingsitem = filemenu.Append(
+            wx.ID_ANY, "Export Settings...", "Save the settings to a file"
+        )
+        filemenu.AppendSeparator()
+        # standard ids: wx moves Exit (Quit) to the app menu on macOS
+        exitmenuitem = filemenu.Append(wx.ID_EXIT, "E&xit", "Exit the application")
 
         self.windowmenu = wx.Menu()
         closeallitem = self.windowmenu.Append(wx.ID_ANY, "Close all windows")
         self.windowmenu.AppendSeparator()
 
+        helpmenu = wx.Menu()
+        docsitem = helpmenu.Append(wx.ID_ANY, "Documentation", "Open the online documentation")
+        aboutitem = helpmenu.Append(wx.ID_ABOUT, "About FLIMAnalyzer")
+
         menubar.Append(filemenu, "&File")
-        menubar.Append(settingsmenu, "&Settings")
         for category in tools.categories():
             menubar.Append(self._create_tool_menu(category), f"&{category}")
         menubar.Append(self.windowmenu, "&Window")
+        menubar.Append(helpmenu, "&Help")
 
         self.SetMenuBar(menubar)
         self.Bind(wx.EVT_MENU, self.OnLoadData, loadmenuitem)
@@ -243,6 +254,8 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
+        self.Bind(wx.EVT_MENU, self.OnDocumentation, docsitem)
+        self.Bind(wx.EVT_MENU, self.OnAbout, aboutitem)
 
         self._layout_tool_groups(rows=2)
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -479,7 +492,7 @@ class AppFrame(wx.Frame):
     def OnLoadSettings(self, event):
         with wx.FileDialog(
             self,
-            "Load Settings",
+            "Import Settings",
             wildcard="json files (*.json)|*.json",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
@@ -492,7 +505,7 @@ class AppFrame(wx.Frame):
             logging.exception(f"Settings in {path} could not be read")
             wx.MessageBox(
                 f"Could not load the settings in {path}:\n{err}",
-                "Load Settings",
+                "Import Settings",
                 wx.OK | wx.ICON_ERROR,
             )
 
@@ -503,7 +516,7 @@ class AppFrame(wx.Frame):
     def OnSaveSettings(self, event):
         with wx.FileDialog(
             self,
-            "Save Settings",
+            "Export Settings",
             wildcard="json files (*.json)|*.json",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
         ) as fileDialog:
@@ -887,6 +900,19 @@ class AppFrame(wx.Frame):
 
     def OnExit(self, event):
         self.Close()
+
+    def OnDocumentation(self, event):
+        wx.LaunchDefaultBrowser(DOCS_URL)
+
+    def OnAbout(self, event):
+        info = wx.adv.AboutDialogInfo()
+        info.SetName("FLIMAnalyzer")
+        info.SetVersion(__version__)
+        info.SetDescription(
+            "Analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data"
+        )
+        info.SetWebSite(DOCS_URL)
+        wx.adv.AboutBox(info, self)
 
     def get_window_frames(self):
         return [
