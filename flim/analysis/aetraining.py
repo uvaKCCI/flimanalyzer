@@ -739,18 +739,11 @@ class AETraining(AbstractPlugin):
         encoded_df = encoded_df.set_index(data.index)
 
         epoch_list = [str(e) for e in range(1, self.params["epoches"] + 1)]
-        parts = modelfile  # self.params["modelfile"].split(".")
-        presuf = (
-            ["".join(parts[: len(parts) - 1]), f".{parts[-1]}"]
-            if len(parts) > 1
-            else parts + [""]
-        )
+        # <modelfile without .model>_epoch<n>.model
+        base = modelfile[: -len(".model")] if modelfile.endswith(".model") else modelfile
         all_model_files = {}
         for epoch, ae in checkpoints:
-            f = (
-                f"{presuf[0]}{presuf[1]}_epoch{epoch:04d}".replace(".model", "")
-                + ".model"
-            )
+            f = f"{base}_epoch{epoch:04d}.model"
             pipeline = make_pipeline(imputer, input_scaler, ae)
             dump(
                 pipeline,
