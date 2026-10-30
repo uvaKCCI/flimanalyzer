@@ -276,11 +276,14 @@ class AppFrame(wx.Frame):
             importer.set_parser(None)
             importer.set_preprocessor(None)
             data, filenames, fheaders = importer.import_data()
+            if data is None:
+                wx.MessageBox("None of the files could be read.", "Import")
+                return
 
             pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
             windowtitle = os.path.basename(filenames[0])
             if len(filenames) != 1:
-                windowtitlw = "Imported Data"
+                windowtitle = "Imported Data"
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(
                 data,
@@ -317,11 +320,14 @@ class AppFrame(wx.Frame):
             importer.set_column_combos(config.get([cfg.CONFIG_CATEGORY_COMBINATIONS]))
             importer.set_preprocessor(preprocessor)
             data, filenames, fheaders = importer.import_data()
+            if data is None:
+                wx.MessageBox("None of the files could be read.", "Import")
+                return
 
             # pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
             windowtitle = os.path.basename(filenames[0])
             if len(filenames) != 1:
-                windowtitlw = "Imported Data"
+                windowtitle = "Imported Data"
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(
                 data,
