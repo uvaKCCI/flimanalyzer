@@ -7,7 +7,7 @@
 
 ## Installing with uv (recommended)
 
-[uv](https://docs.astral.sh/uv/) creates a virtual environment in the `.venv` folder of the repository, installs a matching Python version if needed, and installs FLIMAnalyzer in editable mode with the exact package versions recorded in `uv.lock`:
+[uv](https://docs.astral.sh/uv/) creates a virtual environment in the `.venv` folder of the repository, installs a matching Python version if needed, and installs FLIMAnalyzer with the application in editable mode, with the exact package versions recorded in `uv.lock`:
 ```
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
@@ -22,8 +22,10 @@ git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
 python3.12 -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -e .
+pip install -e ".[gui]"
 ```
+The `gui` extra installs the application (wxPython). Without it, `pip install -e .` installs only what [batch mode](/userguide/batch) needs.
+
 pip installs PyTorch from PyPI, which provides a different build on each platform:
 
 * **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
@@ -34,7 +36,7 @@ Conda users can create the Python environment with conda instead of `venv` and i
 ```
 conda create -n flimenv python=3.12
 conda activate flimenv
-pip install -e .
+pip install -e ".[gui]"
 ```
 
 ## GPU acceleration

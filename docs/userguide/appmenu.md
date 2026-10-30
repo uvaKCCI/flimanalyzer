@@ -2,25 +2,31 @@
 
 ## File
 
-Clicking on `File` will open a drop-down menu with three options: `Open`, `Import`, and `Exit`. More information on loading data using the `Open` and `Import` options can be found in the [Loading Data](/userguide/data/load) section. The `Exit` option closes the FLIMAnalyzer program all together.
-
-    
-## Settings
-
-Information about `Settings` can be found [here](/userguide/settings).
+* `Open...` and `Import...` load data files; see [Loading Data](/userguide/data/load).
+* `Import Settings...` and `Export Settings...` read and save the settings of the application and its tools; see [Settings](/userguide/settings).
+* `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the application menu (⌘Q).
 
 ## Data
 
-The `Data` menu item provides several options for altering the presentation of your data, such as the `Sort` and `Filter` tools. After having at least one data file open in FLIMAnalyzer, you may use these tools. 
+The `Data` menu has the tools that change or combine data tables, such as `Sort`, `Filter`, `Split` and `Concatenate`. They are enabled once a data table is open. See [Data Tables](/userguide/data/index).
 
 ## Analysis
 
-The `Analysis` menu item provides a drop-down menu of all the different analysis tools, which can also be accessed via their corresponding icons in the toolbar menu. Reference the [Analysis](/userguide/analysis/index) section of the docs for more information on the specific tools.
+The `Analysis` menu has the analysis tools, which are also in the tool panel. See [Analysis](/userguide/analysis/index).
 
-## Plots
+## Plot
 
-The `Plot` menu item offers several different statistical plots that can be used to find data trends, provide a graphical representation of the data, and overall, make the data easier to interpret. Reference the [Plots](/userguide/plots/index) section of the docs for more information on the specific plots.
+The `Plot` menu has the plots. See [Plots](/userguide/plots/index).
 
+## Workflow
+
+The `Workflow` menu runs several tools in one go. See [Workflows](/userguide/workflows).
 
 ## Window
-The `Window` menu item is used to display all the opened windows, including data tables, plots, and analysis tools, for easy access. To exit out of all open windows, simply click `Close all windows`.
+
+The `Window` menu lists all open windows (data tables and plots); selecting one brings it to the front. `Close all windows` closes them.
+
+## Help
+
+* `Documentation` opens this documentation.
+* `About FLIMAnalyzer` shows the version. On macOS it is in the application menu.
