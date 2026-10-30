@@ -1052,19 +1052,21 @@ dependencies = [
     { name = "pandas" },
     { name = "prefect" },
     { name = "pydantic" },
-    { name = "pypubsub" },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "seaborn" },
     { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "torch", version = "2.14.1", source = { registry = "https://pypi.org/simple" }, marker = "(platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')" },
-    { name = "wxpython" },
     { name = "xlsxwriter" },
 ]
 
 [package.optional-dependencies]
 dask = [
     { name = "prefect-dask" },
+]
+gui = [
+    { name = "pypubsub" },
+    { name = "wxpython" },
 ]
 test = [
     { name = "pytest" },
@@ -1073,6 +1075,9 @@ test = [
 ]
 
 [package.dev-dependencies]
+dev = [
+    { name = "flimanalyzer", extra = ["gui"] },
+]
 docs = [
     { name = "importlib-resources" },
     { name = "joblib" },
@@ -1101,7 +1106,7 @@ requires-dist = [
     { name = "prefect", specifier = ">=3.4.7,<4" },
     { name = "prefect-dask", marker = "extra == 'dask'", specifier = ">=0.3.7,<1" },
     { name = "pydantic", specifier = ">=2.7,<3" },
-    { name = "pypubsub", specifier = "<5" },
+    { name = "pypubsub", marker = "extra == 'gui'", specifier = "<5" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
     { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
@@ -1110,12 +1115,13 @@ requires-dist = [
     { name = "seaborn", specifier = ">=0.13.2,<0.14" },
     { name = "torch", marker = "(platform_machine != 'x86_64' and sys_platform == 'linux') or (sys_platform != 'linux' and sys_platform != 'win32')", specifier = ">2.7,<3" },
     { name = "torch", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'", specifier = ">2.7,<3", index = "https://download.pytorch.org/whl/cu128" },
-    { name = "wxpython", specifier = ">=4.2.2,<4.3" },
+    { name = "wxpython", marker = "extra == 'gui'", specifier = ">=4.2.2,<4.3" },
     { name = "xlsxwriter", specifier = "<4" },
 ]
-provides-extras = ["dask", "test"]
+provides-extras = ["dask", "gui", "test"]
 
 [package.metadata.requires-dev]
+dev = [{ name = "flimanalyzer", extras = ["gui"] }]
 docs = [
     { name = "importlib-resources", specifier = "<7" },
     { name = "joblib", specifier = "<2" },

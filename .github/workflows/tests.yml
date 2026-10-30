@@ -2,7 +2,7 @@ name: Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
     branches: [main]
   workflow_dispatch:
@@ -32,7 +32,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen --extra test --extra dask --python 3.12
+        run: uv sync --frozen --extra gui --extra test --extra dask --python 3.12
 
       - name: Run tests
         env:
@@ -49,8 +49,8 @@ jobs:
 
   core:
     name: core (no wx)
-    # flim.core must work without wxPython (and without torch): installs everything
-    # else from the lock file and runs the core tests
+    # the core must work without wxPython (the gui extra) and without torch:
+    # installs the other dependencies from the lock file and runs the core tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -64,13 +64,58 @@ jobs:
 
       - name: Install dependencies without wxPython and torch
         run: |
-          uv export --frozen --extra test --no-hashes --no-emit-project --no-annotate --no-header \
-            | grep -v -E '^(wxpython|torch|nvidia-|triton|cuda-)' > core-requirements.txt
+          uv export --frozen --extra test --no-dev --no-hashes --no-emit-project --no-annotate --no-header \
+            | grep -v -E '^(torch|nvidia-|triton|cuda-)' > core-requirements.txt
           uv venv --python 3.12
           uv pip install --no-deps -r core-requirements.txt
           uv pip install --no-deps -e .
+
+      - name: Check that wxPython is not installed and flimbatch starts
+        run: |
+          .venv/bin/python -c "import importlib.util, sys; sys.exit(importlib.util.find_spec('wx') is not None)"
+          .venv/bin/flimbatch --help
 
       - name: Run core tests
         env:
           PREFECT_SERVER_ANALYTICS_ENABLED: "false"
         run: .venv/bin/python -m pytest -v tests/core
+
+  docker:
+    name: docker (headless)
+    # the batch image builds and runs; the CPU build of PyTorch keeps it small.
+    # Not published: see docker.yml (releases)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # versioningit derives the version from the git tags
+
+      - name: Check for changes to the image
+        id: changes
+        # pull requests: only if the image's files changed; pushes: always
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] || git diff --name-only \
+              "origin/${{ github.base_ref }}...HEAD" -- Dockerfile .dockerignore \
+              pyproject.toml uv.lock flim | grep -q .; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No changes to the image's files: not built"
+          fi
+
+      - name: Build the image
+        if: steps.changes.outputs.build == 'true'
+        run: >
+          docker build -t flimanalyzer:ci
+          --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
+
+      - name: Run flimbatch in the image
+        if: steps.changes.outputs.build == 'true'
+        run: |
+          docker run --rm flimanalyzer:ci --help
+          mkdir -p work/data
+          printf 'x\ty\n1\t2\n3\t4\n' > work/data/Results_FOV1_WT_1.txt
+          docker run --rm -u "$(id -u)" -v "$PWD/work:/work" flimanalyzer:ci \
+            -i data -o results --run Summarize --no-prefect-server
+          test -s work/results/Imported.txt
+          test -n "$(ls work/results/Summarize)"

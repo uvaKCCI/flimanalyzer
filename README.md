@@ -15,7 +15,7 @@ Documentation: https://flimanalyzer.readthedocs.io
 
 ### With uv (recommended)
 
-Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environment. `uv sync` creates `.venv`, installs a matching Python if needed, and installs FLIMAnalyzer in editable mode with the exact package versions from `uv.lock`:
+Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environment. `uv sync` creates `.venv`, installs a matching Python if needed, and installs FLIMAnalyzer with the application in editable mode, with the exact package versions from `uv.lock`:
 
     git clone https://github.com/uvaKCCI/flimanalyzer.git
     cd flimanalyzer
@@ -28,13 +28,19 @@ To also install the test dependencies, or the optional Dask support (see [Parall
     uv sync --extra test
     uv sync --extra dask
 
+Without the application (wxPython), e.g. on a cluster for [batch mode](#batch-mode):
+
+    uv sync --no-dev
+
 ### With pip
 
     git clone https://github.com/uvaKCCI/flimanalyzer.git
     cd flimanalyzer
     python3.12 -m venv .venv
     source .venv/bin/activate    # Windows: .venv\Scripts\activate
-    pip install -e .
+    pip install -e ".[gui]"
+
+The `gui` extra installs the application (wxPython). Without it, `pip install -e .` installs only what [batch mode](#batch-mode) needs.
 
 pip installs PyTorch from PyPI, which provides a different build on each platform:
 
@@ -66,6 +72,40 @@ To open data files (tab- or comma-separated) right away, each in its own window:
     uv run flimanalyzer -i results.txt more-results.csv
 
 Run `flimanalyzer --help` for all command line options.
+
+## Batch mode
+
+`flimbatch` imports data files and runs tools or workflows without the
+application, e.g. on a cluster. It uses a settings file saved by the application
+(File > Export Settings...): its import settings, and each tool's settings. A tool's
+dialog can add its settings to such a file with Save Settings..., which keeps the
+file's other sections; Load Settings... reads the tool's own section back.
+
+    uv run flimbatch -i data/ -o results/ -c settings.json \
+        --run Summarize --run "Basic FLIRR Analysis"
+
+The imported table is saved as `results/Imported.txt`, each tool's results in
+`results/<tool name>/`. Workflow columns that are not in the data (e.g. `FAD a1%`
+for `FAD a1[%]`) are errors; `--allow-guesses` uses the closest column instead and
+lists it in the run summary. The exit code is 1 if a check or task failed. Run
+`flimbatch --help` for all options.
+
+`flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`:
+`flimanalyzer` starts without a console there, so its messages are not shown.
+
+### Docker
+
+The `Dockerfile` builds a headless image (no wxPython) that runs `flimbatch`. Each release is also published to the GitHub Container Registry: `ghcr.io/uvakcci/flimanalyzer:<version>` (CUDA, x86_64) and `:<version>-cpu` (CPU only, x86_64 and ARM), plus `:latest` and `:latest-cpu`. Mount the folder with the data and the settings file as `/work`:
+
+    docker build -t flimanalyzer .
+    docker run --rm -v "$PWD:/work" flimanalyzer \
+        -i data/ -o results/ -c settings.json --run Summarize --no-prefect-server
+
+With `--no-prefect-server`, each run uses a temporary Prefect server; to report to a Prefect server instead, pass its address, e.g. `-e PREFECT_API_URL=http://prefect.example.org:4200/api`. On x86_64 the image contains the CUDA build of PyTorch (several GB; use `docker run --gpus all` for the GPU). For a much smaller CPU-only image:
+
+    docker build -t flimanalyzer:cpu --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
+
+`--build-arg EXTRAS=dask` adds Dask support.
 
 ## Prefect server
 

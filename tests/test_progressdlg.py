@@ -410,7 +410,11 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
     started = {}
     monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-i", "a.csv", "b.txt", "--no-prefect-server"])
     monkeypatch.setattr(analyzerapp, "init_logger", lambda level: None)
-    monkeypatch.setattr(analyzerapp, "interactive_run", lambda fa, files=None: started.update(files=files))
+    monkeypatch.setattr(
+        analyzerapp,
+        "interactive_run",
+        lambda fa, files=None, settings=None: started.update(files=files),
+    )
     analyzerapp.main()
     assert started["files"] == ["a.csv", "b.txt"]
 

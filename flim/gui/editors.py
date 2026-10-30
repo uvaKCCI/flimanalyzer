@@ -912,13 +912,14 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         self.grid.SetMinSize((-1, 150))
         self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self._on_click)
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self._on_cell_changed)
+        self.grid.Bind(wx.grid.EVT_GRID_TABBING, self._on_tab)
         sizer.Add(self.grid, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         for label, handler in (
             ("Select All", lambda e: self.use_all(True)),
             ("Deselect All", lambda e: self.use_all(False)),
-            ("Load Settings...", self._on_load),
-            ("Save Settings...", self._on_save),
+            ("Load Feature Settings...", self._on_load),
+            ("Save Feature Settings...", self._on_save),
         ):
             button = wx.Button(panel, label=label, style=wx.BU_EXACTFIT)
             button.Bind(wx.EVT_BUTTON, handler)
@@ -1145,6 +1146,28 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             self.sync_column(name, self.grid.GetCellValue(event.GetRow(), col))
         self.changed(event)
 
+    def _on_tab(self, event):
+        """Tab moves to the next editable cell (Shift+Tab: the previous one), on to
+        the next row; focus stays in the table. Leaving it with Tab put the focus on
+        the check boxes above it (e.g. Same bins for all), where a key toggled them."""
+        cells = [
+            (row, col)
+            for row in range(self.grid.GetNumberRows())
+            for col in range(2, self.grid.GetNumberCols())
+            if not self.grid.IsReadOnly(row, col)
+        ]
+        if not cells:
+            return
+        current = (event.GetRow(), event.GetCol())
+        if event.ShiftDown():
+            before = [c for c in cells if c < current]
+            row, col = before[-1] if before else cells[-1]
+        else:
+            after = [c for c in cells if c > current]
+            row, col = after[0] if after else cells[0]
+        self.grid.SetGridCursor(row, col)
+        self.grid.MakeCellVisible(row, col)
+
     def _on_click(self, event):
         if event.GetCol() == 0:
             row = event.GetRow()
@@ -1224,7 +1247,7 @@ def find_feature_settings(data, names: list) -> Optional[dict]:
     """Per-feature settings in a loaded settings file: {feature: {name: value}}.
 
     ``names`` are the settings' names (e.g. min, max, bins). Reads the files written by
-    "Save Settings...", configs ({"features": {...}}) and the application's settings
+    "Save Feature Settings...", configs ({"features": {...}}) and the application's settings
     files (searched for such entries). Also reads two older forms: histogram
     "featuresettings" lists [min, max, bins, ...], and range filter lists of
     {"name", "rangelow", "rangehigh", "dropna"}.
