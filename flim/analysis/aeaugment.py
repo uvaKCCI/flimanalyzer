@@ -373,7 +373,7 @@ class AEAugment(AbstractPlugin):
             temp[feat_cols] = sim_data
             temps.append(temp)
 
-        sim_df = pd.concat(temps).reset_index()
+        sim_df = pd.concat(temps).reset_index(drop=True)
         # calculate the rel amplitudes, e.g. a1%, a2% etc.
         for k, amps in amplitudes.items():
             total_col = f"{k} total"
