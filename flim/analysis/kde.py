@@ -140,7 +140,9 @@ class KDE(AbstractPlugin, Task):
                 clip=(minx, maxx),
                 ax=ax,
                 return_plot=self.params.get("return_plot"),
-                show_legend=not self.params["single_plot"] or i == cols - 1,
+                show_legend=not self.params["single_plot"]
+                or len(features) == 1
+                or i == cols - 1,
             )  # bins=bins, hist=False,
             if not np.isinf([minx, maxx]).any() and not np.isnan([minx, maxx]).any():
                 ax.set_xlim(minx, maxx)
