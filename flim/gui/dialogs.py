@@ -733,7 +733,8 @@ class ConfigureFeatureDlg(wx.Dialog):
         for name, specs in self.settings.items():
             opt_handler = specs[0](self, wx.ID_ANY, **specs[1])
             self.inputs[name] = opt_handler
-            if defaults is not None:
+            # the defaults of some features are lists (never used): only dicts apply
+            if isinstance(defaults, dict) and name in defaults:
                 self.inputs[name].SetValue(defaults[name])
             optsizer.Add(
                 wx.StaticText(self, label=name), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5
