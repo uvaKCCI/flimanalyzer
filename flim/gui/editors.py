@@ -912,6 +912,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         self.grid.SetMinSize((-1, 150))
         self.grid.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self._on_click)
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self._on_cell_changed)
+        self.grid.Bind(wx.grid.EVT_GRID_TABBING, self._on_tab)
         sizer.Add(self.grid, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         for label, handler in (
@@ -1144,6 +1145,28 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         if name in self.synced:
             self.sync_column(name, self.grid.GetCellValue(event.GetRow(), col))
         self.changed(event)
+
+    def _on_tab(self, event):
+        """Tab moves to the next editable cell (Shift+Tab: the previous one), on to
+        the next row; focus stays in the table. Leaving it with Tab put the focus on
+        the check boxes above it (e.g. Same bins for all), where a key toggled them."""
+        cells = [
+            (row, col)
+            for row in range(self.grid.GetNumberRows())
+            for col in range(2, self.grid.GetNumberCols())
+            if not self.grid.IsReadOnly(row, col)
+        ]
+        if not cells:
+            return
+        current = (event.GetRow(), event.GetCol())
+        if event.ShiftDown():
+            before = [c for c in cells if c < current]
+            row, col = before[-1] if before else cells[-1]
+        else:
+            after = [c for c in cells if c > current]
+            row, col = after[0] if after else cells[0]
+        self.grid.SetGridCursor(row, col)
+        self.grid.MakeCellVisible(row, col)
 
     def _on_click(self, event):
         if event.GetCol() == 0:
