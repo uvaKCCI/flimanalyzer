@@ -77,6 +77,7 @@ class DataWindowEvent(wx.PyCommandEvent):
         self.analyzable = True
         self.savemodified = True
         self.enableclose = True
+        self.modified = True
 
     def SetEventInfo(
         self,
@@ -89,7 +90,10 @@ class DataWindowEvent(wx.PyCommandEvent):
         analyzable=True,
         savemodified=True,
         enableclose=True,
+        modified=True,
     ):
+        """modified: whether the data differs from what is saved, e.g. False for
+        data just read from a file; closing a modified window asks to save."""
         self.data = data
         self.config = config
         self.title = title
@@ -99,6 +103,7 @@ class DataWindowEvent(wx.PyCommandEvent):
         self.analyzable = analyzable
         self.savemodified = savemodified
         self.enableclose = enableclose
+        self.modified = modified
 
     def GetData(self):
         return self.data
@@ -129,6 +134,9 @@ class DataWindowEvent(wx.PyCommandEvent):
 
     def GetAction(self):
         return self.action
+
+    def IsModified(self):
+        return self.modified
 
 
 class PlotEvent(wx.PyCommandEvent):

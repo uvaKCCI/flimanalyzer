@@ -294,6 +294,7 @@ class AppFrame(wx.Frame):
                 analyzable=True,
                 savemodified=True,
                 enableclose=True,
+                modified=False,  # just read from the file
             )
             self.GetEventHandler().ProcessEvent(event)
 
@@ -642,6 +643,7 @@ class AppFrame(wx.Frame):
             if frame:
                 frame = self.windowframes[title]
                 frame.SetData(data)
+                frame.set_modified(event.IsModified())
                 # frame.SetConfog(config)
             else:
                 action = "createnew"
@@ -658,6 +660,7 @@ class AppFrame(wx.Frame):
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
             )
+            frame.set_modified(event.IsModified())
             frame.Show(True)
             self.append_window_to_menu(title, frame)
             pub.sendMessage(NEW_DATA_WINDOW, data=data, frame=frame)
