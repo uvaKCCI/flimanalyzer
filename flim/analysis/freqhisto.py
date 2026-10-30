@@ -317,7 +317,6 @@ class FreqHisto(AbstractPlugin):
                 )
         else:
             groupeddata = data.groupby(groups, observed=True)
-            newkwargs.update({"label": list(groupeddata.groups)})
             for name, group in groupeddata:
                 if len(group[column]) > 0:
                     groupnames.append(name)
@@ -331,6 +330,8 @@ class FreqHisto(AbstractPlugin):
                             / float(totalcounts)
                             * normalize
                         )
+            # in the order of the plotted groups (groupeddata.groups is sorted by name)
+            newkwargs.update({"label": [str(n) for n in groupnames]})
         if normalize is not None:
             slabel = ""
             if not self.stacked:
