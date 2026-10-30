@@ -79,3 +79,28 @@ jobs:
         env:
           PREFECT_SERVER_ANALYTICS_ENABLED: "false"
         run: .venv/bin/python -m pytest -v tests/core
+
+  docker:
+    name: docker (headless)
+    # the batch image builds and runs; the CPU build of PyTorch keeps it small
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # versioningit derives the version from the git tags
+
+      - name: Build the image
+        run: >
+          docker build -t flimanalyzer:ci
+          --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
+
+      - name: Run flimbatch in the image
+        run: |
+          docker run --rm flimanalyzer:ci --help
+          mkdir -p work/data
+          printf 'x\ty\n1\t2\n3\t4\n' > work/data/Results_FOV1_WT_1.txt
+          docker run --rm -u "$(id -u)" -v "$PWD/work:/work" flimanalyzer:ci \
+            -i data -o results --run Summarize --no-prefect-server
+          test -s work/results/Imported.txt
+          test -n "$(ls work/results/Summarize)"

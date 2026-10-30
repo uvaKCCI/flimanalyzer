@@ -91,6 +91,20 @@ lists it in the run summary. The exit code is 1 if a check or task failed. Run
 `flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`:
 `flimanalyzer` starts without a console there, so its messages are not shown.
 
+### Docker
+
+The `Dockerfile` builds a headless image (no wxPython) that runs `flimbatch`. Mount the folder with the data and the settings file as `/work`:
+
+    docker build -t flimanalyzer .
+    docker run --rm -v "$PWD:/work" flimanalyzer \
+        -i data/ -o results/ -c settings.json --run Summarize --no-prefect-server
+
+With `--no-prefect-server`, each run uses a temporary Prefect server; to report to a Prefect server instead, pass its address, e.g. `-e PREFECT_API_URL=http://prefect.example.org:4200/api`. On x86_64 the image contains the CUDA build of PyTorch (several GB; use `docker run --gpus all` for the GPU). For a much smaller CPU-only image:
+
+    docker build -t flimanalyzer:cpu --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
+
+`--build-arg EXTRAS=dask` adds Dask support.
+
 ## Prefect server
 
 FLIMAnalyzer runs analyses and workflows as [Prefect](https://www.prefect.io) flows. At startup it looks for a Prefect server in this order:
