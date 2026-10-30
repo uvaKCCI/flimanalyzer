@@ -2,7 +2,7 @@ name: Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   push:
     branches: [main]
   workflow_dispatch:
@@ -82,7 +82,8 @@ jobs:
 
   docker:
     name: docker (headless)
-    # the batch image builds and runs; the CPU build of PyTorch keeps it small
+    # the batch image builds and runs; the CPU build of PyTorch keeps it small.
+    # Not published: see docker.yml (releases)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -90,12 +91,26 @@ jobs:
         with:
           fetch-depth: 0  # versioningit derives the version from the git tags
 
+      - name: Check for changes to the image
+        id: changes
+        # pull requests: only if the image's files changed; pushes: always
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ] || git diff --name-only \
+              "origin/${{ github.base_ref }}...HEAD" -- Dockerfile .dockerignore \
+              pyproject.toml uv.lock flim | grep -q .; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No changes to the image's files: not built"
+          fi
+
       - name: Build the image
+        if: steps.changes.outputs.build == 'true'
         run: >
           docker build -t flimanalyzer:ci
           --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
 
       - name: Run flimbatch in the image
+        if: steps.changes.outputs.build == 'true'
         run: |
           docker run --rm flimanalyzer:ci --help
           mkdir -p work/data

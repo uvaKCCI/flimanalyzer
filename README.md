@@ -95,7 +95,7 @@ lists it in the run summary. The exit code is 1 if a check or task failed. Run
 
 ### Docker
 
-The `Dockerfile` builds a headless image (no wxPython) that runs `flimbatch`. Mount the folder with the data and the settings file as `/work`:
+The `Dockerfile` builds a headless image (no wxPython) that runs `flimbatch`. Each release is also published to the GitHub Container Registry: `ghcr.io/uvakcci/flimanalyzer:<version>` (CUDA, x86_64) and `:<version>-cpu` (CPU only, x86_64 and ARM), plus `:latest` and `:latest-cpu`. Mount the folder with the data and the settings file as `/work`:
 
     docker build -t flimanalyzer .
     docker run --rm -v "$PWD:/work" flimanalyzer \
