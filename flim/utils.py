@@ -36,3 +36,26 @@ def permutate(*args):
 def clean(str):
     rmstr = re.sub("[^a-zA-Z0-9 \n\.-_]", "", str)
     return re.sub("[ /]", "_", rmstr)
+
+
+def get_version():
+    """The FLIMAnalyzer version: of the installed package, else of the source
+    checkout; "unknown" if neither can be determined."""
+    try:
+        from flim._version import version  # written by setuptools_scm on install
+
+        return version
+    except ImportError:
+        pass
+    try:
+        import pkg_resources
+
+        return pkg_resources.get_distribution("flimanalyzer").version
+    except Exception:
+        pass
+    try:
+        from setuptools_scm import get_version as scm_version
+
+        return scm_version(root="..", relative_to=__file__)
+    except Exception:
+        return "unknown"

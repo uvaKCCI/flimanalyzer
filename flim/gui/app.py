@@ -25,7 +25,7 @@ from pubsub import pub
 from prefect import Flow
 from prefect.backend import FlowRunView
 from prefect.engine.state import State
-from setuptools_scm import get_version
+from flim.utils import get_version
 from wx.lib.newevent import NewEvent
 
 import flim.analysis

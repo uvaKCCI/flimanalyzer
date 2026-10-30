@@ -11,7 +11,7 @@ import logging
 import argparse
 import sys
 import flim
-from setuptools_scm import get_version
+from flim.utils import get_version
 from flim.gui.app import FlimAnalyzerApp
 import flim.core.parser as cp
 import flim.analysis
