@@ -47,6 +47,11 @@ def grouped_meanbarplot(
     capsize = 6
     if categories is None:
         categories = []
+    if not data[feature].notna().values.any():
+        # nothing to draw (pandas' bar plot fails on empty data)
+        ax.text(0.5, 0.5, "No values", ha="center", va="center", transform=ax.transAxes)
+        ax.set_title(title if title is not None else "|".join(feature).replace("\n", " "))
+        return fig
     if len(categories) == 0:
         mean = pd.DataFrame(columns=feature)
         mean.loc[0] = data[feature].mean()

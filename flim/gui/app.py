@@ -25,7 +25,7 @@ from pubsub import pub
 from prefect import Flow
 from prefect.backend import FlowRunView
 from prefect.engine.state import State
-from setuptools_scm import get_version
+from flim.utils import get_version
 from wx.lib.newevent import NewEvent
 
 import flim.analysis
@@ -276,11 +276,14 @@ class AppFrame(wx.Frame):
             importer.set_parser(None)
             importer.set_preprocessor(None)
             data, filenames, fheaders = importer.import_data()
+            if data is None:
+                wx.MessageBox("None of the files could be read.", "Import")
+                return
 
             pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
             windowtitle = os.path.basename(filenames[0])
             if len(filenames) != 1:
-                windowtitlw = "Imported Data"
+                windowtitle = "Imported Data"
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(
                 data,
@@ -291,6 +294,7 @@ class AppFrame(wx.Frame):
                 analyzable=True,
                 savemodified=True,
                 enableclose=True,
+                modified=False,  # just read from the file
             )
             self.GetEventHandler().ProcessEvent(event)
 
@@ -317,11 +321,14 @@ class AppFrame(wx.Frame):
             importer.set_column_combos(config.get([cfg.CONFIG_CATEGORY_COMBINATIONS]))
             importer.set_preprocessor(preprocessor)
             data, filenames, fheaders = importer.import_data()
+            if data is None:
+                wx.MessageBox("None of the files could be read.", "Import")
+                return
 
             # pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
             windowtitle = os.path.basename(filenames[0])
             if len(filenames) != 1:
-                windowtitlw = "Imported Data"
+                windowtitle = "Imported Data"
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(
                 data,
@@ -636,6 +643,7 @@ class AppFrame(wx.Frame):
             if frame:
                 frame = self.windowframes[title]
                 frame.SetData(data)
+                frame.set_modified(event.IsModified())
                 # frame.SetConfog(config)
             else:
                 action = "createnew"
@@ -652,6 +660,7 @@ class AppFrame(wx.Frame):
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
             )
+            frame.set_modified(event.IsModified())
             frame.Show(True)
             self.append_window_to_menu(title, frame)
             pub.sendMessage(NEW_DATA_WINDOW, data=data, frame=frame)

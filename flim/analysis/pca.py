@@ -185,12 +185,10 @@ class PCAnalysis(AbstractPlugin):
     def execute(self):
         data = list(self.input.values())[0]
         features = self.params["features"]
-        data_no_na = data[features].dropna(how="any", axis=0).reset_index()
-        if len(features) == 1:
-            # reshape 1d array
-            data_no_class = data_no_na.values.reshape((-1, 1))
-        else:
-            data_no_class = data_no_na[features].values
+        # the rows with all features, numbered like the PCA results (pd.concat aligns
+        # by index)
+        data = data.dropna(subset=features, how="any").reset_index(drop=True)
+        data_no_class = data[features].values
         scaler = StandardScaler()
         scaler.fit(data_no_class)
         standard_data = scaler.transform(data_no_class)

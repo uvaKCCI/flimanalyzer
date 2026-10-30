@@ -186,17 +186,20 @@ class FreqHisto(AbstractPlugin):
         data = list(self.input.values())[0]
         selgrouping = self.params["grouping"]
         selfeatures = self.params["features"]
-        histmax = data.iloc[:, 1:].max(axis=1).max()
+        # the range of all numeric values (also negative ones)
+        numeric = data.select_dtypes(include="number")
+        histmin = min(0, float(numeric.min().min()))
+        histmax = float(numeric.max().max())
         # defines how to get input for values
         binspecs = {
             "bins": [wx.SpinCtrl, {"min": 1, "max": 500, "initial": 100}],
             "min": [
                 wx.SpinCtrlDouble,
-                {"min": 0, "max": histmax, "initial": 0, "inc": 0.1},
+                {"min": histmin, "max": histmax, "initial": 0, "inc": 0.1},
             ],
             "max": [
                 wx.SpinCtrlDouble,
-                {"min": 0, "max": histmax, "initial": histmax, "inc": 0.1},
+                {"min": histmin, "max": histmax, "initial": histmax, "inc": 0.1},
             ],
         }
         dlg = FreqHistoConfigDlg(
@@ -230,8 +233,8 @@ class FreqHisto(AbstractPlugin):
         cumulative = self.params["cumulative"]
         self.stacked = self.params["stacked"]
         self.datatable = self.params["datatable"]
-        bins = 100
         for header in sorted(self.params["features"]):
+            bins = 100
             mrange = (data[header].min(), data[header].max())
             try:
                 hconfig = self.params["featuresettings"][header]
@@ -317,7 +320,6 @@ class FreqHisto(AbstractPlugin):
                 )
         else:
             groupeddata = data.groupby(groups, observed=True)
-            newkwargs.update({"label": list(groupeddata.groups)})
             for name, group in groupeddata:
                 if len(group[column]) > 0:
                     groupnames.append(name)
@@ -331,6 +333,8 @@ class FreqHisto(AbstractPlugin):
                             / float(totalcounts)
                             * normalize
                         )
+            # in the order of the plotted groups (groupeddata.groups is sorted by name)
+            newkwargs.update({"label": [str(n) for n in groupnames]})
         if normalize is not None:
             slabel = ""
             if not self.stacked:

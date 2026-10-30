@@ -14,6 +14,46 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 
+# The docs are built without FLIMAnalyzer's GUI and heavy dependencies
+# (docs/requirements.txt); autodoc imports these as mocks.
+autodoc_mock_imports = [
+    "graphviz",
+    "pendulum",
+    "prefect",
+    "pubsub",
+    "pydot",
+    "setuptools_scm",
+    "torch",
+    "wx",
+]
+
+# wx.lib.newevent.NewEvent() is unpacked at import time, which a mock can't do
+import types
+
+_newevent = types.ModuleType("wx.lib.newevent")
+_newevent.NewEvent = lambda: (type("Event", (), {}), object())
+_newevent.NewCommandEvent = _newevent.NewEvent
+sys.modules["wx.lib.newevent"] = _newevent
+
+# The plugins subclass Prefect 1's Task and are instantiated when flim is imported,
+# which a mock can't do (endless recursion): a stand-in for the names flim imports
+# from the top-level package; its submodules are mocked.
+_prefect = types.ModuleType("prefect")
+_prefect.__path__ = []
+
+
+class _Task:
+    def __init__(self, name=None, **kwargs):
+        self.name = name
+
+
+_prefect.Task = _Task
+_prefect.task = lambda *args, **kwargs: (args[0] if args and callable(args[0]) else (lambda f: f))
+for _name in ("Flow", "Parameter", "unmapped", "flatten", "tags"):
+    setattr(_prefect, _name, type(_name, (), {"__init__": lambda self, *a, **k: None}))
+_prefect.config = types.SimpleNamespace(flows=types.SimpleNamespace(checkpointing=False))
+sys.modules["prefect"] = _prefect
+
 
 # -- Project information -----------------------------------------------------
 

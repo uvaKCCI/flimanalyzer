@@ -327,9 +327,13 @@ class AEFeatureWorkflow(AbsWorkFlow):
             modelfile = f'AEFeature-{len(self.params["features"])}'
 
             timeseries = Parameter("timeseries", default=self.params["timeseries"])
-            timeseries_vals = [
-                v for v in data_train[self.params["timeseries"]].unique() if not "15" in v
-            ]
+            # all time points (none skipped), in category order if it is a category
+            timevalues = data_train[self.params["timeseries"]]
+            observed = set(timevalues.unique())
+            if hasattr(timevalues, "cat"):
+                timeseries_vals = [v for v in timevalues.cat.categories if v in observed]
+            else:
+                timeseries_vals = list(timevalues.unique())
             t_pairs = list(zip(timeseries_vals, timeseries_vals[1:]))
             ctrl_group = self.params["ctrl_group"]
 

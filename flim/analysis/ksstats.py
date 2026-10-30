@@ -187,12 +187,12 @@ class KSStats(AbstractPlugin):
         logging.debug(f"data.columns.values={data.columns.values}")
         if data is None or not column in data.columns.values:
             return None, None
+        # the comparison column splits the data; the other groups are compared separately
+        groups = [g for g in groups if g != comparison]
         if len(groups) == 0:
             groupvals = [("none",)]
             cols = ["Grouping"]
         else:
-            # set groups based on categories excluding the comparison category
-            groups = [g for g in groups if g != comparison]
             groupvals = [name for name, _ in data.groupby(groups)]
             cols = [c for c in groups]
         dissimilar_label = f"dissimilar (<{alpha})"

@@ -10,6 +10,7 @@ import logging
 import pandas as pd
 from flim.plugin import plugin
 from flim.plugin import AbstractPlugin
+from flim.utils import as_strings
 from flim.gui.dialogs import BasicAnalysisConfigDlg
 import wx
 import matplotlib.pyplot as plt
@@ -65,7 +66,7 @@ class BoxPlot(AbstractPlugin):
         data = list(self.input.values())[0].copy()
         categories = data.select_dtypes("category").columns.values
         for c in categories:
-            data[c] = data[c].astype("str")
+            data[c] = as_strings(data[c])
 
         for feature in sorted(self.params["features"]):
             logging.debug(f"\tcreating box plot for {feature}")
