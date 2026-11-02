@@ -76,6 +76,22 @@ def _click(button):
     button.GetEventHandler().ProcessEvent(event)
 
 
+def _statuses(dlg):
+    return {
+        dlg.task_list.GetItemText(row, 0): dlg.task_list.GetItemText(row, 1)
+        for row in range(dlg.task_list.GetItemCount())
+    }
+
+
+def _when(condition, action, *args, tries=100):
+    """Calls ``action(*args)`` once ``condition()`` holds, checking every 0.1 s (at most
+    ``tries`` times): busy test machines need more than a fixed delay."""
+    if condition() or not tries:
+        action(*args)
+    else:
+        wx.CallLater(100, _when, condition, action, *args, tries=tries - 1)
+
+
 def test_progress_dialog_closes_when_the_run_completes(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
@@ -103,7 +119,7 @@ def test_progress_dialog_shows_prefect_link_and_task_statuses(wxapp):
         ]
 
     dlg = RunProgressDialog(None, "Test", _starter(2, seconds=1.5))
-    wx.CallLater(1000, snapshot, dlg)
+    _when(lambda: "running" in _statuses(dlg).values(), snapshot, dlg)
     try:
         assert dlg.ShowModal() == wx.ID_OK
         assert seen["link"] and seen["link"] == dlg.run.ui_url
@@ -121,7 +137,7 @@ def test_cancel_button_cancels_the_run(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
     dlg = RunProgressDialog(None, "Test", _starter(2, seconds=10))
-    wx.CallLater(700, _click, dlg.cancel_button)
+    _when(lambda: "running" in _statuses(dlg).values(), _click, dlg.cancel_button)
     start = time.monotonic()
     try:
         assert dlg.ShowModal() == wx.ID_CANCEL
@@ -300,14 +316,12 @@ def test_status_line_matches_the_task_list(wxapp):
 
     def snapshot(dlg):
         seen["line"] = dlg.task_text.GetLabel()
-        seen["list"] = {
-            dlg.task_list.GetItemText(r, 0): dlg.task_list.GetItemText(r, 1)
-            for r in range(dlg.task_list.GetItemCount())
-        }
+        seen["list"] = _statuses(dlg)
         seen["count"] = dlg.count_text.GetLabel()
 
     dlg = RunProgressDialog(None, "Test", start_run)
-    wx.CallLater(1500, snapshot, dlg)  # Short has finished, Long is running
+    # when Short has finished and Long is running
+    _when(lambda: _statuses(dlg) == {"Short": "completed", "Long": "running"}, snapshot, dlg)
     try:
         assert dlg.ShowModal() == wx.ID_OK
         assert seen["list"] == {"Short": "completed", "Long": "running"}
@@ -331,15 +345,8 @@ def test_results_folder_link_opens_the_file_browser(wxapp, monkeypatch, tmp_path
         click = wx.adv.HyperlinkEvent(dlg.folder, dlg.folder.GetId(), "")
         dlg.folder.GetEventHandler().ProcessEvent(click)
 
-    def when_shown(dlg, tries=100):
-        # wait for the link (slow CI runners need more than a fixed delay)
-        if dlg.folder.IsShown() or not tries:
-            snapshot(dlg)
-        else:
-            wx.CallLater(100, when_shown, dlg, tries - 1)
-
     dlg = RunProgressDialog(None, "Test", _starter(2, seconds=3.0, autosave_dir=str(tmp_path)))
-    wx.CallLater(100, when_shown, dlg)
+    _when(dlg.folder.IsShown, snapshot, dlg)
     try:
         assert dlg.ShowModal() == wx.ID_OK
         run_dir = dlg.run.autosave_dir
