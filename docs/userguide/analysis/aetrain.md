@@ -1,4 +1,4 @@
-# Autoencoder Training
+# Autoencoder: Train
 
 **Menu Access:** `Analysis` > `Autoencoder: Train`
 

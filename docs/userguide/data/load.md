@@ -1,40 +1,40 @@
 # Loading Data
 
-The FLIMAnalyzer software processes data provided in text files organized in spreadsheet format. Data can be loaded from a single text file or imported and concatenated from a series of individual files through the `Files` menu or application toolbar. 
+FLIMAnalyzer reads data from text files laid out like a spreadsheet. You can open a single text file, or import several files and combine them into one table. Both are available in the `File` menu and in the tool panel.
 
 | Tool Icon |  File Operation | Description |
 |:---------:|:---------------:|:-----------:|
-|![](/images/files/open.png)  | [Open Data File](#open-data-file) | Opens a single text file. All columns are retained as-is. |
-|![](/images/files/import.png)  | [Import Data Files](#import-data-files) | Imports one or multiple text files. Additional column values can be<br> parsed from raw data files names, columns may be renamed or dropped. |
+|![](/images/files/open.png)  | [Open Data File](#open-data-file) | Opens a single text file. All columns are kept as they are. |
+|![](/images/files/import.png)  | [Import Data Files](#import-data-files) | Imports one or more text files. Values for extra columns can be<br> read from the file names, and columns can be renamed or dropped. |
 
 ## Open Data File
 
-Follow these steps to open a single text file. The data is expected to be organized in spreadsheet format, each line representing a data row and column values in each line separated by specific delimiting characters. Common formats are .csv files using `,` as delimiting character.  However other column delimiters are allowed as well, see below.
+The file must be laid out like a spreadsheet: each line is a data row, and the values in a line are separated by a delimiter character. A common format is the .csv file, which uses `,` as the delimiter. Other delimiters can be used as well (see step 2). Follow these steps to open a single text file:
 
-1. Go to `File > Open` or click on the `Open File` icon on the far left of the application toolbar.
-2. In the `Open File` dialog window, check the appropriate column value delimiting character, e.g.  `,`,`;`,`<tab>`,`<space>`, or enter a character sequence in the `Others` text field.
+1. Go to `File` > `Open...` or click the `Open file` icon, the first icon in the tool panel.
+2. In the `Open File` dialog, check the delimiter used in the file, for example `,`, `;`, `<tab>` or `<space>`. For any other delimiter, enter its characters in the `Others` field.
 3. Click `Open` and choose the data text file to open.
-4. The data will be read from the selected file as-is and presented in a table window in spreadsheet format. The column headers correspond to values of the first row in the data text file. 
+4. FLIMAnalyzer reads the data as they are and shows them in a table window. The column headers are taken from the first line of the file.
 
 ![](/images/files/open-dlg.png)
 
 ## Import Data Files
 
-The `File > Import` menu function and `Import Files` toolbar icon (second from the left in toolbar) provide more flexibility for configuration of data loads. The data is expected to be organized in text files in spreadsheet format as described above. 
+`File` > `Import...` and the `Import files` icon (the second icon in the tool panel) give you more options for loading data. The files must be laid out as described above.
 
-Additional configurable options for the `File Import` function:
+In addition to opening files, the import can:
 
-* Concatenation of multiple text files into a single data table, 
-* parsing of data text filenames that can be added as additional column values to the final table,
-* dropping of columns based on column headers (parsed from first line of text files),
-* and renaming of column headers.
+* combine several text files into a single data table,
+* read values from the file names and add them to the table as extra columns,
+* drop columns by their headers (taken from the first line of the files),
+* and rename column headers.
 
-1. Go to `File > Import` or click on the `Import File` icon (second from the left of the application toolbar.
-2. In the `Import File` dialog window, check the appropriate column value delimiting character, e.g.  `,`,`;`,`<tab>`,`<space>`, or enter a character sequence in the `Others` text field. This is the same as for the `Open File` function.
-3. **Optional:** Choose a parser from the dropdown menu.  Selection of `no_parser` means that filenames will be ignored for parsing of any additional data. When choosing a specific parser, the content in the `Parse from Filenames` table changes, see (4).
-4. **Optional:** Select/Deselect `Use` checkbox to parse/ignore identifiers from the name of each file. Adjust the values in the `Category` column which will be used as new column headers for the parsed file identifiers, and modify the `Regex` expression used to extract the desired filename portion. 
+1. Go to `File` > `Import...` or click the `Import files` icon.
+2. In the `Import File(s)` dialog, check the delimiter used in the files, for example `,`, `;`, `<tab>` or `<space>`. For any other delimiter, enter its characters in the `Others` field. This works the same as in the `Open File` dialog.
+3. **Optional:** Choose a parser from the `Filename Parser` list. With `no_parser`, no values are read from the file names. When you choose a parser, the `Parse from Filenames` table changes (see step 4).
+4. **Optional:** In the `Parse from Filenames` table, check `Use` for each value to read from the file names, and uncheck it for values to ignore. The `Category` column sets the header of the new table column for each value. The `Regex` column holds the pattern (a regular expression) that finds the value in the file name. Change both as needed.
 
-    **Example:** Choosing the built-in `fov_treatmnent_cell` parser will extract the following values for `FOV`, `Treatment`, `Cell` from a group of data files and adds these values to the imported data table:
+    **Example:** The built-in `fov_treatment_cell_parser` reads the following values for `FOV`, `Treatment` and `Cell` from the file names and adds them to the imported data table:
 
     | File | FOV | Treatment | Cell |
     |:----:|:---:|:---------:|:----:|
@@ -43,14 +43,14 @@ Additional configurable options for the `File Import` function:
     | Results-b-ctrl-1 | b | ctrl | 1 |
     | Results-b-ctrl-2 | b | ctrl | 2 |
 
-5. **Optional:** In the `Rename` table, specify renaming convention for column headers. **These values specify substitution patterns with implicit `\*` wildcards that replace all matching substrings.** Remove all values in columns 1 if no renaming is desired.
-6. **Optional:** In the `Drop Columns` table, specify columns that should be dropped from the data. **Note: These values specify patterns with implicit `\*` wildcards that apply to column headers with matching substrings.**
+5. **Optional:** In the `Rename Columns` table, enter how column headers are renamed. **Each entry replaces matching text anywhere in a column header, not only whole headers.** To rename nothing, remove all values in the first column.
+6. **Optional:** In the `Drop Columns` table, enter the columns to drop from the data. **Note: A column is dropped if its header contains an entry anywhere, not only if the whole header matches.**
 
-8. Click `Add` to select a single or multiple files to import. **Data from all listed files will be concatenated into a single data table.** Select indiividual files in the list and click `Remove` to remove specific files from the list. Click `Reset` to clear the file list.
-8. Click `Import`. The data will be read from the selected files, processed and concatenated vertically into a single data table. It is assumed that the column headers in each data file (i.e. the first row in each file) have matching values. 
+7. Click `Add Files` to select one or more files to import. **Data from all listed files will be concatenated into a single data table.** Select individual files in the list and click `Remove Files` to remove them from the list. Click `Reset` to clear the file list.
+8. Click `Import`. FLIMAnalyzer reads the listed files, processes them and stacks them into a single data table. The files should all have the same column headers (the first line of each file).
 
 ![](/images/files/import-dlg.png)
 
-After [opening](#open-data-file) or [importing](#import-data-files) files, the data are displayed in a spreadsheet window, aka a data table. Columns containing text or information parsed from filenames during import are specified as categorical data columns. They have limited, and usually fixed, number of discrete possible values. Headers of categorical columns have a light blue background; all other column headers are displayed with a gray background.
+After [opening](#open-data-file) or [importing](#import-data-files) files, the data are shown in a table window, called a data table. Columns with text, and columns with values read from the file names, become category columns. A category column has a small, usually fixed, set of possible values, such as treatment names. Category column headers have a light blue background. All other column headers have a gray background.
 
 ![](/images/data/dataframe.png)

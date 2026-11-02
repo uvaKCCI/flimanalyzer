@@ -1,14 +1,14 @@
 # Workflows
 
-A workflow runs several tools in one go, for example summaries, relative changes and plots of the same features. Its dialog has the settings that the steps share, such as the grouping and the features; the workflow passes them to its steps.
+A workflow runs several tools in one go, for example to make summaries, relative changes and plots of the same features. Each tool is a step of the workflow. The workflow's dialog has the settings that the steps share, such as the grouping and the features, and passes them on to the steps.
 
-Steps that don't depend on each other run at the same time. A progress dialog lists the steps while they run, and `Cancel` stops the workflow. When it finishes, a graph shows the steps (blue) and the data and results they pass on (red); failed steps have a dark red outline, skipped steps are faded.
+Steps that don't depend on each other run at the same time. A progress dialog lists the steps while they run, and `Cancel` stops the workflow. When the workflow finishes, a diagram shows the steps in blue and the data and results passed between them in red. Failed steps have a dark red outline, and skipped steps are faded.
 
-The results of a workflow are always saved, in the folder chosen in its dialog, together with `run_summary.txt`: when the workflow ran, and the status, resources (e.g. GPU or CPU) and message of each step.
+The results of a workflow are always saved in the folder chosen in its dialog. The folder also gets a file `run_summary.txt`. It lists when the workflow ran and, for each step, its status, the resources it used (for example GPU or CPU) and its message.
 
 ## Checking the settings
 
-The dialog checks the workflow's settings against the selected data before it runs. If a column that the workflow needs is not in the data, for example `FAD a1%` when the data has `FAD a1[%]`, the dialog uses the closest column and marks the field with a warning sign; hover over the marker to see which column is used. The run summary lists these columns under "Notes". A column without a close match is an error (error sign), and the workflow can't run until it is chosen.
+Before the workflow runs, the dialog checks its settings against the selected data. A workflow may need a column that is not in the data, for example `FAD a1%` when the data has `FAD a1[%]`. The dialog then uses the closest matching column and marks the field with a warning sign. Hover the mouse over the sign to see which column is used. The run summary lists these columns under "Notes". If no column is a close match, the field is marked with an error sign, and the workflow can't run until you choose a column.
 
 In [batch mode](/userguide/batch), missing columns are errors unless `--allow-guesses` is given.
 
@@ -18,7 +18,7 @@ In [batch mode](/userguide/batch), missing columns are errors unless `--allow-gu
 
 **Toolbar Icon:** ![](/images/workflow/flirrworkflow.png)
 
-Summaries and relative changes of the features, grouped by the first grouping column, with KDE, line, pair and scatter plots.
+Makes summaries and relative changes of the features, grouped by the first grouping column, and KDE, line, pair and scatter plots.
 
 Example:
 ![](/images/analysis/workflow-results.png)
@@ -29,7 +29,7 @@ Example:
 
 **Toolbar Icon:** ![](/images/workflow/aetuneworkflow.png)
 
-Trains an autoencoder for each combination of batch size, learning rate and weight decay, then augments the data with each model. The results include heatmaps and training loss plots to check how well the augmented data matches the original data.
+Trains an autoencoder for each combination of batch size, learning rate and weight decay, then augments the data with each model. The results include plots of the training and validation loss, which show how the training went. Correlation heatmaps and KDE plots of the features, of the original and of each augmented data set, show how well the augmented data matches the original data.
 
 ## FLIM Feature Analysis
 
@@ -37,4 +37,4 @@ Trains an autoencoder for each combination of batch size, learning rate and weig
 
 **Toolbar Icon:** ![](/images/workflow/aefeatureworkflow.png)
 
-Uses two data tables: training data (for example the augmented data from `FLIM Data Augmentation Tuning`) and the data to analyze. It trains an autoencoder for each combination of batch size, learning rate and weight decay on the training data, runs the models of the last epoch on the data, and compares their first feature with FLIRR and the first principal component: summaries, normalized changes along the time series, KS statistics and plots. Like PCA, the autoencoder reduces the features to a few values, but it is not limited to linear combinations.
+Uses two data tables: training data (for example the augmented data from `FLIM Data Augmentation Tuning`) and the data to analyze. The workflow trains an autoencoder on the training data for each combination of batch size, learning rate and weight decay. It then runs each model, as it is after the last training round (epoch), on the data to analyze. Finally, it compares the first feature from each model with FLIRR and with the first principal component of a PCA. The comparison includes summaries, normalized changes along the time series, KS statistics and plots. Like PCA, the autoencoder reduces the features to a few values. Unlike PCA, it is not limited to weighted sums of the features.

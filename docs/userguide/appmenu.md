@@ -2,13 +2,13 @@
 
 ## File
 
-* `Open...` and `Import...` load data files; see [Loading Data](/userguide/data/load).
-* `Import Settings...` and `Export Settings...` read and save the settings of the application and its tools; see [Settings](/userguide/settings).
+* `Open...` and `Import...` load data files. See [Loading Data](/userguide/data/load).
+* `Import Settings...` and `Export Settings...` load and save the settings of the application and its tools. See [Settings](/userguide/settings).
 * `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the application menu (⌘Q).
 
 ## Data
 
-The `Data` menu has the tools that change or combine data tables, such as `Sort`, `Filter`, `Split` and `Concatenate`. They are enabled once a data table is open. See [Data Tables](/userguide/data/index).
+The `Data` menu has the tools that change or combine data tables, such as `Sort`, `Filter`, `Split` and `Concatenate`. They become available once a data table is open. See [Data Tables](/userguide/data/index).
 
 ## Analysis
 
@@ -24,7 +24,7 @@ The `Workflow` menu runs several tools in one go. See [Workflows](/userguide/wor
 
 ## Window
 
-The `Window` menu lists all open windows (data tables and plots); selecting one brings it to the front. `Close all windows` closes them.
+The `Window` menu lists all open windows (data tables and plots). Select one to bring it to the front. `Close all windows` closes them.
 
 ## Help
 

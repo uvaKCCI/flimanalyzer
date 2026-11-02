@@ -8,20 +8,22 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data.
 
 ## Creating the Plot
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
+1. Go to the `Window` menu and select one of the data tables. The table window comes to the front.
     ![](/images/data/dataframe.png)
 
-2. Start the Frequency Histogram tool by clicking on the icon in the toolbar or via the `Plot` > `Frequency Histogram` menu.
+2. Start the Frequency Histogram tool by clicking on its icon in the tool panel or via the `Plot` > `Frequency Histogram` menu.
 
-3. In the `Configuration: Frequency Histogram` dialog, select the data grouping, data features of interest, and the desired histogram appearance options. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc.. The `Type` dropdown menu provides options for four different histogram styles: `bar`, `barstacked`, `step`, and `stepfilled`. The `Stacked` and `Cumulative` checkboxes provide more options on the data viewing. The `Binned Data Table` checkbox generates a separate data table corresponding to the various bins of data from the histogram. The features are listed in a table with a row for each numeric column: check `Use` to plot a feature, and set its `Min`, `Max` and `Bins` in the same row (empty min or max: the range of the data). `Auto min/max range` uses each feature's range in the data instead of the table's min and max, and `Same bins for all` gives all features the same number of bins. `Load Feature Settings...` and `Save Feature Settings...` read and save the ranges and bins (see [Settings](/userguide/settings)).
+3. In the `Configuration: Frequency Histogram` dialog, select the grouping, the features to plot and how the histogram looks. You can group the data by the table's category columns, here `Treatment`, `FOV` and `Cell`. The features are the columns with numbers, such as `FAD a1`. The `Style` menu offers four histogram styles: `bar`, `barstacked`, `step` and `stepfilled`. The `Stacked` and `Cumulative` checkboxes change how the data is shown. `Binned data table` also creates a table with the counts in each bin of the histogram.
 
-    In the example, input data is grouped by `Treatment` and uses the `bar` histogram style.  
+    The features are listed in a table, with a row for each numeric column. Check `Use` to plot a feature, and set its `Min`, `Max` and `Bins` in the same row. If you leave `Min` or `Max` empty, the smallest or largest value in the data is used. `Auto min/max range` uses each feature's smallest and largest value in the data, and ignores the `Min` and `Max` in the table. `Same bins for all` gives all features the same number of bins. `Load Feature Settings...` and `Save Feature Settings...` load and save the ranges and bins (see [Settings](/userguide/settings)).
 
-    % TODO: add screenshot of the configuration dialog as /images/analysis/histogram-config.png
+    In the example, `FAD a1[%]` is plotted from 50 to 90 with 40 bins, grouped by `Treatment`, in the `bar` style, with `Binned data table` checked.
+
+    ![](/images/analysis/histogram-config.png)
 
 4. Click `OK`.
 
-5. The data for each analysis feature is plotted in its own plot window.
+5. Each selected feature is plotted in its own plot window.
 
 ## Example Output
 
@@ -46,5 +48,5 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data.
 ![](/images/analysis/histogram-results1a.png)
 
 ```{note}
-Plots can be manipulated and saved as described in the [Plots](/userguide/plots/index) section.
+You can change and save plots as described in the [Plots](/userguide/plots/index) section.
 ```

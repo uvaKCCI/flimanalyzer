@@ -1,22 +1,22 @@
 # Sort
-The `Sort` reorders the data rows in ascending order for a given data feature.
+The `Sort` tool reorders the data rows by the values of one or more columns.
 
 **Menu Access:** `Data` > `Sort`
 
 **Toolbar Icon:** ![](/images/data/sort.png)
 
 ## Sorting the Data
-Once a data set is open, locate the `Sort` option either from the menu or from the toolbar. Select the data feature for the rows to be sorted by. A new sorted table will be created, with the rows reordered based on ascending value of the selected data feature.
+Once a data table is open, start `Sort` from the menu or the tool panel. Under `Sort by`, select the columns to sort by. `Ascending` sorts from the smallest to the largest value (uncheck it for the reverse), and `Renumber rows` gives the sorted rows new row numbers in their new order. A new sorted table is created.
 
-Here is a snippet of a data set before being sorted.
+Here is part of a data table before sorting.
 
 ![](/images/data/sort-preresult.png)
 
-In this example, the data is being sorted based on FAD a1.
+In this example, the data are sorted by FAD a1.
 
 ![](/images/data/sort-config.png)
 
-The resulting data table is as follows.
+This is the resulting data table.
 
 ![](/images/data/sort-results.png)
 

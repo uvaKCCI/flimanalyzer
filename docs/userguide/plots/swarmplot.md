@@ -1,6 +1,6 @@
 # Swarm Plot
 
-This tool creates swarm plots of grouped data.
+The `Swarm Plot` tool creates swarm plots of grouped data.
 
 **Menu Access:** `Plot` > `Swarm Plot`
 
@@ -8,40 +8,42 @@ This tool creates swarm plots of grouped data.
 
 ## Creating the Plot
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.  
+1. Go to the `Window` menu and select one of the data tables. The table window comes to the front.  
     ```{note}
-    The plotting function is limited to 1000 datapoints so for large datasets with more than 1000 rows it may be advised to create a [Summary Table](/userguide/analysis/summary) first.
+    A swarm plot draws every data point. For large tables this is slow, and the points crowd together. To plot only a random sample of the points, set `Points` > `Show` to `sample` in the dialog. You can also plot a [summary](/userguide/analysis/summary) of the data instead. This example uses the mean FLIRR of each cell, made with `Summarize` and grouped by `Treatment`, `FOV` and `Cell`:
     ```
     
     ![](/images/analysis/dataframe-summary-grouped.png)
 
-2. Start the Swarm Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `Swarm Plot` menu.
+2. Start the Swarm Plot tool by clicking on its icon in the tool panel or via the `Plot` > `Swarm Plot` menu.
 
-3. In the `Configuration: Swarm Plot` dialog, select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
+3. In the `Configuration: Swarm Plot` dialog, select the grouping and the features to plot. You can group the data by the table's category columns, here `Treatment`, `FOV` and `Cell`. The features are the columns with numbers, such as `FAD a1`.
 
-    In the example, input data is grouped by `Treatment` and `FOV`.  
+    `Fit axes to the data` is checked by default. The value axes then run from the smallest to the largest value, plus a 5% margin. Uncheck it if the axes should include 0.
+
+    In the example, the mean FLIRR of each cell is plotted, grouped by `Treatment` and `FOV`.
 
     ![](/images/analysis/swarmplot-config-grouping.png)
 
 4. Click `OK`.
 
-5. The data for each analysis feature is plotted in its own plot window.
+5. Each selected feature is plotted in its own plot window.
 
 ```{note}
-The plot layout and grouping of bars can be changed by altering the order of the data grouping elements. See examples below.
+To change the plot layout, change the order of the grouping columns. See the examples below.
 ```
 
 ## Example Output
 
-**Example Results:** `Data Grouping` - Treatment, FOV
+**Example Results:** `Grouping` - Treatment, FOV
 
 ![](/images/analysis/swarmplot-result1-grouping.png)
 
 
-**Example Results:** `Data Grouping` - FOV, Treatment
+**Example Results:** `Grouping` - FOV, Treatment
 
 ![](/images/analysis/swarmplot-result2-grouping.png)
 
 ```{note}
-Plots can be manipulated and saved as described in the [Plots](/userguide/plots/index) section.
+You can change and save plots as described in the [Plots](/userguide/plots/index) section.
 ```

@@ -1,6 +1,6 @@
-# Random Forest Analysis
+# Random Forest
 
-The `Random Forest Analysis` tool is a machine learning algorithm that deploys decision trees to arrive at data feature importance scores. These scores measure each feature's impact on the predictive behavior of the model, with higher scores indicating a higher impact.
+The `Random Forest` tool trains a random forest to predict a category from the features. A random forest is a large set of decision trees whose answers are combined. The tool reports how much each feature contributes to the prediction, and how accurate the prediction is on test data.
 
 **Menu Access:** `Analysis` > `Random Forest`
 
@@ -8,41 +8,34 @@ The `Random Forest Analysis` tool is a machine learning algorithm that deploys d
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front.
     ![](/images/analysis/rf-start.png)
 
+2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Random Forest` menu.
 
-2. Start the `Random Forest Analysis` by clicking on the icon in the toolbar or via the `Analysis` > `Random Forest` menu.
+3. In the `Configuration: Random Forest` dialog, set:
+    - `Predict`: the category column to predict. With `Treatment`, the model shows which features are most important for telling the treatments apart.
+    - `Trees`: the number of trees (default 100).
+    - `Test fraction`: the fraction of the rows that are kept aside to test the accuracy (default 0.3: 30% test data, 70% training data).
+    - `Importance plot`: a bar plot of the importance scores, labeled with the accuracy.
+    - `Random seed`: with a number, every run gives the same results.
 
-3. In the `Configuration: Random Forest Analysis` dialog, define the classifier, n-estimator, and test size.
-    - `Classifier`: One of the categorical columns. It defines what you want to "predict." Using `Treatment` as a classifier, for example, will create a model that will determine which data features are most important in predicting a data point's treatment.
-    - `N-estimator`: The number of trees used, which will default to 100.
-    - `Test Size`: The ratio of testing data to training data, which will default to 0.3. This means that the tool will use 30% test data and 70% training data.
-    
-    
+4. Select the features. In the example, the amplitudes and lifetimes of FAD and NAD(P)H, and FLIRR, are used to predict `Treatment`, with the default number of trees and test fraction.
+
     ![](/images/analysis/rf-config.png)
-    
-    
-4. Select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
 
-  In the example, input data is classified by `Treatment`, and uses the default values for both `N-estimator` and `Test size`. 
-  
-4. Click `OK`.
+5. Click `OK`.
 
-
-5. The analysis results are shown in a new data table containing the importance scores for each of the selected data features, and also produces a histogram of this information, if the `Importance Histogram` checkbox is checked off. As shown in the example importance histogram, an accuracy value is produced as well, with higher accuracy values being better.
+6. The results are shown in a new data table with the importance score of each feature, highest first. If `Importance plot` is checked, the plot is shown as well.
 
 ## Example Output
 
-**Example Results:** 
-
-Importance Histogram using the configuration settings shown before:
+The importance plot, with the accuracy on the test data:
 
 ![](/images/analysis/rf-output.png)
 
-New data table showing each data feature's importance score:
+The importance scores:
 
 ![](/images/analysis/rf-output2.png)
 
-In this example, FAD a1 had the highest importance score, meaning that it was more impactful in predicting the treatment of a particular cell. There is likely large variation in FAD a1 values across the various treatments.
-
+In this example, `FLIRR` has the highest importance score: it is the feature that contributes most to predicting the treatment.

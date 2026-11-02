@@ -1,4 +1,4 @@
-# Autoencoder Analysis
+# Autoencoder: Run
 
 **Menu Access:** `Analysis` > `Autoencoder: Run`
 
