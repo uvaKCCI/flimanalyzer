@@ -26,7 +26,7 @@ from flim.core.settings import (
 
 # saved by FLIMAnalyzer 0.5 (the dict Config, version 0), with some changed settings
 V0_FILE = Path(__file__).parent / "data" / "settings_v0.json"
-# version 1: the tools under {"tools": {"tools": {...}}}
+# version 1: the format of 0.6
 V1_FILE = Path(__file__).parent / "data" / "settings_v1.json"
 
 

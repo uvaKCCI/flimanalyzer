@@ -29,7 +29,7 @@ Some tools have a table with a row for each feature, for example the table of ra
 
 ```
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "import": { ... },
   "preprocess": { ... },
   "display": [ ... ],
