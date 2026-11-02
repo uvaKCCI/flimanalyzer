@@ -439,7 +439,7 @@ class AETraining(AbstractPlugin):
                     "NAD(P)H t2",
                     "NAD(P)H photons",
                 ],
-                "model": "Autoencoder 2",
+                "model": "AE Dimensionality Reduction 2-10",
                 "device": "cpu",
                 "rescale": False,
                 "create_plots": True,
