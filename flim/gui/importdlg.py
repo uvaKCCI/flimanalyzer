@@ -6,11 +6,8 @@ import flim.core
 from flim.core.importer import dataimporter
 from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE
 from flim.core.preprocessor import defaultpreprocessor
-from flim.gui.events import DataWindowEvent, EVT_DATA_TYPE
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.dicttablepanel import DictTable, ListTable
-from flim.gui.datapanel import PandasFrame
-from pubsub import pub
 
 
 class ImportDlg(wx.Dialog):
@@ -340,23 +337,17 @@ class ImportDlg(wx.Dialog):
         selected = self.files_list.GetSelections()
         if selected is not None and len(selected) > 0:
             selectedfiles = [self.files_list.GetString(idx) for idx in selected]
-            filecount = len(self.importer.get_files())
             self.importer.remove_files(selectedfiles)
             self.files_list.Set(self.importer.get_files())
 
-            # self.update_files(len(self.importer.get_files())-filecount)
-
     def OnReset(self, event):
-        filecount = len(self.importer.get_files())
         self.importer.remove_allfiles()
         self.files_list.Set(self.importer.get_files())
-        # self.update_files(len(self.importer.get_files())-filecount)
 
     def OnCancel(self, event):
         self.EndModal(wx.ID_CANCEL)
 
     def OnPreview(self, event):
-        previewrows = 200
         files = [
             self.files_list.GetString(index)
             for index in range(self.files_list.GetCount())

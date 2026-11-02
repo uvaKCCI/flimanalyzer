@@ -6,11 +6,9 @@ Created on Mon May  7 14:38:04 2018
 @author: khs3z
 """
 
-import os
 import logging
 import argparse
 import sys
-import flim
 from flim._version import __version__
 from flim.core.tools import FLIMAnalyzer, check_executor_available
 from flim.core.prefect_server import use_prefect_server
@@ -85,7 +83,7 @@ def init_logger(loglevel):
         logging.root.removeHandler(handler)
     numeric_level = getattr(logging, loglevel, None)
     if not isinstance(numeric_level, int):
-        raise ValueError("Invalid log level: %s" % args.log)
+        raise ValueError(f"Invalid log level: {loglevel}")
     logging.basicConfig(
         level=numeric_level,
         filename="flimanalyzer.log",

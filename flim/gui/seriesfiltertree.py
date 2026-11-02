@@ -35,28 +35,17 @@ class SeriesFilterCtrl(CT.CustomTreeCtrl):
 
         # Create an image list to add icons next to an item
         il = wx.ImageList(16, 16)
-        fldridx = il.Add(
-            wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16))
-        )
-        fldropenidx = il.Add(
-            wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16))
-        )
-
+        il.Add(wx.ArtProvider.GetBitmap(wx.ART_FOLDER, wx.ART_OTHER, (16, 16)))
+        il.Add(wx.ArtProvider.GetBitmap(wx.ART_NORMAL_FILE, wx.ART_OTHER, (16, 16)))
         self.SetImageList(il)
-        # self.seriesfilter.SetItemImage(root, fldridx, wx.TreeItemIcon_Normal)
-        # self.seriesfilter.SetItemImage(root, fldropenidx, wx.TreeItemIcon_Expanded)
 
         if self.data is not None:
             cols = self.data.select_dtypes(["category"]).columns.values
             for col in cols:
                 child = self.AppendItem(root, col, ct_type=1)
-                # self.seriesfilter.SetItemImage(child, fldridx, wx.TreeItemIcon_Normal)
-                # self.seriesfilter.SetItemImage(child, fldropenidx, wx.TreeItemIcon_Expanded)
                 values = self.data[col].unique()
                 for val in sorted(values):
-                    last = self.AppendItem(child, val, ct_type=1)
-                    # self.seriesfilter.SetItemImage(last, fldridx, wx.TreeItemIcon_Normal)
-                    # self.seriesfilter.SetItemImage(last, fldropenidx, wx.TreeItemIcon_Expanded)
+                    self.AppendItem(child, val, ct_type=1)
             # self.seriesfilter.Expand(root)
 
     def GetCheckedItems(self, itemParent=None, checkedItems=None):

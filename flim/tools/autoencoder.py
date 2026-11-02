@@ -21,7 +21,7 @@ from flim.core.registry import register_tool
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.tool import Tool, pyplot_lock
 from flim.core.types import FileType, OutputSpec, PlotType, TableType
-from flim.tools.common import category_columns, selected_features
+from flim.tools.common import category_columns
 
 # size of the encoder output of each architecture (flim.analysis.ml.autoencoder)
 ENCODED_SIZE = {
@@ -201,8 +201,6 @@ class AETraining(Tool[AETrainConfig]):
         import torch.optim as optim
         from joblib import dump
         from sklearn.pipeline import make_pipeline
-
-        import flim.analysis.ml.autoencoder as autoencoder
 
         train_loader, val_loader, scaler, imputer, encoders = self._datasets(
             data, config, batch_size

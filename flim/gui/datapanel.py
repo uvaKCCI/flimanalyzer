@@ -12,7 +12,6 @@ from pubsub import pub
 
 from flim.core.filter import RangeFilter
 from flim.core.settings import AppSettings
-from flim.gui.listcontrol import AnalysisListCtrl, FilterListCtrl
 from flim.gui.events import (
     EVT_DATA_TYPE,
     DataWindowEvent,
@@ -248,7 +247,6 @@ class PandasFrame(wx.Frame):
     def set_header_renderer(self):
         if self.grid is not None:
             categorycols = list(self.data.select_dtypes(["category"]).columns.values)
-            numcols = list(self.data.select_dtypes(["number"]).columns.values)
             for i in range(self.grid.GetNumberCols()):
                 collabel = self.grid.GetColLabelValue(i)
                 if collabel in categorycols:
