@@ -1,10 +1,10 @@
-"""Statistics and ML tools, without wx (the legacy plugins are tested in
-tests/test_analysis_plugins.py and tests/test_plugin_results.py)."""
+"""Statistics and ML tools, without wx."""
 
 import matplotlib.figure
 import numpy as np
 import pandas as pd
 import pytest
+from scipy import stats
 
 from flim.configs import (
     CategorizerConfig,
@@ -83,6 +83,30 @@ def test_summary_per_feature_and_mapping(data):
     ) == [config.model_copy(update={"single_table": True})]
 
 
+def test_summary_matches_pandas(flim_data):
+    feature = "NAD(P)H t1"
+    config = SummaryConfig(
+        grouping=["Treatment"], features=[feature], aggs=["count", "mean", "median"]
+    )
+    (summary,) = Summarize()(flim_data, config=config).values()
+    summary = summary.set_index("Treatment")
+    expected = flim_data.groupby("Treatment", observed=True)[feature]
+    pd.testing.assert_series_equal(
+        summary[f"{feature}\nmean"], expected.mean(), check_names=False
+    )
+    pd.testing.assert_series_equal(
+        summary[f"{feature}\nmedian"], expected.median(), check_names=False
+    )
+    assert (summary[f"{feature}\ncount"] == 30).all()
+
+
+def test_summary_without_grouping(flim_data, features):
+    config = SummaryConfig(features=features, aggs=["mean"])
+    (summary,) = Summarize()(flim_data, config=config).values()
+    for f in features:
+        assert summary[f"{f}\nmean"].iloc[0] == pytest.approx(flim_data[f].mean())
+
+
 def test_summary_lineage(schema):
     config = SummaryConfig(grouping=["Treatment"], features=["t1"], aggs=["mean"])
     output = Summarize.output_schema(config, [schema])["Summary"]
@@ -97,6 +121,21 @@ def test_ks_stats(data):
     assert len(table) == 2  # one comparison per FOV
     assert set(table["dissimilar (<0.05)"]) == {"Yes"}  # the treatments differ by 100
     assert table["n (Treatment 1)"].tolist() == [15, 15]
+
+
+def test_ks_statistics_match_scipy(flim_data):
+    feature = "NAD(P)H t1"
+    config = KSStatsConfig(
+        grouping=["Treatment"], features=[feature], comparison="Treatment"
+    )
+    (table,) = KSStats()(flim_data, config=config).values()
+    row = table.iloc[0]
+    wt = flim_data.loc[flim_data["Treatment"] == "WT", feature]
+    ko = flim_data.loc[flim_data["Treatment"] == "KO", feature]
+    expected = stats.ks_2samp(wt, ko)
+    assert row["statistic"] == pytest.approx(expected.statistic)
+    assert row["p-values"] == pytest.approx(expected.pvalue)
+    assert {row["n (Treatment 1)"], row["n (Treatment 2)"]} == {len(wt), len(ko)}
 
 
 def test_ks_stats_validate(data):
@@ -218,6 +257,48 @@ def test_random_forest(data):
     pd.testing.assert_frame_equal(importance, again)  # seeded
 
 
+@pytest.mark.parametrize("method", ["EM", "Variational Bayesian"])
+def test_gmm_components(flim_data, features, method):
+    config = GMMConfig(
+        features=features, method=method, n_components=2, covariance="full"
+    )
+    results = GaussianMixedModel()(flim_data, config=config)
+    clusters = results["Table: GMM full, Feature Clustering"]
+    assert len(clusters) == len(flim_data)
+    assert set(clusters["GMM full"].cat.categories) <= {"GMM full 1", "GMM full 2"}
+    criteria = results["Table: GMM full, Component Information Criteria"]
+    assert list(criteria.columns) == ["Component", "BIC", "AIC"]
+    covariance = results["Table: GMM full, Covariance, component 1"]
+    assert covariance.shape == (len(features), len(features))
+
+
+def test_random_forest_importances(flim_data):
+    features = ["NAD(P)H t1", "NAD(P)H t2", "FAD a1[%]"]
+    config = RandomForestConfig(
+        grouping=["Treatment"], features=features, target="Treatment", n_estimators=20
+    )
+    results = RandomForest()(flim_data, config=config)
+    importances = results["Table: Importance Score Data"]
+    assert set(importances["Feature"]) == set(features)
+    assert importances["Importance Score"].sum() == pytest.approx(1.0)
+    assert importances["Importance Score"].is_monotonic_decreasing
+    assert isinstance(results["Plot: Importance Score Plot"], matplotlib.figure.Figure)
+
+
+def test_random_forest_ignores_grouping_columns_among_the_features(flim_data):
+    data = flim_data.copy()
+    data["Score"] = np.arange(len(data), dtype=float)
+    config = RandomForestConfig(
+        grouping=["Score"],  # a grouping column that is also selected as a feature
+        features=["NAD(P)H t1", "Score"],
+        target="Treatment",
+        n_estimators=10,
+        importance_plot=False,
+    )
+    results = RandomForest()(data, config=config)
+    assert list(results["Table: Importance Score Data"]["Feature"]) == ["NAD(P)H t1"]
+
+
 def test_random_forest_needs_a_target(data, schema):
     with pytest.raises(ValueError, match="target"):
         RandomForest()(data, config=RandomForestConfig(features=FEATURES))
@@ -250,3 +331,24 @@ def test_categorizer_gaps_get_the_default():
     )
     table = Categorizer()(data, config=config)["Table: Categorized"]
     assert table["C"].tolist() == ["a", "unassigned", "b"]
+
+
+def test_categorizer_assigns_bins(flim_data):
+    data = flim_data.copy()
+    data["score"] = np.linspace(-1, 1, len(data))
+    config = CategorizerConfig(
+        features=["score"],
+        name="Level",
+        rules=[
+            CategoryRule(value="low", feature="score", min=-1.0, max=-0.2),
+            CategoryRule(value="high", feature="score", min=-0.2, max=0.5),
+        ],
+        default="other",
+        merge_input=False,
+    )
+    (table,) = Categorizer()(data, config=config).values()
+    expected = pd.cut(data["score"], bins=[-1.0, -0.2, 0.5], labels=["low", "high"])
+    expected = expected.cat.add_categories("other").fillna("other")
+    assert list(table["Level"]) == list(expected)
+    assert table["Level"].dtype == "category"
+    assert "other" in set(table["Level"])  # outside all rules: the default

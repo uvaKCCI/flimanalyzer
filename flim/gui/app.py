@@ -8,26 +8,17 @@ Created on Mon May  7 21:00:30 2018
 
 import matplotlib
 
-# matplotlib.use('WXAgg')
-import matplotlib.pyplot as plt
-
 import logging
 import os
-import numpy as np
-import itertools
 import pandas as pd
-import json
-import ctypes
 import wx
 import wx.adv
-import wx.lib.agw.customtreectrl as CT
 
 from pubsub import pub
 from flim._version import __version__
 from wx.lib.newevent import NewEvent
 from importlib_resources import files
 
-import flim.analysis
 import flim.core.parser
 import flim.core.preprocessor
 import flim.gui.dialogs
@@ -36,25 +27,19 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.settings import AppSettings, load_settings, save_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
-from flim.core.filter import RangeFilter
 from flim.core.graph import WorkflowGraph
 from flim.core.workflow import Workflow
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
 from flim.core.runner import run_flow
 from flim.gui.configdialog import open_config_dialog
 from flim.gui.icons import tool_bitmap
-from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.macos import set_bundle_name, set_display_name
 from flim.gui.plotframe import PlotFrame
 from flim.gui.progressdlg import RunProgressDialog, RunSummaryDialog
 from flim.gui.datapanel import PandasFrame
-from flim.gui.dialogs import ConfigureCategoriesDlg
-from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
-from flim.gui.dicttablepanel import DictTable, ListTable
+from flim.gui.dialogs import ConfigureAxisDlg
 from flim.gui.events import (
-    DataUpdatedEvent,
     EVT_DATAUPDATED,
-    EVT_DU_TYPE,
     DataWindowEvent,
     EVT_DATA,
     EVT_DATA_TYPE,
@@ -68,21 +53,10 @@ from flim.gui.events import (
     CLOSING_DATA_WINDOW,
     REQUEST_RENAME_DATA_WINDOW,
     RENAMED_DATA_WINDOW,
-    NEW_PLOT_WINDOW,
     DATA_IMPORTED,
-    FILTERS_UPDATED,
-    FILTERED_DATA_UPDATED,
-    DATA_UPDATED,
-    ANALYSIS_BINS_UPDATED,
 )
 from flim.gui.importdlg import ImportDlg
-from flim.gui.listcontrol import (
-    AnalysisListCtrl,
-    FilterListCtrl,
-    EVT_FILTERUPDATED,
-    EVT_ANALYSISUPDATED,
-)
-from flim.gui.seriesfiltertree import SeriesFilterCtrl
+from flim.gui.listcontrol import EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
 import flim.tools  # noqa: F401  (registers the built-in tools)
 
 # field editors of the tools that need more than the generated dialog
@@ -182,8 +156,6 @@ class AppFrame(wx.Frame):
         """
         self.flimanalyzer = flimanalyzer
         self.settings = settings if settings is not None else AppSettings.default()
-        # self.analyzers = flim.analysis.absanalyzer.get_analyzer_classes()
-        # self.workflows = flim.workflow.basicflow.get_workflow_classes()
         # self.rawdata = None
         # self.data = None
         # self.filtereddata = None
@@ -779,25 +751,7 @@ class AppFrame(wx.Frame):
 
     def OnPick(self, event):
         if not event.mouseevent.dblclick:
-            """
-            try:
-                print(event.artist.get_label())
-                obj_id = int(event.artist.get_label())
-                py_obj = ctypes.cast(obj_id, ctypes.py_object).value
-                if issubclass(type(py_obj), AbstractPlugin):
-                    py_obj.run_configuration_dialog(self)
-                elif issubclass(type(py_obj), State):
-                    print(py_obj.result)
-                    print(f"is_mappeed={py_obj.is_mapped()}, {py_obj._result.location}")
-                title, window = self._get_window_frame(obj_id)
-                if window:
-                    self._raise_window(title, window)
-                else:
-                    if issubclass(type(py_obj), AbstractPlugin):
-                        py_obj.run_configuration_dialog(self)
-            except Exception as e:
-                logging.error(e)
-            """
+            return  # only double clicks open the axis and label dialogs
         else:
             ax = event.artist.axes
             fig = event.artist.get_figure()
@@ -993,5 +947,4 @@ class AppFrame(wx.Frame):
         updated = event.GetUpdatedItems()
         logging.debug(f"appframe.OnAnalysisUpdated - {len(updated)} Analysis updated:")
         for key in updated:
-            u = updated[key]
-            logging.debug("\t {key} {str(u))}")
+            logging.debug(f"\t {key} {updated[key]}")

@@ -1,10 +1,11 @@
-"""Plot tools, without wx (the legacy plugins are tested in tests/test_plugin_results.py)."""
+"""Plot tools, without wx."""
 
 import matplotlib.figure
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
+import seaborn as sns
 
 from flim.configs import (
     BarPlotConfig,
@@ -842,3 +843,140 @@ def test_scatter_plot_x_axis_of_two_features(ordered_table):
     assert (figure.axes[0].get_xlabel(), figure.axes[0].get_ylabel()) == ("f2", "f1")
     # more features: one plot per pair, no x axis to choose
     assert ScatterPlotConfig(features=["f1", "f2", "f3"], x_axis="f2").x_axis is None
+
+
+@pytest.mark.parametrize(
+    "ci, errorbar", [(95, ("ci", 95)), (68, ("ci", 68)), ("sd", "sd"), (None, None)]
+)
+def test_ci_to_errorbar(ci, errorbar):
+    from flim.tools.plot import ci_to_errorbar
+
+    assert ci_to_errorbar(ci) == errorbar
+
+
+# seaborn/matplotlib API deprecations must not come back
+@pytest.mark.filterwarnings("error:.*deprecated:FutureWarning")
+@pytest.mark.filterwarnings("error::PendingDeprecationWarning")
+@pytest.mark.filterwarnings("error::matplotlib.MatplotlibDeprecationWarning")
+@pytest.mark.parametrize("tool", [LinePlot, Heatmap, BoxPlot], ids=lambda t: t.name)
+@pytest.mark.parametrize("grouping", [["Treatment"], ["Treatment", "FOV"]])
+def test_plots_without_deprecated_api(tool, flim_data, features, grouping):
+    config = tool.config_class(grouping=grouping, features=features)
+    assert tool()(flim_data, config=config)
+
+
+@pytest.mark.parametrize(
+    "tool",
+    [SwarmPlot, KDE, BoxPlot, ViolinPlot, LinePlot, FrequencyHistogram],
+    ids=lambda t: t.name,
+)
+def test_plots_draw_one_figure_per_feature(flim_data, tool):
+    features = ["NAD(P)H t1", "FAD a1[%]"]
+    config = tool.config_class(grouping=["Treatment"], features=features)
+    results = tool()(flim_data, config=config)
+    figures = [v for v in results.values() if isinstance(v, matplotlib.figure.Figure)]
+    assert len(figures) == 2
+    # one task per feature when run in parallel (histograms: a dict of features)
+    mapped = [list(c.features) for c in tool().map_configs(config)]
+    assert mapped == [[f] for f in features]
+
+
+@pytest.mark.parametrize("error_bar", ["+/-", "+"])
+def test_bar_plot_heights_are_group_means(flim_data, error_bar):
+    feature = "NAD(P)H t1"
+    config = BarPlotConfig(
+        grouping=["Treatment"], features=[feature], error_bar=error_bar
+    )
+    (figure,) = [
+        v
+        for v in BarPlot()(flim_data, config=config).values()
+        if isinstance(v, matplotlib.figure.Figure)
+    ]
+    heights = sorted(
+        round(p.get_height(), 6) for p in figure.axes[0].patches if p.get_height()
+    )
+    expected = sorted(
+        round(v, 6)
+        for v in flim_data.groupby("Treatment", observed=True)[feature].mean()
+    )
+    assert heights == expected
+
+
+# --- pair plot: sampled scatter panels ---
+
+PAIR_FEATURES = ["NAD(P)H t1", "NAD(P)H t2", "NAD(P)H a1[%]"]
+
+
+def _pairplot(flim_data, **points):
+    config = PairPlotConfig(
+        grouping=["Treatment"],
+        features=PAIR_FEATURES,
+        diagonal="KDE",
+        points=points or {},
+    )
+    (figure,) = PairPlot()(flim_data, config=config).values()
+    return figure
+
+
+def _points_per_panel(figure):
+    """Number of scatter points in each off-diagonal panel."""
+    counts = []
+    n = len(PAIR_FEATURES)
+    for i, ax in enumerate(figure.axes[: n * n]):
+        if i // n != i % n:
+            counts.append(sum(len(c.get_offsets()) for c in ax.collections))
+    return counts
+
+
+def _notes(figure):
+    return [t.get_text() for t in figure.texts if "measurements shown" in t.get_text()]
+
+
+def test_pair_plot_all_measurements_by_default(flim_data):
+    figure = _pairplot(flim_data)
+    assert set(_points_per_panel(figure)) == {len(flim_data)}
+    assert _notes(figure) == []
+
+
+def test_pair_plot_random_sample_in_scatter_panels(flim_data, monkeypatch):
+    diagonal_sizes = []
+    kdeplot = sns.kdeplot
+
+    def recording_kdeplot(*args, **kwargs):
+        x = kwargs.get("x", args[0] if args else None)
+        diagonal_sizes.append(len(x))
+        return kdeplot(*args, **kwargs)
+
+    monkeypatch.setattr(sns, "kdeplot", recording_kdeplot)
+    figure = _pairplot(flim_data, mode="sample", samples=20)
+    assert set(_points_per_panel(figure)) == {20}
+    # the diagonals use all measurements (seaborn draws them per Treatment group)
+    assert sum(diagonal_sizes) == len(PAIR_FEATURES) * len(flim_data)
+    assert _notes(figure) == [f"20 samples of {len(flim_data)} measurements shown"]
+
+
+def test_pair_plot_sample_is_the_same_on_every_run(flim_data):
+    def offsets(figure):
+        return np.concatenate(
+            [
+                c.get_offsets()
+                for ax in figure.axes
+                for c in ax.collections
+                if len(c.get_offsets())
+            ]
+        )
+
+    a = offsets(_pairplot(flim_data, mode="sample", samples=20))
+    b = offsets(_pairplot(flim_data, mode="sample", samples=20))
+    np.testing.assert_array_equal(a, b)
+
+
+def test_pair_plot_sample_larger_than_the_data_plots_all(flim_data):
+    figure = _pairplot(flim_data, mode="sample", samples=10 * len(flim_data))
+    assert set(_points_per_panel(figure)) == {len(flim_data)}
+    assert _notes(figure) == []
+
+
+def test_pair_plot_all_ignores_samples(flim_data):
+    figure = _pairplot(flim_data, mode="all", samples=20)
+    assert set(_points_per_panel(figure)) == {len(flim_data)}

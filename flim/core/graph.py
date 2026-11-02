@@ -14,7 +14,7 @@ import networkx as nx
 # (edge color, face color) per node kind
 NODE_COLORS = {
     "output": ((1.0, 0.5, 0.5), (1.0, 0.8, 0.8)),
-    "plugin": ((0.5, 0.5, 1.0), (0.8, 0.8, 1.0)),
+    "tool": ((0.5, 0.5, 1.0), (0.8, 0.8, 1.0)),
 }
 FAILED_EDGE_COLOR = (0.7, 0.0, 0.0)
 
@@ -22,7 +22,7 @@ FAILED_EDGE_COLOR = (0.7, 0.0, 0.0)
 class WorkflowGraph:
     """Plots the task graph recorded by :class:`flim.core.runner.FlowRun`.
 
-    Plugin calls are drawn in blue, data/result nodes in red. Failed tasks have a
+    Tool calls are drawn in blue, data/result nodes in red. Failed tasks have a
     dark red outline, skipped tasks are faded.
     """
 
@@ -81,7 +81,7 @@ class WorkflowGraph:
             )
         for node, (x, y) in pos.items():
             attrs = self.graph.nodes[node]
-            ec, fc = NODE_COLORS.get(attrs["kind"], NODE_COLORS["plugin"])
+            ec, fc = NODE_COLORS.get(attrs["kind"], NODE_COLORS["tool"])
             if attrs["status"] == "failed":
                 ec = FAILED_EDGE_COLOR
             ax.text(

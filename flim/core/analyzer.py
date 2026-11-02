@@ -6,7 +6,6 @@ Created on Fri May  4 19:37:11 2018
 @author: khs3z
 """
 
-# import flim.plugin
 import logging
 import numpy as np
 import pandas as pd
@@ -193,14 +192,6 @@ class dataanalyzer:
             len(alldroppedrows),
             combineddroppedidx,
         )
-
-    def get_analysis_options(self):
-        # return [k for k in self.analysis_functions]
-        return [toolname for toolname in analysis.absanalyzer.get_analyzer_classes()]
-
-    def get_analysis_function(self, analysis_name):
-        # return self.analysis_functions.get(analysis_name)
-        return analysis.absanalyzer.get_analyzer_classes()[analysis_name]
 
     def categorize_data(
         self,
