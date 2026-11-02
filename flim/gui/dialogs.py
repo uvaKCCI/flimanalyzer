@@ -466,7 +466,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         self, parent, config=None, dataframe=None, dropped={}, showusefilter=True
     ):
         wx.Dialog.__init__(
-            self, parent, wx.ID_ANY, "Filter Settings TEST", size=(650, 400)
+            self, parent, wx.ID_ANY, "Filter Settings", size=(650, 400)
         )
         self.dataframe = dataframe
         self.dropped = dropped
@@ -549,8 +549,11 @@ class ConfigureFiltersDlg(wx.Dialog):
 
     def OnFiltersUpdated(self, updateditems, totaldropped, viewdropped, viewlength):
         remaining = viewlength - viewdropped
-        # self.dropped_label.SetLabel(f'Dropped from view: {viewdropped:,} (of {viewlength:,})')
-        # self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
+        self.dropped_label.SetLabel(
+            f"Dropped from view: {viewdropped:,} (of {viewlength:,})"
+        )
+        share = 100.0 * remaining / viewlength if viewlength else 0.0
+        self.remaining_label.SetLabel(f"Remaining: {remaining:,} ({share:.2f}%)")
         logging.debug(f"Updated: {[name for name in updateditems]}")
         logging.debug(
             f"Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining:"

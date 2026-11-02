@@ -1,5 +1,22 @@
 # Changes
 
+## 0.5.2
+
+Bug fixes for 0.5.1; no results change. Same requirements as 0.5.0 (`environment.yml`).
+
+### Fixes
+
+- **Import:** the Import dialog failed to open once the settings named a filename
+  parser, e.g. after an import with one (#149).
+- **Filter Settings dialog:** the title read "Filter Settings TEST" and the counts of
+  dropped and remaining rows always showed "???" (#150).
+- **Category filter** (right-click on a category column header): the values are listed
+  in the category order set with Order Categories, not in the order they occur in the
+  data (#151).
+- **AE Training:** the default model "Autoencoder 2" does not exist; the default is now
+  "AE Dimensionality Reduction 2-10". The dialog used to fall back to the first model;
+  scripted use failed (#152).
+
 ## 0.5.1
 
 Bug fixes for 0.5.0. Same requirements as 0.5.0: install with `environment.yml`
