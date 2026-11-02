@@ -307,9 +307,6 @@ class PandasFrame(wx.Frame):
         # viewallbutton = wx.Button(self, wx.ID_ANY, 'View All')
         # viewallbutton.Bind(wx.EVT_BUTTON, self.OnViewAll)
 
-        splitbutton = wx.Button(self, wx.ID_ANY, "Split")
-        splitbutton.Bind(wx.EVT_BUTTON, self.OnSplit)
-
         saveallbutton = wx.Button(self, wx.ID_ANY, "Save All")
         saveallbutton.Bind(wx.EVT_BUTTON, self.OnSave)
 
@@ -328,7 +325,6 @@ class PandasFrame(wx.Frame):
         # toolsizer.Add(viewallbutton, 0, wx.ALL|wx.EXPAND, 5)
         # toolsizer.Add(pivotallbutton, 0, wx.ALL|wx.EXPAND, 5)
         toolsizer.Add(pivotviewbutton, 0, wx.ALL | wx.EXPAND, 5)
-        toolsizer.Add(splitbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(saveallbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(saveviewbutton, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -773,26 +769,6 @@ class PandasFrame(wx.Frame):
             self.droppedrows = {}
             self.modified = True
             self.update_view()
-
-    def OnSplit(self, event):
-        dlg = SelectGroupsDlg(self, title="Split data", groups=self.groups)
-        if dlg.ShowModal() == wx.ID_CANCEL:
-            dlg.Destroy()
-            return
-        groups = dlg.get_selected()
-        dlg.Destroy()
-        if len(groups) > 0:
-            for name, splitdata in self.dataview.groupby(groups, observed=False):
-                windowtitle = "%s: %s" % (str(groups), str(name))
-                event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-                event.SetEventInfo(
-                    splitdata.copy(),
-                    windowtitle,
-                    "createnew",
-                    showcolindex=False,
-                    analyzable=True,
-                )
-                self.GetEventHandler().ProcessEvent(event)
 
     def OnSave(self, event):
         original = self.GetTitle()

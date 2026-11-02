@@ -46,3 +46,31 @@ jobs:
           files: coverage.xml
           use_oidc: true
           fail_ci_if_error: false  # a Codecov outage must not block merges
+
+  core:
+    name: core (no wx)
+    # flim.core must work without wxPython (and without torch): installs everything
+    # else from the lock file and runs the core tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies without wxPython and torch
+        run: |
+          uv export --frozen --extra test --no-hashes --no-emit-project --no-annotate --no-header \
+            | grep -v -E '^(wxpython|torch|nvidia-|triton|cuda-)' > core-requirements.txt
+          uv venv --python 3.12
+          uv pip install --no-deps -r core-requirements.txt
+          uv pip install --no-deps -e .
+
+      - name: Run core tests
+        env:
+          PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+        run: .venv/bin/python -m pytest -v tests/core

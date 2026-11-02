@@ -132,16 +132,16 @@ def flirr_data(flim_data):
 
 
 def _basic_flirr(flirr_data, tmp_path, workers):
-    from flim.workflow.basicflow import BasicFLIRRWorkFlow
+    from flim.configs.workflow import BasicFLIRRConfig
+    from flim.workflow.basicflow import BasicFLIRR
 
-    wf = BasicFLIRRWorkFlow()
-    wf.configure(
-        input={"data": flirr_data},
+    config = BasicFLIRRConfig(
         grouping=["Treatment", "FOV", "Cell"],
         features=["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"],
-        working_dir=str(tmp_path),
     )
-    run = wf.run_flow(task_runner=default_task_runner(workers))
+    run = BasicFLIRR().run_flow(
+        flirr_data, config=config, task_runner=default_task_runner(workers)
+    )
     assert run.failed == []
     tables, figures = {}, {}
     for label, result in zip(

@@ -24,7 +24,7 @@ Upon loading in data, the tables can be altered to emphasize trends, adjust the 
      - Combines two data tables based on categorical columns.
    * - `Order Categories <order.html>`_
      - Rearranges order of categorical columns.
-   * - `Concat Data <concat.html>`_
+   * - `Concatenate <concat.html>`_
      - Combines two data tables.
    * - `Sort <sort.html>`_
      - Reorders rows in ascending order of a selected data feature.

@@ -4,6 +4,8 @@ Plugins draw their figures off-screen (Agg backend), possibly in worker threads;
 the application shows each result figure in a PlotFrame on the main thread.
 """
 
+import math
+
 import matplotlib.pyplot as plt
 import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
@@ -56,8 +58,16 @@ class PlotFrame(wx.Frame):
         self.canvas_size = fit_to_screen(width, height, toolbar, parent)
         self.SetClientSize((self.canvas_size[0], self.canvas_size[1] + toolbar))
         self.Layout()
+        # half the scaling (geometric) shrinks the figure, half zooms it out (lower
+        # dpi on screen): shrunk only, text keeps its size and a figure of many
+        # plots has no room left for titles and labels (the layout gives up)
+        zoom = math.sqrt(min(1.0, self.canvas_size[0] / max(width, 1)))
+        if zoom < 1:
+            figure._set_dpi(figure.dpi * zoom, forward=False)  # saving: _original_dpi
         # resize the figure now: some window managers deliver the resize event late
         # or not at all before the window is shown
         figure.set_size_inches(
-            self.canvas_size[0] / dpi, self.canvas_size[1] / dpi, forward=False
+            self.canvas_size[0] / (dpi * zoom),
+            self.canvas_size[1] / (dpi * zoom),
+            forward=False,
         )

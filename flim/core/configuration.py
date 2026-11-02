@@ -11,8 +11,6 @@ import logging
 import json
 import os
 from flim.core.filter import RangeFilter
-from flim.core.importer import dataimporter
-from flim.core.preprocessor import defaultpreprocessor
 from flim.plugin import init_plugins_configs, PLUGINS
 
 CONFIG_WORKINGDIR = "working_dir"
@@ -322,6 +320,10 @@ class Config:
         return True
 
     def create_default(self):
+        # here, not at the top: these modules import this one
+        from flim.core.importer import dataimporter
+        from flim.core.preprocessor import defaultpreprocessor
+
         import_config = dataimporter().get_config()
         preprocess_config = defaultpreprocessor().get_config()
         datadisplay = [

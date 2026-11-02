@@ -90,28 +90,18 @@ def wxapp():
 
 
 def test_dialog_points_controls(wxapp, flim_data):
-    from flim.analysis.pairplots import PairPlotConfigDlg
+    from flim.configs import PairPlotConfig
+    from flim.core.registry import tools
+    from flim.gui.configdialog import ConfigDialog
 
-    dlg = PairPlotConfigDlg(
-        None, "Pair Plot", input={"data": flim_data}, selectedfeatures=FEATURES, plotting="all", samples=5000
-    )
+    config = PairPlotConfig(features=FEATURES, points={"mode": "all", "samples": 5000})
+    dlg = ConfigDialog(None, tools.get("Pair Plot"), config, data_choices={"data": flim_data})
     try:
-        assert dlg.plot_all_rb.GetValue() and not dlg.samples_spinner.IsEnabled()
-        params = dlg._get_selected()
-        assert params["plotting"] == "all" and params["samples"] == 5000
-
-        dlg.plot_sample_rb.SetValue(True)
-        dlg.samples_spinner.SetValue(20000)
-        params = dlg._get_selected()
-        assert params["plotting"] == "sample" and params["samples"] == 20000
-    finally:
-        dlg.Destroy()
-
-    dlg = PairPlotConfigDlg(
-        None, "Pair Plot", input={"data": flim_data}, selectedfeatures=FEATURES, plotting="sample", samples=300
-    )
-    try:
-        assert dlg.plot_sample_rb.GetValue() and dlg.samples_spinner.IsEnabled()
-        assert dlg.samples_spinner.GetValue() == 300
+        points = dlg.fields.editors["points"].fields.editors
+        assert points["mode"].get() == "all" and points["samples"].get() == 5000
+        points["mode"].set("sample")
+        points["samples"].set(20000)
+        result = dlg.result().config.points
+        assert (result.mode, result.samples) == ("sample", 20000)
     finally:
         dlg.Destroy()
