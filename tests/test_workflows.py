@@ -1,17 +1,13 @@
 import matplotlib.figure
 import pandas as pd
 import pytest
-from prefect.testing.utilities import prefect_test_harness
 
 from flim.core.graph import WorkflowGraph
 from flim.configs.workflow import BasicFLIRRConfig
 from flim.workflow.basicflow import BasicFLIRR
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 @pytest.fixture

@@ -3,7 +3,6 @@ import threading
 import matplotlib.figure
 import pandas as pd
 import pytest
-from prefect.testing.utilities import prefect_test_harness
 
 from flim.configs import SortConfig
 from flim.core.config import Issue, TaskConfig
@@ -173,12 +172,6 @@ def test_validate_nested_columns(table):
 
 
 # --- tools in a flow ---
-
-
-@pytest.fixture(scope="module")
-def prefect_harness():
-    with prefect_test_harness():
-        yield
 
 
 def test_tools_in_a_flow(prefect_harness, table):

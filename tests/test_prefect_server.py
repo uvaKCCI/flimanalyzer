@@ -36,7 +36,9 @@ def no_side_effects(monkeypatch, tmp_path):
     monkeypatch.setattr(ps.time, "sleep", lambda s: None)
     monkeypatch.delenv("PREFECT_API_URL", raising=False)
     monkeypatch.chdir(tmp_path)  # the server log file
-    yield started, stops
+    # no configured server, also while the session's test server runs
+    with temporary_settings(restore_defaults={PREFECT_API_URL}):
+        yield started, stops
     for func, *args in exit_handlers:  # as at application exit
         func(*args)
 

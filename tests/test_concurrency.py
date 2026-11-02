@@ -4,7 +4,6 @@ import time
 import matplotlib.figure
 import pandas as pd
 import pytest
-from prefect.testing.utilities import prefect_test_harness
 
 from flim.core.runner import default_max_workers, default_task_runner, run_flow
 from flim.plugin import AbstractPlugin, DataBucket
@@ -12,11 +11,7 @@ from flim.plugin import AbstractPlugin, DataBucket
 SLEEP = 0.4
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    # temporary Prefect server and database, nothing is reported to a real server
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 class Sleeper(AbstractPlugin):
