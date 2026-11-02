@@ -7,8 +7,6 @@ import pytest
 wx = pytest.importorskip("wx")
 from prefect.testing.utilities import prefect_test_harness  # noqa: E402
 
-from flim.configs import KMeansConfig, SummaryConfig  # noqa: E402
-from flim.core.execution import ExecutionOptions  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
 
 
@@ -50,11 +48,9 @@ def frame(wxapp, table, monkeypatch, tmp_path):
     from flim.core.runner import CancelToken
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
-    import flim.core.configuration as cfg
+    from flim.core.settings import AppSettings
 
-    config = cfg.Config()
-    config.create_default()
-    frame = AppFrame(FLIMAnalyzer(), config)
+    frame = AppFrame(FLIMAnalyzer(), AppSettings.default())
     frame.shown = []
     monkeypatch.setattr(frame, "tool_data_choices", lambda: {"Table: data": table})
     # run in this thread, without the progress dialog
@@ -84,25 +80,6 @@ def answer_dialog(monkeypatch, change):
 
     monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", show)
     return seen
-
-
-def test_config_from_settings():
-    from flim.gui.app import config_from_settings, settings_from_config
-
-    tool = tools.get("K-Means")
-    config = KMeansConfig(features=["x"], n_clusters=3, random_seed=None)
-    settings = settings_from_config(
-        config, ExecutionOptions(autosave=True, results_dir="/r")
-    )
-    assert settings["n_clusters"] == 3  # plugin parameters, read by older versions
-    assert settings["autosave"] is True and settings["working_dir"] == "/r"
-    assert config_from_settings(tool, settings) == config  # incl. fields new in 2.x
-    # settings of older versions: plugin parameters only
-    legacy = {"n_clusters": 4, "features": ["x"], "autosave": False}
-    assert config_from_settings(tool, legacy).n_clusters == 4
-    # invalid settings: the defaults
-    assert config_from_settings(tool, {"_config": {"n_clusters": 0}}) == KMeansConfig()
-    assert config_from_settings(tool, None) == KMeansConfig()
 
 
 def test_menus_and_tool_panel_from_the_registry(frame):
@@ -142,8 +119,8 @@ def test_run_a_tool(frame, monkeypatch, prefect_harness):
     ]
 
     # the settings were saved, and the next dialog starts from them
-    settings = frame.config.get(["plugins", "Summarize"])
-    assert settings["aggs"] == ["count", "mean"]
+    saved = frame.settings.tool_settings.config(tools.get("Summarize"))
+    assert saved.aggs == ["count", "mean"]
     seen = answer_dialog(monkeypatch, lambda dialog: None)
     frame.run_tool(tools.get("Summarize"))
     assert seen["dialog"].config.features == ["x", "y"]
@@ -167,7 +144,7 @@ def test_cancelled_dialog_runs_nothing(frame, monkeypatch):
     )
     frame.run_tool(tools.get("Summarize"))
     assert frame.shown == []
-    assert frame.config.get(["plugins", "Summarize"]).get("_config") is None
+    assert frame.settings.tool_settings.entry(tools.get("Summarize")) is None
 
 
 def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
@@ -179,7 +156,8 @@ def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
     answer_dialog(monkeypatch, change)
     frame.run_tool(tools.get("Sort"))
     assert any(tmp_path.rglob("*Sort*"))
-    assert frame.config.get(["plugins", "Sort"])["working_dir"] == str(tmp_path)
+    entry = frame.settings.tool_settings.entry(tools.get("Sort"))
+    assert entry.autosave and entry.results_dir == str(tmp_path)
 
 
 def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):
@@ -195,8 +173,11 @@ def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):
 def test_settings_saved_under_a_former_name(frame, monkeypatch):
     from flim.gui import configdialog
 
-    old = frame.config.get(["plugins", "Concat Data"])  # the plugin's defaults
-    old["type"] = True  # "Horizontal Concatenate"
+    from flim.core.settings import settings_from_data
+
+    # settings of 0.5: plugin parameters, under the former name
+    old = {"root": {"plugins": {"Concat Data": {"type": True, "autosave": False}}}}
+    frame.settings.tool_settings = settings_from_data(old).tool_settings
     seen = {}
 
     def show(dialog):
@@ -206,3 +187,21 @@ def test_settings_saved_under_a_former_name(frame, monkeypatch):
     monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", show)
     frame.run_tool(tools.get("Concatenate"))
     assert seen["mode"] == "horizontal"
+
+
+def test_save_and_load_settings(frame, monkeypatch, tmp_path):
+    import json
+
+    from flim.configs import KMeansConfig
+    from flim.core.settings import SETTINGS_VERSION
+
+    frame.settings.tool_settings.set(tools.get("K-Means"), KMeansConfig(n_clusters=5))
+    frame.settings.import_.delimiter = ","  # e.g. by the import dialog
+    path = tmp_path / "settings.json"
+    frame.save_settings(path)
+    assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
+
+    frame.settings.tool_settings.tools.clear()
+    frame.load_settings(path)
+    assert frame.settings.import_.delimiter == ","
+    assert frame.settings.tool_settings.config(tools.get("K-Means")).n_clusters == 5

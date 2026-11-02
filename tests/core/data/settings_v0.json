@@ -1,0 +1,1432 @@
+{
+    "root": {
+        "display": [
+            {
+                "bins": 100,
+                "max": "auto",
+                "min": "auto",
+                "name": "trp t1"
+            },
+            {
+                "bins": 100,
+                "max": "auto",
+                "min": "auto",
+                "name": "trp t2"
+            },
+            {
+                "bins": 100,
+                "max": "auto",
+                "min": "auto",
+                "name": "trp tm"
+            }
+        ],
+        "filters": {
+            "Use": false,
+            "range filters": [
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp t1",
+                    "rangehigh": 2500,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp t2",
+                    "rangehigh": 8000,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp tm",
+                    "rangehigh": 4000,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp a1[%]",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp a2[%]",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp a1[%]/a2[%]",
+                    "rangehigh": 2,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp E%1",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp E%2",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp E%3",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp r1",
+                    "rangehigh": 15,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp r2",
+                    "rangehigh": 3,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp r3",
+                    "rangehigh": 3,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp chi",
+                    "rangehigh": 4.7,
+                    "rangelow": 0,
+                    "selected": true
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "trp photons",
+                    "rangehigh": 160,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H a1",
+                    "rangehigh": 1000,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H a1[%]",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H a2",
+                    "rangehigh": 300,
+                    "rangelow": 5,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H a2[%]",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H t1",
+                    "rangehigh": 1000,
+                    "rangelow": 10,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H t2",
+                    "rangehigh": 7000,
+                    "rangelow": 2000,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H tm",
+                    "rangehigh": 2000,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H photons",
+                    "rangehigh": 2000,
+                    "rangelow": 10,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H a2[%]",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NADPH %",
+                    "rangehigh": 99,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NADH %",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NADPH/NADH",
+                    "rangehigh": 3,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "NAD(P)H chi",
+                    "rangehigh": 4.7,
+                    "rangelow": 0.7,
+                    "selected": true
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD t1",
+                    "rangehigh": 1500,
+                    "rangelow": 10,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD t2",
+                    "rangehigh": 6000,
+                    "rangelow": 1000,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD tm",
+                    "rangehigh": 2500,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD a1",
+                    "rangehigh": 500,
+                    "rangelow": 10,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD a1[%]",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD a2",
+                    "rangehigh": 300,
+                    "rangelow": 10,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD a2[%]",
+                    "rangehigh": 100,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD a1[%]/a2[%]",
+                    "rangehigh": 16,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FLIRR",
+                    "rangehigh": 2.4,
+                    "rangelow": 0,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD chi",
+                    "rangehigh": 4.7,
+                    "rangelow": 0.7,
+                    "selected": true
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD photons",
+                    "rangehigh": 1000,
+                    "rangelow": 10,
+                    "selected": false
+                },
+                {
+                    "allowedmax": null,
+                    "allowedmin": null,
+                    "dropna": true,
+                    "name": "FAD photons/NAD(P)H photons",
+                    "rangehigh": 2,
+                    "rangelow": 0,
+                    "selected": false
+                }
+            ],
+            "series filters": [],
+            "show dropped": true
+        },
+        "import": {
+            "category cols": [
+                "AE Label",
+                "Cat",
+                "Category",
+                "Cell",
+                "Cell line",
+                "Cell line-Cell",
+                "Cell line-Compartment",
+                "Cell line-FOV",
+                "Cell line-Treatment",
+                "Cluster",
+                "Combined",
+                "Compartment",
+                "Compartment-Cell",
+                "Compartment-FOV",
+                "Compartment-Treatment",
+                "FOV",
+                "FOV-Cell",
+                "FOV-Time",
+                "FOV-Treatment",
+                "FOV-Well",
+                "New Cat",
+                "Origin",
+                "Source",
+                "Time",
+                "Time-Well",
+                "Treatment",
+                "Treatment 1",
+                "Treatment 1 & 2",
+                "Treatment 2",
+                "Treatment-Cell",
+                "Treatment-FOV",
+                "Treatment-Time",
+                "Well"
+            ],
+            "category combos": null,
+            "delimiter": "\t",
+            "exclude files": [],
+            "fitting columns": [],
+            "fname parser": {
+                "Class": "defaultparser",
+                "Patterns": []
+            },
+            "include files": []
+        },
+        "plugins": {
+            "Autoencoder: Augment Data": {
+                "add_noise": true,
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "device": "auto",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "modelfile": "",
+                "prefix": null,
+                "saveconfig": false,
+                "sets": 1,
+                "snr_db": 0.0,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Autoencoder: Run": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "device": "auto",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "modelfile": "",
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Autoencoder: Train": {
+                "autosave": false,
+                "batch_size": [
+                    128
+                ],
+                "checkpoint_interval": 20,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "create_plots": true,
+                "device": "auto",
+                "epoches": 20,
+                "features": [
+                    "FAD a1",
+                    "FAD a2",
+                    "FAD t1",
+                    "FAD t2",
+                    "FAD photons",
+                    "NAD(P)H a1",
+                    "NAD(P)H a2",
+                    "NAD(P)H t1",
+                    "NAD(P)H t2",
+                    "NAD(P)H photons"
+                ],
+                "grouping": [
+                    "FOV",
+                    "Cell"
+                ],
+                "input": {},
+                "learning_rate": [
+                    0.0001
+                ],
+                "model": "AE Dimensionality Reduction 2-10",
+                "modelfile": "AEModel",
+                "prefix": null,
+                "rescale": false,
+                "saveconfig": false,
+                "timeseries": "Treatment",
+                "train_size": 0.7,
+                "weight_decay": [
+                    1e-08
+                ],
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Bar Plot": {
+                "autosave": false,
+                "bar_type": "single",
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "display": [
+                    "auto",
+                    "auto"
+                ],
+                "dropna": true,
+                "error_bar": "+/-",
+                "error_type": "std",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "legend": true,
+                "ordering": {},
+                "orientation": "vertical",
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Basic FLIRR Analysis": {
+                "autosave": true,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [
+                    "FAD a1",
+                    "FAD a1%",
+                    "FAD a2",
+                    "FAD a2%",
+                    "FAD t1",
+                    "FAD t2",
+                    "FAD photons",
+                    "NAD(P)H a1",
+                    "NAD(P)H a1%",
+                    "NAD(P)H a2",
+                    "NAD(P)H a2%",
+                    "NAD(P)H t1",
+                    "NAD(P)H t2",
+                    "NAD(P)H photons"
+                ],
+                "grouping": [
+                    "Treatment",
+                    "FOV",
+                    "Cell"
+                ],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Box Plot": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Categorize Data": {
+                "autosave": false,
+                "categories": [
+                    {
+                        "criteria": {
+                            "feature": "FLIRR",
+                            "max": -0.5,
+                            "min": -100000.0
+                        },
+                        "value": "negative"
+                    },
+                    {
+                        "criteria": {
+                            "feature": "FLIRR",
+                            "max": 0.5,
+                            "min": -0.5
+                        },
+                        "value": "neutral"
+                    },
+                    {
+                        "criteria": {
+                            "feature": "FLIRR",
+                            "max": 100000,
+                            "min": 0.5
+                        },
+                        "value": "positive"
+                    }
+                ],
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "default": "unassigned",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "merge_input": true,
+                "name": "New Cat",
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Concat Data": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "numbers_only": false,
+                "prefix": null,
+                "saveconfig": false,
+                "source_suffix": true,
+                "type": true,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "FLIM Data Augmentation Tuning": {
+                "autosave": true,
+                "batch_size": [
+                    128,
+                    64
+                ],
+                "checkpoint_interval": 2,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "device": "auto",
+                "epoches": 6,
+                "features": [
+                    "FAD a1",
+                    "FAD a2",
+                    "FAD t1",
+                    "FAD t2",
+                    "FAD photons",
+                    "NAD(P)H a1",
+                    "NAD(P)H a2",
+                    "NAD(P)H t1",
+                    "NAD(P)H t2",
+                    "NAD(P)H photons"
+                ],
+                "grouping": [
+                    "Treatment",
+                    "FOV",
+                    "Cell"
+                ],
+                "input": {},
+                "learning_rate": [
+                    1e-05,
+                    2e-05
+                ],
+                "model": "AE Simulator 1-6",
+                "prefix": null,
+                "rescale": true,
+                "saveconfig": false,
+                "sets": 4,
+                "timeseries": "Treatment",
+                "weight_decay": [
+                    1e-07,
+                    1e-08
+                ],
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "FLIM Feature Analysis": {
+                "autosave": true,
+                "batch_size": [
+                    128,
+                    64
+                ],
+                "checkpoint_interval": 2,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "ctrl_group": "Ctrl",
+                "device": "auto",
+                "epoches": 6,
+                "features": [
+                    "FAD a1",
+                    "FAD a2",
+                    "FAD t1",
+                    "FAD t2",
+                    "FAD photons",
+                    "NAD(P)H a1",
+                    "NAD(P)H a2",
+                    "NAD(P)H t1",
+                    "NAD(P)H t2",
+                    "NAD(P)H photons"
+                ],
+                "grouping": [
+                    "Treatment",
+                    "FOV",
+                    "Cell"
+                ],
+                "input": {},
+                "learning_rate": [
+                    1e-05,
+                    2e-05
+                ],
+                "model": "AE Dimensionality Reduction 2-10",
+                "prefix": null,
+                "rescale": true,
+                "saveconfig": false,
+                "timeseries": "Treatment",
+                "weight_decay": [
+                    1e-07,
+                    1e-08
+                ],
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "FLIRR Plot": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Filter": {
+                "autosave": false,
+                "category_filters": {},
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "inplace": false,
+                "input": {},
+                "prefix": null,
+                "range_filters": [],
+                "saveconfig": false,
+                "show_dropped": false,
+                "use": true,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Frequency Histogram": {
+                "autosave": false,
+                "bins": 30,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "cumulative": false,
+                "datatable": false,
+                "density": false,
+                "features": [],
+                "featuresettings": {
+                    "FAD a1[%]": [
+                        0,
+                        100,
+                        51,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FAD a1[%]/a2[%]": [
+                        0,
+                        16,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FAD a2[%]": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FAD chi": [
+                        0.7,
+                        4.7,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FAD photons": [
+                        0,
+                        800,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FAD t1": [
+                        0,
+                        4000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FAD t2": [
+                        1000,
+                        7000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FAD tm": [
+                        0,
+                        4000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "FLIRR": [
+                        0,
+                        2.4,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NAD(P)H a2[%]": [
+                        0,
+                        100,
+                        51,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NAD(P)H chi": [
+                        0.7,
+                        4.7,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NAD(P)H photons": [
+                        0,
+                        2000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NAD(P)H t1": [
+                        0,
+                        800,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NAD(P)H t2": [
+                        0,
+                        400,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NAD(P)H tm": [
+                        0,
+                        2000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NAD(P)H/NADH": [
+                        0,
+                        3,
+                        31,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NADH %": [
+                        0,
+                        100,
+                        51,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NADPH %": [
+                        0,
+                        99,
+                        34,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "NADPH a2/FAD a1": [
+                        0,
+                        10,
+                        101,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp E%1": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp E%2": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp E%3": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp a1[%]": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp a1[%]/a2[%]": [
+                        0,
+                        2,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp a2[%]": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp chi": [
+                        0,
+                        4.7,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp photons": [
+                        0,
+                        160,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp r1": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp r2": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp r3": [
+                        0,
+                        100,
+                        21,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp t1": [
+                        0,
+                        8000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp t2": [
+                        0,
+                        8000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ],
+                    "trp tm": [
+                        0,
+                        4000,
+                        81,
+                        [
+                            "Treatment"
+                        ]
+                    ]
+                },
+                "grouping": [],
+                "histtype": "step",
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "stacked": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Gaussian Mixed Model": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "covar_type": "full",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "method": "EM",
+                "n_components": 2,
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Heatmap": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "corr_type": "pearson",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "numbers": false,
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "K-Means": {
+                "algorithm": "lloyd",
+                "autosave": false,
+                "cluster_prefix": "Cluster",
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "init": "k-means++",
+                "input": {},
+                "max_iter": 300,
+                "n_clusters": 4,
+                "n_init": 4,
+                "prefix": null,
+                "saveconfig": false,
+                "tolerance": 0.0001,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "KDE": {
+                "autosave": false,
+                "col_wrap": 5,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "return_plot": true,
+                "saveconfig": false,
+                "single_plot": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "KS-Statistics": {
+                "alpha": 0.05,
+                "autosave": false,
+                "comparison": "Treatment",
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Line Plot": {
+                "autosave": false,
+                "ci": 95,
+                "col": "",
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "display": [
+                    "auto",
+                    "auto"
+                ],
+                "err_style": "bars",
+                "features": [],
+                "grouping": [],
+                "hue": "",
+                "input": {},
+                "markers": true,
+                "ordering": {},
+                "prefix": null,
+                "saveconfig": false,
+                "style": "",
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults",
+                "x": ""
+            },
+            "Merge": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "how": "",
+                "input": {},
+                "left_index": [],
+                "prefix": null,
+                "right_index": [],
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Order Categories": {
+                "autosave": false,
+                "categories": {},
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "inplace": false,
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "PCA": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "explainedhisto": false,
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "keeporig": false,
+                "keepstd": true,
+                "n_components": 0.999,
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Pair Plot": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "corner": false,
+                "diag_kind": "Histogram",
+                "features": [],
+                "grouping": [],
+                "hist_bins": 20,
+                "input": {},
+                "plotting": "all",
+                "prefix": null,
+                "random_seed": 0,
+                "samples": 20000,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults",
+                "x_vars": [],
+                "y_vars": []
+            },
+            "Pivot": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": "all_features",
+                "grouping": [
+                    "Treatment"
+                ],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Random Forest": {
+                "autosave": false,
+                "classifier": "",
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "importancehisto": true,
+                "input": {},
+                "n_estimators": 100,
+                "prefix": null,
+                "saveconfig": false,
+                "test_size": 0.3,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Relative Change": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "method": "mean",
+                "prefix": null,
+                "reference_group": "Treatment",
+                "reference_value": "Ctrl",
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Scatter Plot": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Series Analysis": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "delta": true,
+                "delta_cum": true,
+                "delta_max": true,
+                "delta_min": true,
+                "delta_norm": true,
+                "delta_sum": true,
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "merge_input": false,
+                "prefix": null,
+                "saveconfig": false,
+                "series_max": true,
+                "series_mean": false,
+                "series_median": false,
+                "series_min": true,
+                "series_range": true,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Sort": {
+                "ascending": true,
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "ignore_index": true,
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Summarize": {
+                "aggs": [
+                    "mean",
+                    "sem"
+                ],
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "flattenindex": true,
+                "grouping": [
+                    "Treatment"
+                ],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "singledf": true,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Swarm Plot": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Unpivot": {
+                "autosave": false,
+                "category_name": "Category",
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "feature_name": "Feature",
+                "features": "all_features",
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            },
+            "Violin Plot": {
+                "autosave": false,
+                "config_file": "/Users/khs3z/FLIMAnalyzerResults/configuration.json",
+                "features": [],
+                "grouping": [],
+                "input": {},
+                "prefix": null,
+                "saveconfig": false,
+                "working_dir": "/Users/khs3z/FLIMAnalyzerResults"
+            }
+        },
+        "preprocess": {
+            "calculate": {
+                "FAD a1[%]/a2[%]": [
+                    "ratio",
+                    [
+                        "FAD a1[%]",
+                        "FAD a2[%]"
+                    ]
+                ],
+                "FAD photons/NAD(P)H photons": [
+                    "ratio",
+                    [
+                        "FAD photons",
+                        "NAD(P)H photons"
+                    ]
+                ],
+                "FAD tm": [
+                    "tm",
+                    [
+                        "FAD a1[%]",
+                        "FAD t1",
+                        "FAD a2[%]",
+                        "FAD t2"
+                    ]
+                ],
+                "FLIRR": [
+                    "ratio",
+                    [
+                        "NAD(P)H a2[%]",
+                        "FAD a1[%]"
+                    ]
+                ],
+                "NAD(P)H a2[%]/a1[%]": [
+                    "ratio",
+                    [
+                        "NAD(P)H a2[%]",
+                        "NAD(P)H a1[%]"
+                    ]
+                ],
+                "NAD(P)H tm": [
+                    "tm",
+                    [
+                        "NAD(P)H a1[%]",
+                        "NAD(P)H t1",
+                        "NAD(P)H a2[%]",
+                        "NAD(P)H t2"
+                    ]
+                ],
+                "NAD(P)H tm/FAD tm": [
+                    "ratio",
+                    [
+                        "NAD(P)H tm",
+                        "FAD tm"
+                    ]
+                ],
+                "NADH %": [
+                    "nadh_perc",
+                    [
+                        "NADPH %"
+                    ]
+                ],
+                "NADPH %": [
+                    "nadph_perc",
+                    [
+                        "NAD(P)H t2"
+                    ]
+                ],
+                "NADPH a2/FAD a1": [
+                    "ratio",
+                    [
+                        "NAD(P)H a2",
+                        "FAD a1"
+                    ]
+                ],
+                "NADPH/NADH": [
+                    "ratio",
+                    [
+                        "NADPH %",
+                        "NADH %"
+                    ]
+                ],
+                "trp E%1": [
+                    "trp_Eperc_1",
+                    [
+                        "trp tm"
+                    ]
+                ],
+                "trp E%2": [
+                    "trp_Eperc_2",
+                    [
+                        "trp t1",
+                        "trp t2"
+                    ]
+                ],
+                "trp E%3": [
+                    "trp_Eperc_3",
+                    [
+                        "trp t1"
+                    ]
+                ],
+                "trp a1[%]/a2[%]": [
+                    "ratio",
+                    [
+                        "trp a1[%]",
+                        "trp a2[%]"
+                    ]
+                ],
+                "trp r1": [
+                    "trp_r",
+                    [
+                        "trp E%1"
+                    ]
+                ],
+                "trp r2": [
+                    "trp_r",
+                    [
+                        "trp E%2"
+                    ]
+                ],
+                "trp r3": [
+                    "trp_r",
+                    [
+                        "trp E%3"
+                    ]
+                ],
+                "trp tm": [
+                    "tm",
+                    [
+                        "trp a1[%]",
+                        "trp t1",
+                        "trp a2[%]",
+                        "trp t2"
+                    ]
+                ]
+            },
+            "drop": [
+                "Exc1_",
+                "Exc2_",
+                "Exc3_"
+            ],
+            "rename": {
+                "Exc1_-Ch1-_": "trp ",
+                "Exc1_-Ch2-_": "NAD(P)H ",
+                "Exc2_-Ch3-_": "FAD "
+            }
+        },
+        "working_dir": "/data/results"
+    }
+}

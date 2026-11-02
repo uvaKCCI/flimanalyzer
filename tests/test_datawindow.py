@@ -131,21 +131,18 @@ def test_precision_and_autosize(frame, flim_data):
 
 
 def test_save_and_load_settings(frame, monkeypatch, tmp_path):
-    import flim.core.configuration as cfg
-
     path = tmp_path / "settings.json"
-    frame.config.update({cfg.CONFIG_DELIMITER: ";"}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.delimiter = ";"
     _answer_file_dialog(monkeypatch, path)
     frame.OnSaveSettings(None)
     assert path.exists()
 
-    frame.config.update({cfg.CONFIG_DELIMITER: "\t"}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.delimiter = "\t"
     frame.OnLoadSettings(None)
-    assert frame.config.get([cfg.CONFIG_DELIMITER]) == ";"
+    assert frame.settings.import_.delimiter == ";"
 
 
 def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
-    import flim.core.configuration as cfg
     from flim.gui.importdlg import ImportDlg
 
     files = []
@@ -153,10 +150,8 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
         path = tmp_path / name
         part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
         files.append(str(path))
-    config = frame.config
-    config.update({cfg.CONFIG_INCLUDE_FILES: files}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.include_files = files
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    monkeypatch.setattr(ImportDlg, "get_config", lambda dlg: config)
     before = set(frame.windowframes)
     frame.OnImportData(None)
     (title, window), = _new_windows(frame, before).items()
@@ -165,13 +160,10 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
 
 
 def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
-    import flim.core.configuration as cfg
     from flim.gui.importdlg import ImportDlg
 
-    config = frame.config
-    config.update({cfg.CONFIG_INCLUDE_FILES: [str(tmp_path / "gone.txt")]}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.include_files = [str(tmp_path / "gone.txt")]
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    monkeypatch.setattr(ImportDlg, "get_config", lambda dlg: config)
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
     before = set(frame.windowframes)

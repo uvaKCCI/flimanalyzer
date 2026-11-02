@@ -10,7 +10,6 @@ import logging
 import numpy as np
 import numbers
 import flim.core
-import flim.core.configuration as cfg
 
 TRP_RZERO = 2.1
 ONE_SIXTH = 1.0 / 6
@@ -136,15 +135,15 @@ class defaultpreprocessor:
             "NADPH a2/FAD a1": [ratio.__name__, ["NAD(P)H a2", "FAD a1"]],
         }
 
-    def get_config(self):
-        config = {
-            cfg.CONFIG_CALC_COLUMNS: dict(
-                self.functions
-            ),  # self.calculator.get_config(), #calccolumns,
-            cfg.CONFIG_DROP_COLUMNS: self.dropcolumns,
-            cfg.CONFIG_HEADERS: self.newheaders,
-        }
-        return config
+    def settings(self):
+        """The preprocess settings (PreprocessSettings) of this preprocessor."""
+        from flim.core.settings import PreprocessSettings
+
+        return PreprocessSettings(
+            calculate=dict(self.functions),
+            drop=list(self.dropcolumns or []),
+            rename=dict(self.newheaders or {}),
+        )
 
     def columns_available(self, data, args):
         for arg in args:

@@ -13,7 +13,6 @@ import wx.grid
 from pubsub import pub
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
-import flim.core.configuration as cfg
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
 from flim.gui.dicttablepanel import ListTable
 
@@ -163,25 +162,30 @@ class SelectGroupsDlg(wx.Dialog):
 
 class ConfigureFiltersDlg(wx.Dialog):
     def __init__(
-        self, parent, config=None, dataframe=None, dropped={}, showusefilter=True
+        self, parent, filters=None, dataframe=None, dropped={}, showusefilter=True
     ):
+        """
+        Args:
+            filters: FilterSettings to edit (a copy is returned by GetData).
+        """
         wx.Dialog.__init__(
             self, parent, wx.ID_ANY, "Filter Settings TEST", size=(650, 400)
         )
         self.dataframe = dataframe
         self.dropped = dropped
         self.showusefilter = showusefilter
-        cfgdata = config.get(cfg.CONFIG_RANGEFILTERS)
+        self.filters = filters
+        cfgdata = filters.range_filters
         self.panel = wx.Panel(self, wx.ID_ANY)
         cbsizer = wx.BoxSizer(wx.HORIZONTAL)
         filtersizer = wx.BoxSizer(wx.VERTICAL)
         if self.showusefilter:
             self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="Use Filters")
-            self.filtercb.SetValue(config.get(cfg.CONFIG_USE))
+            self.filtercb.SetValue(filters.use)
             self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
             cbsizer.Add(self.filtercb, 0, wx.ALL | wx.EXPAND, 5)
             self.showdropcb = wx.CheckBox(self.panel, wx.ID_ANY, label="Show Dropped")
-            self.showdropcb.SetValue(config.get(cfg.CONFIG_SHOW_DROPPED))
+            self.showdropcb.SetValue(filters.show_dropped)
             cbsizer.Add(self.showdropcb, 0, wx.ALL | wx.EXPAND, 5)
             filtersizer.Add(cbsizer, 0, wx.ALL | wx.EXPAND, 5)
         self.dropped_label = wx.StaticText(
@@ -258,7 +262,8 @@ class ConfigureFiltersDlg(wx.Dialog):
         )
 
     def GetData(self):
-        return self.config
+        """The edited FilterSettings (None if cancelled)."""
+        return self.result
 
     def OnLoad(self, event):
         pass
@@ -271,15 +276,15 @@ class ConfigureFiltersDlg(wx.Dialog):
 
     def OnOK(self, event):
         cfgs = self.filterlist.GetData()
-        self.config = {}
+        changes = {"range_filters": [cfgs[key].get_params() for key in cfgs]}
         if self.showusefilter:
-            self.config[cfg.CONFIG_USE] = self.filtercb.GetValue()
-            self.config[cfg.CONFIG_SHOW_DROPPED] = self.showdropcb.GetValue()
-        self.config[cfg.CONFIG_RANGEFILTERS] = [cfgs[key].get_params() for key in cfgs]
+            changes["use"] = self.filtercb.GetValue()
+            changes["show_dropped"] = self.showdropcb.GetValue()
+        self.result = self.filters.model_copy(update=changes)
         self.EndModal(wx.ID_OK)
 
     def OnQuit(self, event):
-        self.config = None
+        self.result = None
         self.EndModal(wx.ID_CANCEL)
 
 

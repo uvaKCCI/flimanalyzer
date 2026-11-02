@@ -35,13 +35,11 @@ def table():
 
 
 def test_filter_dialog_checkboxes(wxapp, table):
-    import flim.core.configuration as cfg
-    from flim.core.configuration import Config
+    from flim.core.settings import AppSettings
     from flim.gui.dialogs import ConfigureFiltersDlg
 
-    config = Config()
-    config.create_default()
-    dlg = ConfigureFiltersDlg(None, config=config.get([cfg.CONFIG_FILTERS]), dataframe=table)
+    filters = AppSettings.default().filters
+    dlg = ConfigureFiltersDlg(None, filters=filters, dataframe=table)
     try:
         filters = dlg.filterlist
         assert filters.GetItemCount() > 0
@@ -80,24 +78,20 @@ def test_list_checkboxes_notify_once_per_change(wxapp):
 
 
 def test_filter_dialog_has_no_deprecated_checklist_mixin(wxapp, table, recwarn):
-    import flim.core.configuration as cfg
-    from flim.core.configuration import Config
+    from flim.core.settings import AppSettings
     from flim.gui.dialogs import ConfigureFiltersDlg
 
-    config = Config()
-    config.create_default()
-    ConfigureFiltersDlg(None, config=config.get([cfg.CONFIG_FILTERS]), dataframe=table).Destroy()
+    filters = AppSettings.default().filters
+    ConfigureFiltersDlg(None, filters=filters, dataframe=table).Destroy()
     assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]
 
 
 def test_import_dialog_resize(wxapp):
     import wx
-    from flim.core.configuration import Config
+    from flim.core.settings import AppSettings
     from flim.gui.importdlg import ImportDlg
 
-    config = Config()
-    config.create_default()
-    dlg = ImportDlg(None, "Import", config)
+    dlg = ImportDlg(None, "Import", AppSettings.default())
     try:
         dlg.OnRGridSize(wx.SizeEvent(wx.Size(640, 300)))
     finally:

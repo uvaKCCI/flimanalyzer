@@ -13,8 +13,7 @@ import glob
 import pandas as pd
 import numpy as np
 
-import flim.core.configuration as cfg
-from flim.core.parser import defaultparser
+from flim.core.parser import PATTERN_CATEGORY, defaultparser
 import flim.core.preprocessor as pp
 
 DEFAULT_EXT = [".txt", ".csv"]
@@ -30,17 +29,19 @@ class dataimporter:
         self.preprocessor = None
         self.combolist = None
 
-    def get_config(self):
-        config = {
-            cfg.CONFIG_EXCLUDE_FILES: self.excluded_files,
-            cfg.CONFIG_INCLUDE_FILES: self.files,
-            cfg.CONFIG_DELIMITER: self.delimiter,
-            cfg.CONFIG_PARSER: self.parser.get_config(),
-            cfg.CONFIG_CATEGORY_COLUMNS: self.get_reserved_categorycols(),
-            cfg.CONFIG_FITTING_COLUMNS: [],
-            cfg.CONFIG_CATEGORY_COMBINATIONS: self.combolist,
-        }
-        return config
+    def settings(self):
+        """The import settings (ImportSettings) of this importer."""
+        from flim.core.settings import ImportSettings
+
+        return ImportSettings(
+            include_files=list(self.files),
+            exclude_files=list(self.excluded_files),
+            delimiter=self.delimiter,
+            filename_parser=self.parser.settings(),
+            category_columns=self.get_reserved_categorycols(),
+            fitting_columns=[],
+            category_combinations=self.combolist,
+        )
 
     def set_parser(self, parser):
         if parser is not None:
@@ -163,7 +164,7 @@ class dataimporter:
         ]
         rcatnames.extend(
             [
-                entry[cfg.CONFIG_PARSER_CATEGORY]
+                entry[PATTERN_CATEGORY]
                 for entry in parser.get_regexpatterns()
                 for key in entry
             ]
