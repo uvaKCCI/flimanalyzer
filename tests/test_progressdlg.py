@@ -329,8 +329,15 @@ def test_results_folder_link_opens_the_file_browser(wxapp, monkeypatch, tmp_path
         click = wx.adv.HyperlinkEvent(dlg.folder, dlg.folder.GetId(), "")
         dlg.folder.GetEventHandler().ProcessEvent(click)
 
-    dlg = RunProgressDialog(None, "Test", _starter(2, seconds=1.0, autosave_dir=str(tmp_path)))
-    wx.CallLater(700, snapshot, dlg)
+    def when_shown(dlg, tries=100):
+        # wait for the link (slow CI runners need more than a fixed delay)
+        if dlg.folder.IsShown() or not tries:
+            snapshot(dlg)
+        else:
+            wx.CallLater(100, when_shown, dlg, tries - 1)
+
+    dlg = RunProgressDialog(None, "Test", _starter(2, seconds=3.0, autosave_dir=str(tmp_path)))
+    wx.CallLater(100, when_shown, dlg)
     try:
         assert dlg.ShowModal() == wx.ID_OK
         run_dir = dlg.run.autosave_dir
@@ -410,7 +417,11 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
     started = {}
     monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-i", "a.csv", "b.txt", "--no-prefect-server"])
     monkeypatch.setattr(analyzerapp, "init_logger", lambda level: None)
-    monkeypatch.setattr(analyzerapp, "interactive_run", lambda fa, files=None: started.update(files=files))
+    monkeypatch.setattr(
+        analyzerapp,
+        "interactive_run",
+        lambda fa, files=None, settings=None: started.update(files=files),
+    )
     analyzerapp.main()
     assert started["files"] == ["a.csv", "b.txt"]
 

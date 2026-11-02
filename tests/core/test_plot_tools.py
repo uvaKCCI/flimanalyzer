@@ -201,6 +201,35 @@ def test_kde_single_plot_with_one_feature(data):
     assert list(results) == ["Plot: KDE"]
 
 
+def test_axis_range():
+    from flim.tools.plot import axis_range
+
+    values = pd.Series([50.0, 90.0])
+    assert axis_range(values) == pytest.approx((48.0, 92.0))  # 5% of the range
+    assert axis_range(values, fit=False) == pytest.approx((-4.5, 94.5))  # with 0
+    assert axis_range(pd.Series([2.0, 2.0])) == pytest.approx((1.9, 2.1))
+
+
+@pytest.mark.parametrize("fit", [True, False])
+def test_axes_fit_the_data_or_include_zero(data, fit):
+    plt.close("all")
+    config = ScatterPlotConfig(features=["t1", "t2"], fit_axes=fit)
+    (figure,) = ScatterPlot()(data, config=config).values()
+    low, high = figure.axes[0].get_xlim()
+    assert (low > 0) == fit and high > data["t1"].max()
+    config = BoxPlotConfig(grouping=["Treatment"], features=["t1"], fit_axes=fit)
+    (figure,) = BoxPlot()(data, config=config).values()
+    assert (figure.axes[0].get_ylim()[0] > 0) == fit
+
+
+def test_histogram_table_columns_are_named_by_group(data):
+    config = HistogramConfig(grouping=["Treatment"], features=["t1"], table=True)
+    results = FrequencyHistogram()(data, config=config)
+    table = results["Table: Frequency Histo Table: t1"]
+    groups = [c for c in table.columns if c.endswith("[rel %]")]
+    assert groups and not any("(" in c for c in groups)  # not "('WT',) [rel %]"
+
+
 def test_histogram_bins(data):
     config = HistogramConfig(
         features={"t1": HistogramRange(min=300, max=500, bins=5), "t2": {}},
@@ -349,6 +378,25 @@ def test_single_figure_needs_few_grouping_columns():
     assert set(BoxPlotConfig.fixed_fields(two)) == {"plots_per_row"}
     # one grouping column (the x axis): no legend to place
     assert "legend_position" in BoxPlotConfig.fixed_fields({"grouping": ["Treatment"]})
+
+
+def test_notes_below_the_plots_get_room():
+    from flim.tools.plot import add_note, arrange_legends
+
+    plt.close("all")
+    figure, ax = plt.subplots()
+    ax.plot([0, 1], [0, 1], label="a")
+    ax.legend()
+    ax.set_xlabel("x")
+    add_note(figure, "first note")
+    add_note(figure, "second note")
+    arrange_legends(figure, "right")  # switches to constrained layout
+    # the figure's label, which the layout makes room for: below the axis label
+    assert figure._supxlabel.get_text() == "first note\nsecond note"
+    figure.canvas.draw()
+    renderer = figure._get_renderer()
+    note = figure._supxlabel.get_window_extent(renderer)
+    assert note.y1 <= ax.xaxis.label.get_window_extent(renderer).y0
 
 
 def test_swarm_plot_sample(data):

@@ -5,6 +5,16 @@ step (``MIGRATIONS``: version n -> n+1) and then validated with :class:`AppSetti
 settings are always saved in the newest version. Version 0 is the dict ``Config`` of
 FLIMAnalyzer up to 0.5 (``{"root": {"import": ..., "plugins": ...}}``).
 
+A settings file has a section per part of the application, and one per tool::
+
+    {"schema_version": 2,
+     "import": {...}, "preprocess": {...}, "display": [...], "filters": {...},
+     "tools": {"Summarize": {"config": {...}, "autosave": false, "results_dir": null},
+               ...}}
+
+A file may have only some of the sections (e.g. only one tool's, saved from its
+dialog): loading it changes only those (:func:`update_settings`).
+
 - :class:`ToolSettings`: the settings of each tool (its config, autosave and results
   folder), by tool name.
 - :class:`AppSettings`: import, preprocessing, display, filters, the results folder and
@@ -17,11 +27,11 @@ import logging
 import os
 from typing import Callable, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from flim.core.config import TaskConfig
 
-SETTINGS_VERSION = 1
+SETTINGS_VERSION = 2
 
 
 class _Settings(BaseModel):
@@ -67,10 +77,14 @@ class ToolEntry(_Settings):
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
 
 
-class ToolSettings(BaseModel):
+class ToolSettings(RootModel[dict[str, ToolEntry]]):
     """The settings of each tool, by tool name."""
 
-    tools: dict[str, ToolEntry] = {}
+    root: dict[str, ToolEntry] = {}
+
+    @property
+    def tools(self) -> dict[str, ToolEntry]:
+        return self.root
 
     def entry(self, tool) -> Optional[ToolEntry]:
         """The tool's settings, also those saved under one of its former names."""
@@ -92,11 +106,17 @@ class ToolSettings(BaseModel):
         return tool.config_class()
 
     def set(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> None:
-        self.tools[tool.name] = ToolEntry(
-            config=config.model_dump(mode="json"),
-            autosave=bool(autosave),
-            results_dir=None if results_dir is None else str(results_dir),
-        )
+        for name in getattr(tool, "former_names", ()):
+            self.tools.pop(name, None)
+        self.tools[tool.name] = tool_entry(config, autosave, results_dir)
+
+
+def tool_entry(config: TaskConfig, autosave=False, results_dir=None) -> ToolEntry:
+    return ToolEntry(
+        config=config.model_dump(mode="json"),
+        autosave=bool(autosave),
+        results_dir=None if results_dir is None else str(results_dir),
+    )
 
 
 def default_range_filters() -> list:
@@ -238,7 +258,7 @@ def _v0_to_v1(data: dict, convert: bool = True) -> dict:
         settings["display"] = root.pop("display")
     plugins = root.pop("plugins", None)
     if convert and isinstance(plugins, dict):
-        settings["tools"] = {"tools": _v0_tools(plugins)}
+        settings["tools"] = _v0_tools(plugins)
     for key in ("analysis", "workflow"):  # never used
         root.pop(key, None)
     settings.update(root)  # unknown keys: reported when loaded
@@ -276,8 +296,17 @@ def _v0_tools(plugins: dict) -> dict:
     return entries
 
 
+def _v1_to_v2(data: dict) -> dict:
+    """Version 1 kept the tools under {"tools": {"tools": {...}}}: one level less."""
+    data = dict(data)
+    tools = data.get("tools")
+    if isinstance(tools, dict) and set(tools) == {"tools"}:
+        data["tools"] = tools["tools"]
+    return data
+
+
 # version n -> the settings of version n + 1
-MIGRATIONS: dict[int, Callable[[dict], dict]] = {0: _v0_to_v1}
+MIGRATIONS: dict[int, Callable[[dict], dict]] = {0: _v0_to_v1, 1: _v1_to_v2}
 
 
 def version_of(data: dict) -> int:
@@ -308,22 +337,91 @@ def _unknown_keys(model: BaseModel, path: str = "") -> list[str]:
     return keys
 
 
-def settings_from_data(data: dict) -> AppSettings:
-    """Settings from loaded JSON of any version; unknown keys are logged."""
-    settings = AppSettings.model_validate(migrate(data))
+def _validated(data: dict) -> AppSettings:
+    settings = AppSettings.model_validate(data)
     unknown = _unknown_keys(settings)
     if unknown:
         logging.warning(f"Settings: ignoring unknown keys {', '.join(unknown)}")
     return settings
 
 
-def load_settings(path) -> AppSettings:
-    """Reads a settings file of any version."""
+def settings_from_data(data: dict) -> AppSettings:
+    """Settings from loaded JSON of any version; unknown keys are logged."""
+    return _validated(migrate(data))
+
+
+def update_settings(settings: AppSettings, data: dict) -> AppSettings:
+    """``settings`` with the sections in ``data`` (JSON of any version): each section
+    replaces the one in ``settings``; tools: each tool's section."""
+    data = migrate(data)
+    merged = settings.to_json()
+    for key, value in data.items():
+        if key == "tools" and isinstance(value, dict):
+            for name in value:
+                tool = _registered(name)
+                for former in getattr(tool, "former_names", ()):
+                    merged["tools"].pop(former, None)
+            merged["tools"].update(value)
+        else:
+            merged[key] = value
+    merged["schema_version"] = SETTINGS_VERSION
+    return _validated(merged)
+
+
+def _registered(name):
+    from flim.core.registry import tools
+
+    return tools.get(name) if name in tools else None
+
+
+def load_settings(path, settings: Optional[AppSettings] = None) -> AppSettings:
+    """Reads a settings file of any version. Sections the file does not have are
+    those of ``settings`` (default: the defaults)."""
     with open(path) as f:
-        return settings_from_data(json.load(f))
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} is not a settings file")
+    return update_settings(settings or AppSettings.default(), data)
 
 
 def save_settings(settings: AppSettings, path) -> None:
     """Writes settings in the current version."""
     with open(path, "w") as f:
         json.dump(settings.to_json(), f, indent=2, default=str)
+
+
+# --- the settings of one tool (in a settings file of the application, or alone) ---
+
+
+def read_tool_entry(path, tool) -> Optional[ToolEntry]:
+    """The tool's section of a settings file (also of an older version, or under one
+    of its former names); a file with only a config (with ``classname``) is the
+    config. None if the file has no settings of the tool."""
+    with open(path) as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} is not a settings file")
+    if "classname" in data:  # a config alone
+        return ToolEntry(config=data)
+    tools = migrate(data).get("tools")
+    if not isinstance(tools, dict):
+        return None
+    return ToolSettings.model_validate(tools).entry(tool)
+
+
+def write_tool_entry(path, tool, entry: ToolEntry) -> None:
+    """Puts the tool's section into a settings file: the other sections of an
+    existing file are kept (the file is saved in the current version)."""
+    data = {"schema_version": SETTINGS_VERSION}
+    if os.path.exists(path):
+        with open(path) as f:
+            existing = json.load(f)
+        if not isinstance(existing, dict) or "classname" in existing:
+            raise ValueError(f"{path} is not a settings file")
+        data = migrate(existing)
+    tools = data.setdefault("tools", {})
+    for name in getattr(tool, "former_names", ()):
+        tools.pop(name, None)
+    tools[tool.name] = entry.model_dump(mode="json")
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, default=str)

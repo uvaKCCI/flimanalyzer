@@ -1,6 +1,6 @@
 # Categorize Data
 
-The `Categorize Data` tool defines thresholded value bins for a selected data table column to create a new category column with custom bin labels.
+The `Categorize Data` tool adds a new category column. The value each row gets depends on the range that a feature value falls in, e.g. `low`, `medium` or `high` FLIRR.
 
 **Menu Access:** `Analysis` > `Categorize Data`
 
@@ -8,36 +8,31 @@ The `Categorize Data` tool defines thresholded value bins for a selected data ta
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front.
     ![](/images/data/dataframe.png)
 
-2. Start the Categorization tool by clicking on the icon in the toolbar or via the `Analysis` > `Categorize Data` menu.
+2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Categorize Data` menu.
 
-3. In the `Configuration: Categorize Data` dialog, fill in the following parameters:
-
-    * **Category:** Header for new category column.
-    * **Feature to categorize:** Data column to use for thresholded value bins.
-    * **Category bins:** Comma-separated list of threshold values used to define bins.
-    * **Category labels:** Comma-separated list of descriptors used for bins. Number of descriptors is one less than the number of threshold values.
-    * **Default:** Default label used for data values that fall outside of the defined threshold bins.
-    * **Merge input:** Copy all data columns from input table into new table. 
+3. In the `Configuration: Categorize Data` dialog, set:
+    * `New column`: the name of the new category column.
+    * `Rules`: each rule is one row and sets one value of the new column. Enter the `Value`, the `Feature` it depends on (one of the table's columns), and the range `Min` < feature value <= `Max`. Use `Add Rule` and `Remove Rules` to add and remove rules. Different rules can use different features. If more than one rule matches a row, the first of them sets the row's value.
+    * `Default value`: the value for rows that no rule matches.
+    * `Include the input`: keep all columns of the table. If unchecked, the dialog shows `Features`: the result then has only the category columns and the features selected there.
 
     ![](/images/analysis/categorize-config.png)
 
-    In the shown example, we specify 4 threshold values to define 3 bins:
-    
-    * **low:** -100000.0 < x <= 50.0
-    * **medium:** 50.0 < x <= 75.0
-    * **high:** 75.0 < x <= 100000.0
-    
-    For values x <= -100000 (smallest threshold) or x > 100000 (largest threshold) the `Default` category value will be used ("unassigned" in this example). 
+    In the example, the column `FLIRR level` gets three values:
+
+    * 0 < FLIRR <= 0.25: `low`
+    * 0.25 < FLIRR <= 0.35: `medium`
+    * 0.35 < FLIRR <= 1: `high`
+
+    Rows with other FLIRR values get the default value, `unassigned`.
 
 4. Click `OK`.
 
-5. The new category labels will be shown as a new column in a new table along with all the other category columns present in the input table.
+5. The results are shown in a new data table. The new category column comes after the other category columns.
 
 ## Example Output
-
-**Example Results:**
 
 ![](/images/analysis/categorize-results.png)

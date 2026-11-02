@@ -244,8 +244,8 @@ class SplitConfig(DataTaskConfig):
 
 class UnpivotConfig(DataTaskConfig):
     """Moves one level (line) of the columns' headers into a category column: the
-    inverse of Pivot. E.g. the level Treatment of "FLIRR\nctrl", "FLIRR\nDox15":
-    a column Treatment (ctrl, Dox15) and a column FLIRR."""
+    inverse of Pivot. E.g. the level Treatment of ``"FLIRR\\nctrl"``,
+    ``"FLIRR\\nDox15"``: a column Treatment (ctrl, Dox15) and a column FLIRR."""
 
     legacy_keys = {"category_name": None}
     legacy_dropped = frozenset({"feature_name"})  # now named by the other levels

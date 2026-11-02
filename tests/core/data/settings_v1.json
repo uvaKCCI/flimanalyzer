@@ -1,0 +1,624 @@
+{
+  "schema_version": 1,
+  "working_dir": "/Users/khs3z/FLIMAnalyzerResults",
+  "import": {
+    "include_files": [],
+    "exclude_files": [],
+    "delimiter": "\t,",
+    "filename_parser": {
+      "parser": "defaultparser",
+      "patterns": []
+    },
+    "category_columns": [
+      "AE Label",
+      "Cat",
+      "Category",
+      "Cell",
+      "Cell line",
+      "Cell line-Cell",
+      "Cell line-Compartment",
+      "Cell line-FOV",
+      "Cell line-Treatment",
+      "Cluster",
+      "Combined",
+      "Compartment",
+      "Compartment-Cell",
+      "Compartment-FOV",
+      "Compartment-Treatment",
+      "FOV",
+      "FOV-Cell",
+      "FOV-Time",
+      "FOV-Treatment",
+      "FOV-Well",
+      "New Cat",
+      "Origin",
+      "Source",
+      "Time",
+      "Time-Well",
+      "Treatment",
+      "Treatment 1",
+      "Treatment 1 & 2",
+      "Treatment 2",
+      "Treatment-Cell",
+      "Treatment-FOV",
+      "Treatment-Time",
+      "Well"
+    ],
+    "fitting_columns": [],
+    "category_combinations": null
+  },
+  "preprocess": {
+    "calculate": {
+      "NADPH %": [
+        "nadph_perc",
+        [
+          "NAD(P)H t2"
+        ]
+      ],
+      "NAD(P)H tm": [
+        "tm",
+        [
+          "NAD(P)H a1[%]",
+          "NAD(P)H t1",
+          "NAD(P)H a2[%]",
+          "NAD(P)H t2"
+        ]
+      ],
+      "NAD(P)H a2[%]/a1[%]": [
+        "ratio",
+        [
+          "NAD(P)H a2[%]",
+          "NAD(P)H a1[%]"
+        ]
+      ],
+      "NADH %": [
+        "nadh_perc",
+        [
+          "NADPH %"
+        ]
+      ],
+      "NADPH/NADH": [
+        "ratio",
+        [
+          "NADPH %",
+          "NADH %"
+        ]
+      ],
+      "trp tm": [
+        "tm",
+        [
+          "trp a1[%]",
+          "trp t1",
+          "trp a2[%]",
+          "trp t2"
+        ]
+      ],
+      "trp E%1": [
+        "trp_Eperc_1",
+        [
+          "trp tm"
+        ]
+      ],
+      "trp E%2": [
+        "trp_Eperc_2",
+        [
+          "trp t1",
+          "trp t2"
+        ]
+      ],
+      "trp E%3": [
+        "trp_Eperc_3",
+        [
+          "trp t1"
+        ]
+      ],
+      "trp r1": [
+        "trp_r",
+        [
+          "trp E%1"
+        ]
+      ],
+      "trp r2": [
+        "trp_r",
+        [
+          "trp E%2"
+        ]
+      ],
+      "trp r3": [
+        "trp_r",
+        [
+          "trp E%3"
+        ]
+      ],
+      "trp a1[%]/a2[%]": [
+        "ratio",
+        [
+          "trp a1[%]",
+          "trp a2[%]"
+        ]
+      ],
+      "FAD tm": [
+        "tm",
+        [
+          "FAD a1[%]",
+          "FAD t1",
+          "FAD a2[%]",
+          "FAD t2"
+        ]
+      ],
+      "FAD a1[%]/a2[%]": [
+        "ratio",
+        [
+          "FAD a1[%]",
+          "FAD a2[%]"
+        ]
+      ],
+      "FAD photons/NAD(P)H photons": [
+        "ratio",
+        [
+          "FAD photons",
+          "NAD(P)H photons"
+        ]
+      ],
+      "NAD(P)H tm/FAD tm": [
+        "ratio",
+        [
+          "NAD(P)H tm",
+          "FAD tm"
+        ]
+      ],
+      "FLIRR": [
+        "ratio",
+        [
+          "NAD(P)H a2[%]",
+          "FAD a1[%]"
+        ]
+      ],
+      "NADPH a2/FAD a1": [
+        "ratio",
+        [
+          "NAD(P)H a2",
+          "FAD a1"
+        ]
+      ]
+    },
+    "drop": [
+      "Exc1_",
+      "Exc2_",
+      "Exc3_"
+    ],
+    "rename": {
+      "Exc1_-Ch1-_": "trp ",
+      "Exc1_-Ch2-_": "NAD(P)H ",
+      "Exc2_-Ch3-_": "FAD "
+    }
+  },
+  "display": [
+    {
+      "name": "trp t1",
+      "min": "auto",
+      "max": "auto",
+      "bins": 100
+    },
+    {
+      "name": "trp t2",
+      "min": "auto",
+      "max": "auto",
+      "bins": 100
+    },
+    {
+      "name": "trp tm",
+      "min": "auto",
+      "max": "auto",
+      "bins": 100
+    }
+  ],
+  "filters": {
+    "use": false,
+    "show_dropped": true,
+    "range_filters": [
+      {
+        "name": "trp t1",
+        "rangelow": 0,
+        "rangehigh": 2500,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp t2",
+        "rangelow": 0,
+        "rangehigh": 8000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp tm",
+        "rangelow": 0,
+        "rangehigh": 4000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp a1[%]",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp a2[%]",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp a1[%]/a2[%]",
+        "rangelow": 0,
+        "rangehigh": 2,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp E%1",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp E%2",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp E%3",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp r1",
+        "rangelow": 0,
+        "rangehigh": 15,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp r2",
+        "rangelow": 0,
+        "rangehigh": 3,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp r3",
+        "rangelow": 0,
+        "rangehigh": 3,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "trp chi",
+        "rangelow": 0,
+        "rangehigh": 4.7,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": true,
+        "dropna": true
+      },
+      {
+        "name": "trp photons",
+        "rangelow": 0,
+        "rangehigh": 160,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H a1",
+        "rangelow": 0,
+        "rangehigh": 1000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H a1[%]",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H a2",
+        "rangelow": 5,
+        "rangehigh": 300,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H a2[%]",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H t1",
+        "rangelow": 10,
+        "rangehigh": 1000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H t2",
+        "rangelow": 2000,
+        "rangehigh": 7000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H tm",
+        "rangelow": 0,
+        "rangehigh": 2000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H photons",
+        "rangelow": 10,
+        "rangehigh": 2000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H a2[%]",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NADPH %",
+        "rangelow": 0,
+        "rangehigh": 99,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NADH %",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NADPH/NADH",
+        "rangelow": 0,
+        "rangehigh": 3,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "NAD(P)H chi",
+        "rangelow": 0.7,
+        "rangehigh": 4.7,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": true,
+        "dropna": true
+      },
+      {
+        "name": "FAD t1",
+        "rangelow": 10,
+        "rangehigh": 1500,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD t2",
+        "rangelow": 1000,
+        "rangehigh": 6000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD tm",
+        "rangelow": 0,
+        "rangehigh": 2500,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD a1",
+        "rangelow": 10,
+        "rangehigh": 500,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD a1[%]",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD a2",
+        "rangelow": 10,
+        "rangehigh": 300,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD a2[%]",
+        "rangelow": 0,
+        "rangehigh": 100,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD a1[%]/a2[%]",
+        "rangelow": 0,
+        "rangehigh": 16,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FLIRR",
+        "rangelow": 0,
+        "rangehigh": 2.4,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD chi",
+        "rangelow": 0.7,
+        "rangehigh": 4.7,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": true,
+        "dropna": true
+      },
+      {
+        "name": "FAD photons",
+        "rangelow": 10,
+        "rangehigh": 1000,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      },
+      {
+        "name": "FAD photons/NAD(P)H photons",
+        "rangelow": 0,
+        "rangehigh": 2,
+        "allowedmin": null,
+        "allowedmax": null,
+        "selected": false,
+        "dropna": true
+      }
+    ],
+    "series_filters": []
+  },
+  "tools": {
+    "tools": {
+      "Summarize": {
+        "config": {
+          "classname": "flim.tools.statistics.Summarize",
+          "grouping": [
+            "Treatment"
+          ],
+          "features": [
+            "FLIRR"
+          ],
+          "prefix": null,
+          "resources": {
+            "preferred_device": "cpu",
+            "preferred_threads": 1
+          },
+          "aggs": [
+            "mean"
+          ],
+          "single_table": true
+        },
+        "autosave": true,
+        "results_dir": "results",
+        "legacy": null
+      },
+      "K-Means": {
+        "config": {
+          "classname": "flim.tools.ml.KMeansClustering",
+          "grouping": [],
+          "features": [],
+          "prefix": null,
+          "resources": {
+            "preferred_device": "cpu",
+            "preferred_threads": -1
+          },
+          "random_seed": 0,
+          "n_clusters": 7,
+          "cluster_prefix": "Cluster",
+          "init": "k-means++",
+          "algorithm": "lloyd",
+          "n_init": 4,
+          "max_iter": 300,
+          "tolerance": 0.0001
+        },
+        "autosave": false,
+        "results_dir": null,
+        "legacy": null
+      }
+    }
+  }
+}

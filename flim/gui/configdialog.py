@@ -7,6 +7,8 @@ results are saved; it checks the config against the inputs while it is edited an
 marks problems at their fields (errors keep OK disabled).
 """
 
+import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import Optional
@@ -20,6 +22,7 @@ from wx.lib.scrolledpanel import ScrolledPanel
 from flim.core.config import Issue, TaskConfig
 from flim.core.execution import ExecutionOptions
 from flim.core.schema import ColumnInfo, TableSchema
+from flim.core.settings import read_tool_entry, tool_entry, write_tool_entry
 from flim.gui.editors import FieldErrors, FieldsPanel
 
 SEVERITY_ORDER = ("error", "guessed", "warning")  # first: most severe
@@ -160,7 +163,27 @@ class ConfigDialog(wx.Dialog):
         self.status.SetForegroundColour(wx.Colour(180, 0, 0))
         sizer.Add(self.status, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
         sizer.Add(self._execution_controls(), 0, wx.EXPAND | wx.ALL, 8)
-        buttons = self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+        buttons = wx.BoxSizer(wx.HORIZONTAL)
+        for label, tip, handler in (
+            (
+                "Load Settings...",
+                "This tool's settings from a settings file",
+                self._on_load_settings,
+            ),
+            (
+                "Save Settings...",
+                "Adds or updates this tool's settings in a settings file; its other"
+                " settings are kept",
+                self._on_save_settings,
+            ),
+        ):
+            button = wx.Button(self, label=label)
+            button.SetToolTip(tip)
+            button.Bind(wx.EVT_BUTTON, handler)
+            buttons.Add(button, 0, wx.RIGHT, 4)
+        self.settings_message = wx.StaticText(self, label="")
+        buttons.Add(self.settings_message, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
+        buttons.Add(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL), 0)
         self.ok_button = self.FindWindow(wx.ID_OK)  # FindWindowById: any window's
         self.ok_button.Bind(wx.EVT_BUTTON, self._on_ok)
         sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 8)
@@ -349,6 +372,78 @@ class ConfigDialog(wx.Dialog):
         self.ok_button.Enable(config is not None and not errors)
         self.Layout()
         return issues
+
+    # --- settings files ---
+
+    def _on_load_settings(self, event):
+        with wx.FileDialog(
+            self,
+            f"Load Settings: {self.tool.name}",
+            wildcard="JSON files (*.json)|*.json|All files|*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                self.load_settings(dialog.GetPath())
+
+    def _on_save_settings(self, event):
+        # no overwrite prompt: an existing file is updated, not replaced
+        with wx.FileDialog(
+            self,
+            f"Save Settings: {self.tool.name}",
+            wildcard="JSON files (*.json)|*.json",
+            style=wx.FD_SAVE,
+        ) as dialog:
+            if dialog.ShowModal() == wx.ID_OK:
+                self.save_settings(dialog.GetPath())
+
+    def load_settings(self, path) -> bool:
+        """Uses the tool's settings in a settings file (see
+        flim.core.settings.read_tool_entry); True if the file has them."""
+        name = os.path.basename(path)
+        try:
+            entry = read_tool_entry(path, self.tool)
+            if entry is None:
+                self.settings_message.SetLabel(f"No {self.tool.name} settings in {name}")
+                return False
+            if entry.config is not None:
+                config = self.tool.config_class.model_validate(entry.config)
+            else:
+                config = self.tool.config_class.from_legacy_params(entry.legacy or {})
+        except Exception as err:
+            logging.exception(f"Settings in {path} could not be read")
+            self.settings_message.SetLabel(f"Could not load {name}: {err}")
+            return False
+        self.config = config
+        self.fields.set_values(config)
+        if not self.autosave_locked:
+            self.autosave.SetValue(entry.autosave)
+        if entry.results_dir:
+            self.folder.SetPath(entry.results_dir)
+        self.validate()
+        self.fit_contents()
+        self.settings_message.SetLabel(f"Loaded from {name}")
+        return True
+
+    def save_settings(self, path) -> bool:
+        """Puts the edited settings into the tool's section of a settings file (see
+        flim.core.settings.write_tool_entry); False if they are not valid."""
+        self.commit_edits()
+        config, issues = self.current_config()
+        name = os.path.basename(path)
+        if config is None:
+            self.settings_message.SetLabel("Not saved: the settings are not valid")
+            return False
+        entry = tool_entry(
+            config, self.autosave.GetValue(), self.folder.GetPath() or None
+        )
+        try:
+            write_tool_entry(path, self.tool, entry)
+        except Exception as err:
+            logging.exception(f"Settings could not be saved to {path}")
+            self.settings_message.SetLabel(f"Could not save to {name}: {err}")
+            return False
+        self.settings_message.SetLabel(f"Saved to {name}")
+        return True
 
     # --- result ---
 

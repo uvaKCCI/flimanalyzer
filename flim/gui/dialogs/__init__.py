@@ -127,7 +127,7 @@ class SelectGroupsDlg(wx.Dialog):
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(mainsizer, 0, wx.ALIGN_CENTER, 5)
         sizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 5)
-        self.SetSizer(sizer)
+        self.SetSizerAndFit(sizer)  # as large as the check boxes and buttons
 
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
         if self.GetSize().height > wx.GetDisplaySize().height * 0.9:
@@ -169,7 +169,7 @@ class ConfigureFiltersDlg(wx.Dialog):
             filters: FilterSettings to edit (a copy is returned by GetData).
         """
         wx.Dialog.__init__(
-            self, parent, wx.ID_ANY, "Filter Settings TEST", size=(650, 400)
+            self, parent, wx.ID_ANY, "Filter Settings", size=(650, 400)
         )
         self.dataframe = dataframe
         self.dropped = dropped
@@ -253,8 +253,11 @@ class ConfigureFiltersDlg(wx.Dialog):
 
     def OnFiltersUpdated(self, updateditems, totaldropped, viewdropped, viewlength):
         remaining = viewlength - viewdropped
-        # self.dropped_label.SetLabel(f'Dropped from view: {viewdropped:,} (of {viewlength:,})')
-        # self.remaining_label.SetLabel(f'Remaining: {remaining:,} ({100.0 * remaining/viewlength:.2f}%)')
+        self.dropped_label.SetLabel(
+            f"Dropped from view: {viewdropped:,} (of {viewlength:,})"
+        )
+        share = 100.0 * remaining / viewlength if viewlength else 0.0
+        self.remaining_label.SetLabel(f"Remaining: {remaining:,} ({share:.2f}%)")
         logging.debug(f"Updated: {[name for name in updateditems]}")
         logging.debug(
             f"Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining:"

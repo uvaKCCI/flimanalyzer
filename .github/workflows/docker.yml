@@ -1,0 +1,75 @@
+name: Docker
+
+# Publishes the headless batch image (flimbatch) to the GitHub Container Registry for
+# each release tag:
+#   ghcr.io/uvakcci/flimanalyzer:<version>-cpu, :latest-cpu  (CPU PyTorch; amd64, arm64)
+#   ghcr.io/uvakcci/flimanalyzer:<version>, :latest          (CUDA PyTorch; amd64)
+# Pull requests only build and test the image (tests.yml).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:  # a branch: tagged with its name
+
+permissions:
+  contents: read
+  packages: write  # push to ghcr.io with GITHUB_TOKEN
+
+env:
+  IMAGE: ghcr.io/uvakcci/flimanalyzer
+
+jobs:
+  publish:
+    name: ${{ matrix.variant }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120  # arm64 builds run under emulation
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: cpu
+            suffix: -cpu
+            platforms: linux/amd64,linux/arm64
+            torch_index: https://download.pytorch.org/whl/cpu
+          - variant: cuda
+            suffix: ""
+            platforms: linux/amd64
+            torch_index: ""  # the CUDA build from uv.lock
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # versioningit derives the version from the git tags
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          flavor: |
+            latest=false
+            suffix=${{ matrix.suffix }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - name: Free disk space for the CUDA image
+        if: matrix.variant == 'cuda'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platforms }}
+          build-args: TORCH_INDEX=${{ matrix.torch_index }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: true

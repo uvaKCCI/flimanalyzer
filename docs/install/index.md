@@ -3,17 +3,22 @@
 ## Requirements
 
 * Python 3.12 or later
-* All Python dependencies, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are declared in the `pyproject.toml` file of the code Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git) and installed automatically.
+* All other Python packages that FLIMAnalyzer needs, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are installed automatically. They are listed in the `pyproject.toml` file of the Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git).
 
 ## Installing with uv (recommended)
 
-[uv](https://docs.astral.sh/uv/) creates a virtual environment in the `.venv` folder of the repository, installs a matching Python version if needed, and installs FLIMAnalyzer in editable mode with the exact package versions recorded in `uv.lock`:
+[uv](https://docs.astral.sh/uv/) creates a virtual environment (a separate Python setup just for FLIMAnalyzer) in the `.venv` folder of the repository. If needed, it also installs a matching Python version. It then installs FLIMAnalyzer, including its graphical user interface (GUI), with the exact package versions listed in `uv.lock`. FLIMAnalyzer is installed in editable mode, so changes to its code take effect without reinstalling:
 ```
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
 uv sync
 ```
-On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so an NVIDIA GPU can be used. On macOS (Apple Silicon only, as current PyTorch has no Intel Mac builds), the PyPI build is used, which supports the Apple GPU (MPS).
+On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so FLIMAnalyzer can use an NVIDIA GPU. On macOS, uv installs the PyPI build, which can use the Apple GPU (MPS). Only Macs with Apple Silicon are supported, because current PyTorch versions are not available for Intel Macs.
+
+To install FLIMAnalyzer without the GUI, for example for [batch mode](/userguide/batch) on a computing cluster:
+```
+uv sync --no-group gui
+```
 
 ## Installing with pip
 
@@ -22,33 +27,47 @@ git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
 python3.12 -m venv .venv
 source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -e .
+pip install -e ".[gui]"
 ```
+The `[gui]` part installs the GUI. Without it, `pip install -e .` installs only what [batch mode](/userguide/batch) needs.
+
 pip installs PyTorch from PyPI, which provides a different build on each platform:
 
 * **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
-* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch --index-url https://download.pytorch.org/whl/cu128`; see [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
-* **macOS:** only Apple Silicon is supported; the PyPI build uses the Apple GPU (MPS).
+* **Windows:** the PyPI build is CPU-only. To use an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example with `pip install torch --index-url https://download.pytorch.org/whl/cu128`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **macOS:** only Apple Silicon is supported. The PyPI build uses the Apple GPU (MPS).
 
 Conda users can create the Python environment with conda instead of `venv` and install FLIMAnalyzer into it with pip:
 ```
 conda create -n flimenv python=3.12
 conda activate flimenv
-pip install -e .
+pip install -e ".[gui]"
 ```
 
-## GPU acceleration
+## Installing with Docker
 
-The autoencoder tools (Autoencoder: Train, Run and Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting:
+The Docker images run only [batch mode](/userguide/batch). They don't include the GUI. Each release is published to the GitHub Container Registry:
 
-* `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
-* `cpu`, `cuda` or `mps`: uses the specified device and falls back to CPU if not available.
+| Image | |
+|---|---|
+| `ghcr.io/uvakcci/flimanalyzer:<version>`, `:latest` | with the CUDA build of PyTorch (x86_64, several GB) |
+| `ghcr.io/uvakcci/flimanalyzer:<version>-cpu`, `:latest-cpu` | CPU only (x86_64 and ARM), much smaller |
 
-Trained models are saved on the CPU, so a model trained on one machine can be used on any other.
+```
+docker pull ghcr.io/uvakcci/flimanalyzer:latest-cpu
+```
+To build an image from the repository instead: with the CUDA 12.8 build of PyTorch, with the build for another CUDA version (here 12.6), with the CPU-only build, or with Dask support:
+```
+docker build -t flimanalyzer .
+docker build -t flimanalyzer:cu126 --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu126 .
+docker build -t flimanalyzer:cpu --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
+docker build -t flimanalyzer:dask --build-arg EXTRAS=dask .
+```
+`TORCH_INDEX` replaces PyTorch with the build from that PyTorch package index, in the same PyTorch version (the one in `uv.lock`, currently 2.11.0). Choose the CUDA version that the NVIDIA driver of your computer supports. PyTorch 2.11.0 is available for CUDA 12.6 (`cu126`), 12.8 (`cu128`, the default), 12.9 (`cu129`) and 13.0 (`cu130`).
 
-## Run the application
+`EXTRAS=gui` stops the build with an error, because the images do not support a display. To use the GUI, install FLIMAnalyzer with uv or pip.
 
-**From the command line**
+## Start FLIMAnalyzer with the GUI
 
 With uv, no activation is needed:
 ```
@@ -58,19 +77,21 @@ In an activated environment:
 ```
 flimanalyzer
 ```
-To open data files (tab- or comma-separated) right away, each in its own window:
+To open data files (tab- or comma-separated) at startup, each in its own window:
 ```
 uv run flimanalyzer -i results.txt more-results.csv
 ```
-Run `flimanalyzer --help` for all command line options.
+Run `flimanalyzer --help` for all command-line options.
 
-**Prefect server**
+## Using a GPU
 
-FLIMAnalyzer runs analyses and workflows as [Prefect](https://www.prefect.io) flows. At startup it uses the Prefect server configured in the active Prefect profile or in the `PREFECT_API_URL` environment variable, or a server already running at `http://127.0.0.1:4200/api`. If none is found, it starts a local server and stops it again when the application exits. See the [README](https://github.com/uvaKCCI/flimanalyzer#prefect-server) for details.
+The autoencoder tools have a `Device` setting. These tools are `Autoencoder: Train`, `Autoencoder: Run` and `Autoencoder: Augment Data`, and the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis`. The `Device` setting chooses which processor does the calculations, in the GUI and in batch mode:
 
-**From Spyder**
-1. Launch Spyder.
-2. Go to `Tools` --> `Preferences` --> `Python interpreter`, select `Use the following Python interpreter` and choose the Python executable of the FLIMAnalyzer environment, e.g. `flimanalyzer/.venv/bin/python` (Windows: `flimanalyzer\.venv\Scripts\python.exe`). Spyder requires the `spyder-kernels` package in that environment (`uv pip install spyder-kernels`).
-3. In the Spyder editor, open the `flim/analyzerapp.py` file.
-4. Go to `Run` --> `Configuration per file...` and check the box `Execute in external system terminal`.
-5. Go to `Run` --> `Run` or click the button with the green triangle in the Spyder toolbar.
+* `auto` (default): uses an NVIDIA GPU (`cuda`) if there is one, otherwise the Apple GPU (`mps`), otherwise the CPU.
+* `cpu`, `cuda` or `mps`: uses that device, or the CPU if the device is not available.
+
+Which GPU can be used depends on the PyTorch build that was installed (see above). Trained models are saved so that they don't need a GPU, so a model trained on a GPU can also be used on a computer without one.
+
+## Prefect server
+
+FLIMAnalyzer runs analyses and workflows as [Prefect](https://www.prefect.io) flows. At startup, it connects to a Prefect server: the one set in the active Prefect profile or in the `PREFECT_API_URL` environment variable, or one already running at `http://127.0.0.1:4200/api`. If it finds none, it starts a local server and stops it again when FLIMAnalyzer closes. See the [README](https://github.com/uvaKCCI/flimanalyzer#prefect-server) for details.

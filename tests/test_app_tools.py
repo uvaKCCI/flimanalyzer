@@ -87,12 +87,17 @@ def test_menus_and_tool_panel_from_the_registry(frame):
     titles = [menubar.GetMenuLabelText(i) for i in range(menubar.GetMenuCount())]
     assert titles == [
         "File",
-        "Settings",
         "Data",
         "Analysis",
         "Plot",
         "Workflow",
         "Window",
+        "Help",
+    ]
+    file_menu = menubar.GetMenu(0)
+    EXIT = "Quit" if wx.Platform == "__WXMAC__" else "Exit"  # wx.ID_EXIT's label
+    assert [i.GetItemLabelText() for i in file_menu.GetMenuItems() if not i.IsSeparator()] == [
+        "Open...", "Import...", "Import Settings...", "Export Settings...", EXIT
     ]
     data_menu = menubar.GetMenu(titles.index("Data"))
     assert [i.GetItemLabelText() for i in data_menu.GetMenuItems()] == [

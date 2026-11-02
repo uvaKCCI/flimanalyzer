@@ -1,6 +1,6 @@
-# KS - Statistics
+# KS-Statistics
 
-The `KS-Stats` tool is a nonparemtric test to check the similarity between the distributions of two samples. In this cases, the two samples of data are based on combinations of one of the following categorical columns: `Cell`, `FOV`, or `Treatment`.
+The `KS-Statistics` tool tests whether two samples come from the same distribution. It uses the two-sample Kolmogorov-Smirnov test, which makes no assumption about the shape of the distributions (it is nonparametric). The samples are the values of a feature for two values of a category column, e.g. for `ctrl` and `Dox15` in `Treatment`. All pairs of values are compared.
 
 **Menu Access:** `Analysis` > `KS-Statistics`
 
@@ -8,25 +8,25 @@ The `KS-Stats` tool is a nonparemtric test to check the similarity between the d
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front.
     ![](/images/data/exdata_table.png)
 
-2. Start the KS-Stat tool by clicking on the icon in the toolbar or via the `Analysis` > `KS-Stat` menu.
+2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `KS-Statistics` menu.
 
-3. In the `Configuration: KS-Statistics` dialog, define the desired categorical column for the `Comparison` parameter and the `alpha` value. `alpha` is the threshold for declaring the two entities dissimilar and will default to 0.05.
-    
+3. In the `Configuration: KS-Statistics` dialog, select under `Compare` the category column whose values you want to compare. Then set the `Significance level` (alpha, default 0.05). The p-value is the probability of seeing a difference this large if both samples came from the same distribution. Two samples are marked dissimilar when the p-value is below the significance level and the KS statistic is above its critical value (both are shown in the results).
+
+4. Select the grouping and the features. If you group by columns other than the compared one, the values are compared separately within each group, e.g. within each `FOV`.
+
+    In the example, the data is not grouped, and only `FAD a1` is selected.
+
     ![](/images/analysis/ks-config1.png)
 
-4. Select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
+5. Click `OK`.
 
-    In the example, input data is not grouped, and only the FAD a1 data feature is selected. 
-    
-4. Click `OK`.
+6. The results are shown in one new data table per feature. For each pair of compared values, the table shows whether they are dissimilar, the number of data points in each (n), the p-value, the KS statistic (a measure of how different the two samples are) and its critical value.
 
-5. The analysis results are shown in new data tables, one for each data feature selected. The new tables contain a declaration on if the two compared entities are dissimilar (yes or no), and n-values for each entity being compared, which are just the number of data points of that descriptor. More importantly, the tables displays p-values, statistic value, and critical D values, for each comparison. The p-value comes from the critical D statistic, and the critical D statistic is the max distance between the cumulative distributions of the compared items
 ## Example Output
 
-**Example Results:** `Comparison` - Treatment and `Data Grouping` - None
-![](/images/analysis/ks-results.png)
+**Example Results:** `Compare` - Treatment, `Grouping` - none
 
-As shown above, based on the FAD a1 values, all of the treatments are dissimilar from one another. All of the p-values are 0, which is less the the `alpha` value of 0.05.
+![](/images/analysis/ks-results.png)

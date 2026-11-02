@@ -1,29 +1,35 @@
 # Merge Data
 
-The `Merge Data` tool merges two data tables based on shared category columns values.
+The `Merge` tool combines two data tables by matching the values in the category columns they share.
 
-**Menu Access:** `Analysis` > `Merge Data`
+**Menu Access:** `Data` > `Merge`
 
-**Toolbar Icon:** ![](/images/analysis/merge.png)
+**Toolbar Icon:** ![](/images/data/merge.png)
 
-The `Merge Data` tool takes one data table's values and inserts it into another table in accordance with shared categorical column values. For instance, a row from one table with the `Cell, FOV, Treatment` identifier `01, a, ctrl`, will have its data feature values merged onto rows sharing that same identifier on another table.
+The `Merge` tool adds the values of one table to the rows of another table that have the same values in the category columns. For example, a row of one table with the `Treatment, FOV, Cell` values `ctrl, a, 1` gets the values of the row with the same `Treatment, FOV, Cell` values in the other table.
 
-To use the `Merge Data` tool, follow the steps below:
-  1. You first need to have two data tables open to complete a merge. In the example below, the table on top is the master file with all the raw data values, while the one below contains only the FAD a1 mean for each `Cell, FOV, Treatment` grouping. This was done using the `Summarize` tool.
+To use the `Merge` tool, follow the steps below:
 
-  Master file:
-  ![](/images/data/merge-start.png)
-  
-  Summarized data, with the mean for FAD a1 taken for each `Cell, FOV, Treatment` identifier:
-  ![](/images/data/merge-summary.png)
-  
-  2. Open the `Merge Data` tool either from menu or toolbar icon. In the `Configuration: Merge Data` dialog, select the two tables you would like to merge. The dropdown menu in between the two table selections provides options on how you would like to merge them. In this instance, `Merge Left` is selected, meaning that the table on the right will be merged into the table on the left. If this is not the desired output, the merging options can be altered using that dropdown menu.
-  
-  ![](/images/data/merge-dialog.png)
-  
-  3. Click `OK`.
-  4. A new merged table is formed, as directed in the configuration of the tool. In the example merged table below, the FAD a1 mean value is now inserted into the master file based on the shared categorical column values between them. 
+1. Open the two tables to merge. In the example below, the first table is the data with all measurements, the second contains only the FAD a1 mean of each `Treatment, FOV, Cell` group, made with the `Summarize` tool.
 
-  ![](/images/data/merge-res1.png) ![](/images/data/merge-res3.png)
-  
-  For each `Cell, FOV, Treatment` identifier, the corresponding FAD a1 mean value is inputted.
+    The data:
+    ![](/images/data/merge-start.png)
+
+    The mean FAD a1 of each `Treatment, FOV, Cell` group:
+    ![](/images/data/merge-summary.png)
+
+2. Start the `Merge` tool from the menu or the tool panel. In the `Configuration: Merge` dialog, select the two tables under `Left` and `Right`, and how they are joined under `Join`:
+    - `inner`: only the rows whose category values occur in both tables.
+    - `left`: all rows of the left table; values of the right table where they match.
+    - `right`: all rows of the right table; values of the left table where they match.
+    - `outer`: all rows of both tables.
+
+    `Merge on` sets the category columns whose values have to match. `Automatic` uses all category columns that the two tables share.
+
+    ![](/images/data/merge-dialog.png)
+
+3. Click `OK`.
+
+4. A new merged table is created. In the example, each row of the data has its group's FAD a1 mean in the last column, `FAD a1 mean`:
+
+    ![](/images/data/merge-res1.png) ![](/images/data/merge-res3.png)

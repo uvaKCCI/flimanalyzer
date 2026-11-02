@@ -13,14 +13,21 @@ from flim.core.registry import tools
 from flim.core.settings import (
     SETTINGS_VERSION,
     AppSettings,
+    ToolEntry,
     load_settings,
     migrate,
+    read_tool_entry,
     save_settings,
     settings_from_data,
+    tool_entry,
+    update_settings,
+    write_tool_entry,
 )
 
 # saved by FLIMAnalyzer 0.5 (the dict Config, version 0), with some changed settings
 V0_FILE = Path(__file__).parent / "data" / "settings_v0.json"
+# version 1: the tools under {"tools": {"tools": {...}}}
+V1_FILE = Path(__file__).parent / "data" / "settings_v1.json"
 
 
 def test_defaults():
@@ -84,7 +91,7 @@ def test_newer_versions_are_refused():
 
 def test_invalid_tool_settings_give_the_defaults(caplog):
     settings = AppSettings()
-    settings.tool_settings.tools["Concatenate"] = {"config": {"mode": "diagonal"}}
+    settings.tool_settings.tools["Concatenate"] = ToolEntry(config={"mode": "diagonal"})
     settings = AppSettings.model_validate(settings.to_json())
     with caplog.at_level(logging.WARNING):
         assert settings.tool_settings.config(tools.get("Concatenate")) == ConcatConfig()
@@ -110,3 +117,60 @@ def test_settings_from_the_importer_and_preprocessor(tmp_path):
     preprocessor = defaultpreprocessor()
     preprocessor.set_dropcolumns(["x"])
     assert preprocessor.settings().drop == ["x"]
+
+
+def test_settings_of_version_1():
+    settings = load_settings(V1_FILE)
+    entry = settings.tool_settings.entry(tools.get("Summarize"))
+    assert (entry.autosave, entry.results_dir) == (True, "results")
+    assert settings.tool_settings.config(tools.get("K-Means")).n_clusters == 7
+    assert set(settings.to_json()["tools"]) == {"Summarize", "K-Means"}  # by tool
+
+
+def test_a_file_with_some_sections_changes_only_those():
+    settings = AppSettings.default()
+    settings.tool_settings.set(tools.get("K-Means"), KMeansConfig(n_clusters=3))
+    data = {
+        "schema_version": SETTINGS_VERSION,
+        "filters": {"use": True},
+        "tools": {"Summarize": {"config": SummaryConfig(aggs=["max"]).model_dump()}},
+    }
+    updated = update_settings(settings, data)
+    assert updated.filters.use and updated.filters.range_filters == []  # replaced
+    assert updated.import_ == settings.import_  # not in the file: kept
+    assert updated.tool_settings.config(tools.get("K-Means")).n_clusters == 3
+    assert updated.tool_settings.config(tools.get("Summarize")).aggs == ["max"]
+
+
+def test_a_tool_section_in_a_settings_file(tmp_path):
+    kmeans = tools.get("K-Means")
+    path = tmp_path / "settings.json"
+    write_tool_entry(path, kmeans, tool_entry(KMeansConfig(n_clusters=5), True, "/r"))
+    data = json.loads(path.read_text())
+    assert data["schema_version"] == SETTINGS_VERSION
+    assert list(data["tools"]) == ["K-Means"]  # only the tool's section
+    assert read_tool_entry(path, kmeans).results_dir == "/r"
+    assert read_tool_entry(path, tools.get("Summarize")) is None
+
+    # in an application settings file (of an older version): the rest is kept
+    path = tmp_path / "app.json"
+    path.write_text(V0_FILE.read_text())
+    write_tool_entry(path, kmeans, tool_entry(KMeansConfig(n_clusters=9)))
+    settings = load_settings(path)
+    assert settings.tool_settings.config(kmeans).n_clusters == 9
+    assert settings.import_.delimiter == "\t"  # from the version 0 file
+    summary = settings.tool_settings.config(tools.get("Summarize"))
+    assert summary.aggs == ["mean", "sem"]
+    # saved under a former name: replaced, read by the renamed tool
+    concat = tools.get("Concatenate")
+    assert read_tool_entry(V0_FILE, concat).config["mode"] == "horizontal"
+    write_tool_entry(path, concat, tool_entry(ConcatConfig()))
+    names = json.loads(path.read_text())["tools"]
+    assert "Concatenate" in names and not set(concat.former_names) & set(names)
+
+    # a config alone
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps(KMeansConfig(n_clusters=4).model_dump(mode="json")))
+    assert read_tool_entry(path, kmeans).config["n_clusters"] == 4
+    with pytest.raises(ValueError, match="not a settings file"):
+        write_tool_entry(path, kmeans, tool_entry(KMeansConfig()))
