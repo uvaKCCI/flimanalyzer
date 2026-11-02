@@ -32,7 +32,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# The application (flimanalyzer command); without it: the core and flimbatch
+# The GUI (flimanalyzer command); without it: the core and flimbatch
 gui = [
     "pypubsub<5",
     "wxpython>=4.2.2,<4.3",
@@ -48,8 +48,9 @@ test = [
 ]
 
 [dependency-groups]
-# installed by `uv sync` (and `uv run`) unless --no-dev: the application too
-dev = [
+# installed by `uv sync` and `uv run` (default group, see [tool.uv]); leave the
+# GUI out with --no-group gui. pip: the gui extra, ".[gui]"
+gui = [
     "flimanalyzer[gui]",
 ]
 # Builds the documentation without installing flimanalyzer itself (wxPython has no
@@ -90,6 +91,9 @@ requires = [
     "versioningit",
 ]
 build-backend = "hatchling.build"
+
+[tool.uv]
+default-groups = ["gui"]
 
 [tool.uv.sources]
 # CUDA builds on Windows and Linux x86_64; macOS (Apple Silicon only, current

@@ -64,7 +64,7 @@ jobs:
 
       - name: Install dependencies without wxPython and torch
         run: |
-          uv export --frozen --extra test --no-dev --no-hashes --no-emit-project --no-annotate --no-header \
+          uv export --frozen --extra test --no-group gui --no-hashes --no-emit-project --no-annotate --no-header \
             | grep -v -E '^(torch|nvidia-|triton|cuda-)' > core-requirements.txt
           uv venv --python 3.12
           uv pip install --no-deps -r core-requirements.txt

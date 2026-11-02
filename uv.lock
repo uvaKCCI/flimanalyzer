@@ -1075,9 +1075,6 @@ test = [
 ]
 
 [package.dev-dependencies]
-dev = [
-    { name = "flimanalyzer", extra = ["gui"] },
-]
 docs = [
     { name = "importlib-resources" },
     { name = "joblib" },
@@ -1093,6 +1090,9 @@ docs = [
     { name = "sphinx" },
     { name = "sphinx-rtd-theme" },
     { name = "xlsxwriter" },
+]
+gui = [
+    { name = "flimanalyzer", extra = ["gui"] },
 ]
 
 [package.metadata]
@@ -1121,7 +1121,6 @@ requires-dist = [
 provides-extras = ["dask", "gui", "test"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "flimanalyzer", extras = ["gui"] }]
 docs = [
     { name = "importlib-resources", specifier = "<7" },
     { name = "joblib", specifier = "<2" },
@@ -1138,6 +1137,7 @@ docs = [
     { name = "sphinx-rtd-theme", specifier = ">=3,<4" },
     { name = "xlsxwriter", specifier = "<4" },
 ]
+gui = [{ name = "flimanalyzer", extras = ["gui"] }]
 
 [[package]]
 name = "fonttools"
