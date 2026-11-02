@@ -100,8 +100,8 @@ class dataanalyzer:
                 len(alldroppedrows),
             )
         logging.debug(
-            "dataanalyzer.apply_filter: filtering %d rows, %d filters, onlyselected=%s"
-            % (data.shape[0], len(self.rangefilters), str(onlyselected))
+            f"dataanalyzer.apply_filter: filtering {data.shape[0]} rows,"
+            f" {len(self.rangefilters)} filters, onlyselected={onlyselected}"
         )
         # if dropna:
         #    droppedrows = np.flatnonzero(data.isna().any(axis=0))
@@ -271,7 +271,7 @@ class dataanalyzer:
         logging.debug(f"rel.index after addition of min %/max %\t{rel.index}")
         # create category for each column
         for c in rel.columns.values:
-            rel["Cat %s" % c] = pd.cut(
+            rel[f"Cat {c}"] = pd.cut(
                 rel[c], bins=bins, labels=labels
             )  # .rename('cat %s' % col)
         #        med = pd.merge(med,rel, on=non_ref_cols)

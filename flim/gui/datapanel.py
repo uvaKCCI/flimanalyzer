@@ -469,7 +469,7 @@ class PandasFrame(wx.Frame):
                     del self.droppedrows[(group, value)]
                     self.modified = True
                 else:
-                    wx.MessageBox("View selection for '%s' out of sync." % (group))
+                    wx.MessageBox(f"View selection for '{group}' out of sync.")
             else:
                 self.droppedrows[(group, value)] = np.flatnonzero(
                     self.data[group] == value
@@ -559,7 +559,7 @@ class PandasFrame(wx.Frame):
     def OnLabelDClick(self, event):
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
-            dlg = RenameGroupsDlg(self, title="%s: Pattern Rename" % group)
+            dlg = RenameGroupsDlg(self, title=f"{group}: Pattern Rename")
             if dlg.ShowModal() == wx.ID_CANCEL:
                 dlg.Destroy()
                 return
@@ -581,7 +581,7 @@ class PandasFrame(wx.Frame):
             items = category_values(self.data[group])
             selitems = self.dataview[group].unique().tolist()
             dlg = SelectGroupsDlg(
-                self, title="%s: Select Items" % group, groups=items, selected=selitems
+                self, title=f"{group}: Select Items", groups=items, selected=selitems
             )
             if dlg.ShowModal() == wx.ID_CANCEL:
                 dlg.Destroy()
@@ -656,15 +656,15 @@ class PandasFrame(wx.Frame):
                 minval = mins[col]
                 maxval = maxs[col]
                 value = maxval
-                formatstr = "%d"
                 if len(str(minval)) > len(str(maxval)):
                     value = minval
                 if col in floatcols:
-                    formatstr = "%" + ".%df" % (self.precision)
-                valuestr = formatstr % value  # value[:totaldigits]
+                    valuestr = f"{value:.{self.precision}f}"
+                else:
+                    valuestr = str(int(value))  # as "%d" did
                 logging.debug(
-                    f"minval={minval}, maxval={maxval},value={value},"
-                    f" formatstr={formatstr}, valuestr={valuestr}"
+                    f"minval={minval}, maxval={maxval}, value={value},"
+                    f" valuestr={valuestr}"
                 )
             width, h = dc.GetTextExtent(valuestr)
             width = max(width, headerwidth)

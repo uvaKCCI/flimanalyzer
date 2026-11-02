@@ -882,8 +882,8 @@ class AppFrame(wx.Frame):
         while title in self.windowframes:
             if suffix:
                 title = title[: -len(suffix)]
-            suffix = "-%d" % i
-            title = "%s%s" % (title, suffix)
+            suffix = f"-{i}"
+            title = f"{title}{suffix}"
             i += 1
         return title
 
