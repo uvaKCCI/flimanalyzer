@@ -48,7 +48,7 @@ jobs:
           fail_ci_if_error: false  # a Codecov outage must not block merges
 
   core:
-    name: core (no wx)
+    name: core (no gui)
     # the core must work without wxPython (the gui extra) and without torch:
     # installs the other dependencies from the lock file and runs the core tests
     runs-on: ubuntu-latest
