@@ -1,4 +1,5 @@
 import gc
+import logging
 
 import matplotlib
 
@@ -41,6 +42,22 @@ def flim_data():
 @pytest.fixture
 def features():
     return ["NAD(P)H t1", "NAD(P)H t2", "NAD(P)H a1[%]"]
+
+
+@pytest.fixture(scope="session")
+def prefect_harness():
+    """One temporary Prefect server and database for the whole session; nothing is
+    reported to a real server. Started by the first test that needs it."""
+    from prefect.testing.utilities import prefect_test_harness
+
+    # Prefect's console handlers write to the stderr of the test that first logged,
+    # which pytest has closed by later tests: don't print those logging errors
+    raise_exceptions, logging.raiseExceptions = logging.raiseExceptions, False
+    try:
+        with prefect_test_harness():
+            yield
+    finally:
+        logging.raiseExceptions = raise_exceptions
 
 
 @pytest.fixture(autouse=True)

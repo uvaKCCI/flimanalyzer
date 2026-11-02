@@ -4,7 +4,6 @@ import matplotlib.figure
 import pandas as pd
 import pytest
 from prefect import unmapped
-from prefect.testing.utilities import prefect_test_harness
 
 from flim.core.graph import WorkflowGraph
 from flim.core.runner import TaskOutput, run_flow, select
@@ -14,11 +13,7 @@ from flim.data.sortdata import Sort
 from flim.plugin import AbstractPlugin, DataBucket
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    # temporary Prefect server and database, nothing is reported to a real server
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 class Boom(AbstractPlugin):

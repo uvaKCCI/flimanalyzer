@@ -5,7 +5,6 @@ import pandas as pd
 import pytest
 
 wx = pytest.importorskip("wx")
-from prefect.testing.utilities import prefect_test_harness  # noqa: E402
 
 from flim.core.registry import tools  # noqa: E402
 
@@ -22,12 +21,6 @@ def wxapp():
     for window in list(wx.GetTopLevelWindows()):
         if window and not window.IsBeingDeleted():
             window.Destroy()
-
-
-@pytest.fixture(scope="module")
-def prefect_harness():
-    with prefect_test_harness():
-        yield
 
 
 @pytest.fixture

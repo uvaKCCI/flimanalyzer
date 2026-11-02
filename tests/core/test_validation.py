@@ -166,14 +166,8 @@ def test_time_points_in_category_order():
     assert series_values(pd.Series(["b", "a", "b"])) == ["b", "a"]
 
 
+@pytest.mark.usefixtures("prefect_harness")
 class TestRuns:
-    @pytest.fixture(scope="class", autouse=True)
-    def prefect_harness(self):
-        from prefect.testing.utilities import prefect_test_harness
-
-        with prefect_test_harness():
-            yield
-
     def test_strict_runs_stop_before_they_start(self, data):
         config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=FEATURES)
         with pytest.raises(WorkflowValidationError, match="'FAD a1%' is not in the"):
