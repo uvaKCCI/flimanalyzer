@@ -50,6 +50,43 @@ def test_filter_dialog_checkboxes(wxapp, table):
         dlg.Destroy()
 
 
+def test_filter_dialog_title_and_counts(wxapp, table):
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, filters=AppSettings.default().filters, dataframe=table)
+    try:
+        assert dlg.GetTitle() == "Filter Settings"
+        dlg.OnFiltersUpdated([], 0, 10, 40)
+        assert dlg.dropped_label.GetLabel() == "Dropped from view: 10 (of 40)"
+        assert dlg.remaining_label.GetLabel() == "Remaining: 30 (75.00%)"
+    finally:
+        dlg.Destroy()
+
+
+def test_select_dialog_shows_all_its_buttons(wxapp):
+    from flim.gui.dialogs import SelectGroupsDlg
+
+    dlg = SelectGroupsDlg(None, "Select", groups=["a", "b", "c"], selected=["a"])
+    try:
+        for button in (dlg.selectAllButton, dlg.deselectAllButton, dlg.okButton):
+            rect = button.GetRect()
+            assert rect.GetRight() <= dlg.GetClientSize().width
+            assert rect.GetBottom() <= dlg.GetClientSize().height
+    finally:
+        dlg.Destroy()
+
+
+def test_category_values_in_category_order():
+    from flim.gui.datapanel import category_values
+
+    column = pd.Series(
+        pd.Categorical(["Dox15", "ctrl", "Dox15"], categories=["ctrl", "Dox15", "Dox30"])
+    )
+    assert category_values(column) == ["ctrl", "Dox15"]  # Dox30 does not occur
+    assert category_values(pd.Series(["b", "a", "b"])) == ["b", "a"]
+
+
 def test_list_checkboxes_notify_once_per_change(wxapp):
     import wx
     from flim.gui.listcontrol import AnalysisListCtrl
@@ -94,6 +131,19 @@ def test_import_dialog_resize(wxapp):
     dlg = ImportDlg(None, "Import", AppSettings.default())
     try:
         dlg.OnRGridSize(wx.SizeEvent(wx.Size(640, 300)))
+    finally:
+        dlg.Destroy()
+
+
+def test_import_dialog_opens_with_a_saved_parser(wxapp):
+    from flim.core.settings import AppSettings
+    from flim.gui.importdlg import ImportDlg
+
+    settings = AppSettings.default()
+    settings.import_.filename_parser.parser = "fov_treatment_cell_parser"
+    dlg = ImportDlg(None, "Import", settings)  # failed: the parser's class as text
+    try:
+        assert dlg.parser_chooser.GetValue() == "fov_treatment_cell_parser"
     finally:
         dlg.Destroy()
 

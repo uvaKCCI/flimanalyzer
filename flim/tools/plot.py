@@ -298,6 +298,16 @@ def label_tiles(grid, features, ylim=None) -> None:
             ax.set_ylim(*ylim(feature))
 
 
+def axis_range(values, fit=True) -> tuple:
+    """Axis limits for ``values``: their range (``fit``), or the range including 0;
+    with a margin of 5% of the range."""
+    low, high = float(values.min()), float(values.max())
+    if not fit:
+        low, high = min(0.0, low), max(0.0, high)
+    margin = 0.05 * (high - low) or 0.05 * abs(high) or 0.5  # one value: still a range
+    return low - margin, high + margin
+
+
 # --- categorical plots ---
 
 
@@ -316,7 +326,7 @@ def strings_for_categories(data: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
-def catplot_figure(data, feature, grouping, kind):
+def catplot_figure(data, feature, grouping, kind, fit=False):
     """A seaborn catplot of ``feature``: x, hue, col and row from the grouping columns."""
     data = data[list(grouping) + [feature]].dropna(how="any", subset=[feature])
     roles = dict(zip(("x", "hue", "col", "row"), grouping))
@@ -330,14 +340,12 @@ def catplot_figure(data, feature, grouping, kind):
         )
         grid = sns.catplot(data=data, y=feature, kind=kind, **roles)
     figure = grid.figure
-    figure.get_axes()[0].set_ylim(
-        min(0, data[feature].min()) * 0.95, max(0, data[feature].max()) * 1.05
-    )
+    figure.get_axes()[0].set_ylim(*axis_range(data[feature], fit))
     add_picker(figure)
     return figure
 
 
-def catplot_tiles(data, features, grouping, kind, per_row):
+def catplot_tiles(data, features, grouping, kind, per_row, fit=False):
     """One seaborn catplot of all ``features``, a tile each (x and hue from the
     first two grouping columns)."""
     long = long_format(data, features, grouping).dropna(subset=[TILE_VALUE])
@@ -362,8 +370,7 @@ def catplot_tiles(data, features, grouping, kind, per_row):
         )
 
     def ylim(feature):
-        values = data[feature]
-        return min(0, values.min()) * 0.95, max(0, values.max()) * 1.05
+        return axis_range(data[feature], fit)
 
     label_tiles(grid, features, ylim)
     add_picker(grid.figure)
@@ -384,14 +391,20 @@ def sampled_rows(data: pd.DataFrame, points) -> tuple[pd.DataFrame, Optional[str
     )
 
 
-def add_note(figure, note: Optional[str], y: float = 0.005) -> None:
-    """A small note below the plots, e.g. that a sample of the points is shown."""
-    if note:
-        figure.text(
-            0.5, y, note, ha="center", va="bottom", fontsize="small", color="0.3"
-        )
-        if not figure.get_constrained_layout():
-            figure.subplots_adjust(bottom=figure.subplotpars.bottom + 0.03)
+def add_note(figure, note: Optional[str]) -> None:
+    """A small note below the plots, e.g. that a sample of the points is shown;
+    several notes are shown one per line."""
+    if not note:
+        return
+    # the figure's x label at its default position: constrained layout (also when the
+    # legend's placement switches to it later) makes room for it, not for free text or
+    # a label placed explicitly
+    current = figure._supxlabel.get_text() if figure._supxlabel is not None else ""
+    figure.supxlabel(
+        f"{current}\n{note}" if current else note, fontsize="small", color="0.3"
+    )
+    if not figure.get_constrained_layout():
+        figure.subplots_adjust(bottom=figure.subplotpars.bottom + 0.03)
 
 
 class _CategoricalPlot(_Plot):
@@ -401,16 +414,17 @@ class _CategoricalPlot(_Plot):
         data = strings_for_categories(data)
         features = sorted(selected_features(data, config.features))
         data, note = sampled_rows(data, getattr(config, "points", None))
+        fit = getattr(config, "fit_axes", False)
         if config.single_figure and features:
             figure = catplot_tiles(
-                data, features, config.grouping, self.kind, config.plots_per_row
+                data, features, config.grouping, self.kind, config.plots_per_row, fit
             )
             add_note(figure, note)
             return {self.name: figure}
         results = {}
         for feature in features:
             self.check_cancelled()  # plots of many points take long
-            figure = catplot_figure(data, feature, config.grouping, self.kind)
+            figure = catplot_figure(data, feature, config.grouping, self.kind, fit)
             add_note(figure, note)
             results[self.plot_name(feature)] = figure
         return results
@@ -492,7 +506,6 @@ def freeze_swarms(figure) -> None:
             figure,
             "Some points do not fit in their swarm and are drawn at its edges: "
             "sample fewer points, or use a strip plot",
-            y=0.03,
         )
 
 
@@ -1047,7 +1060,7 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
             kwargs["label"] = labels
         in_group = "" if stacked else "in each group "
         ax.set_ylabel(f"relative counts {in_group}[%]")
-        names = [f"{n} [rel %]" for n in names]
+        names = [f"{label} [rel %]" for label in labels]  # not ('ctrl',) [rel %]
         ax.set_xlabel(column)
         title = column.replace("\n", " ")
         if groups:
@@ -1183,16 +1196,10 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
             grid.map(scatter)
         grid.add_legend()
         if sampled:
-            grid.figure.text(
-                0.5,
-                0.005,
+            add_note(
+                grid.figure,
                 f"{points.samples:,} samples of {total:,} measurements shown",
-                ha="center",
-                va="bottom",
-                fontsize="small",
-                color="0.3",
             )
-            grid.figure.subplots_adjust(bottom=grid.figure.subplotpars.bottom + 0.03)
         return {f"Pair Plot: {config.grouping}": grid.figure}
 
     @staticmethod
@@ -1252,7 +1259,9 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
             figure, axes = tiles(len(pairs), config.plots_per_row, size=(6, 4.5))
             for ax, pair in zip(axes, pairs):
                 self.check_cancelled()  # many points take long
-                self.scatter_figure(data, pair, config.grouping, ax=ax)
+                self.scatter_figure(
+                    data, pair, config.grouping, ax=ax, fit=config.fit_axes
+                )
             tidy_tiles(figure, axes)
             add_note(figure, note)
             add_picker(figure)
@@ -1260,13 +1269,15 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
         results = {}
         for pair in pairs:
             self.check_cancelled()
-            figure = self.scatter_figure(data, pair, config.grouping)
+            figure = self.scatter_figure(
+                data, pair, config.grouping, fit=config.fit_axes
+            )
             add_note(figure, note)
             results[f"Scatter Plot: {pair}"] = figure
         return results
 
     @staticmethod
-    def scatter_figure(data, pair, groups, ax=None):
+    def scatter_figure(data, pair, groups, ax=None, fit=False):
         """A scatter plot of ``pair``, in ``ax`` (default: a figure of its own)."""
         x, y = pair
         own_figure = ax is None
@@ -1284,9 +1295,9 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
                     ax.scatter(group[x], group[y], label=clean_label(name), **options)
         else:
             ax.scatter(data[x], data[y], **options)
-        ax.set_xlim(min(0, data[x].min()) * 1.05, max(0, data[x].max()) * 1.05)
+        ax.set_xlim(*axis_range(data[x], fit))
         ax.set_xlabel(x)
-        ax.set_ylim(min(0, data[y].min()) * 1.05, max(0, data[y].max()) * 1.05)
+        ax.set_ylim(*axis_range(data[y], fit))
         ax.set_ylabel(y)
         if groups:
             h, labels = ax.get_legend_handles_labels()

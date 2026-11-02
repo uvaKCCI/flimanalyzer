@@ -154,6 +154,16 @@ class PandasTable(wx.grid.GridTableBase):
             return wx.grid.GridTableBase.GetAttr(self, row, col, prop)
 
 
+def category_values(column: pd.Series) -> list:
+    """The values in a column: of a category column in its category order (see
+    Order Categories), else in the order they occur."""
+    present = column.unique()
+    if isinstance(column.dtype, pd.CategoricalDtype):
+        observed = set(present)
+        return [c for c in column.cat.categories if c in observed]
+    return list(present)
+
+
 class PandasFrame(wx.Frame):
     def __init__(
         self,
@@ -540,7 +550,7 @@ class PandasFrame(wx.Frame):
         for item in ["All", "None"]:
             mitem = menu.Append(-1, item)
             self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
-        for chitem in self.data[colheader].unique():
+        for chitem in category_values(self.data[colheader]):
             mitem = menu.AppendCheckItem(-1, str(chitem))
             if mitem is not None:
                 mitem.Check(True)
@@ -570,7 +580,7 @@ class PandasFrame(wx.Frame):
         if event.GetRow() == -1 and group in self.groups:
             # self.currentpopup = self.popupmenus[group]
             # self.PopupMenu(self.currentpopup)
-            items = self.data[group].unique()
+            items = category_values(self.data[group])
             selitems = self.dataview[group].unique().tolist()
             dlg = SelectGroupsDlg(
                 self, title="%s: Select Items" % group, groups=items, selected=selitems

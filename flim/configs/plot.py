@@ -175,16 +175,32 @@ class BarPlotConfig(CategoricalPlotConfig):
         return super().has_legend(values)
 
 
-class BoxPlotConfig(CategoricalPlotConfig):
-    pass
+class AxesRange(BaseConfig):
+    """The value axes: fitted to the data, or including 0."""
+
+    fit_axes: bool = Field(
+        default=True,
+        title="Fit axes to the data",
+        description="Axes from the smallest to the largest value, with a 5% margin;"
+        " otherwise they include 0.",
+        json_schema_extra={"order": 419},  # with the figure's layout
+    )
 
 
-class ViolinPlotConfig(CategoricalPlotConfig):
-    pass
+class BoxPlotConfig(AxesRange, CategoricalPlotConfig):
+    legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
-class SwarmPlotConfig(CategoricalPlotConfig):
-    legacy_keys = {**CategoricalPlotConfig.legacy_keys, "points": None}
+class ViolinPlotConfig(AxesRange, CategoricalPlotConfig):
+    legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
+
+
+class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
+    legacy_keys = {
+        **CategoricalPlotConfig.legacy_keys,
+        "points": None,
+        "fit_axes": None,
+    }
 
     # a swarm places each point: many points take long
     points: PointSampling = Field(
@@ -370,13 +386,14 @@ class HistogramConfig(DistributionPlotConfig):
 # --- other plots ---
 
 
-class ScatterPlotConfig(TiledPlotConfig):
+class ScatterPlotConfig(AxesRange, TiledPlotConfig):
     """A scatter plot for each pair of ``features``."""
 
     legacy_keys = {
         **TiledPlotConfig.legacy_keys,
         "points": None,
         "x_axis": None,
+        "fit_axes": None,
     }
 
     points: PointSampling = Field(default_factory=PointSampling, title="Points")

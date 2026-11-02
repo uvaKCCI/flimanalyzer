@@ -61,13 +61,10 @@ class ImportDlg(wx.Dialog):
         if parsefname:
             parser_label = wx.StaticText(self, wx.ID_ANY, "Filename Parser:")
             self.avail_parsers = flim.core.parser.get_available_parsers()
-            sel_parser = self.avail_parsers.get(
-                settings.import_.filename_parser.parser
-            )
-            if sel_parser is None:
-                sel_parser = next(
-                    iter(self.avail_parsers)
-                )  # self.avail_parsers.keys()[0]
+            # the parser's name (the dict holds the classes)
+            sel_parser = settings.import_.filename_parser.parser
+            if sel_parser not in self.avail_parsers:
+                sel_parser = next(iter(self.avail_parsers))
             self.parser_chooser = wx.ComboBox(
                 self,
                 -1,
