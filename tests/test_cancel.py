@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import pytest
 from prefect import get_client
-from prefect.testing.utilities import prefect_test_harness
 
 import flim.core.runner as runner
 from flim.core.config import TaskConfig
@@ -14,11 +13,7 @@ from flim.core.runner import CancelToken, TaskCancelled, default_task_runner, ru
 from flim.core.tool import Tool
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    # temporary Prefect server and database, nothing is reported to a real server
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 class LoopConfig(TaskConfig):

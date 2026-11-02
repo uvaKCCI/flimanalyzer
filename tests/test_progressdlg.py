@@ -1,7 +1,6 @@
 import time
 
 import pytest
-from prefect.testing.utilities import prefect_test_harness
 
 wx = pytest.importorskip("wx")
 
@@ -10,11 +9,7 @@ from flim.core.runner import run_flow  # noqa: E402
 from flim.core.tool import Tool  # noqa: E402
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    # temporary Prefect server and database, nothing is reported to a real server
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 @pytest.fixture(scope="module")

@@ -13,12 +13,7 @@ from flim.core.registry import tools
 from flim.core.settings import AppSettings, save_settings
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    from prefect.testing.utilities import prefect_test_harness
-
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 @pytest.fixture

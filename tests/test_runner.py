@@ -4,7 +4,6 @@ import matplotlib.figure
 import pandas as pd
 import pytest
 from prefect import unmapped
-from prefect.testing.utilities import prefect_test_harness
 
 from flim.configs import FilterConfig, SortConfig, SummaryConfig
 from flim.core.config import TaskConfig
@@ -16,11 +15,7 @@ from flim.tools.data import Filter, Sort
 from flim.tools.statistics import Summarize
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    # temporary Prefect server and database, nothing is reported to a real server
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 class Boom(Tool[TaskConfig]):
