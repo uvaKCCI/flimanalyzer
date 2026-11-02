@@ -25,7 +25,7 @@ def parse_arguments():
         "-i",
         "--input",
         nargs="+",
-        help="data files to open in the application, each in its own window",
+        help="data files to open in the GUI, each in its own window",
     )
     parser.add_argument(
         "-e",
@@ -71,7 +71,7 @@ def interactive_run(fa, files=None, settings=None):
         import wx  # noqa: F401
     except ImportError:
         sys.exit(
-            "flimanalyzer: the application needs wxPython, which is not installed:"
+            "flimanalyzer: the GUI needs wxPython, which is not installed:"
             ' pip install "flimanalyzer[gui]". Without it, use flimbatch.'
         )
     from flim.gui.app import FLIMAnalyzerApp  # here: batch runs never import wx

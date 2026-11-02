@@ -2,7 +2,7 @@
 
 A workflow runs several tools in one go, for example to make summaries, relative changes and plots of the same features. Each tool is a step of the workflow. The workflow's dialog has the settings that the steps share, such as the grouping and the features, and passes them on to the steps.
 
-Steps that don't depend on each other run at the same time. A progress dialog lists the steps while they run, and `Cancel` stops the workflow. When the workflow finishes, a diagram shows the steps in blue and the data and results passed between them in red. Failed steps have a dark red outline, and skipped steps are faded.
+Steps that don't depend on each other run concurrently, without waiting for each other. A progress dialog lists the steps while they run, and `Cancel` stops the workflow. When the workflow finishes, a diagram shows the steps in blue and the data and results passed between them in red. Failed steps have a dark red outline, and skipped steps are faded.
 
 The results of a workflow are always saved in the folder chosen in its dialog. The folder also gets a file `run_summary.txt`. It lists when the workflow ran and, for each step, its status, the resources it used (for example GPU or CPU) and its message.
 

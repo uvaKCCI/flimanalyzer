@@ -1,6 +1,6 @@
 # Batch Mode
 
-`flimbatch` imports data files and runs tools or workflows on them without opening the application window, for example on a computing cluster or from a script. It takes its settings from a [settings file](/userguide/settings) saved by the application: the import settings and the settings of each tool.
+`flimbatch` imports data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster or from a script. It takes its settings from a [settings file](/userguide/settings) saved in the GUI: the import settings and the settings of each tool.
 
 ```
 flimbatch -i data/ -o results/ -c settings.json --run Summarize --run "Basic FLIRR Analysis"
@@ -35,39 +35,15 @@ Before a workflow runs, its settings are checked against the data (see [Workflow
 | `--no-prefect-server` | don't start a local Prefect server. Each run uses a temporary one instead. |
 | `-l`, `--log` | logging level: `debug`, `info`, `warning` or `error` |
 
-## Installing without the application
+## Running in Docker
 
-Batch mode doesn't need wxPython. To install FLIMAnalyzer without the application, for example on a cluster:
-
-```
-uv sync --no-dev           # with uv, in the cloned repository
-pip install -e .           # with pip (pip install -e ".[gui]" adds the application)
-```
-
-## Docker
-
-The repository's `Dockerfile` builds an image that runs `flimbatch`, without the application. Use `-v` to make the folder with the data and the settings file available inside the container as `/work`:
+The Docker images run `flimbatch` (see [Installing with Docker](/install/index.md#installing-with-docker) for the images). Use `-v` to make the folder with the data and the settings file available inside the container as `/work`:
 
 ```
-docker build -t flimanalyzer .
-docker run --rm -v "$PWD:/work" flimanalyzer \
+docker run --rm -v "$PWD:/work" ghcr.io/uvakcci/flimanalyzer:latest-cpu \
     -i data/ -o results/ -c settings.json --run Summarize --no-prefect-server
 ```
 
-On Linux, add `-u $(id -u)` so that the result files belong to you, not to the image's user.
-
-Each release is also published to the GitHub Container Registry:
-
-| Image | |
-|---|---|
-| `ghcr.io/uvakcci/flimanalyzer:<version>`, `:latest` | with the CUDA build of PyTorch (x86_64, several GB). Use `docker run --gpus all` to use the GPU. |
-| `ghcr.io/uvakcci/flimanalyzer:<version>-cpu`, `:latest-cpu` | CPU only (x86_64 and ARM); much smaller |
-
-With `--no-prefect-server`, each run uses a temporary Prefect server. To report to a Prefect server instead, give its address with the `docker run` option `-e`, before the image name. For example: `-e PREFECT_API_URL=http://prefect.example.org:4200/api`.
-
-To build a CPU-only image yourself, or one with Dask support:
-
-```
-docker build -t flimanalyzer:cpu --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
-docker build -t flimanalyzer:dask --build-arg EXTRAS=dask .
-```
+- On Linux, add `-u $(id -u)` so that the result files belong to you, not to the image's user.
+- With the CUDA image, add `--gpus all` to use the GPU.
+- With `--no-prefect-server`, each run uses a temporary Prefect server. To report to a Prefect server instead, give its address with the `docker run` option `-e`, before the image name. For example: `-e PREFECT_API_URL=http://prefect.example.org:4200/api`.

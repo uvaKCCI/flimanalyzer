@@ -1,10 +1,10 @@
-# The Application Menu
+# Menus
 
 ## File
 
 * `Open...` and `Import...` load data files. See [Loading Data](/userguide/data/load).
-* `Import Settings...` and `Export Settings...` load and save the settings of the application and its tools. See [Settings](/userguide/settings).
-* `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the application menu (⌘Q).
+* `Import Settings...` and `Export Settings...` load and save all settings: the import settings, the filters and the settings of each tool. See [Settings](/userguide/settings).
+* `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q).
 
 ## Data
 
@@ -29,4 +29,4 @@ The `Window` menu lists all open windows (data tables and plots). Select one to 
 ## Help
 
 * `Documentation` opens this documentation.
-* `About FLIMAnalyzer` shows the version. On macOS it is in the application menu.
+* `About FLIMAnalyzer` shows the version. On macOS it is in the `FLIMAnalyzer` menu.

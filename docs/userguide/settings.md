@@ -4,7 +4,7 @@ FLIMAnalyzer saves its settings in JSON files. A settings file holds the import 
 
 At startup, FLIMAnalyzer reads `defaults.json` in the folder it is started from, if there is one; otherwise it starts with the built-in defaults.
 
-## The settings of the application
+## Saving and loading all settings
 
 **Menu Access:** `File` > `Export Settings...` and `File` > `Import Settings...`
 

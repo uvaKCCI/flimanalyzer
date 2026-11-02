@@ -150,7 +150,7 @@ def parse_arguments(argv=None):
         "--settings",
         "--config",
         dest="settings",
-        help="settings file (saved by the application; any version)",
+        help="settings file (saved in the GUI; any version)",
     )
     parser.add_argument(
         "-r",
