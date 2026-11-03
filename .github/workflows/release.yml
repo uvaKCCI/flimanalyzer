@@ -1,0 +1,67 @@
+# Publishes a release to PyPI (pypi.org) when its GitHub release is published.
+#
+# Builds the release tag's commit (versioningit takes the version from the tag) and
+# checks that the version equals the tag before anything is uploaded: files on PyPI
+# can't be replaced, and a deleted file name can't be used again.
+#
+# Publishing uses trusted publishing (OIDC, no stored token): a publisher on pypi.org for
+# this repository, this workflow file and the environment "pypi", which requires the
+# maintainer's approval and accepts only release tags.
+
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the release tags, for the version
+
+      - uses: astral-sh/setup-uv@v10.3.0
+
+      - name: Build
+        run: uv build --out-dir dist
+
+      - name: Check the version against the release tag
+        id: version
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          wheel=$(ls dist/*.whl)
+          version=$(basename "$wheel" | cut -d- -f2)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Built $version from $(git rev-parse HEAD) for release $tag"
+          [[ "v$version" == "$tag" ]] || { echo "version $version doesn't match tag $tag"; exit 1; }
+          uvx twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/flimanalyzer/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
