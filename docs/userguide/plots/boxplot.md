@@ -28,6 +28,10 @@ The `Box Plot` tool creates box plots of grouped data. Each box shows the median
 
     `Legend` sets where the legend is shown: `right`, `top`, `bottom` or `left` of the plots, `inside` a plot, or `none`. With `Single figure`, the tiles share one legend outside the plots. `Legend` appears only with 2 or more grouping columns. See [Hidden settings](/userguide/dialogs.md#hidden-settings).
 
+    With `Single figure`, for example three features in one row:
+
+    ![](/images/analysis/boxplot-config-single.png)
+
     In the example, `FLIRR` is plotted, grouped by `Treatment` and `FOV`.
 
     ![](/images/analysis/boxplot-config-grouping.png)
@@ -50,6 +54,10 @@ To change the plot layout, change the order of the grouping columns. See the exa
 **Example Results:** `Grouping` - FOV, Treatment
 
 ![](/images/analysis/boxplot-result2-grouping.png)
+
+**Example Results:** `Single figure` - FAD a1[%], NAD(P)H a2[%], FLIRR; `Grouping` - Treatment, FOV
+
+![](/images/analysis/boxplot-result-single.png)
 
 ```{note}
 You can zoom into the plot, change its axes and labels, and save it in its plot window. See [The Plot Window](/userguide/plots/plotwindow).

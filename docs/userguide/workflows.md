@@ -32,6 +32,8 @@ While a tool or a workflow runs, a progress dialog shows:
 * `Results are saved in:` with the results folder, if the results are saved. Click it to open the folder in the file browser.
 * `Tasks`: click it to see the list of all tasks and the status of each one (pending, running, completed, failed, cancelled or skipped).
 
+![](/images/analysis/workflow-progress.png)
+
 `Cancel` stops the run. Tasks that are running finish first, and the dialog says `Cancelling, waiting for ... to finish...`. Tasks that have not started yet don't run. The results of the completed tasks are kept in the results folder.
 
 ## The run summary
@@ -43,6 +45,8 @@ After every workflow, and after a tool run that was cancelled, a dialog says how
 * or after how many tasks the run was cancelled.
 
 It also links to the results folder and to the flow run on the Prefect server, if there is one.
+
+![](/images/analysis/workflow-summary.png)
 
 If a tool's tasks fail, a message lists the failed tasks.
 

@@ -4,6 +4,8 @@ Each plot opens in a plot window. Its name starts with `Plot:`, and it is listed
 
 ## The Navigation Toolbar
 
+![](/images/analysis/plotwindow.png)
+
 The toolbar at the bottom of the plot window is the navigation toolbar of matplotlib, the library that draws the plots. It has these buttons, from left to right:
 
 - `Home`: goes back to the original view of the plot.
@@ -26,6 +28,9 @@ To save the plots automatically each time a tool runs, check `Save results in` i
 Double-click parts of a plot to change them:
 
 - **An axis:** double-click just outside the plot, along the x or the y axis. The `Set X Axis` or `Set Y Axis` dialog opens. Set the axis `label` and its `min` and `max` values, and click `OK`.
+
+    ![](/images/analysis/plot-setaxis.png)
+
 - **A text,** such as the title of a plot or an axis label: the `Update Label` dialog opens. Type the new text and click `OK`.
 - **A line,** such as a curve of a KDE plot or a line of a line plot: a color dialog opens. Choose the new color of the line.
 

@@ -58,6 +58,8 @@ If the settings name features that the selected table doesn't have, a note above
 
 Some tools have a `Resources` section. It is collapsed; click `Resources` to open it.
 
+![](/images/dialogs/tool-dialog.png)
+
 * `Threads`: how many threads the tool uses for its calculations. `-1` (the default) uses all CPU cores available to the tool. `0` is not allowed. `K-Means`, `Random Forest`, the autoencoder tools and the autoencoder workflows have this setting.
 * `Device`: which processor does the calculations, for example a GPU. The autoencoder tools (`Autoencoder: Train`, `Autoencoder: Run`, `Autoencoder: Augment Data`) and the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis` have this setting. See [Using a GPU](/install/index.md#using-a-gpu).
 
