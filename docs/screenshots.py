@@ -671,7 +671,7 @@ class Shooter:
         from flim.gui.dialogs import ConfigureAxisDlg
 
         return ConfigureAxisDlg(
-            self.frame, "Set X Axis", {"label": "FLIRR", "min": 0.0, "max": 0.6}
+            self.frame, "Set Y Axis", {"label": "FLIRR", "min": 0.0, "max": 0.6}
         )
 
     def run_summary(self):
@@ -684,9 +684,11 @@ class Shooter:
 
     def expand_resources(self, dialog):
         """The collapsed Resources section opened."""
+        from flim.gui.editors import relayout
+
         editor = dialog.fields.editors["resources"]
         editor.pane.Expand()
-        dialog.Fit()
+        relayout(editor.pane)
 
     def show_treatment_order(self, dialog):
         """Order Categories: Treatment selected and checked, its values shown."""
