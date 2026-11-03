@@ -2,8 +2,6 @@
 data
 paper
 references
-docs
-tests
 .venv
 dist
 build
@@ -16,3 +14,4 @@ coverage.xml
 .vscode
 .idea
 PLAN-*.md
+.claude
