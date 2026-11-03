@@ -9,7 +9,6 @@ import importlib
 import inspect
 import logging
 import torch
-import torch.optim as optim
 import torch.nn as nn
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin

@@ -20,7 +20,6 @@ def test_db_to_linear():
     assert utils.db_to_linear(0.0) == pytest.approx(1.0)
 
 
-@pytest.mark.xfail(raises=NameError, strict=True, reason="flim/utils.py does not import numpy")
 def test_to_db():
     assert utils.to_db(10.0) == pytest.approx(10.0)
 

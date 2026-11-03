@@ -1,14 +1,14 @@
 Analysis
 ========
 
-Most analysis tools allow the grouping of data by categorical column values to summarize the underlying data. Grouping can be performed by single category or combination of multiple categories. Headers of categorical columns have a light blue background; all other column headers are displayed with a gray background.
+Most analysis tools can group the data by the values of category columns and analyze each group separately. You can group by one category column or by a combination of several. Category column headers have a light blue background. All other column headers are gray.
 
 .. image:: /images/data/dataframe.png
 
-The shown example table contains the following categorical columns that may be used for data grouping: `Cell, Compartment, FOV, Treatment`.  Grouping by multiple categories follows a customizable hierarchical order. 
+The example table has these category columns that you can use for grouping: `Cell, Compartment, FOV, Treatment`. When you group by several category columns, you can choose their order (the grouping hierarchy).
 
 .. note::
-    Changing the order of the grouping hierarchy changes ordering of rows of resulting data tables and data presentation in plots. The specific effects of different grouping hierarchies on data representation are analysis tool dependent and described with examples in the following subsections.
+    The order of the grouping columns changes the order of the rows in the result tables and how the data is arranged in plots. The effect differs from tool to tool. Each tool's page shows it with examples.
 
 .. list-table::
    :widths: 10 10 30
@@ -18,37 +18,40 @@ The shown example table contains the following categorical columns that may be u
      - Analysis Tool
      - Description
    * - .. image:: /images/analysis/summary.png 
-     - `Summary Table <summary.html>`_
-     - Calculates counts, min, max, mean, median, StDev, S.E.M, 25th percentile, and 75th percentile of grouped data.
+     - `Summarize <summary.html>`_
+     - Calculates the count, minimum, maximum, mean, median, standard deviation, standard error of the mean, and 25th and 75th percentiles, and sum of grouped data.
    * - .. image:: /images/analysis/relchange.png 
      - `Relative Change <relchange.html>`_
-     - Converts input data to fold-change values relative to mean/median of reference group.
+     - Converts the data to fold-change values, relative to the mean or median of a reference group.
    * - .. image:: /images/analysis/seriesanalysis.png 
      - `Series Analysis <seriesanalysis.html>`_
-     - Performs an analysis of a data series spread across multiple table columns. 
+     - Analyzes a series of values spread across several table columns.
    * - .. image:: /images/analysis/categorize.png 
      - `Categorize Data <categorize.html>`_
-     - Categorizes data based on thresholded value bins in a specified table column. 
+     - Adds a category column based on value ranges of a feature.
    * - .. image:: /images/analysis/randomforest.png 
      - `Random Forest <randomforest.html>`_
-     - Performs a random forest classification analysis for grouped data. 
+     - Predicts a category from the features with a random forest, and shows which features matter most.
    * - .. image:: /images/analysis/pca.png 
-     - `Principal Component Analysis <pca.html>`_
-     - Reduces the dimensionality of dataset and outputs principal component values. 
+     - `PCA <pca.html>`_
+     - Principal component analysis: summarizes many features in a few new columns (principal components) and outputs their values.
    * - .. image:: /images/analysis/kmeans.png 
      - `K-Means <kmeans.html>`_
      - Groups similar data points into clusters.
+   * - .. image:: /images/analysis/gmm.png
+     - `Gaussian Mixed Model <gmm.html>`_
+     - Groups data points into clusters, each described by a Gaussian (bell-shaped) distribution, and gives each point's probability of belonging to each cluster.
    * - .. image:: /images/analysis/ks.png 
-     - `KS Statistics <ks.html>`_
-     - Applies Kolmogorov–Smirnov test, to measure similarity between sample and theoretical distributions.
+     - `KS-Statistics <ks.html>`_
+     - Compares the distributions of a feature between the groups of a category column, two at a time, with the Kolmogorov–Smirnov test.
    * - .. image:: /images/analysis/aetrain.png 
-     - `Autoencoder Training <aetrain.html>`_
+     - `Autoencoder: Train <aetrain.html>`_
      - Trains an autoencoder model on selected data features. 
    * - .. image:: /images/analysis/aerun.png 
-     - `Autoencoder Analysis <aerun.html>`_
+     - `Autoencoder: Run <aerun.html>`_
      - Applies a pre-trained autoencoder model to data.
    * - .. image:: /images/analysis/aeaugment.png 
-     - `Autoencoder Augment Data <aeaugment.html>`_
+     - `Autoencoder: Augment Data <aeaugment.html>`_
      - Generates augmented data with a pre-trained autoencoder model.
 
 .. toctree::
@@ -63,6 +66,7 @@ The shown example table contains the following categorical columns that may be u
     randomforest
     pca
     kmeans
+    gmm
     ks
     aetrain
     aerun

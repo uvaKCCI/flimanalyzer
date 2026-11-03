@@ -1,4 +1,5 @@
 import itertools
+import math
 import re
 from collections.abc import Iterable
 from operator import itemgetter
@@ -12,7 +13,7 @@ def to_str_sequence(items):
 
 
 def to_db(value):
-    return 10.0 * np.log10(value)
+    return 10.0 * math.log10(value)
 
 
 def db_to_linear(db_value):

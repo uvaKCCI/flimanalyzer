@@ -10,8 +10,6 @@ import logging
 import numpy as np
 import numbers
 import flim.core
-import flim.core.configuration as cfg
-from flim.core.analyzer import dataanalyzer
 
 TRP_RZERO = 2.1
 ONE_SIXTH = 1.0 / 6
@@ -21,7 +19,7 @@ def percentile(n):
     def percentile_(x):
         return np.nanpercentile(x, n)
 
-    percentile_.__name__ = "%s percentile" % n
+    percentile_.__name__ = f"{n} percentile"
     return percentile_
 
 
@@ -76,11 +74,7 @@ def ratio(v1, v2):
 
 
 class defaultpreprocessor:
-    def __init__(self, calculator=None):
-        # if calculator is None:
-        #    self.calculator = dataanalyzer()
-        # else:
-        #    self.calculator = calculator
+    def __init__(self):
         self.newheaders = {
             "Exc1_-Ch1-_": "trp ",
             "Exc1_-Ch2-_": "NAD(P)H ",
@@ -137,15 +131,15 @@ class defaultpreprocessor:
             "NADPH a2/FAD a1": [ratio.__name__, ["NAD(P)H a2", "FAD a1"]],
         }
 
-    def get_config(self):
-        config = {
-            cfg.CONFIG_CALC_COLUMNS: dict(
-                self.functions
-            ),  # self.calculator.get_config(), #calccolumns,
-            cfg.CONFIG_DROP_COLUMNS: self.dropcolumns,
-            cfg.CONFIG_HEADERS: self.newheaders,
-        }
-        return config
+    def settings(self):
+        """The preprocess settings (PreprocessSettings) of this preprocessor."""
+        from flim.core.settings import PreprocessSettings
+
+        return PreprocessSettings(
+            calculate=dict(self.functions),
+            drop=list(self.dropcolumns or []),
+            rename=dict(self.newheaders or {}),
+        )
 
     def columns_available(self, data, args):
         for arg in args:

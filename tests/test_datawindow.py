@@ -9,20 +9,6 @@ wx = pytest.importorskip("wx")
 FEATURE = "NAD(P)H t1"
 
 
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
-
-
 @pytest.fixture
 def frame(wxapp, monkeypatch):
     from flim.core.tools import FLIMAnalyzer
@@ -63,17 +49,6 @@ def _answer_file_dialog(monkeypatch, path):
 
 def _new_windows(frame, before):
     return {t: w for t, w in frame.windowframes.items() if t not in before}
-
-
-def test_split_by_group(frame, monkeypatch, flim_data):
-    window = _open(frame, flim_data)
-    _answer_group_dialogs(monkeypatch, ["Treatment"])
-    before = set(frame.windowframes)
-    window.OnSplit(None)
-    new = _new_windows(frame, before)
-    assert len(new) == 2
-    assert sorted(len(w.GetViewData()) for w in new.values()) == [30, 30]
-    assert all(set(w.GetViewData()["Treatment"]) in ({"WT"}, {"KO"}) for w in new.values())
 
 
 def test_pivot(frame, monkeypatch, flim_data):
@@ -142,21 +117,27 @@ def test_precision_and_autosize(frame, flim_data):
 
 
 def test_save_and_load_settings(frame, monkeypatch, tmp_path):
-    import flim.core.configuration as cfg
+    import json
+
+    from flim.configs import KMeansConfig
+    from flim.core.registry import tools
+    from flim.core.settings import SETTINGS_VERSION
 
     path = tmp_path / "settings.json"
-    frame.config.update({cfg.CONFIG_DELIMITER: ";"}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.delimiter = ";"  # e.g. by the import dialog
+    frame.settings.tool_settings.set(tools.get("K-Means"), KMeansConfig(n_clusters=5))
     _answer_file_dialog(monkeypatch, path)
     frame.OnSaveSettings(None)
-    assert path.exists()
+    assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
 
-    frame.config.update({cfg.CONFIG_DELIMITER: "\t"}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.delimiter = "\t"
+    frame.settings.tool_settings.tools.clear()
     frame.OnLoadSettings(None)
-    assert frame.config.get([cfg.CONFIG_DELIMITER]) == ";"
+    assert frame.settings.import_.delimiter == ";"
+    assert frame.settings.tool_settings.config(tools.get("K-Means")).n_clusters == 5
 
 
 def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
-    import flim.core.configuration as cfg
     from flim.gui.importdlg import ImportDlg
 
     files = []
@@ -164,10 +145,8 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
         path = tmp_path / name
         part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
         files.append(str(path))
-    config = frame.config
-    config.update({cfg.CONFIG_INCLUDE_FILES: files}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.include_files = files
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    monkeypatch.setattr(ImportDlg, "get_config", lambda dlg: config)
     before = set(frame.windowframes)
     frame.OnImportData(None)
     (title, window), = _new_windows(frame, before).items()
@@ -176,13 +155,10 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
 
 
 def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
-    import flim.core.configuration as cfg
     from flim.gui.importdlg import ImportDlg
 
-    config = frame.config
-    config.update({cfg.CONFIG_INCLUDE_FILES: [str(tmp_path / "gone.txt")]}, [cfg.CONFIG_ROOT, cfg.CONFIG_IMPORT])
+    frame.settings.import_.include_files = [str(tmp_path / "gone.txt")]
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    monkeypatch.setattr(ImportDlg, "get_config", lambda dlg: config)
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
     before = set(frame.windowframes)

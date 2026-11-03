@@ -4,37 +4,37 @@ import time
 import matplotlib.figure
 import pandas as pd
 import pytest
-from prefect.testing.utilities import prefect_test_harness
 
+from flim.core.config import TaskConfig
 from flim.core.runner import default_max_workers, default_task_runner, run_flow
-from flim.plugin import AbstractPlugin, DataBucket
+from flim.core.tool import Tool
+from flim.core.workflow import workflow_input
 
 SLEEP = 0.4
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    # temporary Prefect server and database, nothing is reported to a real server
-    with prefect_test_harness():
-        yield
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
-class Sleeper(AbstractPlugin):
-    """Records when it runs; the record is shared by all copies of the plugin."""
+class SleepConfig(TaskConfig):
+    seconds: float = SLEEP
 
-    def __init__(self, name="Sleeper", record=None, **kwargs):
-        super().__init__(name=name, **kwargs)
+
+class Sleeper(Tool[SleepConfig]):
+    """Records when it runs; the record is shared by all copies of the tool."""
+
+    name = "Sleeper"
+    category = "Data"
+
+    def __init__(self, name=None, record=None):
+        super().__init__()
+        if name:
+            self.name = name
         self.record = record if record is not None else []
 
-    def get_required_categories(self):
-        return []
-
-    def get_required_features(self):
-        return []
-
-    def execute(self):
+    def run(self, *inputs, config):
         start = time.monotonic()
-        time.sleep(SLEEP)
+        time.sleep(config.seconds)
         self.record.append((start, time.monotonic()))
         return {"done": True}
 
@@ -47,12 +47,12 @@ class Drawer(Sleeper):
     max_active = 0
     lock = threading.Lock()
 
-    def execute(self):
+    def run(self, *inputs, config):
         with Drawer.lock:
             Drawer.active += 1
             Drawer.max_active = max(Drawer.max_active, Drawer.active)
         try:
-            return super().execute()
+            return super().run(*inputs, config=config)
         finally:
             with Drawer.lock:
                 Drawer.active -= 1
@@ -63,12 +63,12 @@ def _overlapping(record):
     return any(b[0] < a[1] for a, b in zip(spans, spans[1:]))
 
 
-def _run_sleepers(n, task_runner=None, task_tags=None, plugin_class=Sleeper):
+def _run_sleepers(n, task_runner=None, task_tags=None, tool_class=Sleeper):
     record = []
 
     def build():
         for _ in range(n):
-            plugin_class(record=record)(input={}, task_tags=task_tags)
+            tool_class(record=record)(task_tags=task_tags)
 
     run = run_flow("sleepers", build, task_runner=task_runner)
     assert run.failed == []
@@ -92,7 +92,7 @@ def test_one_worker_runs_one_task_at_a_time():
 
 def test_tasks_that_draw_figures_take_turns():
     Drawer.max_active = 0
-    record = _run_sleepers(3, default_task_runner(3), plugin_class=Drawer)
+    record = _run_sleepers(3, default_task_runner(3), tool_class=Drawer)
     assert Drawer.max_active == 1
     assert not _overlapping(record)
 
@@ -114,9 +114,9 @@ def test_downstream_task_waits_for_its_input(flim_data):
     record = []
 
     def build():
-        data = DataBucket(name="Input")(input={"data": flim_data}, input_select=[0])
-        first = Sleeper(name="First", record=record)(input=data)
-        Sleeper(name="Second", record=record)(input=first)
+        data = workflow_input(flim_data)
+        first = Sleeper(name="First", record=record)(data)
+        Sleeper(name="Second", record=record)(first)
 
     run = run_flow("chain", build, task_runner=default_task_runner(4))
     assert run.failed == []
@@ -124,24 +124,17 @@ def test_downstream_task_waits_for_its_input(flim_data):
     assert second[0] >= first[1]
 
 
-@pytest.fixture
-def flirr_data(flim_data):
-    df = flim_data.copy()
-    df["FLIRR"] = df["NAD(P)H a2[%]"] / df["FAD a1[%]"]
-    return df
-
-
 def _basic_flirr(flirr_data, tmp_path, workers):
-    from flim.workflow.basicflow import BasicFLIRRWorkFlow
+    from flim.configs.workflow import BasicFLIRRConfig
+    from flim.workflow.basicflow import BasicFLIRR
 
-    wf = BasicFLIRRWorkFlow()
-    wf.configure(
-        input={"data": flirr_data},
+    config = BasicFLIRRConfig(
         grouping=["Treatment", "FOV", "Cell"],
         features=["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"],
-        working_dir=str(tmp_path),
     )
-    run = wf.run_flow(task_runner=default_task_runner(workers))
+    run = BasicFLIRR().run_flow(
+        flirr_data, config=config, task_runner=default_task_runner(workers)
+    )
     assert run.failed == []
     tables, figures = {}, {}
     for label, result in zip(
@@ -173,12 +166,13 @@ def test_workflow_results_do_not_depend_on_worker_count(flirr_data, tmp_path):
 def test_result_figures_are_released_from_pyplot(flim_data):
     import matplotlib.pyplot as plt
 
-    from flim.analysis.kde import KDE
+    from flim.configs import KDEConfig
+    from flim.tools.plot import KDE
 
     plt.close("all")
 
     def build():
-        KDE()(input={"data": flim_data}, grouping=["Treatment"], features=["NAD(P)H t1"])
+        KDE()(flim_data, config=KDEConfig(grouping=["Treatment"], features=["NAD(P)H t1"]))
 
     run = run_flow("figures", build)
     (result,) = run.results()

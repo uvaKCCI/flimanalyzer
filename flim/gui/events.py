@@ -17,8 +17,6 @@ EVT_DATA = wx.PyEventBinder(EVT_DATA_TYPE, 1)
 EVT_PLOT_TYPE = wx.NewEventType()
 EVT_PLOT = wx.PyEventBinder(EVT_PLOT_TYPE, 1)
 
-REQUEST_CONFIG_UPDATE = "configuration.requestuodate"
-CONFIG_UPDATED = "configuration.updated"
 
 NEW_DATA_WINDOW = "datawindow.new"
 FOCUSED_DATA_WINDOW = "datawindow.focus"
@@ -110,9 +108,6 @@ class DataWindowEvent(wx.PyCommandEvent):
 
     def GetData(self):
         return self.data
-
-    def GetDataId(self):
-        return id(data)
 
     def GetConfig(self):
         return self.config

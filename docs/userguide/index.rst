@@ -3,7 +3,7 @@ User Guide
 
 .. image:: /images/toolbar.png
   :width: 100%
-  :alt: Alternative text
+  :alt: The FLIMAnalyzer toolbar
   
 .. toctree::
     :maxdepth: 2
@@ -12,6 +12,8 @@ User Guide
     data/index 
     analysis/index  
     plots/index
-    workflows     
+    workflows
     settings
+    batch
+    execution
 

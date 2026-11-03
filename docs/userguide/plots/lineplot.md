@@ -1,46 +1,46 @@
 # Line Plot
 
-The `Line Plot` tool creates line plots based on mean +/- StDev (or S.E.M) of grouped data.
+The `Line Plot` tool creates line plots of grouped data. Each point on a line shows the mean of a group. The error bars (or a band, see `Error style`) show a confidence interval (95% by default) or the standard deviation, as set with `Error`.
 
-**Menu Access:** `Plot` > `Lineplot`
+**Menu Access:** `Plot` > `Line Plot`
 
 **Toolbar Icon:** ![](/images/analysis/lineplot.png)
 
 ## Creating the Plot
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selectd table window to the front.
+1. Go to the `Window` menu and select one of the data tables. The table window comes to the front.
     ![](/images/data/dataframe.png)
 
-2. Start the Line Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `Line Plot` menu.
+2. Start the Line Plot tool by clicking on its icon in the tool panel or via the `Plot` > `Line Plot` menu.
 
-3. In the `Configuration: Line Plot` dialog, select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. The first item in the grouping list specifies the categories along the x-axis of the plot. Data features correspond to columns with numeric data, `FAD a1`, etc..
+3. In the `Configuration: Line Plot` dialog, select the grouping and the features to plot. Data grouping options are based on the tables category columns,  i.e. `Treatment`, `FOV`, and `Cell` in this example. The first column in the grouping list sets the categories along the x axis. Data features correspond to columns with numeric data, `FAD a1`, etc..
 
-    In the example, input data is grouped by `Treatment` and `FOV`. 
+    In the example, `FLIRR` is plotted, grouped by `Treatment` and `FOV`.
 
     ![](/images/analysis/lineplot-config-grouping.png)
 
 4. Click `OK`.
 
-5. Each selected data feature is plotted as separate set of lines in the same plot.
+5. Each selected feature is plotted as a separate set of lines in the same plot.
 
 ```{note}
-The plot layout and grouping of bars can be changed by altering the order of the data grouping elements. See examples below.
+To change the plot layout, change the order of the grouping columns. See the examples below.
 ```
 
 ## Example Output
 
-**Example Results:** `Data Grouping` - Treatment, FOV
+**Example Results:** `Grouping` - Treatment, FOV
 
 ![](/images/analysis/lineplot-result1-grouping.png)
 
 
-In this example, the `Ctrl` group values differ for each `FOV`. To facilitate comparison of series trends, the input data may first be converted with the [Relative Change Analysis](/userguide/analysis/relchange/) tool to fold-change values relative to mean/median of reference group, i.e. `Treatment` > `Ctrl`, before plotting.   
+In this example, the `Ctrl` values differ from one `FOV` to the next. This makes it hard to compare the trends of the lines. To make this easier, first convert the data with the [Relative Change](/userguide/analysis/relchange/) tool. It turns each value into a fold change relative to the mean or median of a reference group, here `Treatment` > `Ctrl`. Then plot the converted data.   
 
-**Example Results:** `Data Grouping` - FOV, Treatment after `Relative Change` conversion.
+**Example Results:** `Grouping` - FOV, Treatment, of FLIRR relative to `ctrl` (see [Relative Change](/userguide/analysis/relchange))
 
 ![](/images/analysis/lineplot-result2-grouping.png)
 
 
 ```{note}
-Plots can be manipulated and saved as described in the [Plots](/userguide/plots/index) section.
+You can change and save plots as described in the [Plots](/userguide/plots/index) section.
 ```

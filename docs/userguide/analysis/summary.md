@@ -1,32 +1,36 @@
-# Summary Table
+# Summarize
 
-The `Summary Table` tool calculates counts, min, max, mean, median (50th percentile), 25th percentile, and 75th percentile, StDev, S.E.M,  of grouped data.
+The `Summarize` tool calculates the count, minimum, maximum, mean, median (50th percentile), 25th and 75th percentiles, standard deviation, standard error of the mean and sum for each group of the data.
 
-**Menu Access:** `Analysis` > `Summary Table`
+**Menu Access:** `Analysis` > `Summarize`
 
 **Toolbar Icon:** ![](/images/analysis/summary.png)
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front.
     ![](/images/data/dataframe.png)
 
-2. Start the Summary Table tool by clicking on the icon in the toolbar or via the `Analysis` > `Summary Table` menu.
+2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Summarize` menu.
 
-3. In the `Configuration: Summary Table` dialog, select the analysis features, data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
+3. In the `Configuration: Summarize` dialog, select the `Statistics` to calculate, the `Grouping` and the `Features`. You can group by the table's category columns, here `Treatment`, `FOV` and `Cell`. The features are the columns with numeric data, such as `FAD a1`.
+
+    `Single table` puts all features into one table. Uncheck it to get one table per feature.
+
+    In the example, `count`, `mean`, `std` (standard deviation), `sem` (standard error of the mean) and `median` are calculated for `FAD a1[%]` and `FLIRR`.
 
     ![](/images/analysis/summary-config-nogrouping.png)
 
-The `Output` option lets you decide whether all computed summary values are combined into a `single table` or separated by feature, e.g. `one table per feature`.
-
 4. Click `OK`.
 
-5. The analysis results are shown in new data table, with each row representing one particular data group and aggregated numbers shown in individual columns.
+5. The results are shown in a new data table, with a row for each group and a column for each feature and statistic. The column headers have two lines: the feature and the statistic.
 
-## Example Outputs
+## Example Output
 
-**Example Results:** `Data Grouping` - None
+**Example Results:** `Grouping` - none
+
 ![](/images/analysis/summary-result1-nogrouping.png)
 
-**Example Results:** `Data Grouping` - Treatment, FOV
+**Example Results:** `Grouping` - Treatment, FOV
+
 ![](/images/analysis/summary-result1-grouping.png)

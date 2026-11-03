@@ -14,7 +14,7 @@ import networkx as nx
 # (edge color, face color) per node kind
 NODE_COLORS = {
     "output": ((1.0, 0.5, 0.5), (1.0, 0.8, 0.8)),
-    "plugin": ((0.5, 0.5, 1.0), (0.8, 0.8, 1.0)),
+    "tool": ((0.5, 0.5, 1.0), (0.8, 0.8, 1.0)),
 }
 FAILED_EDGE_COLOR = (0.7, 0.0, 0.0)
 
@@ -22,7 +22,7 @@ FAILED_EDGE_COLOR = (0.7, 0.0, 0.0)
 class WorkflowGraph:
     """Plots the task graph recorded by :class:`flim.core.runner.FlowRun`.
 
-    Plugin calls are drawn in blue, data/result nodes in red. Failed tasks have a
+    Tool calls are drawn in blue, data/result nodes in red. Failed tasks have a
     dark red outline, skipped tasks are faded.
     """
 
@@ -39,7 +39,8 @@ class WorkflowGraph:
         pos = {}
         for level, nodes in enumerate(nx.topological_generations(self.graph)):
             nodes = sorted(nodes, key=lambda n: int(n[1:]))  # call order
-            widths = [len(self.graph.nodes[n]["label"]) + 4 for n in nodes]
+            # the label and a gap: boxed labels of neighbours don't touch
+            widths = [len(self.graph.nodes[n]["label"]) + 6 for n in nodes]
             x = -sum(widths) / 2
             for node, width in zip(nodes, widths):
                 pos[node] = (x + width / 2, -level * 3)
@@ -62,7 +63,8 @@ class WorkflowGraph:
         if ax is None:
             if pos:
                 xs = [x for x, _ in pos.values()]
-                width = max(6, min(40, (max(xs) - min(xs) + 20) * 0.075))
+                # ~0.1 inch per character of a label (font size 9 and its box)
+                width = max(6, min(40, (max(xs) - min(xs) + 20) * 0.1))
                 height = max(3, min(30, len({y for _, y in pos.values()}) * 0.6 + 1))
             else:
                 width, height = 6, 3
@@ -79,7 +81,7 @@ class WorkflowGraph:
             )
         for node, (x, y) in pos.items():
             attrs = self.graph.nodes[node]
-            ec, fc = NODE_COLORS.get(attrs["kind"], NODE_COLORS["plugin"])
+            ec, fc = NODE_COLORS.get(attrs["kind"], NODE_COLORS["tool"])
             if attrs["status"] == "failed":
                 ec = FAILED_EDGE_COLOR
             ax.text(

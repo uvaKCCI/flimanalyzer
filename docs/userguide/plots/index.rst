@@ -1,17 +1,17 @@
 Plots
 ========
 
-Plotting tools are used to visualize a table's data. Most plotting tools allow the grouping of the table's data by categorical column values. Grouping can be performed by single category or combination of multiple categories. Headers of categorical columns have a light blue background; all other column headers are displayed with a gray background. 
+The plotting tools show the data of a table as plots. Most plotting tools can group the data by the values in category columns. You can group by a single category column or by several. In the table, the headers of category columns have a light blue background. All other column headers have a gray background.
 
 Select a Data Table
 -------------------
 
-The shown example table contains the following categorical columns that may be used for data grouping: `Cell, Compartment, FOV, Treatment`.  Grouping by multiple categories follows a customizable hierarchical order. 
+The example table has these category columns, which you can use to group the data: `Cell`, `Compartment`, `FOV` and `Treatment`. When you group by several columns, the order of the columns matters: the data is grouped by the first column, then by the second, and so on. You can change this order.
 
 .. image:: /images/data/dataframe.png
 
 .. note::
-    Changing the order of the grouping hierarchy changes the visualization layout in most plots. The specific effects of different grouping hierarchies on data visualization are  tool dependent and described with examples in the following subsections.
+    In most plots, changing the order of the grouping columns changes the plot layout. The effect depends on the tool. The page of each tool shows examples.
 
 Create a Plot
 -------------
@@ -21,38 +21,41 @@ Create a Plot
    :header-rows: 1
 
    * - Icon
-     - Analysis Tool
+     - Plot Tool
      - Description
    * - .. image:: /images/analysis/barplot.png 
-     - `Barplot <barplot.html>`_
-     - Creates bar plot based on mean +/- StDev (or S.E.M)<br> of grouped data.
+     - `Bar Plot <barplot.html>`_
+     - Creates bar plots of the mean +/- standard deviation (or S.E.M.) of grouped data.
    * - .. image:: /images/analysis/boxplot.png 
-     - `Boxplot <boxplot.html>`_
-     - Creates box plot of grouped data. 
+     - `Box Plot <boxplot.html>`_
+     - Creates box plots of grouped data.
    * - .. image:: /images/analysis/lineplot.png 
-     - `Lineplot <lineplot.html>`_
-     - Creates line plot of grouped data. 
+     - `Line Plot <lineplot.html>`_
+     - Creates line plots of grouped data.
    * - .. image:: /images/analysis/swarmplot.png 
-     - `Swarmplot <swarmplot.html>`_
-     - Creates swarm plot of grouped data. 
+     - `Swarm Plot <swarmplot.html>`_
+     - Creates swarm plots of grouped data.
    * - .. image:: /images/analysis/violinplot.png 
-     - `Violinplot <violinplot.html>`_
-     - Creates violin plot of grouped data. 
+     - `Violin Plot <violinplot.html>`_
+     - Creates violin plots of grouped data.
    * - .. image:: /images/analysis/scatter.png 
      - `Scatter Plot <scatter.html>`_
-     - Creates scatter plot for pairs of selected features in grouped data. 
+     - Creates scatter plots of pairs of selected features in grouped data.
+   * - .. image:: /images/analysis/pairplot.png
+     - `Pair Plot <pairplot.html>`_
+     - Creates a grid of scatter plots of feature pairs in grouped data.
    * - .. image:: /images/analysis/histogram.png 
      - `Frequency Histogram <histogram.html>`_
-     - Creates frequency histogram of grouped data. 
+     - Creates frequency histograms of grouped data.
    * - .. image:: /images/analysis/kde.png 
      - `KDE Plot <kde.html>`_
-     - Creates kernel density estimate (kde) plot of grouped data.
+     - Creates kernel density estimate (KDE) plots of grouped data.
    * - .. image:: /images/analysis/heatmap.png 
      - `Heatmap <heatmap.html>`_
-     - Creates heatmap for matrix of data features based on mean of grouped data. 
+     - Creates a heatmap of the correlations between features, using all rows.
    * - .. image:: /images/analysis/flirrplot.png 
      - `FLIRR Plot <flirr.html>`_
-     - Creates several plots for FLIRR visualization.  
+     - Creates a figure with several plots of FLIRR.
 
 .. toctree::
     :maxdepth: 2
@@ -65,6 +68,7 @@ Create a Plot
     swarmplot
     violinplot
     scatter
+    pairplot
     histogram
     kde
     heatmap
@@ -72,5 +76,5 @@ Create a Plot
 
 Save a Plot
 -----------
-While selecting the configuration settings for a given plot, there is an `Autosave` checkbox that saves the produced plot. Simply click on the checkbox and use the `Choose` button to select a directory to save the file to.
+To save a plot automatically, check `Save results in` in the plot's configuration dialog. Then choose the folder to save the plot in, next to the checkbox.
 

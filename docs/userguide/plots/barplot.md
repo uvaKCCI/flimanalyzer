@@ -1,48 +1,50 @@
 # Bar Plot
 
-The `Bar Plot` tool creates bar plots based on mean +/- StDev (or S.E.M) of grouped data.
+The `Bar Plot` tool creates bar plots of grouped data. Each bar shows the mean of a group, with the standard deviation or the standard error of the mean (S.E.M.) as error bars.
 
-**Menu Access:** `Plot` > `Bar plot`
+**Menu Access:** `Plot` > `Bar Plot`
 
 **Toolbar Icon:** ![](/images/analysis/barplot.png)
 
 ## Creating the Plot
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front.
+1. Go to the `Window` menu and select one of the data tables. The table window comes to the front.
     ![](/images/data/dataframe.png)
 
-2. Start the Bar Plot tool by clicking on the icon in the toolbar or via the `Analysis` > `Bar Plot` menu.
+2. Start the Bar Plot tool by clicking on its icon in the tool panel or via the `Plot` > `Bar Plot` menu.
 
-3. In the `Configuration: Bar Plot` dialog, define the orientation of the bars, error bar, and error type.
-    - `Orientation`: Specifies the orientation of the bars, either `horizontal` or `vertical`.
-    - `Error bar`: Specifies whether an error bar is shown and whether the error bar is plotted unidirectionally (`+`) or symmetrically (`+/-`).
-    - `Error type`: Either standard deviation (`std`) or standard error of the mean (`s.e.m`).
+3. In the `Configuration: Bar Plot` dialog, set up the bars and their error bars.
+    - `Orientation`: `vertical` or `horizontal` bars.
+    - `Bars`: `single` makes one plot per feature. `stacked` puts all features in one plot, stacked on top of each other. `100% stacked` does the same, with the stacked parts shown as percentages of their sum.
+    - `Error bars`: no error bars (`None`), error bars on one side of the bar only (`+`), or on both sides (`+/-`).
+    - `Error`: standard deviation (`std`) or standard error of the mean (`s.e.m.`).
+    - `Drop missing`: leaves out rows that have no value.
     
     ![](/images/analysis/barplot-config-grouping.png)
 
-4. Select the data grouping and data features of interest. Data grouping options are based on the tables category columns,  i.e. `Cell`, `Compartment`, `FOV`, and `Treatment` in this example. Data features correspond to columns with numeric data, `FAD a1`, etc..
+4. Select the grouping and the features to plot. You can group the data by the table's category columns, here `Treatment`, `FOV` and `Cell`. The features are the columns with numbers, such as `FAD a1`.
 
-    In the example, input data is grouped by `Treatment` and `FOV`.  
+    In the example, `FLIRR` is plotted, grouped by `Treatment` and `FOV`.
 
-4. Click `OK`.
+5. Click `OK`.
 
-5. The data for each analysis feature is plotted in its own plot window.
+6. Each selected feature is plotted in its own plot window.
 
 ```{note}
-The plot layout and grouping of bars can be changed by altering the order of the data grouping elements. See examples below.
+To change the plot layout and how the bars are grouped, change the order of the grouping columns. See the examples below.
 ```
 
 ## Example Output
 
-**Example Results:** `Data Grouping` - Treatment, FOV
+**Example Results:** `Grouping` - Treatment, FOV
 
 ![](/images/analysis/barplot-result1-grouping.png)
 
 
-**Example Results:** `Data Grouping` - FOV, Treatment
+**Example Results:** `Grouping` - FOV, Treatment
 
 ![](/images/analysis/barplot-result2-grouping.png)
 
 ```{note}
-Plots can be manipulated and saved as described in the [Plots](/userguide/plots/index) section.
+You can change and save plots as described in the [Plots](/userguide/plots/index) section.
 ```

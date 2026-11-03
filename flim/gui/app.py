@@ -8,52 +8,39 @@ Created on Mon May  7 21:00:30 2018
 
 import matplotlib
 
-# matplotlib.use('WXAgg')
-import matplotlib.pyplot as plt
-
 import logging
 import os
-import numpy as np
-import itertools
 import pandas as pd
-import json
-import ctypes
 import wx
 import wx.adv
-import wx.lib.agw.customtreectrl as CT
 
 from pubsub import pub
 from flim._version import __version__
 from wx.lib.newevent import NewEvent
 from importlib_resources import files
 
-import flim.analysis
-import flim.core.configuration as cfg
 import flim.core.parser
 import flim.core.preprocessor
 import flim.gui.dialogs
-import flim.plugin as plugin
 import flim.resources
-import flim.workflow
-from flim.core.configuration import Config
+import flim.workflow  # noqa: F401  (registers the workflows)
+from flim.core.settings import AppSettings, load_settings, save_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
-from flim.core.filter import RangeFilter
+from flim.core.paths import canonical_folder
 from flim.core.graph import WorkflowGraph
+from flim.core.workflow import Workflow
+from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
 from flim.core.runner import run_flow
-from flim.plugin import PLUGINS, AbstractPlugin
-from flim.gui.delimpanel import DelimiterPanel
+from flim.gui.configdialog import open_config_dialog
+from flim.gui.icons import tool_bitmap
 from flim.gui.macos import set_bundle_name, set_display_name
 from flim.gui.plotframe import PlotFrame
 from flim.gui.progressdlg import RunProgressDialog, RunSummaryDialog
 from flim.gui.datapanel import PandasFrame
-from flim.gui.dialogs import ConfigureCategoriesDlg
-from flim.gui.dialogs import SelectGroupsDlg, ConfigureAxisDlg
-from flim.gui.dicttablepanel import DictTable, ListTable
+from flim.gui.dialogs import ConfigureAxisDlg
 from flim.gui.events import (
-    DataUpdatedEvent,
     EVT_DATAUPDATED,
-    EVT_DU_TYPE,
     DataWindowEvent,
     EVT_DATA,
     EVT_DATA_TYPE,
@@ -61,35 +48,42 @@ from flim.gui.events import (
     EVT_PLOT,
     EVT_PLOT_TYPE,
 )
-from flim.gui.events import REQUEST_CONFIG_UPDATE, CONFIG_UPDATED
 from flim.gui.events import (
     FOCUSED_DATA_WINDOW,
     NEW_DATA_WINDOW,
     CLOSING_DATA_WINDOW,
     REQUEST_RENAME_DATA_WINDOW,
     RENAMED_DATA_WINDOW,
-    NEW_PLOT_WINDOW,
     DATA_IMPORTED,
-    FILTERS_UPDATED,
-    FILTERED_DATA_UPDATED,
-    DATA_UPDATED,
-    ANALYSIS_BINS_UPDATED,
 )
 from flim.gui.importdlg import ImportDlg
-from flim.gui.listcontrol import (
-    AnalysisListCtrl,
-    FilterListCtrl,
-    EVT_FILTERUPDATED,
-    EVT_ANALYSISUPDATED,
-)
-from flim.gui.seriesfiltertree import SeriesFilterCtrl
-from flim.workflow.basicflow import AbsWorkFlow
+from flim.gui.listcontrol import EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
+import flim.tools  # noqa: F401  (registers the built-in tools)
+
+# field editors of the tools that need more than the generated dialog
+import flim.gui.dialogs.autoencoder  # noqa: F401
+import flim.gui.dialogs.categoryorder  # noqa: F401
+import flim.gui.dialogs.filter  # noqa: F401
+import flim.gui.dialogs.unpivot  # noqa: F401
+# settings read at startup, if there are (else the defaults)
+DEFAULT_SETTINGS_FILE = "defaults.json"
+DOCS_URL = "https://flimanalyzer.readthedocs.io"
+
+
+def startup_settings() -> AppSettings:
+    """The settings in DEFAULT_SETTINGS_FILE (of any version), else the defaults."""
+    if os.path.isfile(DEFAULT_SETTINGS_FILE):
+        try:
+            return load_settings(DEFAULT_SETTINGS_FILE)
+        except Exception:
+            logging.exception(f"Settings in {DEFAULT_SETTINGS_FILE} could not be read")
+    return AppSettings.default()
+
 
 ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
 DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
-DEFAULT_CONFIFG_FILE = "defaults.json"
 
 
 def app_icon():
@@ -110,11 +104,11 @@ class FLIMAnalyzerApp(wx.App):
         """
         self.flimanalyzer = flimanalyzer
         self.files = list(files or [])
-        if config is None or not isinstance(config, Config):
-            self.config = Config()
-            self.config.read_from_json(DEFAULT_CONFIFG_FILE, defaultonfail=True)
-        else:
-            self.config = config
+        # tools of other packages, and their dialogs (entry points)
+        discover(TOOLS_GROUP)
+        discover(GUI_GROUP)
+        # AppSettings; default: startup_settings()
+        self.settings = config if config is not None else startup_settings()
         set_bundle_name("FLIMAnalyzer")  # before wx registers the app with macOS
         super().__init__()
 
@@ -122,7 +116,7 @@ class FLIMAnalyzerApp(wx.App):
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
         set_display_name("FLIMAnalyzer")
-        self.frame = AppFrame(self.flimanalyzer, self.config)
+        self.frame = AppFrame(self.flimanalyzer, self.settings)
         self.dock_icon = None
         if wx.Platform == "__WXMAC__":
             # the Dock shows the Python icon unless it is replaced here
@@ -156,15 +150,13 @@ class FLIMAnalyzerApp(wx.App):
 
 
 class AppFrame(wx.Frame):
-    def __init__(self, flimanalyzer, config=None):
+    def __init__(self, flimanalyzer, settings=None):
+        """
+        Args:
+            settings: AppSettings (default: their defaults).
+        """
         self.flimanalyzer = flimanalyzer
-        if config:
-            self.config = config
-        else:
-            self.config = cfg.Config()
-            self.config.create_default()
-        # self.analyzers = flim.analysis.absanalyzer.get_analyzer_classes()
-        # self.workflows = flim.workflow.basicflow.get_workflow_classes()
+        self.settings = settings if settings is not None else AppSettings.default()
         # self.rawdata = None
         # self.data = None
         # self.filtereddata = None
@@ -203,22 +195,30 @@ class AppFrame(wx.Frame):
         importmenuitem = filemenu.Append(
             wx.ID_ANY, "Import...", "Import and concatenate mutliple data files"
         )
-        exitmenuitem = filemenu.Append(wx.ID_ANY, "Exit", "Exit the application")
-        settingsmenu = wx.Menu()
-        loadsettingsitem = settingsmenu.Append(wx.ID_ANY, "Load settings...")
-        savesettingsitem = settingsmenu.Append(wx.ID_ANY, "Save settings...")
+        filemenu.AppendSeparator()
+        loadsettingsitem = filemenu.Append(
+            wx.ID_ANY, "Import Settings...", "Use the settings in a settings file"
+        )
+        savesettingsitem = filemenu.Append(
+            wx.ID_ANY, "Export Settings...", "Save the settings to a file"
+        )
+        filemenu.AppendSeparator()
+        # standard ids: wx moves Exit (Quit) to the app menu on macOS
+        exitmenuitem = filemenu.Append(wx.ID_EXIT, "E&xit", "Exit the application")
 
         self.windowmenu = wx.Menu()
         closeallitem = self.windowmenu.Append(wx.ID_ANY, "Close all windows")
         self.windowmenu.AppendSeparator()
 
+        helpmenu = wx.Menu()
+        docsitem = helpmenu.Append(wx.ID_ANY, "Documentation", "Open the online documentation")
+        aboutitem = helpmenu.Append(wx.ID_ABOUT, "About FLIMAnalyzer")
+
         menubar.Append(filemenu, "&File")
-        menubar.Append(settingsmenu, "&Settings")
-        for plugintype in PLUGINS:
-            menubar.Append(
-                self._create_plugin_menu(plugintype, add_tools=True), f"&{plugintype}"
-            )
+        for category in tools.categories():
+            menubar.Append(self._create_tool_menu(category), f"&{category}")
         menubar.Append(self.windowmenu, "&Window")
+        menubar.Append(helpmenu, "&Help")
 
         self.SetMenuBar(menubar)
         self.Bind(wx.EVT_MENU, self.OnLoadData, loadmenuitem)
@@ -227,6 +227,8 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
+        self.Bind(wx.EVT_MENU, self.OnDocumentation, docsitem)
+        self.Bind(wx.EVT_MENU, self.OnAbout, aboutitem)
 
         self._layout_tool_groups(rows=2)
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -323,18 +325,15 @@ class AppFrame(wx.Frame):
             start = end
         self.toolpanel.SetSizer(panel_sizer)
 
-    def _create_plugin_menu(self, menuname, add_tools=False):
+    def _create_tool_menu(self, category):
         menu = wx.Menu()
-        plugins = PLUGINS[menuname]
-        tools = []
-        for pname, pclass in plugins.items():
-            plg = plugin.create_instance(pclass)
-            menuitem = menu.Append(wx.ID_ANY, pname)
-            self.Bind(wx.EVT_MENU, self.on_run_plugin, menuitem)
-            if add_tools:
-                tools.append((pname, plg.get_icon(), self.on_run_plugin))
-        if tools:
-            self._add_tool_group(menuname, tools)
+        buttons = []
+        for tool in tools.by_category()[category]:
+            item = menu.Append(wx.ID_ANY, tool.name)
+            handler = lambda event, tool=tool: self.run_tool(tool)
+            self.Bind(wx.EVT_MENU, handler, item)
+            buttons.append((tool.name, tool_bitmap(tool), handler))
+        self._add_tool_group(category, buttons)
         return menu
 
     #    def OnNewDataWindow(self, data, frame):
@@ -368,16 +367,14 @@ class AppFrame(wx.Frame):
         dlg = ImportDlg(
             self,
             "Open File",
-            self.config,
+            self.settings,
             parsefname=False,
             preprocess=False,
             singlefile=True,
         )
         if dlg.ShowModal() == wx.ID_OK:
-            config = dlg.get_config()
-            self.open_data_files(
-                config.get([cfg.CONFIG_INCLUDE_FILES]), config.get([cfg.CONFIG_DELIMITER])
-            )
+            imported = dlg.get_settings().import_
+            self.open_data_files(imported.include_files, imported.delimiter)
 
     def open_data_files(self, files, delimiter=None):
         """Opens data files in a data window, as File > Open does.
@@ -391,7 +388,7 @@ class AppFrame(wx.Frame):
             str: title of the data window, or None if no file could be read.
         """
         importer = dataimporter()
-        importer.set_delimiter(delimiter or self.config.get([cfg.CONFIG_DELIMITER]))
+        importer.set_delimiter(delimiter or self.settings.import_.delimiter)
         importer.set_files(list(files))
         importer.set_parser(None)
         importer.set_preprocessor(None)
@@ -419,28 +416,29 @@ class AppFrame(wx.Frame):
         return windowtitle
 
     def OnImportData(self, event):
-        dlg = ImportDlg(self, "Import File(s)", self.config)
+        dlg = ImportDlg(self, "Import File(s)", self.settings)
         if dlg.ShowModal() == wx.ID_OK:
-            config = dlg.get_config()
+            settings = dlg.get_settings()
+            imported, preprocess = settings.import_, settings.preprocess
 
-            parsername = config.get([cfg.CONFIG_PARSER_CLASS])
+            parsername = imported.filename_parser.parser
             parser = flim.core.parser.instantiate_parser(
                 "flim.core.parser." + parsername
             )
             if parser is None:
                 logging.warning(f"Could not instantiate parser {parsername}")
                 return
-            parser.set_regexpatterns(config.get([cfg.CONFIG_PARSER_PATTERNS]))
+            parser.set_regexpatterns(imported.filename_parser.patterns)
 
             preprocessor = defaultpreprocessor()
-            preprocessor.set_replacementheaders(config.get([cfg.CONFIG_HEADERS]))
-            preprocessor.set_dropcolumns(config.get([cfg.CONFIG_DROP_COLUMNS]))
+            preprocessor.set_replacementheaders(preprocess.rename)
+            preprocessor.set_dropcolumns(preprocess.drop)
 
             importer = dataimporter()
             importer.set_parser(parser)
-            importer.set_delimiter(config.get([cfg.CONFIG_DELIMITER]))
-            importer.set_files(config.get([cfg.CONFIG_INCLUDE_FILES]))
-            importer.set_column_combos(config.get([cfg.CONFIG_CATEGORY_COMBINATIONS]))
+            importer.set_delimiter(imported.delimiter)
+            importer.set_files(imported.include_files)
+            importer.set_column_combos(imported.category_combinations)
             importer.set_preprocessor(preprocessor)
             data, filenames, fheaders = importer.import_data()
             if data is None:
@@ -465,76 +463,44 @@ class AppFrame(wx.Frame):
             self.GetEventHandler().ProcessEvent(event)
 
     def OnLoadSettings(self, event):
-        logging.debug("Loading settings.")
         with wx.FileDialog(
             self,
-            "Load Configuration file",
+            "Import Settings",
             wildcard="json files (*.json)|*.json",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            configfile = fileDialog.GetPath()
-            config = Config()
-            if config.read_from_json(configfile):
-                missing, invalid = config.validate()
-                if len(missing) == 0 and len(invalid) == 0:
-                    self.config = config
-                else:
-                    message = ""
-                    if len(missing) > 0:
-                        message += "Missing keys:\n%s\n\n" % "\n".join(
-                            [str(m) for m in missing]
-                        )
-                    if len(invalid) > 0:
-                        message += "Missing values:\n%s\n\n" % "\n".join(
-                            [str(i) for i in invalid]
-                        )
-                    dlg = wx.MessageDialog(
-                        None,
-                        message + "\nDo you want to try to fix them?",
-                        "Error: Loaded settings are not valid.",
-                        wx.YES_NO | wx.ICON_QUESTION,
-                    )
-                    result = dlg.ShowModal()
-                    if result == wx.ID_YES:
-                        if config.fix():
-                            self.config = config
-                        else:
-                            wx.MessageBox(
-                                "Attempt to fix settings failed",
-                                "Error",
-                                wx.OK | wx.ICON_INFORMATION,
-                            )
-                            return
-                    else:
-                        return
-                pub.sendMessage(
-                    CONFIG_UPDATED,
-                    source=self,
-                    config=self.config,
-                    updated=self.config.get(),
-                )
-            else:
-                wx.MessageBox(
-                    "Error loading settings from %s" % configfile,
-                    "Error",
-                    wx.OK | wx.ICON_INFORMATION,
-                )
+            path = fileDialog.GetPath()
+        try:
+            self.load_settings(path)
+        except Exception as err:
+            logging.exception(f"Settings in {path} could not be read")
+            wx.MessageBox(
+                f"Could not load the settings in {path}:\n{err}",
+                "Import Settings",
+                wx.OK | wx.ICON_ERROR,
+            )
+
+    def load_settings(self, path) -> None:
+        """Uses the settings in a file (of any version, see flim.core.settings); the
+        sections it does not have (e.g. other tools') stay as they are."""
+        self.settings = load_settings(path, self.settings)
 
     def OnSaveSettings(self, event):
-        logging.debug("appframe.OnSaveSettings")
-        logging.debug(self.config.get())
         with wx.FileDialog(
             self,
-            "Save Configuration file",
+            "Export Settings",
             wildcard="json files (*.json)|*.json",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            configfile = fileDialog.GetPath()
-            self.config.write_to_json(configfile)
+            self.save_settings(fileDialog.GetPath())
+
+    def save_settings(self, path) -> None:
+        """Saves the settings (in the current version)."""
+        save_settings(self.settings, path)
 
     def get_currentdata(self):
         if len(self.window_zorder) == 0:
@@ -559,124 +525,73 @@ class AppFrame(wx.Frame):
             return
         pass
 
-    def on_run_plugin(self, event):
-        itemid = event.GetId()
-        evtobj = event.GetEventObject()
-        pluginname = ""
-        if isinstance(evtobj, wx.BitmapButton):
-            pluginname = evtobj.GetName()
-        else:
-            pluginname = evtobj.FindItemById(itemid).GetItemLabelText()
-        logging.debug(f"{event.GetId()}, {pluginname}")
-
-        plugin_class = next(
-            plugin.get_plugin_class(pluginname)
-        )  # flim.analysis.absanalyzer.get_analyzer_classes()[analyzername]
-        tool = plugin.create_instance(plugin_class)  # , data_choices=data_choices)
-        _, parentkeys = self.config.get_parent(
-            [cfg.CONFIG_PLUGINS, pluginname], returnkeys=True
-        )
-        parameters, keys = self.config.get(
-            [cfg.CONFIG_PLUGINS, pluginname], returnkeys=True
-        )
-
-        # get top level data and all open data tables as options
+    def tool_data_choices(self):
+        """The open tables, the current one first."""
         title, currentdata = self.get_currentdata()
         data_choices = {title: currentdata} if title else {}
         data_choices.update(self.get_alldata())
-        input = {
-            title: data_choices[title]
-            for i, title in enumerate(data_choices)
-            if i < len(tool.input_definition())
-        }
-        logging.debug(f"input={input.keys()}, data_choices={data_choices.keys()}")
-        if len(input) < len(tool.input_definition()):
-            wx.MessageBox(
-                f"Analysis tool {tool} requires at least"
-                f" {len(tool.input_definition())} data table[s].",
-                "Warning",
-                wx.OK,
-            )
+        return data_choices
+
+    def run_tool(self, tool):
+        """Configures a tool in its dialog and runs it on the selected tables."""
+        data_choices = self.tool_data_choices()
+        if not data_choices:
+            wx.MessageBox("Open or import data first.", tool.name, wx.OK)
             return
-
-        # configure tool and execte analysis
-        parameters["input"] = input
-        tool.configure(**parameters)
-
-        parameters = tool.run_configuration_dialog(self, data_choices=data_choices)
-        if parameters is None:
+        config = self.settings.tool_settings.config(tool)
+        entry = self.settings.tool_settings.entry(tool)
+        folder = (entry and entry.results_dir) or self.settings.working_dir
+        execution = self.flimanalyzer.execution.model_copy(
+            update={
+                "autosave": bool(entry and entry.autosave) and bool(folder),
+                "results_dir": folder,
+            }
+        )
+        is_workflow = issubclass(tool, Workflow)
+        result = open_config_dialog(
+            self,
+            tool,
+            config,
+            data_choices=data_choices,
+            execution=execution,
+            autosave_locked=is_workflow,  # workflows always save their results
+        )
+        if result is None:
             return
-        self.config.update(parameters, keys)
+        self.settings.tool_settings.set(
+            tool,
+            result.config,
+            result.execution.autosave,
+            result.execution.results_dir,
+        )
 
-        if "saveconfig" in parameters and parameters["saveconfig"]:
-            self.config.write_to_json(
-                configfile=os.path.join(parameters["config_file"]),
-                searchkey=[cfg.CONFIG_PLUGINS, pluginname],
-            )
-
-        logging.debug(f"Updating keys={keys}")
-        features = parameters["features"]
-        categories = parameters["grouping"]
-
-        req_features = tool.get_required_features()
-        not_any_features = [f for f in req_features if f != "any"]
-        if (
-            features is None
-            or len(features) < len(req_features)
-            or not all(f in features for f in not_any_features)
-        ):
-            wx.MessageBox(
-                f"Analysis tool {tool} requires selection of at least"
-                f" {len(req_features)} data features, including {not_any_features}.",
-                "Warning",
-                wx.OK,
-            )
-            return
-
-        req_categories = tool.get_required_categories()
-        not_any_categories = [c for c in req_categories if c != "any"]
-        if len(req_categories) > 0 and (
-            categories is None
-            or len(categories) < len(req_categories)
-            or not all(c in categories for c in not_any_categories)
-        ):
-            wx.MessageBox(
-                f"Analysis tool {tool} requires selection of at least"
-                f" {len(req_categories)} groups, including {not_any_categories}.",
-                "Warning",
-                wx.OK,
-            )
-            return
-
-        # get list of configure parameters for parallel processing
-        mapped_params = tool.get_mapped_parameters()
         task_runner = self.flimanalyzer.get_task_runner()
-        is_workflow = isinstance(tool, AbsWorkFlow)
+        execution = result.execution
         if is_workflow:
-            # workflows always save their results
-            autosave_dir = os.path.join(parameters["working_dir"], tool.name)
+            folder = canonical_folder(execution.results_dir or self.settings.working_dir)
+            autosave_dir = os.path.join(folder, tool.name)
 
             def start_run(cancel_token, on_progress, on_start):
-                return tool.run_flow(
+                return tool().run_flow(
+                    *result.inputs,
+                    config=result.config,
                     task_runner=task_runner,
                     autosave_dir=autosave_dir,
                     on_progress=on_progress,
                     cancel_token=cancel_token,
                     on_start=on_start,
+                    strict=False,  # in the GUI: columns guessed, as the dialog showed
                 )
 
         else:
-            autosave_dir = None
-            if parameters["autosave"]:
-                autosave_dir = (
-                    parameters["working_dir"]
-                    if os.path.isdir(parameters["working_dir"])
-                    else self.config.get(cfg.CONFIG_WORKINGDIR)
-                )
+            configs = tool().map_configs(result.config)
+            autosave_dir = (
+                canonical_folder(str(execution.results_dir)) if execution.autosave else None
+            )
 
             def interactive_analysis():
-                for p in mapped_params:
-                    tool(**p, task_tags=tool.name)
+                for config in configs:
+                    tool()(*result.inputs, config=config, task_tags=tool.name)
 
             def start_run(cancel_token, on_progress, on_start):
                 return run_flow(
@@ -689,49 +604,44 @@ class AppFrame(wx.Frame):
                     on_start=on_start,
                 )
 
-        flow_run = self.run_with_progress(pluginname, start_run)
+        flow_run = self.run_with_progress(tool.name, start_run)
         if flow_run is None:
             return  # cancelled or stopped by an error, already reported
-
-        if not is_workflow:
-            result_list = flow_run.results()
-            logging.debug(f"Results: {len(result_list)}")
-
-            # handle results, DataFrames or Figure objects
-            for results in result_list:
-                if isinstance(results, dict):
-                    for title, result in results.items():
-                        if isinstance(result, pd.DataFrame):
-                            # result = result.reset_index()
-                            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-                            event.SetEventInfo(
-                                result, title, "createnew", showcolindex=False
-                            )
-                            self.GetEventHandler().ProcessEvent(event)
-                        elif isinstance(result, matplotlib.figure.Figure):
-                            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-                            event.SetEventInfo(result, title, "createnew")
-                            self.GetEventHandler().ProcessEvent(event)
-        else:
-            # show flow graph
-            wg = WorkflowGraph(flow_run)
-            fig, _ = wg.get_plot(
-                pick_event=self.OnPick,  # motion_notify_event=self._on_hover
-            )
-            event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-            event.SetEventInfo(fig, f"{flow_run.name} Graph", "createnew")
-            self.GetEventHandler().ProcessEvent(event)
-
         if is_workflow:
+            self.show_workflow_graph(flow_run)
             # always: how the run ended, its results folder and Prefect flow run
-            self.show_run_summary(pluginname, flow_run)
-        elif flow_run.failed:
+            self.show_run_summary(tool.name, flow_run)
+            return
+        self.show_results(flow_run)
+        if flow_run.failed:
             wx.MessageBox(
                 "The following tasks failed, see the log for details:\n"
                 + "\n".join(flow_run.failed),
-                pluginname,
+                tool.name,
                 wx.OK | wx.ICON_WARNING,
             )
+
+    def show_workflow_graph(self, flow_run):
+        """Opens a window with the graph of a workflow's tasks."""
+        fig, _ = WorkflowGraph(flow_run).get_plot(pick_event=self.OnPick)
+        event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+        event.SetEventInfo(fig, f"{flow_run.name} Graph", "createnew")
+        self.GetEventHandler().ProcessEvent(event)
+
+    def show_results(self, flow_run):
+        """Opens a window for each table and figure the run produced."""
+        for results in flow_run.results():
+            if not isinstance(results, dict):
+                continue
+            for title, result in results.items():
+                if isinstance(result, pd.DataFrame):
+                    event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                    event.SetEventInfo(result, title, "createnew", showcolindex=False)
+                    self.GetEventHandler().ProcessEvent(event)
+                elif isinstance(result, matplotlib.figure.Figure):
+                    event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
+                    event.SetEventInfo(result, title, "createnew")
+                    self.GetEventHandler().ProcessEvent(event)
 
     def run_with_progress(self, title, start_run):
         """Runs a flow behind a modal progress dialog with a Cancel button.
@@ -794,7 +704,6 @@ class AppFrame(wx.Frame):
 
     def OnDataWindowRequest(self, event):
         data = event.GetData()
-        config = self.config  # event.GetConfig()
         action = event.GetAction()
         title = event.GetTitle()
         logging.debug(f"{title}: {action}")
@@ -812,7 +721,7 @@ class AppFrame(wx.Frame):
             frame = PandasFrame(
                 self,
                 title,
-                config,
+                self.settings.filters,  # shared: changed in any data window
                 data,
                 showcolindex=event.ShowColIndex(),
                 analyzable=event.IsAnalyzable(),
@@ -845,25 +754,7 @@ class AppFrame(wx.Frame):
 
     def OnPick(self, event):
         if not event.mouseevent.dblclick:
-            """
-            try:
-                print(event.artist.get_label())
-                obj_id = int(event.artist.get_label())
-                py_obj = ctypes.cast(obj_id, ctypes.py_object).value
-                if issubclass(type(py_obj), AbstractPlugin):
-                    py_obj.run_configuration_dialog(self)
-                elif issubclass(type(py_obj), State):
-                    print(py_obj.result)
-                    print(f"is_mappeed={py_obj.is_mapped()}, {py_obj._result.location}")
-                title, window = self._get_window_frame(obj_id)
-                if window:
-                    self._raise_window(title, window)
-                else:
-                    if issubclass(type(py_obj), AbstractPlugin):
-                        py_obj.run_configuration_dialog(self)
-            except Exception as e:
-                logging.error(e)
-            """
+            return  # only double clicks open the axis and label dialogs
         else:
             ax = event.artist.axes
             fig = event.artist.get_figure()
@@ -968,6 +859,19 @@ class AppFrame(wx.Frame):
     def OnExit(self, event):
         self.Close()
 
+    def OnDocumentation(self, event):
+        wx.LaunchDefaultBrowser(DOCS_URL)
+
+    def OnAbout(self, event):
+        info = wx.adv.AboutDialogInfo()
+        info.SetName("FLIMAnalyzer")
+        info.SetVersion(__version__)
+        info.SetDescription(
+            "Analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data"
+        )
+        info.SetWebSite(DOCS_URL)
+        wx.adv.AboutBox(info, self)
+
     def get_window_frames(self):
         return [
             x
@@ -981,8 +885,8 @@ class AppFrame(wx.Frame):
         while title in self.windowframes:
             if suffix:
                 title = title[: -len(suffix)]
-            suffix = "-%d" % i
-            title = "%s%s" % (title, suffix)
+            suffix = f"-{i}"
+            title = f"{title}{suffix}"
             i += 1
         return title
 
@@ -1046,5 +950,4 @@ class AppFrame(wx.Frame):
         updated = event.GetUpdatedItems()
         logging.debug(f"appframe.OnAnalysisUpdated - {len(updated)} Analysis updated:")
         for key in updated:
-            u = updated[key]
-            logging.debug("\t {key} {str(u))}")
+            logging.debug(f"\t {key} {updated[key]}")

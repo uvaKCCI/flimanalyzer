@@ -1,25 +1,29 @@
-"""Runs flimanalyzer plugins as Prefect 3 tasks inside Prefect flows.
+"""Runs flimanalyzer tools as Prefect 3 tasks inside Prefect flows.
 
-Workflows are written as plain Python that calls plugin instances, e.g.::
+Workflows are written as plain Python that calls tools (:class:`flim.core.tool.Tool`),
+e.g.::
 
     def build():
-        data = DataBucket(name="Input")(input=df, input_select=[0])
-        summary = SummaryStats()(input=data, grouping=["Treatment"], features=["FLIRR"])
-        KDE().map(input=unmapped(data), features=[["FLIRR"], ["trp t1"]])
+        data = workflow_input(df)
+        summary = Summarize()(
+            data, config=SummaryConfig(grouping=["Treatment"], features=["FLIRR"])
+        )
+        for feature in ("FLIRR", "trp t1"):
+            KDE()(data, config=KDEConfig(features=[feature]))
 
     run = run_flow("My Workflow", build)
 
-Inside :func:`run_flow` each plugin call becomes a Prefect task run and returns a
+Inside :func:`run_flow` each tool call becomes a Prefect task run and returns a
 :class:`TaskOutput` handle. Handles can be indexed (``summary["Table: ..."]``) and
-passed to other plugin calls; the dependencies between calls are recorded in
+passed to other tool calls; the dependencies between calls are recorded in
 ``run.graph`` (a networkx DiGraph) for the workflow plot.
 
-Every plugin call is submitted to the flow's task runner: Prefect starts a task once
+Every tool call is submitted to the flow's task runner: Prefect starts a task once
 its inputs (results of other tasks) are ready and runs independent tasks concurrently,
 up to the task runner's number of workers and the tag concurrency limits configured on
 the Prefect server (each task is tagged with its ``task_tags``). Without an explicit
 task runner, a ``ThreadPoolTaskRunner`` with :func:`default_max_workers` threads is
-used. Plugins that draw figures hold :data:`pyplot_lock`, as pyplot is not thread-safe.
+used. Tools that draw figures hold :data:`pyplot_lock`, as pyplot is not thread-safe.
 """
 
 import contextlib
@@ -31,9 +35,8 @@ import os
 import re
 import threading
 import uuid
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
-import matplotlib.figure
 import networkx as nx
 from prefect import flow, tags, task, unmapped
 from prefect.cache_policies import NO_CACHE
@@ -43,6 +46,7 @@ from prefect.settings import get_current_settings
 from prefect.states import Cancelled
 from prefect.task_runners import ThreadPoolTaskRunner
 
+from flim.core.tool import TaskCancelled, pyplot_lock, release_figures
 from flim.results import clean_path_component, save_results
 
 __all__ = [
@@ -61,18 +65,8 @@ __all__ = [
 
 _CURRENT_RUN = contextvars.ContextVar("flim_flow_run", default=None)
 _MARKER = "__flim_task_output__"
+_AFTER = "__flim_after__"  # tasks a tool call waits for, see call_tool
 
-# pyplot's figure registry and current-figure state are shared by all threads: tasks
-# that draw figures take turns, all other tasks run concurrently
-pyplot_lock = threading.RLock()
-
-
-class TaskCancelled(Exception):
-    """Raised by :meth:`flim.plugin.AbstractPlugin.cancel` to stop the running task.
-
-    Prefect handles it like any other exception (the task run ends Failed and tasks
-    that depend on it are not run); the runner records the task as cancelled.
-    """
 
 
 class _RunCancelled(Exception):
@@ -80,7 +74,7 @@ class _RunCancelled(Exception):
 
 
 class CancelToken:
-    """Run-wide cancel signal, see :meth:`flim.plugin.AbstractPlugin.check_cancelled`.
+    """Run-wide cancel signal, see :meth:`flim.core.tool.Tool.check_cancelled`.
 
     A threading.Event in this process; with a Dask task runner it is mirrored in a
     ``distributed.Event`` so that tasks running in other processes see it too.
@@ -145,7 +139,7 @@ def Parameter(name: str, default: Any = None) -> Any:
 
 
 class TaskOutput:
-    """Handle to the (possibly not yet computed) result of a plugin call."""
+    """Handle to the (possibly not yet computed) result of a tool call."""
 
     def __init__(self, ref: Any, node: Optional[str], keys: tuple = ()):
         self.ref = ref  # result value or PrefectFuture
@@ -201,37 +195,27 @@ def _resolve(obj: Any) -> Any:
     return obj
 
 
-def _run_plugin(plugin, kwargs: Dict[str, Any]):
-    """Runs a plugin; plugins that draw figures hold pyplot_lock.
+def _run_tool(tool, kwargs: Dict[str, Any]):
+    """Runs a tool; tools that draw figures hold pyplot_lock.
 
     Kept out of the task function: Dask pickles that by value together with the
     globals it uses, and a lock cannot be pickled.
     """
-    plugin.check_cancelled()  # tasks that start after a cancel stop right away
-    draws = getattr(plugin, "draws_figures", False)
+    tool.check_cancelled()  # tasks that start after a cancel stop right away
+    draws = getattr(tool, "draws_figures", False)
     with pyplot_lock if draws else contextlib.nullcontext():
         if draws:
-            plugin.check_cancelled()  # the run may have been cancelled while waiting
-        started = getattr(plugin, "_notify_started", None)
+            tool.check_cancelled()  # the run may have been cancelled while waiting
+        started = getattr(tool, "_notify_started", None)
         if started is not None:
             started()
-        results = plugin.run(**_unwrap(kwargs))
-    _release_figures(results)
+        # tools (flim.core.tool.Tool) run with run_task(inputs, config)
+        run = tool.run_task
+        kwargs = _unwrap(kwargs)
+        kwargs.pop(_AFTER, None)  # only waited for
+        results = run(**kwargs)
+    release_figures(results)
     return results
-
-
-def _release_figures(results):
-    """Removes result figures from pyplot's registry, which keeps every figure it
-    created until it is closed. The figures stay usable (saving, showing)."""
-    if not isinstance(results, dict):
-        return
-    figures = [v for v in results.values() if isinstance(v, matplotlib.figure.Figure)]
-    if figures:
-        import matplotlib.pyplot as plt
-
-        with pyplot_lock:
-            for figure in figures:
-                plt.close(figure)
 
 
 def _retry_unless_cancelled(task, task_run, state) -> bool:
@@ -250,9 +234,9 @@ def _retry_unless_cancelled(task, task_run, state) -> bool:
     task_run_name="{label}",
     retry_condition_fn=_retry_unless_cancelled,
 )
-def run_plugin(plugin, label: str, kwargs: Dict[str, Any], autosave: Optional[dict]):
-    """Prefect task that runs a single plugin call."""
-    results = _run_plugin(plugin, kwargs)
+def run_tool(tool, label: str, kwargs: Dict[str, Any], autosave: Optional[dict]):
+    """Prefect task that runs a single tool call."""
+    results = _run_tool(tool, kwargs)
     if autosave:
         save_results(results, **autosave)
     return results
@@ -282,7 +266,7 @@ FINAL_STATUSES = ("completed", "failed", "cancelled", "skipped")
 
 
 class FlowRun:
-    """Records and executes the plugin calls made while a flow is running."""
+    """Records and executes the tool calls made while a flow is running."""
 
     def __init__(
         self,
@@ -310,6 +294,7 @@ class FlowRun:
         self.complete = False  # True once the workflow script has made all its calls
         self.start_time = datetime.datetime.now()
         self.end_time = None
+        self.notes: List[str] = []  # for the run summary, e.g. guessed columns
         self.graph = nx.DiGraph()
         self._label_counts = {}
         self._key_nodes = {}
@@ -322,7 +307,7 @@ class FlowRun:
         return node
 
     def _key_node(self, node: str, keys: tuple) -> str:
-        """Node representing an item (e.g. a table) of a plugin's result dict."""
+        """Node representing an item (e.g. a table) of a tool's result dict."""
         if not keys:
             return node
         cache_key = (node, keys)
@@ -351,17 +336,16 @@ class FlowRun:
         return label if n == 0 else f"{label}-{n}"
 
     # execution -----------------------------------------------------------------
-    def call(self, plugin, kwargs: Dict[str, Any], task_tags=None) -> TaskOutput:
-        """Runs (or submits) one plugin call and returns a handle to its result."""
+    def call(self, tool, kwargs: Dict[str, Any], task_tags=None) -> TaskOutput:
+        """Runs (or submits) one tool call and returns a handle to its result."""
         # each call gets its own copy so calls don't share configuration
-        plugin = copy.copy(plugin)
-        plugin.params = dict(plugin.params)
-        plugin._cancel_token = self.cancel_token
+        tool = copy.copy(tool)
+        tool._cancel_token = self.cancel_token
 
         tag_list = [task_tags] if isinstance(task_tags, str) else list(task_tags or [])
-        label = self._unique_label(plugin.name)
-        node = self._add_node(label, getattr(plugin, "graph_kind", "plugin"), plugin=plugin)
-        plugin._notify_started = _StartNotifier(self, node)
+        label = self._unique_label(tool.name)
+        node = self._add_node(label, getattr(tool, "graph_kind", "tool"), tool=tool)
+        tool._notify_started = _StartNotifier(self, node)
         upstream = set()
         payload = self._to_payload(kwargs, upstream)
         for u in upstream:
@@ -393,10 +377,15 @@ class FlowRun:
                 "name": label,
             }
 
+        # tools write files they produce (e.g. models) next to the saved results
+        tool._output_dir = autosave["directory"] if autosave else None
+
         # Prefect starts the task once the futures among its inputs are completed and
-        # skips it (state NotReady) if one of them did not complete
-        with tags(*tag_list):
-            ref = run_plugin.submit(plugin, label, payload, autosave)
+        # skips it (state NotReady) if one of them did not complete. Besides the
+        # workflow's tags (which also name the results folders), every task is tagged
+        # with its tool's name, so that concurrency limits on a tool apply everywhere.
+        with tags(*dict.fromkeys(tag_list + [tool.name])):
+            ref = run_tool.submit(tool, label, payload, autosave)
         with self._lock:
             self.graph.nodes[node]["ref"] = ref
         self._report_progress(label)
@@ -414,6 +403,7 @@ class FlowRun:
             state = ref.state
             if state.is_completed():
                 attrs.update(status="completed", ref=ref.result())
+                attrs["resources"] = _granted(attrs.get("tool"))
             elif state.is_pending() and state.name == "NotReady":
                 attrs.update(status="skipped", ref=None, message=state.message)
                 logging.warning(f"Skipped {attrs['label']}: upstream task did not complete.")
@@ -424,6 +414,15 @@ class FlowRun:
                 attrs.update(status="failed", ref=None, message=state.message)
                 logging.error(f"{attrs['label']} failed: {state.message}")
         self._report_progress(attrs["label"])
+
+    def resources(self) -> List[tuple]:
+        """(label, resources) of every completed task whose resources are known."""
+        with self._lock:
+            return [
+                (a["label"], a["resources"])
+                for _, a in self.graph.nodes(data=True)
+                if a.get("resources")
+            ]
 
     def _mark_running(self, node: str):
         with self._lock:
@@ -436,13 +435,13 @@ class FlowRun:
     def tasks(self) -> List[tuple]:
         """(label, status) of every task so far, in call order."""
         with self._lock:
-            return [(a["label"], a["status"]) for _, a in self.graph.nodes(data=True) if "plugin" in a]
+            return [(a["label"], a["status"]) for _, a in self.graph.nodes(data=True) if "tool" in a]
 
     def _report_progress(self, label: str):
         if self.on_progress is None:
             return
         with self._lock:
-            tasks = [a for _, a in self.graph.nodes(data=True) if "plugin" in a]
+            tasks = [a for _, a in self.graph.nodes(data=True) if "tool" in a]
             done = sum(a["status"] in FINAL_STATUSES for a in tasks)
         try:
             self.on_progress(done, len(tasks), label, self.complete)
@@ -458,11 +457,11 @@ class FlowRun:
                 self._record(node)
 
     def results(self) -> List[Any]:
-        """Results of all completed plugin calls, in call order."""
+        """Results of all completed tool calls, in call order."""
         return [
             attrs["ref"]
             for _, attrs in self.graph.nodes(data=True)
-            if "plugin" in attrs and attrs["status"] == "completed"
+            if "tool" in attrs and attrs["status"] == "completed"
         ]
 
     def _labels(self, status: str) -> List[str]:
@@ -478,14 +477,14 @@ class FlowRun:
 
     def cancel(self):
         """Cancels the run: no new tasks start, and running tasks stop at their next
-        :meth:`~flim.plugin.AbstractPlugin.check_cancelled`."""
+        :meth:`~flim.core.tool.Tool.check_cancelled`."""
         self.cancel_token.set()
 
     def task_counts(self) -> Dict[str, int]:
         """Number of tasks per status (completed, failed, cancelled, skipped, ...)."""
         counts = {}
         for _, attrs in self.graph.nodes(data=True):
-            if "plugin" in attrs:
+            if "tool" in attrs:
                 counts[attrs["status"]] = counts.get(attrs["status"], 0) + 1
         return counts
 
@@ -504,7 +503,7 @@ class FlowRun:
             return None
         os.makedirs(self.autosave_dir, exist_ok=True)
         counts = self.task_counts()
-        tasks = [a for _, a in self.graph.nodes(data=True) if "plugin" in a]
+        tasks = [a for _, a in self.graph.nodes(data=True) if "tool" in a]
         width = max([len(a["label"]) for a in tasks] + [4])
         lines = [
             "FLIMAnalyzer run summary",
@@ -517,15 +516,38 @@ class FlowRun:
             f"Results:    {self.autosave_dir}",
             "Tasks:      " + ", ".join(f"{n} {s}" for s, n in sorted(counts.items())),
             "",
-            f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  Message",
         ]
-        for a in tasks:
+        if self.notes:
+            lines += ["Notes:"] + [f"  {note}" for note in self.notes] + [""]
+        granted = [a.get("resources") or "" for a in tasks]
+        res_width = max([len(r) for r in granted] + [len("Resources")])
+        lines.append(
+            f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  {'Resources'.ljust(res_width)}"
+            "  Message"
+        )
+        for a, resources in zip(tasks, granted):
             message = (a.get("message") or "").replace("\n", " ")
-            lines.append(f"{a['label'].ljust(width)}  {a['status'].ljust(9)}  {message}".rstrip())
+            lines.append(
+                f"{a['label'].ljust(width)}  {a['status'].ljust(9)}"
+                f"  {resources.ljust(res_width)}  {message}".rstrip()
+            )
         path = os.path.join(self.autosave_dir, "run_summary.txt")
         with open(path, "w") as f:
             f.write("\n".join(lines) + "\n")
         return path
+
+
+def _granted(tool) -> Optional[str]:
+    """The device and threads a tool ran with, e.g. "cpu, 4 threads" (None if unknown:
+    a tool, or a task run in another process)."""
+    if tool is None or getattr(tool, "graph_kind", "tool") != "tool":
+        return None  # e.g. a workflow's input
+    context = vars(tool).get("context")
+    if context is None or not hasattr(context, "device"):
+        return None
+    threads = f"{context.threads} thread{'s' if context.threads != 1 else ''}"
+    note = f" ({context.note})" if context.note else ""
+    return f"{context.device}, {threads}{note}"
 
 
 def current_run() -> Optional[FlowRun]:
@@ -533,40 +555,30 @@ def current_run() -> Optional[FlowRun]:
     return _CURRENT_RUN.get()
 
 
-def call_plugin(plugin, **kwargs):
-    """Calls a plugin: runs it as a task inside a flow, or directly otherwise."""
-    task_tags = kwargs.pop("task_tags", None)
-    kwargs.pop("task_run_name", None)
-    kwargs = {k: (v.value if isinstance(v, unmapped) else v) for k, v in kwargs.items()}
+def call_tool(tool, inputs, config=None, task_tags=None, after=()):
+    """Calls a tool (:class:`flim.core.tool.Tool`) with its inputs and config: as a task
+    inside a flow, or directly otherwise.
+
+    ``after``: TaskOutput handles of tasks this one waits for although they are not
+    its inputs, e.g. those whose results (model files) its config names.
+    """
+    inputs = [v.value if isinstance(v, unmapped) else v for v in inputs]
+    from flim.core.validation import current_tracer  # imports this module
+
+    tracer = current_tracer()
+    if tracer is not None:  # a dry run, see flim.core.validation
+        return tracer.call(tool, inputs, config, task_tags)
     run = current_run()
     if run is None:
-        return plugin.run(**_resolve(kwargs))
-    return run.call(plugin, kwargs, task_tags=task_tags)
-
-
-def map_plugin(plugin, **kwargs) -> List[Any]:
-    """Calls a plugin once per element of each mapped (not ``unmapped``) argument."""
-    static = {k: v.value for k, v in kwargs.items() if isinstance(v, unmapped)}
-    mapped = {k: v for k, v in kwargs.items() if not isinstance(v, unmapped)}
-    for k, v in mapped.items():
-        if isinstance(v, TaskOutput):
-            # mapping over a list produced by another task
-            mapped[k] = [TaskOutput(item, v.node) for item in v.value() or []]
-    lengths = {len(v) for v in mapped.values()}
-    if len(lengths) > 1:
-        raise ValueError(
-            f"{plugin.name}: mapped arguments differ in length:"
-            f" { {k: len(v) for k, v in mapped.items()} }"
-        )
-    n = lengths.pop() if lengths else 0
-    return [
-        call_plugin(plugin, **static, **{k: v[i] for k, v in mapped.items()})
-        for i in range(n)
-    ]
+        return tool.run_task(inputs=_resolve(inputs), config=config)
+    kwargs = {"inputs": inputs, "config": config}
+    if after:
+        kwargs[_AFTER] = list(after)
+    return run.call(tool, kwargs, task_tags=task_tags)
 
 
 def select(outputs, key_pattern: str = "(.*?)", value_pattern: str = None) -> list:
-    """Selects result items whose key matches ``key_pattern`` from plugin outputs.
+    """Selects result items whose key matches ``key_pattern`` from tool outputs.
 
     If ``value_pattern`` is given, the matching items are expected to be lists and are
     flattened to the elements that match ``value_pattern``.
@@ -638,12 +650,13 @@ def run_flow(
     on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
     cancel_token: Optional[CancelToken] = None,
     on_start: Optional[Callable[[FlowRun], None]] = None,
+    notes: Sequence[str] = (),
 ) -> FlowRun:
-    """Runs ``build`` as a Prefect flow; plugin calls inside it become task runs.
+    """Runs ``build`` as a Prefect flow; tool calls inside it become task runs.
 
     Args:
         name: flow name shown in the Prefect UI.
-        build: callable that makes the plugin calls.
+        build: callable that makes the tool calls.
         task_runner: Prefect task runner; ``None`` uses :func:`default_task_runner`.
         autosave_dir: if set, every task's results are saved below this directory
             (``<autosave_dir>/<timestamp>/<task tags>/``).
@@ -652,12 +665,14 @@ def run_flow(
             another thread.
         on_start: called with the :class:`FlowRun` once Prefect has created the flow
             run (``flow_run_id`` and ``ui_url`` are known), before the first task.
+        notes: lines for the run summary, e.g. the guesses a validation applied.
 
     Returns:
         FlowRun: recorded task graph and results; ``state`` is completed,
         cancelled or failed (some tasks failed).
     """
     run = FlowRun(name, on_progress=on_progress, cancel_token=cancel_token)
+    run.notes = list(notes)
     if autosave_dir:
         run.autosave_dir = os.path.join(
             autosave_dir, run.start_time.strftime("%Y-%m-%d_%H-%M-%S")

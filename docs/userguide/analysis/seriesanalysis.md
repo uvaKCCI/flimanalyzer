@@ -1,6 +1,6 @@
 # Series Analysis
 
-The `Series Analysis` tool performs an analysis of a data series spread across multiple table columns.  The series analysis is performed across selectable columns for each row.
+The `Series Analysis` tool analyzes a series of values that is spread across several columns of a table, e.g. the values of a time series after the table has been pivoted. It calculates statistics of the series in each row.
 
 **Menu Access:** `Analysis` > `Series Analysis`
 
@@ -8,34 +8,30 @@ The `Series Analysis` tool performs an analysis of a data series spread across m
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This will bring the selected table window to the front. If the series data is spread across multiple rows in a _single__ column, the data can be [pivoted](/userguide/data/pivot/) to arrange associated series data across multiple columns. The table below was created by pivoting the `Treatment` category. Each row represents the data across treatments grouped by `Cell`, `Compartment`, and `FOV`.
- 
+1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front.
+
+    If the series is spread across the rows of a single column, first [pivot](/userguide/data/pivot) the table, so that each value of the series has its own column. The table below was created by pivoting the `Treatment` column. Each row holds the mean `FAD a1[%]` and `NAD(P)H a2[%]` of one cell for each treatment.
+
     ![](/images/analysis/relpivot-result.png)
 
+2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Series Analysis` menu.
 
-2. Start the Series Analysis tool by clicking on the icon in the toolbar or via the `Analysis` > `Series Analysis` menu.
+3. In the `Configuration: Series Analysis` dialog, select the `Statistics` to calculate. Under `Features`, select the columns of the series, in their order (e.g. `FAD a1[%]` of `ctrl` through `Dox60`):
+    * `series_min`, `series_max`, `series_mean`, `series_median`: the minimum, maximum, mean and median of the series.
+    * `series_range`: the maximum minus the minimum.
+    * `delta`: the difference between each column and the column before it.
+    * `delta_min`, `delta_max`, `delta_sum`: the smallest difference, the largest difference, and the sum of all differences.
+    * `delta_cum`: the running total of the differences, starting from the first column.
+    * `delta_norm`: each difference divided by the total change from the first to the last column.
 
-3. In the `Configuration: Series Analysis` dialog, select the analysis parameters to calculate and select the data columns to be considered for the series analysis.
-
-    * **Series min:** Calculate minimal value row of selected data feature columns.
-    * **Series max:** Calculate maximal value row of selected data feature columns.
-    * **Series max-min:** Calculate difference of `Series max` and `Series min`.
-    * **Series mean:** Calculate mean value row of selected data feature columns.
-    * **Series median:** Calculate median value row of selected data feature columns.
-    * **Step delta:** Calculate difference between selected neighboring data feature columns (step-by-step). 
-    * **Step delta min:** Calculate minimal value of all delta step values.
-    * **Step delta max:** Calculate maximal value of all delta step values.
-    * **Merge input:** Copy selected series columns from input table into analysis table.
+    `Include the input` also copies the series' columns into the result.
 
     ![](/images/analysis/seriesanalysis-config.png)
 
 4. Click `OK`.
 
-5. The calculated data for each series is aggregated in a new table.
-
+5. The results are shown in a new data table, with one row for each row of the input.
 
 ## Example Output
-
-**Example Results:** 
 
 ![](/images/analysis/seriesanalysis-results.png)

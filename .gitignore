@@ -22,3 +22,7 @@ coverage.xml
 
 # IDE settings
 .idea/
+
+# local planning notes
+PLAN-*.md
+milestones.md

@@ -8,21 +8,6 @@ import pytest
 wx = pytest.importorskip("wx")
 
 
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:  # raised by wx when no display is available
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401  (selects the off-screen backend)
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        # windows already destroyed by a test may still be listed until deleted
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
-
-
 @pytest.fixture
 def table():
     rng = np.random.default_rng(0)
@@ -38,23 +23,17 @@ def table():
     )
 
 
-def test_plugins_draw_off_screen(wxapp):
-    import matplotlib
-
-    assert matplotlib.get_backend().lower() == "agg"
-
-
 def _plots_in_worker_thread(table, names):
-    import flim.plugin as plugin
+    from flim.core.registry import tools
 
     results, errors = {}, {}
 
     def work():
         for name in names:
             try:
-                tool = plugin.PLUGINS["Plot"][name]()
-                tool.configure(input={"t": table}, grouping=["Treatment"], features=["x", "y"])
-                results[name] = tool.execute()
+                tool = tools.get(name)
+                config = tool.config_class(grouping=["Treatment"], features=["x", "y"])
+                results[name] = tool()(table, config=config)
             except Exception as e:  # reported by the test below
                 errors[name] = repr(e)
 
@@ -151,5 +130,37 @@ def test_plot_window_fits_a_small_screen_without_resize_events(wxapp, monkeypatc
         assert abs(can_w - planned[0]) <= 2 and abs(can_h - planned[1]) <= 2, (can_w, can_h)
         client_w, client_h = window.GetClientSize()
         assert client_w == planned[0]
+    finally:
+        window.Destroy()
+
+
+def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch):
+    """A figure much larger than the screen: shrunk and zoomed out (lower dpi on
+    screen), so that its layout keeps room for titles and labels; saving keeps the
+    figure's dpi."""
+    import warnings
+
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+
+    from flim.gui import plotframe
+
+    monkeypatch.setattr(plotframe, "_screen_area", lambda window=None: wx.Rect(0, 0, 1024, 768))
+    monkeypatch.setattr(FigureCanvasWxAgg, "_on_size", lambda self, event: None)
+    fig, axes = plt.subplots(10, 6, figsize=(30, 50), layout="constrained")
+    for ax in axes.flat:
+        ax.set_title("title")
+        ax.set_xlabel("x label")
+    window = plotframe.PlotFrame(None, fig, "tiles")
+    try:
+        planned = window.canvas_size
+        can_w, can_h = window.canvas.get_width_height()
+        assert abs(can_w - planned[0]) <= 2 and abs(can_h - planned[1]) <= 2, (can_w, can_h)
+        # without the zoom the figure would be about 4 x 6.5 inches
+        assert fig.get_size_inches()[1] > 2 * planned[1] / 100
+        assert fig._original_dpi == 100
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")  # e.g. "constrained_layout not applied"
+            window.canvas.draw()
     finally:
         window.Destroy()

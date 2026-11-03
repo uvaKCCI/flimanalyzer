@@ -4,68 +4,28 @@ import time
 import numpy as np
 import pandas as pd
 import pytest
-from prefect import get_client
-from prefect.testing.utilities import prefect_test_harness
+from prefect import get_client, unmapped
 
 import flim.core.runner as runner
 from flim.core.runner import CancelToken, TaskCancelled, default_task_runner, run_flow
-from flim.plugin import AbstractPlugin
+from tests.fake_tools import WAIT, Counter, FakeConfig, Waiter
 
 
-@pytest.fixture(scope="module", autouse=True)
-def prefect_harness():
-    # temporary Prefect server and database, nothing is reported to a real server
-    with prefect_test_harness():
-        yield
-
-
-class Base(AbstractPlugin):
-    def get_required_categories(self):
-        return []
-
-    def get_required_features(self):
-        return []
-
-
-class Counter(Base):
-    """Counts its executions in a list shared by all copies."""
-
-    def __init__(self, name="Counter", calls=None, **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.calls = calls if calls is not None else []
-
-    def execute(self):
-        self.calls.append(self.name)
-        return {f"{self.name} done": True}
-
-
-class Looper(Counter):
-    """Long task that checks for cancellation every 20 ms (for up to 10 s)."""
-
-    def execute(self):
-        self.calls.append(self.name)
-        for _ in range(500):
-            self.check_cancelled()
-            time.sleep(0.02)
-        return {"looped": True}
+pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
 class Quitter(Counter):
     """Cancels itself."""
 
-    def execute(self):
+    def run(self, *inputs, config):
         self.calls.append(self.name)
         self.cancel("nothing to do")
 
 
 class Boom(Counter):
-    def execute(self):
+    def run(self, *inputs, config):
         self.calls.append(self.name)
         raise RuntimeError("boom")
-
-
-def _status(run):
-    return {a["label"]: a["status"] for _, a in run.graph.nodes(data=True) if "plugin" in a}
 
 
 def _prefect_flow_state(run):
@@ -75,7 +35,7 @@ def _prefect_flow_state(run):
 
 def test_cancel_outside_a_flow_raises():
     with pytest.raises(TaskCancelled, match="nothing to do"):
-        Quitter().run(input={})
+        Quitter()()
 
 
 def test_cancel_before_the_run_starts_nothing():
@@ -84,13 +44,13 @@ def test_cancel_before_the_run_starts_nothing():
     token.set()
 
     def build():
-        Counter(name="A", calls=calls)(input={})
-        Counter(name="B", calls=calls)(input={})
+        Counter(name="A", calls=calls)()
+        Counter(name="B", calls=calls)()
 
     run = run_flow("cancelled early", build, cancel_token=token)
     assert calls == []
     assert run.state == "cancelled"
-    assert _status(run) == {"A": "cancelled"}  # the script stops at the first call
+    assert dict(run.tasks()) == {"A": "cancelled"}  # the script stops at the first call
     assert _prefect_flow_state(run).is_cancelled()
 
 
@@ -99,32 +59,33 @@ def test_cancel_between_tasks():
     token = CancelToken()
 
     def build():
-        first = Counter(name="A", calls=calls)(input={})
+        first = Counter(name="A", calls=calls)()
         first.value()  # wait for A
         token.set()
-        Counter(name="B", calls=calls)(input={})
-        Counter(name="C", calls=calls)(input={})
+        Counter(name="B", calls=calls)()
+        Counter(name="C", calls=calls)()
 
     run = run_flow("cancelled between", build, cancel_token=token)
     assert calls == ["A"]
-    assert _status(run) == {"A": "completed", "B": "cancelled"}
+    assert dict(run.tasks()) == {"A": "completed", "B": "cancelled"}
     assert run.state == "cancelled"
     assert run.results() == [{"A done": True}]  # completed results are kept
 
 
 @pytest.mark.parametrize("workers", [1, 3])
 def test_cancel_stops_a_running_task(workers):
-    calls = []
     token = CancelToken()
+    started = threading.Event()
 
     def build():
-        Looper(name="Long", calls=calls)(input={})
+        Waiter(name="Long", started=started)()  # runs until cancelled
+        started.wait(WAIT)
+        token.set()
 
-    threading.Timer(0.3, token.set).start()
     start = time.monotonic()
     run = run_flow("cancel running", build, default_task_runner(workers), cancel_token=token)
-    assert time.monotonic() - start < 5  # instead of 10 s
-    assert _status(run) == {"Long": "cancelled"}
+    assert time.monotonic() - start < 5  # cancelled long before the Waiter gives up
+    assert dict(run.tasks()) == {"Long": "cancelled"}
     assert run.cancelled == ["Long"] and run.failed == []
     assert run.state == "cancelled"
 
@@ -134,9 +95,10 @@ def test_task_cancelling_itself_skips_only_its_dependents(dask):
     calls = []
 
     def build():
-        quit_ = Quitter(name="Quitter", calls=calls)(input={})
-        Counter(name="Dependent", calls=calls)(input=quit_)
-        Counter(name="Independent", calls=calls)(input={})
+        quit_ = Quitter(name="Quitter", calls=calls)()
+        Counter(name="Dependent", calls=calls)(quit_)
+        # an unmapped input is passed on as it is (also to Dask)
+        Counter(name="Independent", calls=calls)(unmapped(pd.DataFrame({"x": [1.0]})))
 
     task_runner = None
     if dask:
@@ -144,7 +106,7 @@ def test_task_cancelling_itself_skips_only_its_dependents(dask):
 
         task_runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": False})
     run = run_flow("self cancel", build, task_runner=task_runner)
-    assert _status(run) == {
+    assert dict(run.tasks()) == {
         "Quitter": "cancelled",
         "Dependent": "skipped",
         "Independent": "completed",
@@ -157,18 +119,18 @@ def test_task_cancelling_itself_skips_only_its_dependents(dask):
 
 def test_cancelled_task_is_never_retried(monkeypatch):
     monkeypatch.setattr(
-        runner, "run_plugin", runner.run_plugin.with_options(retries=2, retry_delay_seconds=0)
+        runner, "run_tool", runner.run_tool.with_options(retries=2, retry_delay_seconds=0)
     )
     calls = []
 
     def build():
-        Quitter(name="Quitter", calls=calls)(input={})
-        Boom(name="Boom", calls=calls)(input={})
+        Quitter(name="Quitter", calls=calls)()
+        Boom(name="Boom", calls=calls)()
 
     run = run_flow("retries", build)
     assert calls.count("Quitter") == 1
     assert calls.count("Boom") == 3  # other errors are retried as configured
-    assert _status(run) == {"Quitter": "cancelled", "Boom": "failed"}
+    assert dict(run.tasks()) == {"Quitter": "cancelled", "Boom": "failed"}
 
 
 def test_run_summary_and_prefect_link(tmp_path):
@@ -176,10 +138,10 @@ def test_run_summary_and_prefect_link(tmp_path):
     token = CancelToken()
 
     def build():
-        Counter(name="A", calls=calls)(input={}, task_tags="first").value()
-        Boom(name="Boom", calls=calls)(input={}).value()
+        Counter(name="A", calls=calls)(task_tags="first").value()
+        Boom(name="Boom", calls=calls)().value()
         token.set()
-        Counter(name="B", calls=calls)(input={})
+        Counter(name="B", calls=calls)()
 
     run = run_flow("summary", build, autosave_dir=str(tmp_path), cancel_token=token)
     assert run.state == "cancelled"
@@ -197,8 +159,8 @@ def test_progress_callback():
     progress = []
 
     def build():
-        Counter(name="A")(input={})
-        Counter(name="B")(input={})
+        Counter(name="A")()
+        Counter(name="B")()
 
     run_flow(
         "progress",
@@ -215,8 +177,8 @@ def test_progress_callback():
 
 def test_autoencoder_training_stops_within_an_epoch(tmp_path):
     pytest.importorskip("torch")
-    pytest.importorskip("wx")
-    from flim.analysis.aetraining import AETraining
+    from flim.configs import AETrainConfig
+    from flim.tools.autoencoder import AETraining
 
     rng = np.random.default_rng(0)
     n = 400
@@ -230,39 +192,28 @@ def test_autoencoder_training_stops_within_an_epoch(tmp_path):
     )
     token = CancelToken()
 
+    config = AETrainConfig(
+        features=[f"f{i}" for i in range(4)],
+        grouping=["FOV", "Cell"],
+        timeseries="Treatment",
+        model_name="AEModel",
+        epochs=100000,
+        checkpoint_interval=100000,
+        batch_sizes=[32],
+        create_plots=False,
+        resources={"preferred_device": "cpu"},
+    )
+
     def build():
-        AETraining()(
-            input={"data": data},
-            features=[f"f{i}" for i in range(4)],
-            grouping=["FOV", "Cell"],
-            timeseries="Treatment",
-            working_dir=str(tmp_path),
-            modelfile="AEModel",
-            epoches=100000,
-            checkpoint_interval=100000,
-            batch_size=[32],
-            create_plots=False,
-            device="cpu",
-        )
+        AETraining()(data, config=config)
 
     threading.Timer(1.0, token.set).start()
     start = time.monotonic()
-    run = run_flow("ae cancel", build, cancel_token=token)
+    # models are saved in the results folder
+    run = run_flow("ae cancel", build, autosave_dir=str(tmp_path), cancel_token=token)
     assert time.monotonic() - start < 30
     assert run.cancelled == ["Autoencoder: Train"]
-    assert not list(tmp_path.glob("*.model"))
-
-
-class MarkedLooper(Looper):
-    """Looper that creates a marker file when it starts (also in other processes)."""
-
-    def __init__(self, name="Marked", marker=None, **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.marker = marker
-
-    def execute(self):
-        open(self.marker, "w").close()
-        return super().execute()
+    assert not list(tmp_path.rglob("*.model"))
 
 
 def test_cancel_reaches_dask_worker_processes(tmp_path):
@@ -273,19 +224,21 @@ def test_cancel_reaches_dask_worker_processes(tmp_path):
     started = {}
 
     def cancel_once_started():
-        while not marker.exists():
+        end = time.monotonic() + 3 * WAIT  # the Dask cluster starts first
+        while not marker.exists() and time.monotonic() < end:
             time.sleep(0.05)
         started["at"] = time.monotonic()
         token.set()
 
     def build():
-        MarkedLooper(name="Long", marker=str(marker))(input={})
+        # runs until cancelled (its events cannot be sent to a worker process)
+        Waiter(name="Long")(config=FakeConfig(marker=str(marker)))
 
     threading.Thread(target=cancel_once_started, daemon=True).start()
     task_runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": True})
     run = run_flow("cancel dask processes", build, task_runner, cancel_token=token)
-    assert time.monotonic() - started["at"] < 5  # the task alone would take 10 s
-    assert _status(run) == {"Long": "cancelled"}
+    assert time.monotonic() - started["at"] < 5  # the task gives up after WAIT s
+    assert dict(run.tasks()) == {"Long": "cancelled"}
     assert run.state == "cancelled"
 
 
@@ -297,44 +250,48 @@ def test_tasks_report_running_and_start_callback():
         started.append(run.flow_run_id)
         holder["run"] = run
 
+    token = CancelToken()
+
     def on_progress(done, total, label, complete):
         statuses.append(dict(holder["run"].tasks()))
+        if "running" in statuses[-1].values():
+            token.set()  # cancel once it runs (busy machines start it late)
 
     def build():
-        Looper(name="Long")(input={}).value()  # loops ~10 s unless cancelled
+        Waiter(name="Long")().value()  # runs until cancelled (fails after WAIT s)
 
-    token = CancelToken()
-    threading.Timer(0.5, token.set).start()
     run = run_flow("running", build, on_progress=on_progress, cancel_token=token, on_start=on_start)
     assert started == [run.flow_run_id] and run.flow_run_id is not None
     assert {"Long": "running"} in statuses
     assert run.tasks() == [("Long", "cancelled")]
 
 
-class SlowPlot(Counter):
-    """Stands in for a plot tool: holds the plot lock for one second."""
+class SlowPlot(Waiter):
+    """Stands in for a plot tool: holds the plot lock until released."""
 
     draws_figures = True
-
-    def execute(self):
-        self.calls.append(self.name)
-        time.sleep(1.0)
-        return {f"{self.name} done": True}
 
 
 def test_cancel_stops_plot_tasks_waiting_for_the_plot_lock():
     calls = []
     token = CancelToken()
+    started, release = threading.Event(), threading.Event()
 
     def build():
         for i in range(4):
-            SlowPlot(name=f"Plot{i}", calls=calls)(input={})
+            SlowPlot(
+                name=f"Plot{i}",
+                calls=calls,
+                started=started,
+                release=release,
+                cancellable=False,
+            )()
+        started.wait(WAIT)  # all four submitted, one holds the plot lock
+        token.set()
+        release.set()
 
-    threading.Timer(0.5, token.set).start()
-    start = time.monotonic()
     run = run_flow("plots", build, default_task_runner(4), cancel_token=token)
-    # the first plot finishes, the three waiting for the lock stop at once
-    assert time.monotonic() - start < 2.5  # instead of 4 s
+    # the first plot finishes, the three waiting for the lock don't run
     assert len(calls) == 1
     counts = run.task_counts()
     assert counts == {"completed": 1, "cancelled": 3}

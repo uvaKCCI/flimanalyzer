@@ -1,0 +1,596 @@
+{
+ "Autoencoder: Augment Data": {
+  "add_noise": true,
+  "device": "auto",
+  "features": [],
+  "grouping": [],
+  "modelfile": "",
+  "prefix": null,
+  "sets": 1,
+  "snr_db": 0.0
+ },
+ "Autoencoder: Run": {
+  "device": "auto",
+  "features": [],
+  "grouping": [],
+  "modelfile": "",
+  "prefix": null
+ },
+ "Autoencoder: Train": {
+  "batch_size": [
+   128
+  ],
+  "checkpoint_interval": 20,
+  "create_plots": true,
+  "device": "auto",
+  "epoches": 20,
+  "features": [
+   "FAD a1",
+   "FAD a2",
+   "FAD t1",
+   "FAD t2",
+   "FAD photons",
+   "NAD(P)H a1",
+   "NAD(P)H a2",
+   "NAD(P)H t1",
+   "NAD(P)H t2",
+   "NAD(P)H photons"
+  ],
+  "grouping": [
+   "FOV",
+   "Cell"
+  ],
+  "learning_rate": [
+   0.0001
+  ],
+  "model": "AE Dimensionality Reduction 2-10",
+  "modelfile": "AEModel",
+  "prefix": null,
+  "rescale": false,
+  "timeseries": "Treatment",
+  "train_size": 0.7,
+  "weight_decay": [
+   1e-08
+  ]
+ },
+ "Bar Plot": {
+  "bar_type": "single",
+  "display": [
+   "auto",
+   "auto"
+  ],
+  "dropna": true,
+  "error_bar": "+/-",
+  "error_type": "std",
+  "features": [],
+  "grouping": [],
+  "legend": true,
+  "ordering": {},
+  "orientation": "vertical",
+  "prefix": null
+ },
+ "Box Plot": {
+  "features": [],
+  "grouping": [],
+  "prefix": null
+ },
+ "Categorize Data": {
+  "categories": [
+   {
+    "criteria": {
+     "feature": "FLIRR",
+     "max": -0.5,
+     "min": -100000.0
+    },
+    "value": "negative"
+   },
+   {
+    "criteria": {
+     "feature": "FLIRR",
+     "max": 0.5,
+     "min": -0.5
+    },
+    "value": "neutral"
+   },
+   {
+    "criteria": {
+     "feature": "FLIRR",
+     "max": 100000,
+     "min": 0.5
+    },
+    "value": "positive"
+   }
+  ],
+  "default": "unassigned",
+  "features": [],
+  "grouping": [],
+  "merge_input": true,
+  "name": "New Cat",
+  "prefix": null
+ },
+ "Concat Data": {
+  "features": [],
+  "grouping": [],
+  "numbers_only": false,
+  "prefix": null,
+  "source_suffix": true,
+  "type": false
+ },
+ "FLIRR Plot": {
+  "features": [],
+  "grouping": [],
+  "prefix": null
+ },
+ "Filter": {
+  "category_filters": {},
+  "features": [],
+  "grouping": [],
+  "inplace": false,
+  "prefix": null,
+  "range_filters": [],
+  "show_dropped": false,
+  "use": true
+ },
+ "Frequency Histogram": {
+  "bins": 30,
+  "cumulative": false,
+  "datatable": false,
+  "density": false,
+  "features": [],
+  "featuresettings": {
+   "FAD a1[%]": [
+    0,
+    100,
+    51,
+    [
+     "Treatment"
+    ]
+   ],
+   "FAD a1[%]/a2[%]": [
+    0,
+    16,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "FAD a2[%]": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "FAD chi": [
+    0.7,
+    4.7,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "FAD photons": [
+    0,
+    800,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "FAD t1": [
+    0,
+    4000,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "FAD t2": [
+    1000,
+    7000,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "FAD tm": [
+    0,
+    4000,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "FLIRR": [
+    0,
+    2.4,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "NAD(P)H a2[%]": [
+    0,
+    100,
+    51,
+    [
+     "Treatment"
+    ]
+   ],
+   "NAD(P)H chi": [
+    0.7,
+    4.7,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "NAD(P)H photons": [
+    0,
+    2000,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "NAD(P)H t1": [
+    0,
+    800,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "NAD(P)H t2": [
+    0,
+    400,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "NAD(P)H tm": [
+    0,
+    2000,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "NAD(P)H/NADH": [
+    0,
+    3,
+    31,
+    [
+     "Treatment"
+    ]
+   ],
+   "NADH %": [
+    0,
+    100,
+    51,
+    [
+     "Treatment"
+    ]
+   ],
+   "NADPH %": [
+    0,
+    99,
+    34,
+    [
+     "Treatment"
+    ]
+   ],
+   "NADPH a2/FAD a1": [
+    0,
+    10,
+    101,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp E%1": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp E%2": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp E%3": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp a1[%]": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp a1[%]/a2[%]": [
+    0,
+    2,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp a2[%]": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp chi": [
+    0,
+    4.7,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp photons": [
+    0,
+    160,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp r1": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp r2": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp r3": [
+    0,
+    100,
+    21,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp t1": [
+    0,
+    8000,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp t2": [
+    0,
+    8000,
+    81,
+    [
+     "Treatment"
+    ]
+   ],
+   "trp tm": [
+    0,
+    4000,
+    81,
+    [
+     "Treatment"
+    ]
+   ]
+  },
+  "grouping": [],
+  "histtype": "step",
+  "prefix": null,
+  "stacked": false
+ },
+ "Gaussian Mixed Model": {
+  "covar_type": "full",
+  "features": [],
+  "grouping": [],
+  "method": "EM",
+  "n_components": 2,
+  "prefix": null
+ },
+ "Heatmap": {
+  "corr_type": "pearson",
+  "features": [],
+  "grouping": [],
+  "numbers": false,
+  "prefix": null
+ },
+ "K-Means": {
+  "algorithm": "lloyd",
+  "cluster_prefix": "Cluster",
+  "features": [],
+  "grouping": [],
+  "init": "k-means++",
+  "max_iter": 300,
+  "n_clusters": 2,
+  "n_init": 4,
+  "prefix": null,
+  "tolerance": 0.0001
+ },
+ "KDE": {
+  "col_wrap": 5,
+  "features": [],
+  "grouping": [],
+  "prefix": null,
+  "return_plot": true,
+  "single_plot": false
+ },
+ "KS-Statistics": {
+  "alpha": 0.05,
+  "comparison": "Treatment",
+  "features": [],
+  "grouping": [],
+  "prefix": null
+ },
+ "Line Plot": {
+  "ci": 95,
+  "col": "",
+  "display": [
+   "auto",
+   "auto"
+  ],
+  "err_style": "bars",
+  "features": [],
+  "grouping": [],
+  "hue": "",
+  "markers": true,
+  "ordering": {},
+  "prefix": null,
+  "style": "",
+  "x": ""
+ },
+ "Merge": {
+  "features": [],
+  "grouping": [],
+  "how": "",
+  "left_index": [],
+  "prefix": null,
+  "right_index": []
+ },
+ "Order Categories": {
+  "categories": {},
+  "features": [],
+  "grouping": [],
+  "inplace": false,
+  "prefix": null
+ },
+ "PCA": {
+  "explainedhisto": false,
+  "features": [],
+  "grouping": [],
+  "keeporig": false,
+  "keepstd": true,
+  "n_components": 0.999,
+  "prefix": null
+ },
+ "Pair Plot": {
+  "corner": false,
+  "diag_kind": "Histogram",
+  "features": [],
+  "grouping": [],
+  "hist_bins": 20,
+  "plotting": "all",
+  "prefix": null,
+  "random_seed": 0,
+  "samples": 20000,
+  "x_vars": [],
+  "y_vars": []
+ },
+ "Pivot": {
+  "features": "all_features",
+  "grouping": [
+   "Treatment"
+  ],
+  "prefix": null
+ },
+ "Random Forest": {
+  "classifier": "",
+  "features": [],
+  "grouping": [],
+  "importancehisto": true,
+  "n_estimators": 100,
+  "prefix": null,
+  "test_size": 0.3
+ },
+ "Relative Change": {
+  "features": [],
+  "grouping": [],
+  "method": "mean",
+  "prefix": null,
+  "reference_group": "Treatment",
+  "reference_value": "Ctrl"
+ },
+ "Scatter Plot": {
+  "features": [],
+  "grouping": [],
+  "prefix": null
+ },
+ "Series Analysis": {
+  "delta": true,
+  "delta_cum": true,
+  "delta_max": true,
+  "delta_min": true,
+  "delta_norm": true,
+  "delta_sum": true,
+  "features": [],
+  "grouping": [],
+  "merge_input": false,
+  "prefix": null,
+  "series_max": true,
+  "series_mean": false,
+  "series_median": false,
+  "series_min": true,
+  "series_range": true
+ },
+ "Sort": {
+  "ascending": true,
+  "features": [],
+  "grouping": [],
+  "ignore_index": true,
+  "prefix": null
+ },
+ "Summarize": {
+  "aggs": [
+   "count",
+   "min",
+   "max",
+   "mean",
+   "std",
+   "sem",
+   "median",
+   "percentile(25)",
+   "percentile(75)",
+   "sum"
+  ],
+  "features": [],
+  "flattenindex": true,
+  "grouping": [],
+  "prefix": null,
+  "singledf": true
+ },
+ "Swarm Plot": {
+  "features": [],
+  "grouping": [],
+  "prefix": null
+ },
+ "Unpivot": {
+  "category_name": "Category",
+  "features": "all_features",
+  "grouping": [],
+  "level": "",
+  "prefix": null
+ },
+ "Violin Plot": {
+  "features": [],
+  "grouping": [],
+  "prefix": null
+ }
+}

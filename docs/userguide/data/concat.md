@@ -1,13 +1,13 @@
-# Concat Data
+# Concatenate
 
-The `Concat Data` tool combines two or more data sets.
+The `Concatenate` tool combines two or more data tables.
 
-**Menu Access:** `Data` > `Concat Data`
+**Menu Access:** `Data` > `Concatenate`
 
 **Toolbar Icon:** ![](/images/data/concatenate.png)
 
-By default, the 'Concat Data' tool copies the data from the selected data files and creates a new data table where the data sets are directly stacked, one above the other. The `Horizontal Concatenate` and `Numbers Only` options are used to... (ADD HERE) when selected. 
+By default (`Direction`: `Rows (stack below)`), the `Concatenate` tool copies the rows of the selected tables into a new data table, one table below the other. A `Source` column shows which table each row comes from. With `Direction`: `Columns (side by side)`, the columns of the tables are placed next to each other instead. In this case, `Numeric columns only` adds only the numeric columns of the second and later tables. The first table keeps all its columns.
 
-The following example configuration of the `Concat Data` tool will create a new table with all of the contents of example1.txt followed by the contents of example2.txt.
+In the `Configuration: Concatenate` dialog, check the open tables to concatenate under `Tables`. With the settings below, the tool creates a new table with all rows of `example1.txt`, followed by all rows of `example2.txt`.
 
 ![](/images/data/concat-config1.png)
