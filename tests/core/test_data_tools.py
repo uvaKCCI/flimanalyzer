@@ -320,3 +320,19 @@ def test_split_outputs_known_from_the_schema(data):
     schema = TableSchema.from_frame(data)
     outputs = Split.output_schema(SplitConfig(grouping=["Treatment"]), [schema])
     assert sorted(outputs) == ["Split: Treatment=KO", "Split: Treatment=WT"]
+
+
+def test_concat_horizontal_with_category_columns(data):
+    # #176: side by side without "Numeric columns only" used to crash on the
+    # vertical path's "Old Index" drop. Each table keeps its own columns.
+    wide = table(
+        Concat()(
+            {"A": data[["Treatment", "t1"]], "B": data[["FOV", "t2"]]},
+            config=ConcatConfig(mode="horizontal"),
+        )
+    )
+    assert list(wide.columns) == ["Treatment", "t1", "FOV", "t2"]
+    assert wide["Treatment"].dtype == "category"
+    assert wide["FOV"].dtype == "category"
+    assert len(wide) == len(data)
+    assert not isinstance(wide.columns, pd.MultiIndex)

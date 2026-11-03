@@ -76,9 +76,16 @@ class Concat(Tool[ConcatConfig]):
             ]
             return {"Concatenated": pd.concat(frames, axis=1, copy=True)}
         catcols = list(dict.fromkeys(c for df in frames for c in category_columns(df)))
+        if horizontal:
+            # Side by side there is no row a "Source" column could name, so each
+            # table keeps its own columns, as the numeric-only path above does.
+            concat = pd.concat(frames, axis=1, copy=True)
+            if catcols:
+                concat[catcols] = concat[catcols].astype("category")
+            return {"Concatenated": concat}
         concat = pd.concat(
             frames,
-            axis=1 if horizontal else 0,
+            axis=0,
             copy=True,
             keys=list(tables),
             names=["Source", "Old Index"],
