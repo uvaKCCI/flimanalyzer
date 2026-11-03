@@ -1,6 +1,6 @@
 # Concurrent and Distributed Execution
 
-Every tool and workflow step runs as a task. A task starts as soon as the results it needs are ready. Tasks that don't depend on each other run concurrently, without waiting for each other. Tasks that draw figures take turns, because matplotlib's plotting is not thread-safe.
+Every tool and workflow step runs as a task. A task starts as soon as the results it needs are ready. Tasks that don't depend on each other run concurrently, without waiting for each other. Within one process, tasks that draw figures take turns, because matplotlib's plotting is not thread-safe. With `LocalDaskExecutor` and `scheduler=processes`, or with a Dask cluster, each worker process draws on its own, so plots run in parallel.
 
 The *executor* decides where the tasks run. The same options work in the GUI (`flimanalyzer`) and in [batch mode](/userguide/batch) (`flimbatch`).
 
