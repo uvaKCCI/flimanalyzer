@@ -24,6 +24,12 @@ autodoc_mock_imports = [
     "wx",
 ]
 
+# scipy (imported by scikit-learn) checks at import time whether values are torch
+# tensors, with issubclass(..., torch.Tensor) when "torch" is loaded; a mocked torch
+# has no Tensor class. Import them here, before autodoc mocks torch.
+import scipy.stats  # noqa: E402,F401
+import sklearn  # noqa: E402,F401
+
 # wx.lib.newevent.NewEvent() is unpacked at import time, which a mock can't do
 import types
 
