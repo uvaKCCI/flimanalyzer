@@ -213,29 +213,31 @@ class RelativeChange(Tool[RelativeChangeConfig]):
         categories = category_columns(data)
         features = selected_features(data, config.features)
         reference = config.reference_group
-        grouping = list(config.grouping)
-        if reference not in grouping:
-            grouping.insert(0, reference)
-        data = data[categories + features]
-        others = [c for c in categories if c != reference]
-
+        # rows are matched to the reference rows of their group only (#178)
+        keys = [c for c in config.grouping if c != reference]
         reference_rows = data.loc[data[reference] == config.reference_value]
-        reference_values = reference_rows.groupby(grouping, observed=False)[
-            features
-        ].transform(config.method)
-        reference_values = (
-            pd.concat([reference_rows[others], reference_values], axis=1)
-            .drop_duplicates()
-            .set_index(others)
-        )
-        relative = (
-            data.set_index(categories)[features].div(reference_values).reset_index()
-        )
-        for column in categories:
-            relative[column] = relative[column].astype("category")
-        relative.columns = [
-            c if c in categories else f"rel {c}" for c in relative.columns
-        ]
+        if keys:
+            reference_values = (
+                reference_rows.groupby(keys, observed=True)[features]
+                .agg(config.method)
+                .reset_index()
+            )
+            matched = data[keys].merge(
+                reference_values, on=keys, how="left", indicator=True
+            )
+            missing = matched.loc[matched["_merge"] == "left_only", keys]
+            if len(missing):
+                groups = missing.drop_duplicates().astype(str).agg(", ".join, axis=1)
+                logging.warning(
+                    f"{self.name}: no '{config.reference_value}' rows in"
+                    f" {' / '.join(keys)} {'; '.join(groups)}: left empty"
+                )
+            denominators = matched[features].set_axis(data.index)
+        else:
+            denominators = reference_rows[features].agg(config.method)
+        relative = data[categories].copy()
+        for feature in features:
+            relative[f"rel {feature}"] = data[feature] / denominators[feature]
         return {"Relative Change": relative}
 
     @classmethod

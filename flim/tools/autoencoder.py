@@ -21,7 +21,7 @@ from flim.core.registry import register_tool
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.tool import Tool, pyplot_lock
 from flim.core.types import FileType, OutputSpec, PlotType, TableType
-from flim.tools.common import category_columns
+from flim.tools.common import category_columns, selected_features
 
 # size of the encoder output of each architecture (flim.analysis.ml.autoencoder)
 ENCODED_SIZE = {
@@ -350,7 +350,7 @@ class AETraining(Tool[AETrainConfig]):
             ax.grid("on")
             ax.set_ylabel("loss")
             ax.set_xlabel("epoch")
-            ax.legend(["training", "testing"], loc="upper right")
+            ax.legend(["training", "validation"], loc="upper right")
             ax.xaxis.set_major_locator(MaxNLocator(integer=True))
             add_picker(figure)
         return figure
@@ -469,7 +469,7 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
     def run_model(self, data, config, path):
         import torch
 
-        values = data[list(config.features)].astype(float)
+        values = data[selected_features(data, config.features)].astype(float)
         pipeline = _load_model(path, _torch_device(self.context.device))
         encoded, reconstructed = pipeline.transform(values.to_numpy(dtype=np.float32))
         encoded = torch.squeeze(encoded).detach().numpy()
@@ -577,7 +577,7 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
                 f"{self.name}: select the grouping columns (the last is renumbered)"
             )
         categories = category_columns(data)
-        features = list(config.features)
+        features = selected_features(data, config.features)
         values = data[features]
         cell = config.grouping[-1]
         # amplitude columns ("FAD a1", "FAD a2", ...) per signal ("FAD", ...)
