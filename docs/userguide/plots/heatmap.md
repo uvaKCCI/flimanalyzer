@@ -1,10 +1,10 @@
 # Heatmap
 
-The `Heatmap` tool creates a heatmap of the correlations between the selected features.
+The `Heatmap` tool creates a heatmap of the correlations between the selected features. The color scale runs from −1 (negative correlation) through 0 to 1 (positive correlation).
 
 **Menu Access:** `Plot` > `Heatmap`
 
-**Toolbar Icon:** ![](/images/analysis/heatmap.png)
+**Tool panel icon:** ![](/images/analysis/heatmap.png)
 
 ## Creating the Plot
 
@@ -15,17 +15,15 @@ The `Heatmap` tool creates a heatmap of the correlations between the selected fe
 
 3. In the `Configuration: Heatmap` dialog, select the correlation method and the features. In the `Correlation` menu, choose `pearson`, `spearman` or `kendall`, whichever suits your data. The features are the columns with numbers, such as `FAD a1`. Check `Show values` to write each correlation value in its cell of the heatmap. Otherwise the heatmap shows the values only as colors.
 
-    In the example, the amplitudes and lifetimes of FAD and NAD(P)H, and FLIRR, are used, with `pearson` correlation and `Show values` checked. The heatmap uses all rows of the table, without grouping.
+    The heatmap always uses all rows of the table. The dialog shows `Grouping`, but the grouping has no effect on the correlations: it only changes the title of the heatmap (`Data grouped by ...` or `Data ungrouped`).
+
+    In the example, the amplitudes and lifetimes of FAD and NAD(P)H, and FLIRR, are used, with `pearson` correlation and `Show values` checked.
 
     ![](/images/analysis/heatmap-config.png)
 
 4. Click `OK`.
 
-5. The heatmap opens in a plot window, and the correlation values in a new table.
-
-```{note}
-The tool also creates a table with the correlation values of the features. See example below.
-```
+5. The heatmap opens in a plot window, `Plot: Heatmap`, and the correlation values in a table window, `Table: Heatmap Correlation`. The table has a `Feature` column and one column for each feature.
 
 ## Example Output
 
@@ -34,10 +32,10 @@ The tool also creates a table with the correlation values of the features. See e
 ![](/images/analysis/heatmap-results1.png)
 
 
-**Example Results:** Automatically Generated Data Table
+**Example Results:** Correlation Table
 
 ![](/images/analysis/heatmap-results2.png)
 
 ```{note}
-You can change and save plots as described in the [Plots](/userguide/plots/index) section.
+You can zoom into the heatmap and save it in its plot window. Double-click editing of axes and labels is not available in heatmaps. See [The Plot Window](/userguide/plots/plotwindow).
 ```
