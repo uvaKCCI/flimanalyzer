@@ -28,5 +28,5 @@ The `Window` menu lists all open windows (data tables and plots). Select one to 
 
 ## Help
 
-* `Documentation` opens this documentation.
+* `Documentation` opens the documentation of the installed version (for a development version: the latest documentation).
 * `About FLIMAnalyzer` shows the version. On macOS it is in the `FLIMAnalyzer` menu.
