@@ -14,6 +14,8 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Adjusts the number of decimal places shown in the tables.
    * - `Filtering Data <filter.html>`_
      - Hides rows by their category values or by numeric ranges.
+   * - `Filter Tool <filtertool.html>`_
+     - Creates a new table with only the rows that pass category and range filters.
    * - `Pivoting Data <pivot.html>`_
      - Turns the values of a category column into columns to show trends.
    * - `Unpivoting Data <unpivot.html>`_
@@ -39,6 +41,7 @@ After you load data, you can change the tables to show trends more clearly, chan
     load
     precision
     filter
+    filtertool
     pivot
     unpivot
     split

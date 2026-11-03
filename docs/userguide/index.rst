@@ -15,4 +15,5 @@ User Guide
     workflows
     settings
     batch
+    execution
 

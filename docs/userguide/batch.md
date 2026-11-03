@@ -35,6 +35,8 @@ Before a workflow runs, its settings are checked against the data (see [Workflow
 | `--no-prefect-server` | don't start a local Prefect server. Each run uses a temporary one instead. |
 | `-l`, `--log` | logging level: `debug`, `info`, `warning` or `error` |
 
+The executors and their arguments, and how to run `flimbatch` on an HPC cluster with Slurm, are described in [Concurrent and Distributed Execution](/userguide/execution).
+
 ## Running in Docker
 
 The Docker images run `flimbatch` (see [Installing with Docker](/install/index.md#installing-with-docker) for the images). Use `-v` to make the folder with the data and the settings file available inside the container as `/work`:

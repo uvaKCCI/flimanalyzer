@@ -29,6 +29,7 @@ import flim.tools  # noqa: E402,F401  (registers the tools)
 import flim.workflow  # noqa: E402,F401
 from flim.configs import (  # noqa: E402
     ConcatConfig,
+    FilterConfig,
     FLIRRPlotConfig,
     GMMConfig,
     HistogramConfig,
@@ -142,6 +143,10 @@ HISTOGRAMS = [
 ]
 HISTOGRAM = HISTOGRAMS[0]  # the bar style, as the user guide's example
 FLIRR = FLIRRPlotConfig(grouping=["Treatment", "FOV"])
+FILTER = FilterConfig(
+    category_filters={"Treatment": ["ctrl", "Dox15", "Dox30"]},
+    range_filters={"FAD a1[%]": {"low": 50, "high": 90}, "FLIRR": {"high": 2.4}},
+)
 SORT = SortConfig(features=["FAD a1"])
 
 # Analysis
@@ -209,6 +214,7 @@ SHOTS = {
     "data/category-filter.png": ("window", {"make": "category_filter"}),
     "data/filter-settings.png": ("window", {"make": "filter_settings"}),
     "data/sort-preresult.png": ("table", {}),
+    "data/filtertool-config.png": ("dialog", {"tool": "Filter", "config": FILTER}),
     "data/sort-config.png": ("dialog", {"tool": "Sort", "config": SORT}),
     "data/sort-results.png": ("table", {"tool": "Sort", "config": SORT}),
     "data/order-config.png": ("dialog", {"tool": "Order Categories", "setup": "show_treatment_order"}),
