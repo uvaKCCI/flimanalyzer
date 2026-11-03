@@ -10,10 +10,13 @@ without it, in batch mode. Settings files of all earlier versions load.
 
 ### Results that change
 
-- **Basic FLIRR Analysis** divides by the mean or median of a chosen reference category
-  (new setting "Reference value", default "Ctrl"). 0.5.x used the value in the first
-  row as the reference, so results differ when the first row is not in the reference
-  category (#157).
+- **Basic FLIRR Analysis** divides by the mean of a chosen reference category of the
+  first grouping column (new setting "Reference value"; empty, the default, means that
+  column's first value in category order). 0.5.x used the value in the first row as the
+  reference, so results differ when the first row is not in the reference category
+  (#157). *Corrected 2026-11-03: this entry first said "the mean or median" and
+  "default "Ctrl""; the workflow always uses the mean, and "Ctrl" is the default of the
+  Relative Change tool.*
 - **Scatter, Box, Violin and Swarm plots** fit their value axes to the data (new
   setting "Fit axes to the data", on by default). In 0.5.x the axes always included 0,
   which squeezed data far from 0 (#158). Turn the setting off for the old axes.
