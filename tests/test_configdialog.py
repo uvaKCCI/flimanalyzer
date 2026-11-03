@@ -15,6 +15,7 @@ from flim.configs import (  # noqa: E402
     KMeansConfig,
     LinePlotConfig,
     RelativeChangeConfig,
+    ScatterPlotConfig,
 )
 from flim.core.execution import ExecutionOptions  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
@@ -38,23 +39,8 @@ def table():
 
 
 @pytest.fixture
-def dialog(wxapp, table):
-    from flim.gui.configdialog import ConfigDialog
-
-    dialogs = []
-
-    def make(name, config=None, **kwargs):
-        kwargs.setdefault(
-            "data_choices",
-            {"Table: data": table, "Table: other": table[["Treatment", "x"]]},
-        )
-        d = ConfigDialog(None, tools.get(name), config, **kwargs)
-        dialogs.append(d)
-        return d
-
-    yield make
-    for d in dialogs:
-        d.Destroy()
+def data_choices(table):
+    return {"Table: data": table, "Table: other": table[["Treatment", "x"]]}
 
 
 def marker(d, name):
@@ -168,14 +154,6 @@ def test_missing_features_are_noted_not_listed(dialog):
     assert features.get() == []
     assert features.note.IsShown()
     assert features.note.GetLabel() == "Not in this input (not used): gone"
-
-
-def test_all_features(dialog):
-    d = dialog("Box Plot")
-    features = d.fields.editors["features"]
-    features.set("all")
-    assert not features.list.IsEnabled()
-    assert d.result().config.features == "all"
 
 
 def test_mixed_and_optional_fields(dialog):
@@ -354,6 +332,8 @@ def test_all_features_from_a_config_and_new_inputs(dialog):
     d = dialog("Box Plot", BoxPlotConfig(features="all"))
     features = d.fields.editors["features"]
     assert features.checked() == ["FLIRR", "x", "y"]
+    assert not features.list.IsEnabled()
+    assert d.result().config.features == "all"
     d.input_controls[0].SetStringSelection("Table: other")
     d._on_input(None)
     assert features.checked() == ["x"]  # all features of the other table
@@ -363,12 +343,18 @@ def test_all_features_from_a_config_and_new_inputs(dialog):
 
 
 def test_nested_settings_are_inline_and_advanced_ones_collapsed(dialog):
-    d = dialog("Scatter Plot")
+    config = ScatterPlotConfig(points={"mode": "all", "samples": 5000})
+    d = dialog("Scatter Plot", config)
     points = d.fields.editors["points"]
     assert not isinstance(points.control, wx.CollapsiblePane)  # no extra click
-    points.fields.editors["mode"].set("sample")
+    editors = points.fields.editors
+    assert editors["mode"].get() == "all" and editors["samples"].get() == 5000
+    editors["mode"].set("sample")
     points.fields.refresh()
-    assert points.fields.editors["samples"].control.IsShown()
+    assert editors["samples"].control.IsShown()
+    editors["samples"].set(20000)
+    result = d.result().config.points
+    assert (result.mode, result.samples) == ("sample", 20000)
     training = dialog("Autoencoder: Train")
     assert isinstance(training.fields.editors["resources"].control, wx.CollapsiblePane)
 

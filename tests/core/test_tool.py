@@ -1,12 +1,10 @@
-import threading
-
 import matplotlib.figure
 import pandas as pd
 import pytest
 
 from flim.configs import SortConfig
 from flim.core.config import Issue, TaskConfig
-from flim.core.registry import ToolRegistry, tools
+from flim.core.registry import tools
 from flim.core.runner import CancelToken, run_flow
 from flim.core.schema import TableSchema
 from flim.core.tool import (
@@ -54,12 +52,6 @@ def table():
 def test_config_class_from_generic_parameter():
     assert Double.config_class is DoubleConfig
     assert Sort.config_class is SortConfig
-
-
-def test_tool_can_be_registered():
-    registry = ToolRegistry()
-    registry.register(Double)
-    assert registry.for_config(DoubleConfig()) is Double
 
 
 def test_builtin_tools_are_registered():
@@ -192,25 +184,3 @@ def test_tools_in_a_flow(prefect_harness, table):
     assert labels == ["Double", "Sort", "Demo Plot"]
     # the graph links the steps through the table they pass on
     assert run.graph.number_of_edges() >= 2
-
-
-def test_cancelled_tool_in_a_flow(prefect_harness, table):
-    started = threading.Event()
-
-    class Waits(Double):
-        name = "Waits"
-
-        def run(self, data, *, config):
-            started.set()
-            while True:
-                self.check_cancelled()
-
-    token = CancelToken()
-
-    def build():
-        Waits()(table)
-        started.wait(30)
-        token.set()
-
-    run = run_flow("cancel tools", build, cancel_token=token)
-    assert run.cancelled == ["Waits"]

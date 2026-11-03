@@ -117,15 +117,24 @@ def test_precision_and_autosize(frame, flim_data):
 
 
 def test_save_and_load_settings(frame, monkeypatch, tmp_path):
+    import json
+
+    from flim.configs import KMeansConfig
+    from flim.core.registry import tools
+    from flim.core.settings import SETTINGS_VERSION
+
     path = tmp_path / "settings.json"
-    frame.settings.import_.delimiter = ";"
+    frame.settings.import_.delimiter = ";"  # e.g. by the import dialog
+    frame.settings.tool_settings.set(tools.get("K-Means"), KMeansConfig(n_clusters=5))
     _answer_file_dialog(monkeypatch, path)
     frame.OnSaveSettings(None)
-    assert path.exists()
+    assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
 
     frame.settings.import_.delimiter = "\t"
+    frame.settings.tool_settings.tools.clear()
     frame.OnLoadSettings(None)
     assert frame.settings.import_.delimiter == ";"
+    assert frame.settings.tool_settings.config(tools.get("K-Means")).n_clusters == 5
 
 
 def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):

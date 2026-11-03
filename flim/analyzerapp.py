@@ -114,10 +114,6 @@ def main():
 
     logging.debug(args)
     fa = FLIMAnalyzer(executor=args.executor, execargs=args.execargs)
-    # analyzers = analysis.absanalyzer.init_analyzers()
-    # aes = analysis.ml.autoencoder.init_autoencoders()
-    # config = analysis.absanalyzer.init_default_config(analyzers)
-    # print (config)
     settings = None
     if args.config:
         from flim.core.settings import load_settings

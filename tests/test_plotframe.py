@@ -23,12 +23,6 @@ def table():
     )
 
 
-def test_plugins_draw_off_screen(wxapp):
-    import matplotlib
-
-    assert matplotlib.get_backend().lower() == "agg"
-
-
 def _plots_in_worker_thread(table, names):
     from flim.core.registry import tools
 

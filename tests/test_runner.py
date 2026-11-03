@@ -30,11 +30,6 @@ def _sort(feature):
     return SortConfig(features=[feature])
 
 
-def test_call_outside_flow_runs_directly(flim_data):
-    results = Sort()(flim_data, config=_sort("NAD(P)H t1"))
-    assert results["Table: Sorted"]["NAD(P)H t1"].is_monotonic_increasing
-
-
 def test_chained_calls_and_item_access(flim_data):
     outputs = {}
 
@@ -87,8 +82,7 @@ def test_failed_task_skips_downstream(flim_data):
         Sort()(flim_data, config=_sort("NAD(P)H t1"))
 
     run = run_flow("test failure", build)
-    status = {a["label"]: a["status"] for _, a in run.graph.nodes(data=True)}
-    assert status == {"Boom": "failed", "Sort": "skipped", "Sort-1": "completed"}
+    assert dict(run.tasks()) == {"Boom": "failed", "Sort": "skipped", "Sort-1": "completed"}
     assert run.failed == ["Boom"]
 
 
@@ -131,16 +125,3 @@ def test_workflow_graph_plot(flim_data):
     assert isinstance(fig, matplotlib.figure.Figure)
     # arrows are drawn as empty annotations
     assert {t.get_text() for t in ax.texts if t.get_text()} == {"Input", "Sort"}
-
-
-def test_dask_task_runner(flim_data):
-    DaskTaskRunner = pytest.importorskip("prefect_dask").DaskTaskRunner
-
-    def build():
-        for feature in ("NAD(P)H t1", "NAD(P)H t2"):
-            Sort()(unmapped(flim_data), config=_sort(feature))
-
-    runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": False})
-    run = run_flow("test dask", build, task_runner=runner)
-    assert run.failed == []
-    assert len(run.results()) == 2

@@ -187,3 +187,8 @@ class TestRuns:
         # the resources each task was granted
         assert "Resources" in text and "cpu, 1 thread" in text
         assert [label for label, _ in run.resources()] == ["Summarize", "Pivot"]
+
+    def test_run_returns_the_results_of_all_steps(self, data):
+        config = StepsConfig(grouping=["Treatment", "FOV"])
+        results = SummaryPivot().run(data, config=config)
+        assert list(results) == ["Table: Summary", "Table: Pivoted"]

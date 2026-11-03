@@ -58,23 +58,15 @@ def table(results):
 
 
 def test_category_order(data):
-    config = CategoryOrderConfig(categories={"Treatment": ["WT", "KO"]})
+    config = CategoryOrderConfig(
+        categories={"Treatment": ["WT", "KO"], "FOV": ["2", "1"]}
+    )
     df = table(CategoryOrder()(data, config=config))
     assert list(df["Treatment"].cat.categories) == ["WT", "KO"]
     assert df["Treatment"].cat.ordered
     assert df["Treatment"].iloc[0] == "WT" and df["Treatment"].iloc[-1] == "KO"
+    assert list(df["FOV"].iloc[:5]) == ["2"] * 5  # sorted by the new order
     assert list(data["Treatment"].cat.categories) == ["KO", "WT"]  # input untouched
-
-
-def test_order_categories(flim_data):
-    config = CategoryOrderConfig(
-        categories={"Treatment": ["WT", "KO"], "FOV": ["3", "2", "1"]}
-    )
-    df = table(CategoryOrder()(flim_data, config=config))
-    assert list(df["Treatment"].cat.categories) == ["WT", "KO"]
-    assert df["Treatment"].cat.ordered
-    assert list(df["FOV"].iloc[:10]) == ["3"] * 10  # sorted by the new order
-    assert df.iloc[0]["Treatment"] == "WT"
 
 
 def test_category_order_without_categories(data):
@@ -146,9 +138,7 @@ def test_pivot(data):
     )
     assert {"t1\nWT", "t1\nKO"} <= set(df.columns)
     assert len(df) == 10  # one row per FOV/Cell
-
-
-def test_pivot_all_features(data):
+    # no features: all of them
     df = table(Pivot()(data, config=PivotConfig(grouping=["Treatment"])))
     assert {"t1\nWT", "t2\nKO"} <= set(df.columns)
 

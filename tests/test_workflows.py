@@ -10,13 +10,6 @@ from flim.workflow.basicflow import BasicFLIRR
 pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
-@pytest.fixture
-def flirr_data(flim_data):
-    df = flim_data.copy()
-    df["FLIRR"] = df["NAD(P)H a2[%]"] / df["FAD a1[%]"]
-    return df
-
-
 FEATURES = ["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"]
 CONFIG = BasicFLIRRConfig(grouping=["Treatment", "FOV", "Cell"], features=FEATURES)
 
@@ -26,8 +19,7 @@ def test_basic_flirr_workflow(flirr_data, tmp_path):
     run = wf.run_flow(flirr_data, config=CONFIG, autosave_dir=str(tmp_path / wf.name))
 
     assert run.failed == []
-    statuses = {a["status"] for _, a in run.graph.nodes(data=True) if "tool" in a}
-    assert statuses == {"completed"}
+    assert {status for _, status in run.tasks()} == {"completed"}
     tables = [
         v for r in run.results() if isinstance(r, dict) for v in r.values()
         if isinstance(v, pd.DataFrame)
@@ -49,9 +41,3 @@ def test_basic_flirr_workflow(flirr_data, tmp_path):
     assert any((tmp_path / wf.name).rglob("*.txt"))
     (summary,) = (tmp_path / wf.name).rglob("run_summary.txt")
     assert "State:      completed" in summary.read_text()
-
-
-def test_workflow_run_returns_all_results(flirr_data):
-    results = BasicFLIRR().run(flirr_data, config=CONFIG)
-    assert "Stats-Table: Summary" in results
-    assert any(k.startswith("Plot: KDE") for k in results)

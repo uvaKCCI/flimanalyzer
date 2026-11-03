@@ -1,46 +1,28 @@
+import threading
 import time
 
 import pytest
 
 wx = pytest.importorskip("wx")
 
-from flim.core.config import TaskConfig  # noqa: E402
 from flim.core.runner import run_flow  # noqa: E402
-from flim.core.tool import Tool  # noqa: E402
+from tests.fake_tools import Counter, Waiter  # noqa: E402
 
 
 pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
-class TaskSeconds(TaskConfig):
-    seconds: float = 0.0
+def _tasks(n, release=None):
+    """Tasks T0, T1, ...: with ``release``, they run until it is set (or cancelled)."""
+    if release is None:
+        return [Counter(f"T{i}") for i in range(n)]
+    return [Waiter(f"T{i}", release=release) for i in range(n)]
 
 
-class Task(Tool[TaskSeconds]):
-    name = "Task"
-    category = "Data"
-
-    def __init__(self, name=None):
-        super().__init__()
-        if name:
-            self.name = name
-
-    def run(self, *inputs, config):
-        end = time.monotonic() + config.seconds
-        while time.monotonic() < end:
-            self.check_cancelled()
-            time.sleep(0.02)
-        return {f"{self.name} done": True}
-
-
-def _task(name, seconds=0.0):
-    return Task(name)(config=TaskSeconds(seconds=seconds))
-
-
-def _starter(n=3, seconds=0.0, autosave_dir=None):
+def _starter(tools, autosave_dir=None):
     def build():
-        for i in range(n):
-            _task(f"T{i}", seconds)
+        for tool in tools:
+            tool()
 
     def start_run(cancel_token, on_progress, on_start):
         return run_flow(
@@ -59,6 +41,25 @@ def _click(button):
     event = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
     event.SetEventObject(button)
     button.GetEventHandler().ProcessEvent(event)
+
+
+def _tool_button(frame, name):
+    return next(
+        c
+        for box in frame.toolpanel.GetChildren()
+        for c in box.GetChildren()
+        if isinstance(c, wx.BitmapButton) and c.GetName() == name
+    )
+
+
+def _open(frame, data, title="Data", **kwargs):
+    """Opens ``data`` in a data window, as the application does."""
+    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
+
+    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
+    event.SetEventInfo(data, title, "createnew", **kwargs)
+    frame.GetEventHandler().ProcessEvent(event)
+    return frame.windowframes[title]
 
 
 def _statuses(dlg):
@@ -80,7 +81,7 @@ def _when(condition, action, *args, tries=100):
 def test_progress_dialog_closes_when_the_run_completes(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
-    dlg = RunProgressDialog(None, "Test", _starter(3))
+    dlg = RunProgressDialog(None, "Test", _starter(_tasks(3)))
     try:
         assert dlg.ShowModal() == wx.ID_OK
         assert dlg.error is None and dlg.run.state == "completed"
@@ -95,6 +96,7 @@ def test_progress_dialog_shows_prefect_link_and_task_statuses(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
     seen = {}
+    release = threading.Event()
 
     def snapshot(dlg):
         # while the first task runs
@@ -102,8 +104,9 @@ def test_progress_dialog_shows_prefect_link_and_task_statuses(wxapp):
         seen["statuses"] = [
             dlg.task_list.GetItemText(row, 1) for row in range(dlg.task_list.GetItemCount())
         ]
+        release.set()
 
-    dlg = RunProgressDialog(None, "Test", _starter(2, seconds=1.5))
+    dlg = RunProgressDialog(None, "Test", _starter(_tasks(2, release)))
     _when(lambda: "running" in _statuses(dlg).values(), snapshot, dlg)
     try:
         assert dlg.ShowModal() == wx.ID_OK
@@ -121,7 +124,8 @@ def test_progress_dialog_shows_prefect_link_and_task_statuses(wxapp):
 def test_cancel_button_cancels_the_run(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
-    dlg = RunProgressDialog(None, "Test", _starter(2, seconds=10))
+    # the tasks run until cancelled
+    dlg = RunProgressDialog(None, "Test", _starter(_tasks(2, threading.Event())))
     _when(lambda: "running" in _statuses(dlg).values(), _click, dlg.cancel_button)
     start = time.monotonic()
     try:
@@ -158,6 +162,11 @@ def frame(wxapp):
     frame.Destroy()
 
 
+def _first_task_then_waiting(n=3):
+    """T0 completes at once, the others run until cancelled."""
+    return [Counter("T0"), *_tasks(n, threading.Event())[1:]]
+
+
 def _cancel_after_first_task(start_run):
     """Cancels the run once a task has completed."""
 
@@ -189,7 +198,9 @@ def _capture_cancelled_dialog(monkeypatch):
 
 def test_cancelled_run_shows_results_folder_and_prefect_link(frame, monkeypatch, tmp_path):
     shown = _capture_cancelled_dialog(monkeypatch)
-    start = _cancel_after_first_task(_starter(3, seconds=0.5, autosave_dir=str(tmp_path)))
+    start = _cancel_after_first_task(
+        _starter(_first_task_then_waiting(), autosave_dir=str(tmp_path))
+    )
     assert frame.run_with_progress("My Tool", start) is None
     (run_dir,) = [p for p in tmp_path.iterdir() if p.is_dir()]
     assert shown["paths"] == [str(run_dir)]
@@ -202,14 +213,14 @@ def test_cancelled_run_shows_results_folder_and_prefect_link(frame, monkeypatch,
 
 def test_cancelled_run_without_autosave(frame, monkeypatch):
     shown = _capture_cancelled_dialog(monkeypatch)
-    start = _cancel_after_first_task(_starter(3, seconds=0.5))
+    start = _cancel_after_first_task(_starter(_first_task_then_waiting()))
     assert frame.run_with_progress("My Tool", start) is None
     assert shown["paths"] == []
     assert "No results were saved because Autosave is off." in shown["texts"]
 
 
 def test_completed_run_is_returned(frame):
-    run = frame.run_with_progress("My Tool", _starter(2))
+    run = frame.run_with_progress("My Tool", _starter(_tasks(2)))
     assert run.state == "completed" and len(run.results()) == 2
 
 
@@ -229,12 +240,8 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
 
     from flim.gui import configdialog, progressdlg
     from flim.gui.datapanel import PandasFrame
-    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
 
-    # an open data table to analyze
-    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
-    event.SetEventInfo(flim_data, "Data", "createnew")
-    frame.GetEventHandler().ProcessEvent(event)
+    _open(frame, flim_data)  # an open data table to analyze
 
     # stands in for the user's choices in the tool's configuration dialog
     def configure(dialog):
@@ -256,16 +263,8 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
         lambda dlg: outcomes.append(original(dlg)) or outcomes[-1],
     )
 
-    button = next(
-        c
-        for box in frame.toolpanel.GetChildren()
-        for c in box.GetChildren()
-        if isinstance(c, wx.BitmapButton) and c.GetName() == "Summarize"
-    )
-    click = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
-    click.SetEventObject(button)
     before = set(frame.windowframes)
-    button.GetEventHandler().ProcessEvent(click)
+    _click(_tool_button(frame, "Summarize"))
 
     assert messages == []
     assert outcomes == [wx.ID_OK]
@@ -283,9 +282,11 @@ def test_status_line_matches_the_task_list(wxapp):
     from flim.core.runner import default_task_runner
     from flim.gui.progressdlg import RunProgressDialog
 
+    release = threading.Event()
+
     def build():
-        _task("Short", 0.2)
-        _task("Long", 2.5)
+        Counter("Short")()
+        Waiter("Long", release=release)()
 
     def start_run(cancel_token, on_progress, on_start):
         return run_flow(
@@ -303,6 +304,7 @@ def test_status_line_matches_the_task_list(wxapp):
         seen["line"] = dlg.task_text.GetLabel()
         seen["list"] = _statuses(dlg)
         seen["count"] = dlg.count_text.GetLabel()
+        release.set()
 
     dlg = RunProgressDialog(None, "Test", start_run)
     # when Short has finished and Long is running
@@ -323,14 +325,17 @@ def test_results_folder_link_opens_the_file_browser(wxapp, monkeypatch, tmp_path
     opened = []
     monkeypatch.setattr(progressdlg, "open_in_file_browser", opened.append)
     seen = {}
+    release = threading.Event()
 
     def snapshot(dlg):
         seen["shown"] = dlg.folder.IsShown()
         seen["label"] = dlg.folder.GetLabel()
         click = wx.adv.HyperlinkEvent(dlg.folder, dlg.folder.GetId(), "")
         dlg.folder.GetEventHandler().ProcessEvent(click)
+        release.set()
 
-    dlg = RunProgressDialog(None, "Test", _starter(2, seconds=3.0, autosave_dir=str(tmp_path)))
+    start = _starter(_tasks(2, release), autosave_dir=str(tmp_path))
+    dlg = RunProgressDialog(None, "Test", start)
     _when(dlg.folder.IsShown, snapshot, dlg)
     try:
         assert dlg.ShowModal() == wx.ID_OK
@@ -377,13 +382,9 @@ def test_open_data_files_opens_a_data_window(frame, tmp_path, flim_data):
 
 
 def test_result_tables_are_marked_modified(frame, flim_data):
-    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
-
-    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
-    event.SetEventInfo(flim_data, "Result", "createnew")
-    frame.GetEventHandler().ProcessEvent(event)
-    assert frame.windowframes["Result"].is_modified()  # unsaved: closing asks to save
-    frame.windowframes["Result"].modified = False
+    window = _open(frame, flim_data, "Result")
+    assert window.is_modified()  # unsaved: closing asks to save
+    window.modified = False
     frame.OnCloseAll(None)
 
 
@@ -425,7 +426,7 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
 
 
 
-class Failing(Task):
+class Failing(Counter):
     def run(self, *inputs, config):
         raise RuntimeError("boom")
 
@@ -442,7 +443,7 @@ def _summary_texts(run, title="My Workflow"):
 
 
 def test_summary_of_a_completed_run(wxapp, tmp_path):
-    run = _starter(2, autosave_dir=str(tmp_path))(None, None, None)
+    run = _starter(_tasks(2), autosave_dir=str(tmp_path))(None, None, None)
     texts, folder, link = _summary_texts(run)
     assert texts[0] == "My Workflow completed all 2 tasks."
     assert "Results are in:" in texts and folder == run.autosave_dir
@@ -451,7 +452,7 @@ def test_summary_of_a_completed_run(wxapp, tmp_path):
 
 def test_summary_of_a_run_with_failed_tasks(wxapp, tmp_path):
     def build():
-        Task(name="Good")()
+        Counter(name="Good")()
         Failing(name="Bad")()
 
     run = run_flow("partly failing", build, autosave_dir=str(tmp_path))
@@ -461,23 +462,17 @@ def test_summary_of_a_run_with_failed_tasks(wxapp, tmp_path):
     assert folder == run.autosave_dir
 
 
-def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_path):
+def test_workflow_always_shows_the_summary(frame, monkeypatch, flirr_data, tmp_path):
     from flim.gui import configdialog, progressdlg
-    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
 
-    data = flim_data.copy()
-    data["FLIRR"] = data["NAD(P)H a2[%]"] / data["FAD a1[%]"]
-    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
-    event.SetEventInfo(data, "Data", "createnew", modified=False)
-    frame.GetEventHandler().ProcessEvent(event)
+    _open(frame, flirr_data, modified=False)
 
     locked = []
 
     def configure(dialog):
-        dialog.fields.editors["grouping"].set(["Treatment", "FOV", "Cell"])
-        dialog.fields.editors["features"].set(
-            ["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"]
-        )
+        dialog.fields.editors["grouping"].set(["Treatment", "FOV"])
+        # the fewest features its steps take (pair plots of FAD and of NAD features)
+        dialog.fields.editors["features"].set(["FAD a1[%]", "NAD(P)H a2[%]"])
         dialog.folder.SetPath(str(tmp_path))
         locked.append(not dialog.autosave.IsEnabled() and dialog.autosave.GetValue())
         dialog.validate()
@@ -493,15 +488,7 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_pa
         return wx.ID_OK
 
     monkeypatch.setattr(progressdlg.RunSummaryDialog, "ShowModal", show)
-    button = next(
-        c
-        for box in frame.toolpanel.GetChildren()
-        for c in box.GetChildren()
-        if isinstance(c, wx.BitmapButton) and c.GetName() == "Basic FLIRR Analysis"
-    )
-    click = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
-    click.SetEventObject(button)
-    button.GetEventHandler().ProcessEvent(click)
+    _click(_tool_button(frame, "Basic FLIRR Analysis"))
 
     assert locked == [True]  # workflows always save their results
     ((first_line, folder, has_link),) = summaries
@@ -518,7 +505,7 @@ def test_garbage_collection_stays_on_the_main_thread_during_a_run(wxapp):
 
     seen = []
 
-    class Probe(Task):
+    class Probe(Counter):
         def run(self, *inputs, config):
             seen.append(gc.isenabled())  # in a worker thread
             return {}
