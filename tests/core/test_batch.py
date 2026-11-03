@@ -1,5 +1,7 @@
 """Batch mode (flim.batch): import and run tools or workflows without the GUI."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -14,6 +16,17 @@ from flim.core.settings import AppSettings, save_settings
 
 
 pytestmark = pytest.mark.usefixtures("prefect_harness")
+
+
+@pytest.fixture(autouse=True)
+def restore_logging():
+    """main() configures the root logger (basicConfig) with this test's captured
+    stderr; later log records would be written to it after pytest closed it."""
+    root = logging.getLogger()
+    handlers, level = root.handlers[:], root.level
+    yield
+    root.handlers[:] = handlers
+    root.setLevel(level)
 
 
 @pytest.fixture
