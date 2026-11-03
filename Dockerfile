@@ -13,7 +13,8 @@
 #                image does not support a display, and wxPython has no Linux wheels on PyPI
 
 # --- build: the locked environment, with FLIMAnalyzer (version from the git tags) ---
-FROM python:3.12-slim AS build
+# base image pinned by digest (updated by Dependabot); the same in both stages
+FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30 AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/* \
@@ -47,7 +48,7 @@ RUN if [ -n "$TORCH_INDEX" ]; then \
     fi
 
 # --- runtime ---
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
 
 COPY --from=build /opt/venv /opt/venv
 # no display support: matplotlib draws off-screen; no Prefect usage statistics
@@ -62,3 +63,19 @@ USER flim
 WORKDIR /work
 ENTRYPOINT ["flimbatch"]
 CMD ["--help"]
+
+# OCI metadata: fixed here; per build from CI (docker.yml), empty in local builds
+LABEL org.opencontainers.image.title="FLIMAnalyzer" \
+      org.opencontainers.image.description="FLIMAnalyzer in batch mode (flimbatch) without the GUI: analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data." \
+      org.opencontainers.image.authors="Karsten Siller <khsiller@gmail.com>" \
+      org.opencontainers.image.vendor="The University of Virginia" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.url="https://github.com/uvaKCCI/flimanalyzer" \
+      org.opencontainers.image.documentation="https://flimanalyzer.readthedocs.io" \
+      org.opencontainers.image.source="https://github.com/uvaKCCI/flimanalyzer"
+ARG VERSION="" REVISION="" CREATED="" BASE_NAME="" BASE_DIGEST=""
+LABEL org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.created=$CREATED \
+      org.opencontainers.image.base.name=$BASE_NAME \
+      org.opencontainers.image.base.digest=$BASE_DIGEST

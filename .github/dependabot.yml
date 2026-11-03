@@ -1,0 +1,7 @@
+# Keeps the Docker base image (python:3.12-slim, pinned by digest) current
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
