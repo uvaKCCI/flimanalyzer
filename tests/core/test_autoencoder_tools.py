@@ -194,3 +194,21 @@ def test_training_without_a_folder_uses_a_temporary_one(needs_torch, data, caplo
     results = AETraining()(data, config=train_config())
     assert all(p.endswith(".model") for p in results["Model File"])
     assert "no results folder" in caplog.text
+
+
+def test_cpu_never_touches_cuda(needs_torch, data, tmp_path, monkeypatch):
+    # issue #143: a CUDA warning although the CPU was selected
+    import torch
+
+    def no_cuda(*args, **kwargs):
+        raise AssertionError("CUDA queried although the CPU was selected")
+
+    for name in ("is_available", "init", "_lazy_init", "device_count"):
+        monkeypatch.setattr(torch.cuda, name, no_cuda)
+    resources = {"preferred_device": "cpu"}
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    files = training(data, config=train_config(resources=resources))["Model File"]
+    common = dict(features=FEATURES, resources=resources, model_files=[files[-1]])
+    RunAE()(data, config=AERunConfig(**common))
+    AEAugment()(data, config=AEAugmentConfig(grouping=["FOV", "Cell"], **common))
