@@ -8,21 +8,6 @@ import pytest
 wx = pytest.importorskip("wx")
 
 
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:  # raised by wx when no display is available
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401  (selects the off-screen backend)
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        # windows already destroyed by a test may still be listed until deleted
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
-
-
 @pytest.fixture
 def table():
     rng = np.random.default_rng(0)

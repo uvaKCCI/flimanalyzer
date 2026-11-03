@@ -12,21 +12,6 @@ from flim.core.tool import Tool  # noqa: E402
 pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:  # raised by wx when no display is available
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        # windows already destroyed by a test may still be listed until deleted
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
-
-
 class TaskSeconds(TaskConfig):
     seconds: float = 0.0
 

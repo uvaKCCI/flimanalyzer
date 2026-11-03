@@ -22,20 +22,6 @@ from flim.core.registry import tools  # noqa: E402
 TOOLS = [t for group in tools.by_category().values() for t in group]
 
 
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:  # raised by wx when no display is available
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
-
-
 @pytest.fixture
 def table():
     rng = np.random.default_rng(0)
