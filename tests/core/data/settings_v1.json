@@ -572,53 +572,51 @@
     "series_filters": []
   },
   "tools": {
-    "tools": {
-      "Summarize": {
-        "config": {
-          "classname": "flim.tools.statistics.Summarize",
-          "grouping": [
-            "Treatment"
-          ],
-          "features": [
-            "FLIRR"
-          ],
-          "prefix": null,
-          "resources": {
-            "preferred_device": "cpu",
-            "preferred_threads": 1
-          },
-          "aggs": [
-            "mean"
-          ],
-          "single_table": true
+    "Summarize": {
+      "config": {
+        "classname": "flim.tools.statistics.Summarize",
+        "grouping": [
+          "Treatment"
+        ],
+        "features": [
+          "FLIRR"
+        ],
+        "prefix": null,
+        "resources": {
+          "preferred_device": "cpu",
+          "preferred_threads": 1
         },
-        "autosave": true,
-        "results_dir": "results",
-        "legacy": null
+        "aggs": [
+          "mean"
+        ],
+        "single_table": true
       },
-      "K-Means": {
-        "config": {
-          "classname": "flim.tools.ml.KMeansClustering",
-          "grouping": [],
-          "features": [],
-          "prefix": null,
-          "resources": {
-            "preferred_device": "cpu",
-            "preferred_threads": -1
-          },
-          "random_seed": 0,
-          "n_clusters": 7,
-          "cluster_prefix": "Cluster",
-          "init": "k-means++",
-          "algorithm": "lloyd",
-          "n_init": 4,
-          "max_iter": 300,
-          "tolerance": 0.0001
+      "autosave": true,
+      "results_dir": "results",
+      "legacy": null
+    },
+    "K-Means": {
+      "config": {
+        "classname": "flim.tools.ml.KMeansClustering",
+        "grouping": [],
+        "features": [],
+        "prefix": null,
+        "resources": {
+          "preferred_device": "cpu",
+          "preferred_threads": -1
         },
-        "autosave": false,
-        "results_dir": null,
-        "legacy": null
-      }
+        "random_seed": 0,
+        "n_clusters": 7,
+        "cluster_prefix": "Cluster",
+        "init": "k-means++",
+        "algorithm": "lloyd",
+        "n_init": 4,
+        "max_iter": 300,
+        "tolerance": 0.0001
+      },
+      "autosave": false,
+      "results_dir": null,
+      "legacy": null
     }
   }
 }

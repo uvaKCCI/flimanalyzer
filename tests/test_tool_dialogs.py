@@ -23,20 +23,6 @@ from flim.configs.plot import HistogramRange  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
 
 
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
-
-
 @pytest.fixture
 def table():
     rng = np.random.default_rng(0)

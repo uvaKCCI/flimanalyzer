@@ -1,5 +1,7 @@
 """Batch mode (flim.batch): import and run tools or workflows without the GUI."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -14,6 +16,17 @@ from flim.core.settings import AppSettings, save_settings
 
 
 pytestmark = pytest.mark.usefixtures("prefect_harness")
+
+
+@pytest.fixture(autouse=True)
+def restore_logging():
+    """main() configures the root logger (basicConfig) with this test's captured
+    stderr; later log records would be written to it after pytest closed it."""
+    root = logging.getLogger()
+    handlers, level = root.handlers[:], root.level
+    yield
+    root.handlers[:] = handlers
+    root.setLevel(level)
 
 
 @pytest.fixture
@@ -107,6 +120,12 @@ def test_unknown_tools_and_missing_files(data_dir, tmp_path, capsys):
                  "--no-prefect-server"]) == 1
     assert "No tool or workflow named 'Nothing'" in capsys.readouterr().err
     assert main(["-i", str(tmp_path / "gone"), "-o", str(tmp_path / "o")]) == 1
+
+
+def test_output_folder_that_cannot_be_used(data_dir, tmp_path, capsys):
+    (tmp_path / "file").write_text("x")
+    assert main(["-i", str(data_dir), "-o", str(tmp_path / "file" / "out")]) == 1
+    assert "--output:" in capsys.readouterr().err
 
 
 def test_the_application_command_hands_batch_runs_to_flimbatch(data_dir, tmp_path):

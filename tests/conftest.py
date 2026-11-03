@@ -1,5 +1,5 @@
 import gc
-import logging
+import sys
 
 import matplotlib
 
@@ -50,14 +50,33 @@ def prefect_harness():
     reported to a real server. Started by the first test that needs it."""
     from prefect.testing.utilities import prefect_test_harness
 
-    # Prefect's console handlers write to the stderr of the test that first logged,
-    # which pytest has closed by later tests: don't print those logging errors
-    raise_exceptions, logging.raiseExceptions = logging.raiseExceptions, False
+    with prefect_test_harness():
+        yield
+
+
+@pytest.fixture(scope="session")
+def wxapp():
+    """One wx app for all GUI tests: wxPython supports one per process."""
+    wx = pytest.importorskip("wx")
     try:
-        with prefect_test_harness():
-            yield
-    finally:
-        logging.raiseExceptions = raise_exceptions
+        app = wx.App()
+    except SystemExit:  # raised by wx when no display is available
+        pytest.skip("no display available")
+    import flim.gui  # noqa: F401  (configures wx and matplotlib for the GUI)
+
+    return app
+
+
+@pytest.fixture(autouse=True, scope="module")
+def destroy_windows():
+    """Destroys the windows a test module left open."""
+    yield
+    wx = sys.modules.get("wx")
+    if wx is not None and wx.GetApp() is not None:
+        for window in list(wx.GetTopLevelWindows()):
+            # windows already destroyed by a test may still be listed until deleted
+            if window and not window.IsBeingDeleted():
+                window.Destroy()
 
 
 @pytest.fixture(autouse=True)

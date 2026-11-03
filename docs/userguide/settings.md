@@ -21,6 +21,8 @@ Every tool's dialog has two buttons for its own settings:
 
 The tool's settings also include whether its results are saved, and to which folder.
 
+The folder is saved as its full path. On Windows, a folder on a mapped network drive (for example `Z:\results`) is saved as its network path (`\\server\share\results`). That way it still works when the drive letter is not available, for example when FLIMAnalyzer was started as administrator. If the folder can't be reached or written to, the dialog marks it and `OK` stays disabled.
+
 ## Settings of features
 
 Some tools have a table with a row for each feature, for example the table of ranges and bins in the `Frequency Histogram` dialog. `Load Feature Settings...` and `Save Feature Settings...` below the table load and save these values for each feature. `Load Feature Settings...` applies the values to the features in the table. It does not change which features are checked.
@@ -29,7 +31,7 @@ Some tools have a table with a row for each feature, for example the table of ra
 
 ```
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "import": { ... },
   "preprocess": { ... },
   "display": [ ... ],

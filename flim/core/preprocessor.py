@@ -19,7 +19,7 @@ def percentile(n):
     def percentile_(x):
         return np.nanpercentile(x, n)
 
-    percentile_.__name__ = "%s percentile" % n
+    percentile_.__name__ = f"{n} percentile"
     return percentile_
 
 

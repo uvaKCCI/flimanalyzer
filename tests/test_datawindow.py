@@ -9,20 +9,6 @@ wx = pytest.importorskip("wx")
 FEATURE = "NAD(P)H t1"
 
 
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
-
-
 @pytest.fixture
 def frame(wxapp, monkeypatch):
     from flim.core.tools import FLIMAnalyzer

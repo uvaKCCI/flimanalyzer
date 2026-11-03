@@ -26,6 +26,7 @@ from flim.core.execution import ExecutionOptions
 from flim.core.filter import RangeFilter
 from flim.core.importer import dataimporter
 from flim.core.parser import instantiate_parser
+from flim.core.paths import canonical_folder, folder_problem
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
@@ -203,9 +204,12 @@ def main(argv=None) -> int:
     try:
         check_executor_available(args.executor)
         settings = load_settings(args.settings) if args.settings else AppSettings.default()
-        os.makedirs(args.output, exist_ok=True)
+        output = canonical_folder(args.output)
+        if problem := folder_problem(output):
+            raise BatchError(f"--output: {problem}")
+        os.makedirs(output, exist_ok=True)
         data = import_table(args.input, settings, exclude=args.exclude)
-        path = os.path.join(args.output, IMPORTED)
+        path = os.path.join(output, IMPORTED)
         data.to_csv(path, sep="\t", index=False)
         logging.info(f"Saved {path}")
         execution = ExecutionOptions.from_legacy(args.executor, args.execargs)
@@ -213,7 +217,7 @@ def main(argv=None) -> int:
         with use_prefect_server(start=not args.no_prefect_server):
             for name in args.run:
                 run = run_tool(
-                    name, data, settings, args.output, execution, args.allow_guesses
+                    name, data, settings, output, execution, args.allow_guesses
                 )
                 if run.failed or run.state != "completed":
                     failed.append(f"{name}: {', '.join(run.failed) or run.state}")

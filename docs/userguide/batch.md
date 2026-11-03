@@ -26,7 +26,7 @@ Before a workflow runs, its settings are checked against the data (see [Workflow
 |---|---|
 | `-i`, `--input` | data files or folders (required) |
 | `-x`, `--exclude` | files not to import |
-| `-o`, `--output` | folder for the results (required) |
+| `-o`, `--output` | folder for the results (required). `flimbatch` stops with a message if it can't be reached or written to. |
 | `-c`, `--settings` | settings file |
 | `-r`, `--run` | tool or workflow to run; repeat for several |
 | `--allow-guesses` | workflows: for each column not in the data, use the closest matching column |

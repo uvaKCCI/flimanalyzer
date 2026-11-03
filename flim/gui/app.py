@@ -27,6 +27,7 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.settings import AppSettings, load_settings, save_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
+from flim.core.paths import canonical_folder
 from flim.core.graph import WorkflowGraph
 from flim.core.workflow import Workflow
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
@@ -567,8 +568,8 @@ class AppFrame(wx.Frame):
         task_runner = self.flimanalyzer.get_task_runner()
         execution = result.execution
         if is_workflow:
-            folder = execution.results_dir or self.settings.working_dir
-            autosave_dir = os.path.join(str(folder), tool.name)
+            folder = canonical_folder(execution.results_dir or self.settings.working_dir)
+            autosave_dir = os.path.join(folder, tool.name)
 
             def start_run(cancel_token, on_progress, on_start):
                 return tool().run_flow(
@@ -584,7 +585,9 @@ class AppFrame(wx.Frame):
 
         else:
             configs = tool().map_configs(result.config)
-            autosave_dir = str(execution.results_dir) if execution.autosave else None
+            autosave_dir = (
+                canonical_folder(str(execution.results_dir)) if execution.autosave else None
+            )
 
             def interactive_analysis():
                 for config in configs:
@@ -882,8 +885,8 @@ class AppFrame(wx.Frame):
         while title in self.windowframes:
             if suffix:
                 title = title[: -len(suffix)]
-            suffix = "-%d" % i
-            title = "%s%s" % (title, suffix)
+            suffix = f"-{i}"
+            title = f"{title}{suffix}"
             i += 1
         return title
 

@@ -10,6 +10,7 @@ import threading
 import wx
 import wx.adv
 
+from flim.core.paths import shorten_path
 from flim.core.runner import FINAL_STATUSES, CancelToken
 
 
@@ -29,14 +30,15 @@ class FolderLink(wx.adv.HyperlinkCtrl):
     """Shows a folder path; clicking it opens the folder in the file browser."""
 
     def __init__(self, parent, path=""):
-        super().__init__(parent, wx.ID_ANY, path or " ", "")
-        self.path = path
-        self.SetToolTip("Open in the file browser")
+        super().__init__(parent, wx.ID_ANY, " ", "")
         self.Bind(wx.adv.EVT_HYPERLINK, self.OnClick)
+        self.SetPath(path)
 
     def SetPath(self, path):
+        """Shows ``path`` (long paths shortened); the tooltip has the whole path."""
         self.path = path
-        self.SetLabel(path)
+        self.SetLabel(shorten_path(path) if path else " ")
+        self.SetToolTip(f"{path}\nOpen in the file browser" if path else "")
 
     def OnClick(self, event):
         # instead of opening a URL in the web browser
@@ -224,7 +226,15 @@ class RunProgressDialog(wx.Dialog):
         self._restore_gc()
         self.timer.Stop()
         self._refresh()
+        self._end_modal()
+
+    def _end_modal(self):
+        if not self or not self.IsModal():
+            return
         self.EndModal(wx.ID_CANCEL if self.cancel_token.is_set() else wx.ID_OK)
+        # a run that ends at once can call EndModal before the modal loop really runs;
+        # macOS then ignores it and ShowModal never returns: check again
+        wx.CallLater(200, self._end_modal)
 
 
 class RunSummaryDialog(wx.Dialog):

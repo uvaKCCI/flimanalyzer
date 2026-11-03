@@ -21,6 +21,7 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 from flim.core.config import Issue, TaskConfig
 from flim.core.execution import ExecutionOptions
+from flim.core.paths import canonical_folder, folder_problem
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.settings import read_tool_entry, tool_entry, write_tool_entry
 from flim.gui.editors import FieldErrors, FieldsPanel
@@ -331,8 +332,11 @@ class ConfigDialog(wx.Dialog):
 
     def execution_issues(self) -> list[Issue]:
         issues = []
-        if self.autosave.GetValue() and not self.folder.GetPath():
-            issues.append(Issue(None, "Choose the folder to save the results in"))
+        if self.autosave.GetValue():
+            if not self.folder.GetPath():
+                issues.append(Issue(None, "Choose the folder to save the results in"))
+            elif problem := folder_problem(self.folder.GetPath()):
+                issues.append(Issue(None, problem))
         for spec, names in zip(self.tool.inputs, self.selected_names()):
             if not spec.optional and not names:
                 issues.append(Issue(None, f"Select the {spec.name} input"))
@@ -472,7 +476,7 @@ class ConfigDialog(wx.Dialog):
         if config is None:
             raise ValueError(f"The configuration is not valid: {issues}")
         autosave = self.autosave.GetValue()
-        folder = self.folder.GetPath() or None
+        folder = canonical_folder(self.folder.GetPath()) or None
         execution = self.execution.model_copy(
             update={"autosave": autosave, "results_dir": folder}
         )

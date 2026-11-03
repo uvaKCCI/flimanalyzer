@@ -1,22 +1,5 @@
-import pytest
 
 FEATURES = ["NAD(P)H t1", "NAD(P)H t2", "NAD(P)H a1[%]"]
-
-
-@pytest.fixture(scope="module")
-def wxapp():
-    wx = pytest.importorskip("wx")
-    try:
-        app = wx.App()
-    except SystemExit:
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        # windows already destroyed by a test may still be listed until deleted
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
 
 
 def test_dialog_points_controls(wxapp, flim_data):

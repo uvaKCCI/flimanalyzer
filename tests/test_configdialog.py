@@ -1,5 +1,6 @@
 """The generic configuration dialog (flim.gui.configdialog) and its field editors."""
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -19,20 +20,6 @@ from flim.core.execution import ExecutionOptions  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
 
 TOOLS = [t for group in tools.by_category().values() for t in group]
-
-
-@pytest.fixture(scope="module")
-def wxapp():
-    try:
-        app = wx.App()
-    except SystemExit:  # raised by wx when no display is available
-        pytest.skip("no display available")
-    import flim.gui  # noqa: F401
-
-    yield app
-    for window in list(wx.GetTopLevelWindows()):
-        if window and not window.IsBeingDeleted():
-            window.Destroy()
 
 
 @pytest.fixture
@@ -269,6 +256,27 @@ def test_execution_options(dialog, tmp_path):
     execution = d.result().execution
     assert execution.autosave and execution.results_dir == Path(tmp_path)
     assert execution.num_workers == 3  # other options are kept
+
+
+def test_results_folder_that_cannot_be_used(dialog, tmp_path):
+    (tmp_path / "file").write_text("x")
+    d = dialog("Sort")
+    d.autosave.SetValue(True)
+    d.folder.SetPath(str(tmp_path / "file" / "results"))
+    d.validate()
+    assert not d.ok_button.IsEnabled()
+    assert "is not a folder" in d.status.GetLabel()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symbolic links need extra rights")
+def test_results_folder_is_stored_canonical(dialog, tmp_path):
+    (tmp_path / "real").mkdir()
+    (tmp_path / "link").symlink_to(tmp_path / "real")
+    d = dialog("Sort")
+    d.autosave.SetValue(True)
+    d.folder.SetPath(str(tmp_path / "link"))
+    d.validate()
+    assert d.result().execution.results_dir == Path(tmp_path / "real")
 
 
 def test_autosave_locked(dialog, tmp_path):

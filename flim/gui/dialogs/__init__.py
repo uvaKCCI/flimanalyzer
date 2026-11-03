@@ -56,7 +56,7 @@ def save_dataframe(
             data = data.rename(columns=lambda c: str(c).replace("\n", " "))
             data.to_csv(fname, index=saveindex, sep="\t")
         except IOError:
-            wx.MessageBox("Error saving data in file %s" % fname, "Error", wx.OK)
+            wx.MessageBox(f"Error saving data in file {fname}", "Error", wx.OK)
             return None
         return fname
 
@@ -79,7 +79,7 @@ def save_figure(
             else:
                 fig.savefig(fname, dpi=dpi, bbox_inches="tight")
         except IOError:
-            error = "Error saving figure in file %s" % fname
+            error = f"Error saving figure in file {fname}"
             logging.error(error)
             wx.MessageBox(error, "Error", wx.OK)
             return None
@@ -295,7 +295,7 @@ class ConfigureCategoriesDlg(wx.Dialog):
             self,
             parent,
             wx.ID_ANY,
-            "Category Configuration: %s" % title,
+            f"Category Configuration: {title}",
             size=(650, 220),
         )
         #        self.bins = None

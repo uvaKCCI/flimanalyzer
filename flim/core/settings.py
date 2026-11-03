@@ -3,11 +3,12 @@
 A settings file stores ``schema_version``. Files of older versions are upgraded step by
 step (``MIGRATIONS``: version n -> n+1) and then validated with :class:`AppSettings`;
 settings are always saved in the newest version. Version 0 is the dict ``Config`` of
-FLIMAnalyzer up to 0.5 (``{"root": {"import": ..., "plugins": ...}}``).
+FLIMAnalyzer up to 0.5 (``{"root": {"import": ..., "plugins": ...}}``); version 1 is
+the format of 0.6.
 
 A settings file has a section per part of the application, and one per tool::
 
-    {"schema_version": 2,
+    {"schema_version": 1,
      "import": {...}, "preprocess": {...}, "display": [...], "filters": {...},
      "tools": {"Summarize": {"config": {...}, "autosave": false, "results_dir": null},
                ...}}
@@ -31,7 +32,7 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from flim.core.config import TaskConfig
 
-SETTINGS_VERSION = 2
+SETTINGS_VERSION = 1
 
 
 class _Settings(BaseModel):
@@ -296,17 +297,8 @@ def _v0_tools(plugins: dict) -> dict:
     return entries
 
 
-def _v1_to_v2(data: dict) -> dict:
-    """Version 1 kept the tools under {"tools": {"tools": {...}}}: one level less."""
-    data = dict(data)
-    tools = data.get("tools")
-    if isinstance(tools, dict) and set(tools) == {"tools"}:
-        data["tools"] = tools["tools"]
-    return data
-
-
 # version n -> the settings of version n + 1
-MIGRATIONS: dict[int, Callable[[dict], dict]] = {0: _v0_to_v1, 1: _v1_to_v2}
+MIGRATIONS: dict[int, Callable[[dict], dict]] = {0: _v0_to_v1}
 
 
 def version_of(data: dict) -> int:

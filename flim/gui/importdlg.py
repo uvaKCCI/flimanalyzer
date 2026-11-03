@@ -275,12 +275,10 @@ class ImportDlg(wx.Dialog):
         importer.set_files(files)
 
     def update_listlabel(self):
-        label = "Selected Files: %9d" % len(self.importer.get_files())
+        label = f"Selected Files: {len(self.importer.get_files()):9d}"
         if self.rawdata is not None:
-            label += "; imported %d rows, %d columns" % (
-                self.rawdata.shape[0],
-                self.rawdata.shape[1],
-            )
+            rows, cols = self.rawdata.shape
+            label += f"; imported {rows} rows, {cols} columns"
         self.sel_files_label.SetLabel(label)
 
     def OnParserChanged(self, event):

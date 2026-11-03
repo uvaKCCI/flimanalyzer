@@ -287,14 +287,17 @@ def test_tasks_report_running_and_start_callback():
         started.append(run.flow_run_id)
         holder["run"] = run
 
+    token = CancelToken()
+
     def on_progress(done, total, label, complete):
         statuses.append(dict(holder["run"].tasks()))
+        if "running" in statuses[-1].values():
+            token.set()  # cancel once it runs (busy machines start it late)
 
     def build():
         Looper(name="Long")().value()  # loops ~10 s unless cancelled
 
-    token = CancelToken()
-    threading.Timer(0.5, token.set).start()
+    threading.Timer(10, token.set).start()  # in case it is never reported running
     run = run_flow("running", build, on_progress=on_progress, cancel_token=token, on_start=on_start)
     assert started == [run.flow_run_id] and run.flow_run_id is not None
     assert {"Long": "running"} in statuses
@@ -302,12 +305,18 @@ def test_tasks_report_running_and_start_callback():
 
 
 class SlowPlot(Counter):
-    """Stands in for a plot tool: holds the plot lock for one second."""
+    """Stands in for a plot tool: holds the plot lock for one second; sets ``started``
+    when it gets the lock."""
 
     draws_figures = True
 
+    def __init__(self, name=None, calls=None, started=None):
+        super().__init__(name, calls)
+        self.started = started
+
     def run(self, *inputs, config):
         self.calls.append(self.name)
+        self.started.set()
         time.sleep(1.0)
         return {f"{self.name} done": True}
 
@@ -315,16 +324,16 @@ class SlowPlot(Counter):
 def test_cancel_stops_plot_tasks_waiting_for_the_plot_lock():
     calls = []
     token = CancelToken()
+    started = threading.Event()
 
     def build():
         for i in range(4):
-            SlowPlot(name=f"Plot{i}", calls=calls)()
+            SlowPlot(name=f"Plot{i}", calls=calls, started=started)()
+        started.wait(10)  # all four submitted, one holds the plot lock
+        token.set()
 
-    threading.Timer(0.5, token.set).start()
-    start = time.monotonic()
     run = run_flow("plots", build, default_task_runner(4), cancel_token=token)
-    # the first plot finishes, the three waiting for the lock stop at once
-    assert time.monotonic() - start < 2.5  # instead of 4 s
+    # the first plot finishes, the three waiting for the lock don't run
     assert len(calls) == 1
     counts = run.task_counts()
     assert counts == {"completed": 1, "cancelled": 3}

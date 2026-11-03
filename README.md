@@ -188,6 +188,10 @@ Run the test suite:
 
 Tests that run flows use a temporary Prefect server and database and do not report to any configured server.
 
+The tests run one after another. The GUI tests depend on wxPython's event loop and on timing, so they must not run in parallel. Only the core tests (no GUI) can run in parallel, one process per CPU core, with `pytest-xdist`:
+
+    uv run pytest -n auto tests/core
+
 Build the documentation (output in `docs/_build/html`):
 
     uv run --group docs sphinx-build -b html docs docs/_build/html
