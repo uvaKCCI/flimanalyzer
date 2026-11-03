@@ -33,6 +33,13 @@ import sklearn  # noqa: E402,F401
 # wx.lib.newevent.NewEvent() is unpacked at import time, which a mock can't do
 import types
 
+# flim/_version.py is written when flimanalyzer is installed; the docs import flim from
+# the source tree (Read the Docs sets READTHEDOCS_VERSION, e.g. the tag)
+if not os.path.exists(os.path.join(os.path.dirname(__file__), "..", "flim", "_version.py")):
+    _version = types.ModuleType("flim._version")
+    _version.__version__ = os.environ.get("READTHEDOCS_VERSION", "dev")
+    sys.modules["flim._version"] = _version
+
 _newevent = types.ModuleType("wx.lib.newevent")
 _newevent.NewEvent = lambda: (type("Event", (), {}), object())
 _newevent.NewCommandEvent = _newevent.NewEvent
@@ -94,11 +101,6 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "docs"]
 # a list of builtin themes.
 #
 html_theme = "sphinx_rtd_theme"
-
-# Add any paths that contain custom static files (such as style sheets) here,
-# relative to this directory. They are copied after the builtin static files,
-# so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
 
 html_theme_options = {"collapse_navigation": False}
 
