@@ -351,7 +351,11 @@ def test_results_folder_link_opens_the_file_browser(wxapp, monkeypatch, tmp_path
         assert dlg.ShowModal() == wx.ID_OK
         run_dir = dlg.run.autosave_dir
         assert run_dir.startswith(str(tmp_path))
-        assert seen == {"shown": True, "label": run_dir}
+        # long paths are shortened in the label, the click opens the whole path
+        from flim.core.paths import shorten_path
+
+        assert seen == {"shown": True, "label": shorten_path(run_dir)}
+        assert dlg.folder.path == run_dir and run_dir in dlg.folder.GetToolTipText()
         assert opened == [run_dir]
     finally:
         dlg.Destroy()
