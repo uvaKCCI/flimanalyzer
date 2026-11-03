@@ -124,7 +124,7 @@ class Tool(Generic[ConfigT]):
     description: ClassVar[str] = ""
     icon: ClassVar[Optional[str]] = None  # resource name; the GUI loads the bitmap
     api_version: ClassVar[int] = API_VERSION
-    graph_kind: ClassVar[str] = "plugin"  # node style in the workflow graph
+    graph_kind: ClassVar[str] = "tool"  # node style in the workflow graph
     # True if the whole task draws with pyplot (see pyplot_lock)
     draws_figures: ClassVar[bool] = False
     inputs: ClassVar[tuple[InputSpec, ...]] = (InputSpec("data", TableType),)

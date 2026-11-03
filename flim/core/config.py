@@ -167,7 +167,7 @@ class TaskConfig(BaseConfig):
     """Base of the configs of all tools and workflows.
 
     ``from_legacy_params`` and ``to_legacy_params`` convert from and to the parameter
-    dicts of the current plugins (``AbstractPlugin.params``). Fields are matched by
+    dicts of the 0.5 plugins (as stored in 0.5 settings files). Fields are matched by
     name; ``legacy_keys`` names the legacy key where it differs, or None for fields the
     hooks ``_from_legacy`` and ``_to_legacy`` convert (or that have no legacy key).
     """

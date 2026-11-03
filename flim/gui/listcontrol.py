@@ -222,7 +222,7 @@ class AnalysisListCtrl(
 
     def OnCheckItem(self, index, flag):
         rowkey = self.GetItem(index, self.get_key_col()).GetText()
-        logging.debug(f"OnCheckItem %s" % rowkey)
+        logging.debug("OnCheckItem %s", rowkey)
         #        self.data[rowkey].select(flag)
         if self.enableevents:
             # PROBLEM MULTIINDEX

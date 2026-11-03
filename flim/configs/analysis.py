@@ -70,7 +70,7 @@ class SummaryConfig(StatisticsConfig):
     )
 
 
-# alpha levels of the KS critical value table (flim.analysis.ksstats.calpha)
+# alpha levels of the KS critical value table (flim.tools.statistics.KS_CRITICAL)
 KSAlpha = Literal[0.1, 0.05, 0.025, 0.01, 0.005, 0.001]
 
 

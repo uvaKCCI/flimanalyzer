@@ -109,9 +109,6 @@ class DataWindowEvent(wx.PyCommandEvent):
     def GetData(self):
         return self.data
 
-    def GetDataId(self):
-        return id(data)
-
     def GetConfig(self):
         return self.config
 

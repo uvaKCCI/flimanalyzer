@@ -11,7 +11,6 @@ import logging
 import os
 import glob
 import pandas as pd
-import numpy as np
 
 from flim.core.parser import PATTERN_CATEGORY, defaultparser
 import flim.core.preprocessor as pp

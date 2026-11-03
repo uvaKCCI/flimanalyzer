@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Union
+from typing import Literal, Optional
 
 import pytest
 from pydantic import Field, ValidationError, model_validator

@@ -21,9 +21,9 @@ from flim.configs.data import (
     MergeConfig,
     PivotConfig,
     SortConfig,
-    SplitConfig,
     UnpivotConfig,
 )
+from flim.configs.data import SplitConfig  # noqa: F401  (re-exported)
 from flim.configs.plot import (
     BarPlotConfig,
     BoxPlotConfig,

@@ -1,4 +1,4 @@
-"""The Data tools, without wx (the legacy plugins are tested in tests/test_data_plugins.py)."""
+"""The Data tools, without wx."""
 
 import numpy as np
 import pandas as pd
@@ -66,6 +66,17 @@ def test_category_order(data):
     assert list(data["Treatment"].cat.categories) == ["KO", "WT"]  # input untouched
 
 
+def test_order_categories(flim_data):
+    config = CategoryOrderConfig(
+        categories={"Treatment": ["WT", "KO"], "FOV": ["3", "2", "1"]}
+    )
+    df = table(CategoryOrder()(flim_data, config=config))
+    assert list(df["Treatment"].cat.categories) == ["WT", "KO"]
+    assert df["Treatment"].cat.ordered
+    assert list(df["FOV"].iloc[:10]) == ["3"] * 10  # sorted by the new order
+    assert df.iloc[0]["Treatment"] == "WT"
+
+
 def test_category_order_without_categories(data):
     df = table(CategoryOrder()(data))
     pd.testing.assert_frame_equal(df, data)
@@ -76,6 +87,9 @@ def test_concat(data):
     df = table(Concat()(tables, config=ConcatConfig()))
     assert len(df) == len(data)
     assert df["Source"].value_counts().to_dict() == {"A": 8, "B": 12}
+    assert df["Source"].dtype == "category"
+    assert df["Treatment"].dtype == "category"
+    assert "Old Index" not in df.columns
     wide = table(
         Concat()(
             {"A": data[["Treatment", "t1"]], "B": data[["FOV", "t2"]]},
@@ -94,7 +108,9 @@ def test_filter(data):
     df = table(Filter()(data, config=config))
     expected = data[(data["Treatment"] == "WT") & data["t1"].between(low, high)]
     assert len(df) == len(expected) > 0
+    assert set(df["Treatment"]) == {"WT"}
     assert list(df.index) == list(range(len(df)))
+    assert len(data) == 20  # input untouched
 
 
 def test_filter_open_ranges_and_missing_values(data):
@@ -113,6 +129,7 @@ def test_merge(data):
     df = table(Merge()(left, right))
     assert len(df) == len(data)
     assert list(df.columns) == ["Treatment", "FOV", "Cell", "t1", "t2"]
+    assert all(df[c].dtype == "category" for c in ("Treatment", "FOV", "Cell"))
     by_fov = table(
         Merge()(
             left.iloc[:3],
@@ -148,6 +165,9 @@ def test_unpivot_single_line_columns(data):
     # the level of single-line columns: the feature; the values in one column
     assert list(df.columns) == ["Treatment", "FOV", "Cell", "Feature", "Value"]
     assert list(df["Feature"].cat.categories) == ["t1", "t2"]
+    np.testing.assert_allclose(
+        df.loc[df["Feature"] == "t1", "Value"].to_numpy(), data["t1"].to_numpy()
+    )
     named = UnpivotConfig(features=["t1", "t2"], category_name="Lifetime")
     assert "Lifetime" in table(Unpivot()(data, config=named))
 
@@ -204,6 +224,22 @@ def test_unpivot_a_summary_of_several_features(data):
     df = table(Unpivot()(summary, config=UnpivotConfig(level="Feature")))
     assert list(df.columns) == ["Treatment", "Feature", "mean"]
     assert list(df["Feature"].cat.categories) == ["t1", "t2"]
+
+
+def test_unpivot_strips_feature_prefix_with_regex_characters():
+    # pivoted column headers have the form "<feature>\n<category>"
+    data = pd.DataFrame(
+        {
+            "FOV": pd.Categorical(["1", "2"]),
+            "Value (a.u.)\nWT": [1.0, 2.0],
+            "Value (a.u.)\nKO": [3.0, 4.0],
+        }
+    )
+    config = UnpivotConfig(
+        features=["Value (a.u.)\nWT", "Value (a.u.)\nKO"], category_name="Treatment"
+    )
+    df = table(Unpivot()(data, config=config))
+    assert set(df["Treatment"]) == {"WT", "KO"}
 
 
 def test_unpivot_without_recorded_levels(data):

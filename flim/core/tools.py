@@ -7,9 +7,7 @@ Created on Fri May  4 02:42:45 2018
 import pandas as pd
 import argparse
 import logging
-import sys
 
-import flim
 from flim.core.importer import dataimporter
 from flim.core.parser import defaultparser
 from flim.core.preprocessor import defaultpreprocessor

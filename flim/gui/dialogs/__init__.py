@@ -8,13 +8,11 @@ Created on Tue Jun 12 13:35:51 2018
 
 import logging
 import re
-import json
 import wx.grid
 from pubsub import pub
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
-from flim.gui.dicttablepanel import ListTable
 
 
 def check_data_msg(data):

@@ -4,8 +4,9 @@ import pytest
 
 wx = pytest.importorskip("wx")
 
+from flim.core.config import TaskConfig  # noqa: E402
 from flim.core.runner import run_flow  # noqa: E402
-from flim.plugin import AbstractPlugin  # noqa: E402
+from flim.core.tool import Tool  # noqa: E402
 
 
 pytestmark = pytest.mark.usefixtures("prefect_harness")
@@ -26,29 +27,35 @@ def wxapp():
             window.Destroy()
 
 
-class Task(AbstractPlugin):
-    def __init__(self, name="Task", seconds=0.0, **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.seconds = seconds
+class TaskSeconds(TaskConfig):
+    seconds: float = 0.0
 
-    def get_required_categories(self):
-        return []
 
-    def get_required_features(self):
-        return []
+class Task(Tool[TaskSeconds]):
+    name = "Task"
+    category = "Data"
 
-    def execute(self):
-        end = time.monotonic() + self.seconds
+    def __init__(self, name=None):
+        super().__init__()
+        if name:
+            self.name = name
+
+    def run(self, *inputs, config):
+        end = time.monotonic() + config.seconds
         while time.monotonic() < end:
             self.check_cancelled()
             time.sleep(0.02)
         return {f"{self.name} done": True}
 
 
+def _task(name, seconds=0.0):
+    return Task(name)(config=TaskSeconds(seconds=seconds))
+
+
 def _starter(n=3, seconds=0.0, autosave_dir=None):
     def build():
         for i in range(n):
-            Task(name=f"T{i}", seconds=seconds)(input={})
+            _task(f"T{i}", seconds)
 
     def start_run(cancel_token, on_progress, on_start):
         return run_flow(
@@ -276,8 +283,8 @@ def test_status_line_matches_the_task_list(wxapp):
     from flim.gui.progressdlg import RunProgressDialog
 
     def build():
-        Task(name="Short", seconds=0.2)(input={})
-        Task(name="Long", seconds=2.5)(input={})
+        _task("Short", 0.2)
+        _task("Long", 2.5)
 
     def start_run(cancel_token, on_progress, on_start):
         return run_flow(
@@ -423,7 +430,7 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
 
 
 class Failing(Task):
-    def execute(self):
+    def run(self, *inputs, config):
         raise RuntimeError("boom")
 
 
@@ -448,8 +455,8 @@ def test_summary_of_a_completed_run(wxapp, tmp_path):
 
 def test_summary_of_a_run_with_failed_tasks(wxapp, tmp_path):
     def build():
-        Task(name="Good")(input={})
-        Failing(name="Bad")(input={})
+        Task(name="Good")()
+        Failing(name="Bad")()
 
     run = run_flow("partly failing", build, autosave_dir=str(tmp_path))
     texts, folder, _ = _summary_texts(run)
@@ -516,12 +523,12 @@ def test_garbage_collection_stays_on_the_main_thread_during_a_run(wxapp):
     seen = []
 
     class Probe(Task):
-        def execute(self):
+        def run(self, *inputs, config):
             seen.append(gc.isenabled())  # in a worker thread
             return {}
 
     def start_run(cancel_token, on_progress, on_start):
-        return run_flow("gc", lambda: Probe()(input={}), on_progress=on_progress,
+        return run_flow("gc", lambda: Probe()(), on_progress=on_progress,
                         cancel_token=cancel_token, on_start=on_start)
 
     assert gc.isenabled()

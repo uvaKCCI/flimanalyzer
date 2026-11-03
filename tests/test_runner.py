@@ -5,33 +5,33 @@ import pandas as pd
 import pytest
 from prefect import unmapped
 
+from flim.configs import FilterConfig, SortConfig, SummaryConfig
+from flim.core.config import TaskConfig
 from flim.core.graph import WorkflowGraph
 from flim.core.runner import TaskOutput, run_flow, select
-from flim.analysis.summarystats import SummaryStats
-from flim.data.filterdata import Filter
-from flim.data.sortdata import Sort
-from flim.plugin import AbstractPlugin, DataBucket
+from flim.core.tool import Tool
+from flim.core.workflow import workflow_input
+from flim.tools.data import Filter, Sort
+from flim.tools.statistics import Summarize
 
 
 pytestmark = pytest.mark.usefixtures("prefect_harness")
 
 
-class Boom(AbstractPlugin):
-    def __init__(self, name="Boom", **kwargs):
-        super().__init__(name=name, **kwargs)
+class Boom(Tool[TaskConfig]):
+    name = "Boom"
+    category = "Data"
 
-    def get_required_categories(self):
-        return []
-
-    def get_required_features(self):
-        return []
-
-    def execute(self):
+    def run(self, *inputs, config):
         raise RuntimeError("boom")
 
 
+def _sort(feature):
+    return SortConfig(features=[feature])
+
+
 def test_call_outside_flow_runs_directly(flim_data):
-    results = Sort()(input={"data": flim_data}, features=["NAD(P)H t1"])
+    results = Sort()(flim_data, config=_sort("NAD(P)H t1"))
     assert results["Table: Sorted"]["NAD(P)H t1"].is_monotonic_increasing
 
 
@@ -39,14 +39,16 @@ def test_chained_calls_and_item_access(flim_data):
     outputs = {}
 
     def build():
-        data = DataBucket(name="Input")(input={"data": flim_data}, input_select=[0])
+        data = workflow_input(flim_data)
         assert isinstance(data, TaskOutput)
-        filtered = Filter()(input=data, category_filters={"Treatment": ["WT"]})
-        outputs["summary"] = SummaryStats()(
-            input=filtered["Table: Filtered"],
-            grouping=["Treatment"],
-            features=["NAD(P)H t1"],
-            aggs=["count"],
+        filtered = Filter()(
+            data, config=FilterConfig(category_filters={"Treatment": ["WT"]})
+        )
+        outputs["summary"] = Summarize()(
+            filtered["Table: Filtered"],
+            config=SummaryConfig(
+                grouping=["Treatment"], features=["NAD(P)H t1"], aggs=["count"]
+            ),
         )
 
     run = run_flow("test chain", build)
@@ -56,7 +58,7 @@ def test_chained_calls_and_item_access(flim_data):
 
     labels = {a["label"]: (n, a["kind"]) for n, a in run.graph.nodes(data=True)}
     assert labels["Input"][1] == "output"
-    assert labels["Filter"][1] == "plugin"
+    assert labels["Filter"][1] == "tool"
     assert labels["Table: Filtered"][1] == "output"
     # Input -> Filter -> "Table: Filtered" -> Summarize
     path = ["Input", "Filter", "Table: Filtered", "Summarize"]
@@ -65,14 +67,11 @@ def test_chained_calls_and_item_access(flim_data):
     assert len(run.results()) == 3
 
 
-def test_map_with_unmapped(flim_data):
+def test_calls_with_unmapped_input(flim_data):
     def build():
-        data = DataBucket(name="Input")(input={"data": flim_data}, input_select=[0])
-        Sort().map(
-            input=unmapped(data),
-            features=[["NAD(P)H t1"], ["NAD(P)H t2"]],
-            task_tags=["t1", "t2"],
-        )
+        data = workflow_input(flim_data)
+        for feature, tag in (("NAD(P)H t1", "t1"), ("NAD(P)H t2", "t2")):
+            Sort()(unmapped(data), config=_sort(feature), task_tags=tag)
 
     run = run_flow("test map", build)
     sorted_tables = [r["Table: Sorted"] for r in run.results() if isinstance(r, dict)]
@@ -81,19 +80,11 @@ def test_map_with_unmapped(flim_data):
     assert sorted_tables[1]["NAD(P)H t2"].is_monotonic_increasing
 
 
-def test_map_rejects_unequal_lengths(flim_data):
-    def build():
-        Sort().map(input=[{"a": flim_data}], features=[["x"], ["y"]])
-
-    with pytest.raises(ValueError, match="differ in length"):
-        run_flow("test map lengths", build)
-
-
 def test_failed_task_skips_downstream(flim_data):
     def build():
-        failed = Boom()(input={"data": flim_data})
-        Sort()(input=failed, features=["NAD(P)H t1"])
-        Sort()(input={"data": flim_data}, features=["NAD(P)H t1"])
+        failed = Boom()(flim_data)
+        Sort()(failed, config=_sort("NAD(P)H t1"))
+        Sort()(flim_data, config=_sort("NAD(P)H t1"))
 
     run = run_flow("test failure", build)
     status = {a["label"]: a["status"] for _, a in run.graph.nodes(data=True)}
@@ -105,10 +96,9 @@ def test_select_from_outputs(flim_data):
     picked = {}
 
     def build():
-        outs = Sort().map(
-            input=[{"a": flim_data}, {"b": flim_data}],
-            features=[["NAD(P)H t1"], ["NAD(P)H t2"]],
-        )
+        outs = [
+            Sort()(flim_data, config=_sort(f)) for f in ("NAD(P)H t1", "NAD(P)H t2")
+        ]
         picked["tables"] = select(outs, "Sorted")
 
     run_flow("test select", build)
@@ -118,11 +108,11 @@ def test_select_from_outputs(flim_data):
 
 def test_autosave(flim_data, tmp_path):
     def build():
-        SummaryStats()(
-            input={"data": flim_data},
-            grouping=["Treatment"],
-            features=["NAD(P)H t1"],
-            aggs=["mean"],
+        Summarize()(
+            flim_data,
+            config=SummaryConfig(
+                grouping=["Treatment"], features=["NAD(P)H t1"], aggs=["mean"]
+            ),
             task_tags="Stats",
         )
 
@@ -135,8 +125,7 @@ def test_autosave(flim_data, tmp_path):
 
 def test_workflow_graph_plot(flim_data):
     def build():
-        data = DataBucket(name="Input")(input={"data": flim_data}, input_select=[0])
-        Sort()(input=data, features=["NAD(P)H t1"])
+        Sort()(workflow_input(flim_data), config=_sort("NAD(P)H t1"))
 
     fig, ax = WorkflowGraph(run_flow("test graph", build)).get_plot()
     assert isinstance(fig, matplotlib.figure.Figure)
@@ -148,10 +137,8 @@ def test_dask_task_runner(flim_data):
     DaskTaskRunner = pytest.importorskip("prefect_dask").DaskTaskRunner
 
     def build():
-        Sort().map(
-            input=unmapped({"data": flim_data}),
-            features=[["NAD(P)H t1"], ["NAD(P)H t2"]],
-        )
+        for feature in ("NAD(P)H t1", "NAD(P)H t2"):
+            Sort()(unmapped(flim_data), config=_sort(feature))
 
     runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": False})
     run = run_flow("test dask", build, task_runner=runner)

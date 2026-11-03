@@ -26,7 +26,7 @@ def test_basic_flirr_workflow(flirr_data, tmp_path):
     run = wf.run_flow(flirr_data, config=CONFIG, autosave_dir=str(tmp_path / wf.name))
 
     assert run.failed == []
-    statuses = {a["status"] for _, a in run.graph.nodes(data=True) if "plugin" in a}
+    statuses = {a["status"] for _, a in run.graph.nodes(data=True) if "tool" in a}
     assert statuses == {"completed"}
     tables = [
         v for r in run.results() if isinstance(r, dict) for v in r.values()

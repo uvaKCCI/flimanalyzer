@@ -131,13 +131,18 @@ def test_legacy_single_grid_values():
 # --- with torch ---
 
 
-def test_train_run_augment(needs_torch, data, tmp_path):
+@pytest.mark.parametrize("device", ["auto", "cpu"])
+def test_train_run_augment(needs_torch, data, tmp_path, device):
     import joblib
 
+    resources = {"preferred_device": device}
     training = AETraining()
     training._output_dir = str(tmp_path)
     results = training(
-        data, config=train_config(timeseries="Treatment", model_name="M")
+        data,
+        config=train_config(
+            timeseries="Treatment", model_name="M", resources=resources
+        ),
     )
     files = results["Model File"]
     assert [p.split("/")[-1] for p in files] == [
@@ -153,7 +158,7 @@ def test_train_run_augment(needs_torch, data, tmp_path):
     model = joblib.load(files[-1])[-1]
     assert {p.device.type for p in model.parameters()} == {"cpu"}
 
-    common = dict(features=FEATURES, resources={"preferred_device": "cpu"})
+    common = dict(features=FEATURES, resources=resources)
     run = RunAE()(data, config=AERunConfig(model_files=[files[-1]], **common))
     reconstructed = run["Table: Reconstructed-M_32_0.0001_1e-08_epoch0002.model"]
     assert reconstructed.shape == (len(data), 3 + len(FEATURES))

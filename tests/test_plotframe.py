@@ -45,16 +45,16 @@ def test_plugins_draw_off_screen(wxapp):
 
 
 def _plots_in_worker_thread(table, names):
-    import flim.plugin as plugin
+    from flim.core.registry import tools
 
     results, errors = {}, {}
 
     def work():
         for name in names:
             try:
-                tool = plugin.PLUGINS["Plot"][name]()
-                tool.configure(input={"t": table}, grouping=["Treatment"], features=["x", "y"])
-                results[name] = tool.execute()
+                tool = tools.get(name)
+                config = tool.config_class(grouping=["Treatment"], features=["x", "y"])
+                results[name] = tool()(table, config=config)
             except Exception as e:  # reported by the test below
                 errors[name] = repr(e)
 

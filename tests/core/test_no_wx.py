@@ -14,11 +14,9 @@ CORE_MODULES = [
     "flim.tools",
     "flim.batch",
 ]
-# every module of these packages (not subpackages: flim.analysis.ml needs torch)
+# every module of these packages (not subpackages)
 CORE_PACKAGES = [
     "flim.core",
-    "flim.data",
-    "flim.analysis",
     "flim.tools",
     "flim.configs",
     "flim.workflow",
@@ -46,8 +44,10 @@ def test_core_imports_without_wx():
     """The core modules must import with wx unavailable (CI also runs them without wx)."""
     run(
         f"for m in {CORE_MODULES!r}:\n"
-        "    __import__(m)\n"
-        "assert 'flim.plugin' not in sys.modules, 'importing flim must not load the tools'\n"
+        "    if m != 'flim.tools':\n"
+        "        __import__(m)\n"
+        "assert 'flim.tools' not in sys.modules, 'importing the core must not load the tools'\n"
+        "import flim.tools\n"
     )
 
 
@@ -59,11 +59,9 @@ def test_all_core_modules_import_without_wx_and_torch():
         "    for m in pkgutil.iter_modules(importlib.import_module(package).__path__):\n"
         "        if not m.ispkg:\n"
         "            importlib.import_module(f'{package}.{m.name}')\n"
-        "from flim.plugin import PLUGINS\n"
-        "assert sorted(PLUGINS) == ['Analysis', 'Data', 'Plot'], PLUGINS\n"
-        "assert sum(len(p) for p in PLUGINS.values()) == 30\n"
         "from flim.core.registry import tools\n"
-        "assert len(tools.by_category()['Workflow']) == 3\n"
+        "counts = {c: len(t) for c, t in tools.by_category().items()}\n"
+        "assert counts == {'Data': 8, 'Analysis': 12, 'Plot': 11, 'Workflow': 3}, counts\n"
     )
 
 
