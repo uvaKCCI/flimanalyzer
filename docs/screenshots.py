@@ -3,7 +3,7 @@
     uv run python docs/screenshots.py DATAFILE [NAME ...]
 
 DATAFILE is a FLIM results table (tab-separated) with the columns Cell, FOV and
-Treatment; the user guide uses 9SR-Mito-MASTER-ChiFilter.txt. Its Directory and File
+Treatment; the user guide uses 9SR-Mito-ChiFilter.txt. Its Directory and File
 columns are not shown. NAMEs (image paths below docs/images, e.g.
 analysis/gmm-config.png) select screenshots; default: all.
 
@@ -64,7 +64,7 @@ from flim.configs.plot import (  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
 
 IMAGES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images")
-DATAFILE = "9SR-Mito-MASTER-ChiFilter.txt"
+DATAFILE = "9SR-Mito-ChiFilter.txt"
 TREATMENTS = ["ctrl", "Dox15", "Dox30", "Dox45", "Dox60"]
 CATEGORIES = ["Treatment", "FOV", "Cell"]
 DELAY = 800  # ms for a window to be drawn before it is captured
