@@ -4,13 +4,13 @@ Sometimes it is useful to split a data table into separate tables, one for each 
 
 **Menu Access:** `Data` > `Split`
 
-**Toolbar Icon:** ![](/images/data/split.png)
+**Tool panel icon:** ![](/images/data/split.png)
 
 Follow these steps to split this table into a set of tables where each resulting table contains the data corresponding to a specific `FOV`.
 
 1. Select `Data` > `Split`.
 
-2. In the `Configuration: Split` dialog, check `FOV` under `Split by`. Leave the other options unchecked.
+2. In the `Configuration: Split` dialog, check `FOV` under `Split by`. Leave the other columns unchecked.
 
     ![](/images/data/split-input.png)
 

@@ -93,6 +93,20 @@ uv run flimanalyzer -i results.txt more-results.csv
 ```
 Run `flimanalyzer --help` for all command-line options.
 
+### Command-line options
+
+| Option | |
+|---|---|
+| `-i`, `--input` | data files to open at startup, each in its own table window |
+| `-c`, `--config` | settings file to start with, instead of `defaults.json` (see [Settings](/userguide/settings)) |
+| `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
+| `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |
+| `-e`, `--executor` | where the tasks run: `LocalExecutor` (default), `LocalDaskExecutor` or `DaskExecutor` (see [Concurrent and Distributed Execution](/userguide/execution)) |
+| `-a`, `--execargs` | executor options, for example `num_workers=4` |
+| `--batch` | runs [batch mode](/userguide/batch) instead of the GUI: `flimanalyzer --batch ...` does the same as `flimbatch ...` |
+
+The GUI writes its messages to the log file `flimanalyzer.log`, in the folder it was started from. The file is replaced each time FLIMAnalyzer starts. When an error message says "see the log", the details are in this file.
+
 ## Using a GPU
 
 The autoencoder tools have a `Device` setting. These tools are `Autoencoder: Train`, `Autoencoder: Run` and `Autoencoder: Augment Data`, and the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis`. The `Device` setting chooses which processor does the calculations, in the GUI and in batch mode:
@@ -104,4 +118,34 @@ Which GPU can be used depends on the PyTorch build that was installed (see above
 
 ## Prefect server
 
-FLIMAnalyzer runs analyses and workflows as [Prefect](https://www.prefect.io) flows. At startup, it connects to a Prefect server: the one set in the active Prefect profile or in the `PREFECT_API_URL` environment variable, or one already running at `http://127.0.0.1:4200/api`. If it finds none, it starts a local server and stops it again when FLIMAnalyzer closes. See the [README](https://github.com/uvaKCCI/flimanalyzer#prefect-server) for details.
+FLIMAnalyzer runs tools and workflows as [Prefect](https://www.prefect.io) flows. A Prefect server records these runs. At startup, the GUI and `flimbatch` look for a Prefect server in this order:
+
+1. The server set in the active Prefect profile or in the `PREFECT_API_URL` environment variable, if it responds.
+2. A server already running on this computer at `http://127.0.0.1:4200/api`.
+3. If there is none, FLIMAnalyzer starts a local server (`prefect server start`) and stops it again when FLIMAnalyzer closes. The server's messages are added to the file `prefect-server.log` in the folder FLIMAnalyzer was started from.
+
+With `--no-prefect-server`, step 3 is skipped: if no server is found, Prefect uses a temporary server that runs only as long as FLIMAnalyzer (or `flimbatch`) runs.
+
+The Prefect UI shows the flow and task runs of a server in the web browser, for example at [http://127.0.0.1:4200](http://127.0.0.1:4200) for a local server. The progress dialog links to each run there (see [The progress dialog](/userguide/workflows.md#the-progress-dialog)). To keep a local server running between sessions, start it yourself in a separate terminal with `uv run prefect server start` (or `prefect server start` in an activated environment).
+
+### Using another Prefect server
+
+To report the runs to a Prefect server on another computer, set its address in a Prefect profile. A profile is a named set of Prefect settings ([Settings and profiles](https://www.prefect.io/docs/v3/develop/settings-and-profiles) in the Prefect documentation). In the environment FLIMAnalyzer is installed in:
+
+```
+prefect profile create flim-server
+prefect profile use flim-server
+prefect config set PREFECT_API_URL=http://prefect.example.org:4200/api
+```
+
+`prefect profile use` makes the profile the active one; FLIMAnalyzer then uses this server. `prefect profile use default` switches back. Instead of a profile, you can also set the environment variable `PREFECT_API_URL`; environment variables take precedence over the profile ([Prefect settings](https://www.prefect.io/docs/v3/concepts/settings-and-profiles)).
+
+If the server is self-hosted and protected with basic authentication, also set the user name and password, separated by a colon ([Security settings](https://www.prefect.io/docs/v3/advanced/security-settings)):
+
+```
+prefect config set PREFECT_API_AUTH_STRING="admin:password"
+```
+
+`PREFECT_API_KEY` is used only for Prefect Cloud; `prefect cloud login` sets it together with `PREFECT_API_URL`.
+
+If the server set in the profile doesn't respond, FLIMAnalyzer writes a warning to the log and goes on with steps 2 and 3 above.
