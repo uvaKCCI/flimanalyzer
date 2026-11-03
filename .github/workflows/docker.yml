@@ -4,7 +4,8 @@ name: Docker
 # each published GitHub release (never from a tag push alone):
 #   ghcr.io/uvakcci/flimanalyzer:<version>-cpu, :latest-cpu  (CPU PyTorch; amd64, arm64)
 #   ghcr.io/uvakcci/flimanalyzer:<version>, :latest          (CUDA PyTorch; amd64)
-# Pull requests only build and test the image (tests.yml).
+# Each image is checked before it is pushed (.github/scripts/check-image.sh). Pull
+# requests only build and test the image (tests.yml).
 
 on:
   release:
@@ -65,11 +66,52 @@ jobs:
         if: matrix.variant == 'cuda'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
 
+      - name: Per-build metadata
+        id: build
+        # base image: the runtime stage's FROM line (pinned by digest)
+        run: |
+          base=$(awk '/^FROM /{b=$2} END{print b}' Dockerfile)
+          {
+            echo "args<<EOF"
+            echo "TORCH_INDEX=${{ matrix.torch_index }}"
+            echo "VERSION=${{ steps.meta.outputs.version }}"
+            echo "REVISION=${{ github.sha }}"
+            echo "CREATED=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}"
+            echo "BASE_NAME=docker.io/library/${base%@*}"
+            echo "BASE_DIGEST=${base#*@}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # test before push (docs.docker.com/build/ci/github-actions/test-before-push/):
+      # amd64 into the local engine; the push below reuses its build from the cache
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          build-args: ${{ steps.build.outputs.args }}
+          tags: flimanalyzer:test
+          load: true
+
+      - name: Check the image
+        id: check
+        run: |
+          version=""
+          [[ "$GITHUB_REF" == refs/tags/v* ]] && version="${GITHUB_REF_NAME#v}"
+          .github/scripts/check-image.sh flimanalyzer:test "$GITHUB_SHA" "$version"
+          # the labels also as manifest and index annotations: GitHub reads a
+          # multi-platform image's description from the index
+          {
+            echo "annotations<<EOF"
+            docker inspect -f '{{ range $k, $v := .Config.Labels }}{{ $k }}={{ $v }}{{ "\n" }}{{ end }}' flimanalyzer:test \
+              | grep '^org\.opencontainers\.image\.' | sed -e 's/^/manifest:/p' -e 's/^manifest:/index:/'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ matrix.platforms }}
-          build-args: TORCH_INDEX=${{ matrix.torch_index }}
+          build-args: ${{ steps.build.outputs.args }}
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.check.outputs.annotations }}
           push: true
