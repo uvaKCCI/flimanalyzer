@@ -1059,8 +1059,14 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
         if groups:  # the labels of the groups shown (grouped.groups: in data order)
             kwargs["label"] = labels
         in_group = "" if stacked else "in each group "
-        ax.set_ylabel(f"relative counts {in_group}[%]")
-        names = [f"{label} [rel %]" for label in labels]  # not ('ctrl',) [rel %]
+        # density: matplotlib rescales the bars to an area of 1, not percent (#181)
+        density = kwargs.get("density")
+        if density:
+            ax.set_ylabel(f"density {in_group}".strip())
+        else:
+            ax.set_ylabel(f"relative counts {in_group}[%]")
+        unit = "density" if density else "rel %"
+        names = [f"{label} [{unit}]" for label in labels]  # not ('ctrl',) [rel %]
         ax.set_xlabel(column)
         title = column.replace("\n", " ")
         if groups:
