@@ -24,6 +24,7 @@ from flim.core.config import CategoryColumn, FeatureColumn, TaskConfig, ValueOf
 class WorkflowConfig(TaskConfig):
     legacy_keys = {"strict": None}
     legacy_dropped = frozenset({"executor"})  # an execution option
+    hidden_fields = frozenset({"prefix"})  # the steps name their results (#189)
 
     # step name -> fields the workflow sets in that step's config. Fields the workflow
     # config also has are copied from it; the workflow's code sets the others.

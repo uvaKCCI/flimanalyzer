@@ -46,6 +46,8 @@ class AEFeature(Workflow[AEFeatureConfig]):
         features = config.features
         last_epoch = config.training.epochs
         timeseries = config.timeseries
+        # the grouping columns besides the time series, e.g. FOV and Cell (#190)
+        cells = [c for c in config.grouping if c != timeseries]
         series = ordered_values(data_train[timeseries])  # the time points
         pairs = list(zip(series, series[1:]))
 
@@ -83,13 +85,13 @@ class AEFeature(Workflow[AEFeatureConfig]):
         for tag, table, feature, prefix in compared:
             KDE()(
                 table,
-                config=KDEConfig(grouping=["Treatment"], features=[feature]),
+                config=KDEConfig(grouping=[timeseries], features=[feature]),
                 task_tags=tag,
             )
             summary = Summarize()(
                 table,
                 config=SummaryConfig(
-                    grouping=["Cell", "FOV", "Treatment"],
+                    grouping=cells[::-1] + [timeseries],
                     features=[feature],
                     aggs=["mean"],
                 ),
@@ -125,7 +127,7 @@ class AEFeature(Workflow[AEFeatureConfig]):
             BarPlot()(
                 ordered,
                 config=BarPlotConfig(
-                    grouping=["FOV", "Cell"],
+                    grouping=cells,
                     features=deltas,
                     bar_type="stacked",
                     error_type="s.e.m.",
@@ -135,8 +137,8 @@ class AEFeature(Workflow[AEFeatureConfig]):
             ks[tag] = KSStats()(
                 table,
                 config=KSStatsConfig(
-                    comparison="Treatment",
-                    grouping=["Treatment", "FOV", "Cell"],
+                    comparison=timeseries,
+                    grouping=[timeseries] + cells,
                     features=[feature],
                     prefix=prefix,
                 ),
