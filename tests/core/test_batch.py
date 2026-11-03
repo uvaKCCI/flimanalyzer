@@ -109,6 +109,12 @@ def test_unknown_tools_and_missing_files(data_dir, tmp_path, capsys):
     assert main(["-i", str(tmp_path / "gone"), "-o", str(tmp_path / "o")]) == 1
 
 
+def test_output_folder_that_cannot_be_used(data_dir, tmp_path, capsys):
+    (tmp_path / "file").write_text("x")
+    assert main(["-i", str(data_dir), "-o", str(tmp_path / "file" / "out")]) == 1
+    assert "--output:" in capsys.readouterr().err
+
+
 def test_the_application_command_hands_batch_runs_to_flimbatch(data_dir, tmp_path):
     import subprocess
     import sys
