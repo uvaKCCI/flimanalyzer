@@ -4,26 +4,28 @@ The `Summarize` tool calculates the count, minimum, maximum, mean, median (50th 
 
 **Menu Access:** `Analysis` > `Summarize`
 
-**Toolbar Icon:** ![](/images/analysis/summary.png)
+**Tool panel icon:** ![](/images/analysis/summary.png)
 
 ## Running the Analysis
 
-1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front.
+1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front. The dialog's `Data` choice starts with this table; you can choose another one there (see [Choosing the data](/userguide/dialogs.md#choosing-the-data)).
     ![](/images/data/dataframe.png)
 
 2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Summarize` menu.
 
 3. In the `Configuration: Summarize` dialog, select the `Statistics` to calculate, the `Grouping` and the `Features`. You can group by the table's category columns, here `Treatment`, `FOV` and `Cell`. The features are the columns with numeric data, such as `FAD a1`.
 
-    `Single table` puts all features into one table. Uncheck it to get one table per feature.
+    The `Statistics` are `count`, `min`, `max`, `mean`, `std` (standard deviation), `sem` (standard error of the mean), `median`, `percentile(25)`, `percentile(75)` and `sum`. All of them are checked by default.
 
-    In the example, `count`, `mean`, `std` (standard deviation), `sem` (standard error of the mean) and `median` are calculated for `FAD a1[%]` and `FLIRR`.
+    `Single table` (checked by default) puts all features into one table. Uncheck it to get one table per feature.
+
+    In the example, `count`, `mean`, `std`, `sem` and `median` are calculated for `FAD a1[%]` and `FLIRR`.
 
     ![](/images/analysis/summary-config-nogrouping.png)
 
 4. Click `OK`.
 
-5. The results are shown in a new data table, with a row for each group and a column for each feature and statistic. The column headers have two lines: the feature and the statistic.
+5. The results are shown in a new table window, `Table: Summary`, with a row for each group and a column for each feature and statistic. The column headers have two lines: the feature and the statistic, e.g. `FLIRR` and `mean`. The percentiles are labeled `25 percentile` and `75 percentile`. With `Single table` unchecked, each feature gets its own table window, `Table: Summary: <feature>`.
 
 ## Example Output
 
