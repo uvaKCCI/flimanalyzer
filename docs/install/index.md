@@ -5,42 +5,52 @@
 * Python 3.12 or later
 * All other Python packages that FLIMAnalyzer needs, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are installed automatically. They are listed in the `pyproject.toml` file of the Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git).
 
-## Installing with uv (recommended)
+## Installing from PyPI with uv (recommended)
 
-[uv](https://docs.astral.sh/uv/) creates a virtual environment (a separate Python setup just for FLIMAnalyzer) in the `.venv` folder of the repository. If needed, it also installs a matching Python version. It then installs FLIMAnalyzer, including its graphical user interface (GUI), with the exact package versions listed in `uv.lock`. FLIMAnalyzer is installed in editable mode, so changes to its code take effect without reinstalling:
+[uv](https://docs.astral.sh/uv/) creates a virtual environment (a separate Python setup just for FLIMAnalyzer) in the `.venv` folder. If needed, it also installs a matching Python version. Then install FLIMAnalyzer, including its graphical user interface (GUI), into it:
+```
+uv venv --python 3.12
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
+uv pip install "flimanalyzer[gui]"
+```
+The `[gui]` part installs the GUI. Without it, `uv pip install flimanalyzer` installs only what [batch mode](/userguide/batch) needs, for example on a computing cluster. Add `dask` for the optional Dask support (see [Concurrent and distributed execution](/userguide/execution)), e.g. `"flimanalyzer[gui,dask]"`.
+
+## Installing from PyPI with pip
+
+```
+python3.12 -m venv .venv
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install "flimanalyzer[gui]"
+```
+Conda users can create the Python environment with conda instead of `venv` and install FLIMAnalyzer into it with pip:
+```
+conda create -n flimenv python=3.12
+conda activate flimenv
+pip install "flimanalyzer[gui]"
+```
+
+## PyTorch and the GPU
+
+Installed from PyPI, FLIMAnalyzer gets PyTorch from PyPI, which provides a different build on each platform:
+
+* **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
+* **Windows:** the PyPI build is CPU-only. To use an NVIDIA GPU, install with `uv pip install "flimanalyzer[gui]" --torch-backend=cu128`, or with pip install the CUDA build first: `pip install torch --index-url https://download.pytorch.org/whl/cu128`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **macOS:** only Apple Silicon is supported, because current PyTorch versions are not available for Intel Macs. The PyPI build uses the Apple GPU (MPS).
+
+## Installing the latest development version
+
+To install the current state of the Git repository, clone it and let uv create the environment. `uv sync` installs FLIMAnalyzer with the GUI in editable mode, so changes to its code take effect without reinstalling. It uses the exact package versions listed in `uv.lock`, the versions the tests run with. On Windows and Linux (x86_64), it installs the CUDA 12.8 build of PyTorch:
 ```
 git clone https://github.com/uvaKCCI/flimanalyzer.git
 cd flimanalyzer
 uv sync
 ```
-On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so FLIMAnalyzer can use an NVIDIA GPU. On macOS, uv installs the PyPI build, which can use the Apple GPU (MPS). Only Macs with Apple Silicon are supported, because current PyTorch versions are not available for Intel Macs.
-
-To install FLIMAnalyzer without the GUI, for example for [batch mode](/userguide/batch) on a computing cluster:
+To install FLIMAnalyzer without the GUI:
 ```
 uv sync --no-group gui
 ```
-
-## Installing with pip
-
+With pip, in a virtual environment in the cloned folder:
 ```
-git clone https://github.com/uvaKCCI/flimanalyzer.git
-cd flimanalyzer
-python3.12 -m venv .venv
-source .venv/bin/activate    # Windows: .venv\Scripts\activate
-pip install -e ".[gui]"
-```
-The `[gui]` part installs the GUI. Without it, `pip install -e .` installs only what [batch mode](/userguide/batch) needs.
-
-pip installs PyTorch from PyPI, which provides a different build on each platform:
-
-* **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
-* **Windows:** the PyPI build is CPU-only. To use an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example with `pip install torch --index-url https://download.pytorch.org/whl/cu128`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
-* **macOS:** only Apple Silicon is supported. The PyPI build uses the Apple GPU (MPS).
-
-Conda users can create the Python environment with conda instead of `venv` and install FLIMAnalyzer into it with pip:
-```
-conda create -n flimenv python=3.12
-conda activate flimenv
 pip install -e ".[gui]"
 ```
 

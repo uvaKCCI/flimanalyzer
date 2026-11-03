@@ -13,40 +13,45 @@ Documentation: https://flimanalyzer.readthedocs.io
 
 ## Installation
 
-### With uv (recommended)
+### From PyPI with uv (recommended)
 
-Clone the repository and let [uv](https://docs.astral.sh/uv/) create the environment. `uv sync` creates `.venv`, installs a matching Python if needed, and installs FLIMAnalyzer with its graphical user interface (GUI) in editable mode, with the exact package versions from `uv.lock`:
+[uv](https://docs.astral.sh/uv/) creates a virtual environment in `.venv` (installing a matching Python if needed). Then install FLIMAnalyzer with its graphical user interface (GUI) into it:
+
+    uv venv --python 3.12
+    source .venv/bin/activate    # Windows: .venv\Scripts\activate
+    uv pip install "flimanalyzer[gui]"
+
+The `gui` extra installs the GUI. Without it, `uv pip install flimanalyzer` installs only what [batch mode](#run-flimanalyzer-in-batch-mode) needs, for example on a computing cluster. Add `dask` for the optional Dask support (see [Concurrent and distributed execution](#concurrent-and-distributed-execution)), e.g. `"flimanalyzer[gui,dask]"`.
+
+### From PyPI with pip
+
+    python3.12 -m venv .venv
+    source .venv/bin/activate    # Windows: .venv\Scripts\activate
+    pip install "flimanalyzer[gui]"
+
+### PyTorch and the GPU
+
+Installed from PyPI, FLIMAnalyzer gets PyTorch from PyPI, which provides a different build on each platform:
+
+* **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
+* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install with `uv pip install "flimanalyzer[gui]" --torch-backend=cu128`, or with pip install the CUDA build first: `pip install torch --index-url https://download.pytorch.org/whl/cu128`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **macOS:** only Apple Silicon is supported, because current PyTorch versions are not available for Intel Macs. The PyPI build uses the Apple GPU (MPS).
+
+### Latest development version
+
+To install the current state of the repository, clone it and let uv create the environment. `uv sync` installs FLIMAnalyzer with the GUI in editable mode, with the exact package versions from `uv.lock` (the versions the tests run with). On Windows and Linux (x86_64), it installs the CUDA 12.8 build of PyTorch:
 
     git clone https://github.com/uvaKCCI/flimanalyzer.git
     cd flimanalyzer
     uv sync
 
-On Windows and Linux (x86_64), uv installs the CUDA 12.8 build of PyTorch, so an NVIDIA GPU can be used. On macOS, the PyPI build is used, which can use the Apple GPU (MPS). Only Macs with Apple Silicon are supported, because current PyTorch versions are not available for Intel Macs.
-
-To install FLIMAnalyzer without the GUI, for example for [batch mode](#run-flimanalyzer-in-batch-mode) on a computing cluster:
+Without the GUI, with the test dependencies, or with Dask support:
 
     uv sync --no-group gui
-
-To also install the test dependencies, or the optional Dask support (see [Concurrent and distributed execution](#concurrent-and-distributed-execution)):
-
     uv sync --extra test
     uv sync --extra dask
 
-### With pip
-
-    git clone https://github.com/uvaKCCI/flimanalyzer.git
-    cd flimanalyzer
-    python3.12 -m venv .venv
-    source .venv/bin/activate    # Windows: .venv\Scripts\activate
-    pip install -e ".[gui]"
-
-The `gui` extra installs the graphical user interface (GUI). Without it, `pip install -e .` installs only what [batch mode](#run-flimanalyzer-in-batch-mode) needs.
-
-pip installs PyTorch from PyPI, which provides a different build on each platform:
-
-* **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
-* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install the CUDA build before FLIMAnalyzer, for example `pip install torch --index-url https://download.pytorch.org/whl/cu128`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
-* **macOS:** only Apple Silicon is supported. The PyPI build uses the Apple GPU (MPS).
+With pip, in a virtual environment in the cloned folder: `pip install -e ".[gui]"`.
 
 ### With Docker
 
