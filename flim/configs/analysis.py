@@ -395,7 +395,7 @@ AE_FEATURES = [
 ]
 
 
-DEFAULT_DEVICE = "auto"  # see flim.analysis.ml.device (that module needs torch)
+DEFAULT_DEVICE = "auto"  # see flim.core.tool.resolve_device
 
 
 class AutoencoderResources(Resources):

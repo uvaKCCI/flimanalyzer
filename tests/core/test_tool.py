@@ -100,6 +100,24 @@ def test_cancel(table):
         tool(table)
 
 
+@pytest.mark.parametrize(
+    "cuda, mps, preferred, expected",
+    [
+        (True, True, "auto", ("cuda", None)),
+        (False, True, "auto", ("mps", None)),
+        (False, False, "auto", ("cpu", None)),
+        (True, False, "cuda", ("cuda", None)),
+        (False, True, "cuda", ("cpu", "preferred cuda, ran on cpu: no cuda device here")),
+        (True, False, "mps", ("cpu", "preferred mps, ran on cpu: no mps device here")),
+    ],
+)
+def test_resolve_device(monkeypatch, cuda, mps, preferred, expected):
+    torch = pytest.importorskip("torch")
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: cuda)
+    monkeypatch.setattr(torch.backends.mps, "is_available", lambda: mps)
+    assert resolve_device(preferred) == expected
+
+
 def test_resources():
     assert resolve_device("cpu") == ("cpu", None)
     assert resolve_threads(1) == 1
