@@ -366,3 +366,23 @@ def test_missing_features_are_guessed(dialog):
     assert features.note.GetLabel() == (
         "Guessed: X → x\nNot in this input (not used): gone"
     )
+
+
+def test_tall_dialog_fits_a_small_screen(dialog, monkeypatch):
+    # a laptop screen: 768 px, of which 718 are usable (taskbar or menu bar)
+    class SmallDisplay:
+        GetFromWindow = staticmethod(lambda window: 0)
+
+        def __init__(self, index=0):
+            pass
+
+        def GetClientArea(self):
+            return wx.Rect(0, 0, 1366, 718)
+
+    monkeypatch.setattr(wx, "Display", SmallDisplay)
+    import flim.workflow  # noqa: F401  (registers the workflows)
+
+    d = dialog("FLIM Feature Analysis")
+    assert d.GetSize().height <= 718
+    assert d.ok_button.GetRect().GetBottom() <= d.GetClientSize().height
+    assert d.fields.GetBestSize().height > d.scroll.GetSize().height  # it scrolls

@@ -256,13 +256,20 @@ class ConfigDialog(wx.Dialog):
     def _fit(self):
         # a scrolled panel does not ask for its content's size: show all fields, up to
         # most of the screen, and scroll beyond that
-        display = wx.GetDisplaySize()
+        index = wx.Display.GetFromWindow(self)
+        usable = wx.Display(max(index, 0)).GetClientArea()  # without taskbar or menu bar
         best = self.fields.GetBestSize()
-        self.scroll.SetMinSize(
-            (max(best.width + 20, 460), min(best.height + 4, int(display.height * 0.6)))
-        )
+        width = max(best.width + 20, 460)
+        self.scroll.SetMinSize((width, min(best.height + 4, int(usable.height * 0.6))))
         self.Layout()
         self.Fit()
+        # the whole dialog, buttons included, stays on the usable part of the screen
+        excess = self.GetSize().height - int(usable.height * 0.95)
+        if excess > 0:
+            scroll = self.scroll.GetMinSize().height
+            self.scroll.SetMinSize((width, max(scroll - excess, 120)))
+            self.Layout()
+            self.Fit()
         self.SetMinSize((420, min(self.GetSize().height, 300)))
 
     # --- inputs ---
