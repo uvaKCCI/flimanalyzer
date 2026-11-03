@@ -156,7 +156,7 @@ To use an existing Dask cluster:
 
 ### Concurrency limits
 
-Each task is tagged: with the tool's name when a single tool runs (e.g. `Autoencoder: Train`), and with the step's tags in a workflow. Prefect applies [tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits) set on the Prefect server to these tasks, whichever executor is used. For example, to let only one autoencoder training run at a time:
+Prefect applies [tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits) set on the Prefect server, whichever executor is used. Every task is tagged with its tool's name as shown in the menu (e.g. `Autoencoder: Train`, not the Python class name), also as a step of a workflow; workflow steps can carry more tags, which also name their results folders. For example, to let only one autoencoder training run at a time, also inside workflows:
 
     uv run prefect concurrency-limit create "Autoencoder: Train" 1
 
@@ -177,7 +177,7 @@ If you use FLIMAnalyzer, please cite:
 | v0.5.0 or later | Alam SR, Siller K, Dreicer R, Periasamy A. Label-free optical biomarker for prostate cancer diagnosis. *Molecular Medicine* 32(1), 165 (2026). [doi:10.1186/s10020-026-01605-2](https://doi.org/10.1186/s10020-026-01605-2) | [10.5281/zenodo.23438157](https://doi.org/10.5281/zenodo.23438157) |
 | v0.4.1 or earlier | Zhang et al. (2025), the original publication above | [10.5281/zenodo.23426564](https://doi.org/10.5281/zenodo.23426564) |
 
-The concept DOI [10.5281/zenodo.23426563](https://doi.org/10.5281/zenodo.23426563) covers all versions and always resolves to the latest one. Citation metadata is also in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
+The concept DOI [10.5281/zenodo.23426563](https://doi.org/10.5281/zenodo.23426563) covers all versions archived on Zenodo and resolves to the latest of them. Not every release is archived on Zenodo; the table above lists the versions used in publications. Citation metadata is also in [`CITATION.cff`](CITATION.cff); GitHub shows it under "Cite this repository".
 
 ## Development
 

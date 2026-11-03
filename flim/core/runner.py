@@ -381,8 +381,10 @@ class FlowRun:
         tool._output_dir = autosave["directory"] if autosave else None
 
         # Prefect starts the task once the futures among its inputs are completed and
-        # skips it (state NotReady) if one of them did not complete
-        with tags(*tag_list):
+        # skips it (state NotReady) if one of them did not complete. Besides the
+        # workflow's tags (which also name the results folders), every task is tagged
+        # with its tool's name, so that concurrency limits on a tool apply everywhere.
+        with tags(*dict.fromkeys(tag_list + [tool.name])):
             ref = run_tool.submit(tool, label, payload, autosave)
         with self._lock:
             self.graph.nodes[node]["ref"] = ref
