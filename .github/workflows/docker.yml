@@ -1,15 +1,15 @@
 name: Docker
 
 # Publishes the headless batch image (flimbatch) to the GitHub Container Registry for
-# each release tag:
+# each published GitHub release (never from a tag push alone):
 #   ghcr.io/uvakcci/flimanalyzer:<version>-cpu, :latest-cpu  (CPU PyTorch; amd64, arm64)
 #   ghcr.io/uvakcci/flimanalyzer:<version>, :latest          (CUDA PyTorch; amd64)
 # Pull requests only build and test the image (tests.yml).
 
 on:
-  push:
-    tags: ["v*"]
-  workflow_dispatch:  # a branch: tagged with its name
+  release:
+    types: [published]
+  workflow_dispatch:  # a branch: tagged with its name; a release tag: rebuilds its images
 
 permissions:
   contents: read
@@ -59,7 +59,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=ref,event=branch
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !github.event.release.prerelease }}
 
       - name: Free disk space for the CUDA image
         if: matrix.variant == 'cuda'
