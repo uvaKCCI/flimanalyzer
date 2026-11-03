@@ -39,23 +39,8 @@ def table():
 
 
 @pytest.fixture
-def dialog(wxapp, table):
-    from flim.gui.configdialog import ConfigDialog
-
-    dialogs = []
-
-    def make(name, config=None, **kwargs):
-        kwargs.setdefault(
-            "data_choices",
-            {"Table: data": table, "Table: other": table[["Treatment", "x"]]},
-        )
-        d = ConfigDialog(None, tools.get(name), config, **kwargs)
-        dialogs.append(d)
-        return d
-
-    yield make
-    for d in dialogs:
-        d.Destroy()
+def data_choices(table):
+    return {"Table: data": table, "Table: other": table[["Treatment", "x"]]}
 
 
 def marker(d, name):

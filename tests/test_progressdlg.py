@@ -43,6 +43,25 @@ def _click(button):
     button.GetEventHandler().ProcessEvent(event)
 
 
+def _tool_button(frame, name):
+    return next(
+        c
+        for box in frame.toolpanel.GetChildren()
+        for c in box.GetChildren()
+        if isinstance(c, wx.BitmapButton) and c.GetName() == name
+    )
+
+
+def _open(frame, data, title="Data", **kwargs):
+    """Opens ``data`` in a data window, as the application does."""
+    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
+
+    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
+    event.SetEventInfo(data, title, "createnew", **kwargs)
+    frame.GetEventHandler().ProcessEvent(event)
+    return frame.windowframes[title]
+
+
 def _statuses(dlg):
     return {
         dlg.task_list.GetItemText(row, 0): dlg.task_list.GetItemText(row, 1)
@@ -221,12 +240,8 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
 
     from flim.gui import configdialog, progressdlg
     from flim.gui.datapanel import PandasFrame
-    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
 
-    # an open data table to analyze
-    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
-    event.SetEventInfo(flim_data, "Data", "createnew")
-    frame.GetEventHandler().ProcessEvent(event)
+    _open(frame, flim_data)  # an open data table to analyze
 
     # stands in for the user's choices in the tool's configuration dialog
     def configure(dialog):
@@ -248,16 +263,8 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
         lambda dlg: outcomes.append(original(dlg)) or outcomes[-1],
     )
 
-    button = next(
-        c
-        for box in frame.toolpanel.GetChildren()
-        for c in box.GetChildren()
-        if isinstance(c, wx.BitmapButton) and c.GetName() == "Summarize"
-    )
-    click = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
-    click.SetEventObject(button)
     before = set(frame.windowframes)
-    button.GetEventHandler().ProcessEvent(click)
+    _click(_tool_button(frame, "Summarize"))
 
     assert messages == []
     assert outcomes == [wx.ID_OK]
@@ -375,13 +382,9 @@ def test_open_data_files_opens_a_data_window(frame, tmp_path, flim_data):
 
 
 def test_result_tables_are_marked_modified(frame, flim_data):
-    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
-
-    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
-    event.SetEventInfo(flim_data, "Result", "createnew")
-    frame.GetEventHandler().ProcessEvent(event)
-    assert frame.windowframes["Result"].is_modified()  # unsaved: closing asks to save
-    frame.windowframes["Result"].modified = False
+    window = _open(frame, flim_data, "Result")
+    assert window.is_modified()  # unsaved: closing asks to save
+    window.modified = False
     frame.OnCloseAll(None)
 
 
@@ -459,15 +462,10 @@ def test_summary_of_a_run_with_failed_tasks(wxapp, tmp_path):
     assert folder == run.autosave_dir
 
 
-def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_path):
+def test_workflow_always_shows_the_summary(frame, monkeypatch, flirr_data, tmp_path):
     from flim.gui import configdialog, progressdlg
-    from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
 
-    data = flim_data.copy()
-    data["FLIRR"] = data["NAD(P)H a2[%]"] / data["FAD a1[%]"]
-    event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
-    event.SetEventInfo(data, "Data", "createnew", modified=False)
-    frame.GetEventHandler().ProcessEvent(event)
+    _open(frame, flirr_data, modified=False)
 
     locked = []
 
@@ -490,15 +488,7 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_pa
         return wx.ID_OK
 
     monkeypatch.setattr(progressdlg.RunSummaryDialog, "ShowModal", show)
-    button = next(
-        c
-        for box in frame.toolpanel.GetChildren()
-        for c in box.GetChildren()
-        if isinstance(c, wx.BitmapButton) and c.GetName() == "Basic FLIRR Analysis"
-    )
-    click = wx.CommandEvent(wx.wxEVT_BUTTON, button.GetId())
-    click.SetEventObject(button)
-    button.GetEventHandler().ProcessEvent(click)
+    _click(_tool_button(frame, "Basic FLIRR Analysis"))
 
     assert locked == [True]  # workflows always save their results
     ((first_line, folder, has_link),) = summaries

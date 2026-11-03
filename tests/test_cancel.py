@@ -28,10 +28,6 @@ class Boom(Counter):
         raise RuntimeError("boom")
 
 
-def _status(run):
-    return {a["label"]: a["status"] for _, a in run.graph.nodes(data=True) if "tool" in a}
-
-
 def _prefect_flow_state(run):
     with get_client(sync_client=True) as client:
         return client.read_flow_run(run.flow_run_id).state
@@ -54,7 +50,7 @@ def test_cancel_before_the_run_starts_nothing():
     run = run_flow("cancelled early", build, cancel_token=token)
     assert calls == []
     assert run.state == "cancelled"
-    assert _status(run) == {"A": "cancelled"}  # the script stops at the first call
+    assert dict(run.tasks()) == {"A": "cancelled"}  # the script stops at the first call
     assert _prefect_flow_state(run).is_cancelled()
 
 
@@ -71,7 +67,7 @@ def test_cancel_between_tasks():
 
     run = run_flow("cancelled between", build, cancel_token=token)
     assert calls == ["A"]
-    assert _status(run) == {"A": "completed", "B": "cancelled"}
+    assert dict(run.tasks()) == {"A": "completed", "B": "cancelled"}
     assert run.state == "cancelled"
     assert run.results() == [{"A done": True}]  # completed results are kept
 
@@ -89,7 +85,7 @@ def test_cancel_stops_a_running_task(workers):
     start = time.monotonic()
     run = run_flow("cancel running", build, default_task_runner(workers), cancel_token=token)
     assert time.monotonic() - start < 5  # cancelled long before the Waiter gives up
-    assert _status(run) == {"Long": "cancelled"}
+    assert dict(run.tasks()) == {"Long": "cancelled"}
     assert run.cancelled == ["Long"] and run.failed == []
     assert run.state == "cancelled"
 
@@ -110,7 +106,7 @@ def test_task_cancelling_itself_skips_only_its_dependents(dask):
 
         task_runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": False})
     run = run_flow("self cancel", build, task_runner=task_runner)
-    assert _status(run) == {
+    assert dict(run.tasks()) == {
         "Quitter": "cancelled",
         "Dependent": "skipped",
         "Independent": "completed",
@@ -134,7 +130,7 @@ def test_cancelled_task_is_never_retried(monkeypatch):
     run = run_flow("retries", build)
     assert calls.count("Quitter") == 1
     assert calls.count("Boom") == 3  # other errors are retried as configured
-    assert _status(run) == {"Quitter": "cancelled", "Boom": "failed"}
+    assert dict(run.tasks()) == {"Quitter": "cancelled", "Boom": "failed"}
 
 
 def test_run_summary_and_prefect_link(tmp_path):
@@ -242,7 +238,7 @@ def test_cancel_reaches_dask_worker_processes(tmp_path):
     task_runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": True})
     run = run_flow("cancel dask processes", build, task_runner, cancel_token=token)
     assert time.monotonic() - started["at"] < 5  # the task gives up after WAIT s
-    assert _status(run) == {"Long": "cancelled"}
+    assert dict(run.tasks()) == {"Long": "cancelled"}
     assert run.state == "cancelled"
 
 

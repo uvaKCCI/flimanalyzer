@@ -36,24 +36,6 @@ def table():
     )
 
 
-@pytest.fixture
-def dialog(wxapp, table):
-    from flim.gui.configdialog import ConfigDialog
-
-    dialogs = []
-
-    def make(name, config=None):
-        d = ConfigDialog(
-            None, tools.get(name), config, data_choices={"Table: data": table}
-        )
-        dialogs.append(d)
-        return d
-
-    yield make
-    for d in dialogs:
-        d.Destroy()
-
-
 # --- Order Categories ---
 
 
@@ -518,66 +500,55 @@ def test_categorize_features_only_without_the_input(dialog):
 # --- Unpivot ---
 
 
-def test_unpivot_offers_the_levels_of_the_headers(wxapp, table):
+def test_unpivot_offers_the_levels_of_the_headers(dialog, table):
     from flim.configs import PivotConfig
-    from flim.gui.configdialog import ConfigDialog
     from flim.tools.data import Pivot
 
     pivoted = Pivot().run(table, config=PivotConfig(grouping=["Treatment"]))["Pivoted"]
-    d = ConfigDialog(
-        None, tools.get("Unpivot"), None, data_choices={"Table: pivoted": pivoted}
-    )
-    try:
-        level = d.fields.editors["level"]
-        # each line with its name and values; the last line selected
-        assert level.control.GetStrings() == [
-            "Feature: t1, t2",
-            "Treatment: Ctrl, Drug, Placebo",
-        ]
-        assert level.control.GetSelection() == 1
-        assert d.result().config.level == ""  # the last
-        level.control.SetSelection(0)
-        level._on_choice(wx.CommandEvent())
-        assert d.result().config.level == "Feature"
-        # single-line columns: one level, the feature
-        level.show_levels(["t1"])
-        assert level.control.GetStrings() == ["Feature: t1"]
-    finally:
-        d.Destroy()
+    d = dialog("Unpivot", data_choices={"Table: pivoted": pivoted})
+    level = d.fields.editors["level"]
+    # each line with its name and values; the last line selected
+    assert level.control.GetStrings() == [
+        "Feature: t1, t2",
+        "Treatment: Ctrl, Drug, Placebo",
+    ]
+    assert level.control.GetSelection() == 1
+    assert d.result().config.level == ""  # the last
+    level.control.SetSelection(0)
+    level._on_choice(wx.CommandEvent())
+    assert d.result().config.level == "Feature"
+    # single-line columns: one level, the feature
+    level.show_levels(["t1"])
+    assert level.control.GetStrings() == ["Feature: t1"]
 
 
 # --- feature lists ---
 
 
-def test_features_of_another_table_are_not_listed(wxapp, table):
+def test_features_of_another_table_are_not_listed(dialog, table):
     """Settings of a run on the raw data, opened on its summary: the summary's
     features only; the raw ones are checked again on the raw data."""
     from flim.configs import SummaryConfig
-    from flim.gui.configdialog import ConfigDialog
     from flim.tools.statistics import Summarize
 
     summary = Summarize().run(
         table,
         config=SummaryConfig(grouping=["Treatment"], features=["t1"], aggs=["mean"]),
     )["Summary"]
-    d = ConfigDialog(
-        None,
-        tools.get("Summarize"),
+    d = dialog(
+        "Summarize",
         SummaryConfig(features=["t1", "t2"]),
         data_choices={"Table: Summary": summary, "Table: data": table},
     )
-    try:
-        features = d.fields.editors["features"]
-        assert features.items == ["t1\nmean"]
-        assert features.get() == []
-        features.list.Check(0)
-        features._on_check(wx.CommandEvent())
-        d.input_controls[0].SetSelection(1)  # the raw data
-        d._update_inputs()
-        assert features.items == ["t1", "t2"]
-        assert features.get() == ["t1", "t2"]
-    finally:
-        d.Destroy()
+    features = d.fields.editors["features"]
+    assert features.items == ["t1\nmean"]
+    assert features.get() == []
+    features.list.Check(0)
+    features._on_check(wx.CommandEvent())
+    d.input_controls[0].SetSelection(1)  # the raw data
+    d._update_inputs()
+    assert features.items == ["t1", "t2"]
+    assert features.get() == ["t1", "t2"]
 
 
 # --- Scatter Plot ---

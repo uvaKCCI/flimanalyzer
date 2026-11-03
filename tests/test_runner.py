@@ -82,8 +82,7 @@ def test_failed_task_skips_downstream(flim_data):
         Sort()(flim_data, config=_sort("NAD(P)H t1"))
 
     run = run_flow("test failure", build)
-    status = {a["label"]: a["status"] for _, a in run.graph.nodes(data=True)}
-    assert status == {"Boom": "failed", "Sort": "skipped", "Sort-1": "completed"}
+    assert dict(run.tasks()) == {"Boom": "failed", "Sort": "skipped", "Sort-1": "completed"}
     assert run.failed == ["Boom"]
 
 

@@ -40,6 +40,14 @@ def flim_data():
 
 
 @pytest.fixture
+def flirr_data(flim_data):
+    """flim_data with a FLIRR column, for the Basic FLIRR workflow."""
+    df = flim_data.copy()
+    df["FLIRR"] = df["NAD(P)H a2[%]"] / df["FAD a1[%]"]
+    return df
+
+
+@pytest.fixture
 def features():
     return ["NAD(P)H t1", "NAD(P)H t2", "NAD(P)H a1[%]"]
 
@@ -65,6 +73,32 @@ def wxapp():
     import flim.gui  # noqa: F401  (configures wx and matplotlib for the GUI)
 
     return app
+
+
+@pytest.fixture
+def data_choices(table):
+    """The input tables offered by the dialogs of ``dialog`` (``table``: the test
+    module's)."""
+    return {"Table: data": table}
+
+
+@pytest.fixture
+def dialog(wxapp, data_choices):
+    """Makes configuration dialogs of tools (by name); destroyed after the test."""
+    from flim.core.registry import tools
+    from flim.gui.configdialog import ConfigDialog
+
+    dialogs = []
+
+    def make(name, config=None, **kwargs):
+        kwargs.setdefault("data_choices", data_choices)
+        d = ConfigDialog(None, tools.get(name), config, **kwargs)
+        dialogs.append(d)
+        return d
+
+    yield make
+    for d in dialogs:
+        d.Destroy()
 
 
 @pytest.fixture(autouse=True, scope="module")
