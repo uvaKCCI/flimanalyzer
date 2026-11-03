@@ -74,11 +74,7 @@ def ratio(v1, v2):
 
 
 class defaultpreprocessor:
-    def __init__(self, calculator=None):
-        # if calculator is None:
-        #    self.calculator = dataanalyzer()
-        # else:
-        #    self.calculator = calculator
+    def __init__(self):
         self.newheaders = {
             "Exc1_-Ch1-_": "trp ",
             "Exc1_-Ch2-_": "NAD(P)H ",
