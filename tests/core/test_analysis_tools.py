@@ -152,6 +152,29 @@ def test_relative_change(data):
     assert ko == pytest.approx(500 / 400, rel=0.05)
 
 
+def test_relative_change_aligns_on_grouping_only():
+    # #178: the reference values align on the grouping columns only, not on
+    # every other category column. The KO rows keep their relative values even
+    # though their Cell values are not present in the WT (reference) rows.
+    data = pd.DataFrame(
+        {
+            "Treatment": pd.Categorical(["WT"] * 2 + ["KO"] * 3),
+            "FOV": pd.Categorical(["1", "2", "1", "1", "2"]),
+            "Cell": pd.Categorical(["1", "2", "3", "4", "5"]),
+            "t1": [10.0, 20.0, 11.0, 22.0, 33.0],
+        }
+    )
+    config = RelativeChangeConfig(
+        grouping=["FOV"], features=["t1"], reference_value="WT"
+    )
+    table = RelativeChange()(data, config=config)["Table: Relative Change"]
+    assert table["rel t1"].isna().sum() == 0
+    # divided by the WT mean of the same FOV: FOV 1 -> 10, FOV 2 -> 20
+    assert table.loc[table["Cell"] == "3", "rel t1"].iloc[0] == pytest.approx(1.1)
+    assert table.loc[table["Cell"] == "4", "rel t1"].iloc[0] == pytest.approx(2.2)
+    assert table.loc[table["Cell"] == "5", "rel t1"].iloc[0] == pytest.approx(1.65)
+
+
 def test_relative_change_schema(schema):
     config = RelativeChangeConfig(features=["t1"])
     output = RelativeChange.output_schema(config, [schema])["Relative Change"]

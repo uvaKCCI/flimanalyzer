@@ -217,20 +217,33 @@ class RelativeChange(Tool[RelativeChangeConfig]):
         if reference not in grouping:
             grouping.insert(0, reference)
         data = data[categories + features]
-        others = [c for c in categories if c != reference]
 
         reference_rows = data.loc[data[reference] == config.reference_value]
         reference_values = reference_rows.groupby(grouping, observed=False)[
             features
         ].transform(config.method)
-        reference_values = (
-            pd.concat([reference_rows[others], reference_values], axis=1)
-            .drop_duplicates()
-            .set_index(others)
-        )
-        relative = (
-            data.set_index(categories)[features].div(reference_values).reset_index()
-        )
+        # #178: align the reference values on the grouping columns only. Other
+        # category columns (e.g. Cell) must not restrict which rows are divided;
+        # non-reference rows became NaN when e.g. Cell values differed between
+        # the reference rows and the other rows.
+        alignment = [column for column in grouping if column != reference]
+        if alignment:
+            reference_values = (
+                pd.concat([reference_rows[alignment], reference_values], axis=1)
+                .drop_duplicates()
+                .set_index(alignment)
+            )
+            relative = (
+                data.set_index(categories)[features].div(reference_values).reset_index()
+            )
+        else:
+            # the reference rows are the only group: divide by a single value
+            reference_value = (
+                reference_values.iloc[0] if len(reference_values) else np.nan
+            )
+            relative = (
+                data.set_index(categories)[features].div(reference_value).reset_index()
+            )
         for column in categories:
             relative[column] = relative[column].astype("category")
         relative.columns = [

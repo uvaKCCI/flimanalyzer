@@ -1,5 +1,14 @@
 # Changes
 
+## 0.6.1
+
+### Results that change
+
+- **Relative Change** aligns the reference values on the grouping columns only,
+  not on every other category column. Rows outside the reference group were NaN
+  when a non-grouping category (e.g. Cell) had values that the reference rows
+  lacked; such rows now keep their relative values (#178).
+
 ## 0.6.0
 
 The first release on current Python and package versions (Python 3.12, Prefect 3,
