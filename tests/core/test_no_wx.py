@@ -40,20 +40,14 @@ def run(code):
     assert result.returncode == 0, result.stderr
 
 
-def test_core_imports_without_wx():
-    """The core modules must import with wx unavailable (CI also runs them without wx)."""
+def test_core_imports_without_wx_and_torch():
+    """The core modules must import with wx (and torch) unavailable (CI also runs them
+    without wx); then everything but the GUI."""
     run(
         f"for m in {CORE_MODULES!r}:\n"
         "    if m != 'flim.tools':\n"
         "        __import__(m)\n"
         "assert 'flim.tools' not in sys.modules, 'importing the core must not load the tools'\n"
-        "import flim.tools\n"
-    )
-
-
-def test_all_core_modules_import_without_wx_and_torch():
-    """Everything but the GUI."""
-    run(
         "import importlib, pkgutil\n"
         f"for package in {CORE_PACKAGES!r}:\n"
         "    for m in pkgutil.iter_modules(importlib.import_module(package).__path__):\n"

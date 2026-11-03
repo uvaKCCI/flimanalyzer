@@ -9,7 +9,6 @@ import logging
 
 from flim.core.importer import dataimporter
 from flim.core.preprocessor import defaultpreprocessor
-from flim.core.analyzer import dataanalyzer
 from flim.core.execution import DASK, LEGACY_EXECUTORS, ExecutionOptions
 
 DASK_EXECUTORS = tuple(k for k, v in LEGACY_EXECUTORS.items() if v in DASK)
@@ -31,20 +30,18 @@ class FLIMAnalyzer:
         self,
         importer=dataimporter(),
         preprocessor=defaultpreprocessor(),
-        danalyzer=dataanalyzer(),
         executor="LocalExecutor",
         execargs="",
         **kwargs,
     ):
         self.importer = importer
         self.preprocessor = preprocessor
-        self.analyzer = danalyzer
         self.data = pd.DataFrame()
         self.execution = ExecutionOptions.from_legacy(executor, execargs)
         logging.info(f"Setting up {self.execution.executor} executor: {self.execution}")
         logging.debug(
             f"Initialized {__name__}.FLIMAnalyzer with"
-            f" {importer}, {preprocessor}, {danalyzer}"
+            f" {importer}, {preprocessor}"
         )
 
     def get_task_runner(self):
@@ -77,13 +74,3 @@ class FLIMAnalyzer:
         if pp is not None:
             self.preprocessor = pp
 
-    def get_analyzer(self):
-        return self.analyzer
-
-    def set_analyzer(self, anl):
-        if anl is not None:
-            self.analyzer = anl
-
-    def set_outputgenerator(self, og):
-        if og is not None:
-            self.outputgenerator = og

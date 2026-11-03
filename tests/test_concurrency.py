@@ -124,13 +124,6 @@ def test_downstream_task_waits_for_its_input(flim_data):
     assert second[0] >= first[1]
 
 
-@pytest.fixture
-def flirr_data(flim_data):
-    df = flim_data.copy()
-    df["FLIRR"] = df["NAD(P)H a2[%]"] / df["FAD a1[%]"]
-    return df
-
-
 def _basic_flirr(flirr_data, tmp_path, workers):
     from flim.configs.workflow import BasicFLIRRConfig
     from flim.workflow.basicflow import BasicFLIRR

@@ -18,29 +18,20 @@ def table():
     )
 
 
-def test_filter_dialog_checkboxes(wxapp, table):
+def test_filter_dialog(wxapp, table, recwarn):
     from flim.core.settings import AppSettings
     from flim.gui.dialogs import ConfigureFiltersDlg
 
     filters = AppSettings.default().filters
     dlg = ConfigureFiltersDlg(None, filters=filters, dataframe=table)
     try:
+        assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]
+        assert dlg.GetTitle() == "Filter Settings"
         filters = dlg.filterlist
         assert filters.GetItemCount() > 0
         checked = filters.IsChecked(0)
         filters.CheckItem(0, not checked)
         assert filters.IsChecked(0) != checked
-    finally:
-        dlg.Destroy()
-
-
-def test_filter_dialog_title_and_counts(wxapp, table):
-    from flim.core.settings import AppSettings
-    from flim.gui.dialogs import ConfigureFiltersDlg
-
-    dlg = ConfigureFiltersDlg(None, filters=AppSettings.default().filters, dataframe=table)
-    try:
-        assert dlg.GetTitle() == "Filter Settings"
         dlg.OnFiltersUpdated([], 0, 10, 40)
         assert dlg.dropped_label.GetLabel() == "Dropped from view: 10 (of 40)"
         assert dlg.remaining_label.GetLabel() == "Remaining: 30 (75.00%)"
@@ -96,15 +87,6 @@ def test_list_checkboxes_notify_once_per_change(wxapp):
         assert calls[-1] == (0, False) and not lc.IsChecked(0)
     finally:
         frame.Destroy()
-
-
-def test_filter_dialog_has_no_deprecated_checklist_mixin(wxapp, table, recwarn):
-    from flim.core.settings import AppSettings
-    from flim.gui.dialogs import ConfigureFiltersDlg
-
-    filters = AppSettings.default().filters
-    ConfigureFiltersDlg(None, filters=filters, dataframe=table).Destroy()
-    assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]
 
 
 def test_import_dialog_resize(wxapp):
