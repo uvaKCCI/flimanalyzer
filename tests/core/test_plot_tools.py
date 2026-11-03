@@ -71,6 +71,11 @@ CASES = [
         ["Plot: Box Plot t1", "Plot: Box Plot t2"],
     ),
     (
+        BoxPlot,
+        BoxPlotConfig(grouping=["Treatment"], features=["t1"]),
+        ["Plot: Box Plot t1"],
+    ),
+    (
         SwarmPlot,
         SwarmPlotConfig(grouping=["Treatment"], features=["t1"]),
         ["Plot: Swarm Plot t1"],
@@ -90,13 +95,23 @@ CASES = [
     ),
     (
         LinePlot,
-        LinePlotConfig(grouping=["FOV", "Treatment"], features=["t1"]),
+        LinePlotConfig(grouping=["Treatment"], features=["t1"]),
         ["Plot: Line Plot: t1"],
     ),
     (
         LinePlot,
+        LinePlotConfig(grouping=["FOV", "Treatment"], features=["t1"]),
+        ["Plot: Line Plot: t1"],
+    ),
+    pytest.param(
+        LinePlot,
         LinePlotConfig(grouping=["FOV", "Treatment", "Cell", "FOV"], features=["t1"]),
         ["Plot: Line Plot: t1"],
+        # one row per group: matplotlib's errorbar calls float() on a one-element
+        # Series (pandas FutureWarning raised inside seaborn/matplotlib, not here)
+        marks=pytest.mark.filterwarnings(
+            "ignore:Calling float on a single element Series:FutureWarning"
+        ),
     ),
     (
         KDE,
@@ -115,7 +130,7 @@ CASES = [
     ),
     (
         Heatmap,
-        HeatmapConfig(features=["t1", "t2", "FLIRR"]),
+        HeatmapConfig(grouping=["Treatment", "FOV"], features=["t1", "t2", "FLIRR"]),
         ["Plot: Heatmap", "Table: Heatmap Correlation"],
     ),
     (
@@ -144,6 +159,10 @@ CASES = [
 ]
 
 
+# seaborn/matplotlib API deprecations must not come back
+@pytest.mark.filterwarnings("error:.*deprecated:FutureWarning")
+@pytest.mark.filterwarnings("error::PendingDeprecationWarning")
+@pytest.mark.filterwarnings("error::matplotlib.MatplotlibDeprecationWarning")
 @pytest.mark.parametrize(
     "tool, config, names", CASES, ids=lambda v: getattr(v, "name", None)
 )
@@ -631,22 +650,34 @@ LEGEND_TOOLS = [
 ]
 
 
-@pytest.mark.parametrize("single_figure", [False, True])
-@pytest.mark.parametrize("position", ["right", "top", "bottom", "left", "inside", "none"])
+# arrange_legends has three branches (none, inside, outside); the outside positions
+# differ only in where the legend goes: all of them for one tool
+LEGEND_CASES = [
+    (*case, position, single)
+    for case in LEGEND_TOOLS
+    for position, single in [
+        ("right", False),
+        ("right", True),
+        ("none", False),
+        ("none", True),
+        ("inside", False),
+    ]
+] + [
+    (*LEGEND_TOOLS[0], position, single)
+    for position in ("top", "bottom", "left")
+    for single in (False, True)
+]
+
+
 @pytest.mark.parametrize(
-    "tool, config_class, grouping",
-    LEGEND_TOOLS,
-    ids=lambda v: getattr(v, "name", None) if isinstance(v, type) else None,
+    "tool, config_class, grouping, position, single_figure",
+    [
+        pytest.param(*case, id=f"{case[0].name}-{case[3]}-{case[4]}")
+        for case in LEGEND_CASES
+    ],
 )
 def test_legend_position(data, tool, config_class, grouping, position, single_figure):
     plt.close("all")
-    if single_figure and position == "inside":
-        # one legend for all tiles: outside the plots only
-        config = config_class(
-            features=["t1", "t2"], single_figure=True, legend_position="inside", **grouping
-        )
-        assert config.legend_position != "inside"
-        return
     config = config_class(
         features=["t1", "t2"],
         single_figure=single_figure,
@@ -664,6 +695,15 @@ def test_legend_position(data, tool, config_class, grouping, position, single_fi
         else:
             assert not _legends(figure) and len(figure.legends) == 1
             assert sorted(t.get_text() for t in figure.legends[0].get_texts())
+
+
+def test_single_figure_legend_is_not_inside():
+    # one legend for all tiles: outside the plots only
+    for _, config_class, grouping in LEGEND_TOOLS:
+        config = config_class(
+            features=["t1", "t2"], single_figure=True, legend_position="inside", **grouping
+        )
+        assert config.legend_position != "inside"
 
 
 def test_legend_position_where_there_is_none():
@@ -854,17 +894,6 @@ def test_ci_to_errorbar(ci, errorbar):
     assert ci_to_errorbar(ci) == errorbar
 
 
-# seaborn/matplotlib API deprecations must not come back
-@pytest.mark.filterwarnings("error:.*deprecated:FutureWarning")
-@pytest.mark.filterwarnings("error::PendingDeprecationWarning")
-@pytest.mark.filterwarnings("error::matplotlib.MatplotlibDeprecationWarning")
-@pytest.mark.parametrize("tool", [LinePlot, Heatmap, BoxPlot], ids=lambda t: t.name)
-@pytest.mark.parametrize("grouping", [["Treatment"], ["Treatment", "FOV"]])
-def test_plots_without_deprecated_api(tool, flim_data, features, grouping):
-    config = tool.config_class(grouping=grouping, features=features)
-    assert tool()(flim_data, config=config)
-
-
 @pytest.mark.parametrize(
     "tool",
     [SwarmPlot, KDE, BoxPlot, ViolinPlot, LinePlot, FrequencyHistogram],
@@ -881,12 +910,10 @@ def test_plots_draw_one_figure_per_feature(flim_data, tool):
     assert mapped == [[f] for f in features]
 
 
-@pytest.mark.parametrize("error_bar", ["+/-", "+"])
-def test_bar_plot_heights_are_group_means(flim_data, error_bar):
+def test_bar_plot_heights_are_group_means(flim_data):
     feature = "NAD(P)H t1"
-    config = BarPlotConfig(
-        grouping=["Treatment"], features=[feature], error_bar=error_bar
-    )
+    # one-sided error bars: their own code path; the heights do not depend on them
+    config = BarPlotConfig(grouping=["Treatment"], features=[feature], error_bar="+")
     (figure,) = [
         v
         for v in BarPlot()(flim_data, config=config).values()
@@ -932,12 +959,6 @@ def _notes(figure):
     return [t.get_text() for t in figure.texts if "measurements shown" in t.get_text()]
 
 
-def test_pair_plot_all_measurements_by_default(flim_data):
-    figure = _pairplot(flim_data)
-    assert set(_points_per_panel(figure)) == {len(flim_data)}
-    assert _notes(figure) == []
-
-
 def test_pair_plot_random_sample_in_scatter_panels(flim_data, monkeypatch):
     diagonal_sizes = []
     kdeplot = sns.kdeplot
@@ -978,5 +999,7 @@ def test_pair_plot_sample_larger_than_the_data_plots_all(flim_data):
 
 
 def test_pair_plot_all_ignores_samples(flim_data):
+    assert PairPlotConfig().points.mode == "all"  # the default
     figure = _pairplot(flim_data, mode="all", samples=20)
     assert set(_points_per_panel(figure)) == {len(flim_data)}
+    assert _notes(figure) == []

@@ -114,6 +114,10 @@ def test_range_filters_table(dialog, table):
     assert filters["t1"] == RangeSettings(low=120, high=180)  # kept as configured
     assert filters["t2"].low == pytest.approx(table["t2"].min(), rel=1e-5)
     assert filters["t2"].high == pytest.approx(table["t2"].max(), rel=1e-5)
+    editor.grid.SetCellValue(1, 2, "3")  # t2: low > high
+    editor.grid.SetCellValue(1, 3, "1")
+    d.validate()
+    assert editor.marks == {1: "error"}  # the t2 row
 
 
 # --- settings files ---
@@ -344,15 +348,6 @@ def test_histogram_auto_range(dialog, tmp_path):
     assert d.result().config.features["t1"].min == 120
 
 
-def test_histogram_range_errors_are_marked(dialog):
-    d = dialog("Frequency Histogram", HistogramConfig(features=["t1"]))
-    editor = d.fields.editors["features"]
-    editor.grid.SetCellValue(0, 2, "5")  # min
-    editor.grid.SetCellValue(0, 3, "1")  # max
-    d.validate()
-    assert d.fields.markers["features"].IsShown() and not d.ok_button.IsEnabled()
-
-
 # --- Autoencoder: Train ---
 
 
@@ -413,6 +408,7 @@ def test_feature_rows_with_issues_are_marked(dialog, table):
     d.validate()
     assert editor.marks == {0: "error"}
     assert editor.row_messages == {0: ["min (5.0) >= max (1.0)"]}
+    assert d.fields.markers["features"].IsShown() and not d.ok_button.IsEnabled()
     editor.grid.SetCellValue(0, 3, "500")
     d.validate()
     assert editor.marks == {}
@@ -427,15 +423,6 @@ def test_constant_columns_get_no_range(dialog, table):
     assert editor.grid.GetCellValue(row, 2) == ""  # no range: one value only
     d.validate()
     assert d.ok_button.IsEnabled()
-
-
-def test_filter_rows_with_issues_are_marked(dialog):
-    d = dialog("Filter", FilterConfig(range_filters=["t2"]))
-    editor = d.fields.editors["range_filters"]
-    editor.grid.SetCellValue(1, 2, "3")  # t2: low > high
-    editor.grid.SetCellValue(1, 3, "1")
-    d.validate()
-    assert editor.marks == {1: "error"}  # the t2 row
 
 
 def test_rule_rows_with_issues_are_marked(dialog):

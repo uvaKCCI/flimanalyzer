@@ -474,10 +474,9 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flim_data, tmp_pa
     locked = []
 
     def configure(dialog):
-        dialog.fields.editors["grouping"].set(["Treatment", "FOV", "Cell"])
-        dialog.fields.editors["features"].set(
-            ["FLIRR", "NAD(P)H t1", "FAD a1[%]", "NAD(P)H a2[%]"]
-        )
+        dialog.fields.editors["grouping"].set(["Treatment", "FOV"])
+        # the fewest features its steps take (pair plots of FAD and of NAD features)
+        dialog.fields.editors["features"].set(["FAD a1[%]", "NAD(P)H a2[%]"])
         dialog.folder.SetPath(str(tmp_path))
         locked.append(not dialog.autosave.IsEnabled() and dialog.autosave.GetValue())
         dialog.validate()

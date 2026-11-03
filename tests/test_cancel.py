@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import pytest
-from prefect import get_client
+from prefect import get_client, unmapped
 
 import flim.core.runner as runner
 from flim.core.config import TaskConfig
@@ -137,7 +137,8 @@ def test_task_cancelling_itself_skips_only_its_dependents(dask):
     def build():
         quit_ = Quitter(name="Quitter", calls=calls)()
         Counter(name="Dependent", calls=calls)(quit_)
-        Counter(name="Independent", calls=calls)()
+        # an unmapped input is passed on as it is (also to Dask)
+        Counter(name="Independent", calls=calls)(unmapped(pd.DataFrame({"x": [1.0]})))
 
     task_runner = None
     if dask:

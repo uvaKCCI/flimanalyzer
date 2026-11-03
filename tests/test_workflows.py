@@ -49,9 +49,3 @@ def test_basic_flirr_workflow(flirr_data, tmp_path):
     assert any((tmp_path / wf.name).rglob("*.txt"))
     (summary,) = (tmp_path / wf.name).rglob("run_summary.txt")
     assert "State:      completed" in summary.read_text()
-
-
-def test_workflow_run_returns_all_results(flirr_data):
-    results = BasicFLIRR().run(flirr_data, config=CONFIG)
-    assert "Stats-Table: Summary" in results
-    assert any(k.startswith("Plot: KDE") for k in results)

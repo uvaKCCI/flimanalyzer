@@ -100,8 +100,9 @@ def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path):
 def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp_path):
     settings.tool_settings.set(
         tools.get("Basic FLIRR Analysis"),
+        # the fewest features its steps take (pair plots of FAD and of NAD features)
         BasicFLIRRConfig(
-            grouping=["Treatment", "FOV"], features=["FLIRR", "FAD a1%", "NAD(P)H a2%"]
+            grouping=["Treatment", "FOV"], features=["FAD a1%", "NAD(P)H a2%"]
         ),
     )
     path = tmp_path / "settings.json"
