@@ -22,6 +22,8 @@ The `Relative Change` tool divides each feature by its mean (or median) in a ref
 
     In the example, the data is grouped by `Treatment` (the reference column) and `FOV`. For each `FOV` and feature, the tool calculates the mean of the `ctrl` rows and divides the feature's values in that `FOV` by it.
 
+    Other category columns, e.g. `Cell`, don't matter. If a group has no reference rows (here: a `FOV` without `ctrl` rows), its values stay empty, and the log names the groups.
+
     ![](/images/analysis/relchange-config-grouping.png)
 
 5. Click `OK`.
