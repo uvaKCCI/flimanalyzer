@@ -13,6 +13,7 @@ from pubsub import pub
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
+from flim.results import write_table
 
 
 def check_data_msg(data):
@@ -51,10 +52,7 @@ def save_dataframe(
             return None
         fname = fileDialog.GetPath()
         try:
-            # if indx was flattened in analyzer.summarize_data, multiindex col values
-            # were joined with '\n' --> revert in the saved copy, not in the data shown
-            data = data.rename(columns=lambda c: str(c).replace("\n", " "))
-            data.to_csv(fname, index=saveindex, sep="\t")
+            write_table(data, fname, index=saveindex)
         except IOError:
             wx.MessageBox(f"Error saving data in file {fname}", "Error", wx.OK)
             return None

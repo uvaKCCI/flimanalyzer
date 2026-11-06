@@ -31,6 +31,7 @@ from flim.core.preprocessor import defaultpreprocessor
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
 from flim.core.settings import AppSettings, load_settings
+from flim.results import write_table
 
 IMPORTED = "Imported.txt"
 
@@ -210,7 +211,7 @@ def main(argv=None) -> int:
         os.makedirs(output, exist_ok=True)
         data = import_table(args.input, settings, exclude=args.exclude)
         path = os.path.join(output, IMPORTED)
-        data.to_csv(path, sep="\t", index=False)
+        write_table(data, path)
         logging.info(f"Saved {path}")
         execution = ExecutionOptions.from_legacy(args.executor, args.execargs)
         failed = []

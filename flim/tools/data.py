@@ -51,7 +51,8 @@ class CategoryOrder(Tool[CategoryOrderConfig]):
         for column, values in categories.items():
             data[column] = pd.Categorical(data[column], categories=values, ordered=True)
         # stable: rows with the same values keep their order (e.g. of other columns)
-        data = data.sort_values(by=list(categories), kind="stable")
+        # rows renumbered in their new order (#119)
+        data = data.sort_values(by=list(categories), kind="stable", ignore_index=True)
         return {"Reordered": data}
 
 

@@ -91,7 +91,7 @@ def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path):
     imported = pd.read_csv(out / "Imported.txt", sep="\t")
     assert len(imported) == 40
     (summary,) = (out / "Summarize").rglob("*Summary*")
-    table = pd.read_csv(summary, index_col=0)
+    table = pd.read_csv(summary, sep="\t")  # tab-separated, no index column (#119)
     assert list(table.columns) == ["Treatment", "FLIRR mean"]
     assert set(table["Treatment"]) == {"WT", "KO"}
     assert any((out / "Summarize").rglob("run_summary.txt"))
