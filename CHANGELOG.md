@@ -1,6 +1,12 @@
-# Changes
+# Changelog
 
-## 0.6.1
+All notable changes to FLIMAnalyzer, newest first. From 0.6.1 on, the sections follow
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) (`Added`, `Changed`,
+`Deprecated`, `Removed`, `Fixed`, `Security`), headed by `Results that change` and
+followed by `Documentation` and `Known issues` where needed. The sections of 0.6.0 and
+earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
+
+## 0.6.1 - 2026-11-06
 
 Bug fixes for 0.6.0, corrected and completed documentation, and fixes of the Docker
 images. Same requirements as 0.6.0.
@@ -19,8 +25,23 @@ images. Same requirements as 0.6.0.
   (`relative counts [%]`, `[rel %]`), but the values are a density (area 1). They now
   say `density` (#181). The values are unchanged; only the labels are corrected.
 
-### Fixes
+### Changed
 
+- **Prefect server at startup:** if port 4200 is taken, FLIMAnalyzer starts its local
+  Prefect server on a free port. If no server can be started, it stops with an error
+  (a message box in the GUI) instead of falling back to Prefect's temporary servers
+  (#195). With `--no-prefect-server`, Prefect still starts a temporary server for each
+  run.
+- **Help → Documentation** opens the documentation of the installed version, instead of
+  the latest.
+
+### Fixed
+
+- **Prefect server in the GUI:** tools and workflows started in the GUI didn't use the
+  Prefect server FLIMAnalyzer found or started at startup (#195). Without a server in
+  the Prefect profile, each run started its own temporary server; with a server in the
+  profile that didn't answer or rejected the API key, runs failed. They now all use the
+  server chosen at startup. `flimbatch` was not affected.
 - **Concatenate**, `Columns (side by side)` with `Numeric columns only` off, failed
   with `KeyError: 'Old Index'` (#176). Columns of the second table whose name is
   already taken get the table's name, e.g. `Treatment (B)`.
@@ -30,8 +51,6 @@ images. Same requirements as 0.6.0.
 - **Plot window:** `Cancel` in the line colour dialog still changed the colour (#188).
 - **Workflow dialogs** showed a `Result prefix` that no workflow used; it is no longer
   shown (#189).
-- **Help → Documentation** opens the documentation of the installed version, instead of
-  the latest.
 - **Docker images:** the version inside the image read `0.6.0+d20261103` instead of
   `0.6.0` (#174). The images now carry the standard OCI metadata (version, commit,
   base image), and CI checks the version, commit and `flimbatch --help` before it
@@ -50,9 +69,9 @@ images. Same requirements as 0.6.0.
 ### Known issues
 
 - **Windows:** the autosave fix of 0.6.0 for mapped network drives (#163) is not yet
-  verified on Windows, and tools can stay in the "starting" state when FLIMAnalyzer
-  starts its own local Prefect server (#175; workaround: a Prefect server configured in
-  a Prefect profile). Please report in the issues.
+  verified on Windows. Tools could stay in the "starting" state when FLIMAnalyzer
+  started its own local Prefect server (#175); the Prefect server fix above (#195) may
+  solve this, but it is not verified on Windows. Please report in the issues.
 
 ## 0.6.0
 
