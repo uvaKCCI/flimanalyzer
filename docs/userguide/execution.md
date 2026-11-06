@@ -10,7 +10,7 @@ The *executor* decides where the tasks run. The same options work in the GUI (`f
 | Dask on one computer | `-e LocalDaskExecutor` | in a local Dask cluster, as processes or threads | the `dask` extra |
 | Dask cluster | `-e DaskExecutor` | on the workers of an existing Dask cluster, also on other computers | the `dask` extra |
 
-Executor options are given with `--execargs`, as `name=value` pairs separated by commas.
+Executor options are given with `--execargs`, as `name=value` pairs separated by commas. An executor name that is not in the table runs `LocalExecutor`; only the log says so.
 
 ## Threads (default)
 
@@ -20,7 +20,7 @@ By default, up to one task per CPU core runs at a time. To change that number:
 flimanalyzer --execargs="num_workers=4"
 ```
 
-`num_workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default.
+`num_workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default. `LocalExecutor` has no other options.
 
 ## Dask on one computer
 
@@ -30,7 +30,7 @@ Install the Dask support first: `uv sync --extra dask` (or `pip install "flimana
 flimanalyzer -e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"
 ```
 
-Set `num_workers` to about the number of CPU cores. With `scheduler=threads`, the workers run as threads instead of processes.
+Set `num_workers` to about the number of CPU cores. Without `scheduler=processes`, the workers run as threads (`scheduler=threads`, the default). Other options are passed on to the local Dask cluster.
 
 ## Dask cluster
 
@@ -40,7 +40,7 @@ To use a Dask cluster that is already running, give the address of its scheduler
 flimanalyzer -e DaskExecutor --execargs="address=tcp://<scheduler-host>:8786"
 ```
 
-The workers must have the same FLIMAnalyzer version installed as the computer that starts the run.
+The workers must have the same FLIMAnalyzer version installed as the computer that starts the run. Other options are passed on to Prefect's Dask task runner. Without `address`, `DaskExecutor` starts a local Dask cluster instead.
 
 ## Limiting tasks of one kind
 

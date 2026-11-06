@@ -89,6 +89,15 @@ def test_concat(data):
         )
     )
     assert list(wide.columns) == ["Treatment", "t1", "t2"]
+    # all columns: a name already taken gets the table's name (#176)
+    wide = table(
+        Concat()(
+            {"A": data[["Treatment", "t1"]], "B": data[["Treatment", "t2"]]},
+            config=ConcatConfig(mode="horizontal"),
+        )
+    )
+    assert list(wide.columns) == ["Treatment", "t1", "Treatment (B)", "t2"]
+    assert len(wide) == len(data)
 
 
 def test_filter(data):

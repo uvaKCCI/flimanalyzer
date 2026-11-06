@@ -24,7 +24,7 @@ Columns with numeric values are filtered by a range: a minimum and a maximum val
 
 Follow these steps to view and change the range filters:
 
-1. Select the `Filter Data` checkbox in the sidebar of the data table window.
+1. Select the `Filter Data` checkbox in the table window.
 
 2. Click the `Filter Settings...` button.
 
@@ -38,4 +38,8 @@ Follow these steps to view and change the range filters:
 
 ![](/images/data/filter-settings.png)
 
-To change the range filter of a single column, it is quicker to check `Filter Data` in the data table window and right-click the header of that column. Change the minimum and maximum of the filter as needed and click `OK`.
+To change the range filter of a single column, it is quicker to check `Filter Data` in the table window and right-click the header of that column. Change the minimum and maximum of the filter as needed and click `OK`.
+
+## Filters in settings files and batch mode
+
+The range filters are the same in all table windows. They are part of the settings: `File` > `Export Settings...` saves them, and [batch mode](/userguide/batch) uses them when they are switched on (see [Settings](/userguide/settings)). The values selected in category columns are not saved in settings files and are not used in batch mode. To keep a table with only some category values, use the [Filter tool](filtertool.md).

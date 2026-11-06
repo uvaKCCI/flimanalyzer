@@ -1,7 +1,7 @@
 Analysis
 ========
 
-Most analysis tools can group the data by the values of category columns and analyze each group separately. You can group by one category column or by a combination of several. Category column headers have a light blue background. All other column headers are gray.
+`Summarize`, `Relative Change` and `KS-Statistics` can group the data by the values of category columns and analyze each group separately. You can group by one category column or by a combination of several. `Autoencoder: Train` uses the grouping to split the data into training and validation sets, and `Autoencoder: Augment Data` to number the copies' cells. `Series Analysis` and `Random Forest` show a `Grouping` setting, but it has no effect. The other analysis tools have no grouping. Category column headers have a light blue background. All other column headers are gray.
 
 .. image:: /images/data/dataframe.png
 
@@ -19,7 +19,7 @@ The example table has these category columns that you can use for grouping: `Cel
      - Description
    * - .. image:: /images/analysis/summary.png 
      - `Summarize <summary.html>`_
-     - Calculates the count, minimum, maximum, mean, median, standard deviation, standard error of the mean, and 25th and 75th percentiles, and sum of grouped data.
+     - Calculates the count, minimum, maximum, mean, median, standard deviation, standard error of the mean, 25th and 75th percentiles, and sum of grouped data.
    * - .. image:: /images/analysis/relchange.png 
      - `Relative Change <relchange.html>`_
      - Converts the data to fold-change values, relative to the mean or median of a reference group.

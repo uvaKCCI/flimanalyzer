@@ -250,6 +250,17 @@ def test_histogram_table_columns_are_named_by_group(data):
     assert groups and not any("(" in c for c in groups)  # not "('WT',) [rel %]"
 
 
+def test_histogram_density_is_labelled_as_such(data):
+    # density: the bars' area is 1, not percent (#181)
+    config = HistogramConfig(features=["t1"], table=True, density=True)
+    results = FrequencyHistogram()(data, config=config)
+    table = results["Table: Frequency Histo Table: t1"]
+    widths = table["bin edge high"] - table["bin edge low"]
+    assert (table["all [density]"] * widths).sum() == pytest.approx(1)
+    axis = results["Plot: Frequency Histo Plot: t1"].axes[0]
+    assert axis.get_ylabel().startswith("density")
+
+
 def test_histogram_bins(data):
     config = HistogramConfig(
         features={"t1": HistogramRange(min=300, max=500, bins=5), "t2": {}},

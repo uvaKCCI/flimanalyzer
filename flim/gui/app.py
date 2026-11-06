@@ -10,6 +10,7 @@ import matplotlib
 
 import logging
 import os
+import re
 import pandas as pd
 import wx
 import wx.adv
@@ -68,6 +69,14 @@ import flim.gui.dialogs.unpivot  # noqa: F401
 # settings read at startup, if there are (else the defaults)
 DEFAULT_SETTINGS_FILE = "defaults.json"
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
+
+
+def docs_url(version: str = __version__) -> str:
+    """The documentation of this version: a release's own (built for its tag), else,
+    for development builds, the latest."""
+    if re.fullmatch(r"\d+\.\d+\.\d+", version):
+        return f"{DOCS_URL}/en/v{version}/"
+    return f"{DOCS_URL}/en/latest/"
 
 
 def startup_settings() -> AppSettings:
@@ -211,7 +220,7 @@ class AppFrame(wx.Frame):
         self.windowmenu.AppendSeparator()
 
         helpmenu = wx.Menu()
-        docsitem = helpmenu.Append(wx.ID_ANY, "Documentation", "Open the online documentation")
+        docsitem = helpmenu.Append(wx.ID_ANY, "Documentation", "Open the documentation of this version")
         aboutitem = helpmenu.Append(wx.ID_ABOUT, "About FLIMAnalyzer")
 
         menubar.Append(filemenu, "&File")
@@ -804,15 +813,14 @@ class AppFrame(wx.Frame):
                 data.SetColour(event.artist.get_color())
                 dlg = wx.ColourDialog(self, data)
                 # dlg.Bind(wx.EVT_COLOUR_CHANGED, self.OnColourChanged)
-                if dlg.ShowModal() == wx.ID_OK:
-                    pass
-
-                color = dlg.GetColourData().GetColour()
-                event.artist.set_color(
-                    (color.Red() / 255, color.Green() / 255, color.Blue() / 255)
-                )
-                event.artist.set_alpha(color.Alpha() / 255)
-                fig.canvas.draw_idle()
+                if dlg.ShowModal() == wx.ID_OK:  # Cancel keeps the color (#188)
+                    color = dlg.GetColourData().GetColour()
+                    event.artist.set_color(
+                        (color.Red() / 255, color.Green() / 255, color.Blue() / 255)
+                    )
+                    event.artist.set_alpha(color.Alpha() / 255)
+                    fig.canvas.draw_idle()
+                dlg.Destroy()
 
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
@@ -860,7 +868,7 @@ class AppFrame(wx.Frame):
         self.Close()
 
     def OnDocumentation(self, event):
-        wx.LaunchDefaultBrowser(DOCS_URL)
+        wx.LaunchDefaultBrowser(docs_url())
 
     def OnAbout(self, event):
         info = wx.adv.AboutDialogInfo()

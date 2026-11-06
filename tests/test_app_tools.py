@@ -152,3 +152,51 @@ def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):
     frame.run_tool(tools.get("Filter"))
     (results,) = frame.shown
     assert set(results["Table: Filtered"]["Treatment"]) == {"Ctrl"}
+
+
+def test_documentation_of_this_version():
+    from flim.gui.app import docs_url
+
+    assert docs_url("0.6.1") == "https://flimanalyzer.readthedocs.io/en/v0.6.1/"
+    for development in ("0.6.1.post3+g1a2b3c4", "0.6.1+d20261103", "0.7.0rc1"):
+        assert docs_url(development) == "https://flimanalyzer.readthedocs.io/en/latest/"
+
+
+def test_help_documentation_opens_this_versions_docs(frame, monkeypatch):
+    from flim.gui import app
+
+    opened = []
+    monkeypatch.setattr(app.wx, "LaunchDefaultBrowser", opened.append)
+    frame.OnDocumentation(None)
+    assert opened == [app.docs_url()]
+
+
+@pytest.mark.parametrize("answer, changed", [(wx.ID_CANCEL, False), (wx.ID_OK, True)])
+def test_line_color_changes_only_on_ok(frame, monkeypatch, answer, changed):
+    # double-clicking a line opens a color dialog; Cancel keeps the color (#188)
+    from types import SimpleNamespace
+
+    import matplotlib.figure
+
+    (line,) = matplotlib.figure.Figure().subplots().plot([0, 1], color="blue")
+    shown = []
+
+    class Dialog:
+        def __init__(self, parent, data):
+            self.data = data
+
+        def ShowModal(self):
+            self.data.SetColour(wx.Colour(255, 0, 0))
+            return answer
+
+        def GetColourData(self):
+            return self.data
+
+        def Destroy(self):
+            shown.append("destroyed")
+
+    monkeypatch.setattr(wx, "ColourDialog", Dialog)
+    event = SimpleNamespace(artist=line, mouseevent=SimpleNamespace(dblclick=True))
+    frame.OnPick(event)
+    assert (line.get_color() == (1.0, 0.0, 0.0)) == changed
+    assert shown == ["destroyed"]

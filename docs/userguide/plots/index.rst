@@ -1,7 +1,7 @@
 Plots
 ========
 
-The plotting tools show the data of a table as plots. Most plotting tools can group the data by the values in category columns. You can group by a single category column or by several. In the table, the headers of category columns have a light blue background. All other column headers have a gray background.
+The plotting tools show the data of a table as plots. Most plotting tools can group the data by the values in category columns. The `Pair Plot` uses only the first grouping column, the `FLIRR Plot` needs at least one, and in the `Heatmap` the grouping has no effect. You can group by a single category column or by several. In the table, the headers of category columns have a light blue background. All other column headers have a gray background.
 
 Select a Data Table
 -------------------
@@ -73,8 +73,11 @@ Create a Plot
     kde
     heatmap
     flirr
+    plotwindow
 
-Save a Plot
------------
-To save a plot automatically, check `Save results in` in the plot's configuration dialog. Then choose the folder to save the plot in, next to the checkbox.
+Plot Windows and Saving
+-----------------------
 
+Each plot opens in a plot window. There you can zoom into the plot, change its axes, labels and line colors, and save it as an image file. See :doc:`plotwindow`.
+
+The options common to all tool dialogs, such as the choice of the data and the result prefix, are described in :doc:`/userguide/dialogs`. To save the plots automatically each time a tool runs, check `Save results in` in the tool's dialog (see `Saving results <../dialogs.html#saving-results>`_). Plots are saved as PNG files.

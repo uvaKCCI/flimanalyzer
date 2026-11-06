@@ -2,7 +2,7 @@
 
 **Menu Access:** `Data` > `Unpivot`
 
-**Toolbar Icon:** ![](/images/data/unpivot.png)
+**Tool panel icon:** ![](/images/data/unpivot.png)
 
 Unpivoting reverses [pivoting](pivot.md): it moves one line of the column headers back into a category column.
 

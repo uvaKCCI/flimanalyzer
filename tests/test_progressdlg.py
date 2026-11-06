@@ -130,7 +130,9 @@ def test_cancel_button_cancels_the_run(wxapp):
     start = time.monotonic()
     try:
         assert dlg.ShowModal() == wx.ID_CANCEL
-        assert time.monotonic() - start < 6
+        # the tasks never end by themselves: any limit shows the cancel worked; CI
+        # runners took up to 9 s
+        assert time.monotonic() - start < 20
         assert dlg.run.state == "cancelled"
         assert not dlg.cancel_button.IsEnabled()
         assert dlg.task_text.GetLabel().startswith("Cancelling")
@@ -425,6 +427,26 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
     assert started["files"] == ["a.csv", "b.txt"]
 
 
+def test_no_prefect_server_stops_the_start_with_a_message(monkeypatch):
+    import sys
+
+    import flim.analyzerapp as analyzerapp
+    from flim.core.prefect_server import PrefectServerError
+
+    def no_server(**kwargs):
+        raise PrefectServerError("No Prefect server could be started")
+
+    shown, started = [], []
+    monkeypatch.setattr(sys, "argv", ["flimanalyzer"])
+    monkeypatch.setattr(analyzerapp, "init_logger", lambda level: None)
+    monkeypatch.setattr("flim.core.prefect_server.ensure_prefect_server", no_server)
+    monkeypatch.setattr(analyzerapp, "show_startup_error", shown.append)
+    monkeypatch.setattr(analyzerapp, "interactive_run", lambda *a, **k: started.append(1))
+    with pytest.raises(SystemExit, match="No Prefect server could be started"):
+        analyzerapp.main()
+    assert shown == ["No Prefect server could be started"] and started == []
+
+
 
 class Failing(Counter):
     def run(self, *inputs, config):
@@ -522,3 +544,24 @@ def test_garbage_collection_stays_on_the_main_thread_during_a_run(wxapp):
         dlg.Destroy()
     assert seen == [False]  # no automatic collection while the flow ran
     assert gc.isenabled()  # restored afterwards
+
+
+def test_run_uses_the_prefect_server_chosen_at_startup(wxapp):
+    # the worker thread sees the settings of the thread that opened the dialog, i.e.
+    # the server chosen by use_prefect_server, not the settings read at import
+    from prefect.settings import PREFECT_API_URL, temporary_settings
+
+    from flim.gui.progressdlg import RunProgressDialog
+
+    seen = []
+
+    def start_run(cancel_token, on_progress, on_start):
+        seen.append((threading.current_thread().name, PREFECT_API_URL.value()))
+
+    with temporary_settings(updates={PREFECT_API_URL: "http://127.0.0.1:4321/api"}):
+        dlg = RunProgressDialog(None, "Test", start_run)
+        try:
+            assert dlg.ShowModal() == wx.ID_OK
+        finally:
+            dlg.Destroy()
+    assert seen == [("flow-run", "http://127.0.0.1:4321/api")]

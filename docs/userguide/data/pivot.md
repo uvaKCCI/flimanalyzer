@@ -4,7 +4,7 @@ A pivot table summarizes and rearranges data to emphasize specific information. 
 
 **Menu Access:** `Data` > `Pivot`
 
-**Toolbar Icon:** ![](/images/data/pivot.png)
+**Tool panel icon:** ![](/images/data/pivot.png)
 
 Take the following data table as an example.
 
@@ -14,7 +14,7 @@ The table has three category columns, `Treatment`, `FOV` (field-of-view), and `C
 
 Say you want to see how `FAD a1[%]` and `NAD(P)H a2[%]` change for each cell over the treatment time series. In the original data, this is hard to see. Pivoting the `Treatment` column and averaging the measurements of each cell in each FOV puts the whole time series of a cell in one row.
 
-1. In the sidebar of the data table, click the `Pivot` button.
+1. In the table window, click the `Pivot` button. It uses only the rows that the table window shows; rows hidden by filters are left out.
 
 2. In the `Pivot data: Groups to pivot` dialog window, select `Treatment`. Leave the other columns unchecked. **Note:** The dialog lists all category columns.
 
@@ -28,10 +28,10 @@ Say you want to see how `FAD a1[%]` and `NAD(P)H a2[%]` change for each cell ove
 
 5. Click `OK`.
 
-The resulting table looks like the one below. Each row now shows the **mean** values of one cell (one combination of `FOV` and `Cell`). The values of the original `Treatment` column became columns, so each row shows the trend across the treatments for the two selected measurements: `FAD a1[%]` / `ctrl` through `FAD a1[%]` / `Dox60`, and `NAD(P)H a2[%]` / `ctrl` through `NAD(P)H a2[%]` / `Dox60` (the column headers have two lines: the measurement and the treatment). The treatments are in their category order (see [Order Categories](order.md)).
+The result opens in a new table window, named after the original window with a number added, for example `example.txt-1`. It looks like the one below. Each row now shows the **mean** values of one cell (one combination of `FOV` and `Cell`). The values of the original `Treatment` column became columns, so each row shows the trend across the treatments for the two selected measurements: `FAD a1[%]` / `ctrl` through `FAD a1[%]` / `Dox60`, and `NAD(P)H a2[%]` / `ctrl` through `NAD(P)H a2[%]` / `Dox60` (the column headers have two lines: the measurement and the treatment). The treatments are in their category order (see [Order Categories](order.md)).
 
 ![](/images/data/pivot-result.png)
 
-The `Pivot` tool in the `Data` menu does the same in a single dialog, with the options `Columns to pivot` (for example `Treatment`) and `Features`. [Unpivoting](unpivot.md) turns such columns back into a category column.
+The `Pivot` tool in the `Data` menu does the same in a single dialog, with the options `Columns to pivot` (for example `Treatment`) and `Features`. Its result is `Table: Pivoted`. [Unpivoting](unpivot.md) turns such columns back into a category column.
 
 The data in this new table can be filtered by category values or by numeric range filters as described in [Filtering Data](filter.md).

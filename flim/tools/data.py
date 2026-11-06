@@ -68,12 +68,20 @@ class Concat(Tool[ConcatConfig]):
     def run(self, tables: dict, *, config):
         horizontal = config.mode == "horizontal"
         frames = list(tables.values())
-        if horizontal and config.numbers_only:
-            # the first table keeps all its columns
-            frames = [
-                df if i == 0 else df.select_dtypes(np.number)
-                for i, df in enumerate(frames)
-            ]
+        if horizontal:
+            if config.numbers_only:
+                # the first table keeps all its columns
+                frames = [
+                    df if i == 0 else df.select_dtypes(np.number)
+                    for i, df in enumerate(frames)
+                ]
+            else:  # a name that is already taken gets the table's name (#176)
+                taken = set()
+                for i, (name, df) in enumerate(zip(tables, frames)):
+                    frames[i] = df.rename(
+                        columns={c: f"{c} ({name})" for c in df.columns if c in taken}
+                    )
+                    taken.update(frames[i].columns)
             return {"Concatenated": pd.concat(frames, axis=1, copy=True)}
         catcols = list(dict.fromkeys(c for df in frames for c in category_columns(df)))
         concat = pd.concat(

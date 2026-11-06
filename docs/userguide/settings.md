@@ -1,8 +1,12 @@
 # Settings
 
-FLIMAnalyzer saves its settings in JSON files. A settings file holds the import settings (delimiter, filename parser, renamed and dropped columns), the filters, and the settings of each tool, such as the grouping and features chosen in its dialog. [Batch mode](/userguide/batch) uses the same files.
+FLIMAnalyzer saves its settings in JSON files. A settings file holds the import settings (delimiter, filename parser, renamed and dropped columns), the range filters, the default results folder, and the settings of each tool, such as the grouping and features chosen in its dialog. [Batch mode](/userguide/batch) uses the same files.
 
-At startup, FLIMAnalyzer reads `defaults.json` in the folder it is started from, if there is one; otherwise it starts with the built-in defaults.
+At startup, FLIMAnalyzer reads `defaults.json` in the folder it is started from, if there is one; otherwise it starts with the built-in defaults. To start with another settings file, give it with `-c` (see [Command-line options](/install/index.md#command-line-options)); `defaults.json` is then not read.
+
+FLIMAnalyzer does not save the settings when it closes. Changes, for example the settings of a tool's dialog, are kept only while it is open. To keep them, save them with `Export Settings...`, for example as `defaults.json` in the folder you start FLIMAnalyzer from.
+
+The range filters (see [Filtering Data](/userguide/data/filter.md#filtering-columns-with-numeric-values)) are part of the settings. The values selected in category columns are not.
 
 ## Saving and loading all settings
 
@@ -10,7 +14,7 @@ At startup, FLIMAnalyzer reads `defaults.json` in the folder it is started from,
 
 `Export Settings...` saves all current settings to a file. `Import Settings...` loads the settings from a file and uses them. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
 
-You can import settings files from any FLIMAnalyzer version, including FLIMAnalyzer 0.5. Older files are converted when they are read. Settings are always saved in the current format.
+You can import settings files from this and older FLIMAnalyzer versions, including FLIMAnalyzer 0.5. Older files are converted when they are read. Files from a newer FLIMAnalyzer version, with a newer `schema_version`, are refused with a message to update FLIMAnalyzer. Settings are always saved in the current format.
 
 ## The settings of a tool
 
@@ -32,6 +36,7 @@ Some tools have a table with a row for each feature, for example the table of ra
 ```
 {
   "schema_version": 1,
+  "working_dir": "/Users/mst3k/FLIMAnalyzerResults",
   "import": { ... },
   "preprocess": { ... },
   "display": [ ... ],
@@ -43,4 +48,9 @@ Some tools have a table with a row for each feature, for example the table of ra
 }
 ```
 
-Each tool has its own section under `tools`, named after the tool.
+* `schema_version`: the version of the file format.
+* `working_dir`: the folder under `Save results in` for tools that have no folder of their own. Default: `FLIMAnalyzerResults` in your home folder.
+* `import` and `preprocess`: the import settings.
+* `display`: not used by this version of FLIMAnalyzer.
+* `filters`: the range filters, and whether they are switched on.
+* `tools`: each tool has its own section, named after the tool, with its settings (`config`), whether its results are saved (`autosave`) and in which folder (`results_dir`).

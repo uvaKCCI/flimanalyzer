@@ -197,10 +197,17 @@ RELATIVE = RELCHANGE.model_copy(update={"features": ["FLIRR"]})
 FLIRR_WORKFLOW = dict(
     grouping=["Treatment", "FOV"], features=["FAD a1[%]", "NAD(P)H a2[%]", "FLIRR"]
 )
+BOX_SINGLE = BoxPlotConfig(
+    grouping=["Treatment", "FOV"],
+    features=["FAD a1[%]", "NAD(P)H a2[%]", "FLIRR"],
+    single_figure=True,
+    plots_per_row=3,
+)
 
 SPLIT = SplitConfig(grouping=["FOV"])
 MERGE = MergeConfig(how="left", on=CATEGORIES)
-TWO_FILES = {"example1.txt": fov("a"), "example2.txt": fov("b")}
+FOV_A = fov("a")  # the workflow examples: the same steps, faster
+TWO_FILES = {"example1.txt": FOV_A, "example2.txt": fov("b")}
 MERGE_INPUTS = {DATAFILE: "data", "Table: Summary": fad_a1_means}
 
 SHOTS = {
@@ -287,12 +294,21 @@ SHOTS = {
     "analysis/kde-config.png": ("dialog", {"tool": "KDE", "config": KDE}),
     "analysis/kde-results.png": ("plot", {"tool": "KDE", "config": KDE}),
     # Workflows: the graph of a run (of one field of view: the same steps, faster)
-    "analysis/workflow-results.png": ("graph", {"tool": "Basic FLIRR Analysis", "config": FLIRR_WORKFLOW, "rows": fov("a")}),
+    "analysis/workflow-results.png": ("graph", {"tool": "Basic FLIRR Analysis", "config": FLIRR_WORKFLOW, "rows": FOV_A}),
     "analysis/flirr_data.png": ("table", {}),
     "analysis/flirr-config.png": ("dialog", {"tool": "FLIRR Plot", "config": FLIRR}),
     "analysis/flirr-result.png": ("plot", {"tool": "FLIRR Plot", "config": FLIRR}),
     "analysis/pairplot-config.png": ("dialog", {"tool": "Pair Plot", "config": PAIRPLOT}),
     "analysis/pairplot-results.png": ("plot", {"tool": "Pair Plot", "config": PAIRPLOT}),
+    # 0.6.1: tool dialogs, autoencoders, single figure, plot window, runs
+    "dialogs/tool-dialog.png": ("dialog", {"tool": "K-Means", "config": KMEANS, "setup": "expand_resources"}),
+    "analysis/aetrain-config.png": ("dialog", {"tool": "Autoencoder: Train"}),
+    "analysis/boxplot-config-single.png": ("dialog", {"tool": "Box Plot", "config": BOX_SINGLE}),
+    "analysis/boxplot-result-single.png": ("plot", {"tool": "Box Plot", "config": BOX_SINGLE}),
+    "analysis/plotwindow.png": ("plotwindow", {"tool": "Box Plot", "config": BOX[0]}),
+    "analysis/plot-setaxis.png": ("window", {"make": "axis_dialog"}),
+    "analysis/workflow-progress.png": ("progress", {"tool": "Basic FLIRR Analysis", "config": FLIRR_WORKFLOW}),
+    "analysis/workflow-summary.png": ("window", {"make": "run_summary"}),
 }
 
 
@@ -474,26 +490,85 @@ class Shooter:
 
     def _graph(self, path, tool, config, rows=None):
         """The graph of a workflow run, as the application shows it after the run."""
-        import tempfile
-
         from flim.core.graph import WorkflowGraph
-        from flim.core.prefect_server import use_prefect_server
 
-        workflow = tools.get(tool)
-        data = self.table(rows or "data")
-        with tempfile.TemporaryDirectory() as results, use_prefect_server(start=False):
-            run = workflow().run_flow(
-                data,
-                config=workflow.config_class(**config),
-                autosave_dir=results,
-                strict=False,
-            )
-        figure, _ = WorkflowGraph(run).get_plot()
+        figure, _ = WorkflowGraph(self.flow_run(tool, config, rows)).get_plot()
         os.makedirs(os.path.dirname(path), exist_ok=True)
         figure.savefig(path, dpi=100, bbox_inches="tight")
         wx.CallAfter(self.next)
 
+    def _plotwindow(self, path, tool, config, inputs=None):
+        """A plot window, with its toolbar."""
+        from flim.gui.plotframe import PlotFrame
+
+        results = self.run(tool, config, inputs)
+        title, figure = next(
+            (k, v) for k, v in results.items() if isinstance(v, matplotlib.figure.Figure)
+        )
+        window = PlotFrame(self.frame, figure, title)
+        window.Show()
+        self._later(window, path)
+
+    def _progress(self, path, tool, config):
+        """The progress dialog of a workflow run, its task list open, while it runs."""
+        from flim.core.prefect_server import use_prefect_server
+        from flim.gui.progressdlg import RunProgressDialog
+
+        workflow = tools.get(tool)
+
+        def start_run(cancel_token, on_progress, on_start):
+            with use_prefect_server(start=False):
+                return workflow().run_flow(
+                    self.data,
+                    config=workflow.config_class(**config),
+                    autosave_dir=self.results_folder(),
+                    on_progress=on_progress,
+                    cancel_token=cancel_token,
+                    on_start=on_start,
+                    strict=False,
+                )
+
+        dialog = RunProgressDialog(self.frame, tool, start_run)
+
+        def shoot():
+            if not dialog or not dialog.IsModal():  # the run has already ended
+                print("  failed: the run ended before the capture")
+                return
+            dialog.tasks_pane.Expand()
+            dialog.Fit()
+            _activate()
+            _make_key(dialog)
+            wx.CallLater(500, lambda: (capture(dialog, path), dialog.OnCancel(None)))
+
+        wx.CallLater(4 * DELAY, shoot)
+        dialog.ShowModal()  # until the run is cancelled
+        dialog.Destroy()
+        wx.CallAfter(self.next)
+
     # --- tables and results ---
+
+    def results_folder(self):
+        import tempfile
+
+        if getattr(self, "_results_folder", None) is None:
+            self._results_folder = tempfile.mkdtemp(prefix="flim-screenshots-")
+        return self._results_folder
+
+    def flow_run(self, tool, config, rows=None):
+        """A workflow's run (of ``rows`` of the data), made once."""
+        from flim.core.prefect_server import use_prefect_server
+
+        key = ("run", tool, repr(config), repr(rows))
+        if key not in self.results:
+            workflow = tools.get(tool)
+            with use_prefect_server(start=False):
+                self.results[key] = workflow().run_flow(
+                    self.table(rows or "data"),
+                    config=workflow.config_class(**config),
+                    autosave_dir=self.results_folder(),
+                    strict=False,
+                )
+        return self.results[key]
 
     def table(self, spec):
         return self.data if spec == "data" else spec(self.data)
@@ -592,7 +667,28 @@ class Shooter:
             selected=["FAD a1[%]", "NAD(P)H a2[%]"],
         )
 
+    def axis_dialog(self):
+        from flim.gui.dialogs import ConfigureAxisDlg
+
+        return ConfigureAxisDlg(
+            self.frame, "Set Y Axis", {"label": "FLIRR", "min": 0.0, "max": 0.6}
+        )
+
+    def run_summary(self):
+        from flim.gui.progressdlg import RunSummaryDialog
+
+        tool = "Basic FLIRR Analysis"
+        return RunSummaryDialog(self.frame, tool, self.flow_run(tool, FLIRR_WORKFLOW, FOV_A))
+
     # --- dialog setups ---
+
+    def expand_resources(self, dialog):
+        """The collapsed Resources section opened."""
+        from flim.gui.editors import relayout
+
+        editor = dialog.fields.editors["resources"]
+        editor.pane.Expand()
+        relayout(editor.pane)
 
     def show_treatment_order(self, dialog):
         """Order Categories: Treatment selected and checked, its values shown."""

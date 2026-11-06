@@ -97,7 +97,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" != "pull_request" ] || git diff --name-only \
               "origin/${{ github.base_ref }}...HEAD" -- Dockerfile .dockerignore \
-              pyproject.toml uv.lock flim | grep -q .; then
+              pyproject.toml uv.lock flim .github/scripts/check-image.sh | grep -q .; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
             echo "No changes to the image's files: not built"
@@ -107,12 +107,13 @@ jobs:
         if: steps.changes.outputs.build == 'true'
         run: >
           docker build -t flimanalyzer:ci
-          --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
+          --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu
+          --build-arg REVISION=${{ github.sha }} .
 
       - name: Run flimbatch in the image
         if: steps.changes.outputs.build == 'true'
         run: |
-          docker run --rm flimanalyzer:ci --help
+          .github/scripts/check-image.sh flimanalyzer:ci "${{ github.sha }}"
           mkdir -p work/data
           printf 'x\ty\n1\t2\n3\t4\n' > work/data/Results_FOV1_WT_1.txt
           docker run --rm -u "$(id -u)" -v "$PWD/work:/work" flimanalyzer:ci \
