@@ -133,9 +133,11 @@ FLIMAnalyzer runs analyses and workflows as [Prefect](https://www.prefect.io) fl
        export PREFECT_API_URL=https://my-prefect-server/api
 
 2. A server already running locally at `http://127.0.0.1:4200/api`.
-3. If none is found, FLIMAnalyzer starts a local server (`prefect server start`) and stops it again when FLIMAnalyzer closes. The server's output is written to `prefect-server.log`.
+3. If none is found, FLIMAnalyzer starts a local server (`prefect server start`) and stops it again when FLIMAnalyzer closes. If port 4200 is taken, the server is started on a free port. The server's output is written to `prefect-server.log`. If no server can be started, FLIMAnalyzer stops with an error.
 
-Flow and task runs can be inspected in the Prefect UI of the server in use, e.g. [http://127.0.0.1:4200](http://127.0.0.1:4200) for a local server. To keep a local server running across sessions, start it yourself in a separate terminal with `uv run prefect server start`. Use `--no-prefect-server` to skip starting a server; Prefect then uses a temporary server that only runs as long as FLIMAnalyzer.
+The server found or started at startup is used for all runs until FLIMAnalyzer closes.
+
+Flow and task runs can be inspected in the Prefect UI of the server in use, e.g. [http://127.0.0.1:4200](http://127.0.0.1:4200) for a local server. To keep a local server running across sessions, start it yourself in a separate terminal with `uv run prefect server start`. Use `--no-prefect-server` to skip starting a server; Prefect then starts a temporary server for each run, which stops when the run ends.
 
 ## Concurrent and distributed execution
 

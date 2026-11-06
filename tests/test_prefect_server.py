@@ -91,17 +91,37 @@ def test_starts_a_local_server(monkeypatch, no_side_effects):
     assert cmd[-6:] == ["server", "start", "--host", ps.DEFAULT_HOST, "--port", "4321"]
 
 
-def test_server_that_exits_early_falls_back(monkeypatch, no_side_effects):
+def test_taken_port_falls_back_to_a_free_port(monkeypatch, no_side_effects):
+    # the server on the default port exits (e.g. the port is taken by another
+    # program); the second one, on a free port, starts
+    started, _ = no_side_effects
+    monkeypatch.setattr(ps, "_free_port", lambda host: 4999)
+    free = f"http://{ps.DEFAULT_HOST}:4999/api"
+    monkeypatch.setattr(ps, "_is_healthy", lambda url, timeout=2.0: url == free)
+    processes = iter([FakeProcess(exits=True), FakeProcess()])
+
+    def popen(cmd, **kwargs):
+        started.append(cmd)
+        return next(processes)
+
+    monkeypatch.setattr(ps.subprocess, "Popen", popen)
+    with temporary_settings(restore_defaults={PREFECT_API_URL}):
+        assert ps.ensure_prefect_server() == free
+    assert [cmd[-1] for cmd in started] == [str(ps.DEFAULT_PORT), "4999"]
+    assert ps.os.environ["PREFECT_API_URL"] == free
+
+
+def test_server_that_exits_early_is_an_error(monkeypatch, no_side_effects):
     started, _ = no_side_effects
     monkeypatch.setattr(ps, "_is_healthy", lambda url, timeout=2.0: False)
-    process = FakeProcess(exits=True)
-    _popen(monkeypatch, started, process)
+    _popen(monkeypatch, started, FakeProcess(exits=True))
     with temporary_settings(restore_defaults={PREFECT_API_URL}):
-        assert ps.ensure_prefect_server() is None
-    assert len(started) == 1
+        with pytest.raises(ps.PrefectServerError, match="--no-prefect-server"):
+            ps.ensure_prefect_server()
+    assert len(started) == 2  # default port, then a free port
 
 
-def test_server_that_cannot_be_launched_falls_back(monkeypatch, no_side_effects):
+def test_server_that_cannot_be_launched_is_an_error(monkeypatch, no_side_effects):
     monkeypatch.setattr(ps, "_is_healthy", lambda url, timeout=2.0: False)
 
     def popen(cmd, **kwargs):
@@ -109,7 +129,16 @@ def test_server_that_cannot_be_launched_falls_back(monkeypatch, no_side_effects)
 
     monkeypatch.setattr(ps.subprocess, "Popen", popen)
     with temporary_settings(restore_defaults={PREFECT_API_URL}):
-        assert ps.ensure_prefect_server() is None
+        with pytest.raises(ps.PrefectServerError):
+            ps.ensure_prefect_server()
+
+
+def test_free_port_is_free():
+    import socket
+
+    port = ps._free_port(ps.DEFAULT_HOST)
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((ps.DEFAULT_HOST, port))  # raises if taken
 
 
 def test_stop_terminates_a_running_server(tmp_path):

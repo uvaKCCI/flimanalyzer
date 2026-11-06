@@ -11,7 +11,7 @@ import argparse
 import sys
 from flim._version import __version__
 from flim.core.tools import FLIMAnalyzer, check_executor_available
-from flim.core.prefect_server import use_prefect_server
+from flim.core.prefect_server import PrefectServerError, use_prefect_server
 
 
 def parse_arguments():
@@ -119,8 +119,24 @@ def main():
         from flim.core.settings import load_settings
 
         settings = load_settings(args.config)
-    with use_prefect_server(start=not args.no_prefect_server):
-        interactive_run(fa, files=args.input, settings=settings)
+    try:
+        with use_prefect_server(start=not args.no_prefect_server):
+            interactive_run(fa, files=args.input, settings=settings)
+    except PrefectServerError as err:
+        logging.error(err)
+        show_startup_error(str(err))
+        sys.exit(f"flimanalyzer: {err}")
+
+
+def show_startup_error(message):
+    """Shows an error that stops the start in a message box (if wxPython is
+    installed): the GUI may have been started without a console."""
+    try:
+        import wx
+    except ImportError:
+        return
+    app = wx.App(False)  # noqa: F841  (needed for the message box)
+    wx.MessageBox(message, "FLIMAnalyzer", wx.OK | wx.ICON_ERROR)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@ import contextlib
 import logging
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -50,6 +51,45 @@ def _prefect_cli() -> list:
     return [sys.executable, "-m", "prefect"]
 
 
+class PrefectServerError(RuntimeError):
+    """No Prefect server could be found or started."""
+
+
+def _free_port(host: str) -> int:
+    """A port on ``host`` that nothing listens on at the moment."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind((host, 0))
+        return sock.getsockname()[1]
+
+
+def _start_server(host: str, port: int, timeout: float, log_file: str):
+    """Starts ``prefect server start`` on ``host:port`` and waits until it is healthy.
+
+    Returns:
+        str or None: the server's API URL, or None if it did not start (the
+        process is stopped again).
+    """
+    api_url = f"http://{host}:{port}/api"
+    cmd = _prefect_cli() + ["server", "start", "--host", host, "--port", str(port)]
+    logging.info(f"Starting Prefect server: {' '.join(cmd)}")
+    log = open(log_file, "a")
+    try:
+        process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
+    except OSError as err:
+        log.close()
+        logging.warning(f"Could not start Prefect server: {err}")
+        return None
+    deadline = time.monotonic() + timeout
+    while not _is_healthy(api_url):
+        if process.poll() is not None or time.monotonic() > deadline:
+            logging.warning(f"Prefect server on port {port} did not start, see {log_file}")
+            _stop(process, log)
+            return None
+        time.sleep(0.5)
+    atexit.register(_stop, process, log)
+    return api_url
+
+
 def ensure_prefect_server(
     host: str = DEFAULT_HOST,
     port: int = DEFAULT_PORT,
@@ -57,16 +97,20 @@ def ensure_prefect_server(
     timeout: float = 60.0,
     log_file: str = "prefect-server.log",
 ):
-    """Finds or starts the Prefect server that flows report to.
+    """Finds or starts the Prefect server that all flows of this process report to.
+
+    Called once at startup, in the main thread:
 
     1. If ``PREFECT_API_URL`` (environment or active Prefect profile) points to a
        responding server, that server is used.
     2. Otherwise, if a server answers at ``http://<host>:<port>/api``, it is used.
-    3. Otherwise, if ``start`` is True, ``prefect server start`` is launched in the
-       background and stopped again when the application exits.
+    3. Otherwise, if ``start`` is True, ``prefect server start`` is launched on
+       ``port`` in the background, and stopped again when the process exits.
+    4. If that server doesn't start (e.g. the port is taken), it is launched on a
+       free port instead.
 
-    If no server can be reached, Prefect falls back to a temporary server that only
-    lives as long as the application.
+    With ``start`` False and no server found, Prefect starts a temporary server for
+    each flow run.
 
     Args:
         host, port: where to look for / start a local server.
@@ -75,7 +119,10 @@ def ensure_prefect_server(
         log_file: file that receives the started server's output.
 
     Returns:
-        str or None: API URL in use, or None for Prefect's temporary server.
+        str or None: API URL in use, or None for Prefect's temporary servers.
+
+    Raises:
+        PrefectServerError: ``start`` is True and no server could be started.
     """
     from prefect.settings import PREFECT_API_URL
 
@@ -93,28 +140,17 @@ def ensure_prefect_server(
     api_url = f"http://{host}:{port}/api"
     if not _is_healthy(api_url):
         if not start:
-            logging.info("No Prefect server found, using a temporary server")
+            logging.info("No Prefect server found, using temporary servers")
             return None
-        cmd = _prefect_cli() + ["server", "start", "--host", host, "--port", str(port)]
-        logging.info(f"Starting Prefect server: {' '.join(cmd)}")
-        log = open(log_file, "a")
-        try:
-            process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
-        except OSError as err:
-            log.close()
-            logging.error(f"Could not start Prefect server: {err}")
-            return None
-        atexit.register(_stop, process, log)
-        deadline = time.monotonic() + timeout
-        while not _is_healthy(api_url):
-            if process.poll() is not None or time.monotonic() > deadline:
-                logging.error(
-                    f"Prefect server did not start, see {log_file}; using a"
-                    " temporary server"
-                )
-                _stop(process, log)
-                return None
-            time.sleep(0.5)
+        api_url = _start_server(host, port, timeout, log_file)
+        if api_url is None:
+            api_url = _start_server(host, _free_port(host), timeout, log_file)
+        if api_url is None:
+            raise PrefectServerError(
+                f"No Prefect server could be started, see {os.path.abspath(log_file)}."
+                " Configure a Prefect server in a Prefect profile, or start without"
+                " one with --no-prefect-server."
+            )
     logging.info(f"Using Prefect server at {api_url}")
     # subprocesses (e.g. Dask workers) pick the server up from the environment
     os.environ["PREFECT_API_URL"] = api_url
@@ -138,7 +174,10 @@ def use_prefect_server(**kwargs):
     :func:`ensure_prefect_server` (kwargs are passed on).
 
     Prefect reads its settings when it is imported, so the server URL is applied
-    through Prefect's settings context rather than the environment.
+    through Prefect's settings context rather than the environment. That context
+    belongs to the current thread: a thread started inside the body has to run in a
+    copy of it (``contextvars.copy_context().run``), or its flows use the settings
+    Prefect read at import.
     """
     from prefect.settings import PREFECT_API_URL, temporary_settings
 
