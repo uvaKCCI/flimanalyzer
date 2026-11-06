@@ -72,6 +72,11 @@ def test_hidden_fields():
     assert all(s.hidden for s in describe(Resources))
     # the autoencoder tools can choose a device and threads
     assert "resources" in [s.name for s in visible(describe(AETrainConfig))]
+    # workflows: their steps name the results, a prefix would not be used (#189)
+    from flim.configs.workflow import AEFeatureConfig, BasicFLIRRConfig
+
+    for workflow in (BasicFLIRRConfig, AEFeatureConfig):
+        assert "prefix" not in [s.name for s in visible(describe(workflow))]
 
 
 def test_titles_and_descriptions():

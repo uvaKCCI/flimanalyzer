@@ -804,15 +804,14 @@ class AppFrame(wx.Frame):
                 data.SetColour(event.artist.get_color())
                 dlg = wx.ColourDialog(self, data)
                 # dlg.Bind(wx.EVT_COLOUR_CHANGED, self.OnColourChanged)
-                if dlg.ShowModal() == wx.ID_OK:
-                    pass
-
-                color = dlg.GetColourData().GetColour()
-                event.artist.set_color(
-                    (color.Red() / 255, color.Green() / 255, color.Blue() / 255)
-                )
-                event.artist.set_alpha(color.Alpha() / 255)
-                fig.canvas.draw_idle()
+                if dlg.ShowModal() == wx.ID_OK:  # Cancel keeps the color (#188)
+                    color = dlg.GetColourData().GetColour()
+                    event.artist.set_color(
+                        (color.Red() / 255, color.Green() / 255, color.Blue() / 255)
+                    )
+                    event.artist.set_alpha(color.Alpha() / 255)
+                    fig.canvas.draw_idle()
+                dlg.Destroy()
 
     def OnPlotWindowRequest(self, event):
         figure = event.GetFigure()
