@@ -130,7 +130,9 @@ def test_cancel_button_cancels_the_run(wxapp):
     start = time.monotonic()
     try:
         assert dlg.ShowModal() == wx.ID_CANCEL
-        assert time.monotonic() - start < 6
+        # the tasks never end by themselves: any limit shows the cancel worked; CI
+        # runners took up to 9 s
+        assert time.monotonic() - start < 20
         assert dlg.run.state == "cancelled"
         assert not dlg.cancel_button.IsEnabled()
         assert dlg.task_text.GetLabel().startswith("Cancelling")
