@@ -122,9 +122,11 @@ FLIMAnalyzer runs tools and workflows as [Prefect](https://www.prefect.io) flows
 
 1. The server set in the active Prefect profile or in the `PREFECT_API_URL` environment variable, if it responds.
 2. A server already running on this computer at `http://127.0.0.1:4200/api`.
-3. If there is none, FLIMAnalyzer starts a local server (`prefect server start`) and stops it again when FLIMAnalyzer closes. The server's messages are added to the file `prefect-server.log` in the folder FLIMAnalyzer was started from.
+3. If there is none, FLIMAnalyzer starts a local server (`prefect server start`) and stops it again when FLIMAnalyzer closes. If port 4200 is taken, the server is started on a free port. The server's messages are added to the file `prefect-server.log` in the folder FLIMAnalyzer was started from. If no server can be started, FLIMAnalyzer stops with an error that names this file.
 
-With `--no-prefect-server`, step 3 is skipped: if no server is found, Prefect uses a temporary server that runs only as long as FLIMAnalyzer (or `flimbatch`) runs.
+The server found or started at startup is used for all runs until FLIMAnalyzer closes.
+
+With `--no-prefect-server`, step 3 is skipped: if no server is found, Prefect starts a temporary server for each run, which stops when the run ends.
 
 The Prefect UI shows the flow and task runs of a server in the web browser, for example at [http://127.0.0.1:4200](http://127.0.0.1:4200) for a local server. The progress dialog links to each run there (see [The progress dialog](/userguide/workflows.md#the-progress-dialog)). To keep a local server running between sessions, start it yourself in a separate terminal with `uv run prefect server start` (or `prefect server start` in an activated environment).
 

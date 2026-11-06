@@ -1,5 +1,6 @@
 """Dialogs shown while a tool or workflow runs and after it was cancelled."""
 
+import contextvars
 import gc
 import logging
 import os
@@ -131,7 +132,12 @@ class RunProgressDialog(wx.Dialog):
         self._gc_timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, lambda event: gc.collect(), self._gc_timer)
         self._gc_timer.Start(1000)
-        threading.Thread(target=self._work, name="flow-run", daemon=True).start()
+        # in a copy of this thread's context: the flow uses the Prefect server chosen
+        # at startup (use_prefect_server), not the settings Prefect read at import
+        context = contextvars.copy_context()
+        threading.Thread(
+            target=context.run, args=(self._work,), name="flow-run", daemon=True
+        ).start()
 
     def _restore_gc(self):
         timer = getattr(self, "_gc_timer", None)
