@@ -18,7 +18,7 @@ When you choose another table, the dialog lists the columns of that table, for e
 
 ## Result prefix
 
-`Result prefix` is text that is put in front of the names of the tool's results. Leave it empty for no prefix. For example, with the prefix `A-`, the `Summarize` tool makes the table `A-Table: Summary` instead of `Table: Summary`. A prefix keeps the results of several runs of the same tool apart.
+`Result prefix` is text that is put in front of the names of the tool's results. Leave it empty for no prefix. For example, with the prefix `A-`, the `Summarize` tool makes the table `A-Table: Summary` instead of `Table: Summary`. A prefix keeps the results of several runs of the same tool apart. Workflow dialogs have no `Result prefix`: the steps of a workflow name their own results.
 
 ## Saving results
 
