@@ -49,7 +49,7 @@ sys.modules["wx.lib.newevent"] = _newevent
 # -- Project information -----------------------------------------------------
 
 project = "FLIMAnalyzer"
-copyright = "2021, UVA Keck Center for Cellular Imaging"
+copyright = "2021-2026, UVA Keck Center for Cellular Imaging"
 author = (
     "UVA Keck Center for Cellular Imaging: Karsten Siller, Brian Mbogo, Jiaxin Zhang"
 )
@@ -108,4 +108,3 @@ html_theme_options = {"collapse_navigation": False}
 html_logo = "../flim/resources/flimanalyzer.png"
 html_favicon = "../flim/resources/flimanalyzer.ico"
 
-intersphinx_mapping = {"python": ("https://docs.python.org/3", None)}

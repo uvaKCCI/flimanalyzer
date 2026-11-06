@@ -4,7 +4,7 @@ The `Merge` tool combines two data tables by matching the values in the category
 
 **Menu Access:** `Data` > `Merge`
 
-**Toolbar Icon:** ![](/images/data/merge.png)
+**Tool panel icon:** ![](/images/data/merge.png)
 
 The `Merge` tool adds the values of one table to the rows of another table that have the same values in the category columns. For example, a row of one table with the `Treatment, FOV, Cell` values `ctrl, a, 1` gets the values of the row with the same `Treatment, FOV, Cell` values in the other table.
 
@@ -30,6 +30,6 @@ To use the `Merge` tool, follow the steps below:
 
 3. Click `OK`.
 
-4. A new merged table is created. In the example, each row of the data has its group's FAD a1 mean in the last column, `FAD a1 mean`:
+4. A new merged table, `Table: Merged`, is created. In the example, each row of the data has its group's FAD a1 mean in the last column, `FAD a1 mean`:
 
     ![](/images/data/merge-res1.png) ![](/images/data/merge-res3.png)

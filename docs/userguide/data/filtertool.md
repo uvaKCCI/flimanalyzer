@@ -4,9 +4,9 @@ The `Filter` tool creates a new table with only the rows you want to keep: rows 
 
 **Menu Access:** `Data` > `Filter`
 
-**Toolbar Icon:** ![](/images/data/filter.png)
+**Tool panel icon:** ![](/images/data/filter.png)
 
-The filters of the data window (see [Filtering Data](filter.md)) only hide rows in that window. The `Filter` tool instead creates a new table, `Filtered`, and leaves the original table unchanged. Use it when the filtered rows should be saved, or used as the input of other tools and workflows.
+The filters of the table window (see [Filtering Data](filter.md)) only hide rows in that window. The `Filter` tool instead creates a new table, `Table: Filtered`, and leaves the original table unchanged. Use it when the filtered rows should be saved, or used as the input of other tools and workflows.
 
 ## Filtering the Data
 
@@ -16,12 +16,12 @@ The filters of the data window (see [Filtering Data](filter.md)) only hide rows 
 
 3. Under `Range filters`, check `Use` for the columns to filter and set their limits:
     - `Low` and `High`: rows with a value below `Low` or above `High` are dropped. Rows with a value equal to a limit are kept. Leave a limit empty for no limit on that side.
-    - `Drop missing`: also drops rows that have no value in the column.
+    - `Drop missing` (checked by default): also drops rows that have no value in the column.
 
     `Low` can't be larger than `High`; the dialog marks such a row.
 
     ![](/images/data/filtertool-config.png)
 
-4. Click `OK`. The new table `Filtered` opens in its own window.
+4. Click `OK`. The new table `Table: Filtered` opens in its own window.
 
 A row is kept only if it passes every filter: its category values are among the selected ones, and its values lie within all checked ranges.
