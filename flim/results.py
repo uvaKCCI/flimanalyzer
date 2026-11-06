@@ -27,6 +27,17 @@ def clean_path_component(name: str) -> str:
     return re.sub(r":\s?", "_", name)
 
 
+def write_table(table: pd.DataFrame, path: str, index: bool = False) -> None:
+    """Writes a table as tab-separated text, without the row index (row numbers carry
+    no meaning in FLIMAnalyzer's tables and are out of order after sorting, #119).
+
+    Column names with line breaks (multi-level headers joined by summaries) are
+    written on one line.
+    """
+    table = table.rename(columns=lambda c: str(c).replace("\n", " "))
+    table.to_csv(path, sep="\t", index=index)
+
+
 def save_results(results, directory: str, name: str) -> None:
     """Saves a plugin's results below ``directory``.
 
@@ -59,11 +70,7 @@ def save_results(results, directory: str, name: str) -> None:
     for k, v in results.items():
         basename = os.path.join(directory, clean_path_component(k))
         if isinstance(v, pd.DataFrame):
-            v = v.copy()
-            # if index was flattened in analyzer.summarize_data, multiindex col values
-            # were joined with '\n'--> revert here
-            v.columns = [str(c).replace("\n", " ") for c in v.columns.values]
-            v.to_csv(f"{basename}.txt")
+            write_table(v, f"{basename}.txt")
         elif isinstance(v, matplotlib.figure.Figure):
             v.savefig(f"{basename}.png")
         else:
