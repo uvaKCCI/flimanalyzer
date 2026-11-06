@@ -69,6 +69,20 @@ def test_category_order(data):
     assert list(data["Treatment"].cat.categories) == ["KO", "WT"]  # input untouched
 
 
+def test_category_order_renumbers_the_rows(data, tmp_path):
+    # the rows are numbered in their new order, and an autosaved table starts with
+    # the data, not with the old row numbers (#119)
+    from flim.results import save_results
+
+    config = CategoryOrderConfig(categories={"Treatment": ["WT", "KO"]})
+    df = table(CategoryOrder()(data, config=config))
+    assert list(df.index) == list(range(len(data)))
+    save_results({"Reordered": df}, str(tmp_path), "Order Categories")
+    saved = pd.read_csv(tmp_path / "Reordered.txt", sep="\t")
+    assert list(saved.columns) == [str(c) for c in df.columns]
+    assert list(saved["Treatment"]) == list(df["Treatment"])
+
+
 def test_category_order_without_categories(data):
     df = table(CategoryOrder()(data))
     pd.testing.assert_frame_equal(df, data)
