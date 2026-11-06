@@ -160,3 +160,12 @@ def test_documentation_of_this_version():
     assert docs_url("0.6.1") == "https://flimanalyzer.readthedocs.io/en/v0.6.1/"
     for development in ("0.6.1.post3+g1a2b3c4", "0.6.1+d20261103", "0.7.0rc1"):
         assert docs_url(development) == "https://flimanalyzer.readthedocs.io/en/latest/"
+
+
+def test_help_documentation_opens_this_versions_docs(frame, monkeypatch):
+    from flim.gui import app
+
+    opened = []
+    monkeypatch.setattr(app.wx, "LaunchDefaultBrowser", opened.append)
+    frame.OnDocumentation(None)
+    assert opened == [app.docs_url()]
