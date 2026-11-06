@@ -1,4 +1,77 @@
-# Changes
+# Changelog
+
+All notable changes to FLIMAnalyzer, newest first. From 0.6.1 on, the sections follow
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) (`Added`, `Changed`,
+`Deprecated`, `Removed`, `Fixed`, `Security`), headed by `Results that change` and
+followed by `Documentation` and `Known issues` where needed. The sections of 0.6.0 and
+earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
+
+## 0.6.1 - 2026-11-06
+
+Bug fixes for 0.6.0, corrected and completed documentation, and fixes of the Docker
+images. Same requirements as 0.6.0.
+
+### Results that change
+
+- **Relative Change:** rows became empty when a category column that is not under
+  `Grouping` (e.g. `Cell`) has values that differ between the reference rows and the
+  other rows (#178). Rows are now matched on the grouping columns only. Where 0.6.0 gave
+  a value, it is unchanged; the log names groups that have no reference rows.
+- **FLIM Feature Analysis:** the KDE, Summarize, bar plot and KS steps used the fixed
+  columns `Treatment`, `FOV` and `Cell` instead of the `Time series` and `Grouping`
+  settings (#190). Results are the same with the defaults (`Time series` `Treatment`,
+  `Grouping` `Treatment`, `FOV`, `Cell`); they differ for other columns.
+- **Histogram** with `Density` checked: the axis and the table said percent
+  (`relative counts [%]`, `[rel %]`), but the values are a density (area 1). They now
+  say `density` (#181). The values are unchanged; only the labels are corrected.
+
+### Changed
+
+- **Prefect server at startup:** if port 4200 is taken, FLIMAnalyzer starts its local
+  Prefect server on a free port. If no server can be started, it stops with an error
+  (a message box in the GUI) instead of falling back to Prefect's temporary servers
+  (#195). With `--no-prefect-server`, Prefect still starts a temporary server for each
+  run.
+- **Help → Documentation** opens the documentation of the installed version, instead of
+  the latest.
+
+### Fixed
+
+- **Prefect server in the GUI:** tools and workflows started in the GUI didn't use the
+  Prefect server FLIMAnalyzer found or started at startup (#195). Without a server in
+  the Prefect profile, each run started its own temporary server; with a server in the
+  profile that didn't answer or rejected the API key, runs failed. They now all use the
+  server chosen at startup. `flimbatch` was not affected.
+- **Concatenate**, `Columns (side by side)` with `Numeric columns only` off, failed
+  with `KeyError: 'Old Index'` (#176). Columns of the second table whose name is
+  already taken get the table's name, e.g. `Treatment (B)`.
+- **Autoencoder:** Run and Augment Data failed with `All features` checked (#177).
+- **Autoencoder: Train:** the loss plot legend said "testing" for the validation loss
+  (#179).
+- **Plot window:** `Cancel` in the line colour dialog still changed the colour (#188).
+- **Workflow dialogs** showed a `Result prefix` that no workflow used; it is no longer
+  shown (#189).
+- **Docker images:** the version inside the image read `0.6.0+d20261103` instead of
+  `0.6.0` (#174). The images now carry the standard OCI metadata (version, commit,
+  base image), and CI checks the version, commit and `flimbatch --help` before it
+  publishes an image. The base image is pinned and kept current.
+
+### Documentation
+
+- The user guide was checked against the code and corrected throughout: the controls
+  common to all dialogs, the analysis pages (full pages for the autoencoder tools), the
+  plot pages (`Single figure`, `Legend`) (#173) and the plot window, the data pages,
+  workflows, batch mode, settings and menus. All screenshots are from 0.6.1.
+- The 0.6.0 release notes said Basic FLIRR Analysis divides by "the mean or median"
+  with the default reference "Ctrl"; it uses the mean, and the default is the first
+  value of the first grouping column. Corrected in 0.6.0's notes (marked as such).
+
+### Known issues
+
+- **Windows:** the autosave fix of 0.6.0 for mapped network drives (#163) is not yet
+  verified on Windows. Tools could stay in the "starting" state when FLIMAnalyzer
+  started its own local Prefect server (#175); the Prefect server fix above (#195) may
+  solve this, but it is not verified on Windows. Please report in the issues.
 
 ## 0.6.0
 
