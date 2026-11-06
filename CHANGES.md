@@ -1,5 +1,59 @@
 # Changes
 
+## 0.6.1
+
+Bug fixes for 0.6.0, corrected and completed documentation, and fixes of the Docker
+images. Same requirements as 0.6.0.
+
+### Results that change
+
+- **Relative Change:** rows became empty when a category column that is not under
+  `Grouping` (e.g. `Cell`) has values that differ between the reference rows and the
+  other rows (#178). Rows are now matched on the grouping columns only. Where 0.6.0 gave
+  a value, it is unchanged; the log names groups that have no reference rows.
+- **FLIM Feature Analysis:** the KDE, Summarize, bar plot and KS steps used the fixed
+  columns `Treatment`, `FOV` and `Cell` instead of the `Time series` and `Grouping`
+  settings (#190). Results are the same with the defaults (`Time series` `Treatment`,
+  `Grouping` `Treatment`, `FOV`, `Cell`); they differ for other columns.
+- **Histogram** with `Density` checked: the axis and the table said percent
+  (`relative counts [%]`, `[rel %]`), but the values are a density (area 1). They now
+  say `density` (#181). The values are unchanged; only the labels are corrected.
+
+### Fixes
+
+- **Concatenate**, `Columns (side by side)` with `Numeric columns only` off, failed
+  with `KeyError: 'Old Index'` (#176). Columns of the second table whose name is
+  already taken get the table's name, e.g. `Treatment (B)`.
+- **Autoencoder:** Run and Augment Data failed with `All features` checked (#177).
+- **Autoencoder: Train:** the loss plot legend said "testing" for the validation loss
+  (#179).
+- **Plot window:** `Cancel` in the line colour dialog still changed the colour (#188).
+- **Workflow dialogs** showed a `Result prefix` that no workflow used; it is no longer
+  shown (#189).
+- **Help → Documentation** opens the documentation of the installed version, instead of
+  the latest.
+- **Docker images:** the version inside the image read `0.6.0+d20261103` instead of
+  `0.6.0` (#174). The images now carry the standard OCI metadata (version, commit,
+  base image), and CI checks the version, commit and `flimbatch --help` before it
+  publishes an image. The base image is pinned and kept current.
+
+### Documentation
+
+- The user guide was checked against the code and corrected throughout: the controls
+  common to all dialogs, the analysis pages (full pages for the autoencoder tools), the
+  plot pages (`Single figure`, `Legend`) (#173) and the plot window, the data pages,
+  workflows, batch mode, settings and menus. All screenshots are from 0.6.1.
+- The 0.6.0 release notes said Basic FLIRR Analysis divides by "the mean or median"
+  with the default reference "Ctrl"; it uses the mean, and the default is the first
+  value of the first grouping column. Corrected in 0.6.0's notes (marked as such).
+
+### Known issues
+
+- **Windows:** the autosave fix of 0.6.0 for mapped network drives (#163) is not yet
+  verified on Windows, and tools can stay in the "starting" state when FLIMAnalyzer
+  starts its own local Prefect server (#175; workaround: a Prefect server configured in
+  a Prefect profile). Please report in the issues.
+
 ## 0.6.0
 
 The first release on current Python and package versions (Python 3.12, Prefect 3,
