@@ -92,6 +92,23 @@ def test_guesses_reach_the_steps_bound_fields(data):
     assert "FAD a1[%]" in report.config.augment.features
 
 
+def test_feature_analysis_uses_the_grouping(data):
+    # other column names than Treatment, FOV, Cell: every step finds them (#190)
+    from flim.configs.workflow import AEFeatureConfig
+    from flim.workflow.aefeature import AEFeature
+
+    renamed = data.rename(columns={"Treatment": "Day", "FOV": "Dish"})
+    config = AEFeatureConfig(
+        grouping=["Day", "Dish", "Cell"],
+        timeseries="Day",
+        control_group="ctrl",
+        features=["FAD a1", "NAD(P)H a2", "FLIRR"],
+        strict=True,
+    )
+    report = AEFeature().resolve(config, [renamed, renamed], strict=True)
+    assert report.issues == []
+
+
 class StepsConfig(WorkflowConfig):
     grouping: list[CategoryColumn] = ["Treatment"]
     features: list[FeatureColumn] = ["FLIRR"]

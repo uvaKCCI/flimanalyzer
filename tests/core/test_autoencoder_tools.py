@@ -179,6 +179,17 @@ def test_train_run_augment(needs_torch, data, tmp_path, device):
     )  # the copies' cells are renumbered
     assert np.isfinite(simulated[FEATURES].to_numpy(dtype=float)).all()
 
+    # "All features": the table's feature columns (#177)
+    common["features"] = "all"
+    assert (
+        RunAE()(data, config=AERunConfig(model_files=[files[-1]], **common)).keys()
+        == run.keys()
+    )
+    config = AEAugmentConfig(
+        model_files=[files[-1]], grouping=["FOV", "Cell"], **common
+    )
+    assert len(next(iter(AEAugment()(data, config=config).values()))) == len(data)
+
 
 def test_training_with_a_seed_is_reproducible(needs_torch, data, tmp_path):
     def loss(folder):

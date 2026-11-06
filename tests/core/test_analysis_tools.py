@@ -152,6 +152,27 @@ def test_relative_change(data):
     assert ko == pytest.approx(500 / 400, rel=0.05)
 
 
+def test_relative_change_separate_fovs(caplog):
+    # reference and other rows in different FOVs: matched on the grouping only (#178)
+    data = pd.DataFrame(
+        {
+            "Treatment": pd.Categorical(["ctrl", "ctrl", "dox", "dox"]),
+            "FOV": pd.Categorical(["1", "2", "3", "4"]),
+            "Cell": pd.Categorical(["1", "1", "1", "1"]),
+            "x": [2.0, 3.0, 5.0, 10.0],
+        }
+    )
+    config = RelativeChangeConfig(features=["x"], reference_value="ctrl", grouping=[])
+    table = RelativeChange()(data, config=config)["Table: Relative Change"]
+    assert table["rel x"].tolist() == pytest.approx([0.8, 1.2, 2.0, 4.0])
+
+    config = config.model_copy(update={"grouping": ["FOV"]})
+    table = RelativeChange()(data, config=config)["Table: Relative Change"]
+    assert table["rel x"].tolist()[:2] == [1.0, 1.0]
+    assert table["rel x"].iloc[2:].isna().all()
+    assert "no 'ctrl' rows in FOV 3; 4" in caplog.text
+
+
 def test_relative_change_schema(schema):
     config = RelativeChangeConfig(features=["t1"])
     output = RelativeChange.output_schema(config, [schema])["Relative Change"]
