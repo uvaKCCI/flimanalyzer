@@ -72,6 +72,10 @@ images. Same requirements as 0.6.0.
   verified on Windows. Tools could stay in the "starting" state when FLIMAnalyzer
   started its own local Prefect server (#175); the Prefect server fix above (#195) may
   solve this, but it is not verified on Windows. Please report in the issues.
+- **Docker CPU image** (added 2026-11-06): the CPU image `0.6.1-cpu` was not
+  published. Its version label read `0.6.1-cpu` instead of `0.6.1`, so the check before
+  publishing stopped it; `latest-cpu` is still 0.6.0. Use `0.6.0-cpu`, or the CUDA
+  image `0.6.1`, until the next release, which fixes this.
 
 ## 0.6.0
 
