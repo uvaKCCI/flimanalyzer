@@ -43,7 +43,7 @@ from prefect.cache_policies import NO_CACHE
 from prefect.context import FlowRunContext
 from prefect.futures import PrefectFuture
 from prefect.settings import get_current_settings
-from prefect.states import Cancelled
+from prefect.states import Cancelled, Completed
 from prefect.task_runners import ThreadPoolTaskRunner
 
 from flim.core.tool import TaskCancelled, pyplot_lock, release_figures
@@ -239,6 +239,11 @@ def run_tool(tool, label: str, kwargs: Dict[str, Any], autosave: Optional[dict])
     results = _run_tool(tool, kwargs)
     if autosave:
         save_results(results, **autosave)
+    warnings = getattr(getattr(tool, "context", None), "warnings", None)
+    if warnings:
+        # the warnings become the completed task's message (run summary, Prefect UI);
+        # the results still go to the next tasks (checked with Prefect 3.8.8)
+        return Completed(message="; ".join(warnings), data=results)
     return results
 
 
@@ -402,7 +407,8 @@ class FlowRun:
             ref.wait()  # done: stores the final state, which `state` would else read from the API
             state = ref.state
             if state.is_completed():
-                attrs.update(status="completed", ref=ref.result())
+                # a message only if the tool warned (Tool.warn)
+                attrs.update(status="completed", ref=ref.result(), message=state.message)
                 attrs["resources"] = _granted(attrs.get("tool"))
             elif state.is_pending() and state.name == "NotReady":
                 attrs.update(status="skipped", ref=None, message=state.message)
@@ -470,6 +476,15 @@ class FlowRun:
     @property
     def failed(self) -> List[str]:
         return self._labels("failed")
+
+    @property
+    def warnings(self) -> List[tuple]:
+        """(label, message) of the completed tasks that reported warnings."""
+        return [
+            (a["label"], a["message"])
+            for _, a in self.graph.nodes(data=True)
+            if a.get("status") == "completed" and a.get("message")
+        ]
 
     @property
     def cancelled(self) -> List[str]:
