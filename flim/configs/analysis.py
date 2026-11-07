@@ -53,6 +53,7 @@ AGGREGATES: tuple[str, ...] = Aggregate.__args__
 
 
 class SummaryConfig(StatisticsConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {
         "aggs": "aggs",
         "single_table": "singledf",
@@ -61,7 +62,9 @@ class SummaryConfig(StatisticsConfig):
     legacy_dropped = frozenset({"flattenindex"})
 
     aggs: list[Aggregate] = Field(
-        default_factory=lambda: list(AGGREGATES), title="Statistics"
+        default_factory=lambda: list(AGGREGATES),
+        min_length=1,  # none: no columns at all, not even the grouping (0.6.2)
+        title="Statistics",
     )
     single_table: bool = Field(
         default=True,
@@ -75,6 +78,7 @@ KSAlpha = Literal[0.1, 0.05, 0.025, 0.01, 0.005, 0.001]
 
 
 class KSStatsConfig(StatisticsConfig):
+    min_features = 1  # 0.5: get_required_features
     comparison: CategoryColumn = Field(
         default="Treatment",
         title="Compare",
@@ -87,6 +91,7 @@ class KSStatsConfig(StatisticsConfig):
 
 
 class RelativeChangeConfig(StatisticsConfig):
+    min_features = 1  # 0.5: get_required_features
     method: Literal["mean", "median"] = Field(
         default="mean", title="Reference statistic"
     )
@@ -119,6 +124,7 @@ SERIES_STATISTICS: tuple[str, ...] = SeriesStatistic.__args__
 
 
 class SeriesAnalysisConfig(StatisticsConfig):
+    min_features = 2  # 0.5: get_required_features
     legacy_keys = {"statistics": None}
 
     statistics: set[SeriesStatistic] = Field(
@@ -171,6 +177,7 @@ class ParallelResources(Resources):
 
 
 class PCAConfig(MLConfig):
+    min_features = 2  # 0.5: get_required_features
     legacy_keys = {
         **MLConfig.legacy_keys,
         "keep_original": "keeporig",
@@ -204,6 +211,7 @@ class PCAConfig(MLConfig):
 
 
 class KMeansConfig(MLConfig):
+    min_features = 1  # 0.5: get_required_features
     n_clusters: int = Field(default=2, ge=1, title="Clusters")
     cluster_prefix: str = Field(
         default="Cluster",
@@ -235,6 +243,7 @@ class KMeansConfig(MLConfig):
 
 
 class GMMConfig(MLConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {**MLConfig.legacy_keys, "covariance": "covar_type"}
 
     method: Literal["EM", "Variational Bayesian"] = Field(default="EM", title="Method")
@@ -250,6 +259,7 @@ class GMMConfig(MLConfig):
 
 
 class RandomForestConfig(MLConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {
         **MLConfig.legacy_keys,
         "target": None,
@@ -430,6 +440,7 @@ PositiveInt = Annotated[int, Field(ge=1)]
 
 
 class AETrainConfig(AutoencoderConfig):
+    min_features = 2  # 0.5: get_required_features
     legacy_keys = {
         "epochs": "epoches",
         "learning_rates": "learning_rate",
@@ -534,10 +545,13 @@ class _ModelFilesConfig(AutoencoderConfig):
 
 
 class AERunConfig(_ModelFilesConfig):
+    min_features = 1  # 0.5: get_required_features
     hidden_fields = frozenset({"grouping"})
 
 
 class AEAugmentConfig(_ModelFilesConfig):
+    min_features = 1  # 0.5: get_required_features
+    min_grouping = 1  # 0.5: get_required_categories
     grouping: list[CategoryColumn] = Field(
         default=[],
         title="Grouping",

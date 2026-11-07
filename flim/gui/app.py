@@ -233,6 +233,8 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnLoadData, loadmenuitem)
         self.Bind(wx.EVT_MENU, self.OnImportData, importmenuitem)
         self.Bind(wx.EVT_MENU, self.OnExit, exitmenuitem)
+        # every way of quitting (File > Exit, the close button, Cmd-Q) closes this window
+        self.Bind(wx.EVT_CLOSE, self.OnCloseApp)
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
@@ -622,6 +624,12 @@ class AppFrame(wx.Frame):
             self.show_run_summary(tool.name, flow_run)
             return
         self.show_results(flow_run)
+        if flow_run.warnings:
+            wx.MessageBox(
+                "\n\n".join(f"{label}: {message}" for label, message in flow_run.warnings),
+                f"{tool.name}: warning",
+                wx.OK | wx.ICON_WARNING,
+            )
         if flow_run.failed:
             wx.MessageBox(
                 "The following tasks failed, see the log for details:\n"
@@ -866,6 +874,39 @@ class AppFrame(wx.Frame):
 
     def OnExit(self, event):
         self.Close()
+
+    def unsaved_windows(self) -> list[str]:
+        """Titles of the table windows with unsaved changes."""
+        return [
+            title
+            for title, window in self.windowframes.items()
+            if isinstance(window, PandasFrame)
+            and window
+            and window.savemodied
+            and window.modified
+        ]
+
+    def OnCloseApp(self, event):
+        """Asks before quitting with unsaved table windows: closing the main window
+        destroys its windows without their own save question (0.6.2)."""
+        unsaved = self.unsaved_windows()
+        if unsaved and event.CanVeto():
+            shown = "\n".join(unsaved[:10]) + ("\n..." if len(unsaved) > 10 else "")
+            plural = "s have" if len(unsaved) > 1 else " has"
+            dlg = wx.MessageDialog(
+                self,
+                f"{len(unsaved)} window{plural} unsaved results:\n\n{shown}\n\n"
+                "Quit anyway? The unsaved results are lost.",
+                "Quit FLIMAnalyzer",
+                style=wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
+            )
+            dlg.SetYesNoLabels("Quit", "Cancel")
+            answer = dlg.ShowModal()
+            dlg.Destroy()
+            if answer != wx.ID_YES:
+                event.Veto()
+                return
+        event.Skip()
 
     def OnDocumentation(self, event):
         wx.LaunchDefaultBrowser(docs_url())

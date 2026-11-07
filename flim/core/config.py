@@ -177,6 +177,10 @@ class TaskConfig(BaseConfig):
     legacy_dropped: ClassVar[frozenset[str]] = frozenset()
     # inherited fields the tool does not use; not shown in dialogs
     hidden_fields: ClassVar[frozenset[str]] = frozenset()
+    # the least number of features and grouping columns the tool needs (in 0.5:
+    # get_required_features / get_required_categories); see requirement_issues
+    min_features: ClassVar[int] = 0
+    min_grouping: ClassVar[int] = 0
 
     grouping: list[CategoryColumn] = Field(
         default=[],
@@ -273,6 +277,30 @@ class Issue:
     step: Optional[str] = None  # workflow step, None for a single tool
     old: Any = None
     suggestion: Any = None
+
+
+def requirement_issues(config: "TaskConfig", schemas=()) -> list[Issue]:
+    """Issues if the config selects fewer features or grouping columns than its tool
+    needs (``min_features``, ``min_grouping``). "All features" is counted against the
+    input schemas, and not checked while they are unknown."""
+    issues = []
+    minimums = (("features", config.min_features), ("grouping", config.min_grouping))
+    for name, least in minimums:
+        if not least or name not in type(config).model_fields:
+            continue
+        value = getattr(config, name)
+        if value == "all":
+            known = [s for s in schemas if s is not None and getattr(s, "complete", False)]
+            if not known:
+                continue
+            count = len({c.name for s in known for c in s.columns if c.role == "feature"})
+        else:
+            count = len(value)
+        if count < least:
+            what = "feature" if name == "features" else "grouping column"
+            plural = "s" if least > 1 else ""
+            issues.append(Issue(name, f"Select at least {least} {what}{plural}"))
+    return issues
 
 
 def column_references(config: BaseModel, path: str = ""):
