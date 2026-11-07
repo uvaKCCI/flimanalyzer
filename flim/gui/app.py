@@ -624,6 +624,12 @@ class AppFrame(wx.Frame):
             self.show_run_summary(tool.name, flow_run)
             return
         self.show_results(flow_run)
+        if flow_run.warnings:
+            wx.MessageBox(
+                "\n\n".join(f"{label}: {message}" for label, message in flow_run.warnings),
+                f"{tool.name}: warning",
+                wx.OK | wx.ICON_WARNING,
+            )
         if flow_run.failed:
             wx.MessageBox(
                 "The following tasks failed, see the log for details:\n"

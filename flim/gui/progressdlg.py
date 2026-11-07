@@ -279,6 +279,11 @@ class RunSummaryDialog(wx.Dialog):
         else:
             text(f"{title} completed all {total} tasks.")
             folder_label = "Results are in:"
+        warnings = getattr(run, "warnings", [])
+        if warnings:
+            shown = "\n".join(f"{label}: {message}" for label, message in warnings[:5])
+            more = f"\n... and {len(warnings) - 5} more" if len(warnings) > 5 else ""
+            text(f"Warnings:\n{shown}{more}")
         self.results_dir = run.autosave_dir
         self.folder = None
         if self.results_dir:

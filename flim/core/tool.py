@@ -15,7 +15,7 @@ import os
 import sys
 import threading
 import typing
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any, ClassVar, Generic, Optional, Sequence, TypeVar
 
 from flim.core.config import Issue, TaskConfig, column_references, requirement_issues
@@ -93,6 +93,8 @@ class RunContext:
     cancel_token: Any = None  # flim.core.runner.CancelToken
     # where tools write files they produce (e.g. models); None: not set by the caller
     output_dir: Optional[str] = None
+    # warnings of this run (Tool.warn): the task's message in the run summary
+    warnings: list = field(default_factory=list)
 
     @classmethod
     def for_config(
@@ -187,6 +189,14 @@ class Tool(Generic[ConfigT]):
         if config.prefix:
             results = {f"{config.prefix}{k}": v for k, v in results.items()}
         return results
+
+    def warn(self, message: str) -> None:
+        """Reports a warning of this run: logged now, and listed with the task in the
+        run summary (and as its message in the Prefect UI)."""
+        logging.warning(f"{self.name}: {message}")
+        context = getattr(self, "context", None)
+        if context is not None:
+            context.warnings.append(message)
 
     @staticmethod
     def display_names(results: dict[str, Any]) -> dict[str, Any]:
