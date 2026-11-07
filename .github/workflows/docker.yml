@@ -74,7 +74,8 @@ jobs:
           {
             echo "args<<EOF"
             echo "TORCH_INDEX=${{ matrix.torch_index }}"
-            echo "VERSION=${{ steps.meta.outputs.version }}"
+            # without the variant suffix: the CPU image is version 0.6.1, tagged 0.6.1-cpu
+            echo "VERSION=$(.github/scripts/image-version.sh '${{ steps.meta.outputs.version }}' '${{ matrix.suffix }}')"
             echo "REVISION=${{ github.sha }}"
             echo "CREATED=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}"
             echo "BASE_NAME=docker.io/library/${base%@*}"
