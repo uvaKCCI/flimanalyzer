@@ -1022,10 +1022,8 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
 
     @classmethod
     def validate(cls, config, inputs):
-        issues = super().validate(config, inputs)
-        if not config.features:
-            issues.append(Issue("features", "Check the features to plot"))
-        return issues
+        # too few features: min_features, checked by Tool.validate
+        return super().validate(config, inputs)
 
     @staticmethod
     def histogram(data, column, groups, stacked, normalize=100, ax=None, **kwargs):
@@ -1428,9 +1426,7 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
 
     @classmethod
     def validate(cls, config, inputs):
-        issues = super().validate(config, inputs)
-        if not config.grouping:
-            issues.append(Issue("grouping", "Select at least one grouping column"))
+        issues = super().validate(config, inputs)  # grouping: min_grouping
         schema = inputs[0] if inputs else None
         if schema is not None and schema.complete:
             found = flirr_columns(

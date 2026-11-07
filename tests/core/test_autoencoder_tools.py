@@ -113,7 +113,8 @@ def test_validate(data):
         i.field for i in AETraining.validate(AETrainConfig(features=[]), [schema])
     ] == ["features"]
     issues = AEAugment.validate(AEAugmentConfig(), [schema])
-    assert [i.field for i in issues] == ["model_files", "features", "grouping"]
+    # the needed features and grouping first (min_features, min_grouping)
+    assert [i.field for i in issues] == ["features", "grouping", "model_files"]
 
 
 def test_legacy_single_grid_values():
