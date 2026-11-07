@@ -27,11 +27,11 @@ At the bottom of the dialog, `Save results in` and the folder next to it set whe
 The results are saved in a new folder for each run, named after the date and time of the run, for example `2026-11-03_14-05-31`. In it, the results of the tool are in a folder named after the tool, for example `Summarize`:
 
 * figures as `.png` files,
-* tables as `.txt` files (comma-separated, with the row numbers in the first column),
+* tables as tab-separated `.txt` files, like tables saved from a table window (until 0.6.1: comma-separated, with the row numbers in the first column),
 * other results as files in Python's pickle format,
 * and the folder `pickled`, with all results of the tool except the figures in one file in Python's pickle format.
 
-The file names are made from the result names; characters that can't be used in file names are replaced, for example `Table: Summary` becomes `Table_Summary.txt`. The folder of the run also gets a file `run_summary.txt`. It lists when the run started and finished, and the status and message of each task.
+The file names are made from the result names; characters that can't be used in file names are replaced, for example `Table: Summary` becomes `Table_Summary.txt`. The folder of the run also gets a file `run_summary.txt`. It lists when the run started and finished, and the status and message of each task. A task's message is also how a tool reports a warning: the task is completed, but something in the data needs attention (for example, `Concatenate` pairing rows that don't match). The GUI shows such warnings after the run.
 
 Results are also shown in their own windows, whether they are saved or not. Workflows always save their results, in a folder of their own; there, `Save results in` can't be unchecked (see [Workflows](/userguide/workflows)).
 
@@ -76,6 +76,8 @@ The dialog checks the settings while you change them:
 * Messages that are not about a single field, for example about the folder under `Save results in`, are shown in red text above `Save results in`.
 
 `OK` stays disabled while there are errors. Fix them, and `OK` becomes available.
+
+Most tools need at least one feature selected under `Features`; `PCA`, `Scatter Plot`, `Series Analysis`, `Autoencoder: Train` and the workflow `FLIM Data Augmentation Tuning` need two. Some also need a grouping column, for example `FLIRR Plot`. Until enough are selected, `Features` (or `Grouping`) is marked with an error. `Summarize` needs at least one statistic.
 
 ## Hidden settings
 

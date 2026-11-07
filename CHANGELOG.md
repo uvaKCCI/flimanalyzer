@@ -6,6 +6,62 @@ All notable changes to FLIMAnalyzer, newest first. From 0.6.1 on, the sections f
 followed by `Documentation` and `Known issues` where needed. The sections of 0.6.0 and
 earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
+## 0.6.2 - 2026-11-07
+
+Bug fixes for 0.6.1, and the CPU Docker image. Same requirements as 0.6.1.
+
+### Results that change
+
+- **Concatenate, `Columns (side by side)`, after `Order Categories`:** tables side by side
+  are lined up by their row numbers. `Order Categories` now numbers the rows in their new
+  order (#119), so its result is paired with the other table by position; until 0.6.1 its
+  rows kept their old numbers and were paired with the rows they came from.
+
+### Changed
+
+- **Saved tables** (`Save results in`, workflows, `flimbatch`) are tab-separated, without
+  the row numbers, like tables saved from a table window (#119). Until 0.6.1 they were
+  comma-separated, with the row numbers as an unnamed first column, which after sorting
+  (e.g. `Order Categories`) were out of order. Scripts that read saved results need to
+  read them as tab-separated, without an index column; FLIMAnalyzer reads both.
+- **Tools need the features they work on** (#204). Most tools need at least one feature
+  selected, `PCA`, `Scatter Plot`, `Series Analysis`, `Autoencoder: Train` and
+  `FLIM Data Augmentation Tuning` two, and some a grouping column (e.g. `FLIRR Plot`);
+  `Summarize` needs at least one statistic. The dialog marks the field and keeps `OK`
+  disabled until they are selected; `flimbatch` and workflows stop with an error
+  naming the tool. Most tools' defaults select no features, so a `flimbatch` settings
+  file must select them.
+
+### Added
+
+- **Warnings from tools:** a tool can report a warning while it runs; the task stays
+  completed, and the warning is its message in the run summary, the log and the Prefect
+  UI. The GUI shows warnings after a run. First use: `Concatenate` side by side warns
+  when the tables' rows don't match by their shared category columns or row counts,
+  and points to `Merge`, which pairs rows by category values (#210).
+
+### Fixed
+
+- **Concatenate** side by side with `Numeric columns only` gave two columns of the same
+  name when both tables had it, and later tools failed; a taken name now gets the
+  table's name, e.g. `x (Table: B)`, as without the option (#211).
+- **Too few features:** with no features selected, most tools ran and produced nothing,
+  and `Gaussian Mixed Model`, `K-Means` and `PCA` failed with unclear errors; `Summarize`
+  with no statistics failed with `KeyError: "None of [...] are in the columns"` (#204).
+  FLIMAnalyzer 0.5 checked this before a run; 0.6.0 lost the check.
+- **Quitting** with unsaved table windows now asks first (Quit / Cancel); until 0.6.1
+  their results were lost without asking, also in 0.5 (#207).
+- **Order Categories** numbers the rows in their new order (#119).
+- **Docker:** the CPU image (`0.6.2-cpu`, `latest-cpu`) is published again; for 0.6.1 its
+  version label read `0.6.1-cpu`, and the check before publishing stopped it (#200).
+
+### Known issues
+
+- **Windows:** the autosave fix of 0.6.0 for mapped network drives (#163) is not yet
+  verified on Windows. Please report in the issue.
+- **Quitting:** plot windows are not checked for unsaved changes yet; a full dialog
+  (Review, Save All, Discard All) and tracking of later edits are planned for 0.7.0.
+
 ## 0.6.1 - 2026-11-06
 
 Bug fixes for 0.6.0, corrected and completed documentation, and fixes of the Docker

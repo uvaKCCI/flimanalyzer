@@ -15,7 +15,7 @@ The `Summarize` tool calculates the count, minimum, maximum, mean, median (50th 
 
 3. In the `Configuration: Summarize` dialog, select the `Statistics` to calculate, the `Grouping` and the `Features`. You can group by the table's category columns, here `Treatment`, `FOV` and `Cell`. The features are the columns with numeric data, such as `FAD a1`.
 
-    The `Statistics` are `count`, `min`, `max`, `mean`, `std` (standard deviation), `sem` (standard error of the mean), `median`, `percentile(25)`, `percentile(75)` and `sum`. All of them are checked by default.
+    The `Statistics` are `count`, `min`, `max`, `mean`, `std` (standard deviation), `sem` (standard error of the mean), `median`, `percentile(25)`, `percentile(75)` and `sum`. All of them are checked by default; at least one must stay checked.
 
     `Single table` (checked by default) puts all features into one table. Uncheck it to get one table per feature.
 
