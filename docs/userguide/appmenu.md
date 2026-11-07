@@ -6,7 +6,7 @@ The tool panel, the main window of FLIMAnalyzer, has a group of icons for each m
 
 * `Open...` and `Import...` load data files. See [Loading Data](/userguide/data/load).
 * `Import Settings...` and `Export Settings...` load and save all settings: the import settings, the range filters and the settings of each tool. See [Settings](/userguide/settings).
-* `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q).
+* `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q). If table windows have unsaved results, FLIMAnalyzer lists them and asks first: `Quit` closes it and the unsaved results are lost, `Cancel` keeps everything open. Plot windows are not checked.
 
 ## Data
 
