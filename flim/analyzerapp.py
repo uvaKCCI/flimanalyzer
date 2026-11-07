@@ -100,8 +100,6 @@ def main():
 
         argv.remove("--batch")
         sys.exit(batch.main(argv))
-    # with open(os.path.join(os.path.dirname(__file__),"..","VERSION"), "r") as vf:
-    #    __version__ = vf.read().strip()
 
     args = parse_arguments()
     try:
@@ -139,9 +137,5 @@ def show_startup_error(message):
     wx.MessageBox(message, "FLIMAnalyzer", wx.OK | wx.ICON_ERROR)
 
 
-if __name__ == "__main__":
-    import platform, multiprocessing
-
-    if platform.system() == "Darwin":
-        multiprocessing.set_start_method("spawn")
+if __name__ == "__main__":  # python -m flim.analyzerapp; the command calls main()
     main()
