@@ -23,7 +23,7 @@ from flim.core.config import Issue, TaskConfig
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import canonical_folder, folder_problem
 from flim.core.schema import ColumnInfo, TableSchema
-from flim.core.settings import read_tool_entry, tool_entry, write_tool_entry
+from flim.core.settings import read_tool_settings, tool_settings, write_tool_settings
 from flim.gui.editors import FieldErrors, FieldsPanel
 
 SEVERITY_ORDER = ("error", "guessed", "warning")  # first: most severe
@@ -409,10 +409,10 @@ class ConfigDialog(wx.Dialog):
 
     def load_settings(self, path) -> bool:
         """Uses the tool's settings in a settings file (see
-        flim.core.settings.read_tool_entry); True if the file has them."""
+        flim.core.settings.read_tool_settings); True if the file has them."""
         name = os.path.basename(path)
         try:
-            entry = read_tool_entry(path, self.tool)
+            entry = read_tool_settings(path, self.tool)
             if entry is None:
                 self.settings_message.SetLabel(f"No {self.tool.name} settings in {name}")
                 return False
@@ -437,18 +437,18 @@ class ConfigDialog(wx.Dialog):
 
     def save_settings(self, path) -> bool:
         """Puts the edited settings into the tool's section of a settings file (see
-        flim.core.settings.write_tool_entry); False if they are not valid."""
+        flim.core.settings.write_tool_settings); False if they are not valid."""
         self.commit_edits()
         config, issues = self.current_config()
         name = os.path.basename(path)
         if config is None:
             self.settings_message.SetLabel("Not saved: the settings are not valid")
             return False
-        entry = tool_entry(
+        entry = tool_settings(
             config, self.autosave.GetValue(), self.folder.GetPath() or None
         )
         try:
-            write_tool_entry(path, self.tool, entry)
+            write_tool_settings(path, self.tool, entry)
         except Exception as err:
             logging.exception(f"Settings could not be saved to {path}")
             self.settings_message.SetLabel(f"Could not save to {name}: {err}")

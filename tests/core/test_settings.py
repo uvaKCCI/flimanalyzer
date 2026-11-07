@@ -13,15 +13,15 @@ from flim.core.registry import tools
 from flim.core.settings import (
     SETTINGS_VERSION,
     AppSettings,
-    ToolEntry,
+    ToolSettings,
     load_settings,
     migrate,
-    read_tool_entry,
+    read_tool_settings,
     save_settings,
     settings_from_data,
-    tool_entry,
+    tool_settings,
     update_settings,
-    write_tool_entry,
+    write_tool_settings,
 )
 
 # saved by FLIMAnalyzer 0.5 (the dict Config, version 0), with some changed settings
@@ -91,7 +91,7 @@ def test_newer_versions_are_refused():
 
 def test_invalid_tool_settings_give_the_defaults(caplog):
     settings = AppSettings()
-    settings.tool_settings.tools["Concatenate"] = ToolEntry(config={"mode": "diagonal"})
+    settings.tool_settings.tools["Concatenate"] = ToolSettings(config={"mode": "diagonal"})
     settings = AppSettings.model_validate(settings.to_json())
     with caplog.at_level(logging.WARNING):
         assert settings.tool_settings.config(tools.get("Concatenate")) == ConcatConfig()
@@ -145,17 +145,17 @@ def test_a_file_with_some_sections_changes_only_those():
 def test_a_tool_section_in_a_settings_file(tmp_path):
     kmeans = tools.get("K-Means")
     path = tmp_path / "settings.json"
-    write_tool_entry(path, kmeans, tool_entry(KMeansConfig(n_clusters=5), True, "/r"))
+    write_tool_settings(path, kmeans, tool_settings(KMeansConfig(n_clusters=5), True, "/r"))
     data = json.loads(path.read_text())
     assert data["schema_version"] == SETTINGS_VERSION
     assert list(data["tools"]) == ["K-Means"]  # only the tool's section
-    assert read_tool_entry(path, kmeans).results_dir == "/r"
-    assert read_tool_entry(path, tools.get("Summarize")) is None
+    assert read_tool_settings(path, kmeans).results_dir == "/r"
+    assert read_tool_settings(path, tools.get("Summarize")) is None
 
     # in an application settings file (of an older version): the rest is kept
     path = tmp_path / "app.json"
     path.write_text(V0_FILE.read_text())
-    write_tool_entry(path, kmeans, tool_entry(KMeansConfig(n_clusters=9)))
+    write_tool_settings(path, kmeans, tool_settings(KMeansConfig(n_clusters=9)))
     settings = load_settings(path)
     assert settings.tool_settings.config(kmeans).n_clusters == 9
     assert settings.import_.delimiter == "\t"  # from the version 0 file
@@ -163,14 +163,14 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
     assert summary.aggs == ["mean", "sem"]
     # saved under a former name: replaced, read by the renamed tool
     concat = tools.get("Concatenate")
-    assert read_tool_entry(V0_FILE, concat).config["mode"] == "horizontal"
-    write_tool_entry(path, concat, tool_entry(ConcatConfig()))
+    assert read_tool_settings(V0_FILE, concat).config["mode"] == "horizontal"
+    write_tool_settings(path, concat, tool_settings(ConcatConfig()))
     names = json.loads(path.read_text())["tools"]
     assert "Concatenate" in names and not set(concat.former_names) & set(names)
 
     # a config alone
     path = tmp_path / "config.json"
     path.write_text(json.dumps(KMeansConfig(n_clusters=4).model_dump(mode="json")))
-    assert read_tool_entry(path, kmeans).config["n_clusters"] == 4
+    assert read_tool_settings(path, kmeans).config["n_clusters"] == 4
     with pytest.raises(ValueError, match="not a settings file"):
-        write_tool_entry(path, kmeans, tool_entry(KMeansConfig()))
+        write_tool_settings(path, kmeans, tool_settings(KMeansConfig()))

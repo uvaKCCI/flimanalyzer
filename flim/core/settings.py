@@ -16,7 +16,7 @@ A settings file has a section per part of the application, and one per tool::
 A file may have only some of the sections (e.g. only one tool's, saved from its
 dialog): loading it changes only those (:func:`update_settings`).
 
-- :class:`ToolSettings`: the settings of each tool (its config, autosave and results
+- :class:`ToolSettingsMap`: the settings of each tool (its config, autosave and results
   folder), by tool name.
 - :class:`AppSettings`: import, preprocessing, display, filters, the results folder and
   the tool settings.
@@ -69,7 +69,7 @@ class FilterSettings(_Settings):
     series_filters: list = []
 
 
-class ToolEntry(_Settings):
+class ToolSettings(_Settings):
     """A tool's settings: its config (JSON, with ``classname``), and where it saves."""
 
     config: Optional[dict] = None
@@ -78,16 +78,16 @@ class ToolEntry(_Settings):
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
 
 
-class ToolSettings(RootModel[dict[str, ToolEntry]]):
+class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
     """The settings of each tool, by tool name."""
 
-    root: dict[str, ToolEntry] = {}
+    root: dict[str, ToolSettings] = {}
 
     @property
-    def tools(self) -> dict[str, ToolEntry]:
+    def tools(self) -> dict[str, ToolSettings]:
         return self.root
 
-    def entry(self, tool) -> Optional[ToolEntry]:
+    def entry(self, tool) -> Optional[ToolSettings]:
         """The tool's settings, also those saved under one of its former names."""
         for name in (tool.name, *getattr(tool, "former_names", ())):
             if name in self.tools:
@@ -109,11 +109,11 @@ class ToolSettings(RootModel[dict[str, ToolEntry]]):
     def set(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> None:
         for name in getattr(tool, "former_names", ()):
             self.tools.pop(name, None)
-        self.tools[tool.name] = tool_entry(config, autosave, results_dir)
+        self.tools[tool.name] = tool_settings(config, autosave, results_dir)
 
 
-def tool_entry(config: TaskConfig, autosave=False, results_dir=None) -> ToolEntry:
-    return ToolEntry(
+def tool_settings(config: TaskConfig, autosave=False, results_dir=None) -> ToolSettings:
+    return ToolSettings(
         config=config.model_dump(mode="json"),
         autosave=bool(autosave),
         results_dir=None if results_dir is None else str(results_dir),
@@ -178,7 +178,7 @@ class AppSettings(_Settings):
     preprocess: PreprocessSettings = Field(default_factory=PreprocessSettings)
     display: list[dict] = []  # histogram ranges of the import dialog
     filters: FilterSettings = Field(default_factory=FilterSettings)
-    tool_settings: ToolSettings = Field(default_factory=ToolSettings, alias="tools")
+    tool_settings: ToolSettingsMap = Field(default_factory=ToolSettingsMap, alias="tools")
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
@@ -385,7 +385,7 @@ def save_settings(settings: AppSettings, path) -> None:
 # --- the settings of one tool (in a settings file of the application, or alone) ---
 
 
-def read_tool_entry(path, tool) -> Optional[ToolEntry]:
+def read_tool_settings(path, tool) -> Optional[ToolSettings]:
     """The tool's section of a settings file (also of an older version, or under one
     of its former names); a file with only a config (with ``classname``) is the
     config. None if the file has no settings of the tool."""
@@ -394,14 +394,14 @@ def read_tool_entry(path, tool) -> Optional[ToolEntry]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} is not a settings file")
     if "classname" in data:  # a config alone
-        return ToolEntry(config=data)
+        return ToolSettings(config=data)
     tools = migrate(data).get("tools")
     if not isinstance(tools, dict):
         return None
-    return ToolSettings.model_validate(tools).entry(tool)
+    return ToolSettingsMap.model_validate(tools).entry(tool)
 
 
-def write_tool_entry(path, tool, entry: ToolEntry) -> None:
+def write_tool_settings(path, tool, entry: ToolSettings) -> None:
     """Puts the tool's section into a settings file: the other sections of an
     existing file are kept (the file is saved in the current version)."""
     data = {"schema_version": SETTINGS_VERSION}
