@@ -418,10 +418,8 @@ class AETraining(Tool[AETrainConfig]):
 
     @classmethod
     def validate(cls, config, inputs):
-        issues = super().validate(config, inputs)
-        if not config.features:
-            issues.append(Issue("features", "Select the features to train on"))
-        return issues
+        # too few features: min_features, checked by Tool.validate
+        return super().validate(config, inputs)
 
 
 def _load_model(path, device):
@@ -445,10 +443,7 @@ class _ModelTool:
         issues = super().validate(config, inputs)
         if not config.model_files:
             issues.append(Issue("model_files", "Select at least one model file"))
-        if not config.features:
-            issues.append(
-                Issue("features", "Select the features the models were trained on")
-            )
+        # too few features: min_features, checked by Tool.validate
         return issues
 
 
@@ -652,11 +647,5 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
 
     @classmethod
     def validate(cls, config, inputs):
-        issues = super().validate(config, inputs)
-        if not config.grouping:
-            issues.append(
-                Issue(
-                    "grouping", "Select the grouping columns (the last is renumbered)"
-                )
-            )
-        return issues
+        # too few grouping columns: min_grouping, checked by Tool.validate
+        return super().validate(config, inputs)

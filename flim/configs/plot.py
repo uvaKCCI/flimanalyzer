@@ -124,6 +124,7 @@ class CategoricalPlotConfig(TiledPlotConfig):
 
 
 class BarPlotConfig(CategoricalPlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_dropped = frozenset({"display", "ordering"})  # unused
 
     max_tiled_grouping = None  # bars are grouped in one plot, not in facets
@@ -188,14 +189,17 @@ class AxesRange(BaseConfig):
 
 
 class BoxPlotConfig(AxesRange, CategoricalPlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
 class ViolinPlotConfig(AxesRange, CategoricalPlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
 class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {
         **CategoricalPlotConfig.legacy_keys,
         "points": None,
@@ -209,6 +213,7 @@ class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
 
 
 class LinePlotConfig(CategoricalPlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "errorbar": "ci"}
     max_tiled_grouping = 3  # x, hue and style
     legacy_dropped = frozenset({"display", "ordering", "x", "hue", "style", "col"})
@@ -231,6 +236,7 @@ class DistributionPlotConfig(TiledPlotConfig):
 
 
 class KDEConfig(DistributionPlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {
         **DistributionPlotConfig.legacy_keys,
         "single_figure": "single_plot",
@@ -257,6 +263,7 @@ class HistogramRange(BaseConfig):
 
 
 class HistogramConfig(DistributionPlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {
         **DistributionPlotConfig.legacy_keys,
         "table": "datatable",
@@ -388,6 +395,7 @@ class HistogramConfig(DistributionPlotConfig):
 
 class ScatterPlotConfig(AxesRange, TiledPlotConfig):
     """A scatter plot for each pair of ``features``."""
+    min_features = 2  # 0.5: get_required_features
 
     legacy_keys = {
         **TiledPlotConfig.legacy_keys,
@@ -497,6 +505,7 @@ class PairPlotConfig(PlotConfig):
 
 
 class HeatmapConfig(PlotConfig):
+    min_features = 1  # 0.5: get_required_features
     legacy_keys = {
         **PlotConfig.legacy_keys,
         "correlation": "corr_type",
@@ -513,6 +522,7 @@ class HeatmapConfig(PlotConfig):
 
 
 class FLIRRPlotConfig(PlotConfig):
+    min_grouping = 1  # 0.5: get_required_categories
     legend_grouping = None  # each panel has its own
     # the plotted columns are the three below (not plugin parameters: found by name)
     hidden_fields = frozenset({"features"})

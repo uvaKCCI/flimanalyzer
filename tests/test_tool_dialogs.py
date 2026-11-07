@@ -581,3 +581,25 @@ def test_basic_flirr_reference_value_of_the_first_grouping_column(dialog):
     reference = d.fields.editors["reference_value"]
     assert reference.control.GetItems() == ["1", "2"]  # FOV's
     assert d.result().config.reference_value is None  # empty: the first value
+
+
+# --- the features and statistics a tool needs (restored in 0.6.2) ---
+
+
+def test_no_features_disable_ok(dialog):
+    from flim.configs.analysis import SummaryConfig
+
+    d = dialog("Summarize", SummaryConfig(grouping=["Treatment"], features=[]))
+    d.validate()
+    assert d.fields.markers["features"].IsShown() and not d.ok_button.IsEnabled()
+
+
+def test_no_statistics_disable_ok(dialog):
+    from flim.configs.analysis import SummaryConfig
+
+    d = dialog("Summarize", SummaryConfig(grouping=["Treatment"], features=["t1"]))
+    d.validate()
+    assert d.ok_button.IsEnabled()
+    d.fields.editors["aggs"].check_all(False)  # every statistic unchecked
+    d.validate()
+    assert not d.ok_button.IsEnabled()

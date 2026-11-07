@@ -18,7 +18,7 @@ import typing
 from dataclasses import dataclass, replace
 from typing import Any, ClassVar, Generic, Optional, Sequence, TypeVar
 
-from flim.core.config import Issue, TaskConfig, column_references
+from flim.core.config import Issue, TaskConfig, column_references, requirement_issues
 from flim.core.registry import API_VERSION
 from flim.core.schema import TableSchema
 from flim.core.types import DataType, InputSpec, OutputSpec, TableType
@@ -175,6 +175,7 @@ class Tool(Generic[ConfigT]):
                 f"{self.name} needs a {self.config_class.__name__},"
                 f" not a {type(config).__name__}"
             )
+        check_requirements(self.name, config, inputs)
         self.context = RunContext.for_config(
             config,
             cancel_token=getattr(self, "_cancel_token", None),
@@ -254,10 +255,12 @@ class Tool(Generic[ConfigT]):
         """Checks the config against the input schemas: the columns it names exist and
         have the right role. Unknown inputs are not checked."""
         schemas = _flat_schemas(inputs)
+        # the number of features and grouping columns the tool needs (0.5 checked it
+        # before a run; lost in 0.6.0, restored in 0.6.2)
+        issues = requirement_issues(config, schemas)
         if not schemas or any(s is None or not s.complete for s in schemas):
-            return []
+            return issues
         columns = {c.name: c for s in schemas for c in s.columns}
-        issues = []
         for path, name, role in column_references(config):
             column = columns.get(name)
             if column is None:
@@ -269,6 +272,20 @@ class Tool(Generic[ConfigT]):
             elif column.role != role:
                 issues.append(Issue(path, f"'{name}' is not a {role} column"))
         return issues
+
+
+def check_requirements(name: str, config: TaskConfig, inputs: Sequence[Any]) -> None:
+    """Raises ValueError if the config selects fewer features or grouping columns than
+    the tool needs, e.g. in batch mode or a workflow (dialogs show it beforehand)."""
+    import pandas as pd
+
+    schemas = [
+        TableSchema.from_frame(i) if isinstance(i, pd.DataFrame) else i
+        for i in _flat_schemas(inputs)
+    ]
+    issues = requirement_issues(config, schemas)
+    if issues:
+        raise ValueError(f"{name}: " + "; ".join(i.message.lower() for i in issues))
 
 
 def _flat_schemas(inputs: Sequence[Any]) -> list:
