@@ -2,7 +2,7 @@ name: Tests
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, "release/**"]  # release/X.Y.x: maintenance branches
   push:
     branches: [main]
   workflow_dispatch:
@@ -116,10 +116,13 @@ jobs:
           .github/scripts/check-image.sh flimanalyzer:ci "${{ github.sha }}"
           mkdir -p work/data
           printf 'x\ty\n1\t2\n3\t4\n' > work/data/Results_FOV1_WT_1.txt
+          # Summarize needs at least one feature (#204): select both columns
+          printf '{"tools": {"Summarize": {"config": {"features": ["x", "y"]}}}}\n' \
+            > work/settings.json
           docker run --rm -u "$(id -u)" -v "$PWD/work:/work" flimanalyzer:ci \
-            -i data -o results --run Summarize --no-prefect-server
+            -i data -o results -c settings.json --run Summarize --no-prefect-server
           test -s work/results/Imported.txt
-          test -n "$(ls work/results/Summarize)"
+          test -n "$(find work/results/Summarize -name 'Table_Summary.txt')"
 
   docs:
     name: docs

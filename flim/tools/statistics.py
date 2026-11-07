@@ -344,7 +344,5 @@ class SeriesAnalysis(Tool[SeriesAnalysisConfig]):
 
     @classmethod
     def validate(cls, config, inputs):
-        issues = super().validate(config, inputs)
-        if config.features == []:
-            issues.append(Issue("features", "Select the features of the series"))
-        return issues
+        # too few features: min_features, checked by Tool.validate
+        return super().validate(config, inputs)

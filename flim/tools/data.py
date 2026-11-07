@@ -51,8 +51,27 @@ class CategoryOrder(Tool[CategoryOrderConfig]):
         for column, values in categories.items():
             data[column] = pd.Categorical(data[column], categories=values, ordered=True)
         # stable: rows with the same values keep their order (e.g. of other columns)
-        data = data.sort_values(by=list(categories), kind="stable")
+        # rows renumbered in their new order (#119)
+        data = data.sort_values(by=list(categories), kind="stable", ignore_index=True)
         return {"Reordered": data}
+
+
+def _row_mismatch(first: pd.DataFrame, other: pd.DataFrame):
+    """How two tables differ row by row in their shared category columns, None if
+    they don't (or share none)."""
+    if len(first) != len(other):
+        return f"{len(first)} and {len(other)} rows"
+    shared = [c for c in category_columns(first) if c in category_columns(other)]
+    if not shared:
+        return None
+    a = first[shared].astype(str).reset_index(drop=True)
+    b = other[shared].astype(str).reset_index(drop=True)
+    differ = (a != b).any(axis=1)
+    if not differ.any():
+        return None
+    row = int(differ.idxmax())
+    column = next(c for c in shared if a.at[row, c] != b.at[row, c])
+    return f"first difference in row {row + 1}, {column}: {a.at[row, column]} and {b.at[row, column]}"
 
 
 @register_tool
@@ -69,19 +88,31 @@ class Concat(Tool[ConcatConfig]):
         horizontal = config.mode == "horizontal"
         frames = list(tables.values())
         if horizontal:
+            # side by side, rows are paired by position: warn if the tables' shared
+            # category columns don't match row by row (e.g. one was reordered)
+            names = list(tables)
+            for name, df in zip(names[1:], frames[1:]):
+                mismatch = _row_mismatch(frames[0], df)
+                if mismatch:
+                    self.warn(
+                        f"the rows of '{name}' don't match '{names[0]}' ({mismatch});"
+                        " rows are paired by position. To pair rows by their"
+                        " categories, use Merge."
+                    )
             if config.numbers_only:
                 # the first table keeps all its columns
                 frames = [
                     df if i == 0 else df.select_dtypes(np.number)
                     for i, df in enumerate(frames)
                 ]
-            else:  # a name that is already taken gets the table's name (#176)
-                taken = set()
-                for i, (name, df) in enumerate(zip(tables, frames)):
-                    frames[i] = df.rename(
-                        columns={c: f"{c} ({name})" for c in df.columns if c in taken}
-                    )
-                    taken.update(frames[i].columns)
+            # a name that is already taken gets the table's name (#176), also with
+            # numeric columns only (two columns of the same name break later tools)
+            taken = set()
+            for i, (name, df) in enumerate(zip(tables, frames)):
+                frames[i] = df.rename(
+                    columns={c: f"{c} ({name})" for c in df.columns if c in taken}
+                )
+                taken.update(frames[i].columns)
             return {"Concatenated": pd.concat(frames, axis=1, copy=True)}
         catcols = list(dict.fromkeys(c for df in frames for c in category_columns(df)))
         concat = pd.concat(

@@ -10,7 +10,7 @@ Workflows always save their results; `Save results in` is always checked in thei
 
 Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results in`. For example: `FLIMAnalyzerResults/Basic FLIRR Analysis/2026-11-03_14-05-31/`. Steps that are run several times with different settings, for example the training of each model in the autoencoder workflows, save their results in subfolders of this folder, named after these settings. The other steps save their results directly in the folder. The files are saved as described in [Saving results](/userguide/dialogs.md#saving-results).
 
-The folder also gets a file `run_summary.txt`. It lists when the workflow ran and, for each step, its status, the resources it used (for example GPU or CPU) and its message.
+The folder also gets a file `run_summary.txt`. It lists when the workflow ran and, for each step, its status, the resources it used (for example GPU or CPU) and its message. A completed step has a message only if its tool reported a warning (see [The run summary](#the-run-summary)).
 
 ## Checking the settings
 
@@ -44,11 +44,13 @@ After every workflow, and after a tool run that was cancelled, a dialog says how
 * how many tasks completed and which ones failed (the log file `flimanalyzer.log` has the details; see [Command-line options](/install/index.md#command-line-options)),
 * or after how many tasks the run was cancelled.
 
+If tools reported warnings, the dialog lists them under `Warnings:`, each with the name of its task, up to five. A task with a warning is still completed, and its results are passed on to the next steps. The warnings are also in the log file and in `run_summary.txt`.
+
 It also links to the results folder and to the flow run on the Prefect server, if there is one.
 
 ![](/images/analysis/workflow-summary.png)
 
-If a tool's tasks fail, a message lists the failed tasks.
+After a tool run that was not cancelled, there is no run summary. If the tool reported a warning, for example `Concatenate` when the rows of tables side by side don't match (see [Concatenate](/userguide/data/concat)), a message `<tool name>: warning` shows it after the result windows open. If a tool's tasks fail, a message lists the failed tasks.
 
 ## Basic FLIRR Analysis
 

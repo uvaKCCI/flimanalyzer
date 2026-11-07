@@ -472,6 +472,16 @@ def test_summary_of_a_completed_run(wxapp, tmp_path):
     assert link == run.ui_url
 
 
+def test_summary_lists_warnings(wxapp, tmp_path):
+    # a task that warned (Tool.warn) stays completed; the summary lists its warning
+    run = _starter(_tasks(2), autosave_dir=str(tmp_path))(None, None, None)
+    node = next(n for n, a in run.graph.nodes(data=True) if a.get("label") == "T0")
+    run.graph.nodes[node]["message"] = "rows are paired by position"
+    texts, _, _ = _summary_texts(run)
+    assert texts[0] == "My Workflow completed all 2 tasks."
+    assert "Warnings:\nT0: rows are paired by position" in texts
+
+
 def test_summary_of_a_run_with_failed_tasks(wxapp, tmp_path):
     def build():
         Counter(name="Good")()

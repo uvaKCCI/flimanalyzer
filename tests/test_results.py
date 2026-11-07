@@ -33,3 +33,14 @@ def test_non_dict_results(tmp_path):
     pd.testing.assert_frame_equal(joblib.load(tmp_path / "pickled" / "Data"), table)
     save_results(_figure(), str(tmp_path / "fig"), "Figure")
     assert not (tmp_path / "fig" / "pickled").exists()
+
+
+def test_tables_are_tab_separated_without_the_row_index(tmp_path):
+    # rows out of order, as after sorting: the old row numbers must not be written (#119)
+    table = pd.DataFrame({"Treatment": ["b", "a"], "x\nmean": [2.0, 1.0]}, index=[1, 0])
+    save_results({"Table: A": table}, str(tmp_path), "Task")
+    assert (tmp_path / "Table_A.txt").read_text().splitlines() == [
+        "Treatment\tx mean",  # multi-level header on one line
+        "b\t2.0",
+        "a\t1.0",
+    ]

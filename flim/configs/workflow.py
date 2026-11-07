@@ -61,6 +61,8 @@ class WorkflowConfig(TaskConfig):
 
 
 class BasicFLIRRConfig(WorkflowConfig):
+    min_features = 1  # 0.5: get_required_features
+    min_grouping = 1  # 0.5: get_required_categories
     grouping: list[CategoryColumn] = ["Treatment", "FOV", "Cell"]
     # values the workflow used to take from the data, now settings with that default
     reference_value: Annotated[Optional[str], ValueOf("grouping")] = Field(
@@ -158,6 +160,7 @@ class _AEWorkflowConfig(WorkflowConfig):
 
 class AETuneConfig(_AEWorkflowConfig):
     """FLIM Data Augmentation Tuning: trains autoencoders, then augments the data."""
+    min_features = 2  # its Autoencoder: Train steps need 2 (0.5 declared 1)
 
     legacy_keys = {**_AEWorkflowConfig.legacy_keys, "augment": None}
     bound_fields = {**_AEWorkflowConfig.bound_fields, "augment": _SHARED}
@@ -184,6 +187,7 @@ class AETuneConfig(_AEWorkflowConfig):
 
 class AEFeatureConfig(_AEWorkflowConfig):
     """FLIM Feature Analysis: trains autoencoders, then runs them on the data."""
+    min_features = 1  # 0.5: get_required_features
 
     legacy_keys = {
         **_AEWorkflowConfig.legacy_keys,

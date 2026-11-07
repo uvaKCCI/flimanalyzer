@@ -11,9 +11,9 @@ from typing import Any, ClassVar, Optional
 
 import pandas as pd
 
-from flim.core.config import TaskConfig
+from flim.core.config import TaskConfig, requirement_issues
 from flim.core.schema import TableSchema
-from flim.core.tool import ConfigT, Tool
+from flim.core.tool import ConfigT, Tool, check_requirements
 from flim.core.validation import DefaultWorkflowValidator, ValidationReport
 
 
@@ -72,6 +72,7 @@ class Workflow(Tool[ConfigT]):
         from flim.core.runner import run_flow
 
         config = self.config_class() if config is None else config
+        check_requirements(self.name, config, inputs)
         report = self.resolve(config, inputs, strict)
         if report.errors:
             raise WorkflowValidationError(report)
@@ -116,7 +117,8 @@ class Workflow(Tool[ConfigT]):
         """Issues of the config and of its steps for the input schemas; columns
         missing from the inputs are guessed unless the config is strict (dialogs)."""
         strict = cls.is_strict(config, False)
-        return cls.validator.validate(cls, config, list(inputs), strict).issues
+        report = cls.validator.validate(cls, config, list(inputs), strict)
+        return requirement_issues(config, list(inputs)) + report.issues
 
     def run(self, *inputs, config: ConfigT) -> dict[str, Any]:
         """Runs the flow (without saving) and returns the results of all its tasks."""

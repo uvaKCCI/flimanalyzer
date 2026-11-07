@@ -196,6 +196,7 @@ class MergeConfig(DataTaskConfig):
 
 class PivotConfig(DataTaskConfig):
     """Pivots the ``grouping`` columns."""
+    min_features = 1  # 0.5: get_required_features
 
     grouping: list[CategoryColumn] = Field(
         default=["Treatment"],
@@ -246,6 +247,7 @@ class UnpivotConfig(DataTaskConfig):
     """Moves one level (line) of the columns' headers into a category column: the
     inverse of Pivot. E.g. the level Treatment of ``"FLIRR\\nctrl"``,
     ``"FLIRR\\nDox15"``: a column Treatment (ctrl, Dox15) and a column FLIRR."""
+    min_features = 1  # 0.5: get_required_features
 
     legacy_keys = {"category_name": None}
     legacy_dropped = frozenset({"feature_name"})  # now named by the other levels
