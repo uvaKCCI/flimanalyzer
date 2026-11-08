@@ -106,8 +106,8 @@ def run_tool(
         flim.core.runner.FlowRun
 
     Raises:
-        BatchError: no tool or workflow has this name, the tool needs more than one
-            input table, or the config is not valid for ``data``.
+        BatchError: If the named tool or workflow does not exist, if the tool needs
+            more than one input table, or if its config is not valid for ``data``.
     """
     from flim.core.runner import run_flow
     from flim.core.workflow import Workflow, WorkflowValidationError
