@@ -344,8 +344,9 @@ class CategorizerConfig(AnalysisConfig):
 
     @classmethod
     def allowed_values(cls, values):
-        # features selects the columns kept only if the input is not included;
-        # otherwise it allows only its current value
+        # features (the columns to keep) can be chosen only if merge_input is off,
+        # i.e. the input's columns are not added to the output; if merge_input is on,
+        # features is fixed to its current value (dialogs hide it)
         if values.get("merge_input", True):
             return {"features": (values.get("features"),)}
         return {}

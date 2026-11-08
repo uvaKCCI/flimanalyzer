@@ -155,7 +155,7 @@ class Resources(BaseConfig):
     )
 
 
-# parameters of the 0.5 plugins that no config holds: the input tables ("input")
+# legacy plugin parameters that no config holds: the input tables ("input")
 # and options of the run and of the dialogs
 LEGACY_IGNORED = frozenset(
     {"input", "autosave", "working_dir", "saveconfig", "config_file", "_config"}
@@ -219,8 +219,8 @@ class TaskConfig(BaseConfig):
 
     @classmethod
     def from_legacy_params(cls, params: dict) -> Self:
-        """The config for a 0.5 plugin's parameter dict; unknown keys are logged and
-        ignored."""
+        """The config for a legacy plugin parameter dict (see the class docstring);
+        unknown keys are logged and ignored."""
         # ignored keys first: "input" holds the input tables at run time
         params = copy.deepcopy(
             {k: v for k, v in params.items() if k not in LEGACY_IGNORED}
