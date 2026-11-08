@@ -77,7 +77,8 @@ def test_missing_columns_are_guessed(data):
 
 def test_strict_reports_errors(data):
     config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=FEATURES, strict=True)
-    report = BasicFLIRR().resolve(config, [data], strict=False)  # the config's wins
+    # the config's strict=True overrides the strict=False argument
+    report = BasicFLIRR().resolve(config, [data], strict=False)
     assert [i.field for i in report.errors] == ["features[1]", "features[2]"]
     assert report.guesses == []
     # the steps do not repeat the workflow's missing columns
@@ -157,12 +158,13 @@ def step_config(report, tool_name):
 def test_basic_flirr_settings_taken_from_the_data(data):
     config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=["FLIRR"])
     report = BasicFLIRR().resolve(config, [data])
-    # empty: the first value of the first grouping column; the columns by name
+    # not set: the first value of the first grouping column, and the FAD a1 and
+    # NAD(P)H a2 columns found by name
     first = list(data["Treatment"].cat.categories)[0]  # in category order
     assert step_config(report, "Relative Change").reference_value == first
     scatter = step_config(report, "Scatter Plot")
     assert (scatter.features, scatter.x_axis) == (["FAD a1[%]", "NAD(P)H a2[%]"], "FAD a1[%]")
-    # set: used
+    # set: the given values are used
     config = config.model_copy(
         update={"reference_value": "Dox30", "fad_a1": "NAD(P)H a2", "nadph_a2": "FAD a1"}
     )

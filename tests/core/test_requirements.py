@@ -1,9 +1,7 @@
 """Every tool rejects fewer features and grouping columns than it needs.
 
-0.5's plugins declared get_required_features / get_required_categories, and the GUI
-refused to run with fewer; 0.6.0 lost that check (the run code was rewritten and the
-plugin API removed, without a test). It is restored as ``min_features`` and
-``min_grouping`` on the configs, checked by Tool.validate (dialogs) and before a run.
+The configs declare ``min_features`` and ``min_grouping``; Tool.validate checks them
+(dialogs), and the run checks them before the tool runs.
 """
 
 import numpy as np
@@ -15,8 +13,9 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.registry import tools
 from flim.core.schema import TableSchema
 
-# tool -> (min_features, min_grouping): 0.5's numbers, where the tool existed; every
-# registered tool must be listed, so a new tool has to declare its requirements
+# tool -> (min_features, min_grouping), as the former plugins declared them where a
+# plugin existed; every registered tool must be listed, so a new tool has to declare
+# its requirements
 EXPECTED = {
     # data
     "Concatenate": (0, 0),
@@ -24,19 +23,19 @@ EXPECTED = {
     "Merge": (0, 0),
     "Order Categories": (0, 0),
     "Pivot": (1, 0),
-    "Sort": (0, 0),  # 0.5: none (sorting by nothing leaves the table as it is)
-    "Split": (0, 0),  # new in 0.6
+    "Sort": (0, 0),  # sorting by nothing leaves the table as it is
+    "Split": (0, 0),
     "Unpivot": (1, 0),
     # analysis
     "Autoencoder: Augment Data": (1, 1),
-    "Autoencoder: Run": (1, 0),  # 0.5 also a category; 0.6 has no grouping here
+    "Autoencoder: Run": (1, 0),  # grouping is hidden: the tool does not group
     "Autoencoder: Train": (2, 0),
-    "Categorize Data": (0, 0),  # 0.5: 1; in 0.6 each rule names its feature
+    "Categorize Data": (0, 0),  # each rule names its feature
     "Gaussian Mixed Model": (1, 0),
     "K-Means": (1, 0),
     "KS-Statistics": (1, 0),
     "PCA": (2, 0),
-    "Random Forest": (1, 0),  # 0.5's category is the target field in 0.6
+    "Random Forest": (1, 0),  # the category to predict is the target field
     "Relative Change": (1, 0),
     "Series Analysis": (2, 0),
     "Summarize": (1, 0),
@@ -53,8 +52,8 @@ EXPECTED = {
     "Swarm Plot": (1, 0),
     "Violin Plot": (1, 0),
     # workflows
-    "Basic FLIRR Analysis": (1, 1),  # 0.5: FLIRR, trp t1 and Treatment, FOV, Cell
-    "FLIM Data Augmentation Tuning": (2, 0),  # 0.5: 1, but its training steps need 2
+    "Basic FLIRR Analysis": (1, 1),
+    "FLIM Data Augmentation Tuning": (2, 0),  # its training steps need 2
     "FLIM Feature Analysis": (1, 0),
 }
 
@@ -126,7 +125,7 @@ def test_run_refuses_too_few_features(tool):
 
 def test_summarize_needs_a_statistic():
     # with none, the summary had no columns at all and failed with
-    # KeyError: "None of [...] are in the columns" (found in 0.6.0)
+    # KeyError: "None of [...] are in the columns"
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):

@@ -11,7 +11,7 @@ from typing import Any
 def write_version_info(
     project_dir: str | Path, template_fields: dict[str, Any], params: dict[str, Any]
 ) -> None:
-    """Write version/build info module used by the package at build time.
+    """Write the version module that the package reads at runtime (build time hook).
 
     Args:
         project_dir (str | Path): Root directory of the project where the

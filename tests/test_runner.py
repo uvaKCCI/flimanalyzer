@@ -55,7 +55,6 @@ def test_chained_calls_and_item_access(flim_data):
     assert labels["Input"][1] == "output"
     assert labels["Filter"][1] == "tool"
     assert labels["Table: Filtered"][1] == "output"
-    # Input -> Filter -> "Table: Filtered" -> Summarize
     path = ["Input", "Filter", "Table: Filtered", "Summarize"]
     for u, v in zip(path, path[1:]):
         assert run.graph.has_edge(labels[u][0], labels[v][0])

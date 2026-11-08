@@ -29,7 +29,8 @@ def test_image_version_drops_the_variant_suffix(version, suffix, expected):
 
 
 def test_docker_workflow_takes_the_version_from_the_script():
-    # the 0.6.1 CPU image wasn't published: its version label kept the suffix
+    # regression: the version label kept the variant suffix, and the CPU image was
+    # not published
     workflow = (ROOT / ".github" / "workflows" / "docker.yml").read_text()
     assert ".github/scripts/image-version.sh" in workflow
     assert 'echo "VERSION=${{ steps.meta.outputs.version }}"' not in workflow

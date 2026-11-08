@@ -209,7 +209,7 @@ def test_autoencoder_training_stops_within_an_epoch(tmp_path):
 
     threading.Timer(1.0, token.set).start()
     start = time.monotonic()
-    # models are saved in the results folder
+    # models would be saved in the results folder; the cancelled training saves none
     run = run_flow("ae cancel", build, autosave_dir=str(tmp_path), cancel_token=token)
     assert time.monotonic() - start < 30
     assert run.cancelled == ["Autoencoder: Train"]
@@ -237,7 +237,8 @@ def test_cancel_reaches_dask_worker_processes(tmp_path):
     threading.Thread(target=cancel_once_started, daemon=True).start()
     task_runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": True})
     run = run_flow("cancel dask processes", build, task_runner, cancel_token=token)
-    assert time.monotonic() - started["at"] < 5  # the task gives up after WAIT s
+    # cancelled well before the task gives up after WAIT s
+    assert time.monotonic() - started["at"] < 5
     assert dict(run.tasks()) == {"Long": "cancelled"}
     assert run.state == "cancelled"
 

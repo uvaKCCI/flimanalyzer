@@ -49,7 +49,7 @@ def test_icons_are_32px_rgba():
     Image = pytest.importorskip("PIL.Image")
     wrong = {}
     for p in sorted((FLIM / "resources").glob("*.png")):
-        if p.name == "flimanalyzer.png":  # application icon
+        if p.name == "flimanalyzer.png":  # the program icon, see test_app_icon
             continue
         with Image.open(p) as im:
             if im.size != (32, 32) or im.mode != "RGBA":

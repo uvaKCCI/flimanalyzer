@@ -183,7 +183,7 @@ def test_range_filter():
     cfg = FilterConfig.from_legacy_params({"range_filters": [legacy, unused]})
     assert cfg.range_filters == {"FLIRR": RangeSettings(low=0.1, high=2)}
     assert cfg.to_legacy_params()["range_filters"] == [legacy]
-    # no limit: infinite for older versions
+    # no limit: written as infinity in the legacy params
     cfg = FilterConfig(range_filters={"x": {"low": 1}})
     (legacy,) = cfg.to_legacy_params()["range_filters"]
     assert (legacy["rangelow"], legacy["rangehigh"]) == (1, float("inf"))

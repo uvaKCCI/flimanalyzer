@@ -583,7 +583,7 @@ def test_basic_flirr_reference_value_of_the_first_grouping_column(dialog):
     assert d.result().config.reference_value is None  # empty: the first value
 
 
-# --- the features and statistics a tool needs (restored in 0.6.2) ---
+# --- the features and statistics a tool needs ---
 
 
 def test_no_features_disable_ok(dialog):

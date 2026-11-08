@@ -14,7 +14,8 @@ def frame(wxapp, monkeypatch):
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
 
-    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)  # never wait
+    # message dialogs answer No without being shown
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)
     frame = AppFrame(FLIMAnalyzer())
     yield frame
     for window in frame.windowframes.values():
@@ -108,7 +109,8 @@ def test_saving_keeps_the_window_columns(frame, monkeypatch, tmp_path, flim_data
     from flim.gui.dialogs import save_dataframe
 
     save_dataframe(window, "Save", window.data, "pivot.txt")
-    assert "NAD(P)H t1" in pd.read_table(tmp_path / "pivot.txt").columns  # one line in the file
+    # the file has the header on one line
+    assert "NAD(P)H t1" in pd.read_table(tmp_path / "pivot.txt").columns
     assert "NAD(P)H\nt1" in window.data.columns  # the data shown is unchanged
 
 
@@ -176,7 +178,8 @@ def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
 
 def test_open_file_of_an_open_windows_name_opens_a_new_window(frame, tmp_path):
     """A file named like an open window (data.txt from another folder) gets its own
-    window; the open one keeps its data and unsaved changes (were replaced, R1)."""
+    window; the open one keeps its data and unsaved changes (before, they were
+    replaced)."""
     (tmp_path / "a").mkdir()
     (tmp_path / "b").mkdir()
     pd.DataFrame({"x": [1.0, 2.0, 3.0]}).to_csv(tmp_path / "a" / "data.txt", sep="\t", index=False)

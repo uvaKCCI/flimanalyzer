@@ -77,8 +77,8 @@ def wxapp():
 
 @pytest.fixture
 def data_choices(table):
-    """The input tables offered by the dialogs of ``dialog`` (``table``: the test
-    module's)."""
+    """The input tables offered by the dialogs that ``dialog`` makes (``table`` is a
+    fixture of the test module)."""
     return {"Table: data": table}
 
 
@@ -118,7 +118,7 @@ def close_figures():
     yield
     plt.close("all")
     # collect leftovers (e.g. wx objects kept alive by a failed test's traceback)
-    # here, on the main thread, not later in some worker thread
+    # here, on the main thread, not later in a worker thread
     gc.collect()
 
 

@@ -41,8 +41,10 @@ def run(code):
 
 
 def test_core_imports_without_wx_and_torch():
-    """The core modules must import with wx (and torch) unavailable (CI also runs them
-    without wx); then everything but the GUI."""
+    """The core modules import with wx and torch unavailable (CI also runs tests/core
+    without them), and importing them does not load the tools. Then every module of
+    the core packages imports, and the registry holds the expected tools per category.
+    """
     run(
         f"for m in {CORE_MODULES!r}:\n"
         "    if m != 'flim.tools':\n"

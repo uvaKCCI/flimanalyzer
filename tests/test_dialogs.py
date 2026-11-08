@@ -107,7 +107,8 @@ def test_import_dialog_opens_with_a_saved_parser(wxapp):
 
     settings = AppSettings.default()
     settings.import_.filename_parser.parser = "fov_treatment_cell_parser"
-    dlg = ImportDlg(None, "Import", settings)  # failed: the parser's class as text
+    # failed when the dialog used the parser's class, not its name, as the value
+    dlg = ImportDlg(None, "Import", settings)
     try:
         assert dlg.parser_chooser.GetValue() == "fov_treatment_cell_parser"
     finally:
