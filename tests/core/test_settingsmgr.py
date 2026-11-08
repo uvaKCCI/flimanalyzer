@@ -28,7 +28,7 @@ def test_readers_get_copies():
 
 
 def test_set_tool_writes_only_that_tool(tmp_path):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     manager = SettingsManager(user_file=UserSettingsFile(path))
     settings = manager.set_tool(KMEANS, KMeansConfig(n_clusters=4), True, "/results")
     assert settings.tools.config(KMEANS).n_clusters == 4
@@ -42,14 +42,14 @@ def test_set_tool_writes_only_that_tool(tmp_path):
 
 
 def test_changes_are_applied_at_the_next_start(tmp_path):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     SettingsManager(user_file=UserSettingsFile(path)).set_tool(KMEANS, KMeansConfig(n_clusters=6))
     again = SettingsManager(user_file=UserSettingsFile(path))
     assert again.settings.tools.config(KMEANS).n_clusters == 6
 
 
 def test_two_instances_keep_each_others_sections(tmp_path):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     a = SettingsManager(user_file=UserSettingsFile(path))
     b = SettingsManager(user_file=UserSettingsFile(path))
     a.set_tool(KMEANS, KMeansConfig(n_clusters=3))
@@ -58,7 +58,7 @@ def test_two_instances_keep_each_others_sections(tmp_path):
 
 
 def test_same_section_the_instance_that_saves_last_takes_precedence(tmp_path):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     a = SettingsManager(user_file=UserSettingsFile(path))
     b = SettingsManager(user_file=UserSettingsFile(path))
     a.set_tool(KMEANS, KMeansConfig(n_clusters=3))
@@ -67,7 +67,7 @@ def test_same_section_the_instance_that_saves_last_takes_precedence(tmp_path):
 
 
 def test_the_file_is_replaced_without_leftovers(tmp_path):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     manager = SettingsManager(user_file=UserSettingsFile(path))
     manager.set_tool(KMEANS, KMeansConfig(n_clusters=3))
     manager.set_tool(KMEANS, KMeansConfig(n_clusters=5))
@@ -82,7 +82,7 @@ def test_missing_user_file_gives_the_base_settings(tmp_path):
 
 
 def test_unreadable_user_file_gives_the_base_settings_and_a_warning(tmp_path, caplog):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     path.write_text("{not json")
     manager = SettingsManager(user_file=UserSettingsFile(path))
     assert manager.settings == AppSettings.default()
@@ -90,7 +90,7 @@ def test_unreadable_user_file_gives_the_base_settings_and_a_warning(tmp_path, ca
 
 
 def test_failed_write_keeps_the_change_and_warns(tmp_path, caplog, monkeypatch):
-    user_file = UserSettingsFile(tmp_path / "settings.json")
+    user_file = UserSettingsFile(tmp_path / "usersettings.json")
 
     def fail(changes):
         raise OSError("read-only file system")
@@ -112,7 +112,7 @@ def test_invalid_change_leaves_the_settings_unchanged():
 
 
 def test_load_applies_a_file_for_the_session_only(tmp_path):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     project = tmp_path / "project.json"
     settings = AppSettings.default()
     settings.tools.set(KMEANS, KMeansConfig(n_clusters=9))
@@ -139,7 +139,7 @@ def test_export_writes_all_settings(tmp_path):
 
 
 def test_older_user_file_is_migrated(tmp_path):
-    path = tmp_path / "settings.json"
+    path = tmp_path / "usersettings.json"
     path.write_text(json.dumps({"root": {"filters": {"Use": True}}}))  # version 0
     assert SettingsManager(user_file=UserSettingsFile(path)).settings.filters.use is True
 
@@ -152,5 +152,5 @@ def test_user_settings_path_from_the_environment(monkeypatch, tmp_path):
 def test_user_settings_path_in_the_platform_folder(monkeypatch):
     monkeypatch.delenv("FLIM_USER_SETTINGS", raising=False)
     path = user_settings_path()
-    assert path.name == "settings.json" and path.parent.name == "FLIMAnalyzer"
+    assert path.name == "usersettings.json" and path.parent.name == "FLIMAnalyzer"
     assert os.path.isabs(path)
