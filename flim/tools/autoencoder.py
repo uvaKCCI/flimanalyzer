@@ -72,7 +72,7 @@ def _torch_device(name: str):
     return torch.device(name)
 
 
-def _no_graph_capture_check_on_cpu(optimizer, device):
+def _skip_gpu_check_on_cpu(optimizer, device):
     """Replaces the optimizer's CUDA-graph health check by a no-op on the CPU (#143).
 
     PyTorch's ``optimizer.step()`` asks whether a GPU is available for this check,
@@ -231,7 +231,7 @@ class AETraining(Tool[AETrainConfig]):
         # with the CPU selected, PyTorch's optimizer must not query CUDA (#143: a CUDA
         # warning although the CPU was selected); guarded by test_cpu_never_touches_cuda.
         # lr and weight_decay named: by position the third argument is RMSprop's alpha
-        optimizer = _no_graph_capture_check_on_cpu(
+        optimizer = _skip_gpu_check_on_cpu(
             optim.RMSprop(ae.parameters(), lr=learning_rate, weight_decay=weight_decay),
             device,
         )
