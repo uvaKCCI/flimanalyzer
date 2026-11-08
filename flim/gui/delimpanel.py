@@ -8,7 +8,6 @@ import wx
 class DelimiterPanel(wx.Panel):
     def __init__(self, parent, delimiters=""):
         wx.Panel.__init__(self, parent)
-        # delimiter_label = wx.StaticText(self, wx.ID_ANY, "Column Delimiters:")
         self.comma_box = wx.CheckBox(self, wx.ID_ANY, label="Comma")
         self.semicolon_box = wx.CheckBox(self, wx.ID_ANY, label="Semicolon")
         self.tab_box = wx.CheckBox(self, wx.ID_ANY, label="Tab")
@@ -17,7 +16,6 @@ class DelimiterPanel(wx.Panel):
         self.others_field = wx.TextCtrl(self, wx.ID_ANY, value="")
 
         sizer = wx.BoxSizer(wx.HORIZONTAL)
-        # sizer.Add(delimiter_label, 0, wx.RIGHT, 5)
         sizer.Add(self.comma_box, 0, wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5)
         sizer.Add(
             self.semicolon_box, 0, wx.LEFT | wx.RIGHT | wx.ALIGN_CENTER_VERTICAL, 5
@@ -41,7 +39,7 @@ class DelimiterPanel(wx.Panel):
         self.others_field.SetValue(dels)
 
     def get_delimiters(self):
-        dels = self.others_field.GetValue()  # .encode('ascii','ignore')
+        dels = self.others_field.GetValue()
         if self.comma_box.IsChecked():
             dels += ","
         if self.semicolon_box.IsChecked():

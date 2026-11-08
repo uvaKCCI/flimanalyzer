@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon May  7 21:00:30 2018
-
-@author: khs3z
-"""
+"""The wxPython GUI: its wx.App (FLIMAnalyzerApp), the main window (AppFrame) and the
+settings of a GUI session."""
 
 import matplotlib
 
@@ -67,21 +64,22 @@ import flim.gui.dialogs.autoencoder  # noqa: F401
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.unpivot  # noqa: F401
-# settings read at startup, if there are (else the defaults)
+# settings file read at startup if it exists (else the built-in defaults)
 DEFAULT_SETTINGS_FILE = "defaults.json"
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
 
 
 def docs_url(version: str = __version__) -> str:
-    """The documentation of this version: a release's own (built for its tag), else,
-    for development builds, the latest."""
+    """URL of the documentation of ``version``: a release version (X.Y.Z) has its
+    own; any other version (a development build) gets the latest documentation."""
     if re.fullmatch(r"\d+\.\d+\.\d+", version):
         return f"{DOCS_URL}/en/v{version}/"
     return f"{DOCS_URL}/en/latest/"
 
 
 def startup_settings() -> AppSettings:
-    """The settings in DEFAULT_SETTINGS_FILE (of any version), else the defaults."""
+    """The settings in DEFAULT_SETTINGS_FILE (of any version), else the built-in
+    defaults: also if the file cannot be read (the error is logged)."""
     if os.path.isfile(DEFAULT_SETTINGS_FILE):
         try:
             return load_settings(DEFAULT_SETTINGS_FILE)
@@ -109,12 +107,13 @@ DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
 
 def app_icon():
-    """The FLIMAnalyzer application icon."""
+    """The FLIMAnalyzer icon."""
     return wx.Icon(str(files(flim.resources).joinpath("flimanalyzer.png")), wx.BITMAP_TYPE_PNG)
 
 
 def app_icons():
-    """The application icon in all sizes, so each window picks a sharp one."""
+    """The FLIMAnalyzer icon in all sizes of its ICO file, so that each window can
+    use a sharp one."""
     return wx.IconBundle(str(files(flim.resources).joinpath("flimanalyzer.ico")), wx.BITMAP_TYPE_ICO)
 
 
@@ -122,6 +121,8 @@ class FLIMAnalyzerApp(wx.App):
     def __init__(self, flimanalyzer, settings_file=None, files=None):
         """
         Args:
+            flimanalyzer: the FLIMAnalyzer object that provides the task runner and
+                execution settings.
             settings_file: settings file (any version) applied for this session.
             files: data files to open at startup, each in its own data window.
         """
@@ -131,7 +132,7 @@ class FLIMAnalyzerApp(wx.App):
         discover(TOOLS_GROUP)
         discover(GUI_GROUP)
         self.settings_manager = gui_settings(settings_file)
-        set_bundle_name("FLIMAnalyzer")  # before wx registers the app with macOS
+        set_bundle_name("FLIMAnalyzer")  # before wx.App registers with macOS
         super().__init__()
 
     def OnInit(self):
@@ -175,6 +176,8 @@ class AppFrame(wx.Frame):
     def __init__(self, flimanalyzer, settings_manager=None):
         """
         Args:
+            flimanalyzer: the FLIMAnalyzer object that provides the task runner and
+                execution settings.
             settings_manager: the SettingsManager of this session (default: one with the
                 built-in defaults that keeps changes in memory only).
         """
@@ -185,16 +188,13 @@ class AppFrame(wx.Frame):
         # the filter settings shared by the data windows; changes are reported to the
         # settings manager (report_filters)
         self.filters = self.settings.filters
-        # self.rawdata = None
-        # self.data = None
-        # self.filtereddata = None
         self.windowframes = {}
         self.window_zorder = []
 
         version = __version__
         super(AppFrame, self).__init__(
             None, wx.ID_ANY, title=f"FLIMAnalyzer {version}"
-        )  # , size=(600, 500))
+        )
 
         self.SetIcons(app_icons())
 
@@ -271,24 +271,6 @@ class AppFrame(wx.Frame):
         self.Centre()
         self.Show(True)
 
-        # Create a panel and notebook (tabs holder)
-        # nb = wx.Notebook(self)
-
-        # Create the tab windows
-        # self.analysistab = TabAnalysis(nb, self, self.flimanalyzer, self.config)
-
-        # Add the windows to tabs and name them.
-        # nb.AddPage(self.analysistab, "Analyze")
-
-        #        self.update_tabs()
-
-        # Set noteboook in a sizer to create the layout
-        # sizer = wx.BoxSizer()
-        # sizer.Add(nb, 1, wx.EXPAND)
-
-        # sizer.SetSizeHints(self)
-        # self.SetSizerAndFit(sizer)
-
         self.Bind(EVT_IMPORT, self.OnImport)
         self.Bind(EVT_DATA, self.OnDataWindowRequest)
         self.Bind(EVT_PLOT, self.OnPlotWindowRequest)
@@ -296,13 +278,9 @@ class AppFrame(wx.Frame):
         self.Bind(EVT_APPLYFILTER, self.OnApplyFilter)
         self.Bind(EVT_FILTERUPDATED, self.OnRangeFilterUpdated)
         self.Bind(EVT_ANALYSISUPDATED, self.OnAnalysisUpdated)
-        #        pub.subscribe(self.OnNewDataWindow, NEW_DATA_WINDOW)
-        # pub.subscribe(self.OnDataImported, DATA_IMPORTED)
-        # pub.subscribe(self.OnFilteredDataUpdated, FILTERED_DATA_UPDATED)
         pub.subscribe(self.OnDataWindowFocused, FOCUSED_DATA_WINDOW)
         pub.subscribe(self.OnClosingDataWindow, CLOSING_DATA_WINDOW)
         pub.subscribe(self.OnRequestRenameDataWindow, REQUEST_RENAME_DATA_WINDOW)
-        # pub.subscribe(self.OnNewPlotWindow, NEW_PLOT_WINDOW)
 
     def _add_tool_group(self, label, tools):
         """Adds a labeled box with a single row of icon buttons.
@@ -366,13 +344,6 @@ class AppFrame(wx.Frame):
         self._add_tool_group(category, buttons)
         return menu
 
-    #    def OnNewDataWindow(self, data, frame):
-    #        title = frame.GetLabel()
-    #        print "appframe.OnNewDataWindow - %s" % (title)
-    #        self.windowframes[frame.GetLabel()] = frame
-    #        mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
-    #        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
-
     def _get_window_frame(self, obj_id):
         for title, window in self.windowframes.items():
             if isinstance(window, PandasFrame) and id(window.GetData()) == obj_id:
@@ -400,8 +371,8 @@ class AppFrame(wx.Frame):
         return self.settings_manager.settings
 
     def report_filters(self, filters) -> None:
-        """Applies the filter settings changed in a data window and writes them to the
-        user settings file."""
+        """Applies the filter settings ``filters`` (FilterSettings) and writes them to
+        the user settings file."""
         self.settings_manager.update({"filters": filters.model_dump(mode="json")})
 
     def OnLoadData(self, event):
@@ -430,7 +401,8 @@ class AppFrame(wx.Frame):
                 (tab and comma).
 
         Returns:
-            str: title of the data window, or None if no file could be read.
+            str: title of the new data window (the file name, or "Imported Data" for
+            several files, made unique), or None if no file could be read.
         """
         importer = dataimporter()
         importer.set_delimiter(delimiter or self.settings.import_.delimiter)
@@ -541,7 +513,7 @@ class AppFrame(wx.Frame):
     def load_settings(self, path) -> None:
         """Applies the sections of a settings file (any version) for this session; the
         sections it does not have (e.g. other tools') stay as they are. New data windows
-        use its filter settings."""
+        use its filter settings. Raises the errors of SettingsManager.load."""
         self.settings_manager.load(path)
         self.filters = self.settings.filters
 
@@ -584,14 +556,20 @@ class AppFrame(wx.Frame):
         pass
 
     def tool_data_choices(self):
-        """The open tables, the current one first."""
+        """The tables of the open data windows by window title, the current one
+        first."""
         title, currentdata = self.get_currentdata()
         data_choices = {title: currentdata} if title else {}
         data_choices.update(self.get_alldata())
         return data_choices
 
     def run_tool(self, tool):
-        """Configures a tool in its dialog and runs it on the selected tables."""
+        """Configures a tool in its dialog and runs it on the selected tables.
+
+        The dialog's config and run settings are stored for the tool. The run shows a
+        progress dialog; afterwards a window opens for each result table and figure, or,
+        for a workflow, the graph of its tasks and a run summary.
+        """
         data_choices = self.tool_data_choices()
         if not data_choices:
             wx.MessageBox("Open or import data first.", tool.name, wx.OK)
@@ -777,7 +755,6 @@ class AppFrame(wx.Frame):
                 frame = self.windowframes[title]
                 frame.SetData(data)
                 frame.set_modified(event.IsModified())
-                # frame.SetConfog(config)
             else:
                 action = "createnew"
         if action == "createnew":
@@ -863,12 +840,9 @@ class AppFrame(wx.Frame):
                     fig.canvas.draw_idle()
                 dlg.Destroy()
             elif isinstance(event.artist, matplotlib.lines.Line2D):
-                # event.artist.set_dashes((5, 2, 1, 2))
-                # event.artist.set_linewidth(2)
                 data = wx.ColourData()
                 data.SetColour(event.artist.get_color())
                 dlg = wx.ColourDialog(self, data)
-                # dlg.Bind(wx.EVT_COLOUR_CHANGED, self.OnColourChanged)
                 if dlg.ShowModal() == wx.ID_OK:  # Cancel keeps the color (#188)
                     color = dlg.GetColourData().GetColour()
                     event.artist.set_color(
@@ -889,14 +863,6 @@ class AppFrame(wx.Frame):
             figure.canvas.mpl_connect("pick_event", self.OnPick)
             self.append_window_to_menu(title, frame)
             frame.Show()
-
-    #    def OnNewPlotWindow(self, figure):
-    #        title = figure.get_axes()[0].get_title()
-    #        print "appframe.OnNewPlotWindow - %s, %s" % (title, figure.canvas.GetName())
-    #        figure.canvas.mpl_connect('close_event', self.OnClosingPlotWindow)
-    #        self.windowframes[title] = figure.canvas
-    #        mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
-    #        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
 
     def OnClosingPlotWindow(self, event):
         logging.debug("appframe.OnClosingPlotWindow")
@@ -924,7 +890,8 @@ class AppFrame(wx.Frame):
         self.Close()
 
     def unsaved_windows(self) -> list[str]:
-        """Titles of the table windows with unsaved changes."""
+        """Titles of the data windows with unsaved changes that ask to be saved when
+        closed."""
         return [
             title
             for title, window in self.windowframes.items()
@@ -935,8 +902,9 @@ class AppFrame(wx.Frame):
         ]
 
     def OnCloseApp(self, event):
-        """Asks before quitting with unsaved table windows: closing the main window
-        destroys its windows without their own save question (0.6.2)."""
+        """Asks before quitting with unsaved data windows (if the close event can be
+        vetoed), because closing the main window destroys them without their own save
+        question. Vetoes the close unless the user confirms."""
         unsaved = self.unsaved_windows()
         if unsaved and event.CanVeto():
             shown = "\n".join(unsaved[:10]) + ("\n..." if len(unsaved) > 10 else "")
@@ -989,12 +957,7 @@ class AppFrame(wx.Frame):
 
     def OnCloseAll(self, event):
         logging.debug("appframe.OnCloseAll")
-        # need to create copy of keys/titles before iteration because self.windowframes will change in size when windows close
-
-        # titles = [t for t in self.windowframes]
-        # for title in titles:
-        #    self.windowframes[title].Close()
-
+        # a copy of the titles: closing a window removes it from self.windowframes
         windowtitles = [t for t in self.windowframes]
         for title in windowtitles:
             window = self.windowframes[title]
@@ -1003,25 +966,11 @@ class AppFrame(wx.Frame):
         self.window_zorder = []
 
     def OnImport(self, event):
-        # self.rawdata = event.rawdata
-        #        self.filtertab.update_rawdata(self.rawdata)
-        #        self.analysistab.update_rawdata(self.rawdata)
         logging.debug(f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")
-        # this should not be set based on current parsers regex pattern but based on columns with 'category' as dtype
-
-    #        self.analysistab.set_roigroupings(event.importer.get_parser().get_regexpatterns().keys())
 
     def OnDataUpdated(self, event):
         data, datatype = event.GetUpdatedData()
         logging.debug(f"###############  OLD appframe.OnDataUpdated - {datatype}")
-
-    #        if datatype == 'Raw':
-    #            self.rawdata = data
-    #            self.filtertab.update_rawdata(data, applyfilters=True)
-    #            self.analysistab.update_rawdata(data)
-    #        else:
-    #            self.filtertab.update_data(data)
-    #            self.analysistab.update_data(data)
 
     def OnRangeFilterUpdated(self, event):
         rfilters = event.GetUpdatedItems()
@@ -1029,14 +978,6 @@ class AppFrame(wx.Frame):
             "###############  OLD appframe.OnRangeFilterUpdated -"
             f" {len(rfilters)} Filters updated:"
         )
-        # for key in rfilters:
-        #    rfilter = rfilters[key]
-        #    print "\t %s: %s" % (key, str(rfilter.get_params()))
-        # dropsbyfilter, totaldrops = self.filtertab.apply_filters(rfilters, dropsonly=True, onlyselected=False)
-        # self.analysistab.update_rangefilters(rfilters)
-        # self.data = self.rawdata.drop(totaldrops)
-        # self.analysistab.update_data(self.data)
-        # event.Skip()
 
     def OnApplyFilter(self, event):
         logging.debug("###############  OLD AppFrame.OnApplyFilter")

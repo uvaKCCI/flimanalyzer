@@ -1,5 +1,6 @@
-"""Settings management: the SettingsManager service, which manages the app and tool
-settings of a running FLIMAnalyzer, and the user settings file it writes changes to."""
+"""Settings management: the SettingsManager service, which manages the settings of a
+running FLIMAnalyzer (GUI or flimbatch), and the user settings file it writes changes
+to."""
 
 import json
 import logging
@@ -90,7 +91,7 @@ class UserSettingsFile:
 
 
 class SettingsManager:
-    """Manages the app and tool settings of this instance (GUI or flimbatch). All
+    """Manages the settings of this instance (GUI or flimbatch). All
     changes are applied through it, one at a time: it validates and applies them,
     writes the changed sections to the user settings file and counts versions.
     ``settings`` returns a copy, so the settings cannot be modified except through the
@@ -148,13 +149,15 @@ class SettingsManager:
     def set_tool(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> AppSettings:
         """Sets a tool's config and run settings (autosave, results folder) under the
         tool's name and writes them to the user settings file. Settings stored under
-        the tool's former names are removed."""
+        the tool's former names are removed. Returns a copy of the new settings."""
         entry = tool_settings(config, autosave, results_dir)
         return self.update({"tools": {tool.name: entry.model_dump(mode="json")}})
 
     def load(self, path) -> AppSettings:
         """Applies the sections of a settings file (any version) for this session; they
-        are not written to the user settings file."""
+        are not written to the user settings file. Returns a copy of the new settings.
+        Raises ValueError if the file does not hold a JSON object (and the errors of
+        reading, migrating and validating it); the settings are then unchanged."""
         with open(path) as f:
             data = json.load(f)
         if not isinstance(data, dict):

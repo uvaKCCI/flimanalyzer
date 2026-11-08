@@ -25,10 +25,6 @@ class ListTable(wx.grid.GridTableBase):
                 self.headers = headers
         if data is not None and len(data) > 0:
             self.data = ["?"] * len(data)
-            # i=0
-            # for k in keys:
-            #    self.data[i] = [k,data[k]]
-            #    i+=1
             self.data = [[row[h] for h in self.headers] for row in data]
         else:
             self.data = []
@@ -47,8 +43,6 @@ class ListTable(wx.grid.GridTableBase):
 
     def GetData(self):
         data = [{h: col for h, col in zip(self.headers, row)} for row in self.data]
-        # for row in self.data:
-        #    datadict[row[0]] = row[1]
         return data
 
     def GetValueAsBool(self, row, col):
@@ -63,12 +57,6 @@ class ListTable(wx.grid.GridTableBase):
 
     def CanGetValueAs(self, row, col, valuetype):
         return (col == 0 and valuetype == wx.grid.GRID_VALUE_BOOL) or col != 0
-
-    """
-    def CanSetValueAs(self, row, col, valuetype):
-        print ("CanSetValueAs",col,valuetype)
-        return (col==0 and valuetype == wx.grid.GRID_VALUE_BOOL) or col!= 0
-    """
 
     def GetColLabelValue(self, col):
         if self.headers is None or len(self.headers) < col:
@@ -98,10 +86,6 @@ class DictTable(wx.grid.GridTableBase):
                 keys = sorted(data.keys())
             else:
                 keys = data.keys()
-            # i=0
-            # for k in keys:
-            #    self.data[i] = [k,data[k]]
-            #    i+=1
             self.data = [[k, data[k]] for k in keys]
 
     def GetNumberRows(self):
@@ -118,8 +102,6 @@ class DictTable(wx.grid.GridTableBase):
 
     def GetDict(self):
         datadict = {row[0]: row[1] for row in self.data}
-        # for row in self.data:
-        #    datadict[row[0]] = row[1]
         return datadict
 
     def GetColLabelValue(self, col):
@@ -131,12 +113,6 @@ class DictTable(wx.grid.GridTableBase):
     def GetTypeName(self, row, col):
         return wx.grid.GRID_VALUE_STRING
 
-
-#    def GetAttr(self, row, col, prop):
-#        attr = wx.grid.GridCellAttr()
-#        if row % 2 == 1:
-#            attr.SetBackgroundColour(EVEN_ROW_COLOUR)
-#        return attr
 
 
 class DictFrame(wx.Frame):
@@ -150,7 +126,6 @@ class DictFrame(wx.Frame):
         self.headers = headers
         self._init_gui()
         self.Layout()
-        # self.Show()
 
     def _init_gui(self):
         table = DictTable(self.data, self.headers, sort=True)

@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Feb 10 12:45:21 2022
-
-@author: khs3z
-"""
+"""Writes analysis results (tables, figures, other objects) to files."""
 import os
 import logging
 import matplotlib.figure

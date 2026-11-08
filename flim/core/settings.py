@@ -1,4 +1,4 @@
-"""Application settings: versioned, typed, and upgraded from older settings files.
+"""FLIMAnalyzer settings: versioned, typed, and upgraded from older settings files.
 
 A settings file stores ``schema_version``. Files of older versions are upgraded step by
 step (``MIGRATIONS``: version n -> n+1) and then validated with :class:`AppSettings`;
@@ -6,7 +6,7 @@ settings are always saved in the newest version. Version 0 is the dict ``Config`
 FLIMAnalyzer up to 0.5 (``{"root": {"import": ..., "plugins": ...}}``); version 1 is
 the format of 0.6.
 
-A settings file has a section per part of the application, and one per tool::
+A settings file has a section per settings area, and one per tool::
 
     {"schema_version": 1,
      "import": {...}, "preprocess": {...}, "display": [...], "filters": {...},
@@ -36,7 +36,7 @@ SETTINGS_VERSION = 1
 
 
 class _Settings(BaseModel):
-    # keys of newer versions (or typos) are reported, not fatal: see load_settings
+    # keys of newer versions (or typos) are logged, not fatal: see _validated
     model_config = ConfigDict(extra="allow")
 
 
@@ -70,7 +70,9 @@ class FilterSettings(_Settings):
 
 
 class ToolSettings(_Settings):
-    """A tool's settings: its config (JSON, with ``classname``), and where it saves."""
+    """A tool's settings: its config (JSON, with ``classname``), whether and where it
+    saves its results, and the plugin parameters (``legacy``) that no config class was
+    found for."""
 
     config: Optional[dict] = None
     autosave: bool = False
@@ -95,7 +97,8 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
         return None
 
     def config(self, tool) -> TaskConfig:
-        """The tool's saved config; its defaults if none is saved or it is not valid."""
+        """The tool's saved config; its defaults if none is saved or it is not valid
+        (a warning is logged)."""
         entry = self.entry(tool)
         try:
             if entry is not None and entry.config is not None:
@@ -184,7 +187,8 @@ class AppSettings(_Settings):
 
     @classmethod
     def default(cls) -> "AppSettings":
-        """The defaults: those of the importer, preprocessor and filters."""
+        """The default settings: those of the importer and preprocessor, histogram
+        ranges for trp t1, t2 and tm, and the default range filters."""
         from flim.core.importer import dataimporter
         from flim.core.preprocessor import defaultpreprocessor
 
@@ -306,7 +310,8 @@ def version_of(data: dict) -> int:
 
 
 def migrate(data: dict) -> dict:
-    """``data`` of any version, upgraded to the current one."""
+    """``data`` of any version, upgraded to the current one. Raises ValueError if
+    ``data`` is of a newer version than SETTINGS_VERSION."""
     version = version_of(data)
     if version > SETTINGS_VERSION:
         raise ValueError(
@@ -362,7 +367,8 @@ def merge_sections(base: dict, changes: dict) -> dict:
 
 def update_settings(settings: AppSettings, data: dict) -> AppSettings:
     """``settings`` with the sections in ``data`` (JSON of any version): each section
-    replaces the one in ``settings``; tools each tool's section."""
+    replaces the one in ``settings``; tools each tool's section. Unknown keys are
+    logged; invalid values raise pydantic.ValidationError."""
     merged = merge_sections(settings.to_json(), data)
     merged["schema_version"] = SETTINGS_VERSION
     return _validated(merged)
@@ -376,7 +382,8 @@ def _registered(name):
 
 def load_settings(path, settings: Optional[AppSettings] = None) -> AppSettings:
     """Reads a settings file of any version. Sections the file does not have are
-    those of ``settings`` (default: the defaults)."""
+    those of ``settings`` (default: the defaults). Raises ValueError if the file does
+    not hold a JSON object, and the errors of reading and validating it."""
     with open(path) as f:
         data = json.load(f)
     if not isinstance(data, dict):
@@ -390,13 +397,14 @@ def save_settings(settings: AppSettings, path) -> None:
         json.dump(settings.to_json(), f, indent=2, default=str)
 
 
-# --- the settings of one tool (in a settings file of the application, or alone) ---
+# --- the settings of one tool (in a FLIMAnalyzer settings file, or alone) ---
 
 
 def read_tool_settings(path, tool) -> Optional[ToolSettings]:
     """The tool's section of a settings file (also of an older version, or under one
     of its former names); a file with only a config (with ``classname``) is the
-    config. None if the file has no settings of the tool."""
+    config. None if the file has no settings of the tool. Raises ValueError if the
+    file does not hold a JSON object."""
     with open(path) as f:
         data = json.load(f)
     if not isinstance(data, dict):
@@ -411,7 +419,8 @@ def read_tool_settings(path, tool) -> Optional[ToolSettings]:
 
 def write_tool_settings(path, tool, entry: ToolSettings) -> None:
     """Puts the tool's section into a settings file: the other sections of an
-    existing file are kept (the file is saved in the current version)."""
+    existing file are kept (the file is saved in the current version). Raises
+    ValueError if an existing file is not a settings file (or holds a config alone)."""
     data = {"schema_version": SETTINGS_VERSION}
     if os.path.exists(path):
         with open(path) as f:
