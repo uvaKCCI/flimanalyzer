@@ -164,3 +164,39 @@ def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
     before = set(frame.windowframes)
     frame.OnImportData(None)
     assert _new_windows(frame, before) == {} and messages
+
+
+def test_open_file_of_an_open_windows_name_opens_a_new_window(frame, tmp_path):
+    """A file named like an open window (data.txt from another folder) gets its own
+    window; the open one keeps its data and unsaved changes (were replaced, R1)."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    pd.DataFrame({"x": [1.0, 2.0, 3.0]}).to_csv(tmp_path / "a" / "data.txt", sep="\t", index=False)
+    pd.DataFrame({"x": [9.0]}).to_csv(tmp_path / "b" / "data.txt", sep="\t", index=False)
+    assert frame.open_data_files([str(tmp_path / "a" / "data.txt")]) == "data.txt"
+    first = frame.windowframes["data.txt"]
+    first.modified = True  # changed, not saved
+
+    assert frame.open_data_files([str(tmp_path / "b" / "data.txt")]) == "data.txt-1"
+    assert frame.windowframes["data.txt"] is first
+    assert len(first.GetViewData()) == 3 and first.is_modified()
+    assert len(frame.windowframes["data.txt-1"].GetViewData()) == 1
+    first.modified = False
+
+
+def test_import_again_opens_a_new_window(frame, monkeypatch, tmp_path, flim_data):
+    from flim.gui.importdlg import ImportDlg
+
+    files = []
+    for name, part in (("Results_FOV1_WT_1.txt", flim_data.iloc[:10]), ("Results_FOV2_KO_2.txt", flim_data.iloc[10:25])):
+        path = tmp_path / name
+        part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
+        files.append(str(path))
+    monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
+    frame.settings.import_.include_files = files
+    frame.OnImportData(None)
+    first = frame.windowframes["Imported Data"]
+    first.modified = True  # changed, not saved
+    frame.OnImportData(None)  # the same files again
+    assert frame.windowframes["Imported Data"] is first and first.is_modified()
+    assert len(frame.windowframes["Imported Data-1"].GetViewData()) == 25
