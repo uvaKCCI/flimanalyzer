@@ -114,7 +114,7 @@ class ImportDlg(wx.Dialog):
 
         if preprocess:
             rename_label = wx.StaticText(self, wx.ID_ANY, "Rename Columns:")
-            self.rgrid = wx.grid.Grid(self, -1)  # , size=(200, 100))
+            self.rgrid = wx.grid.Grid(self, -1)
             self.rgrid.SetDefaultColSize(200, True)
             self.headertable = DictTable(
                 settings.preprocess.rename, headers=["Original name", "New name"]
@@ -164,14 +164,12 @@ class ImportDlg(wx.Dialog):
             self.open_button.Bind(wx.EVT_BUTTON, self.OnOpenFile)
             lbuttonsizer.Add(self.open_button, 1, wx.EXPAND | wx.ALL, 5)
         else:
-            # self.sel_files_label = wx.StaticText(self, wx.ID_ANY, "Selected Files: %9d" % len(self.importer.get_files()), (20,20))
             self.files_list = wx.ListBox(
                 self,
                 wx.ID_ANY,
                 size=(400, -1),
                 style=wx.LB_EXTENDED | wx.LB_HSCROLL | wx.LB_NEEDED_SB | wx.LB_SORT,
             )
-            # filesizer.Add(self.sel_files_label, 2, wx.EXPAND|wx.LEFT|wx.RIGHT|wx.TOP, 5)
             filesizer.Add(
                 self.files_list, 2, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.BOTTOM, 5
             )
@@ -187,10 +185,6 @@ class ImportDlg(wx.Dialog):
             self.reset_button = wx.Button(self, wx.ID_ANY, "Reset")
             self.reset_button.Bind(wx.EVT_BUTTON, self.OnReset)
             lbuttonsizer.Add(self.reset_button, 1, wx.EXPAND | wx.ALL, 5)
-
-            # self.preview_button = wx.Button(self, wx.ID_ANY, "Preview")
-            # self.preview_button.Bind(wx.EVT_BUTTON, self.OnPreview)
-            # lbuttonsizer.Add(self.preview_button, 1, wx.EXPAND|wx.ALL, 5)
 
             self.import_button = wx.Button(self, wx.ID_ANY, "Import")
             self.import_button.Bind(wx.EVT_BUTTON, self.OnImportFiles)
@@ -215,10 +209,10 @@ class ImportDlg(wx.Dialog):
         box.Add(bottomsizer, 1, wx.EXPAND | wx.ALL, 5)
 
         self.SetSizerAndFit(box)
-        # self.update_files(0)
 
     def get_settings(self):
-        """The settings, with those of the files opened or imported."""
+        """The AppSettings passed to the dialog; after Open or Import, its import
+        (and, with preprocessing, preprocess) section holds the dialog's values."""
         return self.settings
 
     def OnRGridSize(self, event):
@@ -226,13 +220,6 @@ class ImportDlg(wx.Dialog):
             event.GetSize().GetWidth() // self.rgrid.GetTable().GetNumberCols(), True
         )
         self.rgrid.Refresh()
-
-    """
-    def update_files(self, no_newfiles):
-        files = self.importer.get_files()
-        self.sel_files_label.SetLabel("Selected Files: %9d" % len(files))
-        self.files_list.Set(files)
-    """
 
     def configure_importer(self, importer, files):
         importer.set_delimiter(self.delimiter_panel.get_delimiters())
@@ -311,13 +298,13 @@ class ImportDlg(wx.Dialog):
 
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            # Proceed loading the file chosen by the user
+            # add the chosen files to the list
             paths = fileDialog.GetPaths()
             excluded = []
             if self.excludefiles:
                 exclude_list = (
                     self.exclude_files_list.GetValue()
-                )  # .encode('ascii','ignore')
+                )
                 excluded = exclude_list.splitlines()
             for path in paths:
                 if os.path.isdir(path):
@@ -325,11 +312,6 @@ class ImportDlg(wx.Dialog):
                 else:
                     self.importer.add_files([path], exclude=excluded)
                 self.files_list.Set(self.importer.get_files())
-
-            # new_filecount = len(self.importer.get_files())
-            # self.update_files(new_filecount-filecount)
-
-    #            self.statusbar.SetStatusText("Added %d file(s)" % (new_filecount - filecount))
 
     def OnRemoveFiles(self, event):
         selected = self.files_list.GetSelections()
@@ -367,7 +349,7 @@ class ImportDlg(wx.Dialog):
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            # Proceed loading the file chosen by the user
+            # the import settings of the chosen file
             files = fileDialog.GetPaths()
             self.importer.set_delimiter("\t,")
             self.configure_importer(self.importer, files)

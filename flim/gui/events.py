@@ -45,20 +45,6 @@ class DataUpdatedEvent(wx.PyCommandEvent):
         return self.data, self.datatype
 
 
-"""
-class FocusWindowEvent(wx.PyCommandEvent):
-
-    def __init__(self, evtType, id):
-        wx.PyCommandEvent.__init__(self, evtType, id)
-        
-    def SetEventInfo(self, frame):
-        self.frame = frame
-        
-    def GetFocus(self):
-        return self.frame
-"""
-
-
 class DataWindowEvent(wx.PyCommandEvent):
     def __init__(self, evtType, id):
         wx.PyCommandEvent.__init__(self, evtType, id)

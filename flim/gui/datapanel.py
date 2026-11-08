@@ -122,7 +122,6 @@ class PandasTable(wx.grid.GridTableBase):
         if self.showcolindex:
             if col == 0:
                 return self.data.index[row]
-            #                return ', '.join(self.data.index.names)
             return self.data.iloc[row, col - 1]
         else:
             return self.data.iloc[row, col]
@@ -180,7 +179,7 @@ class PandasFrame(wx.Frame):
     ):
         """
         Args:
-            filters: FilterSettings, shared by the app's data windows (default: the
+            filters: FilterSettings, shared by the GUI's data windows (default: the
                 built-in defaults, not shared).
             on_filters_changed: called with ``filters`` after the user changes them
                 (filter checkbox, Filter Settings dialog).
@@ -189,9 +188,6 @@ class PandasFrame(wx.Frame):
         self.filters = filters if filters is not None else AppSettings.default().filters
         self.on_filters_changed = on_filters_changed
         self.enableclose = enableclose
-        # *****
-        # data = data.copy()
-        # *****
         self.grid = None
         self.SetData(data, showcolindex, groups, analyzable, savemodified, precision)
         self._init_gui()
@@ -201,12 +197,6 @@ class PandasFrame(wx.Frame):
         self.Bind(wx.EVT_ACTIVATE, self.activate)
         pub.subscribe(self.OnDataWindowRenamed, RENAMED_DATA_WINDOW)
         pub.subscribe(self.OnDataUpdated, DATA_UPDATED)
-
-        # event = DataWindowEvent(EVT_WD_TYPE, self.GetId())
-        # event.SetWindowData(self.GetData(), self, NEW_DATA_WINDOW)
-        # self.GetEventHandler().ProcessEvent(event)
-
-        # pub.sendMessage(NEW_DATA_WINDOW, data=self.dataview, frame=self)
 
     def activate(self, event):
         if event.GetActive():
@@ -276,7 +266,6 @@ class PandasFrame(wx.Frame):
         self.set_header_renderer()
         self.update_precision(self.precision)
         self.grid.EnableEditing(False)
-        # self.grid.AutoSize()
         self.grid.SetColLabelSize(wx.grid.GRID_AUTOSIZE)
         self.grid.EnableDragColSize(True)
         self.grid.Bind(wx.grid.EVT_GRID_LABEL_RIGHT_CLICK, self.OnLabelClick)
@@ -305,14 +294,8 @@ class PandasFrame(wx.Frame):
         self.filterbutton.Enable(self.filtercb.GetValue())
         self.filterbutton.Bind(wx.EVT_BUTTON, self.OnFilterSettings)
 
-        # pivotallbutton = wx.Button(self, wx.ID_ANY, 'Pivot All')
-        # pivotallbutton.Bind(wx.EVT_BUTTON, self.OnPivotAll)
-
         pivotviewbutton = wx.Button(self, wx.ID_ANY, "Pivot")
         pivotviewbutton.Bind(wx.EVT_BUTTON, self.OnPivotView)
-
-        # viewallbutton = wx.Button(self, wx.ID_ANY, 'View All')
-        # viewallbutton.Bind(wx.EVT_BUTTON, self.OnViewAll)
 
         saveallbutton = wx.Button(self, wx.ID_ANY, "Save All")
         saveallbutton.Bind(wx.EVT_BUTTON, self.OnSave)
@@ -329,8 +312,6 @@ class PandasFrame(wx.Frame):
         toolsizer.Add(autosizebutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(self.filtercb, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(self.filterbutton, 0, wx.ALL | wx.EXPAND, 5)
-        # toolsizer.Add(viewallbutton, 0, wx.ALL|wx.EXPAND, 5)
-        # toolsizer.Add(pivotallbutton, 0, wx.ALL|wx.EXPAND, 5)
         toolsizer.Add(pivotviewbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(saveallbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(saveviewbutton, 0, wx.ALL | wx.EXPAND, 5)
@@ -437,7 +418,7 @@ class PandasFrame(wx.Frame):
         shown = self.filters.model_copy(
             update={"range_filters": self._existing_rangefilters(rfilterlist)}
         )
-        # need to make sure we pass copy of dropped rows so we can cancel without affecting droppedrows
+        # a copy of the dropped rows, so that Cancel leaves droppedrows unchanged
         dlg = ConfigureFiltersDlg(self, shown, self.data, self.droppedrows.copy())
         response = dlg.ShowModal()
         if response == wx.ID_OK:
@@ -472,8 +453,6 @@ class PandasFrame(wx.Frame):
                         self.droppedrows[(group, label)] = np.flatnonzero(
                             self.data[group] == label
                         )
-                        # ****
-                        # self.droppedrows[(group,value)] = self.data.index[self.data[group] == label].tolist()
                         self.modified = True
 
         else:
@@ -488,8 +467,6 @@ class PandasFrame(wx.Frame):
                 self.droppedrows[(group, value)] = np.flatnonzero(
                     self.data[group] == value
                 )
-                # ****
-                # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
                 self.modified = True
         self.update_view()
 
@@ -518,23 +495,19 @@ class PandasFrame(wx.Frame):
                 if fname not in rfilter_names
             ]
         )
-        # all dropped rows are the unique elements of the union of rfilterdropped andcatdropped
+        # all dropped rows: the union of rfilterdropped and catdropped
         droppedrows = self._flatten_array([rfilterdropped, catdropped])
-        # rfilterseries = pd.Series(['discard' if row in rfilterdropped else 'keep' for row in range(len(self.data))], dtype='category')
-        # self.data['Range Filter'] = rfilterseries
         if len(droppedrows) == 0:
             self.dataview = self.data
         else:
             self.dataview = self.data.drop(self.data.index[droppedrows]).reset_index(
                 drop=True
             )
-            # self.dataview = self.data
         self.groups = (
             self.data.select_dtypes(["category"]).columns.get_level_values(0).values
         )
 
         colsizes = self.grid.GetColSizes()
-        # self.grid.SetTable(PandasTable(self.dataview, self.showcolindex), takeOwnership=True)
         self.grid.SetTable(
             PandasTable(self.dataview, self.showcolindex), takeOwnership=True
         )
@@ -590,8 +563,6 @@ class PandasFrame(wx.Frame):
     def OnLabelClick(self, event):
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
-            # self.currentpopup = self.popupmenus[group]
-            # self.PopupMenu(self.currentpopup)
             items = category_values(self.data[group])
             selitems = self.dataview[group].unique().tolist()
             dlg = SelectGroupsDlg(
@@ -610,8 +581,6 @@ class PandasFrame(wx.Frame):
                 self.droppedrows[(group, value)] = np.flatnonzero(
                     self.data[group] == value
                 )
-            # ****
-            # self.droppedrows[(group,value)] = self.data.index[self.data[group] == value].tolist()
             self.modified = True
             self.update_view()
         elif (
@@ -675,7 +644,7 @@ class PandasFrame(wx.Frame):
                 if col in floatcols:
                     valuestr = f"{value:.{self.precision}f}"
                 else:
-                    valuestr = str(int(value))  # as "%d" did
+                    valuestr = str(int(value))  # integer part only
                 logging.debug(
                     f"minval={minval}, maxval={maxval}, value={value},"
                     f" valuestr={valuestr}"
@@ -728,7 +697,6 @@ class PandasFrame(wx.Frame):
                 "\n".join(col).strip() for col in pivot_data.columns.values
             ]
 
-            # logging.debug (pivot_data.head())
             pivot_data = pivot_data.reset_index()
             windowtitle = self.GetTitle()
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
@@ -800,12 +768,6 @@ class PandasFrame(wx.Frame):
             )
 
     def close_and_destroy(self, event):
-        # for colheader in self.popupmenus:
-        #     self.popupmenus[colheader].Destroy()
-
-        # event = DataWindowEvent(EVT_WD_TYPE, self.GetId())
-        # event.SetWindowData(self.GetData(), self, CLOSING_DATA_WINDOW)
-        # self.GetEventHandler().ProcessEvent(event)
         if not self.enableclose:
             wx.MessageBox("This window needs to stay open. It can be minimized.")
             return
@@ -829,7 +791,7 @@ class PandasFrame(wx.Frame):
                 ):
                     self.modified = False
                 else:
-                    # either user pressed 'Cancel' or saving failed
+                    # the save dialog was cancelled or saving failed
                     return
             elif answer == wx.ID_CANCEL:
                 return
@@ -843,7 +805,7 @@ class TestApp(wx.App):
         super(TestApp, self).__init__()
 
     def OnInit(self):
-        self.frame = PandasFrame(None, "Test", None, self.data)  ## add two lines here
+        self.frame = PandasFrame(None, "Test", None, self.data)
         self.frame.Show(True)
         return True
 

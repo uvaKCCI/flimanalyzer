@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon May  7 14:38:04 2018
-
-@author: khs3z
-"""
+"""Command-line entry point of flimanalyzer: parses the arguments and starts the GUI,
+or batch mode with ``--batch``."""
 
 import logging
 import argparse

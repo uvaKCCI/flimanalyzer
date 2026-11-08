@@ -11,9 +11,6 @@ from pubsub import pub
 
 from flim.gui.events import FILTERS_UPDATED, ANALYSIS_BINS_UPDATED
 
-# from wx.lib.newevent import NewEvent
-# FilterUpdatedEvent, EVT_FILTERUPDATED = NewEvent()
-
 EVT_FU_TYPE = wx.NewEventType()
 EVT_FILTERUPDATED = wx.PyEventBinder(EVT_FU_TYPE, 1)
 
@@ -87,9 +84,6 @@ class AnalysisListCtrl(
         event.Skip()
 
     def fire_rowsupdated_event(self, items):
-        # event = ListCtrlUpdatedEvent(EVT_AU_TYPE, self.GetId())
-        # event.SetUpdatedItems(items)
-        # self.GetEventHandler().ProcessEvent(event)
         pub.sendMessage(ANALYSIS_BINS_UPDATED, updateditems=items)
 
     def GetData(self):
@@ -126,8 +120,6 @@ class AnalysisListCtrl(
         idx = self.get_index_by_key(key)
         if idx is not None:
             logging.debug(f"Updating index {idx}: {rowdata}")
-            #            self.SetStringItem(idx, 2, str(rowdata[0]))
-            ##           self.SetStringItem(idx, 3, str(rowdata[1]))
             self.SetItem(idx, 2, str(rowdata[0]))
             self.SetItem(idx, 3, str(rowdata[1]))
             self.Update()
@@ -137,24 +129,6 @@ class AnalysisListCtrl(
             self.editable = []
         else:
             self.editable = editable
-
-    #    def set_checkedindices(self,checked):
-    #        if checked is None:
-    #            self.checked = []
-    #        else:
-    #            self.checked_indices = sorted(set(checked))
-
-    #    def check_index(self,index,enable=True):
-    #        if index < 0 or index >= self.GetItemCount():
-    #            return
-    #        if enable:
-    #            self.checked_indices.append(index)
-    #            self.checked_indices = sorted(set(self.checked_indices))
-    #        else:
-    #            try:
-    #                self.checked_indices.remove(index)
-    #            except:
-    #                pass
 
     def get_checked_indices(self):
         checked = []
@@ -173,7 +147,6 @@ class AnalysisListCtrl(
             idx = self.get_index_by_key(item)
             if idx is not None and enable != self.IsChecked(idx):
                 self.CheckItem(idx, enable)
-                #                self.data[item].select(enable)
                 changed[item] = self.data[item]
         self.Thaw()
         self.enableevents = True
@@ -185,7 +158,7 @@ class AnalysisListCtrl(
             if self.IsChecked(idx):
                 key = self.GetItem(
                     idx, self.get_key_col()
-                ).GetText()  # .encode('utf-8')
+                ).GetText()
                 # looked up by the cell text: a data key that is not a string (e.g.
                 # a MultiIndex tuple) raises KeyError
                 checked[key] = self.data[key]
@@ -222,16 +195,10 @@ class AnalysisListCtrl(
     def OnCheckItem(self, index, flag):
         rowkey = self.GetItem(index, self.get_key_col()).GetText()
         logging.debug(f"OnCheckItem {rowkey}")
-        #        self.data[rowkey].select(flag)
         if self.enableevents:
             # looked up by the cell text: a data key that is not a string (e.g. a
             # MultiIndex tuple) raises KeyError
             self.fire_rowsupdated_event({rowkey: self.data[rowkey]})
-
-
-#    def OpenEditor(self, col, row):
-#        if col == 1:
-#            listmix.TextEditMixin.OpenEditor(self,col,row)
 
 
 class FilterListCtrl(AnalysisListCtrl):
@@ -266,9 +233,6 @@ class FilterListCtrl(AnalysisListCtrl):
             self.otherdropped = []
 
     def fire_rowsupdated_event(self, updated):
-        # event = ListCtrlUpdatedEvent(EVT_FU_TYPE, self.GetId())
-        # event.SetUpdatedItems(items)
-        # self.GetEventHandler().ProcessEvent(event)
         if self.fireevents:
             pub.sendMessage(
                 FILTERS_UPDATED,
@@ -290,9 +254,6 @@ class FilterListCtrl(AnalysisListCtrl):
             types = []
         self.setdrop(dropped)
 
-        #        for dkey in dropped:
-        #            if dkey not in data:
-        #                dropped.remove(dkey)
         self.DeleteAllItems()
         self.enableevents = False
         for rowkey in sorted(data):
@@ -309,9 +270,6 @@ class FilterListCtrl(AnalysisListCtrl):
                 row = [" ", rowkey, rfilter.get_rangelow(), rfilter.get_rangehigh()]
             self.Append(row)
             self.CheckItem(self.GetItemCount() - 1, rfilter.is_selected())
-        #        event = ListCtrlUpdatedEvent(EVT_FU_TYPE, self.GetId())
-        #        event.SetUpdatedItems(self.data)
-        #        self.GetEventHandler().ProcessEvent(event)
         self.fire_rowsupdated_event(self.data)
         self.enableevents = True
 
@@ -369,7 +327,7 @@ class FilterListCtrl(AnalysisListCtrl):
         droppedidx = {self.get_index_by_key(key): key for key in droppedrows}
         for idx in range(self.GetItemCount()):
             key = droppedidx.get(idx)
-            if key is not None:  # and if self.data[key].is_selected():
+            if key is not None:
                 dropped = droppedrows[key]
                 self.dropped[key] = dropped
                 no_droppedfromview = len(self.get_view_dropped(key))
@@ -405,14 +363,6 @@ class FilterListCtrl(AnalysisListCtrl):
         return viewdropped
 
     def get_total_dropped_rows(self):
-        # alldroppedrows = []
-        # for selitem in self.get_checked_items():
-        #    d = self.dropped.get(selitem)
-        #   if d is not None:
-        #        alldroppedrows.extend(d)
-        # alldroppedrows = set(alldroppedrows)
-        # print (f"total dropped rows (list): {len(alldroppedrows)}")
-
         alldroppedrows = [
             self.dropped.get(selitem)
             for selitem in self.get_checked_items()
@@ -423,11 +373,6 @@ class FilterListCtrl(AnalysisListCtrl):
             alldroppedrows = np.unique(alldroppedrows)
         logging.debug(f"total dropped rows: {len(alldroppedrows)}")
         return alldroppedrows
-
-    #    def fire_rowsupdated_event(self, rfilters):
-    #        event = FilterUpdatedEvent(EVT_FU_TYPE, self.GetId())
-    #        event.SetFilter(rfilters)
-    #        self.GetEventHandler().ProcessEvent(event)
 
     def EndLabelEdit(self, event):
         idx = event.GetIndex()

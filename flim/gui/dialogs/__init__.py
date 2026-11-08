@@ -189,7 +189,6 @@ class ConfigureFiltersDlg(wx.Dialog):
         )
         filtersizer.Add(self.dropped_label, 0, wx.ALL | wx.EXPAND, 5)
         filtersizer.Add(self.remaining_label, 0, wx.ALL | wx.EXPAND, 5)
-        # filtersizer.Add(labelsizer)
 
         self.filterlist = FilterListCtrl(
             self.panel,
@@ -197,12 +196,11 @@ class ConfigureFiltersDlg(wx.Dialog):
             fireevents=True,
             style=wx.LC_REPORT,
             size=(500, -1),
-        )  # , pos=(110,100))
+        )
         self.filterlist.InsertColumn(0, "Use")
         self.filterlist.InsertColumn(1, "Column")
         self.filterlist.InsertColumn(2, "Min", wx.LIST_FORMAT_RIGHT)
         self.filterlist.InsertColumn(3, "Max", wx.LIST_FORMAT_RIGHT)
-        # self.filterlist.SetEditable([False, False, True, True])
         self.filterlist.InsertColumn(4, "Dropped view", wx.LIST_FORMAT_RIGHT)
         self.filterlist.SetEditable([False, False, True, True, False])
         self.filterlist.Arrange()
@@ -293,8 +291,6 @@ class ConfigureCategoriesDlg(wx.Dialog):
             f"Category Configuration: {title}",
             size=(650, 220),
         )
-        #        self.bins = None
-        #        self.labels = None
         self.panel = wx.Panel(self, wx.ID_ANY)
 
         self.bin = wx.StaticText(self.panel, label="Category bins", pos=(20, 20))
@@ -328,7 +324,6 @@ class ConfigureCategoriesDlg(wx.Dialog):
 
     def OnSave(self, event):
         self.bins = [float(f) for f in self.bin_field.GetValue().split(",")]
-        # self.labels = self.label_field.GetValue().encode('ascii','ignore').split(',')
         self.labels = self.label_field.GetValue().split(",")
         self.EndModal(wx.ID_OK)
 
@@ -457,8 +452,6 @@ class ConfigureFeatureDlg(wx.Dialog):
         self.insettings = {
             setting: self.inputs[setting].GetValue() for setting in self.settings
         }
-        # for setting in self.settings:
-        #   self.insettings[setting] = self.inputs[setting].GetValue()
         self.EndModal(wx.ID_OK)
 
     def OnQuit(self, event):
