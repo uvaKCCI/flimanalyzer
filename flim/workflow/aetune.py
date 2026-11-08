@@ -27,8 +27,10 @@ LOSS_GROUPING = ["Batch Size", "Learning Rate", "Weight Decay"]
 
 
 def train_models(data, training, model_name: str, last_epoch: bool = False):
-    """One training task per combination of batch size, learning rate and weight
-    decay, tagged with the combination (its results folder).
+    """Adds one training task per combination of batch size, learning rate and weight
+    decay, with ``model_name`` and without loss plots. Each task is tagged with its
+    combination (and, with ``last_epoch``, the number of epochs), which names its
+    results folder.
 
     Returns:
         list of (tag, TaskOutput) pairs.
@@ -51,7 +53,8 @@ def train_models(data, training, model_name: str, last_epoch: bool = False):
 
 
 def model_files(output, epoch: int = None) -> list[Path]:
-    """The model files a training task saved (only that of ``epoch``); waits for it."""
+    """The model files a training task saved; with ``epoch``, only those whose path
+    contains the epoch as four digits. Waits for the task to finish."""
     found = output["Model File"].value() or []
     found = [found] if isinstance(found, str) else found
     return [Path(f) for f in found if epoch is None or f"{epoch:04d}" in str(f)]
@@ -63,7 +66,9 @@ def result_name(kind: str, path) -> str:
 
 
 def loss_summary(trained, tags: str):
-    """Training and validation losses of all models: table, summary and plots."""
+    """Adds tasks for the training and validation losses of the models: a combined
+    table, its summary, a line plot and bar plots. Failed trainings are left out;
+    nothing is added if all failed."""
     tables = {}
     for tag, output in trained:
         found = select([output], "^Table: AE Loss")  # waits for the training

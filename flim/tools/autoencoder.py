@@ -72,12 +72,15 @@ def _torch_device(name: str):
 
 
 def _no_graph_capture_check_on_cpu(optimizer, device):
-    """PyTorch's ``optimizer.step()`` asks whether a GPU is available for a CUDA-graph
-    health check, whatever device the model is on (2.11: ``torch.cuda.is_available()``,
-    2.14: ``torch.accelerator.current_accelerator(check_available=True)``); on a CUDA
-    build that initialises CUDA and can warn when the CPU was selected (#143). On the CPU there
-    is no graph to check, so this optimizer skips it. Private PyTorch API: if it is
-    renamed, nothing is skipped and ``test_cpu_never_touches_cuda`` fails."""
+    """Replaces the optimizer's CUDA-graph health check by a no-op on the CPU (#143).
+
+    PyTorch's ``optimizer.step()`` asks whether a GPU is available for this check,
+    whatever device the model is on (PyTorch 2.11: ``torch.cuda.is_available()``,
+    2.14: ``torch.accelerator.current_accelerator(check_available=True)``). On a CUDA
+    build that initialises CUDA and can warn although the CPU was selected. On the
+    CPU there is no graph to check. The attribute is private PyTorch API: if it is
+    renamed, nothing is replaced and ``test_cpu_never_touches_cuda`` fails. Returns
+    ``optimizer``."""
     if device.type == "cpu" and hasattr(optimizer, "_accelerator_graph_capture_health_check"):
         optimizer._accelerator_graph_capture_health_check = lambda: None
     return optimizer
@@ -360,7 +363,7 @@ class AETraining(Tool[AETrainConfig]):
 
         from flim.tools.plot import add_picker
 
-        with pyplot_lock:  # training runs concurrently, plotting takes turns
+        with pyplot_lock:  # trainings can run concurrently; plotting is serialized
             figure, ax = plt.subplots(constrained_layout=True)
             epochs = range(1, len(loss_train) + 1)
             ax.plot(epochs, loss_train, "b-", label="train-loss")
@@ -578,7 +581,9 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
 
     @staticmethod
     def noise_model(signal, snr_db):
-        """Mean and standard deviation of white noise for ``snr_db`` (per column)."""
+        """Mean (0) and standard deviation of white noise for ``snr_db``. The signal
+        power is the mean of the squared values of all columns, so the standard
+        deviation is one value for all columns."""
         signal_avg_db = 10 * np.log10(np.mean(signal**2))
         noise_avg_power = 10 ** ((signal_avg_db - snr_db) / 10)
         std_noise = np.sqrt(noise_avg_power)
@@ -646,7 +651,7 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
                 percent = percent[0] if percent else f"{amplitude}%"
                 simulated[percent] = simulated[amplitude] / total * 100.0
 
-        # features sorted, so feature vectors are applied consistently
+        # category columns first, then the other columns sorted by name
         outputs = sorted(c for c in simulated.columns if c not in categories)
         simulated = simulated[categories + outputs]
         simulated[cell] = simulated[cell].astype(str).astype("category")

@@ -296,7 +296,7 @@ class Categorizer(Tool[CategorizerConfig]):
             table = data[categories + features].copy()
         values = pd.Series(config.default, index=data.index, dtype=object)
         assigned = pd.Series(False, index=data.index)
-        for rule in config.rules:  # the first matching rule wins
+        for rule in config.rules:  # a row gets the value of the first rule it matches
             x = data[rule.feature]
             match = (x > rule.min) & (x <= rule.max) & ~assigned
             values[match] = rule.value

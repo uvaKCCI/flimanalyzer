@@ -43,8 +43,8 @@ DEFAULT_LINESTYLES = ["-", "--", ":", "-."]
 
 
 def add_picker(figure) -> None:
-    """Makes the figure's axes, their children and grandchildren pickable (the GUI
-    edits picked labels and artists)."""
+    """Makes the figure's axes, their children and grandchildren, and the axis labels
+    pickable, so that they can be selected and edited."""
     for ax in figure.axes:
         ax.set_picker(True)
         for artist in ax.get_children():
@@ -94,7 +94,7 @@ def arrange_legends(figure, position: str) -> None:
 
     Legends with the same title (e.g. one per tile of a single figure) become one,
     with all their entries. Legends with different titles (e.g. the panels of a FLIRR
-    plot) stay as they are.
+    plot) stay as they are, unless the position is "none".
     """
     axes_legends = [ax for ax in figure.axes if ax.get_legend() is not None]
     legends = [ax.get_legend() for ax in axes_legends] + list(figure.legends)
@@ -134,9 +134,10 @@ def arrange_legends(figure, position: str) -> None:
 
 
 def tidy_tiles(figure, axes) -> None:
-    """For tiles of a single figure: the words all tile titles share (at their start
-    or end) as the figure title, each tile keeping its own part. (Their legends are
-    combined by arrange_legends.)"""
+    """Moves the words that all visible tile titles share at their start or end into
+    the figure title (first letter in upper case); each tile keeps the rest of its
+    title. Does nothing for fewer than two visible tiles, a tile without a title, or
+    titles without shared words."""
     axes = [ax for ax in axes if ax.get_visible()]
     if len(axes) < 2:
         return
@@ -159,7 +160,8 @@ def tidy_tiles(figure, axes) -> None:
     figure.suptitle(text[:1].upper() + text[1:])
 
 
-# more plots than this (one window each, or tiles): a warning, an error
+# plot_count_issues: more plots (windows or tiles) than MANY_PLOTS give a warning,
+# more than TOO_MANY_PLOTS an error
 MANY_PLOTS, TOO_MANY_PLOTS = 50, 300
 
 
@@ -172,8 +174,9 @@ def _feature_names(config, inputs) -> list:
 
 
 def plot_count_issues(field: str, n: int, what: str) -> list:
-    """A warning for many plots, an error for too many (they take long and each
-    plot or tile is drawn): e.g. scatter plots of all pairs of 50 features."""
+    """A warning if ``n`` is more than MANY_PLOTS, an error if more than
+    TOO_MANY_PLOTS, else no issue. Each plot or tile takes time to draw: e.g. scatter
+    plots of all pairs of 50 features are 1,225 plots."""
     if n > TOO_MANY_PLOTS:
         return [
             Issue(
@@ -207,7 +210,7 @@ class _Plot:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if "run" in cls.__dict__:  # legends arranged as configured, figures finished
+        if "run" in cls.__dict__:  # wraps run: arranges legends, calls finish
             run = cls.__dict__["run"]
 
             @functools.wraps(run)
@@ -233,7 +236,8 @@ class _Plot:
             cls.run = run_plot
 
     def finish(self, figure) -> None:
-        """Called for each figure of a run once its layout is final."""
+        """Called for each figure of a run once its layout is final; does nothing
+        here."""
 
     @classmethod
     def output_names(cls, config, features: list[str]) -> dict[str, type]:
@@ -299,8 +303,9 @@ def label_tiles(grid, features, ylim=None) -> None:
 
 
 def axis_range(values, fit=True) -> tuple:
-    """Axis limits for ``values``: their range (``fit``), or the range including 0;
-    with a margin of 5% of the range."""
+    """Axis limits for ``values``: their range (``fit``), or their range extended to
+    include 0; with a margin of 5% of the range on each side (if all values are
+    equal: 5% of the value, or 0.5 for 0)."""
     low, high = float(values.min()), float(values.max())
     if not fit:
         low, high = min(0.0, low), max(0.0, high)
@@ -457,7 +462,8 @@ _place_swarms = contextvars.ContextVar("place_swarms", default=True)
 def _beeswarm(self, orig_xyr):
     """seaborn's Beeswarm.beeswarm, with the same positions: on a plain array
     (seaborn passes a masked one, whose indexing makes it twice as slow), and
-    cancellable, as placing a few thousand points can take seconds."""
+    cancellable, as placing a few thousand points can take seconds. While
+    ``_place_swarms`` is False, it returns the original positions."""
     orig_xyr = np.asarray(orig_xyr, dtype=float)
     if not _place_swarms.get():
         return orig_xyr
@@ -483,8 +489,8 @@ def freeze_swarms(figure) -> None:
     """Places the points of seaborn's swarms once, for the figure's final layout.
 
     seaborn places them again at every draw (each repaint or resize of a plot
-    window), which takes seconds for a few thousand points. A note says how many
-    points did not fit in their swarm (seaborn piles them up at its edges).
+    window), which takes seconds for a few thousand points. If points did not fit in
+    their swarm (seaborn then draws them at its edges), a note says so.
     """
     swarms = [
         c for ax in figure.axes for c in ax.collections if "draw" in c.__dict__
@@ -531,7 +537,9 @@ def grouped_meanbarplot(
     error_type="std",
     legend=True,
 ):
-    """Bar plot of the means of the ``feature`` columns, grouped by ``categories``."""
+    """Bar plot of the means of the ``feature`` columns, grouped by ``categories``,
+    in ``ax`` (default: a new figure). Returns the figure, or None if ``data`` is
+    None or lacks a ``feature`` column."""
     stacked = not bartype == "single"
     if data is None or not all(e in data.columns.values for e in feature):
         return None
@@ -673,9 +681,10 @@ def grouped_meanbarplot(
 class _CapLimiter(matplotlib.artist.Artist):
     """Keeps the error bar caps of bars at most ``fraction`` of the bars' width.
 
-    Caps are sized in points, bars by the axes: drawn first in its axes (before the
-    bars), at every draw (saving, resized windows), it sets the caps' size from the
-    bars' width at that moment.
+    Caps are sized in points, bars in data coordinates. This artist has the lowest
+    z-order, so it is drawn before the bars at every draw (e.g. saving, resizing a
+    window); it sets the caps' size from the narrowest bar's width at that moment, at
+    most ``2 * capsize``.
     """
 
     def __init__(self, caplines, bars, capsize, horizontal, fraction=0.8):
@@ -697,7 +706,8 @@ class _CapLimiter(matplotlib.artist.Artist):
 
 
 def limit_error_caps(ax, capsize, horizontal=False, fraction=0.8) -> None:
-    """Error bar caps of the bars in ``ax``: at most ``fraction`` of a bar's width."""
+    """Limits the error bar caps of the bars in ``ax`` to ``fraction`` of a bar's
+    width (see _CapLimiter)."""
     for container in ax.containers:
         errorbar = getattr(container, "errorbar", None)
         if isinstance(container, matplotlib.container.BarContainer) and errorbar:
@@ -1028,7 +1038,12 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
     @staticmethod
     def histogram(data, column, groups, stacked, normalize=100, ax=None, **kwargs):
         """Histogram in percent of all (stacked) or of each group's measurements, in
-        ``ax`` (default: a new figure)."""
+        ``ax`` (default: a new figure); with ``density``, matplotlib's density (area
+        1) instead of percent.
+
+        Returns:
+            (bin values, bin edges, a table column name per group, figure).
+        """
         own_figure = ax is None
         if own_figure:
             figure, ax = plt.subplots(constrained_layout=True)
@@ -1054,7 +1069,7 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
                     np.ones_like(group[column].values) / float(count) * normalize
                 )
         labels = [clean_label(n) for n in names]
-        if groups:  # the labels of the groups shown (grouped.groups: in data order)
+        if groups:  # one label per group drawn
             kwargs["label"] = labels
         in_group = "" if stacked else "in each group "
         # density: matplotlib rescales the bars to an area of 1, not percent (#181)
@@ -1208,8 +1223,9 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
 
     @staticmethod
     def grid_vars(data, config) -> tuple[list, list]:
-        """The features of the grid's columns and rows; all numeric columns if the
-        config selects "all" features (older settings)."""
+        """The features of the grid's columns and rows. Without ``x_vars`` (older
+        settings), the selected features are the columns; with ``symmetric``, the
+        rows are the columns."""
         x_vars = config.x_vars or selected_features(data, config.features)
         y_vars = x_vars if config.symmetric else config.y_vars
         return x_vars, y_vars
@@ -1240,7 +1256,8 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
 
     @staticmethod
     def pairs(config, features) -> list[tuple]:
-        """(x, y) of each plot: in the features' order, or as ``x_axis`` sets it."""
+        """(x, y) of each plot: all pairs of the features, sorted by name. For a single
+        pair, ``x_axis`` sets the feature on the x axis."""
         pairs = sorted(itertools.combinations(features, 2))
         if len(pairs) == 1 and config.x_axis is not None:
             (pair,) = pairs
@@ -1257,7 +1274,7 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
     def run(self, data, *, config):
         features = selected_features(data, config.features)
         pairs = self.pairs(config, features)
-        # the same sample in every plot: the same cells
+        # the same sampled rows in every plot
         data, note = sampled_rows(data, config.points)
         if config.single_figure and pairs:
             figure, axes = tiles(len(pairs), config.plots_per_row, size=(6, 4.5))

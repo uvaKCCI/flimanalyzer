@@ -101,7 +101,8 @@ class Summarize(Tool[SummaryConfig]):
         return set_lineage(super().output_schema(config, inputs), first_line)
 
 
-# critical values of the two-sample KS test per alpha level
+# coefficient c(alpha) of the two-sample KS test's critical value per alpha level:
+# D = c(alpha) * sqrt((n1 + n2) / (n1 * n2))
 KS_CRITICAL = {0.1: 1.22, 0.05: 1.36, 0.025: 1.48, 0.01: 1.63, 0.005: 1.73, 0.001: 1.95}
 
 
