@@ -1,7 +1,7 @@
 """The config models against the default parameters of the 0.5 plugins.
 
 data/legacy_defaults.json holds those defaults, taken from the plugin classes
-before they were removed (Phase 8); 0.5 settings files store them in this form.
+before they were removed; 0.5 settings files store them in this form.
 """
 
 import json

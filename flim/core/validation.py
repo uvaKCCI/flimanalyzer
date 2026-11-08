@@ -1,4 +1,4 @@
-"""Validation of workflows before they run (see PLAN §3.3.2).
+"""Validation of workflows before they run.
 
 The default :class:`WorkflowValidator` does a dry run of the workflow's ``build``: on
 sample tables made from the input schemas, with every tool call traced instead of run.

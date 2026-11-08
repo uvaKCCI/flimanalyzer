@@ -412,8 +412,7 @@ class AppFrame(wx.Frame):
         if len(filenames) != 1:
             windowtitle = "Imported Data"
         # always a new window: a window of the same title (e.g. data.txt from another
-        # folder) keeps its data; the new one is named data.txt-1 (until the
-        # DataManager identifies items by ID instead of title, 0.7.0)
+        # folder) keeps its data; the new one is named data.txt-1
         windowtitle = self.unique_window_title(windowtitle)
         event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
         event.SetEventInfo(

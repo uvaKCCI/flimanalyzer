@@ -234,8 +234,8 @@ def test_cpu_never_touches_cuda(needs_torch, data, tmp_path, monkeypatch):
 def test_training_passes_learning_rate_and_weight_decay_by_name(
     needs_torch, data, tmp_path, monkeypatch
 ):
-    # until 0.7.0 they were passed by position: weight decay became RMSprop's alpha
-    # (smoothing constant) and the weight decay was always 0
+    # passed by position, the weight decay became RMSprop's alpha (smoothing
+    # constant) and the weight decay was 0
     import torch
 
     optimizers = []
