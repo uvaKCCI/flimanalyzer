@@ -211,7 +211,10 @@ class AETraining(Tool[AETrainConfig]):
         logging.info(f"Training {config.architecture} {label} on {device}.")
         ae = self._new_model(config).to(device)
         criterion = nn.MSELoss()
-        optimizer = optim.RMSprop(ae.parameters(), learning_rate, weight_decay)
+        # named: by position the third argument is RMSprop's alpha, not weight_decay
+        optimizer = optim.RMSprop(
+            ae.parameters(), lr=learning_rate, weight_decay=weight_decay
+        )
 
         loss_train, loss_val = [], []
         labels, decoded, encoded = [], [], []

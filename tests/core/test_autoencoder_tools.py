@@ -224,3 +224,28 @@ def test_cpu_never_touches_cuda(needs_torch, data, tmp_path, monkeypatch):
     common = dict(features=FEATURES, resources=resources, model_files=[files[-1]])
     RunAE()(data, config=AERunConfig(**common))
     AEAugment()(data, config=AEAugmentConfig(grouping=["FOV", "Cell"], **common))
+
+
+def test_training_passes_learning_rate_and_weight_decay_by_name(
+    needs_torch, data, tmp_path, monkeypatch
+):
+    # until 0.7.0 they were passed by position: weight decay became RMSprop's alpha
+    # (smoothing constant) and the weight decay was always 0
+    import torch
+
+    optimizers = []
+    real = torch.optim.RMSprop
+
+    def recording(*args, **kwargs):
+        optimizers.append(real(*args, **kwargs))
+        return optimizers[-1]
+
+    monkeypatch.setattr(torch.optim, "RMSprop", recording)
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    training(data, config=train_config(learning_rates=[1e-3], weight_decays=[1e-4], epochs=1))
+    (group,) = optimizers[0].param_groups
+    assert group["lr"] == 1e-3
+    assert group["weight_decay"] == 1e-4
+    assert group["alpha"] == 0.99  # PyTorch's default, no longer the weight decay
+
