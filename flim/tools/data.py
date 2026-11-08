@@ -43,22 +43,23 @@ class CategoryOrder(Tool[CategoryOrderConfig]):
         categories = config.categories
         if not categories:
             return {"Reordered": data}
-        # the configured category columns take the places of the existing ones, in the
+        # the configured columns keep their positions in the table, filled in the
         # configured order
         new_order = list(categories)
         columns = [new_order.pop(0) if c in categories else c for c in data.columns]
         data = data[columns]
         for column, values in categories.items():
             data[column] = pd.Categorical(data[column], categories=values, ordered=True)
-        # stable: rows with the same values keep their order (e.g. of other columns)
-        # rows renumbered in their new order (#119)
+        # stable sort: rows with equal category values keep their previous order;
+        # the rows are renumbered in their new order (#119)
         data = data.sort_values(by=list(categories), kind="stable", ignore_index=True)
         return {"Reordered": data}
 
 
 def _row_mismatch(first: pd.DataFrame, other: pd.DataFrame):
-    """How two tables differ row by row in their shared category columns, None if
-    they don't (or share none)."""
+    """The first difference between two tables: their numbers of rows, else the first
+    row whose shared category columns differ. None if neither differs (or the tables
+    share no category column)."""
     if len(first) != len(other):
         return f"{len(first)} and {len(other)} rows"
     shared = [c for c in category_columns(first) if c in category_columns(other)]
@@ -105,8 +106,9 @@ class Concat(Tool[ConcatConfig]):
                     df if i == 0 else df.select_dtypes(np.number)
                     for i, df in enumerate(frames)
                 ]
-            # a name that is already taken gets the table's name (#176), also with
-            # numeric columns only (two columns of the same name break later tools)
+            # a column name that an earlier table already uses gets the table's name
+            # appended, "<column> (<table>)" (#176), also with numeric columns only:
+            # two columns of the same name cause errors in the tools that use them
             taken = set()
             for i, (name, df) in enumerate(zip(tables, frames)):
                 frames[i] = df.rename(

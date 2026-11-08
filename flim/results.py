@@ -28,11 +28,11 @@ def clean_path_component(name: str) -> str:
 
 
 def write_table(table: pd.DataFrame, path: str, index: bool = False) -> None:
-    """Writes a table as tab-separated text, without the row index (row numbers carry
-    no meaning in FLIMAnalyzer's tables and are out of order after sorting, #119).
+    """Writes a table as tab-separated text.
 
-    Column names with line breaks (multi-level headers joined by summaries) are
-    written on one line.
+    The row index is left out unless ``index`` is True: row numbers carry no meaning
+    in FLIMAnalyzer's tables and are out of order after sorting (#119). Line breaks in
+    column names (multi-level headers joined into one name) are replaced by spaces.
     """
     table = table.rename(columns=lambda c: str(c).replace("\n", " "))
     table.to_csv(path, sep="\t", index=index)
@@ -41,7 +41,8 @@ def write_table(table: pd.DataFrame, path: str, index: bool = False) -> None:
 def save_results(results, directory: str, name: str) -> None:
     """Saves a plugin's results below ``directory``.
 
-    The result without its figures is pickled to ``<directory>/pickled/<name>``. If
+    The result without its figures is pickled to ``<directory>/pickled/<name>``
+    (nothing is pickled if no other value remains). If
     the result is a dict, each DataFrame is also written as ``<key>.txt``, each Figure
     as ``<key>.png`` and any other value pickled as ``<key>`` in ``directory``.
 

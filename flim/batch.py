@@ -10,7 +10,8 @@
    file; the results are saved in ``<output>/<name>/``. Workflow columns that are not
    in the data are errors unless ``--allow-guesses`` is given.
 
-The exit code is 0 if everything ran, 1 otherwise. Only the core is imported (no wx).
+The exit code is 0 if the import and every run completed without failed tasks, 1
+otherwise. wxPython is not imported.
 """
 
 import argparse
@@ -42,7 +43,12 @@ class BatchError(Exception):
 
 def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
     """Imports data files and folders with the import, preprocess and filter
-    settings."""
+    settings. The range filters are applied only if ``settings.filters.use`` is set.
+
+    Raises:
+        BatchError: the filename parser is unknown, no data files were found, or none
+            of the files could be read.
+    """
     imported = settings.import_
     parser = instantiate_parser(f"flim.core.parser.{imported.filename_parser.parser}")
     if parser is None:
@@ -71,7 +77,8 @@ def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
 
 
 def filtered(data: pd.DataFrame, range_filters) -> pd.DataFrame:
-    """The rows that pass the selected range filters (as the data windows show)."""
+    """``data`` without the rows that the selected range filters drop, renumbered
+    from 0."""
     dropped = [RangeFilter(params=p).get_dropped(data) for p in range_filters]
     dropped = [rows for rows, p in zip(dropped, range_filters) if p.get("selected")]
     rows = np.unique(np.concatenate([np.asarray(r, dtype=int) for r in dropped] or [[]]))
@@ -88,11 +95,15 @@ def run_tool(
     execution: Optional[ExecutionOptions] = None,
     allow_guesses: bool = False,
 ):
-    """Runs a tool or workflow on ``data`` with its saved settings; its results are
-    saved in ``<output_dir>/<name>/``.
+    """Runs a tool or workflow on ``data`` with its settings from ``settings``; its
+    results are saved in ``<output_dir>/<name>/``.
 
     Returns:
         flim.core.runner.FlowRun
+
+    Raises:
+        BatchError: no tool or workflow has this name, the tool needs more than one
+            input table, or the config is not valid for ``data``.
     """
     from flim.core.runner import run_flow
     from flim.core.workflow import Workflow, WorkflowValidationError
@@ -108,7 +119,7 @@ def run_tool(
     autosave_dir = os.path.join(output_dir, tool.name)
     task_runner = execution.task_runner()
     if issubclass(tool, Workflow):
-        inputs = [data] * len(tool.inputs)  # e.g. training data and data: the same
+        inputs = [data] * len(tool.inputs)  # every input gets the imported table
         try:
             return tool().run_flow(
                 *inputs,
@@ -119,7 +130,7 @@ def run_tool(
             )
         except WorkflowValidationError as err:
             raise BatchError(f"{name}:\n{err}") from None
-    many = tool.inputs[0].many  # e.g. Concatenate: a dict of tables
+    many = tool.inputs[0].many  # the tool takes a dict of tables (e.g. Concatenate)
     schema = TableSchema.from_frame(data)
     schemas = [{"Imported": schema} if many else schema]
     errors = [i for i in tool.validate(config, schemas) if i.severity == "error"]
@@ -201,7 +212,7 @@ def main(argv=None) -> int:
     from flim.core.prefect_server import use_prefect_server
     from flim.core.tools import check_executor_available
 
-    discover(TOOLS_GROUP)  # tools of other packages
+    discover(TOOLS_GROUP)  # registers the tools of other installed packages
     try:
         check_executor_available(args.executor)
         settings = load_settings(args.settings) if args.settings else AppSettings.default()

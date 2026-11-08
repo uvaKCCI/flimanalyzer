@@ -42,7 +42,8 @@ def set_lineage(
     outputs: dict[str, OutputSpec], source: Callable[[str], Optional[str]]
 ) -> dict[str, OutputSpec]:
     """Records the input column each output column comes from: ``source(name)``, or
-    the column's own lineage if it returns None."""
+    the column's own lineage if it returns None. Outputs without a complete schema
+    are skipped. The outputs are changed in place and returned."""
     for output in outputs.values():
         schema = output.schema
         if schema is None or not schema.complete:
@@ -58,5 +59,6 @@ def set_lineage(
 
 
 def first_line(name: str) -> Optional[str]:
-    """``"FLIRR"`` for ``"FLIRR\\nmean"``: the feature of a pivoted or summary column."""
+    """``"FLIRR"`` for ``"FLIRR\\nmean"``: the feature of a pivoted or summary column;
+    None for a name of one line."""
     return name.split("\n")[0] if "\n" in name else None

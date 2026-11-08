@@ -72,7 +72,7 @@ def interactive_run(fa, files=None, settings_file=None):
             "flimanalyzer: the GUI needs wxPython, which is not installed:"
             ' pip install "flimanalyzer[gui]". Without it, use flimbatch.'
         )
-    from flim.gui.app import FLIMAnalyzerApp  # here: batch runs never import wx
+    from flim.gui.app import FLIMAnalyzerApp  # here, so batch runs do not import wx
 
     app = FLIMAnalyzerApp(fa, settings_file=settings_file, files=files)
     app.MainLoop()
@@ -95,7 +95,7 @@ def init_logger(loglevel):
 
 def main():
     argv = sys.argv[1:]
-    if "--batch" in argv:  # the rest is flimbatch's (flim/batch.py)
+    if "--batch" in argv:  # the other arguments are passed to flim.batch.main
         from flim import batch
 
         argv.remove("--batch")
@@ -122,8 +122,8 @@ def main():
 
 
 def show_startup_error(message):
-    """Shows an error that stops the start in a message box (if wxPython is
-    installed): the GUI may have been started without a console."""
+    """Shows a startup error in a message box, because the GUI may have been started
+    without a console. Does nothing if wxPython is not installed."""
     try:
         import wx
     except ImportError:
