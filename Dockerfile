@@ -5,7 +5,7 @@
 #       -i data/ -o results/ -c settings.json --run Summarize
 #
 # Build arguments:
-#   TORCH_INDEX  replaces PyTorch from the lock file (the CUDA 12.8 build on x86_64,
+#   TORCH_INDEX  replaces PyTorch from the lock file (the CUDA 13.0 build on x86_64,
 #                several GB) by the same version from this index: another CUDA version,
 #                e.g. https://download.pytorch.org/whl/cu126, or the CPU-only build,
 #                https://download.pytorch.org/whl/cpu
@@ -51,9 +51,11 @@ RUN if [ -n "$TORCH_INDEX" ]; then \
 FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
 
 COPY --from=build /opt/venv /opt/venv
-# no display support: matplotlib draws off-screen; no Prefect usage statistics
+# no display support: matplotlib draws off-screen and keeps its cache in /tmp (the
+# container runs as the caller's user ID, without a writable home); no Prefect usage statistics
 ENV PATH=/opt/venv/bin:$PATH \
     MPLBACKEND=Agg \
+    MPLCONFIGDIR=/tmp/matplotlib \
     PREFECT_SERVER_ANALYTICS_ENABLED=false \
     PREFECT_HOME=/tmp/prefect
 
