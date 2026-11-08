@@ -637,6 +637,7 @@ class PandasFrame(wx.Frame):
                 edited = dlg.GetData().range_filters
                 self.filters.range_filters = self._merged_filters(edited)
                 self.apply_filters({f["name"]: f for f in edited})
+                self._filters_changed()
 
     def OnAutosize(self, event):
         font = self.grid.GetFont()

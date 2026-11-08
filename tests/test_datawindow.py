@@ -239,3 +239,55 @@ def test_filter_changes_reach_the_user_settings_file(wxapp, monkeypatch, tmp_pat
     finally:
         frame.OnCloseAll(None)
         frame.Destroy()
+
+
+def test_column_range_filter_reaches_the_user_settings_file(
+    wxapp, monkeypatch, tmp_path, flim_data
+):
+    """A range filter changed through a column label's dialog is reported, like the
+    filter checkbox and the Filter Settings dialog."""
+    import json
+
+    from flim.core.settingsmgr import SettingsManager, UserSettingsFile
+    from flim.core.tools import FLIMAnalyzer
+    from flim.gui import datapanel
+    from flim.gui.app import AppFrame
+
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)  # never wait
+    path = tmp_path / "settings.json"
+    frame = AppFrame(FLIMAnalyzer(), SettingsManager(user_file=UserSettingsFile(path)))
+    try:
+        window = _open(frame, flim_data)
+        column = "FAD a1[%]"
+        edited = [{**window._existing_rangefilters([], columns=[column])[0], "rangehigh": 70.0}]
+
+        class Dialog:  # ConfigureFiltersDlg answered with OK and an edited range
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def ShowModal(self):
+                return wx.ID_OK
+
+            def GetData(self):
+                return window.filters.model_copy(update={"range_filters": edited})
+
+        monkeypatch.setattr(datapanel, "ConfigureFiltersDlg", Dialog)
+        window.filtercb.SetValue(True)
+
+        class Click:  # a click on the column's label
+            def GetCol(self):
+                return 1 + list(window.dataview.columns).index(column)
+
+            def GetRow(self):
+                return -1
+
+        monkeypatch.setattr(window.grid, "GetColLabelValue", lambda col: column)
+        window.OnLabelClick(Click())
+        stored = json.loads(path.read_text())["filters"]["range_filters"]
+        assert {"name": column, "rangehigh": 70.0}.items() <= next(
+            f for f in stored if f["name"] == column
+        ).items()
+    finally:
+        frame.OnCloseAll(None)
+        frame.Destroy()
+
