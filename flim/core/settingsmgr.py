@@ -28,12 +28,12 @@ LOCK_TIMEOUT = 10  # seconds to wait for another instance writing the user setti
 
 
 def user_settings_path() -> Path:
-    """Path of the user settings file: the value of FLIM_SETTINGS if set, else
+    """Path of the user settings file: the value of FLIM_USER_SETTINGS if set, else
     settings.json in the platform's settings folder (macOS: ~/Library/Application
     Support/FLIMAnalyzer; Linux: $XDG_CONFIG_HOME/FLIMAnalyzer, by default
     ~/.config/FLIMAnalyzer; Windows: %LOCALAPPDATA%\\FLIMAnalyzer)."""
-    if os.environ.get("FLIM_SETTINGS"):
-        return Path(os.environ["FLIM_SETTINGS"]).expanduser()
+    if os.environ.get("FLIM_USER_SETTINGS"):
+        return Path(os.environ["FLIM_USER_SETTINGS"]).expanduser()
     from platformdirs import user_config_dir
 
     return Path(user_config_dir(APP_NAME, appauthor=False)) / "settings.json"

@@ -145,12 +145,12 @@ def test_older_user_file_is_migrated(tmp_path):
 
 
 def test_user_settings_path_from_the_environment(monkeypatch, tmp_path):
-    monkeypatch.setenv("FLIM_SETTINGS", str(tmp_path / "mine.json"))
+    monkeypatch.setenv("FLIM_USER_SETTINGS", str(tmp_path / "mine.json"))
     assert user_settings_path() == tmp_path / "mine.json"
 
 
 def test_user_settings_path_in_the_platform_folder(monkeypatch):
-    monkeypatch.delenv("FLIM_SETTINGS", raising=False)
+    monkeypatch.delenv("FLIM_USER_SETTINGS", raising=False)
     path = user_settings_path()
     assert path.name == "settings.json" and path.parent.name == "FLIMAnalyzer"
     assert os.path.isabs(path)
