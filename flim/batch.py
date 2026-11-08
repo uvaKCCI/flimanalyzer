@@ -119,7 +119,7 @@ def run_tool(
     required = [spec for spec in tool.inputs if not spec.optional]
     if len(required) > 1 and not issubclass(tool, Workflow):
         raise BatchError(f"{name} needs {len(required)} input tables; batch runs give one")
-    config = settings.tool_settings.config(tool)
+    config = settings.tools.config(tool)
     execution = execution or ExecutionOptions()
     autosave_dir = Path(output_dir) / tool.name
     task_runner = execution.task_runner()

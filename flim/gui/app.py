@@ -574,8 +574,8 @@ class AppFrame(wx.Frame):
         if not data_choices:
             wx.MessageBox("Open or import data first.", tool.name, wx.OK)
             return
-        config = self.settings.tool_settings.config(tool)
-        entry = self.settings.tool_settings.entry(tool)
+        config = self.settings.tools.config(tool)
+        entry = self.settings.tools.entry(tool)
         folder = (entry and entry.results_dir) or self.settings.resolved_results_dir()
         execution = self.flimanalyzer.execution.model_copy(
             update={

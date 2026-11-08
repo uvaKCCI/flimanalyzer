@@ -217,7 +217,7 @@ def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
     assert d.save_settings(str(path))
     saved = load_settings(path)
     assert saved.filters.use  # the other sections are kept
-    entry = saved.tool_settings.entry(tools.get("Summarize"))
+    entry = saved.tools.entry(tools.get("Summarize"))
     assert entry.config["aggs"] == ["max"] and entry.autosave
     assert list(json.loads(path.read_text())["tools"]) == ["Summarize"]
 

@@ -31,7 +31,7 @@ def test_set_tool_writes_only_that_tool(tmp_path):
     path = tmp_path / "settings.json"
     manager = SettingsManager(user_file=UserSettingsFile(path))
     settings = manager.set_tool(KMEANS, KMeansConfig(n_clusters=4), True, "/results")
-    assert settings.tool_settings.config(KMEANS).n_clusters == 4
+    assert settings.tools.config(KMEANS).n_clusters == 4
     assert manager.version == 1
     data = written(path)
     assert data["schema_version"] == SETTINGS_VERSION
@@ -45,7 +45,7 @@ def test_changes_are_applied_at_the_next_start(tmp_path):
     path = tmp_path / "settings.json"
     SettingsManager(user_file=UserSettingsFile(path)).set_tool(KMEANS, KMeansConfig(n_clusters=6))
     again = SettingsManager(user_file=UserSettingsFile(path))
-    assert again.settings.tool_settings.config(KMEANS).n_clusters == 6
+    assert again.settings.tools.config(KMEANS).n_clusters == 6
 
 
 def test_two_instances_keep_each_others_sections(tmp_path):
@@ -98,7 +98,7 @@ def test_failed_write_keeps_the_change_and_warns(tmp_path, caplog, monkeypatch):
     monkeypatch.setattr(user_file, "merge", fail)
     manager = SettingsManager(user_file=user_file)
     settings = manager.set_tool(KMEANS, KMeansConfig(n_clusters=7))
-    assert settings.tool_settings.config(KMEANS).n_clusters == 7
+    assert settings.tools.config(KMEANS).n_clusters == 7
     assert "not saved" in caplog.text
 
 
@@ -115,10 +115,10 @@ def test_load_applies_a_file_for_the_session_only(tmp_path):
     path = tmp_path / "settings.json"
     project = tmp_path / "project.json"
     settings = AppSettings.default()
-    settings.tool_settings.set(KMEANS, KMeansConfig(n_clusters=9))
+    settings.tools.set(KMEANS, KMeansConfig(n_clusters=9))
     save_settings(settings, project)
     manager = SettingsManager(user_file=UserSettingsFile(path))
-    assert manager.load(project).tool_settings.config(KMEANS).n_clusters == 9
+    assert manager.load(project).tools.config(KMEANS).n_clusters == 9
     assert not path.exists()
 
 

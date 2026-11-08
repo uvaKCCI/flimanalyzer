@@ -40,10 +40,10 @@ def test_defaults():
     assert len(settings.filters.range_filters) == 39
     assert settings.results_dir is None and settings.resolved_results_dir() == START_DIR
     assert settings.execution == LocalExecutorSettings() and settings.prefect_server
-    assert settings.log_dir is None and settings.cache.cache_dir is None
+    assert settings.log_dir is None and settings.cache.dir is None
     assert settings.preprocess.rename["Exc2_-Ch3-_"] == "FAD "
     assert settings.filters.range_filters[0]["name"] == "trp t1"
-    assert settings.tool_settings.tools == {}  # the tools' defaults: their configs'
+    assert settings.tools.entries == {}  # the tools' defaults: their configs'
 
 
 def test_settings_of_version_0(caplog):
@@ -54,7 +54,7 @@ def test_settings_of_version_0(caplog):
     assert settings.results_dir == Path("/data/results")
     assert settings.import_.delimiter == "\t"
     assert settings.filters.use is False and settings.filters.show_dropped is True
-    store = settings.tool_settings
+    store = settings.tools
     summary = store.config(tools.get("Summarize"))
     assert isinstance(summary, SummaryConfig)
     assert (summary.aggs, summary.grouping) == (["mean", "sem"], ["Treatment"])
@@ -62,12 +62,12 @@ def test_settings_of_version_0(caplog):
     # saved under the plugin's name, read by the renamed tool
     assert store.config(tools.get("Concatenate")).mode == "horizontal"
     assert isinstance(store.config(tools.get("Basic FLIRR Analysis")), BasicFLIRRConfig)
-    assert all(e.legacy is None for e in store.tools.values())  # all converted
+    assert all(e.legacy is None for e in store.entries.values())  # all converted
 
 
 def test_saved_in_the_current_version_and_read_back(tmp_path):
     settings = load_settings(V0_FILE)
-    settings.tool_settings.set(
+    settings.tools.set(
         tools.get("K-Means"), KMeansConfig(n_clusters=7), True, "/r"
     )
     path = tmp_path / "settings.json"
@@ -76,9 +76,9 @@ def test_saved_in_the_current_version_and_read_back(tmp_path):
     assert data["schema_version"] == SETTINGS_VERSION and "root" not in data
     again = load_settings(path)
     assert again == settings
-    entry = again.tool_settings.entry(tools.get("K-Means"))
+    entry = again.tools.entry(tools.get("K-Means"))
     assert (entry.autosave, entry.results_dir) == (True, Path("/r"))
-    assert again.tool_settings.config(tools.get("K-Means")).n_clusters == 7
+    assert again.tools.config(tools.get("K-Means")).n_clusters == 7
 
 
 def test_unknown_keys_are_reported_not_fatal(caplog):
@@ -96,10 +96,10 @@ def test_newer_versions_are_refused():
 
 def test_invalid_tool_settings_give_the_defaults(caplog):
     settings = AppSettings()
-    settings.tool_settings.tools["Concatenate"] = ToolSettings(config={"mode": "diagonal"})
+    settings.tools.entries["Concatenate"] = ToolSettings(config={"mode": "diagonal"})
     settings = AppSettings.model_validate(settings.to_json())
     with caplog.at_level(logging.WARNING):
-        assert settings.tool_settings.config(tools.get("Concatenate")) == ConcatConfig()
+        assert settings.tools.config(tools.get("Concatenate")) == ConcatConfig()
     assert "not valid" in caplog.text
 
 
@@ -126,9 +126,9 @@ def test_settings_from_the_importer_and_preprocessor(tmp_path):
 
 def test_settings_of_version_1():
     settings = load_settings(V1_FILE)
-    entry = settings.tool_settings.entry(tools.get("Summarize"))
+    entry = settings.tools.entry(tools.get("Summarize"))
     assert (entry.autosave, entry.results_dir) == (True, Path("results"))
-    assert settings.tool_settings.config(tools.get("K-Means")).n_clusters == 7
+    assert settings.tools.config(tools.get("K-Means")).n_clusters == 7
     assert set(settings.to_json()["tools"]) == {"Summarize", "K-Means"}  # by tool
     # version 2: working_dir is results_dir, display is gone
     assert settings.results_dir == Path("/Users/khs3z/FLIMAnalyzerResults")
@@ -160,7 +160,7 @@ def test_version_1_autoencoder_rescale_becomes_rescale_output():
 
 def test_a_file_with_some_sections_changes_only_those():
     settings = AppSettings.default()
-    settings.tool_settings.set(tools.get("K-Means"), KMeansConfig(n_clusters=3))
+    settings.tools.set(tools.get("K-Means"), KMeansConfig(n_clusters=3))
     data = {
         "schema_version": SETTINGS_VERSION,
         "filters": {"use": True},
@@ -169,8 +169,8 @@ def test_a_file_with_some_sections_changes_only_those():
     updated = update_settings(settings, data)
     assert updated.filters.use and updated.filters.range_filters == []  # replaced
     assert updated.import_ == settings.import_  # not in the file: kept
-    assert updated.tool_settings.config(tools.get("K-Means")).n_clusters == 3
-    assert updated.tool_settings.config(tools.get("Summarize")).aggs == ["max"]
+    assert updated.tools.config(tools.get("K-Means")).n_clusters == 3
+    assert updated.tools.config(tools.get("Summarize")).aggs == ["max"]
 
 
 def test_a_tool_section_in_a_settings_file(tmp_path):
@@ -188,9 +188,9 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
     path.write_text(V0_FILE.read_text())
     write_tool_settings(path, kmeans, tool_settings(KMeansConfig(n_clusters=9)))
     settings = load_settings(path)
-    assert settings.tool_settings.config(kmeans).n_clusters == 9
+    assert settings.tools.config(kmeans).n_clusters == 9
     assert settings.import_.delimiter == "\t"  # from the version 0 file
-    summary = settings.tool_settings.config(tools.get("Summarize"))
+    summary = settings.tools.config(tools.get("Summarize"))
     assert summary.aggs == ["mean", "sem"]
     # saved under a former name: replaced, read by the renamed tool
     concat = tools.get("Concatenate")

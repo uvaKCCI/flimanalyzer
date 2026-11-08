@@ -94,14 +94,15 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
     root: dict[str, ToolSettings] = {}
 
     @property
-    def tools(self) -> dict[str, ToolSettings]:
+    def entries(self) -> dict[str, ToolSettings]:
+        """The tools' settings by tool name."""
         return self.root
 
     def entry(self, tool) -> Optional[ToolSettings]:
         """The tool's settings, also those saved under one of its former names."""
         for name in (tool.name, *getattr(tool, "former_names", ())):
-            if name in self.tools:
-                return self.tools[name]
+            if name in self.entries:
+                return self.entries[name]
         return None
 
     def config(self, tool) -> TaskConfig:
@@ -119,8 +120,8 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
 
     def set(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> None:
         for name in getattr(tool, "former_names", ()):
-            self.tools.pop(name, None)
-        self.tools[tool.name] = tool_settings(config, autosave, results_dir)
+            self.entries.pop(name, None)
+        self.entries[tool.name] = tool_settings(config, autosave, results_dir)
 
 
 def tool_settings(config: TaskConfig, autosave=False, results_dir=None) -> ToolSettings:
@@ -181,7 +182,7 @@ def default_range_filters() -> list:
 class CacheSettings(_Settings):
     """Where closed items are kept, and the limits of that cache."""
 
-    cache_dir: Optional[Path] = Field(
+    dir: Optional[Path] = Field(
         default=None,
         description="Cache folder. None defaults to FLIM_CACHE_DIR, else the platform's"
         " cache folder.",
@@ -212,7 +213,7 @@ class AppSettings(_Settings):
     import_: ImportSettings = Field(default_factory=ImportSettings, alias="import")
     preprocess: PreprocessSettings = Field(default_factory=PreprocessSettings)
     filters: FilterSettings = Field(default_factory=FilterSettings)
-    tool_settings: ToolSettingsMap = Field(default_factory=ToolSettingsMap, alias="tools")
+    tools: ToolSettingsMap = Field(default_factory=ToolSettingsMap)
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 

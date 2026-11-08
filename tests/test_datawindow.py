@@ -144,7 +144,7 @@ def test_save_and_load_settings(frame, monkeypatch, tmp_path):
     manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=2))
     frame.OnLoadSettings(None)
     assert frame.settings.import_.delimiter == ";"
-    assert frame.settings.tool_settings.config(tools.get("K-Means")).n_clusters == 5
+    assert frame.settings.tools.config(tools.get("K-Means")).n_clusters == 5
 
 
 def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):

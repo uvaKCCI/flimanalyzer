@@ -17,28 +17,28 @@ HAS_DASK = importlib.util.find_spec("prefect_dask") is not None
 
 def test_defaults():
     opts = ExecutionOptions()
-    assert opts.executor == LocalExecutorSettings(num_workers=None)
+    assert opts.execution == LocalExecutorSettings(workers=None)
     assert opts.device_policy == "prefer" and not opts.autosave
 
 
 def test_the_executor_name_selects_the_settings():
-    opts = ExecutionOptions(executor={"executor": "dask-local", "num_workers": 2})
-    assert opts.executor == DaskLocalExecutorSettings(num_workers=2)
-    opts = ExecutionOptions(executor={"executor": "dask", "address": "tcp://h:8786"})
-    assert opts.executor == DaskClusterExecutorSettings(address="tcp://h:8786")
+    opts = ExecutionOptions(execution={"executor": "dask-local", "workers": 2})
+    assert opts.execution == DaskLocalExecutorSettings(workers=2)
+    opts = ExecutionOptions(execution={"executor": "dask", "address": "tcp://h:8786"})
+    assert opts.execution == DaskClusterExecutorSettings(address="tcp://h:8786")
 
 
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"executor": {"executor": "ray"}},
-        {"executor": {"executor": "local", "num_workers": 0}},
+        {"execution": {"executor": "ray"}},
+        {"execution": {"executor": "local", "workers": 0}},
         # settings of another executor
-        {"executor": {"executor": "local", "address": "tcp://h:8786"}},
-        {"executor": {"executor": "dask-local", "address": "tcp://h:8786"}},
-        {"executor": {"executor": "local", "dask_kwargs": {"x": 1}}},
-        {"executor": {"executor": "dask"}},  # a cluster needs its address
-        {"executor": {"executor": "local", "adress": "x"}},  # misspelled
+        {"execution": {"executor": "local", "address": "tcp://h:8786"}},
+        {"execution": {"executor": "dask-local", "address": "tcp://h:8786"}},
+        {"execution": {"executor": "local", "kwargs": {"x": 1}}},
+        {"execution": {"executor": "dask"}},  # a cluster needs its address
+        {"execution": {"executor": "local", "adress": "x"}},  # misspelled
         {"autosave": True},  # no results_dir
         {"device_policy": "gpu-only"},
         {"bogus": 1},
@@ -58,15 +58,15 @@ def test_autosave_with_dir(tmp_path):
     "executor, execargs, expected",
     [
         ("LocalExecutor", "", LocalExecutorSettings()),
-        ("LocalExecutor", "num_workers=3", LocalExecutorSettings(num_workers=3)),
-        # the local executor ignores everything but an integer num_workers
+        ("LocalExecutor", "num_workers=3", LocalExecutorSettings(workers=3)),
+        # the local executor ignores everything but an integer num_workers (-a)
         ("LocalExecutor", "num_workers=x,foo=1", LocalExecutorSettings()),
-        ("Unknown", "num_workers=2", LocalExecutorSettings(num_workers=2)),
+        ("Unknown", "num_workers=2", LocalExecutorSettings(workers=2)),
         (
             "LocalDaskExecutor",
             "num_workers=4,scheduler=processes,threads_per_worker=2",
             DaskLocalExecutorSettings(
-                num_workers=4, scheduler="processes", dask_kwargs={"threads_per_worker": 2}
+                workers=4, scheduler="processes", kwargs={"threads_per_worker": 2}
             ),
         ),
         ("LocalDaskExecutor", "scheduler=bogus", DaskLocalExecutorSettings()),
@@ -76,12 +76,12 @@ def test_autosave_with_dir(tmp_path):
             DaskClusterExecutorSettings(address="tcp://10.0.0.1:8786"),
         ),
         # without an address: a local Dask cluster, as before the address was required
-        ("DaskExecutor", "num_workers=2", DaskLocalExecutorSettings(num_workers=2)),
+        ("DaskExecutor", "num_workers=2", DaskLocalExecutorSettings(workers=2)),
         ("LocalExecutor", "malformed,=,a=b=c", LocalExecutorSettings()),
     ],
 )
 def test_from_legacy(executor, execargs, expected):
-    assert ExecutionOptions.from_legacy(executor, execargs).executor == expected
+    assert ExecutionOptions.from_legacy(executor, execargs).execution == expected
 
 
 def test_from_legacy_passes_kwargs(tmp_path):
@@ -92,7 +92,7 @@ def test_from_legacy_passes_kwargs(tmp_path):
 
 
 def test_local_task_runner():
-    runner = ExecutionOptions(executor=LocalExecutorSettings(num_workers=2)).task_runner()
+    runner = ExecutionOptions(execution=LocalExecutorSettings(workers=2)).task_runner()
     assert isinstance(runner, ThreadPoolTaskRunner)
     assert runner._max_workers == 2
     assert ExecutionOptions().task_runner()._max_workers >= 1
@@ -101,14 +101,14 @@ def test_local_task_runner():
 @pytest.mark.skipif(HAS_DASK, reason="prefect-dask is installed")
 def test_dask_needs_extra():
     with pytest.raises(RuntimeError, match="extra dask"):
-        ExecutionOptions(executor=DaskLocalExecutorSettings()).task_runner()
+        ExecutionOptions(execution=DaskLocalExecutorSettings()).task_runner()
 
 
 @pytest.mark.skipif(not HAS_DASK, reason="needs the dask extra")
 def test_dask_task_runners():
     local = ExecutionOptions(
-        executor=DaskLocalExecutorSettings(
-            num_workers=2, scheduler="processes", dask_kwargs={"threads_per_worker": 1}
+        execution=DaskLocalExecutorSettings(
+            workers=2, scheduler="processes", kwargs={"threads_per_worker": 1}
         )
     ).task_runner()
     assert local.cluster_kwargs == {
@@ -117,6 +117,6 @@ def test_dask_task_runners():
         "threads_per_worker": 1,
     }
     remote = ExecutionOptions(
-        executor=DaskClusterExecutorSettings(address="tcp://h:8786")
+        execution=DaskClusterExecutorSettings(address="tcp://h:8786")
     ).task_runner()
     assert remote.address == "tcp://h:8786"

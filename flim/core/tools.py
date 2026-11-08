@@ -35,7 +35,7 @@ class FLIMAnalyzer:
         self.preprocessor = preprocessor
         self.data = pd.DataFrame()
         self.execution = ExecutionOptions.from_legacy(executor, execargs)
-        logging.info(f"Setting up {self.execution.executor} executor: {self.execution}")
+        logging.info(f"Setting up {self.execution.execution.executor} executor: {self.execution}")
         logging.debug(
             f"Initialized {__name__}.FLIMAnalyzer with"
             f" {importer}, {preprocessor}"

@@ -102,7 +102,7 @@ def test_run_a_tool(frame, monkeypatch, prefect_harness):
     ]
 
     # the settings were saved, and the next dialog starts from them
-    saved = frame.settings.tool_settings.config(tools.get("Summarize"))
+    saved = frame.settings.tools.config(tools.get("Summarize"))
     assert saved.aggs == ["count", "mean"]
     seen = answer_dialog(monkeypatch, lambda dialog: None)
     frame.run_tool(tools.get("Summarize"))
@@ -127,7 +127,7 @@ def test_cancelled_dialog_runs_nothing(frame, monkeypatch):
     )
     frame.run_tool(tools.get("Summarize"))
     assert frame.shown == []
-    assert frame.settings.tool_settings.entry(tools.get("Summarize")) is None
+    assert frame.settings.tools.entry(tools.get("Summarize")) is None
 
 
 def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
@@ -139,7 +139,7 @@ def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
     answer_dialog(monkeypatch, change)
     frame.run_tool(tools.get("Sort"))
     assert any(tmp_path.rglob("*Sort*"))
-    entry = frame.settings.tool_settings.entry(tools.get("Sort"))
+    entry = frame.settings.tools.entry(tools.get("Sort"))
     assert entry.autosave and entry.results_dir == tmp_path
 
 

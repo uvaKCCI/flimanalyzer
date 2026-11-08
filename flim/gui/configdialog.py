@@ -436,7 +436,7 @@ class ConfigDialog(wx.Dialog):
         if not self.autosave_locked:
             self.autosave.SetValue(entry.autosave)
         if entry.results_dir:
-            self.folder.SetPath(entry.results_dir)
+            self.folder.SetPath(str(entry.results_dir))
         self.validate()
         self.fit_contents()
         self.settings_message.SetLabel(f"Loaded from {name}")

@@ -22,7 +22,7 @@ class LocalExecutorSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     executor: Literal["local"] = "local"
-    num_workers: Optional[int] = Field(
+    workers: Optional[int] = Field(
         default=None, ge=1, description="Parallel tasks. None defaults to one per core."
     )
 
@@ -32,13 +32,13 @@ class DaskLocalExecutorSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
     executor: Literal["dask-local"] = "dask-local"
-    num_workers: Optional[int] = Field(
+    workers: Optional[int] = Field(
         default=None, ge=1, description="Dask workers. None defaults to one per core."
     )
     scheduler: Literal["threads", "processes"] = Field(
         default="threads", description="Workers as threads of one process, or processes."
     )
-    dask_kwargs: dict[str, Any] = Field(
+    kwargs: dict[str, Any] = Field(
         default_factory=dict, description="Further arguments of the Dask cluster."
     )
 
@@ -49,7 +49,7 @@ class DaskClusterExecutorSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
     executor: Literal["dask"] = "dask"
     address: str = Field(..., description="Scheduler address of an existing Dask cluster.")
-    dask_kwargs: dict[str, Any] = Field(
+    kwargs: dict[str, Any] = Field(
         default_factory=dict, description="Further arguments of the Dask task runner."
     )
 
@@ -66,7 +66,7 @@ class ExecutionOptions(BaseConfig):
     """The executor of a run and the run's own options: autosave, results folder, task
     tags and device policy."""
 
-    executor: ExecutorSettings = Field(default_factory=LocalExecutorSettings)
+    execution: ExecutorSettings = Field(default_factory=LocalExecutorSettings)
     autosave: bool = False
     results_dir: Optional[Path] = None
     task_tags: list[str] = []
@@ -84,11 +84,11 @@ class ExecutionOptions(BaseConfig):
 
         `execargs` is a string of `key=value` pairs separated by commas; pairs that are
         not `key=value` are skipped, and integer values are converted to int.
-        `num_workers` is used only if it is a positive integer, and only by the local
-        executors. `scheduler` is used only by `LocalDaskExecutor`; any value other
+        `num_workers` sets `workers` if it is a positive integer, for the local
+        executors only. `scheduler` is used only by `LocalDaskExecutor`; any value other
         than `processes` selects threads. `DaskExecutor` connects to the cluster at
         `address`; without an address it starts a local Dask cluster, as before this
-        option took the address (`dask-local`). The other args go to `dask_kwargs` of
+        option took the address (`dask-local`). The other args go to `kwargs` of
         the Dask executors and are ignored by `LocalExecutor`.
 
         Args:
@@ -121,19 +121,19 @@ class ExecutionOptions(BaseConfig):
             logging.info("DaskExecutor without an address: starting a local Dask cluster")
             name = "dask-local"
         if name == "local":
-            settings = LocalExecutorSettings(num_workers=num_workers)
+            settings = LocalExecutorSettings(workers=num_workers)
         elif name == "dask-local":
             scheduler = args.pop("scheduler", "threads")
             settings = DaskLocalExecutorSettings(
-                num_workers=num_workers,
+                workers=num_workers,
                 scheduler="processes" if scheduler == "processes" else "threads",
-                dask_kwargs=args,
+                kwargs=args,
             )
         else:
             address = str(args.pop("address"))
             args.pop("scheduler", None)
-            settings = DaskClusterExecutorSettings(address=address, dask_kwargs=args)
-        return cls(executor=settings, **kwargs)
+            settings = DaskClusterExecutorSettings(address=address, kwargs=args)
+        return cls(execution=settings, **kwargs)
 
     def check_available(self) -> None:
         """Check that the packages the executor needs are installed.
@@ -142,17 +142,17 @@ class ExecutionOptions(BaseConfig):
             RuntimeError: If a Dask executor is selected and `prefect_dask` is not
                 installed.
         """
-        if isinstance(self.executor, DASK) and importlib.util.find_spec("prefect_dask") is None:
+        if isinstance(self.execution, DASK) and importlib.util.find_spec("prefect_dask") is None:
             raise RuntimeError(
-                f"The {self.executor.executor} executor needs the optional Dask support:"
+                f"The {self.execution.executor} executor needs the optional Dask support:"
                 " uv sync --extra dask (or pip install flimanalyzer[dask])"
             )
 
     def task_runner(self):
         """Create the Prefect task runner of the executor.
 
-        `local`: a `ThreadPoolTaskRunner` with `num_workers` threads. `dask-local`: a
-        `DaskTaskRunner` that starts a local Dask cluster with `num_workers` workers,
+        `local`: a `ThreadPoolTaskRunner` with `workers` threads. `dask-local`: a
+        `DaskTaskRunner` that starts a local Dask cluster with `workers` workers,
         as threads or processes. `dask`: a `DaskTaskRunner` connected to the cluster at
         `address`.
 
@@ -163,17 +163,17 @@ class ExecutionOptions(BaseConfig):
             RuntimeError: If a Dask executor is selected and `prefect_dask` is not
                 installed.
         """
-        settings = self.executor
+        settings = self.execution
         if isinstance(settings, LocalExecutorSettings):
             from flim.core.runner import default_task_runner
 
-            return default_task_runner(settings.num_workers)
+            return default_task_runner(settings.workers)
         self.check_available()
         from prefect_dask import DaskTaskRunner
 
         if isinstance(settings, DaskClusterExecutorSettings):
-            return DaskTaskRunner(address=settings.address, **settings.dask_kwargs)
+            return DaskTaskRunner(address=settings.address, **settings.kwargs)
         cluster_kwargs = {"processes": settings.scheduler == "processes"}
-        if settings.num_workers is not None:
-            cluster_kwargs["n_workers"] = settings.num_workers
-        return DaskTaskRunner(cluster_kwargs={**cluster_kwargs, **settings.dask_kwargs})
+        if settings.workers is not None:
+            cluster_kwargs["n_workers"] = settings.workers
+        return DaskTaskRunner(cluster_kwargs={**cluster_kwargs, **settings.kwargs})

@@ -76,7 +76,7 @@ def test_range_filters():
 
 
 def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path):
-    settings.tool_settings.set(
+    settings.tools.set(
         tools.get("Summarize"),
         SummaryConfig(grouping=["Treatment"], features=["FLIRR"], aggs=["mean"]),
     )
@@ -98,7 +98,7 @@ def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path):
 
 
 def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp_path):
-    settings.tool_settings.set(
+    settings.tools.set(
         tools.get("Basic FLIRR Analysis"),
         # the fewest features its steps take (pair plots of FAD and of NAD features)
         BasicFLIRRConfig(
