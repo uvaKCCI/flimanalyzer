@@ -71,6 +71,18 @@ def _torch_device(name: str):
     return torch.device(name)
 
 
+def _no_graph_capture_check_on_cpu(optimizer, device):
+    """PyTorch's ``optimizer.step()`` asks whether a GPU is available for a CUDA-graph
+    health check, whatever device the model is on (2.11: ``torch.cuda.is_available()``,
+    2.14: ``torch.accelerator.current_accelerator(check_available=True)``); on a CUDA
+    build that initialises CUDA and can warn when the CPU was selected (#143). On the CPU there
+    is no graph to check, so this optimizer skips it. Private PyTorch API: if it is
+    renamed, nothing is skipped and ``test_cpu_never_touches_cuda`` fails."""
+    if device.type == "cpu" and hasattr(optimizer, "_accelerator_graph_capture_health_check"):
+        optimizer._accelerator_graph_capture_health_check = lambda: None
+    return optimizer
+
+
 @register_tool
 class AETraining(Tool[AETrainConfig]):
     name = "Autoencoder: Train"
@@ -211,7 +223,11 @@ class AETraining(Tool[AETrainConfig]):
         logging.info(f"Training {config.architecture} {label} on {device}.")
         ae = self._new_model(config).to(device)
         criterion = nn.MSELoss()
-        optimizer = optim.RMSprop(ae.parameters(), learning_rate, weight_decay)
+        # with the CPU selected, PyTorch's optimizer must not query CUDA (#143: a CUDA
+        # warning although the CPU was selected); guarded by test_cpu_never_touches_cuda
+        optimizer = _no_graph_capture_check_on_cpu(
+            optim.RMSprop(ae.parameters(), learning_rate, weight_decay), device
+        )
 
         loss_train, loss_val = [], []
         labels, decoded, encoded = [], [], []
