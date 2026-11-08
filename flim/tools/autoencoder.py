@@ -160,10 +160,11 @@ class AETraining(Tool[AETrainConfig]):
                 [groups.get_group(k) for k in groups.groups if k not in train_keys]
             )
         else:
+            data = data.reset_index(drop=True)  # unique row labels for the split
             train_df = data.sample(
                 n=int(np.around(config.train_size * len(data))), random_state=seed
             )
-            val_df = pd.concat([data, train_df, train_df]).drop_duplicates(keep=False)
+            val_df = data.drop(index=train_df.index)  # the other rows
 
         # scale and impute with the training data only, so no information leaks from
         # the validation data

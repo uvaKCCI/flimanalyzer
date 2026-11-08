@@ -265,3 +265,11 @@ def test_noise_is_set_per_feature():
     assert len(std) == 2
     assert std[1] == pytest.approx(1000 * std[0])  # proportional to each column's size
 
+
+def test_split_without_grouping_keeps_duplicate_rows(needs_torch, data):
+    # rows with equal values (here: all of them twice) go into the training or the
+    # validation set, never into neither
+    doubled = pd.concat([data, data])  # also repeats the row labels
+    config = train_config(grouping=[], train_size=0.75)
+    train_loader, val_loader, *_ = AETraining()._datasets(doubled, config, 32)
+    assert len(train_loader.dataset) + len(val_loader.dataset) == len(doubled)
