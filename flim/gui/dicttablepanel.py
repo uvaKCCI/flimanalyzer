@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue May  8 18:20:41 2018
-
-@author: khs3z
-"""
+"""Grid tables: a list of dicts as rows (ListTable) and a dict as key-value rows
+(DictTable), and a window that shows a dict (DictFrame)."""
 
 import wx
 import wx.grid
@@ -143,12 +140,9 @@ class DictTable(wx.grid.GridTableBase):
 
 
 class DictFrame(wx.Frame):
-    """
-    Frame that holds all other widgets
-    """
+    """Window with a read-only grid of a dict: one row per entry, sorted by key."""
 
     def __init__(self, parent, title, data=None, headers=None):
-        """Constructor"""
         super(DictFrame, self).__init__(parent, wx.ID_ANY, title)
         if data is None:
             data = {}

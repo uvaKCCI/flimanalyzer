@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sun May 20 08:45:35 2018
-
-@author: khs3z
-"""
+"""List controls with check boxes for analysis bins (AnalysisListCtrl) and range
+filters (FilterListCtrl); changes are published with pubsub."""
 
 import logging
 import numpy as np
@@ -41,10 +38,11 @@ class AnalysisListCtrl(
     listmix.ListCtrlAutoWidthMixin,
     listmix.TextEditMixin,
 ):
-    """Report list with a native checkbox in the first column.
+    """Report list with a native checkbox in the first column; cells of the columns
+    marked editable (SetEditable) can be edited.
 
     Checking an item, by the user or with CheckItem(), calls OnCheckItem(index,
-    flag) once per state change (as the former CheckListCtrlMixin did).
+    flag) once per state change.
     """
 
     def __init__(self, *args, **kwargs):
@@ -188,7 +186,8 @@ class AnalysisListCtrl(
                 key = self.GetItem(
                     idx, self.get_key_col()
                 ).GetText()  # .encode('utf-8')
-                # PROBLEM MULTIINDEX
+                # looked up by the cell text: a data key that is not a string (e.g.
+                # a MultiIndex tuple) raises KeyError
                 checked[key] = self.data[key]
         return checked
 
@@ -225,7 +224,8 @@ class AnalysisListCtrl(
         logging.debug(f"OnCheckItem {rowkey}")
         #        self.data[rowkey].select(flag)
         if self.enableevents:
-            # PROBLEM MULTIINDEX
+            # looked up by the cell text: a data key that is not a string (e.g. a
+            # MultiIndex tuple) raises KeyError
             self.fire_rowsupdated_event({rowkey: self.data[rowkey]})
 
 
@@ -399,8 +399,8 @@ class FilterListCtrl(AnalysisListCtrl):
                 rangedropped = self.dropped[key]
             else:
                 rangedropped = []
-        # get those from alldropped that were not already dropped by view category filter
-        # those are the ones dropped by the range filters on the curren view
+        # the rows of rangedropped that the filters not in this list (otherdropped)
+        # have not dropped already: the rows the range filters drop from the view
         viewdropped = np.setdiff1d(rangedropped, self.otherdropped, assume_unique=True)
         return viewdropped
 

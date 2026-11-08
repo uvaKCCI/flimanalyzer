@@ -1,7 +1,7 @@
-"""Window that shows a matplotlib figure inside the application.
+"""Window that shows a matplotlib figure inside the GUI.
 
 Plugins draw their figures off-screen (Agg backend), possibly in worker threads;
-the application shows each result figure in a PlotFrame on the main thread.
+the GUI shows each result figure in a PlotFrame on the main thread.
 """
 
 import math
@@ -20,7 +20,8 @@ def _screen_area(window=None):
 
 def fit_to_screen(width, height, extra_height=0, window=None, fraction=0.9):
     """Scales (width, height) down, keeping the aspect ratio, so that it fits into
-    ``fraction`` of the screen (of ``window``) together with ``extra_height``."""
+    ``fraction`` of the screen (of ``window``) together with ``extra_height``;
+    returns the size as integers, never larger than the given size."""
     area = _screen_area(window)
     max_width = area.width * fraction
     max_height = area.height * fraction - extra_height
@@ -58,12 +59,13 @@ class PlotFrame(wx.Frame):
         self.canvas_size = fit_to_screen(width, height, toolbar, parent)
         self.SetClientSize((self.canvas_size[0], self.canvas_size[1] + toolbar))
         self.Layout()
-        # half the scaling (geometric) shrinks the figure, half zooms it out (lower
-        # dpi on screen): shrunk only, text keeps its size and a figure of many
-        # plots has no room left for titles and labels (the layout gives up)
+        # half the width scaling (geometric) shrinks the figure, half zooms it out
+        # (lower dpi on screen): if it were only shrunk, text would keep its size,
+        # and a figure of many plots would leave no room for titles and labels
         zoom = math.sqrt(min(1.0, self.canvas_size[0] / max(width, 1)))
         if zoom < 1:
-            figure._set_dpi(figure.dpi * zoom, forward=False)  # saving: _original_dpi
+            # savefig(dpi="figure") uses figure._original_dpi, which this keeps
+            figure._set_dpi(figure.dpi * zoom, forward=False)
         # resize the figure now: some window managers deliver the resize event late
         # or not at all before the window is shown
         figure.set_size_inches(

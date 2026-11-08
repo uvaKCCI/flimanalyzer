@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 18 13:39:22 2018
-
-@author: khs3z
-"""
+"""wx event types and events of the data and plot windows, and pubsub topic names."""
 
 import wx
 

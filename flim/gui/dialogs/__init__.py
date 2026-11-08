@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 12 13:35:51 2018
-
-@author: khs3z
-"""
+"""Dialogs of the data and plot windows, and functions that save a table or a
+figure to a file chosen in a file dialog."""
 
 import logging
 import re

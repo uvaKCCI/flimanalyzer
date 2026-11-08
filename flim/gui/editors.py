@@ -116,7 +116,7 @@ class ChoiceEditor(Editor):
         current = self.values[self.control.GetSelection()] if self.values else None
         self.values = values
         self.control.Set([self._label(v) for v in values])
-        # keep the value if still allowed, else the first allowed (the default)
+        # keep the value if still allowed, else the first allowed
         self.control.SetSelection(values.index(current) if current in values else 0)
 
 
@@ -214,7 +214,8 @@ def fit_rows(
 
 
 class ColumnEditor(Editor):
-    """One column of the input; any name can be typed if the columns are unknown."""
+    """One column of the input: lists the input's columns of the field's role; any
+    name can be typed."""
 
     def create(self, parent):
         control = wx.ComboBox(parent, choices=[])
@@ -240,7 +241,8 @@ class ColumnEditor(Editor):
         self.control.ChangeValue("" if value is None else str(value))
 
     def set_allowed(self, allowed):
-        # only some columns allowed (e.g. one of the selected features): those
+        # lists only the allowed columns (e.g. the selected features); with fewer
+        # than two allowed, the list stays as it is
         if allowed is None or len(allowed) < 2:
             return
         names = [str(a) for a in allowed if a is not None]
@@ -871,9 +873,11 @@ class _MarkedTextRenderer(wx.grid.GridCellStringRenderer):
 
 class FeatureSettingsEditor(_RowIssues, Editor):
     """Features with settings (a dict of configs by feature, e.g. ranges): one row
-    for each feature of the input; "Use" selects it, and its settings are edited in
-    the same row. Empty settings are the config's defaults. Checking a feature fills
-    an empty min and max with the feature's range in the data."""
+    for each feature of the input, and for each checked feature the input lacks;
+    "Use" selects it, and its settings are edited in the same row. Checking a
+    feature fills empty settings that have a default with the default, and an empty
+    min and max (or low and high) with the feature's range in the first input table;
+    not for a constant column or while those settings are disabled."""
 
     expands = True
 
@@ -954,7 +958,10 @@ class FeatureSettingsEditor(_RowIssues, Editor):
 
     def load_settings(self, path) -> tuple[list, list]:
         """Applies the settings in a file to the matching features (which stay
-        checked or unchecked); returns the applied and the skipped features."""
+        checked or unchecked), and turns off the config flags that keep settings the
+        same in all rows or disable them. Returns the applied and the skipped
+        features; ([], []), with a message, if the file cannot be read or has no
+        feature settings."""
         names = [c.name for c in self.columns]
         try:
             with open(path) as f:
@@ -973,8 +980,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             texts = [_cell_text(settings[feature].get(c.name)) for c in self.columns]
             state[feature] = (used, texts)
         self._show(self.features, state)
-        # loaded settings are per feature and used: settings kept the same in all
-        # rows, or not used, no more
+        # the loaded settings are per feature and all used: turn off the flags that
+        # keep settings the same in all rows or disable them
         flags = {**self.synced_settings(), **self.disabled_settings()}
         for flag in flags.values():
             if self.panel is not None and flag in self.panel.editors:
@@ -991,7 +998,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
 
     def save_settings(self, path) -> None:
         """Writes the settings of the checked features, {feature: {name: value}};
-        settings that are not valid are left out."""
+        features whose settings are not valid are left out. Raises OSError if the
+        file cannot be written."""
         settings = {}
         for feature, values in self.get().items():
             try:
@@ -1025,7 +1033,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
                 (p for p in (("min", "max"), ("low", "high")) if set(p) <= set(names)),
                 None,
             )
-            # one value only (constant column): no range, the plot handles it
+            # a constant column (one value) has no range: the limits stay empty
             constant = feature in self.ranges and len(set(self.ranges[feature])) == 1
             fill = limits and not set(limits) & self.disabled and not constant
             if feature in self.ranges and fill:
@@ -1148,8 +1156,9 @@ class FeatureSettingsEditor(_RowIssues, Editor):
 
     def _on_tab(self, event):
         """Tab moves to the next editable cell (Shift+Tab: the previous one), on to
-        the next row; focus stays in the table. Leaving it with Tab put the focus on
-        the check boxes above it (e.g. Same bins for all), where a key toggled them."""
+        the next row; focus stays in the table. Otherwise Tab moves the focus to the
+        check boxes above the table (e.g. Same bins for all), where a key toggles
+        them."""
         cells = [
             (row, col)
             for row in range(self.grid.GetNumberRows())
@@ -1204,9 +1213,9 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             for col, text in enumerate(texts):
                 self.grid.SetCellValue(row, col + 2, text)
         self._fit_columns()
-
-        # --- Editor ---
         self._style_rows()
+
+    # --- Editor ---
 
     def set_schema(self, schema):
         features = [] if schema is None else schema.by_role("feature")
@@ -1247,10 +1256,10 @@ def find_feature_settings(data, names: list) -> Optional[dict]:
     """Per-feature settings in a loaded settings file: {feature: {name: value}}.
 
     ``names`` are the settings' names (e.g. min, max, bins). Reads the files written by
-    "Save Feature Settings...", configs ({"features": {...}}) and the application's settings
+    "Save Feature Settings...", configs ({"features": {...}}) and FLIMAnalyzer settings
     files (searched for such entries). Also reads two older forms: histogram
     "featuresettings" lists [min, max, bins, ...], and range filter lists of
-    {"name", "rangelow", "rangehigh", "dropna"}.
+    {"name", "rangelow", "rangehigh", "dropna"}. Returns None if none is found.
     """
     allowed = set(names) | {"classname", "version"}
 
@@ -1402,8 +1411,9 @@ class FieldsPanel(wx.Panel):
     """Editors for the visible fields of a config class, with issue markers.
 
     Fields are shown in their order (flim.core.fields.field_order): small fields that
-    follow each other share a grid of 2 or 3 columns (label, editor); lists and tables
-    take the full width; nested configs are collapsible sections.
+    follow each other share a grid of 1 to 3 fields per row (label, editor, marker);
+    path fields take a row of their own; lists and tables take the full width; nested
+    configs are titled groups, or collapsible sections if advanced.
     """
 
     def __init__(self, parent, model: type, exclude=()):
@@ -1437,7 +1447,7 @@ class FieldsPanel(wx.Panel):
             small = []
             if spec is None:
                 break
-            if spec.kind == "model":  # a collapsible section with its own title
+            if spec.kind == "model":  # a group or collapsible section with its title
                 row = wx.BoxSizer(wx.HORIZONTAL)
                 row.Add(self._editor(spec).control, 1, wx.EXPAND)
                 row.Add(self._marker(spec), 0, wx.TOP, 4)
@@ -1510,7 +1520,8 @@ class FieldsPanel(wx.Panel):
             self.on_change()
 
     def value_of(self, name: str):
-        """The edited value of a field; None if it is not shown or not valid."""
+        """The edited value of a field; None if the panel has no editor for it or
+        its text is not valid."""
         editor = self.editors.get(name)
         try:
             return editor.get() if editor else None

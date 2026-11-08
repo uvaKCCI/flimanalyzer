@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Jun  8 13:58:51 2018
-
-@author: Karsten
-"""
+"""Panel for the column delimiters of a text file: check boxes for comma, semicolon,
+tab and space, and a text field for other characters."""
 
 import wx
 

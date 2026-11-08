@@ -9,8 +9,8 @@ from flim.gui.editors import Editor, register_editor
 
 
 def architecture_info(name: str, n_features: int) -> tuple[str, str]:
-    """(description, layers) of an architecture for ``n_features`` inputs; empty if
-    torch is not available."""
+    """(description, layers) of an architecture for ``n_features`` inputs; empty
+    strings if torch is not available or the model cannot be created."""
     try:
         import flim.analysis.ml.autoencoder as autoencoder
     except ImportError:
