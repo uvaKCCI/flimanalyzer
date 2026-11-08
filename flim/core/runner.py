@@ -22,7 +22,7 @@ Every tool call is submitted to the flow's task runner: Prefect starts a task on
 its inputs (results of other tasks) are ready and runs independent tasks concurrently,
 up to the task runner's number of workers and the tag concurrency limits configured on
 the Prefect server (each task is tagged with its ``task_tags``). Without an explicit
-task runner, a ``ThreadPoolTaskRunner`` with :func:`default_max_workers` threads is
+task runner, a ``ThreadPoolTaskRunner`` with :func:`default_workers` threads is
 used. Tools that draw figures hold :data:`pyplot_lock`, as pyplot is not thread-safe.
 """
 
@@ -58,7 +58,7 @@ __all__ = [
     "select",
     "unmapped",
     "pyplot_lock",
-    "default_max_workers",
+    "default_workers",
     "default_task_runner",
     "TaskCancelled",
     "CancelToken",
@@ -123,15 +123,23 @@ class CancelToken:
         self.__dict__.update(state, _local=None, _client=None)
 
 
-def default_max_workers() -> int:
+def default_workers() -> int:
     """Number of threads for concurrent tasks: Prefect's ``thread_pool_max_workers``
     setting if set, otherwise the number of CPUs."""
     return get_current_settings().tasks.runner.thread_pool_max_workers or os.cpu_count() or 1
 
 
-def default_task_runner(max_workers: Optional[int] = None) -> ThreadPoolTaskRunner:
-    """Thread pool task runner; ``max_workers=1`` runs one task at a time."""
-    return ThreadPoolTaskRunner(max_workers=max_workers or default_max_workers())
+def default_task_runner(workers: Optional[int] = None) -> ThreadPoolTaskRunner:
+    """Create a thread pool task runner.
+
+    Args:
+        workers: Number of tasks run at the same time; 1 runs one task at a time.
+            Defaults to `default_workers()`.
+
+    Returns:
+        A Prefect `ThreadPoolTaskRunner`.
+    """
+    return ThreadPoolTaskRunner(max_workers=workers or default_workers())
 
 
 def Parameter(name: str, default: Any = None) -> Any:

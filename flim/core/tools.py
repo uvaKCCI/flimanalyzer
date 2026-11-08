@@ -46,7 +46,7 @@ class FLIMAnalyzer:
 
         Returns:
             ``LocalExecutor``: a Prefect ``ThreadPoolTaskRunner`` with ``num_workers``
-            threads (default: :func:`flim.core.runner.default_max_workers`;
+            threads (default: :func:`flim.core.runner.default_workers`;
             ``num_workers=1`` runs one task at a time). Otherwise a
             ``prefect_dask.DaskTaskRunner``: ``LocalDaskExecutor`` starts a local Dask
             cluster (args: ``num_workers``, ``scheduler=threads|processes``),

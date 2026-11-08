@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from flim.core.config import TaskConfig
-from flim.core.runner import default_max_workers, default_task_runner, run_flow
+from flim.core.runner import default_task_runner, default_workers, run_flow
 from flim.core.tool import Tool
 from flim.core.workflow import workflow_input
 
@@ -76,8 +76,8 @@ def _run_sleepers(n, task_runner=None, task_tags=None, tool_class=Sleeper):
     return record
 
 
-def test_default_max_workers_is_bounded():
-    assert 1 <= default_max_workers() <= 1024
+def test_default_workers_is_bounded():
+    assert 1 <= default_workers() <= 1024
 
 
 def test_independent_tasks_run_concurrently():
