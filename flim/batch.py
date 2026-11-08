@@ -32,7 +32,9 @@ from flim.core.paths import canonical_folder, folder_problem
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
-from flim.core.settings import AppSettings, load_settings
+from flim.core.cli import add_settings_options, command_line_changes, settings_file
+from flim.core.settings import AppSettings
+from flim.core.settingsmgr import session_settings
 from flim.results import write_table
 
 IMPORTED = "Imported.txt"
@@ -94,14 +96,15 @@ def run_tool(
     settings: AppSettings,
     output_dir: str | os.PathLike,
     execution: Optional[ExecutionOptions] = None,
-    allow_guesses: bool = False,
+    strict: bool = True,
 ):
     """Runs the tool or workflow named ``name`` on ``data`` with the tool's config
     stored in ``settings`` (the config's defaults if none is stored or the stored one
     is not valid). The results are saved in ``<output_dir>/<tool name>/``; the tool's
     stored autosave and results folder settings are not used. A workflow gets
-    ``data`` as every input; with ``allow_guesses``, columns its config names that
-    are not in ``data`` are replaced by guessed columns, otherwise the run stops.
+    ``data`` as every input; columns its config names that are not in ``data`` stop
+    the run if ``strict`` (the default for a workflow whose own ``strict`` is None),
+    otherwise they are replaced by guessed columns.
 
     Returns:
         flim.core.runner.FlowRun
@@ -131,7 +134,7 @@ def run_tool(
                 config=config,
                 task_runner=task_runner,
                 autosave_dir=autosave_dir,
-                strict=not allow_guesses,
+                strict=strict,
             )
         except WorkflowValidationError as err:
             raise BatchError(f"{name}:\n{err}") from None
@@ -151,10 +154,17 @@ def run_tool(
     return run_flow(tool.name, build, task_runner=task_runner, autosave_dir=autosave_dir)
 
 
-def parse_arguments(argv=None):
+def build_parser() -> argparse.ArgumentParser:
+    """Create the argument parser of flimbatch.
+
+    Returns:
+        The parser, with the input and exclude files, the shared app settings options
+        (`flim.core.cli`; `-o` required), the runs and the log level.
+    """
     parser = argparse.ArgumentParser(
         prog="flimbatch",
         description="Imports FLIM data files and runs tools or workflows on them.",
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
         "-i", "--input", nargs="+", required=True, help="data files or folders"
@@ -162,14 +172,7 @@ def parse_arguments(argv=None):
     parser.add_argument(
         "-x", "--exclude", nargs="+", default=[], help="files not to import"
     )
-    parser.add_argument("-o", "--output", required=True, help="folder for the results")
-    parser.add_argument(
-        "-c",
-        "--settings",
-        "--config",
-        dest="settings",
-        help="settings file (saved in the GUI; any version)",
-    )
+    add_settings_options(parser, output_required=True)
     parser.add_argument(
         "-r",
         "--run",
@@ -178,49 +181,49 @@ def parse_arguments(argv=None):
         metavar="NAME",
         help="tool or workflow to run on the imported data (repeatable)",
     )
-    parser.add_argument(
-        "--allow-guesses",
-        action="store_true",
-        help="workflows: use the closest columns for columns not in the data",
-    )
-    parser.add_argument(
-        "-e",
-        "--executor",
-        default="LocalExecutor",
-        help="LocalExecutor, LocalDaskExecutor or DaskExecutor",
-    )
-    parser.add_argument(
-        "-a", "--execargs", default="", help="executor arguments, e.g. num_workers=4"
-    )
-    parser.add_argument(
-        "--no-prefect-server",
-        action="store_true",
-        help="don't start a local Prefect server; flows use a temporary one",
-    )
+    parser.add_argument("--allow-guesses", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument(
         "-l",
         "--log",
-        choices=["debug", "info", "warning", "error"],
+        choices=["debug", "info", "warning", "error", "critical"],
         default="info",
         help="logging level",
     )
-    return parser.parse_args(argv)
+    return parser
+
+
+def parse_arguments(argv=None):
+    """Parse the command line of flimbatch.
+
+    Args:
+        argv: The arguments; defaults to `sys.argv[1:]`.
+
+    Returns:
+        The parsed arguments.
+    """
+    return build_parser().parse_args(argv)
 
 
 def main(argv=None) -> int:
-    args = parse_arguments(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
     logging.basicConfig(
         level=args.log.upper(), format="%(levelname)s %(message)s", force=True
     )
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.prefect_server import use_prefect_server
-    from flim.core.tools import check_executor_available
 
     discover(TOOLS_GROUP)  # registers the tools of other installed packages
     try:
-        check_executor_available(args.executor)
-        settings = load_settings(args.settings) if args.settings else AppSettings.default()
+        name, notes = settings_file(args)
+        changes, more = command_line_changes(args)
+        for note in notes + more:
+            print(f"flimbatch: warning: {note}", file=sys.stderr)
+        # no user settings file: batch results don't depend on settings changed in the GUI
+        settings = session_settings(name, changes).settings
+        execution = ExecutionOptions(execution=settings.execution)
+        execution.check_available()
         output = canonical_folder(args.output)
         if problem := folder_problem(output):
             raise BatchError(f"--output: {problem}")
@@ -229,17 +232,15 @@ def main(argv=None) -> int:
         path = os.path.join(output, IMPORTED)
         write_table(data, path)
         logging.info(f"Saved {path}")
-        execution = ExecutionOptions.from_legacy(args.executor, args.execargs)
+        strict = True if settings.strict is None else settings.strict
         failed = []
-        with use_prefect_server(start=not args.no_prefect_server):
+        with use_prefect_server(start=settings.prefect_server):
             for name in args.run:
-                run = run_tool(
-                    name, data, settings, output, execution, args.allow_guesses
-                )
+                run = run_tool(name, data, settings, output, execution, strict)
                 if run.failed or run.state != "completed":
                     failed.append(f"{name}: {', '.join(run.failed) or run.state}")
                 logging.info(f"{name}: {run.state}; results in {run.autosave_dir}")
-    except (BatchError, RuntimeError, OSError, ValueError) as err:
+    except (BatchError, RuntimeError, OSError, ValueError) as err:  # incl. FileNotFoundError
         print(f"flimbatch: {err}", file=sys.stderr)
         return 1
     if failed:

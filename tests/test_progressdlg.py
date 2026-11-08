@@ -422,7 +422,7 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings_file=None: started.update(files=files),
+        lambda fa, files=None, settings_manager=None: started.update(files=files),
     )
     analyzerapp.main()
     assert started["files"] == ["a.csv", "b.txt"]

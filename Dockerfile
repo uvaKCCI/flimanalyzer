@@ -2,7 +2,7 @@
 #
 #   docker build -t flimanalyzer .
 #   docker run --rm -v "$PWD:/work" flimanalyzer \
-#       -i data/ -o results/ -c settings.json --run Summarize
+#       -i data/ -o results/ -s settings.json --run Summarize
 #
 # Build arguments:
 #   TORCH_INDEX  replaces PyTorch from the lock file (the CUDA 13.0 build on x86_64,

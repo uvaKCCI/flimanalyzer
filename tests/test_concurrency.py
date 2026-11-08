@@ -181,12 +181,14 @@ def test_result_figures_are_released_from_pyplot(flim_data):
     figures[0].savefig(__import__("io").BytesIO())  # still usable
 
 
-def test_dask_executors_need_the_dask_extra(monkeypatch):
+def test_dask_executors_need_the_dask_extra(monkeypatch, capsys):
     import importlib.util
     import sys
 
     import flim.analyzerapp as analyzerapp
-    from flim.core.tools import FLIMAnalyzer, check_executor_available
+    from flim.core.cli import executor_settings
+    from flim.core.execution import ExecutionOptions
+    from flim.core.tools import FLIMAnalyzer
 
     real_find_spec = importlib.util.find_spec
     monkeypatch.setattr(
@@ -194,14 +196,20 @@ def test_dask_executors_need_the_dask_extra(monkeypatch):
         "find_spec",
         lambda name, *a: None if name == "prefect_dask" else real_find_spec(name, *a),
     )
-    check_executor_available("LocalExecutor")  # needs nothing extra
-    for executor in ("LocalDaskExecutor", "DaskExecutor"):
+    ExecutionOptions().check_available()  # local: needs nothing extra
+    for spec in ("dask-local", "dask:address=tcp://h:8786"):
+        options = ExecutionOptions(execution=executor_settings(spec)[0])
         with pytest.raises(RuntimeError, match="uv sync --extra dask"):
-            check_executor_available(executor)
+            options.check_available()
         with pytest.raises(RuntimeError, match="optional Dask support"):
-            FLIMAnalyzer(executor=executor).get_task_runner()
+            FLIMAnalyzer(execution=options).get_task_runner()
+    # the 0.6 names still reach the same check
+    with pytest.raises(RuntimeError, match="optional Dask support"):
+        FLIMAnalyzer(executor="LocalDaskExecutor").get_task_runner()
 
     # the command line stops with the message instead of an import error
-    monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-e", "LocalDaskExecutor"])
-    with pytest.raises(SystemExit, match="LocalDaskExecutor needs the optional Dask support"):
+    monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-e", "dask-local"])
+    with pytest.raises(SystemExit) as stop:
         analyzerapp.main()
+    assert stop.value.code == 2
+    assert "dask-local executor needs the optional Dask support" in capsys.readouterr().err

@@ -117,10 +117,19 @@ class Workflow(Tool[ConfigT]):
         )
 
     @classmethod
-    def validate(cls, config, inputs):
-        """Issues of the config and of its steps for the input schemas; columns
-        missing from the inputs are guessed unless the config's ``strict`` is True."""
-        strict = cls.is_strict(config, False)
+    def validate(cls, config, inputs, strict: Optional[bool] = None):
+        """Check the config and its steps against the input schemas.
+
+        Args:
+            config: The workflow's config.
+            inputs: The schemas of the input tables.
+            strict: The default for a config whose `strict` is None; None defaults to
+                False: columns missing from the inputs are guessed.
+
+        Returns:
+            The issues of the config and of its steps.
+        """
+        strict = cls.is_strict(config, False if strict is None else strict)
         report = cls.validator.validate(cls, config, list(inputs), strict)
         return requirement_issues(config, list(inputs)) + report.issues
 

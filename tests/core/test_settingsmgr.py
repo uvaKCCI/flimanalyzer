@@ -154,3 +154,115 @@ def test_user_settings_path_in_the_platform_folder(monkeypatch):
     path = user_settings_path()
     assert path.name == "usersettings.json" and path.parent.name == "FLIMAnalyzer"
     assert os.path.isabs(path)
+
+
+# --- app settings files, the environment and the session layers ---
+
+from flim.core.settingsmgr import (  # noqa: E402
+    app_settings_path,
+    default_app_settings_dir,
+    environment_changes,
+    find_app_settings,
+    list_app_settings,
+    session_settings,
+)
+
+
+def test_search_path_variable_over_user_list_over_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("FLIM_APP_SETTINGS_PATH", raising=False)
+    assert app_settings_path() == [default_app_settings_dir()]
+    assert default_app_settings_dir().name == "appsettings"
+    assert app_settings_path([tmp_path / "mine"]) == [tmp_path / "mine"]
+    monkeypatch.setenv(
+        "FLIM_APP_SETTINGS_PATH", os.pathsep.join([str(tmp_path / "lab"), "", "~/flim"])
+    )
+    assert app_settings_path([tmp_path / "mine"]) == [
+        tmp_path / "lab",
+        Path("~/flim").expanduser(),
+    ]
+
+
+def test_find_app_settings(monkeypatch, tmp_path):
+    lab, mine = tmp_path / "lab", tmp_path / "mine"
+    lab.mkdir()
+    mine.mkdir()
+    (lab / "flirr.json").write_text("{}")
+    (lab / "shared.json").write_text("{}")
+    (mine / "shared.json").write_text("{}")
+    here = tmp_path / "here.json"
+    here.write_text("{}")
+    path = [lab, mine]
+    assert find_app_settings(here, path) == here  # a path as given wins
+    assert find_app_settings("flirr", path) == lab / "flirr.json"  # .json added
+    assert find_app_settings("flirr.json", path) == lab / "flirr.json"
+    with pytest.raises(ValueError, match="ambiguous") as err:
+        find_app_settings("shared", path)
+    assert str(lab / "shared.json") in str(err.value) and str(mine) in str(err.value)
+    with pytest.raises(FileNotFoundError, match=str(mine)):
+        find_app_settings("missing", path)
+    assert list_app_settings(path + [tmp_path / "none"]) == [
+        lab / "flirr.json",
+        lab / "shared.json",
+        mine / "shared.json",
+    ]
+
+
+def test_environment_changes(monkeypatch):
+    for name in list(os.environ):
+        if name.startswith("FLIM_") and name != "FLIM_USER_SETTINGS":
+            monkeypatch.delenv(name)
+    assert environment_changes() == {}
+    monkeypatch.setenv("FLIM_RESULTS_DIR", "/data/out")
+    monkeypatch.setenv("FLIM_CACHE_DIR", "/scratch/cache")
+    monkeypatch.setenv("FLIM_PREFECT_SERVER", "false")
+    monkeypatch.setenv("FLIM_STRICT", "true")
+    monkeypatch.setenv("FLIM_EXECUTION__EXECUTOR", "dask-local")
+    monkeypatch.setenv("FLIM_EXECUTION__WORKERS", "8")
+    changes = environment_changes()
+    assert changes["results_dir"] == "/data/out" and changes["cache"] == {"dir": "/scratch/cache"}
+    assert changes["prefect_server"] is False and changes["strict"] is True
+    assert changes["execution"]["executor"] == "dask-local"
+    assert changes["execution"]["workers"] == 8
+    monkeypatch.setenv("FLIM_EXECUTION__EXECUTOR", "dask")  # no address
+    with pytest.raises(ValueError, match="FLIM_EXECUTION"):
+        environment_changes()
+
+
+def test_session_layers(monkeypatch, tmp_path):
+    for name in list(os.environ):
+        if name.startswith("FLIM_") and name != "FLIM_USER_SETTINGS":
+            monkeypatch.delenv(name)
+    user = UserSettingsFile(tmp_path / "usersettings.json")
+    SettingsManager(user_file=user).set_tool(KMEANS, KMeansConfig(n_clusters=2))
+    folder = tmp_path / "appsettings"
+    folder.mkdir()
+    project = AppSettings.default()
+    project.results_dir = Path("/from/file")
+    project.tools.set(KMEANS, KMeansConfig(n_clusters=5))
+    save_settings(project, folder / "project.json")
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
+    monkeypatch.setenv("FLIM_RESULTS_DIR", "/from/env")
+
+    # user file < app settings file < environment < command line
+    manager = session_settings("project", {"results_dir": "/from/cli"}, user_file=user)
+    settings = manager.settings
+    assert manager.source == folder / "project.json"
+    assert settings.tools.config(KMEANS).n_clusters == 5
+    assert settings.results_dir == Path("/from/cli")
+    assert session_settings("project", user_file=user).settings.results_dir == Path("/from/env")
+    # the layers are not written to the user settings file
+    assert "results_dir" not in written(user.path)
+    assert written(user.path)["tools"]["K-Means"]["config"]["n_clusters"] == 2
+
+
+def test_session_without_user_file_ignores_it(monkeypatch, tmp_path):
+    # flimbatch: settings changed in the GUI don't reach batch runs
+    user = UserSettingsFile(tmp_path / "usersettings.json")
+    SettingsManager(user_file=user).set_tool(KMEANS, KMeansConfig(n_clusters=7))
+    assert session_settings().settings.tools.config(KMEANS).n_clusters == 2  # default
+
+
+def test_partial_cache_section_keeps_the_other_cache_settings(monkeypatch):
+    monkeypatch.delenv("FLIM_CACHE_DIR", raising=False)
+    settings = session_settings(None, {"cache": {"dir": "/c"}}).settings
+    assert settings.cache.dir == Path("/c") and settings.cache.max_age_days == 7

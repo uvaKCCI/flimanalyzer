@@ -20,6 +20,7 @@ from pydantic import ValidationError
 from wx.lib.scrolledpanel import ScrolledPanel
 
 from flim.core.config import Issue, TaskConfig
+from flim.core.workflow import Workflow
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import canonical_folder, folder_problem
 from flim.core.schema import ColumnInfo, TableSchema
@@ -131,6 +132,7 @@ class ConfigDialog(wx.Dialog):
         selected: Optional[list] = None,
         execution: Optional[ExecutionOptions] = None,
         autosave_locked: bool = False,
+        strict: Optional[bool] = None,
     ):
         super().__init__(
             parent,
@@ -142,6 +144,7 @@ class ConfigDialog(wx.Dialog):
         self.data_choices = dict(data_choices or {})
         self.execution = execution or ExecutionOptions()
         self.autosave_locked = autosave_locked
+        self.strict = strict  # workflows: the default of a config whose strict is None
         self.issues: list[Issue] = []
         self._schema_cache: dict[str, TableSchema] = {}
 
@@ -338,7 +341,11 @@ class ConfigDialog(wx.Dialog):
             config = type(self.config).model_validate(values)
         except ValidationError as err:
             return None, validation_issues(err)
-        return config, list(self.tool.validate(config, self.input_schemas()))
+        if issubclass(self.tool, Workflow):
+            issues = self.tool.validate(config, self.input_schemas(), strict=self.strict)
+        else:
+            issues = self.tool.validate(config, self.input_schemas())
+        return config, list(issues)
 
     def execution_issues(self) -> list[Issue]:
         issues = []

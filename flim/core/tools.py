@@ -1,25 +1,14 @@
 """FLIMAnalyzer: holds the importer, the preprocessor, the data and the execution
 options."""
 
+from typing import Optional
+
 import pandas as pd
 import logging
 
 from flim.core.importer import dataimporter
 from flim.core.preprocessor import defaultpreprocessor
-from flim.core.execution import LEGACY_EXECUTORS, ExecutionOptions
-
-DASK_EXECUTORS = tuple(k for k, v in LEGACY_EXECUTORS.items() if v != "local")
-
-
-def check_executor_available(executor: str) -> None:
-    """Raises RuntimeError if ``executor`` needs packages that are not installed."""
-    import importlib.util
-
-    if executor in DASK_EXECUTORS and importlib.util.find_spec("prefect_dask") is None:
-        raise RuntimeError(
-            f"{executor} needs the optional Dask support: uv sync --extra dask"
-            " (or pip install flimanalyzer[dask])"
-        )
+from flim.core.execution import ExecutionOptions
 
 
 class FLIMAnalyzer:
@@ -29,12 +18,14 @@ class FLIMAnalyzer:
         preprocessor=defaultpreprocessor(),
         executor="LocalExecutor",
         execargs="",
+        execution: Optional[ExecutionOptions] = None,
         **kwargs,
     ):
         self.importer = importer
         self.preprocessor = preprocessor
         self.data = pd.DataFrame()
-        self.execution = ExecutionOptions.from_legacy(executor, execargs)
+        # the executor: `execution` if given, else from the -e name and -a args of 0.6
+        self.execution = execution or ExecutionOptions.from_legacy(executor, execargs)
         logging.info(f"Setting up {self.execution.execution.executor} executor: {self.execution}")
         logging.debug(
             f"Initialized {__name__}.FLIMAnalyzer with"

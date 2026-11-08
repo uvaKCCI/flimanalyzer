@@ -3,6 +3,7 @@ file, --batch, -c and startup errors. No window opens: the GUI app is replaced."
 
 import logging
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -76,27 +77,70 @@ def test_settings_file_reaches_the_gui(monkeypatch, clean_logging):
     settings.results_dir = clean_logging / "results"
     save_settings(settings, str(path))
     started = {}
-    monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-c", str(path), "-i", "a.txt"])
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings_file=None: started.update(
-            files=files, settings_file=settings_file
+        lambda fa, files=None, settings_manager=None: started.update(
+            files=files, manager=settings_manager
         ),
     )
     _no_server(monkeypatch)
-    analyzerapp.main()
-    assert started == {"files": ["a.txt"], "settings_file": str(path)}
+    analyzerapp.main(["-s", str(path), "-i", "a.txt"])
+    manager = started["manager"]
+    assert started["files"] == ["a.txt"] and manager.source == path
+    assert manager.settings.results_dir == clean_logging / "results"
 
 
-def test_unavailable_executor_stops_the_start(monkeypatch):
-    def unavailable(executor):
+def test_config_option_still_works_with_a_warning(monkeypatch, clean_logging, capsys):
+    from flim.core.settings import AppSettings, save_settings
+
+    path = clean_logging / "project.json"
+    save_settings(AppSettings.default(), str(path))
+    started = {}
+    monkeypatch.setattr(
+        analyzerapp,
+        "interactive_run",
+        lambda fa, files=None, settings_manager=None: started.update(manager=settings_manager),
+    )
+    _no_server(monkeypatch)
+    analyzerapp.main(["-c", str(path)])
+    assert started["manager"].source == path
+    assert "-c/--config is deprecated; use -s/--settings" in capsys.readouterr().err
+
+
+def test_command_line_options_set_the_session_settings(monkeypatch, clean_logging):
+    started = {}
+    monkeypatch.setattr(
+        analyzerapp,
+        "interactive_run",
+        lambda fa, files=None, settings_manager=None: started.update(
+            fa=fa, manager=settings_manager
+        ),
+    )
+    _no_server(monkeypatch)
+    analyzerapp.main(
+        ["-o", "out", "-e", "local:workers=3", "--no-prefect-server", "--log-dir", "logs",
+         "--cache-dir", "cache", "--strict"]
+    )
+    settings = started["manager"].settings
+    assert settings.results_dir == Path("out") and settings.log_dir == Path("logs")
+    assert settings.execution.workers == 3 and settings.prefect_server is False
+    assert settings.cache.dir == Path("cache") and settings.strict is True
+    assert settings.cache.max_size_mb == 2048  # only the cache folder changed
+    assert started["fa"].execution.execution.workers == 3
+
+
+def test_unavailable_executor_stops_the_start(monkeypatch, capsys):
+    from flim.core.execution import ExecutionOptions
+
+    def unavailable(self):
         raise RuntimeError("needs the optional Dask support")
 
-    monkeypatch.setattr(analyzerapp, "check_executor_available", unavailable)
-    monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-e", "DaskExecutor"])
-    with pytest.raises(SystemExit, match="Dask support"):
+    monkeypatch.setattr(ExecutionOptions, "check_available", unavailable)
+    monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-e", "dask-local"])
+    with pytest.raises(SystemExit) as stop:
         analyzerapp.main()
+    assert stop.value.code == 2 and "Dask support" in capsys.readouterr().err
 
 
 # --- interactive_run and show_startup_error ---
@@ -120,16 +164,16 @@ def test_gui_starts_with_files_and_settings(monkeypatch):
     created = {}
 
     class FakeApp:
-        def __init__(self, fa, settings_file=None, files=None):
-            created.update(fa=fa, settings_file=settings_file, files=files)
+        def __init__(self, fa, settings_manager=None, files=None):
+            created.update(fa=fa, manager=settings_manager, files=files)
 
         def MainLoop(self):
             created["loop"] = True
 
     monkeypatch.setattr(flim.gui.app, "FLIMAnalyzerApp", FakeApp)
-    fa = object()
-    analyzerapp.interactive_run(fa, files=["a.txt"], settings_file="project.json")
-    assert created == {"fa": fa, "settings_file": "project.json", "files": ["a.txt"], "loop": True}
+    fa, manager = object(), object()
+    analyzerapp.interactive_run(fa, files=["a.txt"], settings_manager=manager)
+    assert created == {"fa": fa, "manager": manager, "files": ["a.txt"], "loop": True}
 
 
 def test_startup_error_shows_a_message_box(monkeypatch):

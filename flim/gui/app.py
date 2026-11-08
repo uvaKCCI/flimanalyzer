@@ -22,7 +22,7 @@ import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
-from flim.core.settings import AppSettings, load_settings
+from flim.core.settings import AppSettings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
@@ -64,8 +64,6 @@ import flim.gui.dialogs.autoencoder  # noqa: F401
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.unpivot  # noqa: F401
-# settings file read at startup if it exists (else the built-in defaults)
-DEFAULT_SETTINGS_FILE = "defaults.json"
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
 
 
@@ -77,61 +75,24 @@ def docs_url(version: str = __version__) -> str:
     return f"{DOCS_URL}/en/latest/"
 
 
-def startup_settings() -> AppSettings:
-    """The settings in DEFAULT_SETTINGS_FILE (of any version), else the built-in
-    defaults: also if the file cannot be read (the error is logged)."""
-    if os.path.isfile(DEFAULT_SETTINGS_FILE):
-        try:
-            return load_settings(DEFAULT_SETTINGS_FILE)
-        except Exception:
-            logging.exception(f"Settings in {DEFAULT_SETTINGS_FILE} could not be read")
-    return AppSettings.default()
-
-
-def gui_settings(settings_file=None) -> SettingsManager:
-    """The settings manager of a GUI session: the built-in defaults (without
-    ``settings_file``: the settings in DEFAULT_SETTINGS_FILE, if it exists), the user
-    settings file applied to them, and ``settings_file`` (any version), if given,
-    applied for this session."""
-    base = AppSettings.default() if settings_file else startup_settings()
-    manager = SettingsManager(base, UserSettingsFile(user_settings_path()))
-    if settings_file:
-        manager.load(settings_file)
-    return manager
-
-
-ImportEvent, EVT_IMPORT = NewEvent()
-ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
-DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
-
-
-
-def app_icon():
-    """The FLIMAnalyzer icon."""
-    return wx.Icon(str(files(flim.resources).joinpath("flimanalyzer.png")), wx.BITMAP_TYPE_PNG)
-
-
-def app_icons():
-    """The FLIMAnalyzer icon in all sizes of its ICO file, so that each window can
-    use a sharp one."""
-    return wx.IconBundle(str(files(flim.resources).joinpath("flimanalyzer.ico")), wx.BITMAP_TYPE_ICO)
-
-
 class FLIMAnalyzerApp(wx.App):
-    def __init__(self, flimanalyzer, settings_file=None, files=None):
+    def __init__(self, flimanalyzer, settings_manager=None, files=None):
         """
         Args:
-            flimanalyzer: the FLIMAnalyzer object that provides the task runner and
+            flimanalyzer: The FLIMAnalyzer object that provides the task runner and
                 execution settings.
-            settings_file: settings file (any version) applied for this session.
-            files: data files to open at startup, each in its own data window.
+            settings_manager: The SettingsManager of this session. Defaults to one with
+                the built-in defaults and the user settings file.
+            files: Data files to open at startup, each in its own data window.
         """
         self.flimanalyzer = flimanalyzer
         self.files = list(files or [])
         # tools of other packages, and their dialogs (entry points)
         discover(TOOLS_GROUP)
         discover(GUI_GROUP)
-        self.settings_manager = gui_settings(settings_file)
+        self.settings_manager = settings_manager or SettingsManager(
+            user_file=UserSettingsFile(user_settings_path())
+        )
         set_bundle_name("FLIMAnalyzer")  # before wx.App registers with macOS
         super().__init__()
 
@@ -591,6 +552,7 @@ class AppFrame(wx.Frame):
             data_choices=data_choices,
             execution=execution,
             autosave_locked=is_workflow,  # workflows always save their results
+            strict=self.settings.strict,
         )
         if result is None:
             return
@@ -618,7 +580,8 @@ class AppFrame(wx.Frame):
                     on_progress=on_progress,
                     cancel_token=cancel_token,
                     on_start=on_start,
-                    strict=False,  # in the GUI: columns guessed, as the dialog showed
+                    # the dialog showed the guesses; default: guess (app setting strict)
+                    strict=bool(self.settings.strict),
                 )
 
         else:

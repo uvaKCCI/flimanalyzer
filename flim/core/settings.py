@@ -210,6 +210,18 @@ class AppSettings(_Settings):
         " folder.",
     )
     cache: CacheSettings = Field(default_factory=CacheSettings)
+    strict: Optional[bool] = Field(
+        default=None,
+        description="Workflows: columns not in the data are errors (True) or replaced by"
+        " the closest match (False). A workflow's own setting takes precedence. None"
+        " defaults to strict in flimbatch and to guessing, shown before the run, in the"
+        " GUI.",
+    )
+    appsettings_path: list[Path] = Field(
+        default=[],
+        description="Folders searched for app settings files, in order. Empty defaults to"
+        " the folder appsettings in the platform's settings folder.",
+    )
     import_: ImportSettings = Field(default_factory=ImportSettings, alias="import")
     preprocess: PreprocessSettings = Field(default_factory=PreprocessSettings)
     filters: FilterSettings = Field(default_factory=FilterSettings)

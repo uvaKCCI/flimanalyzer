@@ -7,14 +7,32 @@ import logging
 import argparse
 import sys
 from flim._version import __version__
-from flim.core.tools import FLIMAnalyzer, check_executor_available
+from flim.core.cli import add_settings_options, command_line_changes, settings_file
+from flim.core.execution import ExecutionOptions
 from flim.core.prefect_server import PrefectServerError, use_prefect_server
+from flim.core.settings import AppSettings
+from flim.core.settingsmgr import (
+    UserSettingsFile,
+    session_settings,
+    start_folder_defaults,
+    user_settings_path,
+)
+from flim.core.tools import FLIMAnalyzer
+
+LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
 
 
-def parse_arguments():
-    """Parses command line arguments."""
+def build_parser() -> argparse.ArgumentParser:
+    """Create the argument parser of flimanalyzer.
+
+    Returns:
+        The parser, with the input files, the shared app settings options
+        (`flim.core.cli`) and the log level.
+    """
     parser = argparse.ArgumentParser(
-        epilog="flimanalyzer --batch ARGS runs flimbatch ARGS (batch mode, no GUI)."
+        prog="flimanalyzer",
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="flimanalyzer --batch ARGS runs flimbatch ARGS (batch mode, no GUI).",
     )
     parser.add_argument(
         "-i",
@@ -22,46 +40,30 @@ def parse_arguments():
         nargs="+",
         help="data files to open in the GUI, each in its own window",
     )
-    parser.add_argument(
-        "-e",
-        "--executor",
-        default="LocalExecutor",
-        help=(
-            "executor to run pipeline. Options: LocalExecutor, LocalDaskExecutor,"
-            " DaskExecutor"
-        ),
-    )
-    parser.add_argument(
-        "-a",
-        "--execargs",
-        default="",
-        help=(
-            "comma separated list of arguments to pass to executor instance, e.g."
-            " num_workers=4 (LocalExecutor: number of tasks run at the same time)"
-        ),
-    )
-    parser.add_argument(
-        "--no-prefect-server",
-        action="store_true",
-        help=(
-            "don't start a local Prefect server if none is running; flows then use a"
-            " temporary server"
-        ),
-    )
-    parser.add_argument(
-        "-c", "--config", default=None, help="settings file to start with (any version)"
-    )
+    add_settings_options(parser)
     parser.add_argument(
         "-l",
         "--log",
-        choices=["info", "debug", "warning", "error", "critical"],
+        choices=LOG_LEVELS,
         default="info",
         help="logging level",
     )
-    return parser.parse_args()
+    return parser
 
 
-def interactive_run(fa, files=None, settings_file=None):
+def parse_arguments(argv=None):
+    """Parse the command line of flimanalyzer.
+
+    Args:
+        argv: The arguments; defaults to `sys.argv[1:]`.
+
+    Returns:
+        The parsed arguments.
+    """
+    return build_parser().parse_args(argv)
+
+
+def interactive_run(fa, files=None, settings_manager=None):
     try:
         import wx  # noqa: F401
     except ImportError:
@@ -71,7 +73,7 @@ def interactive_run(fa, files=None, settings_file=None):
         )
     from flim.gui.app import FLIMAnalyzerApp  # here, so batch runs do not import wx
 
-    app = FLIMAnalyzerApp(fa, settings_file=settings_file, files=files)
+    app = FLIMAnalyzerApp(fa, settings_manager=settings_manager, files=files)
     app.MainLoop()
 
 
@@ -90,28 +92,39 @@ def init_logger(loglevel):
     logging.info(f"Log level: {numeric_level}")
 
 
-def main():
-    argv = sys.argv[1:]
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
     if "--batch" in argv:  # the other arguments are passed to flim.batch.main
         from flim import batch
 
         argv.remove("--batch")
         sys.exit(batch.main(argv))
 
-    args = parse_arguments()
-    try:
-        check_executor_available(args.executor)
-    except RuntimeError as e:
-        sys.exit(f"flimanalyzer: {e}")
+    parser = build_parser()
+    args = parser.parse_args(argv)
     init_logger(args.log.upper())
-    version = __version__
-    logging.info(f"FLIMAnalyzer version {version}")
-
+    logging.info(f"FLIMAnalyzer version {__version__}")
     logging.debug(args)
-    fa = FLIMAnalyzer(executor=args.executor, execargs=args.execargs)
     try:
-        with use_prefect_server(start=not args.no_prefect_server):
-            interactive_run(fa, files=args.input, settings_file=args.config)
+        name, notes = settings_file(args)
+        changes, more = command_line_changes(args)
+        manager = session_settings(
+            name,
+            changes,
+            user_file=UserSettingsFile(user_settings_path()),
+            base=AppSettings.default() if name else start_folder_defaults(),
+        )
+        execution = ExecutionOptions(execution=manager.settings.execution)
+        execution.check_available()
+    except (FileNotFoundError, ValueError, RuntimeError) as err:
+        parser.error(str(err))
+    for note in notes + more:
+        print(f"flimanalyzer: warning: {note}", file=sys.stderr)
+        logging.warning(note)
+    fa = FLIMAnalyzer(execution=execution)
+    try:
+        with use_prefect_server(start=manager.settings.prefect_server):
+            interactive_run(fa, files=args.input, settings_manager=manager)
     except PrefectServerError as err:
         logging.error(err)
         show_startup_error(str(err))

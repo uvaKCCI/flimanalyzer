@@ -128,7 +128,7 @@ jobs:
           printf '{"tools": {"Summarize": {"config": {"features": ["x", "y"]}}}}\n' \
             > work/settings.json
           docker run --rm -u "$(id -u)" -v "$PWD/work:/work" flimanalyzer:ci \
-            -i data -o results -c settings.json --run Summarize --no-prefect-server
+            -i data -o results -s settings.json --run Summarize --no-prefect-server
           test -s work/results/Imported.txt
           test -n "$(find work/results/Summarize -name 'Table_Summary.txt')"
 
