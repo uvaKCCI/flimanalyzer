@@ -1,46 +1,54 @@
 # Concurrent and Distributed Execution
 
-Every tool and workflow step runs as a task. A task starts as soon as the results it needs are ready. Tasks that don't depend on each other run concurrently, without waiting for each other. Within one process, tasks that draw figures take turns, because matplotlib's plotting is not thread-safe. With `LocalDaskExecutor` and `scheduler=processes`, or with a Dask cluster, each worker process draws on its own, so plots run in parallel.
+Every tool and workflow step runs as a task. A task starts as soon as the results it needs are ready. Tasks that don't depend on each other run concurrently, without waiting for each other. Within one process, tasks that draw figures take turns, because matplotlib's plotting is not thread-safe. With `dask-local` and `scheduler=processes`, or with a Dask cluster, each worker process draws on its own, so plots run in parallel.
 
-The *executor* decides where the tasks run. The same options work in the GUI (`flimanalyzer`) and in [batch mode](/userguide/batch) (`flimbatch`).
+The *executor* decides where the tasks run. It is set with the option `-e`, in the GUI (`flimanalyzer`) and in [batch mode](/userguide/batch) (`flimbatch`) alike.
 
 | Executor | Option | Tasks run | Needs |
 |---|---|---|---|
-| Threads (default) | `-e LocalExecutor` | as threads in the FLIMAnalyzer process, on one computer | nothing extra |
-| Dask on one computer | `-e LocalDaskExecutor` | in a local Dask cluster, as processes or threads | the `dask` extra |
-| Dask cluster | `-e DaskExecutor` | on the workers of an existing Dask cluster, also on other computers | the `dask` extra |
+| Threads (default) | `-e local[:workers=N]` | as threads in the FLIMAnalyzer process, on one computer | nothing extra |
+| Dask on one computer | `-e dask-local[:workers=N,scheduler=threads\|processes,KEY=VALUE...]` | in a Dask cluster started on this computer, as processes or threads | the `dask` extra |
+| Dask cluster | `-e dask:address=URL[,KEY=VALUE...]` | on the workers of an existing Dask cluster, also on other computers | the `dask` extra |
 
-Executor options are given with `--execargs`, as `name=value` pairs separated by commas. An executor name that is not in the table runs `LocalExecutor`; only the log says so.
+The executor's options follow its name after a colon, as `KEY=VALUE` pairs separated by commas. An unknown executor name, an option the executor doesn't have, or an invalid value is an error, and FLIMAnalyzer doesn't start. The executor can also be set with environment variables or in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
+
+**Deprecated options.** The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`, and the option `-a`, `--execargs`, still work, but print a warning that shows the new form. `num_workers` is now `workers`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does. For example:
+
+| Deprecated | New |
+|---|---|
+| `--execargs="num_workers=4"` | `-e local:workers=4` |
+| `-e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"` | `-e dask-local:workers=8,scheduler=processes` |
+| `-e DaskExecutor --execargs="address=tcp://host:8786"` | `-e dask:address=tcp://host:8786` |
 
 ## Threads (default)
 
 By default, up to one task per CPU core runs at a time. To change that number:
 
 ```
-flimanalyzer --execargs="num_workers=4"
+flimanalyzer -e local:workers=4
 ```
 
-`num_workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default. `LocalExecutor` has no other options.
+`workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default. `local` has no other options.
 
 ## Dask on one computer
 
 Install the Dask support first: `uv sync --extra dask` (or `pip install "flimanalyzer[dask]"`). Then start a local Dask cluster with, for example, 8 worker processes:
 
 ```
-flimanalyzer -e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"
+flimanalyzer -e dask-local:workers=8,scheduler=processes
 ```
 
-Set `num_workers` to about the number of CPU cores. Without `scheduler=processes`, the workers run as threads (`scheduler=threads`, the default). Other options are passed on to the local Dask cluster.
+Set `workers` to about the number of CPU cores. Without `scheduler=processes`, the workers run as threads (`scheduler=threads`, the default). Other options are passed on to the local Dask cluster, for example `threads_per_worker=2`.
 
 ## Dask cluster
 
 To use a Dask cluster that is already running, give the address of its scheduler:
 
 ```
-flimanalyzer -e DaskExecutor --execargs="address=tcp://<scheduler-host>:8786"
+flimanalyzer -e dask:address=tcp://<scheduler-host>:8786
 ```
 
-The workers must have the same FLIMAnalyzer version installed as the computer that starts the run. Other options are passed on to Prefect's Dask task runner. Without `address`, `DaskExecutor` starts a local Dask cluster instead.
+The address is required. The workers must have the same FLIMAnalyzer version installed as the computer that starts the run. Other options are passed on to Prefect's Dask task runner.
 
 ## Limiting tasks of one kind
 
@@ -80,8 +88,8 @@ apptainer pull flimanalyzer.sif docker://ghcr.io/uvakcci/flimanalyzer:latest-cpu
 #SBATCH --time=02:00:00
 
 apptainer run flimanalyzer.sif \
-    -i data/ -o results/ -c settings.json --run "Basic FLIRR Analysis" \
-    --execargs="num_workers=${SLURM_CPUS_PER_TASK}" --no-prefect-server
+    -i data/ -o results/ -s settings.json --run "Basic FLIRR Analysis" \
+    -e local:workers=${SLURM_CPUS_PER_TASK} --no-prefect-server
 ```
 
 Submit it with `sbatch`. The published images don't include Dask, so they use the default executor (threads). Replace `<cluster_partition>` with a partition of your cluster (`--partition` or `-p`; `sinfo` lists them), and adjust the other `#SBATCH` lines (cores, memory, time, and an account if your cluster requires one) to your data and cluster.
@@ -103,8 +111,8 @@ print(cluster.scheduler_address)
 While this Python session runs, start `flimbatch` from the same environment with the printed address:
 
 ```
-flimbatch -i data/ -o results/ -c settings.json --run "Basic FLIRR Analysis" \
-    -e DaskExecutor --execargs="address=<printed address>" --no-prefect-server
+flimbatch -i data/ -o results/ -s settings.json --run "Basic FLIRR Analysis" \
+    -e dask:address=<printed address> --no-prefect-server
 ```
 
 `queue` is the Slurm partition. `SLURMCluster` also takes an `account` and other Slurm options (`job_extra_directives`); see the dask-jobqueue documentation.

@@ -8,7 +8,7 @@ Steps that don't depend on each other run concurrently, without waiting for each
 
 Workflows always save their results; `Save results in` is always checked in their dialogs. The results are not opened in windows.
 
-Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results in`. For example: `FLIMAnalyzerResults/Basic FLIRR Analysis/2026-11-03_14-05-31/`. Steps that are run several times with different settings, for example the training of each model in the autoencoder workflows, save their results in subfolders of this folder, named after these settings. The other steps save their results directly in the folder. The files are saved as described in [Saving results](/userguide/dialogs.md#saving-results).
+Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results in`. For example: `results/Basic FLIRR Analysis/2026-11-03_14-05-31/`. Steps that are run several times with different settings, for example the training of each model in the autoencoder workflows, save their results in subfolders of this folder, named after these settings. The other steps save their results directly in the folder. The files are saved as described in [Saving results](/userguide/dialogs.md#saving-results).
 
 The folder also gets a file `run_summary.txt`. It lists when the workflow ran and, for each step, its status, the resources it used (for example GPU or CPU) and its message. A completed step has a message only if its tool reported a warning (see [The run summary](#the-run-summary)).
 
@@ -18,7 +18,7 @@ Before the workflow runs, the dialog checks its settings against the selected da
 
 The `Strict` setting of each workflow sets whether a missing column is guessed or is an error:
 
-* `Automatic` (default): guessed in the GUI. In [batch mode](/userguide/batch), it is an error unless `--allow-guesses` is given.
+* `Automatic` (default): follows the option `--strict` or `--no-strict` (see [Command-line options](/install/index.md#command-line-options)). Without it, missing columns are guessed in the GUI, and are an error in [batch mode](/userguide/batch).
 * `Yes`: always an error, also in the GUI. Choose the column yourself.
 * `No`: always guessed, also in batch mode.
 

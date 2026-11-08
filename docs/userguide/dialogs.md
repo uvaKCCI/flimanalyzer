@@ -22,7 +22,7 @@ When you choose another table, the dialog lists the columns of that table, for e
 
 ## Saving results
 
-At the bottom of the dialog, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in`, then type a folder or click the button next to it to choose one. The folder is created if it doesn't exist yet. By default, it is the folder `FLIMAnalyzerResults` in your home folder.
+At the bottom of the dialog, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in`, then type a folder or click the button next to it to choose one. The folder is created if it doesn't exist yet. By default, it is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)).
 
 The results are saved in a new folder for each run, named after the date and time of the run, for example `2026-11-03_14-05-31`. In it, the results of the tool are in a folder named after the tool, for example `Summarize`:
 
@@ -87,7 +87,7 @@ A field that allows only one value with the current settings is hidden. It appea
 
 When you click `OK`, the GUI keeps the settings of the dialog. The next time you open the same tool, its dialog opens with these settings, including the result prefix and the folder under `Save results in`. `Cancel` keeps the settings that were there before.
 
-These settings are kept only while FLIMAnalyzer is open; they are not saved when it closes. To keep them, use `File` > `Export Settings...` or `Save Settings...` (see [Settings](/userguide/settings)).
+The GUI also saves these settings to the user settings file, so they apply again the next time it starts (see [The user settings file](/userguide/settings.md#the-user-settings-file)). To keep them in a file of your own, use `File` > `Export Settings...` or `Save Settings...`.
 
 ## Result windows
 
