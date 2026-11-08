@@ -1,7 +1,7 @@
 """Bitmaps of tools, from their icon resource names."""
 
 import wx
-from importlib_resources import files
+from importlib.resources import files
 
 import flim.resources
 
