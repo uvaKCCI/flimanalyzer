@@ -98,12 +98,23 @@ Run `flimanalyzer --help` for all command-line options.
 | Option | |
 |---|---|
 | `-i`, `--input` | data files to open at startup, each in its own table window |
-| `-c`, `--config` | settings file to start with, instead of `defaults.json` (see [Settings](/userguide/settings)) |
-| `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
+| `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings folders, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
+| `-o`, `--output` | results folder: the folder under `Save results in` for tools that have no folder of their own |
+| `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4` (see [Concurrent and Distributed Execution](/userguide/execution)) |
 | `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |
-| `-e`, `--executor` | where the tasks run: `LocalExecutor` (default), `LocalDaskExecutor` or `DaskExecutor` (see [Concurrent and Distributed Execution](/userguide/execution)) |
-| `-a`, `--execargs` | executor options, for example `num_workers=4` |
+| `--log-dir` | sets the log folder setting (`log_dir`) |
+| `--cache-dir` | sets the cache folder setting (`cache` > `dir`) |
+| `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. Default: the closest columns are used, and the dialog shows them before the run (see [Workflows](/userguide/workflows.md#checking-the-settings)). |
+| `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
 | `--batch` | runs [batch mode](/userguide/batch) instead of the GUI: `flimanalyzer --batch ...` does the same as `flimbatch ...` |
+
+These options can also be set with environment variables, and in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)). An option given on the command line takes precedence.
+
+**Deprecated options.** These options still work, but print a warning that shows the new form:
+
+* `-c`, `--config FILE`: use `-s FILE`.
+* The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`: use `local`, `dask-local` and `dask`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
+* `-a`, `--execargs`: put the options after the executor name, as `-e NAME:KEY=VALUE,...`. `num_workers` is now `workers`. For example, `-e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"` becomes `-e dask-local:workers=8,scheduler=processes`.
 
 The GUI writes its messages to the log file `flimanalyzer.log`, in the folder it was started from. The file is replaced each time FLIMAnalyzer starts. When an error message says "see the log", the details are in this file.
 

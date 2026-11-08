@@ -102,12 +102,12 @@ Which GPU can be used depends on the PyTorch build that was installed (see [Inst
 
 ## Run FLIMAnalyzer in batch mode
 
-`flimbatch` imports data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. It takes its settings from a settings file saved in the GUI (File > Export Settings...): the import settings and the settings of each tool. A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
+`flimbatch` imports data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. It takes its settings from an app settings file, given with `-s` and saved in the GUI (File > Export Settings...): the import settings and the settings of each tool. A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
 
-    uv run flimbatch -i data/ -o results/ -c settings.json \
+    uv run flimbatch -i data/ -o results/ -s settings.json \
         --run Summarize --run "Basic FLIRR Analysis"
 
-The imported table is saved as `results/Imported.txt`, and each tool's results in `results/<tool name>/`. A workflow column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error. `--allow-guesses` uses the closest column instead and lists it in the run summary. The exit code is 1 if a check or task failed. Run `flimbatch --help` for all options.
+The imported table is saved as `results/Imported.txt`, and each tool's results in `results/<tool name>/`. A workflow column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error. `--no-strict` uses the closest column instead and lists it in the run summary. The exit code is 1 if a check or task failed. Run `flimbatch --help` for all options.
 
 `flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
 
@@ -116,7 +116,7 @@ The imported table is saved as `results/Imported.txt`, and each tool's results i
 The image runs `flimbatch`. Make the folder with the data and the settings file available inside the container as `/work`:
 
     docker run --rm -v "$PWD:/work" ghcr.io/uvakcci/flimanalyzer:latest-cpu \
-        -i data/ -o results/ -c settings.json --run Summarize --no-prefect-server
+        -i data/ -o results/ -s settings.json --run Summarize --no-prefect-server
 
 * On Linux, add `-u $(id -u)` so that the result files belong to you.
 * With the CUDA image, add `--gpus all` to use the GPU.
@@ -145,21 +145,21 @@ Every tool and workflow step runs as a Prefect task. A task starts as soon as th
 
 By default, up to one task per CPU core runs at a time, as threads. To change that number:
 
-    uv run flimanalyzer --execargs="num_workers=4"
+    uv run flimanalyzer -e local:workers=4
 
-`num_workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default.
+`workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default.
 
 FLIMAnalyzer can also use [Dask](https://www.dask.org). Dask support is optional; install it with `uv sync --extra dask` (or `pip install -e ".[dask]"`).
 
 On a *single node*, start a local Dask cluster:
 
-    uv run flimanalyzer -e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"
+    uv run flimanalyzer -e dask-local:workers=8,scheduler=processes
 
-As a general guideline, adjust `num_workers` to match the number of CPU cores in your system. Use `scheduler=threads` to run the workers as threads instead of processes.
+As a general guideline, adjust `workers` to match the number of CPU cores in your system. Use `scheduler=threads` to run the workers as threads instead of processes.
 
 To use an existing Dask cluster:
 
-    uv run flimanalyzer -e DaskExecutor --execargs="address=tcp://<scheduler-host>:8786"
+    uv run flimanalyzer -e dask:address=tcp://<scheduler-host>:8786
 
 ### Concurrency limits
 
