@@ -112,14 +112,15 @@ def loss_summary(trained, tags: str):
         )
 
 
-def overview(data, features, tags):
-    """Correlations and distributions of the features."""
+def overview(data, features, grouping, tags):
+    """Correlations of the features, and their distributions per value of the column
+    ``grouping``."""
     Heatmap()(
         data,
         config=HeatmapConfig(features=features, correlation="spearman"),
         task_tags=tags,
     )
-    KDE()(data, config=KDEConfig(grouping=["Treatment"], features=features), task_tags=tags)
+    KDE()(data, config=KDEConfig(grouping=[grouping], features=features), task_tags=tags)
 
 
 @register_tool
@@ -137,7 +138,7 @@ class AETune(Workflow[AETuneConfig]):
         filtered = Filter()(input, config=FilterConfig(), task_tags="Input_Filtered")[
             "Table: Filtered"
         ]
-        overview(filtered, features, "Input_Filtered")
+        overview(filtered, features, config.timeseries, "Input_Filtered")
         trained = train_models(
             filtered, config.training, f"AEAugment-{len(features)}"
         )
@@ -155,11 +156,11 @@ class AETune(Workflow[AETuneConfig]):
             augmented = Filter()(augmented, config=FilterConfig(), task_tags=tag)[
                 "Table: Filtered"
             ]
-            overview(augmented, features, tag)
+            overview(augmented, features, config.timeseries, tag)
             Summarize()(
                 augmented,
                 config=SummaryConfig(
-                    grouping=["Treatment"],
+                    grouping=[config.timeseries],
                     features=features,
                     single_table=False,
                     aggs=["min", "max", "median", "count"],

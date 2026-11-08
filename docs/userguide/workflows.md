@@ -93,7 +93,7 @@ Settings:
 
 * `Grouping`: the training and validation sets are split by these groups. Default: `Treatment`, `FOV`, `Cell`.
 * `Features`: the features the autoencoders use. By default, the FAD and NAD(P)H amplitudes (a1, a2), lifetimes (t1, t2) and photons.
-* `Time series`: the category column with the time points. Default: `Treatment`.
+* `Time series`: the category column with the time points. The KDE plots and the summaries of the augmented data are grouped by it. Default: `Treatment`.
 * `Resources`: the device and threads of the training and augmentation (see [Resources](/userguide/dialogs.md#resources)).
 * `Training`: the settings of [Autoencoder: Train](/userguide/analysis/aetrain), without those the workflow sets. Defaults: 6 epochs, learning rates 1e-5 and 2e-5, weight decays 1e-7 and 1e-8, batch sizes 128 and 64 (8 models), `Rescale` on, a checkpoint every 2 epochs, and the architecture `AE Simulator 1-6`.
 * `Augment`: the settings of [Autoencoder: Augment Data](/userguide/analysis/aeaugment), without those the workflow sets. Defaults: 4 copies, `Add noise` off.
