@@ -342,20 +342,28 @@ def settings_from_data(data: dict) -> AppSettings:
     return _validated(migrate(data))
 
 
-def update_settings(settings: AppSettings, data: dict) -> AppSettings:
-    """``settings`` with the sections in ``data`` (JSON of any version): each section
-    replaces the one in ``settings``; tools: each tool's section."""
-    data = migrate(data)
-    merged = settings.to_json()
-    for key, value in data.items():
+def merge_sections(base: dict, changes: dict) -> dict:
+    """A copy of ``base`` (sections in the current version) with the sections of
+    ``changes`` (any version): each replaces the section in ``base``; tools each tool's
+    section, which also removes that tool's sections under its former names."""
+    merged = copy.deepcopy(base)
+    for key, value in migrate(changes).items():
         if key == "tools" and isinstance(value, dict):
+            tools = merged.setdefault("tools", {})
             for name in value:
                 tool = _registered(name)
                 for former in getattr(tool, "former_names", ()):
-                    merged["tools"].pop(former, None)
-            merged["tools"].update(value)
-        else:
+                    tools.pop(former, None)
+            tools.update(value)
+        elif key != "schema_version":
             merged[key] = value
+    return merged
+
+
+def update_settings(settings: AppSettings, data: dict) -> AppSettings:
+    """``settings`` with the sections in ``data`` (JSON of any version): each section
+    replaces the one in ``settings``; tools each tool's section."""
+    merged = merge_sections(settings.to_json(), data)
     merged["schema_version"] = SETTINGS_VERSION
     return _validated(merged)
 

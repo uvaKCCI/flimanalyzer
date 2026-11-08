@@ -25,7 +25,8 @@ import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
-from flim.core.settings import AppSettings, load_settings, save_settings
+from flim.core.settings import AppSettings, load_settings
+from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.paths import canonical_folder
@@ -89,6 +90,18 @@ def startup_settings() -> AppSettings:
     return AppSettings.default()
 
 
+def gui_settings(settings_file=None) -> SettingsManager:
+    """The settings manager of a GUI session: the built-in defaults (without
+    ``settings_file``: the settings in DEFAULT_SETTINGS_FILE, if it exists), the user
+    settings file applied to them, and ``settings_file`` (any version), if given,
+    applied for this session."""
+    base = AppSettings.default() if settings_file else startup_settings()
+    manager = SettingsManager(base, UserSettingsFile(user_settings_path()))
+    if settings_file:
+        manager.load(settings_file)
+    return manager
+
+
 ImportEvent, EVT_IMPORT = NewEvent()
 ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
 DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
@@ -106,9 +119,10 @@ def app_icons():
 
 
 class FLIMAnalyzerApp(wx.App):
-    def __init__(self, flimanalyzer, config=None, files=None):
+    def __init__(self, flimanalyzer, settings_file=None, files=None):
         """
         Args:
+            settings_file: settings file (any version) applied for this session.
             files: data files to open at startup, each in its own data window.
         """
         self.flimanalyzer = flimanalyzer
@@ -116,8 +130,7 @@ class FLIMAnalyzerApp(wx.App):
         # tools of other packages, and their dialogs (entry points)
         discover(TOOLS_GROUP)
         discover(GUI_GROUP)
-        # AppSettings; default: startup_settings()
-        self.settings = config if config is not None else startup_settings()
+        self.settings_manager = gui_settings(settings_file)
         set_bundle_name("FLIMAnalyzer")  # before wx registers the app with macOS
         super().__init__()
 
@@ -125,7 +138,7 @@ class FLIMAnalyzerApp(wx.App):
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
         set_display_name("FLIMAnalyzer")
-        self.frame = AppFrame(self.flimanalyzer, self.settings)
+        self.frame = AppFrame(self.flimanalyzer, self.settings_manager)
         self.dock_icon = None
         if wx.Platform == "__WXMAC__":
             # the Dock shows the Python icon unless it is replaced here
@@ -159,13 +172,19 @@ class FLIMAnalyzerApp(wx.App):
 
 
 class AppFrame(wx.Frame):
-    def __init__(self, flimanalyzer, settings=None):
+    def __init__(self, flimanalyzer, settings_manager=None):
         """
         Args:
-            settings: AppSettings (default: their defaults).
+            settings_manager: the SettingsManager of this session (default: one with the
+                built-in defaults that keeps changes in memory only).
         """
         self.flimanalyzer = flimanalyzer
-        self.settings = settings if settings is not None else AppSettings.default()
+        self.settings_manager = (
+            settings_manager if settings_manager is not None else SettingsManager()
+        )
+        # the filter settings shared by the data windows; changes are reported to the
+        # settings manager (report_filters)
+        self.filters = self.settings.filters
         # self.rawdata = None
         # self.data = None
         # self.filtereddata = None
@@ -374,6 +393,17 @@ class AppFrame(wx.Frame):
         self.window_zorder = [w for w in self.window_zorder if w != title]
         self.window_zorder.append(title)
 
+    @property
+    def settings(self) -> AppSettings:
+        """A copy of the current settings; changes are applied through
+        settings_manager."""
+        return self.settings_manager.settings
+
+    def report_filters(self, filters) -> None:
+        """Applies the filter settings changed in a data window and writes them to the
+        user settings file."""
+        self.settings_manager.update({"filters": filters.model_dump(mode="json")})
+
     def OnLoadData(self, event):
         dlg = ImportDlg(
             self,
@@ -385,6 +415,10 @@ class AppFrame(wx.Frame):
         )
         if dlg.ShowModal() == wx.ID_OK:
             imported = dlg.get_settings().import_
+            # for this session only: they include data file paths
+            self.settings_manager.update(
+                {"import": imported.model_dump(mode="json", by_alias=True)}, keep=False
+            )
             self.open_data_files(imported.include_files, imported.delimiter)
 
     def open_data_files(self, files, delimiter=None):
@@ -434,6 +468,14 @@ class AppFrame(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             settings = dlg.get_settings()
             imported, preprocess = settings.import_, settings.preprocess
+            # for this session only: they include data file paths
+            self.settings_manager.update(
+                {
+                    "import": imported.model_dump(mode="json", by_alias=True),
+                    "preprocess": preprocess.model_dump(mode="json"),
+                },
+                keep=False,
+            )
 
             parsername = imported.filename_parser.parser
             parser = flim.core.parser.instantiate_parser(
@@ -497,9 +539,11 @@ class AppFrame(wx.Frame):
             )
 
     def load_settings(self, path) -> None:
-        """Uses the settings in a file (of any version, see flim.core.settings); the
-        sections it does not have (e.g. other tools') stay as they are."""
-        self.settings = load_settings(path, self.settings)
+        """Applies the sections of a settings file (any version) for this session; the
+        sections it does not have (e.g. other tools') stay as they are. New data windows
+        use its filter settings."""
+        self.settings_manager.load(path)
+        self.filters = self.settings.filters
 
     def OnSaveSettings(self, event):
         with wx.FileDialog(
@@ -513,8 +557,8 @@ class AppFrame(wx.Frame):
             self.save_settings(fileDialog.GetPath())
 
     def save_settings(self, path) -> None:
-        """Saves the settings (in the current version)."""
-        save_settings(self.settings, path)
+        """Writes all current settings, in the current version, to a file."""
+        self.settings_manager.export(path)
 
     def get_currentdata(self):
         if len(self.window_zorder) == 0:
@@ -572,7 +616,7 @@ class AppFrame(wx.Frame):
         )
         if result is None:
             return
-        self.settings.tool_settings.set(
+        self.settings_manager.set_tool(
             tool,
             result.config,
             result.execution.autosave,
@@ -741,13 +785,14 @@ class AppFrame(wx.Frame):
             frame = PandasFrame(
                 self,
                 title,
-                self.settings.filters,  # shared: changed in any data window
+                self.filters,  # shared by the data windows
                 data,
                 showcolindex=event.ShowColIndex(),
                 analyzable=event.IsAnalyzable(),
                 groups=event.GetGroups(),
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
+                on_filters_changed=self.report_filters,
             )
             frame.set_modified(event.IsModified())
             frame.Show(True)

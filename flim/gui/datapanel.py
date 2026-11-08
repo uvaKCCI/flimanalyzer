@@ -176,10 +176,18 @@ class PandasFrame(wx.Frame):
         savemodified=True,
         precision=3,
         enableclose=True,
+        on_filters_changed=None,
     ):
+        """
+        Args:
+            filters: FilterSettings, shared by the app's data windows (default: the
+                built-in defaults, not shared).
+            on_filters_changed: called with ``filters`` after the user changes them
+                (filter checkbox, Filter Settings dialog).
+        """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
-        # the app's filter settings (shared by its data windows), else the defaults
         self.filters = filters if filters is not None else AppSettings.default().filters
+        self.on_filters_changed = on_filters_changed
         self.enableclose = enableclose
         # *****
         # data = data.copy()
@@ -406,6 +414,11 @@ class PandasFrame(wx.Frame):
     def OnFilterData(self, event):
         cb = event.GetEventObject()
         self.updateusefilter(cb.GetValue())
+        self._filters_changed()
+
+    def _filters_changed(self):
+        if self.on_filters_changed is not None:
+            self.on_filters_changed(self.filters)
 
     def _existing_rangefilters(self, filterlist, columns=None):
         existingfilters = {rfilter["name"]: rfilter for rfilter in filterlist}
@@ -434,6 +447,7 @@ class PandasFrame(wx.Frame):
             self.filters.use = edited.use
             self.filtercb.SetValue(edited.use)
             self.updateusefilter(edited.use, showdiscarded=edited.show_dropped)
+            self._filters_changed()
 
     def _merged_filters(self, edited) -> list:
         """The range filters with the edited ones replaced (by column name)."""

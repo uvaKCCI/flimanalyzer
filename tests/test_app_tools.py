@@ -27,9 +27,8 @@ def frame(wxapp, table, monkeypatch, tmp_path):
     from flim.core.runner import CancelToken
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
-    from flim.core.settings import AppSettings
 
-    frame = AppFrame(FLIMAnalyzer(), AppSettings.default())
+    frame = AppFrame(FLIMAnalyzer())
     frame.shown = []
     monkeypatch.setattr(frame, "tool_data_choices", lambda: {"Table: data": table})
     # run in this thread, without the progress dialog

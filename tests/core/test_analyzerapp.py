@@ -80,12 +80,13 @@ def test_settings_file_reaches_the_gui(monkeypatch, clean_logging):
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings=None: started.update(files=files, settings=settings),
+        lambda fa, files=None, settings_file=None: started.update(
+            files=files, settings_file=settings_file
+        ),
     )
     _no_server(monkeypatch)
     analyzerapp.main()
-    assert started["files"] == ["a.txt"]
-    assert started["settings"].working_dir == str(clean_logging / "results")
+    assert started == {"files": ["a.txt"], "settings_file": str(path)}
 
 
 def test_unavailable_executor_stops_the_start(monkeypatch):
@@ -119,16 +120,16 @@ def test_gui_starts_with_files_and_settings(monkeypatch):
     created = {}
 
     class FakeApp:
-        def __init__(self, fa, config=None, files=None):
-            created.update(fa=fa, config=config, files=files)
+        def __init__(self, fa, settings_file=None, files=None):
+            created.update(fa=fa, settings_file=settings_file, files=files)
 
         def MainLoop(self):
             created["loop"] = True
 
     monkeypatch.setattr(flim.gui.app, "FLIMAnalyzerApp", FakeApp)
-    fa, settings = object(), object()
-    analyzerapp.interactive_run(fa, files=["a.txt"], settings=settings)
-    assert created == {"fa": fa, "config": settings, "files": ["a.txt"], "loop": True}
+    fa = object()
+    analyzerapp.interactive_run(fa, files=["a.txt"], settings_file="project.json")
+    assert created == {"fa": fa, "settings_file": "project.json", "files": ["a.txt"], "loop": True}
 
 
 def test_startup_error_shows_a_message_box(monkeypatch):

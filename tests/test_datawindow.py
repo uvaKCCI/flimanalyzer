@@ -47,6 +47,12 @@ def _answer_file_dialog(monkeypatch, path):
     monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(path))
 
 
+def _set_import_files(frame, files):
+    """Sets the files of the import dialog, as the dialog does (for this session)."""
+    imported = frame.settings.import_.model_dump(mode="json", by_alias=True)
+    frame.settings_manager.update({"import": {**imported, "include_files": files}}, keep=False)
+
+
 def _new_windows(frame, before):
     return {t: w for t, w in frame.windowframes.items() if t not in before}
 
@@ -124,14 +130,16 @@ def test_save_and_load_settings(frame, monkeypatch, tmp_path):
     from flim.core.settings import SETTINGS_VERSION
 
     path = tmp_path / "settings.json"
-    frame.settings.import_.delimiter = ";"  # e.g. by the import dialog
-    frame.settings.tool_settings.set(tools.get("K-Means"), KMeansConfig(n_clusters=5))
+    manager = frame.settings_manager
+    imported = frame.settings.import_.model_dump(mode="json", by_alias=True)
+    manager.update({"import": {**imported, "delimiter": ";"}}, keep=False)
+    manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=5))
     _answer_file_dialog(monkeypatch, path)
     frame.OnSaveSettings(None)
     assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
 
-    frame.settings.import_.delimiter = "\t"
-    frame.settings.tool_settings.tools.clear()
+    manager.update({"import": {**imported, "delimiter": "\t"}, "tools": {}}, keep=False)
+    manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=2))
     frame.OnLoadSettings(None)
     assert frame.settings.import_.delimiter == ";"
     assert frame.settings.tool_settings.config(tools.get("K-Means")).n_clusters == 5
@@ -145,7 +153,7 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
         path = tmp_path / name
         part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
         files.append(str(path))
-    frame.settings.import_.include_files = files
+    _set_import_files(frame, files)
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
     before = set(frame.windowframes)
     frame.OnImportData(None)
@@ -157,7 +165,7 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
 def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
     from flim.gui.importdlg import ImportDlg
 
-    frame.settings.import_.include_files = [str(tmp_path / "gone.txt")]
+    _set_import_files(frame, [str(tmp_path / "gone.txt")])
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
@@ -193,10 +201,38 @@ def test_import_again_opens_a_new_window(frame, monkeypatch, tmp_path, flim_data
         part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
         files.append(str(path))
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    frame.settings.import_.include_files = files
+    _set_import_files(frame, files)
     frame.OnImportData(None)
     first = frame.windowframes["Imported Data"]
     first.modified = True  # changed, not saved
     frame.OnImportData(None)  # the same files again
     assert frame.windowframes["Imported Data"] is first and first.is_modified()
     assert len(frame.windowframes["Imported Data-1"].GetViewData()) == 25
+
+
+def test_filter_changes_reach_the_user_settings_file(wxapp, monkeypatch, tmp_path, flim_data):
+    import json
+
+    from flim.core.settingsmgr import SettingsManager, UserSettingsFile
+    from flim.core.tools import FLIMAnalyzer
+    from flim.gui.app import AppFrame
+
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)  # never wait
+    path = tmp_path / "settings.json"
+    frame = AppFrame(FLIMAnalyzer(), SettingsManager(user_file=UserSettingsFile(path)))
+    try:
+        window = _open(frame, flim_data)
+
+        class Checked:  # the filter checkbox's event: checked
+            def GetEventObject(self):
+                return self
+
+            def GetValue(self):
+                return True
+
+        window.OnFilterData(Checked())
+        assert json.loads(path.read_text())["filters"]["use"] is True
+        assert frame.settings.filters.use is True
+    finally:
+        frame.OnCloseAll(None)
+        frame.Destroy()

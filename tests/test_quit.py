@@ -12,11 +12,10 @@ wx = pytest.importorskip("wx")
 
 @pytest.fixture
 def app_frame(wxapp, monkeypatch):
-    from flim.core.settings import AppSettings
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
 
-    frame = AppFrame(FLIMAnalyzer(), AppSettings.default())
+    frame = AppFrame(FLIMAnalyzer())
     frame.asked = []
 
     def answer_with(answer):

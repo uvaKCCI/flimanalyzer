@@ -121,3 +121,12 @@ def close_figures():
     # here, on the main thread, not later in some worker thread
     gc.collect()
 
+
+@pytest.fixture(autouse=True)
+def user_settings_file(tmp_path, monkeypatch):
+    """Every test uses its own user settings file (FLIM_SETTINGS), never the one in
+    the platform's settings folder."""
+    path = tmp_path / "user-settings.json"
+    monkeypatch.setenv("FLIM_SETTINGS", str(path))
+    return path
+

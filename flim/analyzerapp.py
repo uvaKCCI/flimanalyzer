@@ -64,7 +64,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def interactive_run(fa, files=None, settings=None):
+def interactive_run(fa, files=None, settings_file=None):
     try:
         import wx  # noqa: F401
     except ImportError:
@@ -74,7 +74,7 @@ def interactive_run(fa, files=None, settings=None):
         )
     from flim.gui.app import FLIMAnalyzerApp  # here: batch runs never import wx
 
-    app = FLIMAnalyzerApp(fa, config=settings, files=files)
+    app = FLIMAnalyzerApp(fa, settings_file=settings_file, files=files)
     app.MainLoop()
 
 
@@ -112,14 +112,9 @@ def main():
 
     logging.debug(args)
     fa = FLIMAnalyzer(executor=args.executor, execargs=args.execargs)
-    settings = None
-    if args.config:
-        from flim.core.settings import load_settings
-
-        settings = load_settings(args.config)
     try:
         with use_prefect_server(start=not args.no_prefect_server):
-            interactive_run(fa, files=args.input, settings=settings)
+            interactive_run(fa, files=args.input, settings_file=args.config)
     except PrefectServerError as err:
         logging.error(err)
         show_startup_error(str(err))
