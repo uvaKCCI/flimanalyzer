@@ -28,15 +28,9 @@ The user settings file is `usersettings.json` in the platform's settings folder:
 
 The environment variable `FLIM_USER_SETTINGS` sets another path for this file.
 
-### `defaults.json` (deprecated)
-
-Before 0.7.0, the GUI read the settings in `defaults.json` in the folder it was started from. The user settings file replaces it. If there is a `defaults.json` in the start folder and no user settings file yet, the GUI copies the settings of `defaults.json` into a new user settings file and doesn't read `defaults.json` again. Settings that this version doesn't have are not copied. It shows a warning whenever it finds a `defaults.json`.
-
-To use the settings of a `defaults.json` with `-s` instead, move it to an app settings folder and give it a name, for example `cells.json`, and start with `-s cells`.
-
 ## App settings files
 
-An app settings file is a settings file that you give with `-s` when you start the GUI or `flimbatch`, for example one saved with `Export Settings...`. Its settings apply to this session only. FLIMAnalyzer never writes to this file.
+An app settings file is a settings file that you give with `-s` when you start the GUI or `flimbatch`, for example one saved with `Export Settings...`. Its settings apply to this session only. FLIMAnalyzer writes to this file only if you choose to update it to the current version (see [Settings files from older versions](#settings-files-from-older-versions)).
 
 `-s` takes a path or a name:
 
@@ -49,6 +43,10 @@ The app settings folders are, in this order:
 1. The folders in the environment variable `FLIM_APP_SETTINGS_PATH`, if it is set. The folders are separated by `:` on macOS and Linux, and by `;` on Windows.
 2. Otherwise, the folders listed in `appsettings_path` in the user settings file.
 3. Otherwise, the folder `appsettings` in the platform's settings folder, for example `~/Library/Application Support/FLIMAnalyzer/appsettings` on macOS.
+
+### `defaults.json` (deprecated)
+
+Before 0.7.0, the GUI read `defaults.json` in the folder it was started from. The GUI started without `-s` still uses a `defaults.json` in the start folder, as if it were given with `-s`, and shows a warning that this is deprecated. Started with `-s`, the GUI doesn't read `defaults.json`. To keep using the file, move it to an app settings folder, give it a name, for example `cells.json`, and start with `-s cells`.
 
 ## Environment variables
 
@@ -83,7 +81,32 @@ flimbatch -i data/ -o results/ -s settings.json --run Summarize
 
 `Export Settings...` saves all current settings to a file. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
 
-You can import settings files from this and older FLIMAnalyzer versions, including FLIMAnalyzer 0.5. Older files are converted when they are read. Files from a newer FLIMAnalyzer version, with a newer `schema_version`, are refused with a message to update FLIMAnalyzer. Settings are always saved in the current format.
+You can import settings files from this and older FLIMAnalyzer versions, including FLIMAnalyzer 0.5 (see [Settings files from older versions](#settings-files-from-older-versions)). Settings are always saved in the current format.
+
+## Settings files from older versions
+
+Each time FLIMAnalyzer reads a settings file, it checks the file and converts its settings to the current format in memory. Reading a file doesn't change it. The check sorts the settings into:
+
+* settings converted to the current format, for example `working_dir`, which is now `results_dir`;
+* settings removed because they are no longer used, for example `display`;
+* unknown settings, which this version doesn't have, for example a misspelled name;
+* invalid values, for example an executor that doesn't exist. The section with the invalid value, or the tool's settings, is not used;
+* the settings of tools that aren't installed, which can't be checked. They are kept.
+
+A file can't be used at all if it can't be read, isn't a settings file, or comes from a newer FLIMAnalyzer version.
+
+If all settings can be used, the GUI uses the file and writes the result of the check to the log. If some can't be used, the GUI lists them and asks what to do:
+
+* `Use the settings that can be used; skip the others`
+* `Don't use this file`
+* `Update the file to the current version; remove the settings that can't be used`: after a confirmation, the file is replaced by its usable settings in the current format. The removed settings can't be recovered.
+* `Choose another file...`: the other file is checked in the same way.
+
+`Cancel` doesn't use the file. A file that can't be used at all offers only the last two choices.
+
+The GUI asks this when it starts with `-s` (or with `defaults.json`), in `File` > `Import Settings...`, and in a tool dialog's `Load Settings...`. In a tool dialog, it asks only if the tool's own settings have problems.
+
+`flimbatch` doesn't ask: it stops with an error if the file can't be used or has invalid values. Unknown settings are listed in the log and not used.
 
 ## The settings of a tool
 

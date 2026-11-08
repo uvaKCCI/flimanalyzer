@@ -93,23 +93,22 @@ def app_icons():
 
 
 class FLIMAnalyzerApp(wx.App):
-    def __init__(self, flimanalyzer, settings_manager=None, files=None):
+    def __init__(self, flimanalyzer=None, settings_manager=None, files=None):
         """
         Args:
             flimanalyzer: The FLIMAnalyzer object that provides the task runner and
-                execution settings.
+                execution settings. None: the main window is opened later with
+                `start`, e.g. after dialogs shown at startup.
             settings_manager: The SettingsManager of this session. Defaults to one with
                 the built-in defaults and the user settings file.
             files: Data files to open at startup, each in its own data window.
         """
         self.flimanalyzer = flimanalyzer
+        self.settings_manager = settings_manager
         self.files = list(files or [])
         # tools of other packages, and their dialogs (entry points)
         discover(TOOLS_GROUP)
         discover(GUI_GROUP)
-        self.settings_manager = settings_manager or SettingsManager(
-            user_file=UserSettingsFile(user_settings_path())
-        )
         set_bundle_name("FLIMAnalyzer")  # before wx.App registers with macOS
         super().__init__()
 
@@ -117,6 +116,30 @@ class FLIMAnalyzerApp(wx.App):
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
         set_display_name("FLIMAnalyzer")
+        if self.flimanalyzer is not None:
+            self.start()
+        return True
+
+    def start(self, flimanalyzer=None, settings_manager=None, files=None):
+        """Open the main window, and the data files given at startup.
+
+        Args:
+            flimanalyzer: Replaces the FLIMAnalyzer object given when the app was
+                created, if given.
+            settings_manager: Replaces the SettingsManager given when the app was
+                created, if given.
+            files: Replaces the data files given when the app was created, if given.
+        """
+        if flimanalyzer is not None:
+            self.flimanalyzer = flimanalyzer
+        if settings_manager is not None:
+            self.settings_manager = settings_manager
+        if files is not None:
+            self.files = list(files)
+        if self.settings_manager is None:
+            self.settings_manager = SettingsManager(
+                user_file=UserSettingsFile(user_settings_path())
+            )
         self.frame = AppFrame(self.flimanalyzer, self.settings_manager)
         self.dock_icon = None
         if wx.Platform == "__WXMAC__":
@@ -126,7 +149,6 @@ class FLIMAnalyzerApp(wx.App):
         self.frame.Show(True)
         if self.files:
             wx.CallAfter(self.open_files, self.files)
-        return True
 
     def open_files(self, files):
         """Opens each file in a data window; reports files that cannot be read."""
@@ -491,8 +513,17 @@ class AppFrame(wx.Frame):
     def load_settings(self, path) -> None:
         """Applies the sections of a settings file (any version) for this session; the
         sections it does not have (e.g. other tools') stay as they are. New data windows
-        use its filter settings. Raises the errors of SettingsManager.load."""
-        self.settings_manager.load(path)
+        use its filter settings. If some settings cannot be used, the user chooses what
+        to do (flim.gui.settingscheck.choose_settings)."""
+        from flim.core.settings import check_settings_file
+        from flim.gui.settingscheck import choose_settings
+
+        check = check_settings_file(path)
+        if check.problems:
+            check = choose_settings(check, self)
+        if check is None:
+            return
+        self.settings_manager.apply(check)
         self.filters = self.settings.filters
 
     def OnSaveSettings(self, event):

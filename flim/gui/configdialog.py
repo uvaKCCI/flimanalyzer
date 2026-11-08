@@ -8,6 +8,7 @@ marks problems at their fields (errors keep OK disabled).
 """
 
 import logging
+import json
 import os
 import re
 from dataclasses import dataclass
@@ -419,6 +420,32 @@ class ConfigDialog(wx.Dialog):
             if dialog.ShowModal() == wx.ID_OK:
                 self.save_settings(dialog.GetPath())
 
+    def _tool_entry(self, path):
+        """Return the tool's settings in a file: a config alone, or the tool's section
+        of a settings file. If some of the tool's settings in a settings file cannot be
+        used, the user chooses what to do (flim.gui.settingscheck.choose_settings),
+        possibly another file; `_loaded_from` is set to the file used.
+
+        Returns:
+            The ToolSettings, None if the file has none for the tool, or False if the
+            user chose not to use a file.
+        """
+        from flim.core.settings import ToolSettingsMap, check_settings_file
+        from flim.gui.settingscheck import choose_settings
+
+        self._loaded_from = path
+        with open(path) as f:
+            data = json.load(f)
+        if isinstance(data, dict) and "classname" in data:  # a config alone
+            return read_tool_settings(path, self.tool)
+        check = check_settings_file(path)
+        if check.tool_problems(self.tool):
+            check = choose_settings(check, self, problems=lambda c: c.tool_problems(self.tool))
+            if check is None:
+                return False
+        self._loaded_from = check.path
+        return ToolSettingsMap.model_validate(check.sections.get("tools", {})).entry(self.tool)
+
     def load_settings(self, path) -> bool:
         """Uses the tool's settings in a settings file (see
         flim.core.settings.read_tool_settings): config, autosave (unless locked)
@@ -426,7 +453,10 @@ class ConfigDialog(wx.Dialog):
         the tool or cannot be read."""
         name = os.path.basename(path)
         try:
-            entry = read_tool_settings(path, self.tool)
+            entry = self._tool_entry(path)
+            if entry is False:  # the user chose not to use a file
+                return False
+            name = os.path.basename(self._loaded_from)
             if entry is None:
                 self.settings_message.SetLabel(f"No {self.tool.name} settings in {name}")
                 return False

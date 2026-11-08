@@ -8,10 +8,10 @@ import os
 import tempfile
 import threading
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from filelock import FileLock
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from flim.core.config import TaskConfig
@@ -19,6 +19,8 @@ from flim.core.execution import ExecutorSettings
 from flim.core.settings import (
     SETTINGS_VERSION,
     AppSettings,
+    SettingsCheck,
+    check_settings_file,
     merge_sections,
     migrate,
     save_settings,
@@ -161,13 +163,24 @@ class SettingsManager:
     def load(self, path) -> AppSettings:
         """Applies the sections of a settings file (any version) for this session; they
         are not written to the user settings file. Returns a copy of the new settings.
-        Raises ValueError if the file does not hold a JSON object (and the errors of
-        reading, migrating and validating it); the settings are then unchanged."""
-        with open(path) as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            raise ValueError(f"{path} is not a settings file")
-        return self.update(migrate(data), keep=False)
+        Raises ValueError if the file cannot be used or has invalid values (see
+        `strict_choice`); the settings are then unchanged."""
+        return self.apply(strict_choice(check_settings_file(path)))
+
+    def apply(self, check: SettingsCheck) -> AppSettings:
+        """Applies the usable sections of a checked settings file for this session;
+        they are not written to the user settings file. The check is logged.
+
+        Args:
+            check: The result of `check_settings_file`.
+
+        Returns:
+            A copy of the new settings.
+        """
+        logging.info(check.summary())
+        settings = self.update(check.sections, keep=False)
+        self.source = check.path
+        return settings
 
     def export(self, path) -> None:
         """Writes all current settings, in the current version, to a file."""
@@ -314,12 +327,40 @@ def _completed(changes: dict, current: AppSettings) -> dict:
 # --- the settings of a session ---
 
 
+def strict_choice(check: SettingsCheck) -> SettingsCheck:
+    """Accept a checked settings file only if all its values can be used.
+
+    Unknown keys are logged and not used.
+
+    Args:
+        check: The result of `check_settings_file`.
+
+    Returns:
+        `check`.
+
+    Raises:
+        ValueError: If the file cannot be used or has invalid values; the message
+            lists them.
+    """
+    if check.error or check.invalid:
+        raise ValueError(check.summary())
+    if check.unknown:
+        logging.warning(f"{check.path}: ignoring unknown keys {', '.join(check.unknown)}")
+    return check
+
+
+# decides which checked settings file to use: the check given, another file's
+# check, or None for none
+Choice = Callable[[SettingsCheck], Optional[SettingsCheck]]
+
+
 def session_settings(
     settings_file: Optional[str] = None,
     command_line: Optional[dict] = None,
     *,
     user_file: Optional[UserSettingsFile] = None,
     base: Optional[AppSettings] = None,
+    choose: Optional[Choice] = None,
 ) -> SettingsManager:
     """Create the settings manager of a session from all settings layers.
 
@@ -335,6 +376,9 @@ def session_settings(
         user_file: The user settings file; None in flimbatch, whose runs do not depend
             on settings changed in the GUI.
         base: The lowest layer. Defaults to the built-in defaults.
+        choose: Called if some settings of the app settings file cannot be used;
+            returns the check whose sections to use, or None to use no file. Without
+            it, such a file is refused (`strict_choice`).
 
     Returns:
         The settings manager. Its `source` is the path of the app settings file, or
@@ -342,81 +386,42 @@ def session_settings(
 
     Raises:
         FileNotFoundError: If `settings_file` matches no file.
-        ValueError: If `settings_file` is ambiguous or not a settings file, or if an
-            environment variable or a command-line value is invalid.
+        ValueError: If `settings_file` is ambiguous, or without `choose` cannot be
+            used or has invalid values, or if an environment variable or a
+            command-line value is invalid.
     """
     manager = SettingsManager(base, user_file)
     if settings_file:
         search_path = app_settings_path(manager.settings.appsettings_path)
-        path = find_app_settings(settings_file, search_path)
-        manager.load(path)
-        manager.source = path
+        check = check_settings_file(find_app_settings(settings_file, search_path))
+        chosen = choose(check) if choose and check.problems else strict_choice(check)
+        if chosen is not None:
+            manager.apply(chosen)
     for changes in (environment_changes(), command_line or {}):
         if changes:
             manager.update(_completed(changes, manager.settings), keep=False)
     return manager
 
 
-# settings file in the start folder that the GUI read before 0.7.0 (deprecated: the user
-# settings file replaces it)
+# settings file in the start folder that the GUI read before 0.7.0 when started
+# without -c (deprecated: an app settings file given with -s replaces it)
 DEFAULTS_FILE = "defaults.json"
 
 
-def _without_unknown_keys(settings: AppSettings) -> dict:
-    """Return the settings as JSON, without the unknown keys the model keeps."""
+def start_folder_settings() -> tuple[Optional[Path], Optional[str]]:
+    """Return `defaults.json` in the start folder, if there is one.
 
-    def remove(model: BaseModel, data: dict) -> None:
-        for key in model.model_extra or {}:
-            data.pop(key, None)
-        for name, field in type(model).model_fields.items():
-            value, key = getattr(model, name), field.alias or name
-            if isinstance(value, BaseModel) and isinstance(data.get(key), dict):
-                remove(value, data[key])
-
-    data = settings.to_json()
-    remove(settings, data)
-    return data
-
-
-def copy_start_folder_defaults(user_file: UserSettingsFile) -> Optional[str]:
-    """Copy `defaults.json` in the start folder into the user settings file, once.
-
-    The file is copied only if the user settings file does not exist yet; after that,
-    `defaults.json` is ignored. The file is migrated to the current version and
-    validated; the sections it has are copied, and of the tools only the tools it
-    has. Settings that the current version does not have (dropped or unknown keys)
-    are not copied; the validation logs them.
-
-    Args:
-        user_file: The user settings file of the GUI.
+    The GUI started without `-s` uses this file as if it were given with `-s`.
 
     Returns:
-        The deprecation message to show if there is a `defaults.json` in the start
-        folder, otherwise None. If the file cannot be read or is invalid, nothing is
-        copied and the message names the error.
+        The file's path and the deprecation message to show; (None, None) if there
+        is no such file.
     """
     path = Path(DEFAULTS_FILE).resolve()
     if not path.is_file():
-        return None
-    if user_file.path.exists():
-        return (
-            f"{path} is deprecated and ignored: the user settings file"
-            f" {user_file.path} replaces it"
-        )
-    try:
-        with open(path) as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            raise ValueError("not a settings file")
-        data = migrate(data)
-        known = _without_unknown_keys(update_settings(AppSettings.default(), data))
-        copy = {key: known[key] for key in data if key in known}
-        if "tools" in copy:
-            copy["tools"] = {k: v for k, v in copy["tools"].items() if k in data["tools"]}
-        user_file.merge(copy)
-    except Exception as err:
-        return f"{path} is deprecated and was not copied into the user settings file: {err}"
-    return (
-        f"{path} is deprecated: its settings were copied into the user settings file"
-        f" {user_file.path}, which replaces it; {DEFAULTS_FILE} is not read again"
+        return None, None
+    return path, (
+        f"reading {DEFAULTS_FILE} from the start folder is deprecated: move {path} to"
+        f" an app settings folder (e.g. {default_app_settings_dir()}), give it a name,"
+        " and start with -s NAME"
     )

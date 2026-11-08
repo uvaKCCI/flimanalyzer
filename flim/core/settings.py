@@ -29,9 +29,10 @@ import json
 import logging
 import os
 from pathlib import Path
+from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError
 
 from flim.core.config import TaskConfig
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
@@ -292,15 +293,18 @@ def _renamed(values: dict, names: dict) -> dict:
     return {names.get(k, k): v for k, v in values.items()}
 
 
-def _v0_to_v1(data: dict, convert: bool = True) -> dict:
-    """Version 0 (the dict ``Config``) to 1. ``convert``: also the plugin settings."""
+def _v0_to_v1(data: dict, convert: bool = True, changes: Optional["Changes"] = None) -> dict:
+    """Version 0 (the dict ``Config``) to 1. ``convert``: also the plugin settings.
+    ``changes``: records the conversion."""
+    changes = changes if changes is not None else Changes()
+    changes.converted.append("FLIMAnalyzer 0.5 keys to the names of 0.6")
     root = copy.deepcopy(data.get("root", data))
     settings = {"schema_version": 1}
     if "working_dir" in root:
         settings["working_dir"] = root.pop("working_dir")
-    for key, (field, names) in _V0_SECTIONS.items():
+    for key, (section, names) in _V0_SECTIONS.items():
         if isinstance(root.get(key), dict):
-            settings[field] = _renamed(root.pop(key), names)
+            settings[section] = _renamed(root.pop(key), names)
     parser = settings.get("import", {}).get("filename_parser")
     if isinstance(parser, dict):
         settings["import"]["filename_parser"] = _renamed(parser, _V0_PARSER)
@@ -309,8 +313,10 @@ def _v0_to_v1(data: dict, convert: bool = True) -> dict:
     plugins = root.pop("plugins", None)
     if convert and isinstance(plugins, dict):
         settings["tools"] = _v0_tools(plugins)
+        changes.converted.append("plugin parameters of 0.5 to tool settings")
     for key in ("analysis", "workflow"):  # never used
-        root.pop(key, None)
+        if root.pop(key, None) is not None:
+            changes.dropped.append(key)
     settings.update(root)  # unknown keys: reported when loaded
     return settings
 
@@ -346,12 +352,14 @@ def _v0_tools(plugins: dict) -> dict:
     return entries
 
 
-def _renamed_key(values: dict, old: str, new: str) -> None:
+def _renamed_key(values: dict, old: str, new: str) -> bool:
     if isinstance(values, dict) and old in values:
         values[new] = values.pop(old)
+        return True
+    return False
 
 
-def _v1_to_v2(data: dict) -> dict:
+def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
     """Upgrade version 1 (0.6) to 2 (0.7).
 
     `working_dir` becomes `results_dir`, and `display` (histogram ranges no longer
@@ -361,19 +369,27 @@ def _v1_to_v2(data: dict) -> dict:
 
     Args:
         data: Settings of version 1.
+        changes: Records the renamed and dropped keys.
 
     Returns:
         A new dict with the settings of version 2.
     """
+    changes = changes if changes is not None else Changes()
     data = copy.deepcopy(data)
-    _renamed_key(data, "working_dir", "results_dir")
-    data.pop("display", None)
-    for entry in (data.get("tools") or {}).values():
+    if _renamed_key(data, "working_dir", "results_dir"):
+        changes.converted.append("working_dir to results_dir")
+    if data.pop("display", None) is not None:
+        changes.dropped.append("display (histogram ranges)")
+    for name, entry in (data.get("tools") or {}).items():
         config = (entry or {}).get("config") if isinstance(entry, dict) else None
         if not isinstance(config, dict):
             continue
-        _renamed_key(config, "rescale", "rescale_output")
-        _renamed_key(config.get("training"), "rescale", "rescale_output")
+        if _renamed_key(config, "rescale", "rescale_output"):
+            changes.converted.append(f"tools.{name}.config.rescale to rescale_output")
+        if _renamed_key(config.get("training"), "rescale", "rescale_output"):
+            changes.converted.append(
+                f"tools.{name}.config.training.rescale to rescale_output"
+            )
     return data
 
 
@@ -385,9 +401,18 @@ def version_of(data: dict) -> int:
     return int(data.get("schema_version", 0)) if isinstance(data, dict) else 0
 
 
-def migrate(data: dict) -> dict:
+@dataclass
+class Changes:
+    """The keys a migration converted (renamed or restructured) and dropped."""
+
+    converted: list[str] = field(default_factory=list)
+    dropped: list[str] = field(default_factory=list)
+
+
+def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
     """``data`` of any version, upgraded to the current one. Raises ValueError if
-    ``data`` is of a newer version than SETTINGS_VERSION."""
+    ``data`` is of a newer version than SETTINGS_VERSION. ``changes``: records the
+    converted and dropped keys."""
     version = version_of(data)
     if version > SETTINGS_VERSION:
         raise ValueError(
@@ -395,7 +420,7 @@ def migrate(data: dict) -> dict:
             f" (version {SETTINGS_VERSION}): update FLIMAnalyzer"
         )
     while version < SETTINGS_VERSION:
-        data = MIGRATIONS[version](data)
+        data = MIGRATIONS[version](data, changes=changes)
         version += 1
         data["schema_version"] = version
     return data
@@ -465,6 +490,196 @@ def load_settings(path, settings: Optional[AppSettings] = None) -> AppSettings:
     if not isinstance(data, dict):
         raise ValueError(f"{path} is not a settings file")
     return update_settings(settings or AppSettings.default(), data)
+
+
+# --- checking a settings file before it is used ---
+
+
+@dataclass
+class SettingsCheck:
+    """The result of checking a settings file: what its migration converted and
+    dropped, which keys cannot be used, and the sections that can.
+
+    Attributes:
+        path: The settings file.
+        version: The file's schema version; None if the file cannot be read.
+        error: Why the file cannot be used at all (not readable, not JSON, not a
+            settings file, or of a newer version); None if it can be used.
+        converted: Keys the migration renamed or restructured.
+        dropped: Keys the migration removed on purpose (no longer used).
+        unknown: Keys the current version does not have.
+        invalid: Invalid values, as `key: reason`; the section (or the tool's
+            settings) holding one is not used.
+        not_checked: Tools whose settings cannot be checked because the tool is not
+            installed; their settings are kept.
+        sections: The sections that can be used, in the current version, without
+            the unknown keys and the sections with invalid values.
+    """
+
+    path: Path
+    version: Optional[int] = None
+    error: Optional[str] = None
+    converted: list[str] = field(default_factory=list)
+    dropped: list[str] = field(default_factory=list)
+    unknown: list[str] = field(default_factory=list)
+    invalid: list[str] = field(default_factory=list)
+    not_checked: list[str] = field(default_factory=list)
+    sections: dict = field(default_factory=dict)
+
+    @property
+    def problems(self) -> bool:
+        """Whether some of the file's settings cannot be used."""
+        return bool(self.error or self.unknown or self.invalid)
+
+    def tool_problems(self, tool) -> bool:
+        """Whether some of the settings of `tool` (also under a former name) cannot
+        be used, or the file cannot be used at all."""
+        if self.error:
+            return True
+        names = (tool.name, *getattr(tool, "former_names", ()))
+        prefixes = tuple(f"tools.{name}" for name in names)
+        return any(key.startswith(prefixes) for key in self.unknown + self.invalid)
+
+    def summary(self, limit: Optional[int] = None) -> str:
+        """Return the result as text, one heading per kind of finding.
+
+        Args:
+            limit: The number of items listed per heading; None lists all.
+        """
+        if self.error:
+            return f"{self.path} cannot be used: {self.error}"
+        lines = [f"{self.path}: schema version {self.version}"]
+        for heading, items in (
+            ("Settings that cannot be used (unknown)", self.unknown),
+            ("Settings that cannot be used (invalid values)", self.invalid),
+            ("Converted to the current version", self.converted),
+            ("Removed by the conversion (no longer used)", self.dropped),
+            ("Not checked (tool not installed)", self.not_checked),
+        ):
+            if not items:
+                continue
+            lines.append(f"{heading}:")
+            shown = items if limit is None else items[:limit]
+            lines += [f"  {item}" for item in shown]
+            if len(items) > len(shown):
+                lines.append(f"  and {len(items) - len(shown)} more")
+        return "\n".join(lines)
+
+
+def _extra_keys(model: BaseModel, path: str = "") -> list[str]:
+    """Return the keys a model kept as extra, with their paths in the file."""
+    keys = [f"{path}{k}" for k in (model.model_extra or {})]
+    for name, info in type(model).model_fields.items():
+        value = getattr(model, name)
+        if isinstance(value, BaseModel) and not isinstance(value, RootModel):
+            keys += _extra_keys(value, f"{path}{info.alias or name}.")
+    return keys
+
+
+def _drop_extra_keys(model: BaseModel, data: dict) -> None:
+    """Remove the keys a model kept as extra from its JSON `data`, in place."""
+    for key in model.model_extra or {}:
+        data.pop(key, None)
+    for name, info in type(model).model_fields.items():
+        value, key = getattr(model, name), info.alias or name
+        if isinstance(value, BaseModel) and isinstance(data.get(key), dict):
+            _drop_extra_keys(value, data[key])
+
+
+def _remove_invalid(data: dict, invalid: list[str]) -> AppSettings:
+    """Validate `data`, removing each section (or tool's settings) with an invalid
+    value until the rest is valid.
+
+    Args:
+        data: Sections in the current version; changed in place.
+        invalid: Receives the invalid values, as `key: reason`.
+
+    Returns:
+        The validated settings of the remaining sections.
+    """
+    while True:
+        try:
+            return AppSettings.model_validate({**data, "schema_version": SETTINGS_VERSION})
+        except ValidationError as err:
+            for error in err.errors():
+                loc = error["loc"]
+                invalid.append(f"{'.'.join(str(p) for p in loc)}: {error['msg']}")
+                if loc[0] == "tools" and len(loc) > 1 and isinstance(data.get("tools"), dict):
+                    data["tools"].pop(loc[1], None)
+                else:
+                    data.pop(loc[0], None)
+
+
+def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
+    """Check a settings file of any version before it is used; the file is only read.
+
+    The file is migrated to the current version and validated. Each tool's settings
+    are validated with the tool's config class if the tool is installed.
+
+    Args:
+        path: The settings file.
+
+    Returns:
+        The result; `sections` holds what can be used.
+    """
+    path = Path(path)
+    check = SettingsCheck(path)
+    changes = Changes()
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        if not isinstance(data, dict) or "classname" in data:
+            raise ValueError("not a settings file")
+        check.version = version_of(data)
+        data = migrate(data, changes)
+    except (OSError, ValueError) as err:  # incl. json.JSONDecodeError
+        check.error = str(err)
+        return check
+    check.converted, check.dropped = changes.converted, changes.dropped
+    data.pop("schema_version", None)
+    if "tools" in data and not isinstance(data["tools"], dict):
+        check.invalid.append("tools: not a mapping of tool names to settings")
+        data.pop("tools")
+    settings = _remove_invalid(data, check.invalid)
+    for name, entry in settings.tools.entries.items():
+        tool = _registered(name)
+        if tool is None:
+            check.not_checked.append(f"tools.{name}")
+            continue
+        try:
+            if entry.config is not None:
+                tool.config_class.model_validate(entry.config)
+            elif entry.legacy is not None:
+                tool.config_class.from_legacy_params(entry.legacy)
+        except Exception as err:
+            reason = "; ".join(
+                f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in err.errors()
+            ) if isinstance(err, ValidationError) else str(err)
+            check.invalid.append(f"tools.{name}.config: {reason}")
+            data["tools"].pop(name, None)
+    settings = _remove_invalid(data, check.invalid)
+    check.unknown = _extra_keys(settings) + [
+        key
+        for name, entry in settings.tools.entries.items()
+        for key in _extra_keys(entry, f"tools.{name}.")
+    ]
+    known = settings.to_json()
+    _drop_extra_keys(settings, known)
+    for name, entry in settings.tools.entries.items():
+        _drop_extra_keys(entry, known["tools"][name])
+    check.sections = {key: known[key] for key in data if key in known}
+    return check
+
+
+def save_sections(sections: dict, path: str | os.PathLike) -> None:
+    """Write settings sections, in the current version, to a file.
+
+    Args:
+        sections: Sections in the current version, e.g. `SettingsCheck.sections`.
+        path: The file; it is replaced if it exists.
+    """
+    with open(path, "w") as f:
+        json.dump({"schema_version": SETTINGS_VERSION, **sections}, f, indent=2, default=str)
 
 
 def save_settings(settings: AppSettings, path) -> None:

@@ -63,6 +63,9 @@ author = (
 # ones.
 # single backticks in docstrings are code (Google style)
 default_role = "literal"
+# Google-style "Attributes:" sections as field lists: as separate entries they would
+# duplicate the attributes autodoc documents (e.g. dataclass fields)
+napoleon_use_ivar = True
 
 extensions = [
     "sphinx.ext.autodoc",

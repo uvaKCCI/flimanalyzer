@@ -130,23 +130,50 @@ def test_command_line_options_set_the_session_settings(monkeypatch, clean_loggin
     assert started["fa"].execution.execution.workers == 3
 
 
-def test_defaults_json_reaches_the_gui_once_with_a_warning(
-    monkeypatch, clean_logging, capsys, user_settings_file
-):
-    import json
-
-    (clean_logging / "defaults.json").write_text(json.dumps({"results_dir": "res"}))
+def _start(monkeypatch, argv, choose=None):
     started = {}
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
         lambda fa, files=None, settings_manager=None: started.update(manager=settings_manager),
     )
+    if choose is not None:
+        monkeypatch.setattr(analyzerapp, "choose_settings", choose)
     _no_server(monkeypatch)
-    analyzerapp.main([])
-    assert started["manager"].settings.results_dir == Path("res")
-    assert "copied into the user settings file" in capsys.readouterr().err
-    assert json.loads(user_settings_file.read_text())["results_dir"] == "res"
+    analyzerapp.main(argv)
+    return started["manager"]
+
+
+def test_defaults_json_is_used_as_the_app_settings_file(monkeypatch, clean_logging, capsys):
+    import json
+
+    path = clean_logging / "defaults.json"
+    path.write_text(json.dumps({"schema_version": 1, "working_dir": "res"}))
+    manager = _start(monkeypatch, [])
+    assert manager.source == path.resolve() and manager.settings.results_dir == Path("res")
+    assert "defaults.json from the start folder is deprecated" in capsys.readouterr().err
+    assert json.loads(path.read_text()) == {"schema_version": 1, "working_dir": "res"}
+
+
+def test_defaults_json_is_not_read_with_s(monkeypatch, clean_logging, capsys):
+    import json
+
+    (clean_logging / "defaults.json").write_text(json.dumps({"results_dir": "res"}))
+    other = clean_logging / "cells.json"
+    other.write_text(json.dumps({"schema_version": 2}))
+    manager = _start(monkeypatch, ["-s", str(other)])
+    assert manager.source == other and manager.settings.results_dir is None
+    assert "defaults.json" not in capsys.readouterr().err
+
+
+def test_file_with_problems_asks_before_the_gui_opens(monkeypatch, clean_logging):
+    import json
+
+    path = clean_logging / "cells.json"
+    path.write_text(json.dumps({"schema_version": 2, "execution": {"executor": "ray"}}))
+    asked = []
+    manager = _start(monkeypatch, ["-s", str(path)], lambda check: asked.append(check))
+    assert [c.path for c in asked] == [path] and manager.source is None
 
 
 def test_unavailable_executor_stops_the_start(monkeypatch, capsys):

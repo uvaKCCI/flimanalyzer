@@ -12,13 +12,14 @@ from flim.core.execution import ExecutionOptions
 from flim.core.prefect_server import PrefectServerError, use_prefect_server
 from flim.core.settingsmgr import (
     UserSettingsFile,
-    copy_start_folder_defaults,
     session_settings,
+    start_folder_settings,
     user_settings_path,
 )
 from flim.core.tools import FLIMAnalyzer
 
 LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
+_startup_app = None  # the GUI app, if created for a dialog before the main window
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -70,10 +71,45 @@ def interactive_run(fa, files=None, settings_manager=None):
             "flimanalyzer: the GUI needs wxPython, which is not installed:"
             ' pip install "flimanalyzer[gui]". Without it, use flimbatch.'
         )
+    import wx
+
     from flim.gui.app import FLIMAnalyzerApp  # here, so batch runs do not import wx
 
-    app = FLIMAnalyzerApp(fa, settings_manager=settings_manager, files=files)
+    app = wx.GetApp()
+    if isinstance(app, FLIMAnalyzerApp):  # created for a dialog at startup
+        app.start(fa, settings_manager=settings_manager, files=files)
+    else:
+        app = FLIMAnalyzerApp(fa, settings_manager=settings_manager, files=files)
     app.MainLoop()
+
+
+def choose_settings(check):
+    """Ask the user how to use an app settings file some of whose settings cannot be
+    used (flim.gui.settingscheck.choose_settings), before the main window opens.
+
+    Args:
+        check: The result of `check_settings_file`.
+
+    Returns:
+        The check whose sections to use, or None to use no file.
+
+    Raises:
+        ValueError: If wxPython is not installed (no dialog can be shown); the
+            message lists the problems.
+    """
+    try:
+        import wx
+    except ImportError:
+        raise ValueError(check.summary()) from None
+    from flim.gui.app import FLIMAnalyzerApp
+    from flim.gui.settingscheck import choose_settings as ask
+
+    global _startup_app
+    if not isinstance(wx.GetApp(), FLIMAnalyzerApp):
+        # opens no window; interactive_run opens the main window. Kept referenced:
+        # an app without a reference is destroyed at once.
+        _startup_app = FLIMAnalyzerApp()
+    return ask(check)
 
 
 def init_logger(loglevel):
@@ -104,13 +140,25 @@ def main(argv=None):
     init_logger(args.log.upper())
     logging.info(f"FLIMAnalyzer version {__version__}")
     logging.debug(args)
+    import flim.tools  # noqa: F401  (registers the tools: settings files are checked)
+    import flim.workflow  # noqa: F401  (registers the workflows)
+    from flim.core.registry import TOOLS_GROUP, discover
+
+    discover(TOOLS_GROUP)  # the tools of other installed packages
     try:
         name, notes = settings_file(args)
         changes, more = command_line_changes(args)
-        user_file = UserSettingsFile(user_settings_path())
-        if note := copy_start_folder_defaults(user_file):
-            more.append(note)
-        manager = session_settings(name, changes, user_file=user_file)
+        if name is None:
+            path, note = start_folder_settings()
+            if path is not None:
+                name = str(path)
+                more.append(note)
+        manager = session_settings(
+            name,
+            changes,
+            user_file=UserSettingsFile(user_settings_path()),
+            choose=choose_settings,
+        )
         execution = ExecutionOptions(execution=manager.settings.execution)
         execution.check_available()
     except (FileNotFoundError, ValueError, RuntimeError) as err:
@@ -135,7 +183,7 @@ def show_startup_error(message):
         import wx
     except ImportError:
         return
-    app = wx.App(False)  # noqa: F841  (needed for the message box)
+    app = wx.GetApp() or wx.App(False)  # noqa: F841  (needed for the message box)
     wx.MessageBox(message, "FLIMAnalyzer", wx.OK | wx.ICON_ERROR)
 
 
