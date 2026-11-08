@@ -1,6 +1,6 @@
 """Tools report warnings (Tool.warn): the task stays completed, its results go on, and
-the warning is the task's message (run summary, Prefect UI). First use: Concatenate side
-by side warns when the tables' rows don't match by their categories (0.6.2)."""
+the warning is the task's message (FlowRun.warnings, run summary). Concatenate side by
+side warns when the tables' rows don't match by their categories."""
 
 import pandas as pd
 import pytest

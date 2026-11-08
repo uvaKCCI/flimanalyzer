@@ -53,7 +53,7 @@ def _tool_button(frame, name):
 
 
 def _open(frame, data, title="Data", **kwargs):
-    """Opens ``data`` in a data window, as the application does."""
+    """Opens ``data`` in a data window, as the GUI does."""
     from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
 
     event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
@@ -473,7 +473,8 @@ def test_summary_of_a_completed_run(wxapp, tmp_path):
 
 
 def test_summary_lists_warnings(wxapp, tmp_path):
-    # a task that warned (Tool.warn) stays completed; the summary lists its warning
+    # a completed task with a message, as Tool.warn sets it: the summary lists the
+    # message under Warnings
     run = _starter(_tasks(2), autosave_dir=str(tmp_path))(None, None, None)
     node = next(n for n, a in run.graph.nodes(data=True) if a.get("label") == "T0")
     run.graph.nodes[node]["message"] = "rows are paired by position"

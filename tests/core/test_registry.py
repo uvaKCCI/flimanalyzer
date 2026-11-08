@@ -130,5 +130,5 @@ def test_discover_isolates_errors(monkeypatch, caplog):
 
 
 def test_discover_real_entry_points():
-    # nothing registers these groups yet; must not fail
+    # FLIMAnalyzer registers no entry points in these groups; discover must not fail
     assert isinstance(registry.discover(), list)

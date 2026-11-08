@@ -175,7 +175,8 @@ def test_sort(data):
 def test_unpivot_single_line_columns(data):
     df = table(Unpivot()(data, config=UnpivotConfig(features=["t1", "t2"])))
     assert len(df) == 2 * len(data)
-    # the level of single-line columns: the feature; the values in one column
+    # single-line columns: their names go into one category column, their values
+    # into one value column
     assert list(df.columns) == ["Treatment", "FOV", "Cell", "Feature", "Value"]
     assert list(df["Feature"].cat.categories) == ["t1", "t2"]
     np.testing.assert_allclose(
@@ -194,7 +195,7 @@ def test_unpivot_is_the_inverse_of_pivot(data):
     back = df.set_index(["Treatment", "FOV", "Cell"]).sort_index()
     original = data.set_index(["Treatment", "FOV", "Cell"]).sort_index()
     pd.testing.assert_frame_equal(back, original, check_categorical=False)
-    # the other level: the features become a category, the treatments columns
+    # the other level: the features become a category, the treatments become columns
     df = table(Unpivot()(pivoted, config=UnpivotConfig(level="Feature")))
     assert list(df.columns) == ["FOV", "Cell", "Feature", "KO", "WT"]
 

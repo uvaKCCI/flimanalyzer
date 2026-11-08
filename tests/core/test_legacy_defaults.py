@@ -1,4 +1,4 @@
-"""The config models against the default parameters of the 0.5 plugins.
+"""The config models against the default parameters of the removed plugin classes.
 
 data/legacy_defaults.json holds those defaults, taken from the plugin classes
 before they were removed; 0.5 settings files store them in this form.
@@ -29,7 +29,7 @@ def test_every_plugin_and_workflow_has_a_config():
     assert set(PLUGIN_DEFAULTS) | workflows == set(LEGACY_TOOL_CONFIGS)
 
 
-# the workflows are no plugins any more (test_tool_configs.py loads their old settings)
+# the workflows are not plugins (test_tool_configs.py loads their legacy settings)
 @pytest.mark.parametrize("name", sorted(PLUGIN_DEFAULTS))
 def test_defaults_match_the_plugin(name):
     config_class = LEGACY_TOOL_CONFIGS[name]

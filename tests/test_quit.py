@@ -1,7 +1,7 @@
-"""Quitting asks before unsaved results are lost (0.6.2).
+"""Quitting asks before unsaved results are lost.
 
 Quitting closes the main window, which destroys the table windows without their own
-save question; in 0.5 to 0.6.1 unsaved tables were lost without asking.
+save question; without this check, unsaved tables were lost without a question.
 """
 
 import pandas as pd

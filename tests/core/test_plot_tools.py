@@ -159,7 +159,7 @@ CASES = [
 ]
 
 
-# seaborn/matplotlib API deprecations must not come back
+# deprecation warnings (seaborn, matplotlib) fail the test
 @pytest.mark.filterwarnings("error:.*deprecated:FutureWarning")
 @pytest.mark.filterwarnings("error::PendingDeprecationWarning")
 @pytest.mark.filterwarnings("error::matplotlib.MatplotlibDeprecationWarning")
@@ -780,7 +780,7 @@ def test_cancel_while_placing_swarms(data):
     from flim.core.tool import TaskCancelled
 
     plt.close("all")
-    big = pd.concat([data] * 30, ignore_index=True)  # 960 points per swarm
+    big = pd.concat([data] * 30, ignore_index=True)  # 960 rows: 480 points per swarm
     tool = SwarmPlot()
     token = threading.Event()
     tool._cancel_token = token

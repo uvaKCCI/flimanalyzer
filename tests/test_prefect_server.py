@@ -39,7 +39,7 @@ def no_side_effects(monkeypatch, tmp_path):
     # no configured server, also while the session's test server runs
     with temporary_settings(restore_defaults={PREFECT_API_URL}):
         yield started, stops
-    for func, *args in exit_handlers:  # as at application exit
+    for func, *args in exit_handlers:  # as at interpreter exit (atexit)
         func(*args)
 
 

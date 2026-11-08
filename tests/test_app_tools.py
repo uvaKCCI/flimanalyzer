@@ -1,4 +1,4 @@
-"""Running tools from the application window (registry, generated dialogs, settings)."""
+"""Running tools from the main window (registry, generated dialogs, settings)."""
 
 import numpy as np
 import pandas as pd

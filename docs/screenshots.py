@@ -119,9 +119,11 @@ def pivoted(data):
 
 
 # --- the screenshots: image path -> (kind, arguments) ---
-# kinds: "main" (the application window), "dialog" (a tool's configuration dialog),
-# "table" (a data window), "window" (another dialog of the application, made by a
-# function of the shooter), "plot" (a figure of a tool's results)
+# kinds: "main" (the main window), "dialog" (a tool's configuration dialog), "table"
+# (a data window), "window" (another dialog of the GUI, made by a method of the
+# shooter), "plot" (a figure of a tool's results), "graph" (the graph of a workflow
+# run), "plotwindow" (a plot window with its toolbar), "progress" (the progress
+# dialog of a workflow run)
 #
 # tables: "data", a function of the data, or a tool's result (tool, config, result)
 
@@ -300,7 +302,7 @@ SHOTS = {
     "analysis/flirr-result.png": ("plot", {"tool": "FLIRR Plot", "config": FLIRR}),
     "analysis/pairplot-config.png": ("dialog", {"tool": "Pair Plot", "config": PAIRPLOT}),
     "analysis/pairplot-results.png": ("plot", {"tool": "Pair Plot", "config": PAIRPLOT}),
-    # 0.6.1: tool dialogs, autoencoders, single figure, plot window, runs
+    # tool dialogs, autoencoders, single figure, plot window, runs
     "dialogs/tool-dialog.png": ("dialog", {"tool": "K-Means", "config": KMEANS, "setup": "expand_resources"}),
     "analysis/aetrain-config.png": ("dialog", {"tool": "Autoencoder: Train"}),
     "analysis/boxplot-config-single.png": ("dialog", {"tool": "Box Plot", "config": BOX_SINGLE}),
@@ -352,7 +354,7 @@ def _make_key(window) -> None:
 
 
 def _activate() -> None:
-    """Brings the application to the front, so that its windows are drawn active."""
+    """Brings this program to the front, so that its windows are drawn active."""
     import ctypes
 
     app = _message(_objc().objc_getClass(b"NSApplication"), b"sharedApplication", ctypes.c_void_p)
@@ -489,7 +491,7 @@ class Shooter:
         wx.CallAfter(self.next)
 
     def _graph(self, path, tool, config, rows=None):
-        """The graph of a workflow run, as the application shows it after the run."""
+        """The graph of a workflow run, as the GUI shows it after the run."""
         from flim.core.graph import WorkflowGraph
 
         figure, _ = WorkflowGraph(self.flow_run(tool, config, rows)).get_plot()
@@ -591,7 +593,7 @@ class Shooter:
             self.results[key] = tool()(*tables, config=config)
         return self.results[key]
 
-    # --- other dialogs of the application ---
+    # --- other dialogs of the GUI ---
 
     def open_dialog(self):
         from flim.core.settings import AppSettings

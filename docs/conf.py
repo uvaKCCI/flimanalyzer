@@ -30,7 +30,6 @@ autodoc_mock_imports = [
 import scipy.stats  # noqa: E402,F401
 import sklearn  # noqa: E402,F401
 
-# wx.lib.newevent.NewEvent() is unpacked at import time, which a mock can't do
 import types
 
 # flim/_version.py is written when flimanalyzer is installed; the docs import flim from
@@ -40,6 +39,8 @@ if not os.path.exists(os.path.join(os.path.dirname(__file__), "..", "flim", "_ve
     _version.__version__ = os.environ.get("READTHEDOCS_VERSION", "dev")
     sys.modules["flim._version"] = _version
 
+# wx.lib.newevent.NewEvent() is unpacked at import time, which a mock can't do: a
+# stand-in module replaces it
 _newevent = types.ModuleType("wx.lib.newevent")
 _newevent.NewEvent = lambda: (type("Event", (), {}), object())
 _newevent.NewCommandEvent = _newevent.NewEvent
@@ -104,7 +105,7 @@ html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {"collapse_navigation": False}
 
-# application icon, drawn by scripts/make_icons.py
+# the program icon, drawn by scripts/make_icons.py
 html_logo = "../flim/resources/flimanalyzer.png"
 html_favicon = "../flim/resources/flimanalyzer.ico"
 
