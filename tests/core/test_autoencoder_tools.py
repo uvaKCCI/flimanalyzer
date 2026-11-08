@@ -254,3 +254,14 @@ def test_training_passes_learning_rate_and_weight_decay_by_name(
     assert group["weight_decay"] == 1e-4
     assert group["alpha"] == 0.99  # PyTorch's default, no longer the weight decay
 
+
+
+def test_noise_is_set_per_feature():
+    # pandas >= 2 reduces np.mean(DataFrame) over all columns: one noise level for
+    # all features, set by the largest values
+    signal = pd.DataFrame({"small": [1.0, 2.0, 3.0], "large": [1000.0, 2000.0, 3000.0]})
+    mean, std = AEAugment.noise_model(signal, snr_db=20)
+    assert list(mean) == [0.0, 0.0]
+    assert len(std) == 2
+    assert std[1] == pytest.approx(1000 * std[0])  # proportional to each column's size
+

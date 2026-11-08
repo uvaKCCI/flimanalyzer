@@ -581,10 +581,9 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
 
     @staticmethod
     def noise_model(signal, snr_db):
-        """Mean (0) and standard deviation of white noise for ``snr_db``. The signal
-        power is the mean of the squared values of all columns, so the standard
-        deviation is one value for all columns."""
-        signal_avg_db = 10 * np.log10(np.mean(signal**2))
+        """Mean (0) and standard deviation of white noise for ``snr_db``, per column of
+        ``signal``: each column's signal power is the mean of its squared values."""
+        signal_avg_db = 10 * np.log10((signal**2).mean().to_numpy())
         noise_avg_power = 10 ** ((signal_avg_db - snr_db) / 10)
         std_noise = np.sqrt(noise_avg_power)
         return np.zeros(std_noise.shape), std_noise
