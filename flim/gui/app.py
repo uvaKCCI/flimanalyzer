@@ -18,7 +18,7 @@ import wx.adv
 from pubsub import pub
 from flim._version import __version__
 from wx.lib.newevent import NewEvent
-from importlib_resources import files
+from importlib.resources import files
 
 import flim.core.parser
 import flim.core.preprocessor

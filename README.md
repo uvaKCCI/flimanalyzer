@@ -34,12 +34,12 @@ The `gui` extra installs the GUI. Without it, `uv pip install flimanalyzer` inst
 Installed from PyPI, FLIMAnalyzer gets PyTorch from PyPI, which provides a different build on each platform:
 
 * **Linux:** the PyPI build includes CUDA, so an NVIDIA GPU is used if its driver is recent enough.
-* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install with `uv pip install "flimanalyzer[gui]" --torch-backend=cu128`, or with pip install the CUDA build first: `pip install torch --index-url https://download.pytorch.org/whl/cu128`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
+* **Windows:** the PyPI build is CPU-only. For an NVIDIA GPU, install with `uv pip install "flimanalyzer[gui]" --torch-backend=cu130`, or with pip install the CUDA build first: `pip install torch --index-url https://download.pytorch.org/whl/cu130`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
 * **macOS:** only Apple Silicon is supported, because current PyTorch versions are not available for Intel Macs. The PyPI build uses the Apple GPU (MPS).
 
 ### Latest development version
 
-To install the current state of the repository, clone it and let uv create the environment. `uv sync` installs FLIMAnalyzer with the GUI in editable mode, with the exact package versions from `uv.lock` (the versions the tests run with). On Windows and Linux (x86_64), it installs the CUDA 12.8 build of PyTorch:
+To install the current state of the repository, clone it and let uv create the environment. `uv sync` installs FLIMAnalyzer with the GUI in editable mode, with the exact package versions from `uv.lock` (the versions the tests run with). On Windows and Linux (x86_64), it installs the CUDA 13.0 build of PyTorch:
 
     git clone https://github.com/uvaKCCI/flimanalyzer.git
     cd flimanalyzer
@@ -64,14 +64,14 @@ The Docker images run only [batch mode](#run-flimanalyzer-in-batch-mode). They d
 
     docker pull ghcr.io/uvakcci/flimanalyzer:latest-cpu
 
-To build an image from the repository instead: with the CUDA 12.8 build of PyTorch, with the build for another CUDA version (here 12.6), with the CPU-only build, or with Dask support:
+To build an image from the repository instead: with the CUDA 13.0 build of PyTorch, with the build for another CUDA version (here 12.6, for older GPUs), with the CPU-only build, or with Dask support:
 
     docker build -t flimanalyzer .
     docker build -t flimanalyzer:cu126 --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu126 .
     docker build -t flimanalyzer:cpu --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
     docker build -t flimanalyzer:dask --build-arg EXTRAS=dask .
 
-`TORCH_INDEX` replaces PyTorch with the build from that PyTorch package index, in the same PyTorch version (the one in `uv.lock`, currently 2.11.0). Choose the CUDA version that the NVIDIA driver of your computer supports. PyTorch 2.11.0 is available for CUDA 12.6 (`cu126`), 12.8 (`cu128`, the default), 12.9 (`cu129`) and 13.0 (`cu130`).
+`TORCH_INDEX` replaces PyTorch with the build from that PyTorch package index, in the same PyTorch version (the one in `uv.lock`, currently 2.14.1). Choose the CUDA version that the NVIDIA driver and the GPU of your computer support. PyTorch 2.14.1 is available for CUDA 12.6 (`cu126`), 13.0 (`cu130`, the default) and 13.2 (`cu132`). CUDA 13 needs NVIDIA driver 580 or newer and a GPU of the Turing generation or newer (e.g. T4, RTX 20xx, A100, H100). For older GPUs such as the V100, try the CUDA 12.6 build (`cu126`); check PyTorch's release notes for the GPUs it supports.
 
 `EXTRAS=gui` stops the build with an error, because the images do not support a display.
 

@@ -2,7 +2,6 @@
 name = "flimanalyzer"
 dynamic = ["version"]
 dependencies = [
-    "importlib-resources<7",
     "joblib<2",
     "matplotlib>=3.9,<3.13",  # 3.13 removes boxplot(vert=), still used by seaborn 0.13.2
     "networkx>=3,<4",
@@ -19,16 +18,24 @@ dependencies = [
 requires-python = ">=3.12"
 description = "Analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data."
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Karsten Siller", email = "khsiller@gmail.com" },
 ]
+keywords = ["FLIM", "fluorescence lifetime", "microscopy", "fluorescence lifetime imaging"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
-    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Image Processing",  # the data are pixel values of FLIM images
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Visualization",
 ]
 
 [project.optional-dependencies]
@@ -62,7 +69,6 @@ docs = [
     "sphinx-rtd-theme>=3,<4",
     "myst-parser>=4,<5",
     # lightweight runtime dependencies imported by the documented modules
-    "importlib-resources<7",
     "joblib<2",
     "matplotlib>=3.9,<3.13",
     "networkx>=3,<4",
@@ -85,28 +91,34 @@ flimbatch = "flim.batch:main"
 
 [project.urls]
 Homepage = "https://github.com/uvaKCCI/flimanalyzer"
+Documentation = "https://flimanalyzer.readthedocs.io"
+Repository = "https://github.com/uvaKCCI/flimanalyzer"
+Changelog = "https://github.com/uvaKCCI/flimanalyzer/blob/main/CHANGELOG.md"
 Issues = "https://github.com/uvaKCCI/flimanalyzer/issues"
 
 [build-system]
 requires = [
-    "hatchling",
+    "hatchling>=1.26",  # PEP 639 license fields, core metadata 2.4
     "versioningit",
 ]
 build-backend = "hatchling.build"
 
 [tool.uv]
 default-groups = ["gui"]
+# one PyTorch version on all platforms in the lock file (dev, CI, Docker images): the
+# highest with wheels everywhere (CUDA 13.0, macOS, Linux arm64, CPU) for Python 3.12-3.14
+constraint-dependencies = ["torch==2.14.1"]
 
 [tool.uv.sources]
 # CUDA builds on Windows and Linux x86_64; macOS (Apple Silicon only, current
 # PyTorch has no Intel Mac wheels) and other platforms use the default PyPI wheels.
 torch = [
-    { index = "pytorch-cu128", marker = "sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')" },
+    { index = "pytorch-cu130", marker = "sys_platform == 'win32' or (sys_platform == 'linux' and platform_machine == 'x86_64')" },
 ]
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [tool.hatch.version]
@@ -139,7 +151,16 @@ artifacts = ["flim/_version.py"]
 packages = ["flim"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/flim", "/README.md", "/LICENSE", "/pyproject.toml", "/write_version_info.py"]
+include = [
+    "/flim",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/CITATION.cff",
+    "/pyproject.toml",
+    "/write_version_info.py",
+]
 
 [tool.black]
 line-length = 88

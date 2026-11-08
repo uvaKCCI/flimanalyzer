@@ -17,11 +17,15 @@ concurrency:
 
 jobs:
   tests:
-    name: tests
+    name: tests (${{ matrix.python }})
     # macOS: wxPython has no Linux wheels on PyPI; the runner also has a GUI
     # session, so the dialog tests run instead of being skipped
     runs-on: macos-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]  # oldest and newest supported (~10 min each)
     steps:
       - uses: actions/checkout@v7
         with:
@@ -32,7 +36,7 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync --frozen --extra gui --extra test --extra dask --python 3.12
+        run: uv sync --frozen --extra gui --extra test --extra dask --python ${{ matrix.python }}
 
       - name: Run tests
         env:
@@ -40,7 +44,7 @@ jobs:
         run: uv run --frozen --no-sync pytest -v --cov --cov-report=xml
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && matrix.python == '3.12' }}
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
@@ -48,11 +52,15 @@ jobs:
           fail_ci_if_error: false  # a Codecov outage must not block merges
 
   core:
-    name: core (no gui)
+    name: core (no gui) (${{ matrix.python }})
     # the core must work without wxPython (the gui extra) and without torch:
     # installs the other dependencies from the lock file and runs the core tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -66,7 +74,7 @@ jobs:
         run: |
           uv export --frozen --extra test --no-group gui --no-hashes --no-emit-project --no-annotate --no-header \
             | grep -v -E '^(torch|nvidia-|triton|cuda-)' > core-requirements.txt
-          uv venv --python 3.12
+          uv venv --python ${{ matrix.python }}
           uv pip install --no-deps -r core-requirements.txt
           uv pip install --no-deps -e .
 
@@ -142,3 +150,22 @@ jobs:
 
       - name: Build the documentation
         run: uv run --frozen --no-sync python -m sphinx -W --keep-going -E -b html docs docs/_build/html
+
+  checks:
+    name: all checks
+    # the one required check (main, release/* ruleset): passes only if every job above
+    # passed, so the matrix can change without touching branch protection. The docker
+    # job's skipped build (no image changes) counts as passed: its job result is success
+    if: always()
+    needs: [tests, core, docker, docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a job failed or was cancelled
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "A job ended with: $r"; exit 1 ;; esac
+          done
