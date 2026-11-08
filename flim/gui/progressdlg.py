@@ -16,8 +16,8 @@ from flim.core.runner import FINAL_STATUSES, CancelToken
 
 
 def open_in_file_browser(path):
-    """Shows a folder in Finder, Explorer or the Linux file manager (creating it
-    if it does not exist yet)."""
+    """Shows a folder in Finder (macOS), Explorer (Windows) or, elsewhere, with
+    xdg-open; creates the folder if it does not exist."""
     os.makedirs(path, exist_ok=True)
     if sys.platform == "darwin":
         subprocess.Popen(["open", path])
@@ -50,7 +50,7 @@ class FolderLink(wx.adv.HyperlinkCtrl):
 class RunProgressDialog(wx.Dialog):
     """Modal progress dialog that runs a flow in a worker thread.
 
-    While the dialog is shown the rest of the application is blocked, but the event
+    While the dialog is shown the rest of the GUI is blocked, but the event
     loop keeps running. Cancel (or closing the window) cancels the run; the dialog
     closes itself when the run has ended.
 
@@ -72,7 +72,7 @@ class RunProgressDialog(wx.Dialog):
         self.cancel_token = CancelToken()
         self.run = None
         self.error = None
-        self._flow_run = None  # the FlowRun, once Prefect has created it
+        self._flow_run = None  # the FlowRun, once the flow has started
 
         self.task_text = wx.StaticText(self, label="Starting...")
         self.gauge = wx.Gauge(self, range=1, size=(420, -1))
@@ -124,7 +124,8 @@ class RunProgressDialog(wx.Dialog):
 
     def _start(self):
         # Python's cyclic garbage collector runs in whichever thread allocates when
-        # it triggers; if it frees wx objects in a worker thread, the app crashes.
+        # it triggers; if it frees wx objects in a worker thread, the process can
+        # crash.
         # While the flow runs, collect only here, on the main thread.
         gc.collect()
         self._gc_was_enabled = gc.isenabled()
@@ -244,9 +245,8 @@ class RunProgressDialog(wx.Dialog):
 
 
 class RunSummaryDialog(wx.Dialog):
-    """Says how a run ended and links to its results folder and Prefect flow run.
-
-    Shown after every workflow run and after a cancelled tool run.
+    """Shows how a run ended (completed and failed tasks, warnings) and links to its
+    results folder and to its flow run on the Prefect server, if there are any.
 
     Args:
         parent: parent window.

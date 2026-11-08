@@ -1,8 +1,9 @@
 """macOS integration that wxPython does not provide.
 
-Started as a script, the app is the Python executable to macOS, so the Dock and
-the menu bar show "python3.12". The functions here replace that name; they do
-nothing on other platforms and never stop the app from starting.
+Started as a script, the GUI is the Python executable to macOS, so the Dock and
+the menu bar show the executable's name (e.g. "python3.12"). The functions here
+replace that name; they do nothing on other platforms, and they log errors (debug
+level) instead of raising them.
 """
 
 import ctypes

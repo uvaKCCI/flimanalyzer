@@ -104,7 +104,7 @@ def combined_schema(schemas) -> Optional[TableSchema]:
     return TableSchema(
         columns=list(columns.values()),
         complete=all(s.complete for s in flat),
-        # the level names of the first input's headers that has them
+        # the header level names of the first input that has them
         header_levels=next((s.header_levels for s in flat if s.header_levels), []),
     )
 
@@ -116,9 +116,10 @@ class ConfigDialog(wx.Dialog):
         tool: the Tool class.
         config: the config to edit (default: the config class's defaults).
         data_choices: open tables by name; the first is the current one.
-        selected: preselected table names per input (default: in order).
+        selected: preselected table names per input (default: the i-th table for
+            the i-th input, all tables for an input with many=True).
         execution: execution options; the dialog edits autosave and the folder.
-        autosave_locked: results are always saved (workflows).
+        autosave_locked: "Save results in" is checked and cannot be unchecked.
     """
 
     def __init__(
@@ -185,7 +186,8 @@ class ConfigDialog(wx.Dialog):
         self.settings_message = wx.StaticText(self, label="")
         buttons.Add(self.settings_message, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
         buttons.Add(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL), 0)
-        self.ok_button = self.FindWindow(wx.ID_OK)  # FindWindowById: any window's
+        # FindWindow searches this dialog's children; FindWindowById all windows
+        self.ok_button = self.FindWindow(wx.ID_OK)
         self.ok_button.Bind(wx.EVT_BUTTON, self._on_ok)
         sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 8)
         self.SetSizer(sizer)
@@ -314,7 +316,8 @@ class ConfigDialog(wx.Dialog):
         return self._schema_cache[name]
 
     def input_schemas(self) -> list:
-        """Per input: the TableSchema of the selected table(s); None if none."""
+        """Per input: the TableSchema of the selected table (a dict of them by name
+        for an input with many=True); None if no table is selected."""
         schemas = []
         for names in self.selected_names():
             if isinstance(names, list):
@@ -350,7 +353,9 @@ class ConfigDialog(wx.Dialog):
         return issues
 
     def validate(self) -> list[Issue]:
-        """Checks the edited config, marks the fields with issues and enables OK."""
+        """Checks the edited config and the execution options, marks the fields with
+        issues, shows the other issues below the fields, enables OK only if there
+        are no errors, and returns all issues."""
         config, issues = self.current_config()
         issues = issues + self.execution_issues()
         self.issues = issues
@@ -409,7 +414,9 @@ class ConfigDialog(wx.Dialog):
 
     def load_settings(self, path) -> bool:
         """Uses the tool's settings in a settings file (see
-        flim.core.settings.read_tool_settings); True if the file has them."""
+        flim.core.settings.read_tool_settings): config, autosave (unless locked)
+        and results folder. False, with a message, if the file has no settings for
+        the tool or cannot be read."""
         name = os.path.basename(path)
         try:
             entry = read_tool_settings(path, self.tool)
@@ -437,7 +444,8 @@ class ConfigDialog(wx.Dialog):
 
     def save_settings(self, path) -> bool:
         """Puts the edited settings into the tool's section of a settings file (see
-        flim.core.settings.write_tool_settings); False if they are not valid."""
+        flim.core.settings.write_tool_settings). False, with a message, if they are
+        not valid or the file cannot be written."""
         self.commit_edits()
         config, issues = self.current_config()
         name = os.path.basename(path)
