@@ -311,3 +311,39 @@ def test_invalid_defaults_json_is_not_copied(monkeypatch, tmp_path, content):
     note = copy_start_folder_defaults(user_file)
     assert "was not copied" in note
     assert not user_file.path.exists()
+
+
+def test_defaults_json_settings_the_version_does_not_have_are_not_copied(
+    monkeypatch, tmp_path, caplog
+):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "defaults.json").write_text(json.dumps({
+        "schema_version": 1,
+        "working_dir": "res",  # renamed: results_dir
+        "display": {"x": 1},  # dropped in version 2
+        "bogus_section": 3,
+        "import": {"delimiter": ";", "bogus_key": 1},
+    }))
+    user_file = UserSettingsFile(tmp_path / "usersettings.json")
+    copy_start_folder_defaults(user_file)
+    assert "bogus_section" in caplog.text  # logged when it is copied
+    data = json.loads(user_file.path.read_text())
+    assert set(data) == {"schema_version", "results_dir", "import"}
+    assert data["import"]["delimiter"] == ";" and "bogus_key" not in data["import"]
+    caplog.clear()
+    SettingsManager(user_file=user_file)  # the next start
+    assert "unknown keys" not in caplog.text
+
+
+@pytest.mark.parametrize("name", ["settings_v0.json", "settings_v1.json"])
+def test_defaults_json_of_earlier_versions_gives_the_same_settings(
+    monkeypatch, tmp_path, name
+):
+    from flim.core.settings import load_settings
+
+    source = Path(__file__).parent / "data" / name
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "defaults.json").write_text(source.read_text())
+    user_file = UserSettingsFile(tmp_path / "usersettings.json")
+    copy_start_folder_defaults(user_file)
+    assert SettingsManager(user_file=user_file).settings == load_settings(source)

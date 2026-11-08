@@ -30,7 +30,7 @@ The environment variable `FLIM_USER_SETTINGS` sets another path for this file.
 
 ### `defaults.json` (deprecated)
 
-Before 0.7.0, the GUI read the settings in `defaults.json` in the folder it was started from. The user settings file replaces it. If there is a `defaults.json` in the start folder and no user settings file yet, the GUI copies the settings of `defaults.json` into a new user settings file and doesn't read `defaults.json` again. It shows a warning whenever it finds a `defaults.json`.
+Before 0.7.0, the GUI read the settings in `defaults.json` in the folder it was started from. The user settings file replaces it. If there is a `defaults.json` in the start folder and no user settings file yet, the GUI copies the settings of `defaults.json` into a new user settings file and doesn't read `defaults.json` again. Settings that this version doesn't have are not copied. It shows a warning whenever it finds a `defaults.json`.
 
 To use the settings of a `defaults.json` with `-s` instead, move it to an app settings folder and give it a name, for example `cells.json`, and start with `-s cells`.
 

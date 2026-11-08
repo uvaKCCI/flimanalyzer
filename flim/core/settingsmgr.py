@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 
 from filelock import FileLock
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from flim.core.config import TaskConfig
@@ -362,12 +362,30 @@ def session_settings(
 DEFAULTS_FILE = "defaults.json"
 
 
+def _without_unknown_keys(settings: AppSettings) -> dict:
+    """Return the settings as JSON, without the unknown keys the model keeps."""
+
+    def remove(model: BaseModel, data: dict) -> None:
+        for key in model.model_extra or {}:
+            data.pop(key, None)
+        for name, field in type(model).model_fields.items():
+            value, key = getattr(model, name), field.alias or name
+            if isinstance(value, BaseModel) and isinstance(data.get(key), dict):
+                remove(value, data[key])
+
+    data = settings.to_json()
+    remove(settings, data)
+    return data
+
+
 def copy_start_folder_defaults(user_file: UserSettingsFile) -> Optional[str]:
     """Copy `defaults.json` in the start folder into the user settings file, once.
 
     The file is copied only if the user settings file does not exist yet; after that,
-    `defaults.json` is ignored. Its sections are copied as they are (migrated to the
-    current version), not the built-in defaults of sections it does not have.
+    `defaults.json` is ignored. The file is migrated to the current version and
+    validated; the sections it has are copied, and of the tools only the tools it
+    has. Settings that the current version does not have (dropped or unknown keys)
+    are not copied; the validation logs them.
 
     Args:
         user_file: The user settings file of the GUI.
@@ -391,8 +409,11 @@ def copy_start_folder_defaults(user_file: UserSettingsFile) -> Optional[str]:
         if not isinstance(data, dict):
             raise ValueError("not a settings file")
         data = migrate(data)
-        update_settings(AppSettings.default(), data)  # validated before it is copied
-        user_file.merge(data)
+        known = _without_unknown_keys(update_settings(AppSettings.default(), data))
+        copy = {key: known[key] for key in data if key in known}
+        if "tools" in copy:
+            copy["tools"] = {k: v for k, v in copy["tools"].items() if k in data["tools"]}
+        user_file.merge(copy)
     except Exception as err:
         return f"{path} is deprecated and was not copied into the user settings file: {err}"
     return (
