@@ -266,3 +266,48 @@ def test_partial_cache_section_keeps_the_other_cache_settings(monkeypatch):
     monkeypatch.delenv("FLIM_CACHE_DIR", raising=False)
     settings = session_settings(None, {"cache": {"dir": "/c"}}).settings
     assert settings.cache.dir == Path("/c") and settings.cache.max_age_days == 7
+
+
+# --- defaults.json in the start folder (deprecated) ---
+
+from flim.core.settingsmgr import copy_start_folder_defaults  # noqa: E402
+
+
+def test_defaults_json_is_copied_once(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    # a file of an older version, with one section
+    (tmp_path / "defaults.json").write_text(
+        json.dumps({"schema_version": 1, "working_dir": "res"})
+    )
+    user_file = UserSettingsFile(tmp_path / "user" / "usersettings.json")
+    note = copy_start_folder_defaults(user_file)
+    assert "is deprecated" in note and "copied into the user settings file" in note
+    data = json.loads(user_file.path.read_text())
+    # migrated, and only the file's sections (no built-in defaults)
+    assert data["results_dir"] == "res" and data["schema_version"] == SETTINGS_VERSION
+    assert "tools" not in data and "working_dir" not in data
+    assert SettingsManager(user_file=user_file).settings.results_dir == Path("res")
+    # ignored from then on, with a message each time
+    (tmp_path / "defaults.json").write_text(json.dumps({"results_dir": "other"}))
+    note = copy_start_folder_defaults(user_file)
+    assert "is deprecated and ignored" in note
+    assert json.loads(user_file.path.read_text())["results_dir"] == "res"
+
+
+def test_no_defaults_json_no_message(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    user_file = UserSettingsFile(tmp_path / "usersettings.json")
+    assert copy_start_folder_defaults(user_file) is None
+    assert not user_file.path.exists()
+
+
+@pytest.mark.parametrize(
+    "content", ["{not json", "[1, 2]", json.dumps({"execution": {"executor": "ray"}})]
+)
+def test_invalid_defaults_json_is_not_copied(monkeypatch, tmp_path, content):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "defaults.json").write_text(content)
+    user_file = UserSettingsFile(tmp_path / "usersettings.json")
+    note = copy_start_folder_defaults(user_file)
+    assert "was not copied" in note
+    assert not user_file.path.exists()

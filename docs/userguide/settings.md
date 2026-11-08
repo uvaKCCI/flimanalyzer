@@ -8,13 +8,13 @@ The range filters (see [Filtering Data](/userguide/data/filter.md#filtering-colu
 
 The settings come from several layers. Each layer changes only the settings it has, and a higher layer takes precedence over a lower one. From lowest to highest:
 
-1. The built-in defaults. In the GUI, when it is started without `-s`, also `defaults.json` in the folder it is started from, if there is one.
+1. The built-in defaults.
 2. The [user settings file](#the-user-settings-file) (GUI only).
 3. The [app settings file](#app-settings-files) given with `-s`.
 4. [Environment variables](#environment-variables).
 5. Command-line options (see [Command-line options](/install/index.md#command-line-options) and [Batch mode](/userguide/batch.md#options)).
 
-`flimbatch` does not read the user settings file or `defaults.json`, so its results don't depend on settings changed in the GUI.
+`flimbatch` does not read the user settings file, so its results don't depend on settings changed in the GUI.
 
 ## The user settings file
 
@@ -27,6 +27,12 @@ The user settings file is `usersettings.json` in the platform's settings folder:
 * Windows: `%LOCALAPPDATA%\FLIMAnalyzer\usersettings.json`
 
 The environment variable `FLIM_USER_SETTINGS` sets another path for this file.
+
+### `defaults.json` (deprecated)
+
+Before 0.7.0, the GUI read the settings in `defaults.json` in the folder it was started from. The user settings file replaces it. If there is a `defaults.json` in the start folder and no user settings file yet, the GUI copies the settings of `defaults.json` into a new user settings file and doesn't read `defaults.json` again. It shows a warning whenever it finds a `defaults.json`.
+
+To use the settings of a `defaults.json` with `-s` instead, move it to an app settings folder and give it a name, for example `cells.json`, and start with `-s cells`.
 
 ## App settings files
 

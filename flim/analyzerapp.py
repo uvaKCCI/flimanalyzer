@@ -10,11 +10,10 @@ from flim._version import __version__
 from flim.core.cli import add_settings_options, command_line_changes, settings_file
 from flim.core.execution import ExecutionOptions
 from flim.core.prefect_server import PrefectServerError, use_prefect_server
-from flim.core.settings import AppSettings
 from flim.core.settingsmgr import (
     UserSettingsFile,
+    copy_start_folder_defaults,
     session_settings,
-    start_folder_defaults,
     user_settings_path,
 )
 from flim.core.tools import FLIMAnalyzer
@@ -108,12 +107,10 @@ def main(argv=None):
     try:
         name, notes = settings_file(args)
         changes, more = command_line_changes(args)
-        manager = session_settings(
-            name,
-            changes,
-            user_file=UserSettingsFile(user_settings_path()),
-            base=AppSettings.default() if name else start_folder_defaults(),
-        )
+        user_file = UserSettingsFile(user_settings_path())
+        if note := copy_start_folder_defaults(user_file):
+            more.append(note)
+        manager = session_settings(name, changes, user_file=user_file)
         execution = ExecutionOptions(execution=manager.settings.execution)
         execution.check_available()
     except (FileNotFoundError, ValueError, RuntimeError) as err:

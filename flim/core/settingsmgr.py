@@ -357,24 +357,45 @@ def session_settings(
     return manager
 
 
-# settings file read at startup in the start folder (deprecated: the user settings file
-# replaces it)
+# settings file in the start folder that the GUI read before 0.7.0 (deprecated: the user
+# settings file replaces it)
 DEFAULTS_FILE = "defaults.json"
 
 
-def start_folder_defaults() -> AppSettings:
-    """Return the settings of `defaults.json` in the start folder, if it exists.
+def copy_start_folder_defaults(user_file: UserSettingsFile) -> Optional[str]:
+    """Copy `defaults.json` in the start folder into the user settings file, once.
+
+    The file is copied only if the user settings file does not exist yet; after that,
+    `defaults.json` is ignored. Its sections are copied as they are (migrated to the
+    current version), not the built-in defaults of sections it does not have.
+
+    Args:
+        user_file: The user settings file of the GUI.
 
     Returns:
-        The built-in defaults with the file's sections applied; the built-in defaults
-        if there is no such file, or if it cannot be read (the error is logged).
+        The deprecation message to show if there is a `defaults.json` in the start
+        folder, otherwise None. If the file cannot be read or is invalid, nothing is
+        copied and the message names the error.
     """
-    from flim.core.settings import load_settings
-
-    if os.path.isfile(DEFAULTS_FILE):
-        try:
-            return load_settings(DEFAULTS_FILE)
-        except Exception:
-            logging.exception(f"Settings in {DEFAULTS_FILE} could not be read")
-    return AppSettings.default()
-
+    path = Path(DEFAULTS_FILE).resolve()
+    if not path.is_file():
+        return None
+    if user_file.path.exists():
+        return (
+            f"{path} is deprecated and ignored: the user settings file"
+            f" {user_file.path} replaces it"
+        )
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError("not a settings file")
+        data = migrate(data)
+        update_settings(AppSettings.default(), data)  # validated before it is copied
+        user_file.merge(data)
+    except Exception as err:
+        return f"{path} is deprecated and was not copied into the user settings file: {err}"
+    return (
+        f"{path} is deprecated: its settings were copied into the user settings file"
+        f" {user_file.path}, which replaces it; {DEFAULTS_FILE} is not read again"
+    )
