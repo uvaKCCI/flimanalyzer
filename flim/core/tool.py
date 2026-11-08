@@ -12,6 +12,7 @@ Results are keyed by display name (``"Table: Summary"``), with the config's pref
 import contextlib
 import logging
 import os
+from pathlib import Path
 import sys
 import threading
 import typing
@@ -94,7 +95,7 @@ class RunContext:
     note: Optional[str] = None  # e.g. why the preferred device was not used
     cancel_token: Any = None  # flim.core.runner.CancelToken
     # where tools write files they produce (e.g. models); None: not set by the caller
-    output_dir: Optional[str] = None
+    output_dir: Optional[Path] = None
     # warnings of this run (Tool.warn): the task's message in the run summary
     warnings: list = field(default_factory=list)
 

@@ -8,6 +8,7 @@ run summary).
 """
 
 from typing import Any, ClassVar, Optional
+import os
 
 import pandas as pd
 
@@ -48,7 +49,7 @@ class Workflow(Tool[ConfigT]):
         *inputs,
         config: Optional[ConfigT] = None,
         task_runner=None,
-        autosave_dir: Optional[str] = None,
+        autosave_dir: Optional[str | os.PathLike] = None,
         on_progress=None,
         cancel_token=None,
         on_start=None,

@@ -7,6 +7,7 @@ validation work) without it.
 import itertools
 import logging
 import os
+from pathlib import Path
 import random
 import re
 import tempfile
@@ -101,7 +102,7 @@ class AETraining(Tool[AETrainConfig]):
     def run(self, data, *, config):
         output_dir = self.context.output_dir
         if not output_dir:
-            output_dir = tempfile.mkdtemp(prefix="flim-autoencoder-")
+            output_dir = Path(tempfile.mkdtemp(prefix="flim-autoencoder-"))
             logging.warning(
                 f"{self.name}: no results folder set, saving models in {output_dir}"
             )

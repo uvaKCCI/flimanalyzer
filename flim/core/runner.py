@@ -32,6 +32,7 @@ import copy
 import datetime
 import logging
 import os
+from pathlib import Path
 import re
 import threading
 import uuid
@@ -276,7 +277,7 @@ class FlowRun:
     def __init__(
         self,
         name: str,
-        autosave_dir: str = None,
+        autosave_dir: Optional[str | os.PathLike] = None,
         on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
         cancel_token: Optional[CancelToken] = None,
     ):
@@ -293,7 +294,7 @@ class FlowRun:
             cancel_token: signal that cancels the run when set.
         """
         self.name = name
-        self.autosave_dir = autosave_dir
+        self.autosave_dir = Path(autosave_dir) if autosave_dir else None
         self.on_progress = on_progress
         self.cancel_token = cancel_token or CancelToken()
         self.flow_run_id = None
@@ -384,9 +385,8 @@ class FlowRun:
         autosave = None
         if self.autosave_dir:
             autosave = {
-                "directory": os.path.join(
-                    self.autosave_dir,
-                    *[clean_path_component(t) for t in tag_list],
+                "directory": self.autosave_dir.joinpath(
+                    *[clean_path_component(t) for t in tag_list]
                 ),
                 "name": label,
             }
@@ -522,7 +522,7 @@ class FlowRun:
 
         return url_for("flow-run", obj_id=self.flow_run_id)
 
-    def write_summary(self) -> Optional[str]:
+    def write_summary(self) -> Optional[Path]:
         """Writes ``run_summary.txt`` into the results directory, if there is one.
 
         Returns:
@@ -560,7 +560,7 @@ class FlowRun:
                 f"{a['label'].ljust(width)}  {a['status'].ljust(9)}"
                 f"  {resources.ljust(res_width)}  {message}".rstrip()
             )
-        path = os.path.join(self.autosave_dir, "run_summary.txt")
+        path = self.autosave_dir / "run_summary.txt"
         with open(path, "w") as f:
             f.write("\n".join(lines) + "\n")
         return path
@@ -679,7 +679,7 @@ def run_flow(
     name: str,
     build: Callable[[], Any],
     task_runner=None,
-    autosave_dir: str = None,
+    autosave_dir: Optional[str | os.PathLike] = None,
     on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
     cancel_token: Optional[CancelToken] = None,
     on_start: Optional[Callable[[FlowRun], None]] = None,
@@ -712,8 +712,8 @@ def run_flow(
     run = FlowRun(name, on_progress=on_progress, cancel_token=cancel_token)
     run.notes = list(notes)
     if autosave_dir:
-        run.autosave_dir = os.path.join(
-            autosave_dir, run.start_time.strftime("%Y-%m-%d_%H-%M-%S")
+        run.autosave_dir = Path(autosave_dir) / run.start_time.strftime(
+            "%Y-%m-%d_%H-%M-%S"
         )
 
     if task_runner is None:

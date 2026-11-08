@@ -62,7 +62,7 @@ def _free_port(host: str) -> int:
         return sock.getsockname()[1]
 
 
-def _start_server(host: str, port: int, timeout: float, log_file: str):
+def _start_server(host: str, port: int, timeout: float, log_file: str | os.PathLike):
     """Starts ``prefect server start`` on ``host:port`` and waits until it is healthy.
 
     Returns:
@@ -95,7 +95,7 @@ def ensure_prefect_server(
     port: int = DEFAULT_PORT,
     start: bool = True,
     timeout: float = 60.0,
-    log_file: str = "prefect-server.log",
+    log_file: str | os.PathLike = "prefect-server.log",
 ):
     """Finds or starts the Prefect server that all flows of this process report to.
 

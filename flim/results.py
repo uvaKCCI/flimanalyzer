@@ -23,7 +23,9 @@ def clean_path_component(name: str) -> str:
     return re.sub(r":\s?", "_", name)
 
 
-def write_table(table: pd.DataFrame, path: str, index: bool = False) -> None:
+def write_table(
+    table: pd.DataFrame, path: str | os.PathLike, index: bool = False
+) -> None:
     """Writes a table as tab-separated text.
 
     The row index is left out unless ``index`` is True: row numbers carry no meaning
@@ -34,7 +36,7 @@ def write_table(table: pd.DataFrame, path: str, index: bool = False) -> None:
     table.to_csv(path, sep="\t", index=index)
 
 
-def save_results(results, directory: str, name: str) -> None:
+def save_results(results, directory: str | os.PathLike, name: str) -> None:
     """Saves a plugin's results below ``directory``.
 
     The result without its figures is pickled to ``<directory>/pickled/<name>``

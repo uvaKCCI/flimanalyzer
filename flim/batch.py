@@ -17,6 +17,7 @@ otherwise. wxPython is not imported.
 import argparse
 import logging
 import os
+from pathlib import Path
 import sys
 from typing import Optional
 
@@ -91,7 +92,7 @@ def run_tool(
     name: str,
     data: pd.DataFrame,
     settings: AppSettings,
-    output_dir: str,
+    output_dir: str | os.PathLike,
     execution: Optional[ExecutionOptions] = None,
     allow_guesses: bool = False,
 ):
@@ -120,7 +121,7 @@ def run_tool(
         raise BatchError(f"{name} needs {len(required)} input tables; batch runs give one")
     config = settings.tool_settings.config(tool)
     execution = execution or ExecutionOptions()
-    autosave_dir = os.path.join(output_dir, tool.name)
+    autosave_dir = Path(output_dir) / tool.name
     task_runner = execution.task_runner()
     if issubclass(tool, Workflow):
         inputs = [data] * len(tool.inputs)  # every input gets the imported table

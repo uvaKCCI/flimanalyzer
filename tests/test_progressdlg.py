@@ -1,5 +1,6 @@
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -205,7 +206,7 @@ def test_cancelled_run_shows_results_folder_and_prefect_link(frame, monkeypatch,
     )
     assert frame.run_with_progress("My Tool", start) is None
     (run_dir,) = [p for p in tmp_path.iterdir() if p.is_dir()]
-    assert shown["paths"] == [str(run_dir)]
+    assert [Path(p) for p in shown["paths"]] == [run_dir]
     assert shown["texts"][0].startswith("My Tool was cancelled after ")
     assert "Results of the completed tasks are in:" in shown["texts"]
     assert shown["link"] and "/runs/flow-run/" in shown["link"]
@@ -342,12 +343,12 @@ def test_results_folder_link_opens_the_file_browser(wxapp, monkeypatch, tmp_path
     try:
         assert dlg.ShowModal() == wx.ID_OK
         run_dir = dlg.run.autosave_dir
-        assert run_dir.startswith(str(tmp_path))
+        assert run_dir.is_relative_to(tmp_path)
         # long paths are shortened in the label, the click opens the whole path
         from flim.core.paths import shorten_path
 
         assert seen == {"shown": True, "label": shorten_path(run_dir)}
-        assert dlg.folder.path == run_dir and run_dir in dlg.folder.GetToolTipText()
+        assert dlg.folder.path == run_dir and str(run_dir) in dlg.folder.GetToolTipText()
         assert opened == [run_dir]
     finally:
         dlg.Destroy()
@@ -526,7 +527,7 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flirr_data, tmp_p
     assert locked == [True]  # workflows always save their results
     ((first_line, folder, has_link),) = summaries
     assert first_line.startswith("Basic FLIRR Analysis completed all ")
-    assert folder and folder.startswith(str(tmp_path)) and has_link
+    assert folder and Path(folder).is_relative_to(tmp_path) and has_link
     assert any("Graph" in title for title in frame.windowframes)  # graph window opened too
     frame.OnCloseAll(None)
 
