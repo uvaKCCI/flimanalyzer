@@ -576,7 +576,7 @@ class AppFrame(wx.Frame):
             return
         config = self.settings.tool_settings.config(tool)
         entry = self.settings.tool_settings.entry(tool)
-        folder = (entry and entry.results_dir) or self.settings.working_dir
+        folder = (entry and entry.results_dir) or self.settings.resolved_results_dir()
         execution = self.flimanalyzer.execution.model_copy(
             update={
                 "autosave": bool(entry and entry.autosave) and bool(folder),
@@ -604,7 +604,9 @@ class AppFrame(wx.Frame):
         task_runner = self.flimanalyzer.get_task_runner()
         execution = result.execution
         if is_workflow:
-            folder = canonical_folder(execution.results_dir or self.settings.working_dir)
+            folder = canonical_folder(
+                execution.results_dir or self.settings.resolved_results_dir()
+            )
             autosave_dir = os.path.join(folder, tool.name)
 
             def start_run(cancel_token, on_progress, on_start):

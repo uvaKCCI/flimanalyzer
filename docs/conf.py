@@ -61,6 +61,9 @@ author = (
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
+# single backticks in docstrings are code (Google style)
+default_role = "literal"
+
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",

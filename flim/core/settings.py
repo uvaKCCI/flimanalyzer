@@ -4,12 +4,14 @@ A settings file stores ``schema_version``. Files of older versions are upgraded 
 step (``MIGRATIONS``: version n -> n+1) and then validated with :class:`AppSettings`;
 settings are always saved in the newest version. Version 0 is the dict ``Config`` of
 FLIMAnalyzer up to 0.5 (``{"root": {"import": ..., "plugins": ...}}``); version 1 is
-the format of 0.6.
+the format of 0.6; version 2 the format of 0.7.
 
 A settings file has a section per settings area, and one per tool::
 
-    {"schema_version": 1,
-     "import": {...}, "preprocess": {...}, "display": [...], "filters": {...},
+    {"schema_version": 2,
+     "results_dir": null, "execution": {"executor": "local", ...},
+     "prefect_server": true, "log_dir": null, "cache": {...},
+     "import": {...}, "preprocess": {...}, "filters": {...},
      "tools": {"Summarize": {"config": {...}, "autosave": false, "results_dir": null},
                ...}}
 
@@ -18,21 +20,27 @@ dialog): loading it changes only those (:func:`update_settings`).
 
 - :class:`ToolSettingsMap`: the settings of each tool (its config, autosave and results
   folder), by tool name.
-- :class:`AppSettings`: import, preprocessing, display, filters, the results folder and
-  the tool settings.
+- :class:`AppSettings`: the results folder, the executor, the Prefect server, the log and
+  cache folders, import, preprocessing, filters and the tool settings.
 """
 
 import copy
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Callable, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
 from flim.core.config import TaskConfig
+from flim.core.execution import ExecutorSettings, LocalExecutorSettings
 
-SETTINGS_VERSION = 1
+SETTINGS_VERSION = 2
+
+# the folder FLIMAnalyzer was started from: the default results folder. Recorded at
+# import, because file dialogs can change the current folder later.
+START_DIR = Path.cwd()
 
 
 class _Settings(BaseModel):
@@ -76,7 +84,7 @@ class ToolSettings(_Settings):
 
     config: Optional[dict] = None
     autosave: bool = False
-    results_dir: Optional[str] = None
+    results_dir: Optional[Path] = None
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
 
 
@@ -119,7 +127,7 @@ def tool_settings(config: TaskConfig, autosave=False, results_dir=None) -> ToolS
     return ToolSettings(
         config=config.model_dump(mode="json"),
         autosave=bool(autosave),
-        results_dir=None if results_dir is None else str(results_dir),
+        results_dir=None if results_dir is None else Path(results_dir),
     )
 
 
@@ -170,16 +178,39 @@ def default_range_filters() -> list:
     ]
 
 
+class CacheSettings(_Settings):
+    """Where closed items are kept, and the limits of that cache."""
+
+    cache_dir: Optional[Path] = Field(
+        default=None,
+        description="Cache folder. None defaults to FLIM_CACHE_DIR, else the platform's"
+        " cache folder.",
+    )
+    max_size_mb: int = Field(default=2048, ge=0, description="Maximum cache size (MB).")
+    max_age_days: int = Field(
+        default=7, ge=0, description="Items older than this are removed (days)."
+    )
+
+
 class AppSettings(_Settings):
     schema_version: int = SETTINGS_VERSION
-    working_dir: str = Field(
-        default_factory=lambda: os.path.join(
-            os.path.expanduser("~"), "FLIMAnalyzerResults"
-        )
+    results_dir: Optional[Path] = Field(
+        default=None,
+        description="Results folder. None defaults to the folder FLIMAnalyzer was"
+        " started from.",
     )
+    execution: ExecutorSettings = Field(default_factory=LocalExecutorSettings)
+    prefect_server: bool = Field(
+        default=True, description="Use or start a local Prefect server for the runs."
+    )
+    log_dir: Optional[Path] = Field(
+        default=None,
+        description="Log folder. None defaults to FLIM_LOG_DIR, else the platform's log"
+        " folder.",
+    )
+    cache: CacheSettings = Field(default_factory=CacheSettings)
     import_: ImportSettings = Field(default_factory=ImportSettings, alias="import")
     preprocess: PreprocessSettings = Field(default_factory=PreprocessSettings)
-    display: list[dict] = []  # histogram ranges of the import dialog
     filters: FilterSettings = Field(default_factory=FilterSettings)
     tool_settings: ToolSettingsMap = Field(default_factory=ToolSettingsMap, alias="tools")
 
@@ -187,18 +218,14 @@ class AppSettings(_Settings):
 
     @classmethod
     def default(cls) -> "AppSettings":
-        """The default settings: those of the importer and preprocessor, histogram
-        ranges for trp t1, t2 and tm, and the default range filters."""
+        """The default settings: those of the importer and preprocessor, and the
+        default range filters."""
         from flim.core.importer import dataimporter
         from flim.core.preprocessor import defaultpreprocessor
 
         return cls(
             import_=dataimporter().settings(),
             preprocess=defaultpreprocessor().settings(),
-            display=[
-                {"name": name, "min": "auto", "max": "auto", "bins": 100}
-                for name in ["trp t1", "trp t2", "trp tm"]
-            ],
             filters=FilterSettings(
                 range_filters=[f.get_params() for f in default_range_filters()]
             ),
@@ -206,6 +233,11 @@ class AppSettings(_Settings):
 
     def to_json(self) -> dict:
         return self.model_dump(mode="json", by_alias=True)
+
+    def resolved_results_dir(self) -> Path:
+        """The results folder: `results_dir` with `~` expanded, or the folder
+        FLIMAnalyzer was started from if it is not set."""
+        return self.results_dir.expanduser() if self.results_dir else START_DIR
 
 
 # --- versions ---
@@ -301,8 +333,39 @@ def _v0_tools(plugins: dict) -> dict:
     return entries
 
 
+def _renamed_key(values: dict, old: str, new: str) -> None:
+    if isinstance(values, dict) and old in values:
+        values[new] = values.pop(old)
+
+
+def _v1_to_v2(data: dict) -> dict:
+    """Upgrade version 1 (0.6) to 2 (0.7).
+
+    `working_dir` becomes `results_dir`, and `display` (histogram ranges no longer
+    used) is dropped. In the tool sections, the `rescale` field of the autoencoder
+    training config, also inside the autoencoder workflows' `training` config,
+    becomes `rescale_output`.
+
+    Args:
+        data: Settings of version 1.
+
+    Returns:
+        A new dict with the settings of version 2.
+    """
+    data = copy.deepcopy(data)
+    _renamed_key(data, "working_dir", "results_dir")
+    data.pop("display", None)
+    for entry in (data.get("tools") or {}).values():
+        config = (entry or {}).get("config") if isinstance(entry, dict) else None
+        if not isinstance(config, dict):
+            continue
+        _renamed_key(config, "rescale", "rescale_output")
+        _renamed_key(config.get("training"), "rescale", "rescale_output")
+    return data
+
+
 # version n -> the settings of version n + 1
-MIGRATIONS: dict[int, Callable[[dict], dict]] = {0: _v0_to_v1}
+MIGRATIONS: dict[int, Callable[[dict], dict]] = {0: _v0_to_v1, 1: _v1_to_v2}
 
 
 def version_of(data: dict) -> int:

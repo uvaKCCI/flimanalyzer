@@ -281,7 +281,7 @@ class AETraining(Tool[AETrainConfig]):
 
         encoded = np.concatenate(encoded)
         decoded = np.concatenate(decoded)
-        if config.rescale:
+        if config.rescale_output:
             decoded = np.concatenate(
                 [
                     scaler.inverse_transform(decoded[:train_samples]),

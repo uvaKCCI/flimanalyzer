@@ -450,6 +450,7 @@ class AETrainConfig(AutoencoderConfig):
         "batch_sizes": "batch_size",
         "model_name": "modelfile",
         "architecture": "model",
+        "rescale_output": "rescale",
         "random_seed": None,
     }
 
@@ -493,10 +494,11 @@ class AETrainConfig(AutoencoderConfig):
     architecture: AutoencoderName = Field(
         default="AE Dimensionality Reduction 2-10", title="Architecture"
     )
-    rescale: bool = Field(
+    rescale_output: bool = Field(
         default=False,
-        title="Rescale",
-        description="Reconstructed values in the units of the input (not 0..1).",
+        title="Rescale output to the data's units",
+        description="Reconstructed values in the units of the input, not 0..1. The"
+        " input is always scaled to 0..1 for training.",
     )
     create_plots: bool = Field(default=True, title="Loss plots")
     train_size: Probability = Field(

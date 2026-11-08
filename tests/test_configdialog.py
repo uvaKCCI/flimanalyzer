@@ -224,7 +224,9 @@ def test_inputs_of_tools_with_several(dialog, table):
 
 
 def test_execution_options(dialog, tmp_path):
-    d = dialog("Sort", execution=ExecutionOptions(executor="local", num_workers=3))
+    d = dialog(
+        "Sort", execution=ExecutionOptions(executor={"executor": "local", "num_workers": 3})
+    )
     d.autosave.SetValue(True)
     d.validate()
     assert not d.ok_button.IsEnabled()
@@ -233,7 +235,7 @@ def test_execution_options(dialog, tmp_path):
     d.validate()
     execution = d.result().execution
     assert execution.autosave and execution.results_dir == Path(tmp_path)
-    assert execution.num_workers == 3  # other options are kept
+    assert execution.executor.num_workers == 3  # other options are kept
 
 
 def test_results_folder_that_cannot_be_used(dialog, tmp_path):

@@ -122,7 +122,7 @@ def _workflow_training(**changes) -> AETrainConfig:
         learning_rates=[1e-5, 2e-5],
         weight_decays=[1e-7, 1e-8],
         batch_sizes=[128, 64],
-        rescale=True,
+        rescale_output=True,
         checkpoint_interval=2,
         **changes,
     )

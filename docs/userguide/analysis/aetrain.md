@@ -17,7 +17,7 @@ The `Autoencoder: Train` tool trains autoencoder models on selected features and
     - `Learning rates`, `Weight decays`, `Batch sizes`: one or more values each, separated by commas (defaults 0.0001, 1e-08 and 128). One model is trained for each combination of a learning rate, a weight decay and a batch size. For example, 2 learning rates and 2 batch sizes train 4 models.
     - `Time series`: a category column that is not used to split the data into training and validation sets (default `Treatment`); see `Grouping` below.
     - `Model name`: the start of the names of the saved model files (default `AEModel`).
-    - `Rescale` (unchecked by default): show the reconstructed features in the units of the input. If unchecked, they are on the scale the model works with, from 0 to 1.
+    - `Rescale output to the data's units` (unchecked by default): show the reconstructed features in the units of the input. If unchecked, they are on the scale the model works with, from 0 to 1.
     - `Loss plots` (checked by default): a plot of the loss of each model.
     - `Training fraction`: the fraction of the groups used for training, more than 0 and less than 1 (default 0.7). The other groups are used for validation.
     - `Checkpoint every`: save the model every n epochs, and after the last epoch (default 20).

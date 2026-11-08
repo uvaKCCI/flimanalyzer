@@ -81,7 +81,7 @@ CHANGED = [
         training=AETrainConfig(
             epochs=2,
             architecture="AE Simulator 1-6",
-            rescale=True,
+            rescale_output=True,
             checkpoint_interval=2,
         ),
         augment=AEAugmentConfig(sets=7, add_noise=False),  # older versions: no noise
@@ -363,7 +363,7 @@ def test_ae_tune_workflow_legacy():
     assert cfg.training.epochs == 9
     assert cfg.grouping == ["T"] and cfg.features == ["f"]
     # workflow defaults, not those of the tool
-    assert cfg.training.architecture == "AE Simulator 1-6" and cfg.training.rescale
+    assert cfg.training.architecture == "AE Simulator 1-6" and cfg.training.rescale_output
     assert cfg.resources.preferred_device == "cpu"
 
 

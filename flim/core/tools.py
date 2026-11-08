@@ -6,9 +6,9 @@ import logging
 
 from flim.core.importer import dataimporter
 from flim.core.preprocessor import defaultpreprocessor
-from flim.core.execution import DASK, LEGACY_EXECUTORS, ExecutionOptions
+from flim.core.execution import LEGACY_EXECUTORS, ExecutionOptions
 
-DASK_EXECUTORS = tuple(k for k, v in LEGACY_EXECUTORS.items() if v in DASK)
+DASK_EXECUTORS = tuple(k for k, v in LEGACY_EXECUTORS.items() if v != "local")
 
 
 def check_executor_available(executor: str) -> None:

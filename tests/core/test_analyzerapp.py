@@ -73,7 +73,7 @@ def test_settings_file_reaches_the_gui(monkeypatch, clean_logging):
 
     path = clean_logging / "project.json"
     settings = AppSettings.default()
-    settings.working_dir = str(clean_logging / "results")
+    settings.results_dir = clean_logging / "results"
     save_settings(settings, str(path))
     started = {}
     monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-c", str(path), "-i", "a.txt"])

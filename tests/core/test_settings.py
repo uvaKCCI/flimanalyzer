@@ -10,8 +10,10 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.configs import ConcatConfig, KMeansConfig, SummaryConfig
 from flim.configs.workflow import BasicFLIRRConfig
 from flim.core.registry import tools
+from flim.core.execution import LocalExecutorSettings
 from flim.core.settings import (
     SETTINGS_VERSION,
+    START_DIR,
     AppSettings,
     ToolSettings,
     load_settings,
@@ -35,7 +37,10 @@ def test_defaults():
     assert settings.schema_version == SETTINGS_VERSION
     assert settings.import_.delimiter == "\t,"
     assert settings.import_.filename_parser.parser == "defaultparser"
-    assert len(settings.filters.range_filters) == 39 and settings.display
+    assert len(settings.filters.range_filters) == 39
+    assert settings.results_dir is None and settings.resolved_results_dir() == START_DIR
+    assert settings.execution == LocalExecutorSettings() and settings.prefect_server
+    assert settings.log_dir is None and settings.cache.cache_dir is None
     assert settings.preprocess.rename["Exc2_-Ch3-_"] == "FAD "
     assert settings.filters.range_filters[0]["name"] == "trp t1"
     assert settings.tool_settings.tools == {}  # the tools' defaults: their configs'
@@ -46,7 +51,7 @@ def test_settings_of_version_0(caplog):
         settings = load_settings(V0_FILE)
     assert not caplog.records  # every key known
     assert settings.schema_version == SETTINGS_VERSION
-    assert settings.working_dir == "/data/results"
+    assert settings.results_dir == Path("/data/results")
     assert settings.import_.delimiter == "\t"
     assert settings.filters.use is False and settings.filters.show_dropped is True
     store = settings.tool_settings
@@ -72,7 +77,7 @@ def test_saved_in_the_current_version_and_read_back(tmp_path):
     again = load_settings(path)
     assert again == settings
     entry = again.tool_settings.entry(tools.get("K-Means"))
-    assert (entry.autosave, entry.results_dir) == (True, "/r")
+    assert (entry.autosave, entry.results_dir) == (True, Path("/r"))
     assert again.tool_settings.config(tools.get("K-Means")).n_clusters == 7
 
 
@@ -122,9 +127,35 @@ def test_settings_from_the_importer_and_preprocessor(tmp_path):
 def test_settings_of_version_1():
     settings = load_settings(V1_FILE)
     entry = settings.tool_settings.entry(tools.get("Summarize"))
-    assert (entry.autosave, entry.results_dir) == (True, "results")
+    assert (entry.autosave, entry.results_dir) == (True, Path("results"))
     assert settings.tool_settings.config(tools.get("K-Means")).n_clusters == 7
     assert set(settings.to_json()["tools"]) == {"Summarize", "K-Means"}  # by tool
+    # version 2: working_dir is results_dir, display is gone
+    assert settings.results_dir == Path("/Users/khs3z/FLIMAnalyzerResults")
+    assert "display" not in settings.to_json() and "working_dir" not in settings.to_json()
+
+
+def test_version_1_autoencoder_rescale_becomes_rescale_output():
+    training = {"classname": "flim.tools.autoencoder.AETraining", "rescale": True}
+    tune = {"classname": "flim.workflow.aetune.AETune", "training": dict(training)}
+    data = {
+        "schema_version": 1,
+        "tools": {
+            "Autoencoder: Train": {"config": training},
+            "FLIM Data Augmentation Tuning": {"config": tune},
+        },
+    }
+    migrated = migrate(data)
+    assert migrated["schema_version"] == SETTINGS_VERSION
+    tools_v2 = migrated["tools"]
+    assert tools_v2["Autoencoder: Train"]["config"] == {
+        "classname": "flim.tools.autoencoder.AETraining",
+        "rescale_output": True,
+    }
+    assert tools_v2["FLIM Data Augmentation Tuning"]["config"]["training"][
+        "rescale_output"
+    ] is True
+    assert data["tools"]["Autoencoder: Train"]["config"]["rescale"] is True  # unchanged
 
 
 def test_a_file_with_some_sections_changes_only_those():
@@ -149,7 +180,7 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
     data = json.loads(path.read_text())
     assert data["schema_version"] == SETTINGS_VERSION
     assert list(data["tools"]) == ["K-Means"]  # only the tool's section
-    assert read_tool_settings(path, kmeans).results_dir == "/r"
+    assert read_tool_settings(path, kmeans).results_dir == Path("/r")
     assert read_tool_settings(path, tools.get("Summarize")) is None
 
     # in an application settings file (of an older version): the rest is kept
