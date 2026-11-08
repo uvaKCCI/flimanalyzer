@@ -150,8 +150,13 @@ class RunProgressDialog(wx.Dialog):
             gc.collect()
 
     def _work(self):
+        from flim.core.prefect_server import checked_prefect_server
+
         try:
-            self.run = self.start_run(self.cancel_token, self._on_progress, self._on_start)
+            with checked_prefect_server():
+                self.run = self.start_run(
+                    self.cancel_token, self._on_progress, self._on_start
+                )
         except Exception as e:
             logging.exception("Run failed")
             self.error = e

@@ -8,12 +8,18 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 4200
+
+# the server of the active `use_prefect_server`: its arguments, the API URL in use and
+# the API URL configured before (environment or Prefect profile)
+_session: dict = {}
+_session_lock = threading.Lock()
 
 
 def _is_healthy(api_url: str, timeout: float = 2.0) -> bool:
@@ -167,6 +173,15 @@ def _stop(process, log):
     log.close()
 
 
+def _settings(api_url):
+    """Return a Prefect settings context that sets the API URL, or removes it if None."""
+    from prefect.settings import PREFECT_API_URL, temporary_settings
+
+    if api_url:
+        return temporary_settings(updates={PREFECT_API_URL: api_url})
+    return temporary_settings(restore_defaults={PREFECT_API_URL})
+
+
 @contextlib.contextmanager
 def use_prefect_server(**kwargs):
     """Context manager that runs its body against the server found or started by
@@ -176,15 +191,69 @@ def use_prefect_server(**kwargs):
     through Prefect's settings context rather than the environment. That context
     belongs to the current thread: a thread started inside the body has to run in a
     copy of it (``contextvars.copy_context().run``), or its flows use the settings
-    Prefect read at import.
+    Prefect read at import. Each flow run inside the body should run in
+    :func:`checked_prefect_server`.
     """
-    from prefect.settings import PREFECT_API_URL, temporary_settings
+    from prefect.settings import PREFECT_API_URL
 
+    configured = PREFECT_API_URL.value()
     api_url = ensure_prefect_server(**kwargs)
-    if api_url:
-        settings = temporary_settings(updates={PREFECT_API_URL: api_url})
-    else:
-        settings = temporary_settings(restore_defaults={PREFECT_API_URL})
-    with settings:
-        yield api_url
+    with _session_lock:
+        _session.update(kwargs=kwargs, url=api_url, configured=configured)
+    try:
+        with _settings(api_url):
+            yield api_url
+    finally:
+        with _session_lock:
+            _session.clear()
 
+
+def _available(api_url: str) -> bool:
+    """Return whether the server at `api_url` answers.
+
+    The health endpoint is tried first; Prefect's client, which also sends the API
+    key, is used if that fails (needed for Prefect Cloud).
+    """
+    if _is_healthy(api_url):
+        return True
+    with _settings(api_url):
+        return _configured_server_error() is None
+
+
+@contextlib.contextmanager
+def checked_prefect_server():
+    """Context manager for one flow run inside `use_prefect_server`.
+
+    Before the run, it checks that the server of the session still answers. A local
+    server can stop while the process runs, for example when another flimanalyzer
+    process that started it exits. In that case a server is found or started again
+    as in `ensure_prefect_server`, with the arguments given to `use_prefect_server`,
+    and used for this and later runs. Outside `use_prefect_server`, or if the session
+    uses Prefect's temporary servers, no server is checked.
+
+    Yields:
+        The API URL the run uses, or None for Prefect's temporary servers or
+        outside `use_prefect_server`.
+
+    Raises:
+        PrefectServerError: If the server is gone and no server could be started.
+    """
+    with _session_lock:
+        active = "url" in _session
+        api_url = _session.get("url")
+        if api_url and not _available(api_url):
+            logging.warning(
+                f"Prefect server at {api_url} is no longer available,"
+                " finding or starting a server again"
+            )
+            # searched as at the start of the session
+            with _settings(_session["configured"]):
+                api_url = ensure_prefect_server(**_session["kwargs"])
+            _session["url"] = api_url
+    if not active:
+        yield None
+        return
+    # the URL of the session: a server started again by an earlier run replaces the
+    # one in the context of `use_prefect_server`
+    with _settings(api_url):
+        yield api_url

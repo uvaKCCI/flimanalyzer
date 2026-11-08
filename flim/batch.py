@@ -212,7 +212,7 @@ def main(argv=None) -> int:
     )
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
-    from flim.core.prefect_server import use_prefect_server
+    from flim.core.prefect_server import checked_prefect_server, use_prefect_server
 
     discover(TOOLS_GROUP)  # registers the tools of other installed packages
     try:
@@ -236,7 +236,8 @@ def main(argv=None) -> int:
         failed = []
         with use_prefect_server(start=settings.prefect_server):
             for name in args.run:
-                run = run_tool(name, data, settings, output, execution, strict)
+                with checked_prefect_server():
+                    run = run_tool(name, data, settings, output, execution, strict)
                 if run.failed or run.state != "completed":
                     failed.append(f"{name}: {', '.join(run.failed) or run.state}")
                 logging.info(f"{name}: {run.state}; results in {run.autosave_dir}")
