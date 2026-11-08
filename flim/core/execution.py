@@ -9,7 +9,7 @@ from pydantic import Field, model_validator
 
 from flim.core.config import BaseConfig
 
-# executor names of the command line (-e) and of saved settings before ExecutionOptions
+# executor names of the command line option -e
 LEGACY_EXECUTORS = {
     "LocalExecutor": "local",
     "LocalDaskExecutor": "dask-local",
@@ -44,8 +44,12 @@ class ExecutionOptions(BaseConfig):
     def from_legacy(cls, executor: str = "LocalExecutor", execargs: str = "", **kwargs):
         """Options from the command line's ``-e`` executor name and ``"k=v,k=v"`` args.
 
-        As before, an unknown executor runs locally and the local executor uses only an
-        integer ``num_workers``; for Dask, unknown args go to the Dask task runner.
+        An unknown executor name is logged and selects ``local``. Args that are not
+        ``k=v`` are skipped; integer values are converted to int. ``num_workers`` is
+        used only if it is a positive integer; ``scheduler`` only for ``dask-local``
+        (any value other than ``processes`` selects ``threads``); ``address`` only for
+        ``dask``. For the Dask executors the other args go to ``dask_kwargs``; for
+        ``local`` they are ignored. ``kwargs`` are passed on to the options.
         """
         args = {}
         for item in (execargs or "").split(","):
@@ -91,6 +95,10 @@ class ExecutionOptions(BaseConfig):
         ``dask-local``: a ``DaskTaskRunner`` starting a local Dask cluster.
         ``dask``: a ``DaskTaskRunner`` connecting to the cluster at ``address`` (or
         starting a local one if no address is given).
+
+        Raises:
+            RuntimeError: a Dask executor is selected and ``prefect_dask`` is not
+                installed.
         """
         if self.executor == "local":
             from flim.core.runner import default_task_runner

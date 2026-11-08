@@ -23,10 +23,11 @@ class DataType:
 
     @classmethod
     def python_classes(cls) -> tuple[type, ...]:
-        """The accepted classes whose modules are already imported.
+        """The accepted classes whose top-level package is already imported.
 
-        A value can only be an instance of a class whose module has been imported, so
-        modules that are not loaded yet are skipped instead of imported.
+        A value can only be an instance of a class whose package has been imported, so
+        classes of packages that are not loaded are skipped; their modules are not
+        imported.
         """
         classes = []
         for path in cls.pytypes:

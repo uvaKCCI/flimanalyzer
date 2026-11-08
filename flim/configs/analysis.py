@@ -22,7 +22,7 @@ def _not_zero(threads: int) -> int:
     return threads
 
 
-# -1: all cores allocated to the task
+# -1: all cores (see flim.core.tool.resolve_threads)
 Threads = Annotated[int, Field(ge=-1), AfterValidator(_not_zero)]
 
 
@@ -53,7 +53,7 @@ AGGREGATES: tuple[str, ...] = Aggregate.__args__
 
 
 class SummaryConfig(StatisticsConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {
         "aggs": "aggs",
         "single_table": "singledf",
@@ -63,7 +63,7 @@ class SummaryConfig(StatisticsConfig):
 
     aggs: list[Aggregate] = Field(
         default_factory=lambda: list(AGGREGATES),
-        min_length=1,  # none: no columns at all, not even the grouping (0.6.2)
+        min_length=1,  # none: no columns at all, not even the grouping
         title="Statistics",
     )
     single_table: bool = Field(
@@ -78,7 +78,7 @@ KSAlpha = Literal[0.1, 0.05, 0.025, 0.01, 0.005, 0.001]
 
 
 class KSStatsConfig(StatisticsConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     comparison: CategoryColumn = Field(
         default="Treatment",
         title="Compare",
@@ -91,7 +91,7 @@ class KSStatsConfig(StatisticsConfig):
 
 
 class RelativeChangeConfig(StatisticsConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     method: Literal["mean", "median"] = Field(
         default="mean", title="Reference statistic"
     )
@@ -124,7 +124,7 @@ SERIES_STATISTICS: tuple[str, ...] = SeriesStatistic.__args__
 
 
 class SeriesAnalysisConfig(StatisticsConfig):
-    min_features = 2  # 0.5: get_required_features
+    min_features = 2
     legacy_keys = {"statistics": None}
 
     statistics: set[SeriesStatistic] = Field(
@@ -177,7 +177,7 @@ class ParallelResources(Resources):
 
 
 class PCAConfig(MLConfig):
-    min_features = 2  # 0.5: get_required_features
+    min_features = 2
     legacy_keys = {
         **MLConfig.legacy_keys,
         "keep_original": "keeporig",
@@ -211,7 +211,7 @@ class PCAConfig(MLConfig):
 
 
 class KMeansConfig(MLConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     n_clusters: int = Field(default=2, ge=1, title="Clusters")
     cluster_prefix: str = Field(
         default="Cluster",
@@ -243,7 +243,7 @@ class KMeansConfig(MLConfig):
 
 
 class GMMConfig(MLConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {**MLConfig.legacy_keys, "covariance": "covar_type"}
 
     method: Literal["EM", "Variational Bayesian"] = Field(default="EM", title="Method")
@@ -259,14 +259,14 @@ class GMMConfig(MLConfig):
 
 
 class RandomForestConfig(MLConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {
         **MLConfig.legacy_keys,
         "target": None,
         "importance_plot": "importancehisto",
     }
 
-    # the grouping columns are left out of the features
+    # grouping is shown: its columns are left out of the features
     hidden_fields = frozenset()
 
     target: Optional[CategoryColumn] = Field(
@@ -344,7 +344,8 @@ class CategorizerConfig(AnalysisConfig):
 
     @classmethod
     def allowed_values(cls, values):
-        # the features kept: only without the input's columns (dialogs hide them)
+        # features selects the columns kept only if the input is not included;
+        # otherwise it allows only its current value
         if values.get("merge_input", True):
             return {"features": (values.get("features"),)}
         return {}
@@ -440,7 +441,7 @@ PositiveInt = Annotated[int, Field(ge=1)]
 
 
 class AETrainConfig(AutoencoderConfig):
-    min_features = 2  # 0.5: get_required_features
+    min_features = 2
     legacy_keys = {
         "epochs": "epoches",
         "learning_rates": "learning_rate",
@@ -515,7 +516,7 @@ class AETrainConfig(AutoencoderConfig):
 
     @classmethod
     def _from_legacy(cls, params):
-        # workflows pass one value of each grid when they map over the combinations
+        # a legacy value may be a single number instead of a list
         for key in ("learning_rate", "weight_decay", "batch_size"):
             if key in params and not isinstance(params[key], (list, tuple)):
                 params[key] = [params[key]]
@@ -545,13 +546,13 @@ class _ModelFilesConfig(AutoencoderConfig):
 
 
 class AERunConfig(_ModelFilesConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     hidden_fields = frozenset({"grouping"})
 
 
 class AEAugmentConfig(_ModelFilesConfig):
-    min_features = 1  # 0.5: get_required_features
-    min_grouping = 1  # 0.5: get_required_categories
+    min_features = 1
+    min_grouping = 1
     grouping: list[CategoryColumn] = Field(
         default=[],
         title="Grouping",

@@ -8,7 +8,8 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 from flim.core.config import BaseConfig, FeatureColumn, TaskConfig
 
 LegendPosition = Literal["right", "top", "bottom", "left", "inside", "none"]
-OUTSIDE_POSITIONS = ("right", "top", "bottom", "left", "none")  # (and none)
+# legend positions outside the plots, and none
+OUTSIDE_POSITIONS = ("right", "top", "bottom", "left", "none")
 
 
 class PlotConfig(TaskConfig):
@@ -124,7 +125,7 @@ class CategoricalPlotConfig(TiledPlotConfig):
 
 
 class BarPlotConfig(CategoricalPlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_dropped = frozenset({"display", "ordering"})  # unused
 
     max_tiled_grouping = None  # bars are grouped in one plot, not in facets
@@ -189,17 +190,17 @@ class AxesRange(BaseConfig):
 
 
 class BoxPlotConfig(AxesRange, CategoricalPlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
 class ViolinPlotConfig(AxesRange, CategoricalPlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
 class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {
         **CategoricalPlotConfig.legacy_keys,
         "points": None,
@@ -213,7 +214,7 @@ class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
 
 
 class LinePlotConfig(CategoricalPlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "errorbar": "ci"}
     max_tiled_grouping = 3  # x, hue and style
     legacy_dropped = frozenset({"display", "ordering", "x", "hue", "style", "col"})
@@ -236,7 +237,7 @@ class DistributionPlotConfig(TiledPlotConfig):
 
 
 class KDEConfig(DistributionPlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {
         **DistributionPlotConfig.legacy_keys,
         "single_figure": "single_plot",
@@ -263,7 +264,7 @@ class HistogramRange(BaseConfig):
 
 
 class HistogramConfig(DistributionPlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {
         **DistributionPlotConfig.legacy_keys,
         "table": "datatable",
@@ -321,8 +322,8 @@ class HistogramConfig(DistributionPlotConfig):
     @model_validator(mode="before")
     @classmethod
     def _older_global_bins(cls, data):
-        """Configs with a global "bins" (before 2.0 was released): the bins of the
-        features without their own."""
+        """Configs with a global "bins": it becomes the bins of the features without
+        their own."""
         if isinstance(data, dict) and "bins" in data:
             data = dict(data)
             bins = data.pop("bins")
@@ -346,7 +347,7 @@ class HistogramConfig(DistributionPlotConfig):
 
     @model_validator(mode="after")
     def _same_bins(self):
-        """With a global bin, all features get the first feature's bins."""
+        """With ``sync_bins``, all features get the bins of the first feature."""
         if self.sync_bins and self.features:
             bins = next(iter(self.features.values())).bins
             # through __dict__: assignments would run the validators again
@@ -395,7 +396,7 @@ class HistogramConfig(DistributionPlotConfig):
 
 class ScatterPlotConfig(AxesRange, TiledPlotConfig):
     """A scatter plot for each pair of ``features``."""
-    min_features = 2  # 0.5: get_required_features
+    min_features = 2
 
     legacy_keys = {
         **TiledPlotConfig.legacy_keys,
@@ -505,7 +506,7 @@ class PairPlotConfig(PlotConfig):
 
 
 class HeatmapConfig(PlotConfig):
-    min_features = 1  # 0.5: get_required_features
+    min_features = 1
     legacy_keys = {
         **PlotConfig.legacy_keys,
         "correlation": "corr_type",
@@ -522,7 +523,7 @@ class HeatmapConfig(PlotConfig):
 
 
 class FLIRRPlotConfig(PlotConfig):
-    min_grouping = 1  # 0.5: get_required_categories
+    min_grouping = 1
     legend_grouping = None  # each panel has its own
     # the plotted columns are the three below (not plugin parameters: found by name)
     hidden_fields = frozenset({"features"})

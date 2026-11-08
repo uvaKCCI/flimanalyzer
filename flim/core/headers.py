@@ -54,8 +54,14 @@ def depth(columns) -> int:
 
 
 def level_index(level: Optional[str], names: list[str]) -> int:
-    """The position of ``level`` in ``names``: its name, its position ("Level 2" or
-    "2", also where the levels have names), or empty for the last level."""
+    """The index of ``level`` in ``names``.
+
+    ``level`` is a name in ``names``, a position ("Level 2" or "2", also accepted
+    where the levels have names), or empty for the last level.
+
+    Raises:
+        ValueError: ``level`` matches no level.
+    """
     if not level:
         return len(names) - 1
     if level in names:

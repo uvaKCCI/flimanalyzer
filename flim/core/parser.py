@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri May  4 04:02:09 2018
-
-@author: khs3z
-"""
+"""File name parsers: regular expressions that take category values from the paths
+of data files."""
 
 import logging
 import os
@@ -86,9 +83,9 @@ class defaultparser(object):
             "Directory": os.path.dirname(fname),
             "File": os.path.basename(fname),
         }
+        # the patterns match "/" as separator, also in Windows paths
         fname = fname.replace("\\", "/")
         for entry in self.regexpatterns:
-            # convert \ in windows style path to / in POSIX style
             if entry[PATTERN_USE]:
                 match = re.search(entry[PATTERN_REGEX], fname)
                 if match is not None:
@@ -212,11 +209,6 @@ class fov_treatment_cell_parser(defaultparser):
         ]
 
 
-#                'FOV':r'[_-](.*?)[_-]',
-#                'Treatment':r'[_-].*?[_-](.*?)[_-]',
-#                'Cell':r'[_-].*?[_-].*?[_-](\d*?)\.'}
-
-
 class treatment_fov_cell_parser(defaultparser):
     def init_patterns(self):
         self.regexpatterns = [
@@ -295,11 +287,3 @@ class fov_time_well_parser(defaultparser):
             },
         ]
 
-
-# class hyphenparser(defaultparser):
-#
-#    def init_patterns(self):
-#        self.regexpatterns = {
-#                'Treatment':r'[-](\d+?)',
-#                'FOV':r'[-]\d*(\D+?)[_-]',
-#                'Cell':r'[-].*?[_-].*?[_](\d*?)\.'}

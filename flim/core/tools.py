@@ -1,8 +1,5 @@
-"""
-Created on Fri May  4 02:42:45 2018
-
-@author: khs3z
-"""
+"""FLIMAnalyzer: holds the importer, the preprocessor, the data and the execution
+options."""
 
 import pandas as pd
 import logging
@@ -53,7 +50,8 @@ class FLIMAnalyzer:
             ``num_workers=1`` runs one task at a time). Otherwise a
             ``prefect_dask.DaskTaskRunner``: ``LocalDaskExecutor`` starts a local Dask
             cluster (args: ``num_workers``, ``scheduler=threads|processes``),
-            ``DaskExecutor`` connects to an existing cluster (arg: ``address``).
+            ``DaskExecutor`` connects to an existing cluster (arg: ``address``) or,
+            without an address, starts a local one.
         """
         return self.execution.task_runner()
 
