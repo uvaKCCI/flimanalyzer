@@ -95,8 +95,12 @@ def run_tool(
     execution: Optional[ExecutionOptions] = None,
     allow_guesses: bool = False,
 ):
-    """Runs a tool or workflow on ``data`` with its settings from ``settings``; its
-    results are saved in ``<output_dir>/<name>/``.
+    """Runs the tool or workflow named ``name`` on ``data`` with the tool's config
+    stored in ``settings`` (the config's defaults if none is stored or the stored one
+    is not valid). The results are saved in ``<output_dir>/<tool name>/``; the tool's
+    stored autosave and results folder settings are not used. A workflow gets
+    ``data`` as every input; with ``allow_guesses``, columns its config names that
+    are not in ``data`` are replaced by guessed columns, otherwise the run stops.
 
     Returns:
         flim.core.runner.FlowRun
