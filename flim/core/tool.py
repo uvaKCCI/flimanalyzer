@@ -78,14 +78,16 @@ def resolve_device(preferred: str) -> tuple[str, Optional[str]]:
 
 
 def resolve_threads(preferred: int) -> int:
-    """Threads for ``preferred`` (-1: all cores), at most the number of cores."""
+    """Threads for ``preferred`` (-1: all cores), at least 1 and at most the number
+    of cores."""
     cores = os.cpu_count() or 1
     return cores if preferred == -1 else max(1, min(preferred, cores))
 
 
 @dataclass
 class RunContext:
-    """What the executor granted a task, and the run's cancel signal."""
+    """The device and threads a task runs with (from its config's resources and this
+    machine), the run's cancel signal, the folder for its files and its warnings."""
 
     device: str = "cpu"
     threads: int = 1
@@ -169,8 +171,19 @@ class Tool(Generic[ConfigT]):
         return call_tool(self, inputs, config, task_tags=task_tags, after=after)
 
     def run_task(self, inputs: Sequence, config: Optional[ConfigT] = None) -> dict:
-        """Runs the tool as one task: resolves the resources, validates the config
-        type and returns the results by display name, with the config's prefix."""
+        """Runs the tool as one task and returns the results by display name, with
+        the config's prefix.
+
+        Uses the default config if ``config`` is None, checks the config's type and
+        the number of features and grouping columns it selects, and resolves the
+        resources. Tools that draw figures hold ``pyplot_lock`` while they run; result
+        figures are then removed from pyplot's registry.
+
+        Raises:
+            TypeError: ``config`` is not an instance of the tool's config class.
+            ValueError: the config selects fewer features or grouping columns than
+                the tool needs.
+        """
         config = self.config_class() if config is None else config
         if not isinstance(config, self.config_class):
             raise TypeError(
@@ -237,7 +250,9 @@ class Tool(Generic[ConfigT]):
         ``inputs`` holds one TableSchema per input (a dict of them for an input with
         ``many=True``), or None if unknown. The default runs the tool on a few sample
         rows built from the input schemas; tools for which that is expensive or wrong
-        override it. If it cannot run, the tables' schemas are marked unknown.
+        override it. If an input schema is unknown, the tool draws figures, or the run
+        on the samples fails, the result holds only the declared ``outputs``, with
+        their table schemas marked unknown.
         """
         schemas = _flat_schemas(inputs)
         if cls.draws_figures or None in schemas:
@@ -262,11 +277,12 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def validate(cls, config: ConfigT, inputs: Sequence[Any]) -> list[Issue]:
-        """Checks the config against the input schemas: the columns it names exist and
-        have the right role. Unknown inputs are not checked."""
+        """Checks the config against the input schemas: the number of features and
+        grouping columns it selects, and that the columns it names exist and have the
+        right role. The columns are not checked if an input schema is unknown or
+        incomplete. A text column named as a feature is a warning."""
         schemas = _flat_schemas(inputs)
-        # the number of features and grouping columns the tool needs (0.5 checked it
-        # before a run; lost in 0.6.0, restored in 0.6.2)
+        # the number of features and grouping columns the tool needs
         issues = requirement_issues(config, schemas)
         if not schemas or any(s is None or not s.complete for s in schemas):
             return issues
@@ -286,7 +302,7 @@ class Tool(Generic[ConfigT]):
 
 def check_requirements(name: str, config: TaskConfig, inputs: Sequence[Any]) -> None:
     """Raises ValueError if the config selects fewer features or grouping columns than
-    the tool needs, e.g. in batch mode or a workflow (dialogs show it beforehand)."""
+    the tool needs for ``inputs`` (DataFrames or TableSchemas)."""
     import pandas as pd
 
     schemas = [

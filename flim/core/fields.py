@@ -37,7 +37,7 @@ class FieldSpec:
     order: Optional[float] = None  # position in dialogs, see field_order
     advanced: bool = False  # model: a collapsed section (else shown inline)
     bounds: dict = field(default_factory=dict)  # ge, gt, le, lt
-    hidden: bool = False  # only one value is allowed, or metadata
+    hidden: bool = False  # metadata, in hidden_fields, or only one value allowed
 
 
 def title_of(name: str) -> str:
@@ -47,7 +47,8 @@ def title_of(name: str) -> str:
 
 
 def describe(model: type[BaseModel]) -> list[FieldSpec]:
-    """The editable fields of a config class, in definition order."""
+    """The fields of a config class, in definition order. Fields not to be edited
+    (metadata, ``hidden_fields``, fields with one allowed value) are marked hidden."""
     specs = []
     for name, info in model.model_fields.items():
         hidden = (

@@ -132,7 +132,8 @@ def fixed_value(model: type[BaseModel], name: str) -> tuple[bool, Any]:
 
 
 class Resources(BaseConfig):
-    """What a task requests; the executor decides what it actually gets.
+    """What a task requests; what it gets depends on the machine it runs on (see
+    :class:`flim.core.tool.RunContext`).
 
     Defaults are conservative (CPU, one thread); tools that can use more widen the
     allowed values in a subclass.
@@ -146,7 +147,7 @@ class Resources(BaseConfig):
         title="Device",
         description="The device to compute on, if available where the task runs.",
     )
-    # threads/processes inside one task; -1 = all cores allocated to the task
+    # threads/processes inside one task; -1 = all cores (see tool.resolve_threads)
     preferred_threads: Literal[1] = Field(
         default=1,
         title="Threads",
@@ -154,8 +155,8 @@ class Resources(BaseConfig):
     )
 
 
-# legacy parameters of every plugin that are not part of a config: the input (1),
-# execution (3) and the dialogs' "save configuration" option
+# parameters of the 0.5 plugins that no config holds: the input tables ("input")
+# and options of the run and of the dialogs
 LEGACY_IGNORED = frozenset(
     {"input", "autosave", "working_dir", "saveconfig", "config_file", "_config"}
 )
@@ -177,8 +178,8 @@ class TaskConfig(BaseConfig):
     legacy_dropped: ClassVar[frozenset[str]] = frozenset()
     # inherited fields the tool does not use; not shown in dialogs
     hidden_fields: ClassVar[frozenset[str]] = frozenset()
-    # the least number of features and grouping columns the tool needs (in 0.5:
-    # get_required_features / get_required_categories); see requirement_issues
+    # the minimum number of features and grouping columns the tool needs; see
+    # requirement_issues
     min_features: ClassVar[int] = 0
     min_grouping: ClassVar[int] = 0
 
@@ -208,8 +209,8 @@ class TaskConfig(BaseConfig):
     def _registered_classname(self) -> Optional[str]:
         """``module.Class`` of the registered tool of this config, None if none is.
 
-        Tools are registered when their module is imported, so configs are best
-        created after that (the application imports the tools at startup).
+        Tools are registered when their module is imported. A config created before
+        that has no classname; it is filled in when the config is dumped.
         """
         from flim.core.registry import tools
 
@@ -218,7 +219,8 @@ class TaskConfig(BaseConfig):
 
     @classmethod
     def from_legacy_params(cls, params: dict) -> Self:
-        """The config for a plugin's parameter dict; unknown keys are logged."""
+        """The config for a 0.5 plugin's parameter dict; unknown keys are logged and
+        ignored."""
         # ignored keys first: "input" holds the input tables at run time
         params = copy.deepcopy(
             {k: v for k, v in params.items() if k not in LEGACY_IGNORED}
@@ -282,7 +284,7 @@ class Issue:
 def requirement_issues(config: "TaskConfig", schemas=()) -> list[Issue]:
     """Issues if the config selects fewer features or grouping columns than its tool
     needs (``min_features``, ``min_grouping``). "All features" is counted against the
-    input schemas, and not checked while they are unknown."""
+    input schemas, and not checked if none of them is known and complete."""
     issues = []
     minimums = (("features", config.min_features), ("grouping", config.min_grouping))
     for name, least in minimums:

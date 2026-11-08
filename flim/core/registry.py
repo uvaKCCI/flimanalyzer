@@ -22,7 +22,13 @@ class ToolRegistry:
         self._tools = {}  # name -> class
 
     def register(self, cls):
-        """Registers a tool class; it needs ``name``, ``category`` and ``config_class``."""
+        """Registers a tool class and returns it.
+
+        Raises:
+            ValueError: the class has no ``name``, ``category`` or ``config_class``,
+                declares another ``api_version``, or another class is registered
+                under its name.
+        """
         for attr in ("name", "category", "config_class"):
             if not getattr(cls, attr, None):
                 raise ValueError(f"{cls.__qualname__} has no {attr}")
@@ -90,8 +96,8 @@ def register_tool(cls):
 def discover(group: str = TOOLS_GROUP) -> list[str]:
     """Imports the modules of the entry points in ``group``.
 
-    A module that fails to import (e.g. an incompatible tool) is logged and skipped,
-    so one broken add-on never stops the application.
+    A module that fails to import (e.g. an incompatible tool) is logged and skipped;
+    the other entry points are still loaded.
 
     Returns:
         Names of the entry points that loaded.

@@ -61,9 +61,11 @@ class Workflow(Tool[ConfigT]):
 
         Args:
             strict: the default for a config whose ``strict`` is None; None: strict
-                (no guesses), as in batch runs. The GUI passes False.
+                (no guesses).
 
         Raises:
+            ValueError: the config selects fewer features or grouping columns than
+                the workflow needs.
             WorkflowValidationError: the config has errors for these inputs.
 
         Returns:
@@ -95,7 +97,8 @@ class Workflow(Tool[ConfigT]):
 
     @classmethod
     def is_strict(cls, config, default: Optional[bool] = None) -> bool:
-        """Whether columns missing from the inputs are errors (else guessed)."""
+        """Whether columns missing from the inputs are errors (otherwise guessed): the
+        config's ``strict``, else ``default``, else True."""
         strict = getattr(config, "strict", None)
         if strict is None:
             strict = default
@@ -115,13 +118,14 @@ class Workflow(Tool[ConfigT]):
     @classmethod
     def validate(cls, config, inputs):
         """Issues of the config and of its steps for the input schemas; columns
-        missing from the inputs are guessed unless the config is strict (dialogs)."""
+        missing from the inputs are guessed unless the config's ``strict`` is True."""
         strict = cls.is_strict(config, False)
         report = cls.validator.validate(cls, config, list(inputs), strict)
         return requirement_issues(config, list(inputs)) + report.issues
 
     def run(self, *inputs, config: ConfigT) -> dict[str, Any]:
-        """Runs the flow (without saving) and returns the results of all its tasks."""
+        """Runs the flow (without saving) and returns the results of its completed
+        tasks, merged into one dict."""
         results = {}
         for result in self.run_flow(*inputs, config=config).results():
             if isinstance(result, dict):
@@ -130,7 +134,7 @@ class Workflow(Tool[ConfigT]):
 
     @classmethod
     def output_schema(cls, config, inputs):
-        return {}  # many, known once the flow is built
+        return {}  # the outputs are known only once the flow has been built
 
 
 class _Input(Tool[TaskConfig]):

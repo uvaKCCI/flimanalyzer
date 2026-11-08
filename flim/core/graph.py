@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Sat Feb  26 14:03:11 2022
-
-@author: khs3z
-"""
+"""Plot of the task graph of a workflow run."""
 
 import logging
 
@@ -54,7 +50,8 @@ class WorkflowGraph:
             ax: matplotlib Axes to draw into; a new figure is created if None.
             fontsize: label font size.
             callback: matplotlib event name -> handler, e.g. ``pick_event=...``.
-                Node labels are pickable and carry the node id as ``gid``.
+                Node labels carry the node id as ``gid``; they are pickable if
+                callbacks are given.
 
         Returns:
             (Figure, Axes)

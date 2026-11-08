@@ -152,7 +152,7 @@ class TaskOutput:
     def value(self) -> Any:
         """Returns the result, waiting for it to be computed if necessary.
 
-        Returns None if the task did not complete (failed or skipped).
+        Returns None if the task did not complete (failed, cancelled or skipped).
         """
         value = self.ref
         if isinstance(value, PrefectFuture):
@@ -285,9 +285,11 @@ class FlowRun:
             name: flow name.
             autosave_dir: directory to save task results in, ``None`` disables saving.
             on_progress: called as ``on_progress(done, total, label, complete)`` when
-                a task is submitted or finishes, from the thread that submitted or ran
-                it; ``total`` counts the tasks submitted so far, ``complete`` is True
-                once the workflow script has made all its calls (no more tasks).
+                a task is submitted, starts running (in this process only) or
+                finishes, and once (with label ``""``) when the workflow script has
+                made all its calls; from the thread where that happens. ``done``
+                counts the tasks in a final status, ``total`` the tasks so far;
+                ``complete`` is True once the workflow script has made all its calls.
             cancel_token: signal that cancels the run when set.
         """
         self.name = name
@@ -342,8 +344,15 @@ class FlowRun:
 
     # execution -----------------------------------------------------------------
     def call(self, tool, kwargs: Dict[str, Any], task_tags=None) -> TaskOutput:
-        """Runs (or submits) one tool call and returns a handle to its result."""
-        # each call gets its own copy so calls don't share configuration
+        """Submits one tool call as a Prefect task and returns a handle to its result.
+
+        If an upstream task failed, was skipped or was cancelled, the call is not
+        submitted: it is recorded as skipped and its handle holds None. If the run has
+        been cancelled, the call is recorded as cancelled and ``_RunCancelled`` is
+        raised, which ends the workflow script.
+        """
+        # each call gets its own (shallow) copy, so the attributes set below are not
+        # shared between calls
         tool = copy.copy(tool)
         tool._cancel_token = self.cancel_token
 
@@ -404,7 +413,8 @@ class FlowRun:
             ref = attrs.get("ref")
             if not isinstance(ref, PrefectFuture):
                 return  # already recorded
-            ref.wait()  # done: stores the final state, which `state` would else read from the API
+            # stores the final state, which `state` would otherwise read from the API
+            ref.wait()
             state = ref.state
             if state.is_completed():
                 # a message only if the tool warned (Tool.warn)
@@ -513,7 +523,11 @@ class FlowRun:
         return url_for("flow-run", obj_id=self.flow_run_id)
 
     def write_summary(self) -> Optional[str]:
-        """Writes ``run_summary.txt`` into the results directory, if there is one."""
+        """Writes ``run_summary.txt`` into the results directory, if there is one.
+
+        Returns:
+            The path of the file, or None without a results directory.
+        """
         if not self.autosave_dir:
             return None
         os.makedirs(self.autosave_dir, exist_ok=True)
@@ -553,8 +567,9 @@ class FlowRun:
 
 
 def _granted(tool) -> Optional[str]:
-    """The device and threads a tool ran with, e.g. "cpu, 4 threads" (None if unknown:
-    a tool, or a task run in another process)."""
+    """The device and threads a tool ran with, e.g. "cpu, 4 threads". None if not
+    known: for nodes that are not tools (e.g. a workflow's input) and for tasks run
+    in another process."""
     if tool is None or getattr(tool, "graph_kind", "tool") != "tool":
         return None  # e.g. a workflow's input
     context = vars(tool).get("context")
@@ -571,8 +586,10 @@ def current_run() -> Optional[FlowRun]:
 
 
 def call_tool(tool, inputs, config=None, task_tags=None, after=()):
-    """Calls a tool (:class:`flim.core.tool.Tool`) with its inputs and config: as a task
-    inside a flow, or directly otherwise.
+    """Calls a tool (:class:`flim.core.tool.Tool`) with its inputs and config: during
+    a dry run it is traced (see :mod:`flim.core.validation`), inside a flow it is
+    submitted as a task (returns a :class:`TaskOutput`), otherwise it runs directly
+    (returns its results).
 
     ``after``: TaskOutput handles of tasks this one waits for although they are not
     its inputs, e.g. those whose results (model files) its config names.
@@ -595,8 +612,9 @@ def call_tool(tool, inputs, config=None, task_tags=None, after=()):
 def select(outputs, key_pattern: str = "(.*?)", value_pattern: str = None) -> list:
     """Selects result items whose key matches ``key_pattern`` from tool outputs.
 
-    If ``value_pattern`` is given, the matching items are expected to be lists and are
-    flattened to the elements that match ``value_pattern``.
+    Outputs whose result is not a dict are skipped. If ``value_pattern`` is given, the
+    matching items that are lists are flattened to the elements that match
+    ``value_pattern``; other items are skipped.
     """
     selected = []
     for out in outputs:
@@ -685,6 +703,11 @@ def run_flow(
     Returns:
         FlowRun: recorded task graph and results; ``state`` is completed,
         cancelled or failed (some tasks failed).
+
+    Raises:
+        Exception: the error that made the flow itself fail (e.g. one raised by
+            ``build``), after the run summary is written. Failed tasks do not raise;
+            they are recorded in ``run.graph``.
     """
     run = FlowRun(name, on_progress=on_progress, cancel_token=cancel_token)
     run.notes = list(notes)

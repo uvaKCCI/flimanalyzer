@@ -90,8 +90,10 @@ class TableSchema(BaseModel):
     def sample(self, rows: int = 3) -> pd.DataFrame:
         """A small DataFrame with these columns, for computing output schemas.
 
-        Category columns cycle through their levels, so every level occurs (at least
-        ``rows`` rows); features hold distinct numbers.
+        It has ``rows`` rows, or more if a category column has more levels, so every
+        level occurs. Category columns cycle through their levels (two placeholder
+        levels if none are known); features hold distinct numbers, other columns
+        text.
         """
         n = max([rows] + [len(c.levels) for c in self.columns if c.levels is not None])
         data = {}

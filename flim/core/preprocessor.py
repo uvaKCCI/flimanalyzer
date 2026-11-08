@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri May  4 05:16:56 2018
-
-@author: khs3z
-"""
+"""Preprocessing of imported tables: renaming and dropping columns, and calculating
+further features."""
 
 import logging
 import numpy as np
@@ -57,7 +54,7 @@ def trp_Eperc_3(trp_t1, const=3100):
 
 
 def trp_r(trp_Eperc):
-    # 0<= Eperc < 100
+    # defined for 0 < Eperc <= 100, NaN otherwise
     if trp_Eperc != 0:
         t = 100.0 / trp_Eperc - 1
         if t >= 0:
@@ -67,7 +64,6 @@ def trp_r(trp_Eperc):
 
 def ratio(v1, v2):
     if v2 != 0:
-        # force float values
         return float(v1) / v2
     else:
         return np.nan
@@ -102,7 +98,6 @@ class defaultpreprocessor:
             "FLIRR",
             "NADPH a2/FAD a1",
         ]
-        # self.additional_columns = []
         self.functions = {
             "NADPH %": [nadph_perc.__name__, ["NAD(P)H t2"]],
             "NAD(P)H tm": [
@@ -167,9 +162,6 @@ class defaultpreprocessor:
             currentheaders = [
                 c.replace(newheader, newheaders[newheader]) for c in currentheaders
             ]
-        #        for newheader in newheaders:
-        #            currentheaders = currentheaders.replace(newheader, newheaders[newheader])
-        #        currentheaders = currentheaders.split('\t')
         changedheaders = {
             oldheaders[i]: currentheaders[i]
             for i in range(len(oldheaders))
@@ -185,15 +177,10 @@ class defaultpreprocessor:
         if not inplace:
             data = data.copy()
         for acol in self.calccolumns:
-            # if acol == 'NADH tm':
-            # (NADH-a1% * NADH-t1) + (NADH-a2% * NADH-t2)/100
             if acol in self.functions:
-                # NAD(P)H % = (('NAD(P)H t2') - 1500 / (4400-1500)) *100
                 funcname = self.functions[acol][0]
                 funcargs = self.functions[acol][1]
-                funcobj = getattr(
-                    flim.core.preprocessor, funcname
-                )  # self.functions[acol][0]
+                funcobj = getattr(flim.core.preprocessor, funcname)
                 func = np.vectorize(funcobj)
                 if not self.columns_available(data, funcargs):
                     skipped.append(self.functions[acol])
@@ -228,8 +215,6 @@ class defaultpreprocessor:
             return None
         if drops is None:
             drops = self.dropcolumns
-        # need to create list of str in order for any function to  work
-        # drops = [d.decode() for d in drops if len(d) > 0]
         currentheaders = list(data.columns.values)
         droplist = []
         for header in currentheaders:
@@ -252,36 +237,3 @@ class defaultpreprocessor:
                 data = data.drop(droplist, axis=1, inplace=inplace)
         return data, droplist
 
-
-"""
-    def drop_columns(self, data, drops=None, func='startswith', inplace=True, preview=False):
-        if data is None:
-            return None
-        if drops is None:
-            drops = self.dropcolumns
-        currentheaders = list(data.columns.values)
-        droplist = []
-        for header in currentheaders:
-            found = False
-            for d in drops:
-                print d, d.strip('*')
-                if d.startswith('*'):
-                    if d.endswith('*'):
-                        func = 'contains'
-                        found = header.contains(d.strip('*'))
-                    else:
-                        func = 'endswith'
-                        found = header.endswith(d.strip('*'))
-                elif d.endswith('*'):
-                    found = header.startswith(d.strip('*'))
-                else:
-                    found = header == d
-                if found:
-                    droplist.append(header)
-        if not preview:
-            if inplace:
-                data.drop(droplist, axis=1, inplace=inplace)   
-            else:
-                data = data.drop(droplist, axis=1, inplace=inplace)
-        return data, droplist 
-"""

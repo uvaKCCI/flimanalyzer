@@ -99,8 +99,6 @@ def ensure_prefect_server(
 ):
     """Finds or starts the Prefect server that all flows of this process report to.
 
-    Called once at startup, in the main thread:
-
     1. If ``PREFECT_API_URL`` (environment or active Prefect profile) points to a
        responding server, that server is used.
     2. Otherwise, if a server answers at ``http://<host>:<port>/api``, it is used.
@@ -110,7 +108,8 @@ def ensure_prefect_server(
        free port instead.
 
     With ``start`` False and no server found, Prefect starts a temporary server for
-    each flow run.
+    each flow run. The URL of a local server (2 to 4) is also set as the environment
+    variable ``PREFECT_API_URL``, for subprocesses such as Dask workers.
 
     Args:
         host, port: where to look for / start a local server.

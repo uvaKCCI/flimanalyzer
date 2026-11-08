@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri May  4 02:53:40 2018
-
-@author: khs3z
-"""
+"""Reads data files into one table, with category columns taken from the file
+names."""
 
 import itertools
 import logging
@@ -186,7 +183,8 @@ class dataimporter:
         for f in self.files:
             if not os.path.isfile(f):
                 continue
-            # columns defined by parser regexpatterns will use 'category' as dtype
+            # reserved category columns (including the parser's) are read as text;
+            # they are converted to categories after all files are read
             category_dtypes = {
                 col: "object" for col in self.get_reserved_categorycols(parser)
             }
@@ -229,7 +227,7 @@ class dataimporter:
                     if filecdf is None:
                         filecdf = cdf
                     else:
-                        filecdf = pd.concat([filecdf, cdf], axis=1)  # add col
+                        filecdf = pd.concat([filecdf, cdf], axis=1)
                     comboheaders.append(combocol)
             if filecdf is not None:
                 cdflist.append(filecdf)
@@ -242,11 +240,6 @@ class dataimporter:
             if len(cdflist) > 0:
                 cdf = pd.concat(cdflist).reset_index(drop=True)
                 df = pd.concat([df, cdf], axis=1, copy=True)
-            # df.reset_index(inplace=True, drop=True)
-
-            # if 'ROI' not in df.columns.values:
-            #    df['ROI'] = np.arange(1,len(df)+1)
-            # print ('done')
             allheaders = list(df.columns.values)
             logging.debug(self.get_reserved_categorycols(parser))
             categories = [
@@ -254,9 +247,6 @@ class dataimporter:
                 for key in self.get_reserved_categorycols(parser)
                 if key in allheaders
             ] + comboheaders
-            """df['ROI'] = df.groupby(categories).cumcount() + 1
-            df['ROI'] = [str(roi) for roi in df['ROI']]
-            categories.append('ROI')"""
 
             for ckey in categories:
                 df[ckey] = df[ckey].astype("category")

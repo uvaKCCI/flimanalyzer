@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri May 18 07:53:29 2018
-
-@author: khs3z
-"""
+"""Range filters for table columns."""
 
 import logging
 import numpy as np
@@ -117,12 +113,6 @@ class RangeFilter(Filter):
     def set_range(self, low, high):
         self.rangelow = low
         self.rangehigh = high
-        #        if low <= high:
-        #            self.rangelow = low
-        #            self.rangehigh = high
-        #        else:
-        #            self.rangelow = high
-        #            self.rangehigh = low
         return self.clip_range()
 
     def set_rangelow(self, low):
@@ -150,9 +140,6 @@ class RangeFilter(Filter):
             self.allowedmin = maxa
             self.allowedmax = mina
         self.clip_range()
-
-    # def get_parameters(self):
-    #    return [self.name, self.selected, self.rangelow, self.rangehigh, self.allowedmin, self.allowedmax, self.dropna]
 
     def apply_filter(self, data, inplace=True):
         droppedrows = self.get_dropped(data)

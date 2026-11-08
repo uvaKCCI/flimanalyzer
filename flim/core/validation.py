@@ -1,6 +1,7 @@
 """Validation of workflows before they run.
 
-The default :class:`WorkflowValidator` does a dry run of the workflow's ``build``: on
+The default validator (:class:`DefaultWorkflowValidator`) does a dry run of the
+workflow's ``build``: on
 sample tables made from the input schemas, with every tool call traced instead of run.
 Each step's config is checked against the schemas of its inputs (``Tool.validate``),
 and its output schemas (``Tool.output_schema``) are passed to the steps that use them.
@@ -200,7 +201,7 @@ class DefaultWorkflowValidator:
         if any(s is None or not s.complete for s in schemas) or len(schemas) < len(
             workflow.inputs
         ):
-            return report  # the steps are checked once the inputs are known
+            return report  # steps are not checked while an input is unknown
         samples = [s.sample() for s in schemas]
         tracer = Tracer({id(t): s for t, s in zip(samples, schemas)})
         token = _TRACER.set(tracer)
@@ -211,7 +212,7 @@ class DefaultWorkflowValidator:
         finally:
             _TRACER.reset(token)
         report.steps = tracer.steps
-        # columns already reported for the workflow config: not again for each step
+        # columns reported for the workflow config are not reported again per step
         seen = {(None, None, f"Column '{i.old}' is not in the input") for i in issues}
         missing = {
             m.group(1)
