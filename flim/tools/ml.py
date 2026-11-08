@@ -267,6 +267,13 @@ class RandomForest(Tool[RandomForestConfig]):
             )
             results["Importance Score Plot"] = figure
         results["Importance Score Data"] = importance
+        results["Accuracy Data"] = pd.DataFrame(
+            {
+                "Accuracy": [accuracy],
+                "Training rows": [len(y_train)],
+                "Test rows": [len(y_test)],
+            }
+        )
         return results
 
     @classmethod

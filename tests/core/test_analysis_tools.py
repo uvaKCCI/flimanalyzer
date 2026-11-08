@@ -331,3 +331,15 @@ def test_categorizer_assigns_bins(flim_data):
     assert list(table["Level"]) == list(expected)
     assert table["Level"].dtype == "category"
     assert "other" in set(table["Level"])  # outside all rules: the default
+
+
+@pytest.mark.parametrize("plot", [True, False])
+def test_random_forest_reports_the_accuracy(data, plot):
+    config = RandomForestConfig(features=FEATURES, target="Treatment", importance_plot=plot)
+    results = RandomForest()(data, config=config)
+    accuracy = results["Table: Accuracy Data"]
+    assert list(accuracy.columns) == ["Accuracy", "Training rows", "Test rows"]
+    assert 0 <= accuracy["Accuracy"].iloc[0] <= 1
+    assert accuracy["Training rows"].iloc[0] + accuracy["Test rows"].iloc[0] == len(data)
+    assert ("Plot: Importance Score Plot" in results) == plot
+

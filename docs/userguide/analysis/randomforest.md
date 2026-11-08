@@ -29,7 +29,7 @@ The `Random Forest` tool trains a random forest to predict a category from the f
 
 5. Click `OK`.
 
-6. The results are shown in a new table window, `Table: Importance Score Data`, with the importance score of each feature, highest first. If `Importance plot` is checked, the plot is shown as well, in `Plot: Importance Score Plot`.
+6. The results are shown in new table windows: `Table: Importance Score Data`, with the importance score of each feature, highest first, and `Table: Accuracy Data`, with the accuracy on the test data and the numbers of training and test rows. If `Importance plot` is checked, the plot is shown as well, in `Plot: Importance Score Plot`.
 
 ## Example Output
 
