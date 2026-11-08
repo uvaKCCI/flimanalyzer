@@ -75,6 +75,23 @@ def docs_url(version: str = __version__) -> str:
     return f"{DOCS_URL}/en/latest/"
 
 
+ImportEvent, EVT_IMPORT = NewEvent()
+ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
+DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
+
+
+
+def app_icon():
+    """The FLIMAnalyzer icon."""
+    return wx.Icon(str(files(flim.resources).joinpath("flimanalyzer.png")), wx.BITMAP_TYPE_PNG)
+
+
+def app_icons():
+    """The FLIMAnalyzer icon in all sizes of its ICO file, so that each window can
+    use a sharp one."""
+    return wx.IconBundle(str(files(flim.resources).joinpath("flimanalyzer.ico")), wx.BITMAP_TYPE_ICO)
+
+
 class FLIMAnalyzerApp(wx.App):
     def __init__(self, flimanalyzer, settings_manager=None, files=None):
         """
