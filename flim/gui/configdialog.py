@@ -481,19 +481,48 @@ class ConfigDialog(wx.Dialog):
 
     def save_settings(self, path) -> bool:
         """Puts the edited settings into the tool's section of a settings file (see
-        flim.core.settings.write_tool_settings). False, with a message, if they are
-        not valid or the file cannot be written."""
+        flim.core.settings.write_tool_settings). If the file is of an older version or
+        has settings that cannot be used, the user is asked first: update the file (it
+        is rewritten in the current version without those settings), save to another
+        file, or cancel. False, with a message, if the settings are not valid, the
+        user cancels or the file cannot be written."""
+        from flim.core.settings import check_settings_file, save_sections
+        from flim.gui.settingscheck import REWRITE, confirm_rewrite, needs_rewrite
+
         self.commit_edits()
         config, issues = self.current_config()
-        name = os.path.basename(path)
         if config is None:
             self.settings_message.SetLabel("Not saved: the settings are not valid")
             return False
         entry = tool_settings(
             config, self.autosave.GetValue(), self.folder.GetPath() or None
         )
+        while os.path.exists(path):
+            check = check_settings_file(path)
+            if not needs_rewrite(check):
+                break
+            answer = confirm_rewrite(check, self)
+            if answer is None:
+                self.settings_message.SetLabel("Not saved")
+                return False
+            if answer == REWRITE:
+                sections = dict(check.sections)
+                tools = {
+                    name: value
+                    for name, value in sections.get("tools", {}).items()
+                    if name not in getattr(self.tool, "former_names", ())
+                }
+                tools[self.tool.name] = entry.model_dump(mode="json")
+                sections["tools"] = tools
+                return self._saved(path, lambda: save_sections(sections, path))
+            path = answer
+        return self._saved(path, lambda: write_tool_settings(path, self.tool, entry))
+
+    def _saved(self, path, write) -> bool:
+        """Call `write` and show the result; False, with a message, if it fails."""
+        name = os.path.basename(path)
         try:
-            write_tool_settings(path, self.tool, entry)
+            write()
         except Exception as err:
             logging.exception(f"Settings could not be saved to {path}")
             self.settings_message.SetLabel(f"Could not save to {name}: {err}")

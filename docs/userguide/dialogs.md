@@ -31,7 +31,7 @@ The results are saved in a new folder for each run, named after the date and tim
 * other results as files in Python's pickle format,
 * and the folder `pickled`, with all results of the tool except the figures in one file in Python's pickle format.
 
-The file names are made from the result names; characters that can't be used in file names are replaced, for example `Table: Summary` becomes `Table_Summary.txt`. The folder of the run also gets a file `run_summary.txt`. It lists when the run started and finished, and the status and message of each task. A task's message is also how a tool reports a warning: the task is completed, but something in the data needs attention (for example, `Concatenate` pairing rows that don't match). The GUI shows such warnings after the run.
+The file names are made from the result names; characters that can't be used in file names are replaced, for example `Table: Summary` becomes `Table_Summary.txt`. The folder of the run also gets a file `run_summary.txt`. It lists when the run started and finished, the settings files used (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)), and the status and message of each task. A task's message is also how a tool reports a warning: the task is completed, but something in the data needs attention (for example, `Concatenate` pairing rows that don't match). The GUI shows such warnings after the run.
 
 Results are also shown in their own windows, whether they are saved or not. Workflows always save their results, in a folder of their own; there, `Save results in` can't be unchecked (see [Workflows](/userguide/workflows)).
 

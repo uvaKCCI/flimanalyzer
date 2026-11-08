@@ -311,6 +311,7 @@ class FlowRun:
         self.start_time = datetime.datetime.now()
         self.end_time = None
         self.notes: List[str] = []  # for the run summary, e.g. guessed columns
+        self.settings_record: List[str] = []  # the settings files, for the run summary
         self.graph = nx.DiGraph()
         self._label_counts = {}
         self._key_nodes = {}
@@ -554,6 +555,8 @@ class FlowRun:
             "Tasks:      " + ", ".join(f"{n} {s}" for s, n in sorted(counts.items())),
             "",
         ]
+        if self.settings_record:
+            lines += ["Settings:"] + [f"  {line}" for line in self.settings_record] + [""]
         if self.notes:
             lines += ["Notes:"] + [f"  {note}" for note in self.notes] + [""]
         granted = [a.get("resources") or "" for a in tasks]
@@ -692,6 +695,7 @@ def run_flow(
     cancel_token: Optional[CancelToken] = None,
     on_start: Optional[Callable[[FlowRun], None]] = None,
     notes: Sequence[str] = (),
+    settings_record: Sequence[str] = (),
 ) -> FlowRun:
     """Runs ``build`` as a Prefect flow; tool calls inside it become task runs.
 
@@ -707,6 +711,8 @@ def run_flow(
         on_start: called with the :class:`FlowRun` once Prefect has created the flow
             run (``flow_run_id`` and ``ui_url`` are known), before the first task.
         notes: lines for the run summary, e.g. the guesses a validation applied.
+        settings_record: lines for the run summary naming the settings files used
+            (`SettingsManager.record`).
 
     Returns:
         FlowRun: recorded task graph and results; ``state`` is completed,
@@ -719,6 +725,7 @@ def run_flow(
     """
     run = FlowRun(name, on_progress=on_progress, cancel_token=cancel_token)
     run.notes = list(notes)
+    run.settings_record = list(settings_record)
     if autosave_dir:
         run.autosave_dir = Path(autosave_dir) / run.start_time.strftime(
             "%Y-%m-%d_%H-%M-%S"

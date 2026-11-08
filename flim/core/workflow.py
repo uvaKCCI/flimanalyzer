@@ -54,6 +54,7 @@ class Workflow(Tool[ConfigT]):
         cancel_token=None,
         on_start=None,
         strict: Optional[bool] = None,
+        settings_record=(),
     ):
         """Runs the workflow as a Prefect flow; see :func:`flim.core.runner.run_flow`.
 
@@ -63,6 +64,8 @@ class Workflow(Tool[ConfigT]):
         Args:
             strict: the default for a config whose ``strict`` is None; None: strict
                 (no guesses).
+            settings_record: lines for the run summary naming the settings files
+                used.
 
         Raises:
             ValueError: the config selects fewer features or grouping columns than
@@ -94,6 +97,7 @@ class Workflow(Tool[ConfigT]):
             cancel_token=cancel_token,
             on_start=on_start,
             notes=notes,
+            settings_record=settings_record,
         )
 
     @classmethod

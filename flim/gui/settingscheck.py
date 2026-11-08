@@ -5,13 +5,20 @@ from typing import Callable, Optional
 
 import wx
 
-from flim.core.settings import SettingsCheck, check_settings_file, save_sections
+from flim.core.settings import (
+    SETTINGS_VERSION,
+    SettingsCheck,
+    check_settings_file,
+    save_sections,
+)
 
 USE = "Use the settings that can be used; skip the others"
 IGNORE = "Don't use this file"
 UPDATE = "Update the file to the current version; remove the settings that can't be used"
 OTHER = "Choose another file..."
 LISTED = 8  # items listed per kind of finding in the dialog; the log lists all
+REWRITE = "Update the file to the current version and add the settings"
+SAVE_OTHER = "Save to another file..."
 
 
 def _options(check: SettingsCheck) -> list[str]:
@@ -101,3 +108,45 @@ def choose_settings(
         check = check_settings_file(path)
         if not problems(check):
             return check
+
+
+def needs_rewrite(check: SettingsCheck) -> bool:
+    """Return whether adding settings to a checked file rewrites more than they: the
+    file is of an older version or has settings that cannot be used."""
+    return check.error is None and (
+        check.version < SETTINGS_VERSION or bool(check.unknown or check.invalid)
+    )
+
+
+def confirm_rewrite(check: SettingsCheck, parent=None) -> Optional[str]:
+    """Ask before settings are added to a file that would be rewritten.
+
+    Args:
+        check: The result of `check_settings_file` for the file.
+        parent: The parent window.
+
+    Returns:
+        REWRITE to update the file, the path of another file to save to, or None
+        (Cancel, or no other file chosen).
+    """
+    message = (
+        check.summary(limit=LISTED)
+        + "\n\nAdding the settings rewrites the file in the current version; the"
+        " settings that can't be used are removed."
+    )
+    options = [REWRITE, SAVE_OTHER]
+    with wx.SingleChoiceDialog(parent, message, "Save Settings", options) as dialog:
+        if dialog.ShowModal() != wx.ID_OK:
+            return None
+        choice = options[dialog.GetSelection()]
+    return REWRITE if choice == REWRITE else _save_file(parent)
+
+
+def _save_file(parent) -> Optional[str]:
+    with wx.FileDialog(
+        parent,
+        "Save Settings",
+        wildcard="JSON files (*.json)|*.json",
+        style=wx.FD_SAVE,
+    ) as dialog:
+        return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else None

@@ -28,6 +28,8 @@ The user settings file is `usersettings.json` in the platform's settings folder:
 
 The environment variable `FLIM_USER_SETTINGS` sets another path for this file.
 
+If the user settings file can't be read, because it is damaged or comes from a newer FLIMAnalyzer version, the GUI renames it to `usersettings.unreadable.json` (`usersettings.unreadable-2.json` and so on if that name is taken), tells you, and starts a new user settings file. The renamed file is kept unchanged. If it comes from a newer version, rename it back before you use that version again. If the file can't be renamed either, the GUI keeps your changes only until it closes.
+
 ## App settings files
 
 An app settings file is a settings file that you give with `-s` when you start the GUI or `flimbatch`, for example one saved with `Export Settings...`. Its settings apply to this session only. FLIMAnalyzer writes to this file only if you choose to update it to the current version (see [Settings files from older versions](#settings-files-from-older-versions)).
@@ -106,13 +108,13 @@ If all settings can be used, the GUI uses the file and writes the result of the 
 
 The GUI asks this when it starts with `-s` (or with `defaults.json`), in `File` > `Import Settings...`, and in a tool dialog's `Load Settings...`. In a tool dialog, it asks only if the tool's own settings have problems.
 
-`flimbatch` doesn't ask: it stops with an error if the file can't be used or has invalid values. Unknown settings are listed in the log and not used.
+`flimbatch` doesn't ask. It uses a settings file only if every setting in it can be used and checked: it stops with an error that lists them if the file can't be used, or has invalid values, unknown settings or settings of tools that aren't installed. This way its results never depend on settings that were skipped, or on which tools are installed.
 
 ## The settings of a tool
 
 Every tool's dialog has two buttons for its own settings:
 
-* `Save Settings...` adds the tool's current settings to a settings file, or updates them there. Everything else in the file is kept, so the settings of several tools can be collected in one file, or added to a file saved with `Export Settings...`.
+* `Save Settings...` adds the tool's current settings to a settings file, or updates them there. Everything else in the file is kept, so the settings of several tools can be collected in one file, or added to a file saved with `Export Settings...`. If the file is from an older version or has settings that can't be used, the dialog lists them and asks first: update the file to the current version (the settings that can't be used are removed), or save to another file. `Cancel` saves nothing.
 * `Load Settings...` reads the tool's settings from a settings file. The file can be one saved with `Save Settings...` or `Export Settings...`. If the file has no settings for the tool, the dialog says so.
 
 The tool's settings also include whether its results are saved, and to which folder.

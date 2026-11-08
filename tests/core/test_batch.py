@@ -94,7 +94,33 @@ def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path):
     table = pd.read_csv(summary, sep="\t")  # tab-separated, no index column (#119)
     assert list(table.columns) == ["Treatment", "FLIRR mean"]
     assert set(table["Treatment"]) == {"WT", "KO"}
-    assert any((out / "Summarize").rglob("run_summary.txt"))
+    (run_summary,) = (out / "Summarize").rglob("run_summary.txt")
+    text = run_summary.read_text()
+    assert "User settings file: not read" in text
+    assert f"App settings file: {path} (schema version 2)" in text
+
+
+@pytest.mark.parametrize(
+    "extra, listed",
+    [
+        ({"bogus": 1}, "bogus"),  # unknown
+        ({"tools": {"Other Plugin": {"config": {}}}}, "Other Plugin"),  # not installed
+    ],
+)
+def test_settings_that_cannot_be_used_or_checked_stop_the_run(
+    data_dir, settings, tmp_path, capsys, extra, listed
+):
+    import json
+
+    path = tmp_path / "settings.json"
+    save_settings(settings, path)
+    path.write_text(json.dumps({**json.loads(path.read_text()), **extra}))
+    code = main(["-i", str(data_dir), "-o", str(tmp_path / "out"), "-s", str(path),
+                 "--run", "Summarize", "--no-prefect-server"])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert listed in err and "can all be used" in err
+    assert not (tmp_path / "out").exists()
 
 
 def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp_path):

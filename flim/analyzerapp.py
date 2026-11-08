@@ -163,7 +163,7 @@ def main(argv=None):
         execution.check_available()
     except (FileNotFoundError, ValueError, RuntimeError) as err:
         parser.error(str(err))
-    for note in notes + more:
+    for note in notes + more + manager.notices:
         print(f"flimanalyzer: warning: {note}", file=sys.stderr)
         logging.warning(note)
     fa = FLIMAnalyzer(execution=execution)

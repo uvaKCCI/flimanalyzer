@@ -81,12 +81,66 @@ def test_missing_user_file_gives_the_base_settings(tmp_path):
     assert manager.settings == AppSettings.default()
 
 
-def test_unreadable_user_file_gives_the_base_settings_and_a_warning(tmp_path, caplog):
+@pytest.mark.parametrize(
+    "content", ["{not json", "[1]", json.dumps({"schema_version": SETTINGS_VERSION + 1})]
+)
+def test_unreadable_user_file_is_renamed_and_a_new_one_started(tmp_path, caplog, content):
     path = tmp_path / "usersettings.json"
-    path.write_text("{not json")
+    path.write_text(content)
     manager = SettingsManager(user_file=UserSettingsFile(path))
     assert manager.settings == AppSettings.default()
-    assert "not used" in caplog.text
+    kept = tmp_path / "usersettings.unreadable.json"
+    assert kept.read_text() == content and not path.exists()
+    assert "renamed to" in caplog.text and str(kept) in manager.notices[0]
+    manager.update({"results_dir": "r"})  # a new file; the old one is kept
+    assert json.loads(path.read_text())["results_dir"] == "r"
+    assert kept.read_text() == content
+
+
+def test_earlier_unreadable_files_are_kept(tmp_path):
+    (tmp_path / "usersettings.unreadable.json").write_text("first")
+    path = tmp_path / "usersettings.json"
+    path.write_text("second")
+    SettingsManager(user_file=UserSettingsFile(path))
+    assert (tmp_path / "usersettings.unreadable.json").read_text() == "first"
+    assert (tmp_path / "usersettings.unreadable-2.json").read_text() == "second"
+
+
+def test_unreadable_user_file_that_cannot_be_renamed_is_not_written(
+    tmp_path, monkeypatch, caplog
+):
+    import flim.core.settingsmgr as settingsmgr
+
+    path = tmp_path / "usersettings.json"
+    path.write_text("{not json")
+
+    def no_rename(*args):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(settingsmgr.os, "rename", no_rename)
+    manager = SettingsManager(user_file=UserSettingsFile(path))
+    assert "not saved" in manager.notices[0]
+    manager.update({"results_dir": "r"})  # kept in memory only
+    assert manager.settings.results_dir == Path("r")
+    assert path.read_text() == "{not json" and "Settings not saved" in caplog.text
+
+
+def test_record_names_the_settings_files(tmp_path):
+    from flim.core.settingsmgr import session_settings
+
+    path = tmp_path / "cells.json"
+    path.write_text(json.dumps({"schema_version": 1, "working_dir": "r", "bogus": 1}))
+    manager = session_settings(str(path), user_file=UserSettingsFile(tmp_path / "u.json"))
+    assert manager.record() == [
+        f"User settings file: {tmp_path / 'u.json'}",
+        f"App settings file: {path} (schema version 1)",
+        "  converted: working_dir to results_dir",
+        "  not used (unknown): bogus",
+    ]
+    assert session_settings().record() == [
+        "User settings file: not read",
+        "App settings file: none",
+    ]
 
 
 def test_failed_write_keeps_the_change_and_warns(tmp_path, caplog, monkeypatch):

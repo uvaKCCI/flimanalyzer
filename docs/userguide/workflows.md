@@ -10,7 +10,7 @@ Workflows always save their results; `Save results in` is always checked in thei
 
 Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results in`. For example: `results/Basic FLIRR Analysis/2026-11-03_14-05-31/`. Steps that are run several times with different settings, for example the training of each model in the autoencoder workflows, save their results in subfolders of this folder, named after these settings. The other steps save their results directly in the folder. The files are saved as described in [Saving results](/userguide/dialogs.md#saving-results).
 
-The folder also gets a file `run_summary.txt`. It lists when the workflow ran and, for each step, its status, the resources it used (for example GPU or CPU) and its message. A completed step has a message only if its tool reported a warning (see [The run summary](#the-run-summary)).
+The folder also gets a file `run_summary.txt`. It lists when the workflow ran, the settings files used (the user settings file and the app settings file, with the settings converted or not used when it was read), and, for each step, its status, the resources it used (for example GPU or CPU) and its message. A completed step has a message only if its tool reported a warning (see [The run summary](#the-run-summary)).
 
 ## Checking the settings
 

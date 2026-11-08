@@ -63,6 +63,7 @@ def answers(monkeypatch, wxapp):
     monkeypatch.setattr(settingscheck.wx, "SingleChoiceDialog", Choice)
     monkeypatch.setattr(settingscheck, "_confirm_update", lambda check, parent: queue.pop(0))
     monkeypatch.setattr(settingscheck, "_other_file", lambda parent: queue.pop(0))
+    monkeypatch.setattr(settingscheck, "_save_file", lambda parent: queue.pop(0))
     return queue, offered
 
 
@@ -173,3 +174,41 @@ def test_tool_dialog_uses_another_file(dialog, tmp_path, answers):
     assert d.load_settings(str(write(tmp_path, MIXED)))
     assert d.result().config.aggs == ["count"]
     assert "other.json" in d.settings_message.GetLabel()
+
+
+# --- a tool dialog's Save Settings... ---
+
+OLD = {"schema_version": 1, "working_dir": "res", "bogus": 1}
+
+
+def test_tool_save_asks_before_rewriting_an_older_file(dialog, tmp_path, answers):
+    queue, offered = answers
+    path = write(tmp_path, OLD)
+    queue.append(None)  # Cancel
+    d = dialog("Summarize")
+    assert not d.save_settings(str(path))
+    assert json.loads(path.read_text()) == OLD
+    queue.append(settingscheck.REWRITE)
+    assert d.save_settings(str(path))
+    data = json.loads(path.read_text())
+    assert data["schema_version"] == 2 and data["results_dir"] == "res"
+    assert "bogus" not in data and "Summarize" in data["tools"]
+    assert "working_dir to results_dir" in offered[0][0]
+
+
+def test_tool_save_to_another_file(dialog, tmp_path, answers):
+    queue, _ = answers
+    path = write(tmp_path, OLD)
+    other = tmp_path / "other.json"
+    queue += [settingscheck.SAVE_OTHER, str(other)]
+    assert dialog("Summarize").save_settings(str(path))
+    assert json.loads(path.read_text()) == OLD
+    assert "Summarize" in json.loads(other.read_text())["tools"]
+
+
+def test_tool_save_to_a_current_file_does_not_ask(dialog, tmp_path, answers):
+    _, offered = answers
+    path = write(tmp_path, CLEAN)
+    assert dialog("Summarize").save_settings(str(path))
+    data = json.loads(path.read_text())
+    assert offered == [] and data["results_dir"] == "other" and "Summarize" in data["tools"]

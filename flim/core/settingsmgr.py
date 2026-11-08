@@ -56,11 +56,21 @@ class UserSettingsFile:
     def __init__(self, path):
         self.path = Path(path)
         self.lock = FileLock(f"{self.path}.lock", timeout=LOCK_TIMEOUT)
+        # an unreadable file renamed by `read`: (new path or None, the reason)
+        self.set_aside: Optional[tuple[Optional[Path], str]] = None
 
     def read(self) -> dict:
-        """The file's sections, migrated to the current version. Returns {} if the file
-        does not exist, cannot be read or is not a settings file; in the latter two
-        cases a warning is logged."""
+        """Return the file's sections, migrated to the current version.
+
+        A file that cannot be read (not JSON, not a settings file, or of a newer
+        version) is renamed to `<name>.unreadable.json` (`-2`, `-3`, ... if that
+        exists), so that writing the next change does not replace it; `set_aside`
+        records this and a warning is logged. If it cannot be renamed, changes are
+        not written to it (`merge` raises OSError).
+
+        Returns:
+            The sections; {} if the file does not exist or cannot be read.
+        """
         try:
             with open(self.path) as f:
                 data = json.load(f)
@@ -70,8 +80,27 @@ class UserSettingsFile:
         except FileNotFoundError:
             return {}
         except Exception as err:
-            logging.warning(f"User settings {self.path} not used: {err}")
+            self._set_aside(str(err))
             return {}
+
+    def _set_aside(self, reason: str) -> None:
+        """Rename the unreadable file to a free `<name>.unreadable[-N].json`."""
+        stem, suffix = self.path.stem, self.path.suffix
+        target = self.path.with_name(f"{stem}.unreadable{suffix}")
+        number = 2
+        while target.exists():
+            target = self.path.with_name(f"{stem}.unreadable-{number}{suffix}")
+            number += 1
+        try:
+            os.rename(self.path, target)
+        except FileNotFoundError:  # renamed by another instance
+            return
+        except OSError as err:
+            logging.warning(f"User settings {self.path} cannot be read ({reason}) or renamed ({err})")
+            self.set_aside = (None, reason)
+            return
+        logging.warning(f"User settings {self.path} cannot be read ({reason}); renamed to {target}")
+        self.set_aside = (target, reason)
 
     def merge(self, changes: dict) -> None:
         """Writes ``changes`` (sections in the settings file format, any version) to
@@ -82,7 +111,10 @@ class UserSettingsFile:
         is raised (filelock.Timeout if the lock is not acquired within LOCK_TIMEOUT)."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.lock:
-            data = merge_sections(self.read(), changes)
+            current = self.read()
+            if self.set_aside and self.set_aside[0] is None:
+                raise OSError(f"{self.path} cannot be read or renamed: {self.set_aside[1]}")
+            data = merge_sections(current, changes)
             data["schema_version"] = SETTINGS_VERSION
             fd, tmp = tempfile.mkstemp(
                 dir=self.path.parent, prefix=".settings-", suffix=".json"
@@ -122,6 +154,24 @@ class SettingsManager:
         self._settings = settings
         self._version = 0
         self.source: Optional[Path] = None  # the app settings file of this session
+        self.check: Optional[SettingsCheck] = None  # the check of that file
+        # messages for the user about the settings files, e.g. a renamed user file
+        self.notices: list[str] = []
+        if user_file is not None and user_file.set_aside:
+            target, reason = user_file.set_aside
+            if target is None:
+                self.notices.append(
+                    f"The user settings file {user_file.path} cannot be read ({reason})"
+                    " and cannot be renamed. Changes to the settings are kept until"
+                    " FLIMAnalyzer closes, and not saved."
+                )
+            else:
+                self.notices.append(
+                    f"The user settings file {user_file.path} cannot be read ({reason})."
+                    f" It was renamed to {target}, and a new user settings file is"
+                    " started. If it is from a newer FLIMAnalyzer, rename it back"
+                    " before using that version again."
+                )
 
     @property
     def settings(self) -> AppSettings:
@@ -180,7 +230,33 @@ class SettingsManager:
         logging.info(check.summary())
         settings = self.update(check.sections, keep=False)
         self.source = check.path
+        self.check = check
         return settings
+
+    def record(self) -> list[str]:
+        """Return the settings files of this session, for the run summary.
+
+        Returns:
+            Lines naming the user settings file and the app settings file, with the
+            app settings file's schema version and the keys its check converted,
+            removed and did not use.
+        """
+        user = self._user_file.path if self._user_file is not None else "not read"
+        lines = [f"User settings file: {user}"]
+        check = self.check
+        if check is None:
+            return lines + ["App settings file: none"]
+        lines.append(f"App settings file: {check.path} (schema version {check.version})")
+        for label, items in (
+            ("converted", check.converted),
+            ("removed by the conversion", check.dropped),
+            ("not used (unknown)", check.unknown),
+            ("not used (invalid)", check.invalid),
+            ("not checked (tool not installed)", check.not_checked),
+        ):
+            if items:
+                lines.append(f"  {label}: {'; '.join(items)}")
+        return lines
 
     def export(self, path) -> None:
         """Writes all current settings, in the current version, to a file."""
@@ -327,23 +403,32 @@ def _completed(changes: dict, current: AppSettings) -> dict:
 # --- the settings of a session ---
 
 
-def strict_choice(check: SettingsCheck) -> SettingsCheck:
+def strict_choice(check: SettingsCheck, *, complete: bool = False) -> SettingsCheck:
     """Accept a checked settings file only if all its values can be used.
 
-    Unknown keys are logged and not used.
+    Unknown keys are logged and not used, unless `complete`.
 
     Args:
         check: The result of `check_settings_file`.
+        complete: Also refuse unknown keys and settings of tools that are not
+            installed (flimbatch: the run must not depend on settings that are
+            ignored or on which tools are installed).
 
     Returns:
         `check`.
 
     Raises:
-        ValueError: If the file cannot be used or has invalid values; the message
-            lists them.
+        ValueError: If the file cannot be used or has invalid values, or with
+            `complete` unknown keys or settings of tools that are not installed; the
+            message lists them.
     """
     if check.error or check.invalid:
         raise ValueError(check.summary())
+    if complete and (check.unknown or check.not_checked):
+        raise ValueError(
+            check.summary() + "\nOnly a settings file whose settings can all be used"
+            " and checked is accepted."
+        )
     if check.unknown:
         logging.warning(f"{check.path}: ignoring unknown keys {', '.join(check.unknown)}")
     return check
@@ -361,6 +446,7 @@ def session_settings(
     user_file: Optional[UserSettingsFile] = None,
     base: Optional[AppSettings] = None,
     choose: Optional[Choice] = None,
+    complete: bool = False,
 ) -> SettingsManager:
     """Create the settings manager of a session from all settings layers.
 
@@ -379,6 +465,8 @@ def session_settings(
         choose: Called if some settings of the app settings file cannot be used;
             returns the check whose sections to use, or None to use no file. Without
             it, such a file is refused (`strict_choice`).
+        complete: Refuse an app settings file unless all its settings can be used
+            and checked (see `strict_choice`); for flimbatch.
 
     Returns:
         The settings manager. Its `source` is the path of the app settings file, or
@@ -394,7 +482,10 @@ def session_settings(
     if settings_file:
         search_path = app_settings_path(manager.settings.appsettings_path)
         check = check_settings_file(find_app_settings(settings_file, search_path))
-        chosen = choose(check) if choose and check.problems else strict_choice(check)
+        if choose and check.problems:
+            chosen = choose(check)
+        else:
+            chosen = strict_choice(check, complete=complete)
         if chosen is not None:
             manager.apply(chosen)
     for changes in (environment_changes(), command_line or {}):

@@ -153,3 +153,17 @@ def test_start_folder_settings(monkeypatch, tmp_path):
     path, note = start_folder_settings()
     assert path == (tmp_path / "defaults.json").resolve()
     assert "deprecated" in note and "-s NAME" in note
+
+
+@pytest.mark.parametrize(
+    "content, listed",
+    [
+        ({"schema_version": 2, "bogus": 1}, "bogus"),
+        ({"schema_version": 2, "tools": {"Other Plugin": {"config": {}}}}, "Other Plugin"),
+    ],
+)
+def test_complete_refuses_unknown_keys_and_tools_not_installed(tmp_path, content, listed):
+    path = write(tmp_path, content)
+    session_settings(str(path))  # accepted otherwise
+    with pytest.raises(ValueError, match=listed):
+        session_settings(str(path), complete=True)

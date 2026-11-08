@@ -147,6 +147,13 @@ class FLIMAnalyzerApp(wx.App):
             self.dock_icon = wx.adv.TaskBarIcon(wx.adv.TBI_DOCK)
             self.dock_icon.SetIcon(app_icon(), "FLIMAnalyzer")
         self.frame.Show(True)
+        if self.settings_manager.notices:  # e.g. a user settings file was renamed
+            wx.CallAfter(
+                wx.MessageBox,
+                "\n\n".join(self.settings_manager.notices),
+                "FLIMAnalyzer",
+                wx.OK | wx.ICON_WARNING,
+            )
         if self.files:
             wx.CallAfter(self.open_files, self.files)
 
@@ -630,6 +637,7 @@ class AppFrame(wx.Frame):
                     on_start=on_start,
                     # the dialog showed the guesses; default: guess (app setting strict)
                     strict=bool(self.settings.strict),
+                    settings_record=self.settings_manager.record(),
                 )
 
         else:
@@ -651,6 +659,7 @@ class AppFrame(wx.Frame):
                     on_progress=on_progress,
                     cancel_token=cancel_token,
                     on_start=on_start,
+                    settings_record=self.settings_manager.record(),
                 )
 
         flow_run = self.run_with_progress(tool.name, start_run)

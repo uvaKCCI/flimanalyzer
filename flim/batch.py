@@ -19,7 +19,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import Optional
+from typing import Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -97,6 +97,7 @@ def run_tool(
     output_dir: str | os.PathLike,
     execution: Optional[ExecutionOptions] = None,
     strict: bool = True,
+    settings_record: Sequence[str] = (),
 ):
     """Runs the tool or workflow named ``name`` on ``data`` with the tool's config
     stored in ``settings`` (the config's defaults if none is stored or the stored one
@@ -104,7 +105,8 @@ def run_tool(
     stored autosave and results folder settings are not used. A workflow gets
     ``data`` as every input; columns its config names that are not in ``data`` stop
     the run if ``strict`` (the default for a workflow whose own ``strict`` is None),
-    otherwise they are replaced by guessed columns.
+    otherwise they are replaced by guessed columns. `settings_record` names the
+    settings files in the run summary.
 
     Returns:
         flim.core.runner.FlowRun
@@ -135,6 +137,7 @@ def run_tool(
                 task_runner=task_runner,
                 autosave_dir=autosave_dir,
                 strict=strict,
+                settings_record=settings_record,
             )
         except WorkflowValidationError as err:
             raise BatchError(f"{name}:\n{err}") from None
@@ -151,7 +154,13 @@ def run_tool(
         for each in tool().map_configs(config):
             tool()(table, config=each, task_tags=tool.name)
 
-    return run_flow(tool.name, build, task_runner=task_runner, autosave_dir=autosave_dir)
+    return run_flow(
+        tool.name,
+        build,
+        task_runner=task_runner,
+        autosave_dir=autosave_dir,
+        settings_record=settings_record,
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -221,7 +230,10 @@ def main(argv=None) -> int:
         for note in notes + more:
             print(f"flimbatch: warning: {note}", file=sys.stderr)
         # no user settings file: batch results don't depend on settings changed in the GUI
-        settings = session_settings(name, changes).settings
+        # every setting of the file must be usable: results don't depend on ignored
+        # settings or on which tools are installed
+        manager = session_settings(name, changes, complete=True)
+        settings = manager.settings
         execution = ExecutionOptions(execution=settings.execution)
         execution.check_available()
         output = canonical_folder(args.output)
@@ -237,7 +249,9 @@ def main(argv=None) -> int:
         with use_prefect_server(start=settings.prefect_server):
             for name in args.run:
                 with checked_prefect_server():
-                    run = run_tool(name, data, settings, output, execution, strict)
+                    run = run_tool(
+                    name, data, settings, output, execution, strict, manager.record()
+                )
                 if run.failed or run.state != "completed":
                     failed.append(f"{name}: {', '.join(run.failed) or run.state}")
                 logging.info(f"{name}: {run.state}; results in {run.autosave_dir}")

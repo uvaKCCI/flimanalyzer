@@ -176,6 +176,15 @@ def test_file_with_problems_asks_before_the_gui_opens(monkeypatch, clean_logging
     assert [c.path for c in asked] == [path] and manager.source is None
 
 
+def test_unreadable_user_settings_file_is_reported(
+    monkeypatch, clean_logging, capsys, user_settings_file
+):
+    user_settings_file.write_text("{not json")
+    manager = _start(monkeypatch, [])
+    assert "renamed to" in manager.notices[0]
+    assert "renamed to" in capsys.readouterr().err
+
+
 def test_unavailable_executor_stops_the_start(monkeypatch, capsys):
     from flim.core.execution import ExecutionOptions
 
