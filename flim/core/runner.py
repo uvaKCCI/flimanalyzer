@@ -48,6 +48,7 @@ from prefect.states import Cancelled, Completed
 from prefect.task_runners import ThreadPoolTaskRunner
 
 from flim.core.tool import TaskCancelled, pyplot_lock, release_figures
+from flim.core.paths import unique_run_folder  # noqa: F401  (also used from here)
 from flim.results import clean_path_component, save_results
 
 logger = logging.getLogger(__name__)
@@ -688,35 +689,6 @@ def _flow_body():
         _CURRENT_RUN.reset(token)
     if run.cancel_token.is_set():
         return Cancelled(message="Cancelled by the user")
-
-
-def unique_run_folder(parent: str | os.PathLike, name: str) -> Path:
-    """Create a run's results folder that no other run uses.
-
-    The folder is created exclusively, so two runs started in the same second (e.g.
-    parallel flimbatch jobs with the same output folder) get different folders:
-    `name`, else `name-2`, `name-3`, ...
-
-    Args:
-        parent: The folder to create it in; created if it does not exist.
-        name: The folder's name, e.g. the run's start time.
-
-    Returns:
-        The created folder.
-
-    Raises:
-        OSError: If the folder cannot be created.
-    """
-    parent = Path(parent)
-    parent.mkdir(parents=True, exist_ok=True)
-    number = 1
-    while True:
-        folder = parent / (name if number == 1 else f"{name}-{number}")
-        try:
-            folder.mkdir()
-            return folder
-        except FileExistsError:
-            number += 1
 
 
 def run_flow(

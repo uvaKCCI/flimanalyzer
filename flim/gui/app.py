@@ -120,9 +120,21 @@ class FLIMAnalyzerApp(wx.App):
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
         set_display_name("FLIMAnalyzer")
+        # logout and shutdown: the same question as quitting, where the system lets
+        # the session's end wait
+        self.Bind(wx.EVT_QUERY_END_SESSION, self.OnQueryEndSession)
         if self.flimanalyzer is not None:
             self.start()
         return True
+
+    def OnQueryEndSession(self, event):
+        """Ask about unsaved windows before the session ends (AppFrame.confirm_quit);
+        veto the end if the user cancels and the system allows it."""
+        frame = getattr(self, "frame", None)
+        if frame and event.CanVeto() and not frame.confirm_quit():
+            event.Veto()
+            return
+        event.Skip()
 
     def start(self, flimanalyzer=None, settings_manager=None, files=None):
         """Open the main window, and the data files given at startup.
@@ -204,6 +216,7 @@ class AppFrame(wx.Frame):
         self.windowframes = {}  # item ID -> its window
         self.window_zorder = []  # item IDs of the table windows, the current one last
         self._menu_items = {}  # item ID -> the ID of its Window menu entry
+        self._save_all_dir = None  # the folder last used by Save All Windows...
 
         version = __version__
         super(AppFrame, self).__init__(
@@ -237,6 +250,9 @@ class AppFrame(wx.Frame):
         importmenuitem = filemenu.Append(
             wx.ID_ANY, "Import...", "Import and concatenate mutliple data files"
         )
+        saveallitem = filemenu.Append(
+            wx.ID_ANY, "Save All Windows...", "Save all open tables and plots"
+        )
         filemenu.AppendSeparator()
         loadsettingsitem = filemenu.Append(
             wx.ID_ANY, "Import Settings...", "Use the settings in a settings file"
@@ -268,6 +284,7 @@ class AppFrame(wx.Frame):
         self.SetMenuBar(menubar)
         self.Bind(wx.EVT_MENU, self.OnLoadData, loadmenuitem)
         self.Bind(wx.EVT_MENU, self.OnImportData, importmenuitem)
+        self.Bind(wx.EVT_MENU, lambda e: self.save_all_windows(), saveallitem)
         self.Bind(wx.EVT_MENU, self.OnExit, exitmenuitem)
         # every way of quitting (File > Exit, the close button, Cmd-Q) closes this window
         self.Bind(wx.EVT_CLOSE, self.OnCloseApp)
@@ -1004,27 +1021,124 @@ class AppFrame(wx.Frame):
         ]
 
     def OnCloseApp(self, event):
-        """Asks before quitting with unsaved data windows (if the close event can be
+        """Asks before quitting with unsaved windows (if the close event can be
         vetoed), because closing the main window destroys them without their own save
-        question. Vetoes the close unless the user confirms."""
-        unsaved = self.unsaved_windows()
-        if unsaved and event.CanVeto():
-            shown = "\n".join(unsaved[:10]) + ("\n..." if len(unsaved) > 10 else "")
-            plural = "s have" if len(unsaved) > 1 else " has"
-            dlg = wx.MessageDialog(
-                self,
-                f"{len(unsaved)} window{plural} unsaved results:\n\n{shown}\n\n"
-                "Quit anyway? The unsaved results are lost.",
-                "Quit FLIMAnalyzer",
-                style=wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING,
-            )
-            dlg.SetYesNoLabels("Quit", "Cancel")
-            answer = dlg.ShowModal()
-            dlg.Destroy()
-            if answer != wx.ID_YES:
-                event.Veto()
-                return
+        question. Vetoes the close unless the user chooses how to quit."""
+        if event.CanVeto() and not self.confirm_quit():
+            event.Veto()
+            return
         event.Skip()
+
+    def unsaved_items(self) -> list:
+        """Return the open windows with unsaved changes that ask to be saved, as
+        (window, title) pairs: tables that ask when closed, and plots."""
+        unsaved = []
+        for item_id, window in self.windowframes.items():
+            if not window or not window.modified:
+                continue
+            if isinstance(window, PandasFrame) and not window.savemodied:
+                continue
+            unsaved.append((window, self.data_manager.get(item_id).title))
+        return unsaved
+
+    def confirm_quit(self) -> bool:
+        """Ask what to do with unsaved windows before quitting.
+
+        Cancel keeps FLIMAnalyzer open; Review... asks window by window (Save, Don't
+        Save, Cancel); Save All Windows... saves them all (save_all_windows); Discard
+        All quits without saving.
+
+        Returns:
+            Whether to quit.
+        """
+        from flim.gui.saveall import CANCEL, DISCARD, REVIEW, ask_quit, ask_review
+
+        unsaved = self.unsaved_items()
+        if not unsaved:
+            return True
+        choice = ask_quit(self, [title for _, title in unsaved])
+        if choice == CANCEL:
+            return False
+        if choice == DISCARD:
+            return True
+        if choice == REVIEW:
+            for window, title in unsaved:
+                window.Raise()
+                answer = ask_review(self, title)
+                if answer == CANCEL:
+                    return False
+                if answer == "save" and not self.save_window(window, title):
+                    return False  # cancelled or failed: stay open
+            return True
+        return self.save_all_windows(quitting=True)
+
+    def save_window(self, window, title) -> bool:
+        """Save one window as its own save button does (a table with all its rows);
+        mark it saved. Returns whether it was saved."""
+        from flim.gui.dialogs import save_dataframe, save_figure
+
+        if isinstance(window, PandasFrame):
+            path = save_dataframe(
+                window, f"Save {title}", window.data, title, saveindex=window.showcolindex
+            )
+        else:
+            path = save_figure(window, f"Save {title}", window.figure, title)
+        if path:
+            window.modified = False
+        return bool(path)
+
+    def save_all_windows(self, quitting: bool = False) -> bool:
+        """File > Save All Windows...: save every open table (all rows) and plot into
+        a new subfolder of a folder, in the formats chosen; mark them saved.
+
+        The folder is the one last used for this in the session, else the app's
+        results folder; choosing it does not change the results folder.
+
+        Args:
+            quitting: Called when quitting: no message if there are no windows.
+
+        Returns:
+            Whether every window was saved (True if there are none).
+        """
+        from flim.core.saving import save_all
+        from flim.core.types import DataType
+        from flim.gui.saveall import ask_save_all
+
+        windows = [
+            (window, self.data_manager.get(item_id).title)
+            for item_id, window in self.windowframes.items()
+            if window
+        ]
+        if not windows:
+            if not quitting:
+                wx.MessageBox("There are no windows to save.", "Save All Windows", wx.OK)
+            return True
+        values = [w.data if isinstance(w, PandasFrame) else w.figure for w, _ in windows]
+        kinds = []
+        for value in values:
+            data_type = DataType.of(value)
+            if data_type and data_type.save_options and data_type.kind not in kinds:
+                kinds.append(data_type.kind)
+        folder = self._save_all_dir or self.settings.resolved_results_dir()
+        answer = ask_save_all(self, folder, kinds)
+        if answer is None:
+            return False
+        folder, formats = answer
+        self._save_all_dir = folder
+        target, saved, failed = save_all(
+            [(title, value) for (_, title), value in zip(windows, values)], folder, formats
+        )
+        saved_titles = {title for title, _ in saved}
+        for window, title in windows:
+            if title in saved_titles:
+                window.modified = False
+        message = f"Saved {len(saved)} window(s) in {target}."
+        if failed:
+            message += "\n\nNot saved:\n" + "\n".join(f"{t}: {e}" for t, e in failed)
+        wx.MessageBox(
+            message, "Save All Windows", wx.OK | (wx.ICON_WARNING if failed else 0)
+        )
+        return not failed
 
     def OnDocumentation(self, event):
         wx.LaunchDefaultBrowser(docs_url())

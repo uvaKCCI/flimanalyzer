@@ -8,6 +8,7 @@ map the share to another letter.
 """
 
 import os
+from pathlib import Path
 from typing import Optional
 
 
@@ -64,3 +65,32 @@ def shorten_path(path: str, max_length: int = 50) -> str:
             break
         tail.insert(0, part)
     return sep.join(head + ["..."] + tail)
+
+
+def unique_run_folder(parent: str | os.PathLike, name: str) -> Path:
+    """Create a run's results folder that no other run uses.
+
+    The folder is created exclusively, so two runs started in the same second (e.g.
+    parallel flimbatch jobs with the same output folder) get different folders:
+    `name`, else `name-2`, `name-3`, ...
+
+    Args:
+        parent: The folder to create it in; created if it does not exist.
+        name: The folder's name, e.g. the run's start time.
+
+    Returns:
+        The created folder.
+
+    Raises:
+        OSError: If the folder cannot be created.
+    """
+    parent = Path(parent)
+    parent.mkdir(parents=True, exist_ok=True)
+    number = 1
+    while True:
+        folder = parent / (name if number == 1 else f"{name}-{number}")
+        try:
+            folder.mkdir()
+            return folder
+        except FileExistsError:
+            number += 1

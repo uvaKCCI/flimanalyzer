@@ -5,9 +5,16 @@ The tool panel, the main window of FLIMAnalyzer, has a group of icons for each m
 ## File
 
 * `Open...` and `Import...` load data files. See [Loading Data](/userguide/data/load).
+* `Save All Windows...` saves all open tables and plots at once. See [Saving all windows](/userguide/data/save.md#saving-all-windows).
 * `Import Settings...` and `Export Settings...` load and save all settings: the import settings, the range filters and the settings of each tool. See [Settings](/userguide/settings).
 * `Settings...` shows the app settings of this session: the results folder, the executor, the Prefect server, the log folder and how workflows handle missing columns. For each, it shows where its value comes from and how to change it. On macOS it is in the `FLIMAnalyzer` menu. See [Viewing the app settings](/userguide/settings.md#viewing-the-app-settings).
-* `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q). If table windows have unsaved results, FLIMAnalyzer lists them and asks first: `Quit` closes it and the unsaved results are lost, `Cancel` keeps everything open. Plot windows are not checked.
+* `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q). If table or plot windows have unsaved results, FLIMAnalyzer lists them and asks first, also when you log out or shut down the computer (where the system lets it ask):
+  * `Cancel` keeps everything open.
+  * `Review...` goes through the windows one by one: `Save`, `Don't Save`, or `Cancel`, which stops quitting.
+  * `Save All Windows...` saves them all (see [Saving all windows](/userguide/data/save.md#saving-all-windows)), then quits; if you cancel it, or a window can't be saved, FLIMAnalyzer stays open.
+  * `Discard All` quits, and the unsaved results are lost.
+
+  A table you opened from a file, and results that a tool saved when it ran, count as saved until you change them. Plots count as changed after you edit an axis, a label or a line.
 
 ## Data
 

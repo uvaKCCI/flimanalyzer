@@ -178,3 +178,22 @@ def test_format_fields_round_trip():
     assert errors == {} and PlotSaveOptions(dpi=150) in formats
     _, errors = saving.formats_from_values({"table_formats": [], "plot_formats": ["png"]}, kinds)
     assert errors == {"table_formats": "Choose at least one format"}
+
+
+def test_unique_file_names():
+    names = saving.unique_file_names(["Table: R", "Table/R", "cells", "Cells", "x"])
+    assert names == ["Table_R", "Table_R-2", "cells", "Cells-2", "x"]
+
+
+def test_save_all_into_a_new_subfolder(tmp_path, table, figure):
+    first, saved, failed = saving.save_all(
+        [("Table: R", table), ("Plot: P", figure), ("other", object())],
+        tmp_path,
+        [TableSaveOptions(format="csv")],
+    )
+    assert first.parent == tmp_path and first.name[:4].isdigit()
+    assert sorted(p.name for p in first.iterdir()) == ["Plot_P.png", "Table_R.csv"]
+    assert [t for t, _ in saved] == ["Table: R", "Plot: P"]
+    assert [t for t, _ in failed] == ["other"]
+    second, _, _ = saving.save_all([("Table: R", table)], tmp_path)
+    assert second != first  # never into an earlier folder

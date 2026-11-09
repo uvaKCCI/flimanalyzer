@@ -300,3 +300,66 @@ def formats_from_values(values: dict, kinds) -> tuple[list[SaveOptions], dict[st
             except Exception as err:  # e.g. a resolution below 1
                 errors[f"{kind}_formats"] = str(err)
     return formats, errors
+
+
+# --- saving several values at once (File > Save All Windows...) ---
+
+
+def unique_file_names(titles) -> list[str]:
+    """Return file names (without endings) for titles, unique within the list.
+
+    Titles are cleaned for file names (flim.results.clean_path_component) and
+    compared ignoring case, as macOS and Windows do; a later duplicate gets `-2`, `-3`,
+    ... added.
+
+    Args:
+        titles: The titles, e.g. of the open windows.
+    """
+    from flim.results import clean_path_component
+
+    names, taken = [], set()
+    for title in titles:
+        base = clean_path_component(title) or "untitled"
+        name, number = base, 2
+        while name.lower() in taken:
+            name = f"{base}-{number}"
+            number += 1
+        taken.add(name.lower())
+        names.append(name)
+    return names
+
+
+def save_all(entries, folder, formats=()) -> tuple[Path, list, list]:
+    """Save several values into a new subfolder, never overwriting a file.
+
+    The subfolder is named after the date and time, made unique as run folders are
+    (flim.core.paths.unique_run_folder).
+
+    Args:
+        entries: (title, value) pairs, e.g. the open windows' tables and figures.
+        folder: The folder to create the subfolder in.
+        formats: The formats (`AutosaveConfig.formats`); defaults per kind.
+
+    Returns:
+        The subfolder; the saved entries as (title, files); the failed ones as
+        (title, error message), also values that no data type can save.
+    """
+    import datetime
+
+    from flim.core.paths import unique_run_folder
+
+    entries = list(entries)
+    target = unique_run_folder(folder, datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+    saved, failed = [], []
+    for (title, value), name in zip(entries, unique_file_names(t for t, _ in entries)):
+        try:
+            files = save_value(value, target / name, list(formats))
+        except Exception as err:
+            logger.exception(f"Could not save {title}")
+            failed.append((title, str(err)))
+            continue
+        if files:
+            saved.append((title, files))
+        else:
+            failed.append((title, "this kind of result cannot be saved as a file"))
+    return target, saved, failed
