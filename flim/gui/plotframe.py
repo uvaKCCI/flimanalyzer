@@ -37,10 +37,26 @@ class PlotToolbar(NavigationToolbar2WxAgg):
         from flim.gui.dialogs import save_figure
 
         window = self.canvas.GetTopLevelParent()
-        return save_figure(window, "Save Plot", self.canvas.figure, window.GetTitle())
+        path = save_figure(window, "Save Plot", self.canvas.figure, window.GetTitle())
+        if path and isinstance(window, PlotFrame):
+            window.modified = False  # saved
+        return path
 
 
 class PlotFrame(wx.Frame):
+    @property
+    def modified(self) -> bool:
+        """Whether the plot has changes not saved to a file; reported to the window's
+        `on_modified` callback (set when the window is registered) when set."""
+        return getattr(self, "_modified", True)
+
+    @modified.setter
+    def modified(self, value) -> None:
+        self._modified = bool(value)
+        callback = getattr(self, "on_modified", None)
+        if callback is not None:
+            callback(self._modified)
+
     """Top-level window with a figure canvas and the matplotlib navigation toolbar.
 
     Args:

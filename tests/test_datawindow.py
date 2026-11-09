@@ -18,7 +18,7 @@ def frame(wxapp, monkeypatch):
     monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)
     frame = AppFrame(FLIMAnalyzer())
     yield frame
-    for window in frame.windowframes.values():
+    for window in frame.windows_by_title().values():
         if hasattr(window, "modified"):
             window.modified = False
     frame.OnCloseAll(None)
@@ -31,7 +31,7 @@ def _open(frame, data, title="Data"):
     event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
     event.SetEventInfo(data, title, "createnew", modified=False)
     frame.GetEventHandler().ProcessEvent(event)
-    return frame.windowframes[title]
+    return frame.windows_by_title()[title]
 
 
 def _answer_group_dialogs(monkeypatch, *answers):
@@ -55,13 +55,13 @@ def _set_import_files(frame, files):
 
 
 def _new_windows(frame, before):
-    return {t: w for t, w in frame.windowframes.items() if t not in before}
+    return {t: w for t, w in frame.windows_by_title().items() if t not in before}
 
 
 def test_pivot(frame, monkeypatch, flim_data):
     window = _open(frame, flim_data)
     _answer_group_dialogs(monkeypatch, ["Treatment"], [FEATURE])
-    before = set(frame.windowframes)
+    before = set(frame.windows_by_title())
     window.pivot_(window.GetViewData())
     (pivoted,) = _new_windows(frame, before).values()
     table = pivoted.GetViewData()
@@ -99,7 +99,7 @@ def test_save_renames_the_window(frame, monkeypatch, tmp_path, flim_data, button
     saved = pd.read_table(path)
     assert len(saved) == len(flim_data) and FEATURE in saved.columns
     assert not window.is_modified()
-    assert "saved.txt" in frame.windowframes  # renamed after the file
+    assert "saved.txt" in frame.windows_by_title()  # renamed after the file
 
 
 def test_saving_keeps_the_window_columns(frame, monkeypatch, tmp_path, flim_data):
@@ -165,7 +165,7 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
         files.append(str(path))
     _set_import_files(frame, files)
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    before = set(frame.windowframes)
+    before = set(frame.windows_by_title())
     frame.OnImportData(None)
     (title, window), = _new_windows(frame, before).items()
     assert title == "Imported Data"
@@ -179,7 +179,7 @@ def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
-    before = set(frame.windowframes)
+    before = set(frame.windows_by_title())
     frame.OnImportData(None)
     assert _new_windows(frame, before) == {} and messages
 
@@ -193,13 +193,13 @@ def test_open_file_of_an_open_windows_name_opens_a_new_window(frame, tmp_path):
     pd.DataFrame({"x": [1.0, 2.0, 3.0]}).to_csv(tmp_path / "a" / "data.txt", sep="\t", index=False)
     pd.DataFrame({"x": [9.0]}).to_csv(tmp_path / "b" / "data.txt", sep="\t", index=False)
     assert frame.open_data_files([str(tmp_path / "a" / "data.txt")]) == "data.txt"
-    first = frame.windowframes["data.txt"]
+    first = frame.windows_by_title()["data.txt"]
     first.modified = True  # changed, not saved
 
     assert frame.open_data_files([str(tmp_path / "b" / "data.txt")]) == "data.txt-1"
-    assert frame.windowframes["data.txt"] is first
+    assert frame.windows_by_title()["data.txt"] is first
     assert len(first.GetViewData()) == 3 and first.is_modified()
-    assert len(frame.windowframes["data.txt-1"].GetViewData()) == 1
+    assert len(frame.windows_by_title()["data.txt-1"].GetViewData()) == 1
     first.modified = False
 
 
@@ -214,11 +214,11 @@ def test_import_again_opens_a_new_window(frame, monkeypatch, tmp_path, flim_data
     monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
     _set_import_files(frame, files)
     frame.OnImportData(None)
-    first = frame.windowframes["Imported Data"]
+    first = frame.windows_by_title()["Imported Data"]
     first.modified = True  # changed, not saved
     frame.OnImportData(None)  # the same files again
-    assert frame.windowframes["Imported Data"] is first and first.is_modified()
-    assert len(frame.windowframes["Imported Data-1"].GetViewData()) == 25
+    assert frame.windows_by_title()["Imported Data"] is first and first.is_modified()
+    assert len(frame.windows_by_title()["Imported Data-1"].GetViewData()) == 25
 
 
 def test_filter_changes_reach_the_user_settings_file(wxapp, monkeypatch, tmp_path, flim_data):
@@ -330,3 +330,91 @@ def test_comma_in_a_header_warns_with_csv(frame, monkeypatch, tmp_path, flim_dat
     assert save_dataframe(window, "Save", window.data, "cells.txt") is None  # not saved
     assert "t1, ns: contains a comma" in warned[0]
     assert not (tmp_path / "cells.csv").exists()
+
+
+# --- the windows as views of the DataManager's items ---
+
+
+def test_windows_are_items_of_the_data_manager(frame, flim_data):
+    from flim.core.types import TableType
+
+    window = _open(frame, flim_data, "cells")
+    item = frame.data_manager.get(window.item_id)
+    assert item.title == "cells" and item.data_type is TableType and item.open
+    assert not item.modified
+    window.modified = True  # an edit in the window
+    assert frame.data_manager.get(window.item_id).modified
+    window.modified = False
+    window.Close()
+    closed = frame.data_manager.get(window.item_id)
+    assert not closed.open and frame.windows_by_title() == {}
+
+
+def test_a_renamed_window_keeps_its_item(frame, monkeypatch, tmp_path, flim_data):
+    window = _open(frame, flim_data, "cells")
+    _answer_file_dialog(monkeypatch, tmp_path / "saved.txt")
+    window.OnSave(type("E", (), {"GetEventObject": lambda self: type(
+        "B", (), {"GetLabel": lambda self: "Save All"})()})())
+    item = frame.data_manager.get(window.item_id)
+    assert item.title == "saved.txt" and not item.modified
+    assert frame.windows_by_title()["saved.txt"] is window
+    menu = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
+    assert "saved.txt" in menu and "cells" not in menu
+
+
+def test_runs_get_copies_of_the_tables(frame, flim_data):
+    window = _open(frame, flim_data, "cells")
+    (copy,) = frame.tool_data_choices().values()
+    window.data.iloc[0, window.data.columns.get_loc(FEATURE)] = -1.0  # an edit later
+    assert copy[FEATURE].iloc[0] != -1.0
+
+
+def test_plot_windows_track_their_modified_state(frame, monkeypatch, tmp_path):
+    import matplotlib.figure
+
+    figure = matplotlib.figure.Figure(figsize=(2, 1))
+    figure.add_subplot().plot([0, 1], [0, 1])
+    window = frame.open_plot(figure, "Box Plot", modified=True)
+    assert frame.data_manager.get(window.item_id).modified
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "plot"))
+    monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: 0)
+    window.toolbar.save_figure()  # saved: no longer modified
+    assert not frame.data_manager.get(window.item_id).modified
+    frame._plot_edited(figure)  # e.g. a new axis label
+    assert frame.data_manager.get(window.item_id).modified
+    window.modified = False
+    window.Close()
+    assert not frame.data_manager.get(window.item_id).open
+
+
+def test_results_of_a_saved_run_open_as_saved(frame, flim_data, tmp_path):
+    import matplotlib.figure
+
+    class Run:  # stands in for a FlowRun
+        def __init__(self, autosave_dir):
+            self.autosave_dir = autosave_dir
+
+        def results(self):
+            return [{"Table: R": flim_data, "Plot: P": matplotlib.figure.Figure()}]
+
+    frame.show_results(Run(tmp_path))
+    saved = [frame.data_manager.find(t) for t in ("Table: R", "Plot: P")]
+    assert [i.modified for i in saved] == [False, False]
+    frame.show_results(Run(None))
+    unsaved = [frame.data_manager.find(t) for t in ("Table: R-1", "Plot: P-1")]
+    assert [i.modified for i in unsaved] == [True, True]
+
+
+
+def test_focus_makes_a_window_the_current_one(frame, flim_data):
+    from pubsub import pub
+
+    from flim.gui.events import FOCUSED_DATA_WINDOW
+
+    first = _open(frame, flim_data, "first")
+    second = _open(frame, flim_data, "second")
+    assert frame.get_currentdata()[0] == "second"
+    pub.sendMessage(FOCUSED_DATA_WINDOW, data=first.dataview, frame=first)
+    assert frame.get_currentdata()[0] == "first"
+    assert frame.window_zorder == [second.item_id, first.item_id]

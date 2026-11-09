@@ -42,6 +42,14 @@ class DataType:
         raise NotImplementedError(f"{cls.pretty_name} values cannot be saved as files")
 
     @classmethod
+    def snapshot(cls, value: Any) -> Any:
+        """Return a value for a run that later edits of `value` do not change.
+
+        The default returns `value` itself, for values that are not edited in place.
+        """
+        return value
+
+    @classmethod
     def python_classes(cls) -> tuple[type, ...]:
         """The accepted classes whose top-level package is already imported.
 
@@ -83,6 +91,11 @@ class TableType(DataType):
     pytypes = ("pandas.DataFrame", "pandas.Series")
     kind = "table"
     save_options = TableSaveOptions
+
+    @classmethod
+    def snapshot(cls, value):
+        """A copy: a table window can change its table while a run reads it."""
+        return value.copy(deep=True)
 
     @classmethod
     def save(cls, value, base, options: TableSaveOptions) -> Path:

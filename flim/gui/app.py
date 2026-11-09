@@ -23,7 +23,9 @@ import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
+from flim.core.datamgr import DataManager
 from flim.core.saving import AutosaveConfig
+from flim.core.types import TableType
 from flim.core.settings import AppSettings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
 from flim.core.preprocessor import defaultpreprocessor
@@ -51,11 +53,9 @@ from flim.gui.events import (
 )
 from flim.gui.events import (
     FOCUSED_DATA_WINDOW,
-    NEW_DATA_WINDOW,
     CLOSING_DATA_WINDOW,
     REQUEST_RENAME_DATA_WINDOW,
     RENAMED_DATA_WINDOW,
-    DATA_IMPORTED,
 )
 from flim.gui.importdlg import ImportDlg
 from flim.gui.listcontrol import EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
@@ -199,8 +199,11 @@ class AppFrame(wx.Frame):
         # the filter settings shared by the data windows; changes are reported to the
         # settings manager (report_filters)
         self.filters = self.settings.filters
-        self.windowframes = {}
-        self.window_zorder = []
+        # the items the windows show (tables, plots): the windows are views of them
+        self.data_manager = DataManager()
+        self.windowframes = {}  # item ID -> its window
+        self.window_zorder = []  # item IDs of the table windows, the current one last
+        self._menu_items = {}  # item ID -> the ID of its Window menu entry
 
         version = __version__
         super(AppFrame, self).__init__(
@@ -374,10 +377,17 @@ class AppFrame(wx.Frame):
                 return title, window
         return
 
+    def _own_item(self, frame):
+        """Return the item ID of one of this frame's windows, or None (pubsub also
+        delivers the messages of other frames' windows)."""
+        item_id = getattr(frame, "item_id", None)
+        return item_id if self.windowframes.get(item_id) is frame else None
+
     def OnDataWindowFocused(self, data, frame):
-        title = frame.GetTitle()
-        self.window_zorder = [w for w in self.window_zorder if w != title]
-        self.window_zorder.append(title)
+        item_id = self._own_item(frame)
+        if item_id is not None:
+            self.window_zorder = [i for i in self.window_zorder if i != item_id]
+            self.window_zorder.append(item_id)
 
     @property
     def settings(self) -> AppSettings:
@@ -428,7 +438,6 @@ class AppFrame(wx.Frame):
         if not filenames:
             return None
 
-        pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
         windowtitle = os.path.basename(filenames[0])
         if len(filenames) != 1:
             windowtitle = "Imported Data"
@@ -488,7 +497,6 @@ class AppFrame(wx.Frame):
                 wx.MessageBox("None of the files could be read.", "Import", wx.OK | wx.ICON_WARNING)
                 return
 
-            # pub.sendMessage(DATA_IMPORTED, olddata=None, data=data)
             windowtitle = os.path.basename(filenames[0])
             if len(filenames) != 1:
                 windowtitle = "Imported Data"
@@ -589,18 +597,18 @@ class AppFrame(wx.Frame):
         return self.settings_manager.add_to_search_path(folder)
 
     def get_currentdata(self):
+        """Return the title and the shown table of the current table window, or
+        (None, None)."""
         if len(self.window_zorder) == 0:
             return None, None
-        title = self.window_zorder[-1]
-        dataview = self.windowframes[title].GetViewData()
-        return title, dataview
+        item_id = self.window_zorder[-1]
+        return self.data_manager.get(item_id).title, self.windowframes[item_id].GetViewData()
 
     def get_alldata(self):
-        if len(self.window_zorder) == 0:
-            return {}
+        """Return the shown tables of the table windows, by title."""
         return {
-            title: frame.GetViewData()
-            for title, frame in self.windowframes.items()
+            self.data_manager.get(item_id).title: frame.GetViewData()
+            for item_id, frame in self.windowframes.items()
             if isinstance(frame, PandasFrame)
         }
 
@@ -613,11 +621,12 @@ class AppFrame(wx.Frame):
 
     def tool_data_choices(self):
         """The tables of the open data windows by window title, the current one
-        first."""
+        first. Each is a copy (TableType.snapshot): a run in its worker thread reads
+        tables that later edits in the windows don't change."""
         title, currentdata = self.get_currentdata()
         data_choices = {title: currentdata} if title else {}
         data_choices.update(self.get_alldata())
-        return data_choices
+        return {name: TableType.snapshot(table) for name, table in data_choices.items()}
 
     def run_tool(self, tool):
         """Configures a tool in its dialog and runs it on the selected tables.
@@ -732,19 +741,21 @@ class AppFrame(wx.Frame):
         self.GetEventHandler().ProcessEvent(event)
 
     def show_results(self, flow_run):
-        """Opens a window for each table and figure the run produced."""
+        """Opens a window for each table and figure the run produced. Results the run
+        saved (autosave) open as saved, the others as modified."""
+        saved = flow_run.autosave_dir is not None
         for results in flow_run.results():
             if not isinstance(results, dict):
                 continue
             for title, result in results.items():
                 if isinstance(result, pd.DataFrame):
                     event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-                    event.SetEventInfo(result, title, "createnew", showcolindex=False)
+                    event.SetEventInfo(
+                        result, title, "createnew", showcolindex=False, modified=not saved
+                    )
                     self.GetEventHandler().ProcessEvent(event)
                 elif isinstance(result, matplotlib.figure.Figure):
-                    event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
-                    event.SetEventInfo(result, title, "createnew")
-                    self.GetEventHandler().ProcessEvent(event)
+                    self.open_plot(result, title, modified=not saved)
 
     def run_with_progress(self, title, start_run):
         """Runs a flow behind a modal progress dialog with a Cancel button.
@@ -783,41 +794,52 @@ class AppFrame(wx.Frame):
     def _on_hover(self, event):
         print(event)
 
-    def append_window_to_menu(self, title, window):
-        self.windowframes[title] = window
-        mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
-        if isinstance(window, PandasFrame):
-            self.window_zorder = [w for w in self.window_zorder if w != title]
-            self.window_zorder.append(title)
-        logger.debug(f"append window {self.window_zorder}")
-        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
+    def register_window(self, window, value, title, modified=False, source=None):
+        """Add a window's value as an item of the DataManager and list the window in
+        the Window menu.
 
-    def remove_window_from_menu(self, title):
-        for mitem in self.windowmenu.GetMenuItems():
-            if mitem.GetItemLabelText() == title:
-                self.windowmenu.Remove(mitem.GetId())
-                window = self.windowframes[title]
-                del self.windowframes[title]
-                if isinstance(window, PandasFrame):
-                    title = window.GetTitle()
-                    self.window_zorder = [w for w in self.window_zorder if w != title]
-                logger.debug(f"remove window {self.window_zorder}")
-                return True
-        return False
+        The window's title becomes the item's (unique) title; the window reports its
+        modified state through its `on_modified` callback.
+
+        Args:
+            window: The table or plot window.
+            value: Its table or figure.
+            title: The wanted title.
+            modified: Whether the value has changes not saved to a file.
+            source: Where it came from, e.g. a file path.
+
+        Returns:
+            The item.
+        """
+        item = self.data_manager.add(value, title, modified=modified, source=source)
+        window.item_id = item.id
+        window.SetTitle(item.title)
+        window.on_modified = lambda m, i=item.id: self.data_manager.set_modified(i, m)
+        self.windowframes[item.id] = window
+        mitem = self.windowmenu.Append(wx.Window.NewControlId(), item.title)
+        self._menu_items[item.id] = mitem.GetId()
+        if isinstance(window, PandasFrame):
+            self.window_zorder.append(item.id)
+        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
+        return item
+
+    def remove_window(self, item_id) -> bool:
+        """Remove a closing window from the Window menu and close its item."""
+        if item_id not in self.windowframes:
+            return False
+        del self.windowframes[item_id]
+        menu_id = self._menu_items.pop(item_id, None)
+        if menu_id is not None:
+            self.windowmenu.Remove(menu_id)
+        self.window_zorder = [i for i in self.window_zorder if i != item_id]
+        self.data_manager.close(item_id)
+        return True
 
     def OnDataWindowRequest(self, event):
         data = event.GetData()
         action = event.GetAction()
         title = event.GetTitle()
         logger.debug(f"{title}: {action}")
-        if action == "update":
-            frame = self.windowframes.get(title)
-            if frame:
-                frame = self.windowframes[title]
-                frame.SetData(data)
-                frame.set_modified(event.IsModified())
-            else:
-                action = "createnew"
         if action == "createnew":
             title = self.unique_window_title(title)
             frame = PandasFrame(
@@ -834,26 +856,23 @@ class AppFrame(wx.Frame):
             )
             frame.set_modified(event.IsModified())
             frame.Show(True)
-            self.append_window_to_menu(title, frame)
-            pub.sendMessage(NEW_DATA_WINDOW, data=data, frame=frame)
+            self.register_window(frame, data, title, modified=event.IsModified())
 
     def OnRequestRenameDataWindow(self, original, new, frame):
-        title = self.unique_window_title(new)
-        self.window_zorder = [title if t == original else t for t in self.window_zorder]
-        for mitem in self.windowmenu.GetMenuItems():
-            if mitem.GetItemLabelText() == original:
-                mitem.SetItemLabel(title)
-                del self.windowframes[original]
-                self.windowframes[title] = frame
-                pub.sendMessage(
-                    RENAMED_DATA_WINDOW, original=original, new=title, frame=frame
-                )
-                return
+        item_id = self._own_item(frame)
+        if item_id is None:
+            return
+        item = self.data_manager.rename(item_id, new)
+        menu_id = self._menu_items.get(item.id)
+        if menu_id is not None:
+            self.windowmenu.FindItemById(menu_id).SetItemLabel(item.title)
+        pub.sendMessage(RENAMED_DATA_WINDOW, original=original, new=item.title, frame=frame)
 
     def OnClosingDataWindow(self, data, frame):
-        title = frame.GetLabel()
-        logger.debug(f"{title}")
-        self.remove_window_from_menu(title)
+        logger.debug(f"{frame.GetLabel()}")
+        item_id = self._own_item(frame)
+        if item_id is not None:
+            self.remove_window(item_id)
 
     def OnPick(self, event):
         if not event.mouseevent.dblclick:
@@ -877,6 +896,7 @@ class AppFrame(wx.Frame):
                     event.artist.set_label_text(newsettings["label"], picker=True)
                     ax.set_ylim(newsettings["min"], newsettings["max"])
                     fig.canvas.draw_idle()
+                    self._plot_edited(fig)
             elif isinstance(event.artist, matplotlib.axis.XAxis):
                 dlg = ConfigureAxisDlg(
                     self,
@@ -893,12 +913,14 @@ class AppFrame(wx.Frame):
                     event.artist.set_label_text(newsettings["label"], picker=True)
                     ax.set_xlim(newsettings["min"], newsettings["max"])
                     fig.canvas.draw_idle()
+                    self._plot_edited(fig)
             elif isinstance(event.artist, matplotlib.text.Text):
                 dlg = wx.TextEntryDialog(self, "Label", "Update Label")
                 dlg.SetValue(event.artist.get_text())
                 if dlg.ShowModal() == wx.ID_OK:
                     event.artist.set_text(dlg.GetValue())
                     fig.canvas.draw_idle()
+                    self._plot_edited(fig)
                 dlg.Destroy()
             elif isinstance(event.artist, matplotlib.lines.Line2D):
                 data = wx.ColourData()
@@ -911,40 +933,55 @@ class AppFrame(wx.Frame):
                     )
                     event.artist.set_alpha(color.Alpha() / 255)
                     fig.canvas.draw_idle()
+                    self._plot_edited(fig)
                 dlg.Destroy()
 
+    def _plot_edited(self, figure) -> None:
+        """Mark the plot window of a figure as modified after an edit in it."""
+        for window in self.windowframes.values():
+            if isinstance(window, PlotFrame) and window.figure is figure:
+                window.modified = True
+
     def OnPlotWindowRequest(self, event):
-        figure = event.GetFigure()
-        title = self.unique_window_title(event.GetTitle())
-        action = event.GetAction()
-        logger.debug(f"{title}: {action}")
-        if action == "createnew":
-            frame = PlotFrame(self, figure, title)
-            frame.Bind(wx.EVT_CLOSE, self.OnClosingPlotWindow)
-            figure.canvas.mpl_connect("pick_event", self.OnPick)
-            self.append_window_to_menu(title, frame)
-            frame.Show()
+        if event.GetAction() == "createnew":
+            self.open_plot(event.GetFigure(), event.GetTitle(), modified=True)
+
+    def open_plot(self, figure, title, modified=True):
+        """Open a figure in a plot window, as an item of the DataManager.
+
+        Args:
+            figure: The figure.
+            title: The wanted title.
+            modified: Whether it has changes not saved to a file.
+
+        Returns:
+            The plot window.
+        """
+        frame = PlotFrame(self, figure, self.unique_window_title(title))
+        frame.Bind(wx.EVT_CLOSE, self.OnClosingPlotWindow)
+        figure.canvas.mpl_connect("pick_event", self.OnPick)
+        self.register_window(frame, figure, title, modified=modified)
+        frame.modified = modified
+        frame.Show()
+        return frame
 
     def OnClosingPlotWindow(self, event):
         logger.debug("appframe.OnClosingPlotWindow")
-        self.remove_window_from_menu(event.GetEventObject().GetTitle())
+        self.remove_window(getattr(event.GetEventObject(), "item_id", None))
         event.Skip()
 
-    def _raise_window(self, title, window):
+    def _raise_window(self, item_id, window):
         if isinstance(window, wx.Frame):
             window.Raise()
-            if isinstance(window, PandasFrame) and self.window_zorder[-1] != title:
-                self.window_zorder = [w for w in self.window_zorder if w != title]
-                self.window_zorder.append(title)
+            if isinstance(window, PandasFrame) and self.window_zorder[-1] != item_id:
+                self.window_zorder = [i for i in self.window_zorder if i != item_id]
+                self.window_zorder.append(item_id)
 
     def OnWindowSelectedInMenu(self, event):
-        itemid = event.GetId()
-        menu = event.GetEventObject()
-        mitem = menu.FindItemById(itemid)
-        if self.windowframes.get(mitem.GetItemLabelText()):
-            wintitle = mitem.GetItemLabelText()
-            window = self.windowframes[wintitle]
-            self._raise_window(wintitle, window)
+        menu_id = event.GetId()
+        item_id = next((i for i, m in self._menu_items.items() if m == menu_id), None)
+        if item_id in self.windowframes:
+            self._raise_window(item_id, self.windowframes[item_id])
         logger.debug(f"select window {self.window_zorder}")
 
     def OnExit(self, event):
@@ -954,8 +991,8 @@ class AppFrame(wx.Frame):
         """Titles of the data windows with unsaved changes that ask to be saved when
         closed."""
         return [
-            title
-            for title, window in self.windowframes.items()
+            self.data_manager.get(item_id).title
+            for item_id, window in self.windowframes.items()
             if isinstance(window, PandasFrame)
             and window
             and window.savemodied
@@ -1006,25 +1043,24 @@ class AppFrame(wx.Frame):
         ]
 
     def unique_window_title(self, title):
-        suffix = None
-        i = 1
-        while title in self.windowframes:
-            if suffix:
-                title = title[: -len(suffix)]
-            suffix = f"-{i}"
-            title = f"{title}{suffix}"
-            i += 1
-        return title
+        """Return a title no open window has (DataManager.unique_title)."""
+        return self.data_manager.unique_title(title)
+
+    def windows_by_title(self) -> dict:
+        """Return the open windows by their items' titles."""
+        return {self.data_manager.get(i).title: w for i, w in self.windowframes.items()}
+
+    def window_titled(self, title):
+        """Return the open window with a title, or None."""
+        item = self.data_manager.find(title)
+        return self.windowframes.get(item.id) if item else None
 
     def OnCloseAll(self, event):
         logger.debug("appframe.OnCloseAll")
-        # a copy of the titles: closing a window removes it from self.windowframes
-        windowtitles = [t for t in self.windowframes]
-        for title in windowtitles:
-            window = self.windowframes[title]
+        # a copy: closing a window removes it from self.windowframes
+        for window in list(self.windowframes.values()):
             if window:
                 window.Close()
-        self.window_zorder = []
 
     def OnImport(self, event):
         logger.debug(f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")

@@ -19,7 +19,6 @@ from flim.gui.events import (
     CLOSING_DATA_WINDOW,
     REQUEST_RENAME_DATA_WINDOW,
     RENAMED_DATA_WINDOW,
-    DATA_UPDATED,
 )
 import flim.gui.dialogs
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureFiltersDlg, RenameGroupsDlg
@@ -198,7 +197,6 @@ class PandasFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.close_and_destroy)
         self.Bind(wx.EVT_ACTIVATE, self.activate)
         pub.subscribe(self.OnDataWindowRenamed, RENAMED_DATA_WINDOW)
-        pub.subscribe(self.OnDataUpdated, DATA_UPDATED)
 
     def activate(self, event):
         if event.GetActive():
@@ -337,6 +335,19 @@ class PandasFrame(wx.Frame):
     def is_analyzable(self):
         return self.analyzable
 
+    @property
+    def modified(self) -> bool:
+        """Whether the table has changes not saved to a file; reported to the window's
+        `on_modified` callback (set when the window is registered) when set."""
+        return getattr(self, "_modified", True)
+
+    @modified.setter
+    def modified(self, value) -> None:
+        self._modified = bool(value)
+        callback = getattr(self, "on_modified", None)
+        if callback is not None:
+            callback(self._modified)
+
     def is_modified(self):
         return self.modified
 
@@ -358,23 +369,9 @@ class PandasFrame(wx.Frame):
         self.modified = True
         self.update_view(showdiscarded=showdiscarded)
 
-    def OnDataUpdated(self, originaldata, newdata):
-        if (
-            originaldata is not None
-            and newdata is not None
-            and self.data.__dict__ == originaldata.__dict__
-        ):
-            logger.debug(f"{self.GetTitle()}")
-            self.SetData(
-                data=newdata,
-                showcolindex=self.showcolindex,
-                analyzable=self.analyzable,
-                savemodified=self.savemodied,
-                precision=self.precision,
-            )
 
     def OnDataWindowRenamed(self, original, new, frame):
-        if original == self.GetTitle() and self.data.shape == frame.data.shape:
+        if frame is self:  # by identity: another window may have had the same title
             self.SetTitle(new)
 
     def OnPrecisionChange(self, event):

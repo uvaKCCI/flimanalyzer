@@ -14,18 +14,10 @@ EVT_PLOT_TYPE = wx.NewEventType()
 EVT_PLOT = wx.PyEventBinder(EVT_PLOT_TYPE, 1)
 
 
-NEW_DATA_WINDOW = "datawindow.new"
 FOCUSED_DATA_WINDOW = "datawindow.focus"
 CLOSING_DATA_WINDOW = "datawindow.closing"
 REQUEST_RENAME_DATA_WINDOW = "datawindow.requestrename"
 RENAMED_DATA_WINDOW = "datawindow.renamed"
-
-NEW_PLOT_WINDOW = "plotwindow.new"
-CLOSING_PLOT_WINDOW = "plotwindow.closing"
-
-DATA_IMPORTED = "data.imported"
-DATA_UPDATED = "data.updated"
-FILTERED_DATA_UPDATED = "filtereddata.updated"
 
 ANALYSIS_BINS_UPDATED = "analysis.bins.updated"
 FILTERS_UPDATED = "filters.updated"

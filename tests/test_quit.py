@@ -37,7 +37,7 @@ def _open_table(frame, title="Table: Summary"):
     event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
     event.SetEventInfo(pd.DataFrame({"x": [1.0, 2.0]}), title, "createnew")
     frame.GetEventHandler().ProcessEvent(event)
-    return frame.windowframes[title]
+    return frame.windows_by_title()[title]
 
 
 def test_cancel_keeps_everything_open(app_frame):

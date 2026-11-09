@@ -72,7 +72,7 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
             event.SetEventInfo(fig, title, "createnew")
             frame.GetEventHandler().ProcessEvent(event)
 
-        plots = {t: w for t, w in frame.windowframes.items() if isinstance(w, PlotFrame)}
+        plots = {t: w for t, w in frame.windows_by_title().items() if isinstance(w, PlotFrame)}
         assert set(plots) == set(sizes), (set(plots), set(sizes))
         # some window managers apply sizes asynchronously: let the resize events run,
         # as the GUI's event loop would
@@ -101,12 +101,12 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
         title, window = next(iter(plots.items()))
         window.Close()
         wx.Yield()
-        assert title not in frame.windowframes
+        assert title not in frame.windows_by_title()
         assert title not in [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
 
         frame.OnCloseAll(None)
         wx.Yield()
-        assert not any(isinstance(w, PlotFrame) for w in frame.windowframes.values())
+        assert not any(isinstance(w, PlotFrame) for w in frame.windows_by_title().values())
     finally:
         frame.Destroy()
 
