@@ -24,10 +24,16 @@ When you choose another table, the dialog lists the columns of that table, for e
 
 At the bottom of the dialog, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in`, then type a folder or click the button next to it to choose one. The folder is created if it doesn't exist yet. By default, it is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)).
 
-The results are saved in a new folder for each run, named after the date and time of the run, for example `2026-11-03_14-05-31`. In it, the results of the tool are in a folder named after the tool, for example `Summarize`:
+Below the folder, the dialog has a field for each kind of result the tool makes, with the formats to save it in. You can check several formats of one kind; each needs at least one:
 
-* figures as `.png` files,
-* tables as tab-separated `.txt` files, like tables saved from a table window (until 0.6.1: comma-separated, with the row numbers in the first column),
+* `Tables`: `tsv`, tab-separated text with the ending `.txt` (default), and `csv`, comma-separated text (`.csv`). Tables are saved without the row numbers.
+* `Plots`: `png` (default), `svg` and `pdf`. `Resolution (dpi)` applies to `png`; the default is 300 dpi.
+
+The tool's dialog keeps the formats you chose, with its other settings.
+
+The results are saved in a new folder for each run, named after the date and time of the run, for example `2026-11-03_14-05-31`. If another run started in the same second, for example a second `flimbatch` job with the same output folder, the folder gets `-2`, `-3` and so on added. In it, the results of the tool are in a folder named after the tool, for example `Summarize`:
+
+* tables and plots in the formats chosen,
 * other results as files in Python's pickle format,
 * and the folder `pickled`, with all results of the tool except the figures in one file in Python's pickle format.
 

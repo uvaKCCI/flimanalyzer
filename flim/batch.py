@@ -105,7 +105,7 @@ def run_tool(
     """Runs the tool or workflow named ``name`` on ``data`` with the tool's config
     stored in ``settings`` (the config's defaults if none is stored or the stored one
     is not valid). The results are saved in ``<output_dir>/<tool name>/``; the tool's
-    stored autosave and results folder settings are not used. A workflow gets
+    stored autosave and results folder settings are not used; its formats are. A workflow gets
     ``data`` as every input; columns its config names that are not in ``data`` stop
     the run if ``strict`` (the default for a workflow whose own ``strict`` is None),
     otherwise they are replaced by guessed columns. `settings_record` names the
@@ -128,6 +128,8 @@ def run_tool(
     if len(required) > 1 and not issubclass(tool, Workflow):
         raise BatchError(f"{name} needs {len(required)} input tables; batch runs give one")
     config = settings.tools.config(tool)
+    entry = settings.tools.entry(tool)
+    formats = entry.autosave.formats if entry else []  # the tool's save formats
     execution = execution or ExecutionOptions()
     autosave_dir = Path(output_dir) / tool.name
     task_runner = execution.task_runner()
@@ -141,6 +143,7 @@ def run_tool(
                 autosave_dir=autosave_dir,
                 strict=strict,
                 settings_record=settings_record,
+                save_formats=formats,
             )
         except WorkflowValidationError as err:
             raise BatchError(f"{name}:\n{err}") from None
@@ -163,6 +166,7 @@ def run_tool(
         task_runner=task_runner,
         autosave_dir=autosave_dir,
         settings_record=settings_record,
+        save_formats=formats,
     )
 
 

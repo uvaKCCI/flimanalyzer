@@ -218,13 +218,13 @@ def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
     saved = load_settings(path)
     assert saved.filters.use  # the other sections are kept
     entry = saved.tools.entry(tools.get("Summarize"))
-    assert entry.config["aggs"] == ["max"] and entry.autosave
+    assert entry.config["aggs"] == ["max"] and entry.autosave.enabled
     assert list(json.loads(path.read_text())["tools"]) == ["Summarize"]
 
     again = dialog("Summarize", SummaryConfig(aggs=["min"]))
     assert again.load_settings(str(path))
     assert again.result().config.aggs == ["max"]
-    assert str(again.result().execution.results_dir) == str(tmp_path)
+    assert str(again.result().execution.autosave.results_dir) == str(tmp_path)
     other = dialog("Sort")
     assert not other.load_settings(str(path))
     assert "No Sort settings" in other.settings_message.GetLabel()

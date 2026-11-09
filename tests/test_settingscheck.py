@@ -167,7 +167,8 @@ def test_tool_dialog_uses_another_file(dialog, tmp_path, answers):
     queue, _ = answers
     other = tmp_path / "other.json"
     save_sections(
-        {"tools": {"Summarize": {"config": {"aggs": ["count"]}, "autosave": False}}}, other
+        {"tools": {"Summarize": {"config": {"aggs": ["count"]}, "autosave": {"enabled": False}}}},
+        other,
     )
     queue += [settingscheck.OTHER, str(other)]
     d = dialog("Summarize")

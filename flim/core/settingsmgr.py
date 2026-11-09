@@ -234,11 +234,12 @@ class SettingsManager:
                     logger.warning(f"Settings not saved to {self._user_file.path}: {err}")
             return self._settings.model_copy(deep=True)
 
-    def set_tool(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> AppSettings:
-        """Sets a tool's config and run settings (autosave, results folder) under the
-        tool's name and writes them to the user settings file. Settings stored under
-        the tool's former names are removed. Returns a copy of the new settings."""
-        entry = tool_settings(config, autosave, results_dir)
+    def set_tool(self, tool, config: TaskConfig, autosave=None) -> AppSettings:
+        """Sets a tool's config and its autosave settings (AutosaveConfig: whether,
+        where, formats) under the tool's name and writes them to the user settings file.
+        Settings stored under the tool's former names are removed. Returns a copy of the
+        new settings."""
+        entry = tool_settings(config, autosave)
         return self.update({"tools": {tool.name: entry.model_dump(mode="json")}})
 
     def load(self, path) -> AppSettings:

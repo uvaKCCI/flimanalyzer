@@ -55,6 +55,7 @@ class Workflow(Tool[ConfigT]):
         on_start=None,
         strict: Optional[bool] = None,
         settings_record=(),
+        save_formats=(),
     ):
         """Runs the workflow as a Prefect flow; see :func:`flim.core.runner.run_flow`.
 
@@ -66,6 +67,7 @@ class Workflow(Tool[ConfigT]):
                 (no guesses).
             settings_record: lines for the run summary naming the settings files
                 used.
+            save_formats: the formats all steps save their results in.
 
         Raises:
             ValueError: the config selects fewer features or grouping columns than
@@ -98,6 +100,7 @@ class Workflow(Tool[ConfigT]):
             on_start=on_start,
             notes=notes,
             settings_record=settings_record,
+            save_formats=save_formats,
         )
 
     @classmethod

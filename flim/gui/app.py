@@ -23,6 +23,7 @@ import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
+from flim.core.saving import AutosaveConfig
 from flim.core.settings import AppSettings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
 from flim.core.preprocessor import defaultpreprocessor
@@ -631,11 +632,13 @@ class AppFrame(wx.Frame):
             return
         config = self.settings.tools.config(tool)
         entry = self.settings.tools.entry(tool)
-        folder = (entry and entry.results_dir) or self.settings.resolved_results_dir()
+        saved = entry.autosave if entry else AutosaveConfig()
+        folder = saved.results_dir or self.settings.resolved_results_dir()
         execution = self.flimanalyzer.execution.model_copy(
             update={
-                "autosave": bool(entry and entry.autosave) and bool(folder),
-                "results_dir": folder,
+                "autosave": saved.model_copy(
+                    update={"enabled": saved.enabled and bool(folder), "results_dir": folder}
+                )
             }
         )
         is_workflow = issubclass(tool, Workflow)
@@ -650,18 +653,13 @@ class AppFrame(wx.Frame):
         )
         if result is None:
             return
-        self.settings_manager.set_tool(
-            tool,
-            result.config,
-            result.execution.autosave,
-            result.execution.results_dir,
-        )
+        self.settings_manager.set_tool(tool, result.config, result.execution.autosave)
 
         task_runner = self.flimanalyzer.get_task_runner()
-        execution = result.execution
+        autosave = result.execution.autosave
         if is_workflow:
             folder = canonical_folder(
-                execution.results_dir or self.settings.resolved_results_dir()
+                autosave.results_dir or self.settings.resolved_results_dir()
             )
             autosave_dir = os.path.join(folder, tool.name)
 
@@ -677,12 +675,13 @@ class AppFrame(wx.Frame):
                     # the dialog showed the guesses; default: guess (app setting strict)
                     strict=bool(self.settings.strict),
                     settings_record=self.settings_manager.record(),
+                    save_formats=autosave.formats,
                 )
 
         else:
             configs = tool().map_configs(result.config)
             autosave_dir = (
-                canonical_folder(str(execution.results_dir)) if execution.autosave else None
+                canonical_folder(str(autosave.results_dir)) if autosave.enabled else None
             )
 
             def interactive_analysis():
@@ -699,6 +698,7 @@ class AppFrame(wx.Frame):
                     cancel_token=cancel_token,
                     on_start=on_start,
                     settings_record=self.settings_manager.record(),
+                    save_formats=autosave.formats,
                 )
 
         flow_run = self.run_with_progress(tool.name, start_run)

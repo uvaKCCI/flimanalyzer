@@ -28,32 +28,34 @@ def clean_path_component(name: str) -> str:
 def write_table(
     table: pd.DataFrame, path: str | os.PathLike, index: bool = False
 ) -> None:
-    """Writes a table as tab-separated text.
+    """Writes a table as tab-separated text (flim.core.saving.write_table)."""
+    from flim.core.saving import write_table as write
 
-    The row index is left out unless ``index`` is True: row numbers carry no meaning
-    in FLIMAnalyzer's tables and are out of order after sorting (#119). Line breaks in
-    column names (multi-level headers joined into one name) are replaced by spaces.
-    """
-    table = table.rename(columns=lambda c: str(c).replace("\n", " "))
-    table.to_csv(path, sep="\t", index=index)
+    write(table, path, index=index)
 
 
-def save_results(results, directory: str | os.PathLike, name: str) -> None:
-    """Saves a plugin's results below ``directory``.
+def save_results(results, directory: str | os.PathLike, name: str, formats=()) -> None:
+    """Saves a tool's results below ``directory``.
 
     The result without its figures is pickled to ``<directory>/pickled/<name>``
-    (nothing is pickled if no other value remains). If
-    the result is a dict, each DataFrame is also written as ``<key>.txt``, each Figure
-    as ``<key>.png`` and any other value pickled as ``<key>`` in ``directory``.
+    (nothing is pickled if no other value remains), for reloading results. If the
+    result is a dict, each value is also saved as ``<key>`` with its data type's
+    writer, in the formats for its kind (flim.core.saving.save_value): tables
+    tab-separated as ``<key>.txt`` and figures as ``<key>.png`` by default. Values of no
+    data type with a writer are pickled as ``<key>``.
 
-    Figures are only saved as PNG: pickling them is slow for figures with many
-    points, and the pickles only work with the matplotlib version that wrote them.
+    Figures are not pickled: pickling them is slow for figures with many points, and
+    the pickles only work with the matplotlib version that wrote them.
 
     Args:
-        results: plugin result, usually a dict of DataFrames and/or Figures.
-        directory (str): target directory, created if it does not exist.
-        name (str): name of the task that produced the results.
+        results: The tool's result, usually a dict of DataFrames and/or Figures.
+        directory: The target folder, created if it does not exist.
+        name: The name of the task that produced the results.
+        formats: The formats (`AutosaveConfig.formats`); a kind not listed is saved
+            in its default format.
     """
+    from flim.core.saving import save_value
+
     os.makedirs(directory, exist_ok=True)
     logger.debug(f"Saving results of {name} to {directory}")
     if isinstance(results, dict):
@@ -70,9 +72,5 @@ def save_results(results, directory: str | os.PathLike, name: str) -> None:
         return
     for k, v in results.items():
         basename = os.path.join(directory, clean_path_component(k))
-        if isinstance(v, pd.DataFrame):
-            write_table(v, f"{basename}.txt")
-        elif isinstance(v, matplotlib.figure.Figure):
-            v.savefig(f"{basename}.png")
-        else:
+        if not save_value(v, basename, list(formats)):
             dump(v, basename)

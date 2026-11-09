@@ -42,6 +42,7 @@ from pydantic import (
 )
 
 from flim.core.config import TaskConfig
+from flim.core.saving import AutosaveConfig
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
 
 logger = logging.getLogger(__name__)
@@ -88,13 +89,12 @@ class FilterSettings(_Settings):
 
 
 class ToolSettings(_Settings):
-    """A tool's settings: its config (JSON, with ``classname``), whether and where it
-    saves its results, and the plugin parameters (``legacy``) that no config class was
-    found for."""
+    """A tool's settings: its config (JSON, with ``classname``), whether, where and in
+    which formats it saves its results (``autosave``), and the plugin parameters
+    (``legacy``) that no config class was found for."""
 
     config: Optional[dict] = None
-    autosave: bool = False
-    results_dir: Optional[Path] = None
+    autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
 
     @model_serializer(mode="wrap")
@@ -137,17 +137,22 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
             logger.warning(f"{tool.name}: settings not valid, using the defaults ({err})")
         return tool.config_class()
 
-    def set(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> None:
+    def set(self, tool, config: TaskConfig, autosave: Optional[AutosaveConfig] = None) -> None:
         for name in getattr(tool, "former_names", ()):
             self.entries.pop(name, None)
-        self.entries[tool.name] = tool_settings(config, autosave, results_dir)
+        self.entries[tool.name] = tool_settings(config, autosave)
 
 
-def tool_settings(config: TaskConfig, autosave=False, results_dir=None) -> ToolSettings:
+def tool_settings(config: TaskConfig, autosave: Optional[AutosaveConfig] = None) -> ToolSettings:
+    """Return a tool's settings.
+
+    Args:
+        config: The tool's config.
+        autosave: Whether, where and in which formats it saves its results; defaults
+            to not saving.
+    """
     return ToolSettings(
-        config=config.model_dump(mode="json"),
-        autosave=bool(autosave),
-        results_dir=None if results_dir is None else Path(results_dir),
+        config=config.model_dump(mode="json"), autosave=autosave or AutosaveConfig()
     )
 
 
@@ -411,9 +416,11 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
     """Upgrade version 1 (0.6) to 2 (0.7).
 
     `working_dir` becomes `results_dir`, and `display` (histogram ranges no longer
-    used) is dropped. In the tool sections, the `rescale` field of the autoencoder
-    training config, also inside the autoencoder workflows' `training` config,
-    becomes `rescale_output`.
+    used) is dropped. In the tool sections, `autosave` (whether) and `results_dir`
+    (where) become the section `autosave` (`enabled`, `results_dir`; no formats: the
+    defaults, as in 0.6), and the `rescale` field of the autoencoder training config,
+    also inside the autoencoder workflows' `training` config, becomes
+    `rescale_output`.
 
     Args:
         data: Settings of version 1.
@@ -428,7 +435,15 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
         changes.converted.append("working_dir to results_dir")
     if data.pop("display", None) is not None:
         changes.dropped.append("display (histogram ranges)")
+    moved = 0
     for name, entry in (data.get("tools") or {}).items():
+        if isinstance(entry, dict) and not isinstance(entry.get("autosave"), dict):
+            if "autosave" in entry or "results_dir" in entry:
+                entry["autosave"] = {
+                    "enabled": bool(entry.pop("autosave", False)),
+                    "results_dir": entry.pop("results_dir", None),
+                }
+                moved += 1
         config = (entry or {}).get("config") if isinstance(entry, dict) else None
         if not isinstance(config, dict):
             continue
@@ -438,6 +453,10 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
             changes.converted.append(
                 f"tools.{name}.config.training.rescale to rescale_output"
             )
+    if moved:
+        changes.converted.append(
+            f"autosave and results_dir of {moved} tools to their autosave section"
+        )
     return data
 
 

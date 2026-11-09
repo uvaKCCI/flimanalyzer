@@ -9,7 +9,10 @@ imports heavy libraries such as torch or dask.
 import importlib
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, ClassVar, Optional
+
+from flim.core.saving import PlotSaveOptions, SaveOptions, TableSaveOptions
 
 Metadata = dict[str, Any]
 """Information that travels with images (axes, dims, scale, physical pixel sizes, ...)."""
@@ -20,6 +23,23 @@ class DataType:
 
     pretty_name: ClassVar[str] = "Data"
     pytypes: ClassVar[tuple[str, ...]] = ()  # "module.Class" of the accepted classes
+    kind: ClassVar[str] = "data"  # names the type in save options, e.g. "table"
+    # how values are saved as files (flim.core.saving); None: they are pickled
+    save_options: ClassVar[Optional[type[SaveOptions]]] = None
+
+    @classmethod
+    def save(cls, value: Any, base: str | Path, options: SaveOptions) -> Path:
+        """Save a value as a file.
+
+        Args:
+            value: The value.
+            base: The path without the file ending, which the format adds.
+            options: The format and its options (`save_options`).
+
+        Returns:
+            The file written.
+        """
+        raise NotImplementedError(f"{cls.pretty_name} values cannot be saved as files")
 
     @classmethod
     def python_classes(cls) -> tuple[type, ...]:
@@ -61,21 +81,55 @@ class DataType:
 class TableType(DataType):
     pretty_name = "Table"
     pytypes = ("pandas.DataFrame", "pandas.Series")
+    kind = "table"
+    save_options = TableSaveOptions
+
+    @classmethod
+    def save(cls, value, base, options: TableSaveOptions) -> Path:
+        """Save a table without the row index (#119); line breaks in column names
+        (headers of several lines joined into one name) become spaces."""
+        from flim.core.saving import write_table
+
+        path = Path(f"{base}{options.extension}")
+        write_table(value, path, options)
+        return path
 
 
 class PlotType(DataType):
     pretty_name = "Plot"
     pytypes = ("matplotlib.figure.Figure",)
+    kind = "plot"
+    save_options = PlotSaveOptions
+
+    @classmethod
+    def save(cls, value, base, options: PlotSaveOptions) -> Path:
+        """Save a figure with matplotlib's `savefig`; `dpi` for png only."""
+        path = Path(f"{base}{options.extension}")
+        kwargs = {"dpi": options.dpi} if options.format == "png" else {}
+        value.savefig(path, format=options.format, **kwargs)
+        return path
 
 
 class ImageType(DataType):
     pretty_name = "Image"
     pytypes = ("numpy.ndarray", "dask.array.Array", "torch.Tensor")
+    kind = "image"
 
 
 class FileType(DataType):
     pretty_name = "File"
     pytypes = ("pathlib.Path",)
+    kind = "file"
+
+    @classmethod
+    def save(cls, value, base, options=None) -> Path:
+        """Copy the file as it is, keeping its ending."""
+        import shutil
+
+        source = Path(value)
+        path = Path(f"{base}{source.suffix}")
+        shutil.copy2(source, path)
+        return path
 
 
 def _all_types() -> list[type[DataType]]:

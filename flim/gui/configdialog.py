@@ -238,22 +238,59 @@ class ConfigDialog(wx.Dialog):
         sizer.Add(wx.StaticLine(self), 0, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         return controls
 
+    def save_kinds(self) -> list[str]:
+        """Return the kinds of output (e.g. `table`, `plot`) the dialog offers formats
+        for: those the tool declares, or all kinds with save options if it declares
+        none (e.g. workflows, whose outputs are known only when they run)."""
+        from flim.core.saving import save_options_classes
+
+        classes = save_options_classes()
+        kinds = []
+        for output in self.tool.outputs:
+            kind = output.type.kind
+            if kind in classes and kind not in kinds:
+                kinds.append(kind)
+        return kinds or sorted(classes, key=lambda k: (k != "table", k))
+
     def _execution_controls(self):
+        from flim.core.saving import formats_model, formats_values
+
+        outer = wx.BoxSizer(wx.VERTICAL)
         row = wx.BoxSizer(wx.HORIZONTAL)
         self.autosave = wx.CheckBox(self, label="Save results in")
-        self.autosave.SetValue(self.execution.autosave or self.autosave_locked)
+        self.autosave.SetValue(self.execution.autosave.enabled or self.autosave_locked)
         if self.autosave_locked:
             self.autosave.Disable()
             self.autosave.SetToolTip("Workflows always save their results")
         self.autosave.Bind(wx.EVT_CHECKBOX, lambda e: self.validate())
-        folder = self.execution.results_dir
+        folder = self.execution.autosave.results_dir
         self.folder = wx.DirPickerCtrl(
             self, path="" if folder is None else str(folder), style=wx.DIRP_USE_TEXTCTRL
         )
         self.folder.Bind(wx.EVT_DIRPICKER_CHANGED, lambda e: self.validate())
         row.Add(self.autosave, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         row.Add(self.folder, 1, wx.EXPAND)
-        return row
+        outer.Add(row, 0, wx.EXPAND)
+        # the formats, per kind of output, generated from the data types' save options
+        kinds = self.save_kinds()
+        self.formats_model = formats_model(kinds)
+        self.formats = FieldsPanel(self, self.formats_model)
+        self.formats.set_values(
+            formats_values(self.formats_model, self.execution.autosave.formats, kinds)
+        )
+        self.formats.on_change = self.validate
+        outer.Add(self.formats, 0, wx.EXPAND | wx.TOP, 4)
+        return outer
+
+    def save_formats(self) -> tuple[list, dict]:
+        """Return the formats chosen in the dialog, and an error per format field."""
+        from flim.core.saving import formats_from_values
+
+        try:
+            values = self.formats.values(self.formats_model())
+        except FieldErrors as err:
+            return [], dict(err.errors)
+        return formats_from_values(values, self.save_kinds())
 
     def fit_contents(self) -> None:
         """Fits the dialog to fields that appeared or disappeared (up to most of the
@@ -352,7 +389,15 @@ class ConfigDialog(wx.Dialog):
 
     def execution_issues(self) -> list[Issue]:
         issues = []
-        if self.autosave.GetValue():
+        enabled = self.autosave.GetValue()
+        self.formats.Enable(enabled)
+        _, errors = self.save_formats()
+        for name in self.formats.editors:
+            message = errors.get(name) if enabled else None
+            self.formats.show_issue(name, "error" if message else None, message or "")
+        if enabled and errors:
+            issues.append(Issue(None, "Choose at least one format for each kind of result"))
+        if enabled:
             if not self.folder.GetPath():
                 issues.append(Issue(None, "Choose the folder to save the results in"))
             elif problem := folder_problem(self.folder.GetPath()):
@@ -472,10 +517,16 @@ class ConfigDialog(wx.Dialog):
             return False
         self.config = config
         self.fields.set_values(config)
+        from flim.core.saving import formats_values
+
         if not self.autosave_locked:
-            self.autosave.SetValue(entry.autosave)
-        if entry.results_dir:
-            self.folder.SetPath(str(entry.results_dir))
+            self.autosave.SetValue(entry.autosave.enabled)
+        if entry.autosave.results_dir:
+            self.folder.SetPath(str(entry.autosave.results_dir))
+        if entry.autosave.formats:
+            self.formats.set_values(
+                formats_values(self.formats_model, entry.autosave.formats, self.save_kinds())
+            )
         self.validate()
         self.fit_contents()
         self.settings_message.SetLabel(f"Loaded from {name}")
@@ -496,9 +547,7 @@ class ConfigDialog(wx.Dialog):
         if config is None:
             self.settings_message.SetLabel("Not saved: the settings are not valid")
             return False
-        entry = tool_settings(
-            config, self.autosave.GetValue(), self.folder.GetPath() or None
-        )
+        entry = tool_settings(config, self._autosave())
         while os.path.exists(path):
             check = check_settings_file(path)
             if not needs_rewrite(check):
@@ -554,15 +603,22 @@ class ConfigDialog(wx.Dialog):
             windows.extend(window.GetChildren())
         return committed
 
+    def _autosave(self):
+        """Return the dialog's autosave settings: whether, where, in which formats."""
+        from flim.core.saving import AutosaveConfig
+
+        formats, _ = self.save_formats()
+        return AutosaveConfig(
+            enabled=self.autosave.GetValue(),
+            results_dir=canonical_folder(self.folder.GetPath()) or None,
+            formats=formats,
+        )
+
     def result(self) -> DialogResult:
         config, issues = self.current_config()
         if config is None:
             raise ValueError(f"The configuration is not valid: {issues}")
-        autosave = self.autosave.GetValue()
-        folder = canonical_folder(self.folder.GetPath()) or None
-        execution = self.execution.model_copy(
-            update={"autosave": autosave, "results_dir": folder}
-        )
+        execution = self.execution.model_copy(update={"autosave": self._autosave()})
         return DialogResult(
             config=config,
             inputs=self.selected_inputs(),

@@ -4,13 +4,13 @@
 figure to a file chosen in a file dialog."""
 
 import logging
+import os
 import re
 import wx.grid
 from pubsub import pub
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
-from flim.results import write_table
 
 logger = logging.getLogger(__name__)
 
@@ -40,47 +40,107 @@ def fix_filename(fname):
         return fname
 
 
-def save_dataframe(
-    parent, title, data, filename, wildcard="txt files (*.txt)|*.txt", saveindex=True
-):
-    with wx.FileDialog(
-        parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
-    ) as fileDialog:
-        fileDialog.SetFilename(fix_filename(filename))
-        if fileDialog.ShowModal() == wx.ID_CANCEL:
-            return None
-        fname = fileDialog.GetPath()
-        try:
-            write_table(data, fname, index=saveindex)
-        except IOError:
-            wx.MessageBox(f"Error saving data in file {fname}", "Error", wx.OK)
-            return None
-        return fname
+FORMAT_NAMES = {
+    "tsv": "Tab-separated text",
+    "csv": "Comma-separated text",
+    "png": "PNG image",
+    "svg": "SVG drawing",
+    "pdf": "PDF document",
+}
 
 
-def save_figure(
-    parent, title, fig, filename, wildcard="all files (*.*)|*.*", dpi=300, legend=None
-):
+def _wildcard(options_class) -> tuple[str, list[str]]:
+    """Return a file dialog's wildcard for the formats of some save options, default
+    first, and the formats in that order."""
+    import typing
+
+    formats = list(typing.get_args(options_class.model_fields["format"].annotation))
+    default = options_class().format
+    formats.sort(key=lambda f: f != default)
+    parts = []
+    for fmt in formats:
+        ending = options_class.extensions[fmt]
+        parts.append(f"{FORMAT_NAMES.get(fmt, fmt)} (*{ending})|*{ending}")
+    return "|".join(parts), formats
+
+
+def _ask_path(parent, title, filename, options_class):
+    """Ask where to save, and in which of the formats; None if cancelled."""
+    wildcard, formats = _wildcard(options_class)
     with wx.FileDialog(
         parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
-    ) as fileDialog:
-        fileDialog.SetFilename(fix_filename(filename))
-        if fileDialog.ShowModal() == wx.ID_CANCEL:
+    ) as dialog:
+        dialog.SetFilename(fix_filename(os.path.splitext(filename)[0]))
+        if dialog.ShowModal() == wx.ID_CANCEL:
             return None
-        fname = fileDialog.GetPath()
-        try:
-            if legend is not None:
-                fig.savefig(
-                    fname, dpi=dpi, bbox_extra_artists=(legend,), bbox_inches="tight"
-                )
-            else:
-                fig.savefig(fname, dpi=dpi, bbox_inches="tight")
-        except IOError:
-            error = f"Error saving figure in file {fname}"
-            logger.error(error)
-            wx.MessageBox(error, "Error", wx.OK)
-            return None
-        return fname
+        fmt = formats[max(dialog.GetFilterIndex(), 0)]
+        path = dialog.GetPath()
+    options = options_class(format=fmt)
+    if not path.lower().endswith(options.extension):
+        path += options.extension
+    return path, options
+
+
+def save_dataframe(parent, title, data, filename, saveindex=True):
+    """Ask where and how to save a table, and save it.
+
+    The dialog offers the table formats (tab- or comma-separated); it warns if the
+    column names would not survive the format.
+
+    Returns:
+        The file saved, or None (cancelled, or saving failed).
+    """
+    from flim.core.saving import TableSaveOptions, header_problems, write_table
+
+    answer = _ask_path(parent, title, filename, TableSaveOptions)
+    if answer is None:
+        return None
+    fname, options = answer
+    problems = header_problems(data.columns, options)
+    if problems:
+        with wx.MessageDialog(
+            parent,
+            "Some column names change when saved in this format:\n\n"
+            + "\n".join(problems)
+            + "\n\nSave anyway?",
+            title,
+            wx.YES_NO | wx.ICON_WARNING,
+        ) as dialog:
+            if dialog.ShowModal() != wx.ID_YES:
+                return None
+    try:
+        write_table(data, fname, options, index=saveindex)
+    except OSError as err:
+        wx.MessageBox(f"Error saving data in file {fname}: {err}", "Error", wx.OK)
+        return None
+    return fname
+
+
+def save_figure(parent, title, fig, filename, legend=None):
+    """Ask where and how to save a figure, and save it, cropped to its content.
+
+    The dialog offers the plot formats (PNG at the default resolution, SVG, PDF).
+
+    Returns:
+        The file saved, or None (cancelled, or saving failed).
+    """
+    from flim.core.saving import PlotSaveOptions
+
+    answer = _ask_path(parent, title, filename, PlotSaveOptions)
+    if answer is None:
+        return None
+    fname, options = answer
+    kwargs = {"dpi": options.dpi} if options.format == "png" else {}
+    if legend is not None:
+        kwargs["bbox_extra_artists"] = (legend,)
+    try:
+        fig.savefig(fname, format=options.format, bbox_inches="tight", **kwargs)
+    except OSError as err:
+        error = f"Error saving figure in file {fname}: {err}"
+        logger.error(error)
+        wx.MessageBox(error, "Error", wx.OK)
+        return None
+    return fname
 
 
 class SelectGroupsDlg(wx.Dialog):

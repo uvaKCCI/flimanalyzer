@@ -141,7 +141,7 @@ def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
     frame.run_tool(tools.get("Sort"))
     assert any(tmp_path.rglob("*Sort*"))
     entry = frame.settings.tools.entry(tools.get("Sort"))
-    assert entry.autosave and entry.results_dir == tmp_path
+    assert entry.autosave.enabled and entry.autosave.results_dir == tmp_path
 
 
 def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):

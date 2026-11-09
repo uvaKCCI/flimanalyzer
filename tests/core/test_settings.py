@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from flim.core.saving import AutosaveConfig
+
 import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.configs import ConcatConfig, KMeansConfig, SummaryConfig
 from flim.configs.workflow import BasicFLIRRConfig
@@ -69,7 +71,9 @@ def test_settings_of_version_0(caplog):
 def test_saved_in_the_current_version_and_read_back(tmp_path):
     settings = load_settings(V0_FILE)
     settings.tools.set(
-        tools.get("K-Means"), KMeansConfig(n_clusters=7), True, "/r"
+        tools.get("K-Means"),
+        KMeansConfig(n_clusters=7),
+        AutosaveConfig(enabled=True, results_dir="/r", formats=[{"kind": "plot", "format": "svg"}]),
     )
     path = tmp_path / "settings.json"
     save_settings(settings, path)
@@ -78,7 +82,8 @@ def test_saved_in_the_current_version_and_read_back(tmp_path):
     again = load_settings(path)
     assert again == settings
     entry = again.tools.entry(tools.get("K-Means"))
-    assert (entry.autosave, entry.results_dir) == (True, Path("/r"))
+    assert (entry.autosave.enabled, entry.autosave.results_dir) == (True, Path("/r"))
+    assert [(f.kind, f.format) for f in entry.autosave.formats] == [("plot", "svg")]
     assert again.tools.config(tools.get("K-Means")).n_clusters == 7
 
 
@@ -128,7 +133,9 @@ def test_settings_from_the_importer_and_preprocessor(tmp_path):
 def test_settings_of_version_1():
     settings = load_settings(V1_FILE)
     entry = settings.tools.entry(tools.get("Summarize"))
-    assert (entry.autosave, entry.results_dir) == (True, Path("results"))
+    # 0.6's autosave and results_dir: the autosave section, default formats
+    assert (entry.autosave.enabled, entry.autosave.results_dir) == (True, Path("results"))
+    assert entry.autosave.formats == []
     assert settings.tools.config(tools.get("K-Means")).n_clusters == 7
     assert set(settings.to_json()["tools"]) == {"Summarize", "K-Means"}  # by tool
     # version 2: working_dir is results_dir, display is gone
@@ -177,11 +184,15 @@ def test_a_file_with_some_sections_changes_only_those():
 def test_a_tool_section_in_a_settings_file(tmp_path):
     kmeans = tools.get("K-Means")
     path = tmp_path / "settings.json"
-    write_tool_settings(path, kmeans, tool_settings(KMeansConfig(n_clusters=5), True, "/r"))
+    write_tool_settings(
+        path,
+        kmeans,
+        tool_settings(KMeansConfig(n_clusters=5), AutosaveConfig(enabled=True, results_dir="/r")),
+    )
     data = json.loads(path.read_text())
     assert data["schema_version"] == SETTINGS_VERSION
     assert list(data["tools"]) == ["K-Means"]  # only the tool's section
-    assert read_tool_settings(path, kmeans).results_dir == Path("/r")
+    assert read_tool_settings(path, kmeans).autosave.results_dir == Path("/r")
     assert read_tool_settings(path, tools.get("Summarize")) is None
 
     # in an application settings file (of an older version): the rest is kept

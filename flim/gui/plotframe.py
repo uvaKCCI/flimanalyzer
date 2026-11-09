@@ -29,6 +29,17 @@ def fit_to_screen(width, height, extra_height=0, window=None, fraction=0.9):
     return int(width * scale), int(height * scale)
 
 
+class PlotToolbar(NavigationToolbar2WxAgg):
+    """matplotlib's toolbar; its save button offers FLIMAnalyzer's plot formats
+    (flim.gui.dialogs.save_figure) instead of all of matplotlib's."""
+
+    def save_figure(self, *args):
+        from flim.gui.dialogs import save_figure
+
+        window = self.canvas.GetTopLevelParent()
+        return save_figure(window, "Save Plot", self.canvas.figure, window.GetTitle())
+
+
 class PlotFrame(wx.Frame):
     """Top-level window with a figure canvas and the matplotlib navigation toolbar.
 
@@ -47,7 +58,7 @@ class PlotFrame(wx.Frame):
         dpi = figure.dpi  # before the canvas scales it for high-resolution screens
         width, height = (figure.get_size_inches() * dpi).round().astype(int)
         self.canvas = FigureCanvasWxAgg(self, wx.ID_ANY, figure)
-        self.toolbar = NavigationToolbar2WxAgg(self.canvas)
+        self.toolbar = PlotToolbar(self.canvas)
         self.toolbar.Realize()
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.canvas, 1, wx.EXPAND)

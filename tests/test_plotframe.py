@@ -164,3 +164,32 @@ def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch):
             window.canvas.draw()
     finally:
         window.Destroy()
+
+
+@pytest.mark.parametrize("index, ending", [(0, ".png"), (1, ".svg"), (2, ".pdf")])
+def test_save_button_offers_the_plot_formats(wxapp, monkeypatch, tmp_path, index, ending):
+    import matplotlib.figure
+    import wx
+
+    from flim.gui import plotframe
+
+    fig = matplotlib.figure.Figure(figsize=(2, 1))
+    fig.add_subplot().plot([0, 1], [0, 1])
+    window = plotframe.PlotFrame(None, fig, "FLIRR plot")
+    offered = []
+
+    def show(dialog):
+        offered.append(dialog.GetWildcard())
+        return wx.ID_OK
+
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", show)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "plot"))
+    monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: index)
+    try:
+        path = window.toolbar.save_figure()
+    finally:
+        window.Destroy()
+    assert path == str(tmp_path / "plot") + ending and (tmp_path / f"plot{ending}").exists()
+    assert offered[0] == (
+        "PNG image (*.png)|*.png|SVG drawing (*.svg)|*.svg|PDF document (*.pdf)|*.pdf"
+    )

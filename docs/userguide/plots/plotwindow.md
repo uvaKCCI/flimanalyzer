@@ -19,9 +19,9 @@ The toolbar at the bottom of the plot window is the navigation toolbar of matplo
 
 ## Saving a Plot
 
-Click `Save` in the toolbar. In the file dialog, choose the folder and the file name, and the file type, for example PNG, PDF, SVG or TIFF. The plot is saved with the current view and with the changes you made in the window.
+Click `Save` in the toolbar. In the file dialog, choose the folder, the file name and the format: PNG (300 dpi), SVG or PDF. The plot is saved with the current view and with the changes you made in the window, cropped to its content.
 
-To save the plots automatically each time a tool runs, check `Save results in` in the tool's dialog. The plots are then saved as PNG files (see [Saving results](/userguide/dialogs.md#saving-results)).
+To save the plots automatically each time a tool runs, check `Save results in` in the tool's dialog, and choose the formats under `Plots` (see [Saving results](/userguide/dialogs.md#saving-results)).
 
 ## Changing Axes, Labels and Lines
 

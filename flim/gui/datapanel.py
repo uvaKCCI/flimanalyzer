@@ -731,7 +731,6 @@ class PandasFrame(wx.Frame):
                 "Save entire data.",
                 self.data,
                 original + ".txt",
-                wildcard="txt files (*.txt)|*.txt",
                 saveindex=self.showcolindex,
             )
         elif buttonlabel == "Save View":
@@ -740,7 +739,6 @@ class PandasFrame(wx.Frame):
                 "Save current data view",
                 self.dataview,
                 original + ".txt",
-                wildcard="txt files (*.txt)|*.txt",
                 saveindex=self.showcolindex,
             )
         else:
@@ -761,7 +759,6 @@ class PandasFrame(wx.Frame):
             "Save current data view",
             self.dataview,
             original + ".txt",
-            wildcard="txt files (*.txt)|*.txt",
             saveindex=self.showcolindex,
         )
         if fname:
@@ -789,7 +786,6 @@ class PandasFrame(wx.Frame):
                     "Save current data view",
                     self.dataview,
                     self.GetName() + ".txt",
-                    wildcard="txt files (*.txt)|*.txt",
                     saveindex=self.showcolindex,
                 ):
                     self.modified = False

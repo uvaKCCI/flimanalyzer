@@ -18,7 +18,7 @@ HAS_DASK = importlib.util.find_spec("prefect_dask") is not None
 def test_defaults():
     opts = ExecutionOptions()
     assert opts.execution == LocalExecutorSettings(workers=None)
-    assert opts.device_policy == "prefer" and not opts.autosave
+    assert opts.device_policy == "prefer" and not opts.autosave.enabled
 
 
 def test_the_executor_name_selects_the_settings():
@@ -39,7 +39,9 @@ def test_the_executor_name_selects_the_settings():
         {"execution": {"executor": "local", "kwargs": {"x": 1}}},
         {"execution": {"executor": "dask"}},  # a cluster needs its address
         {"execution": {"executor": "local", "adress": "x"}},  # misspelled
-        {"autosave": True},  # no results_dir
+        {"autosave": {"enabled": True}},  # no results_dir
+        {"autosave": {"formats": [{"kind": "table", "format": "xlsx"}]}},
+        {"autosave": {"formats": [{"kind": "movie"}]}},
         {"device_policy": "gpu-only"},
         {"bogus": 1},
     ],
@@ -50,8 +52,8 @@ def test_invalid(kwargs):
 
 
 def test_autosave_with_dir(tmp_path):
-    opts = ExecutionOptions(autosave=True, results_dir=tmp_path)
-    assert opts.results_dir == tmp_path
+    opts = ExecutionOptions(autosave={"enabled": True, "results_dir": tmp_path})
+    assert opts.autosave.results_dir == tmp_path
 
 
 @pytest.mark.parametrize(
@@ -86,9 +88,9 @@ def test_from_legacy(executor, execargs, expected):
 
 def test_from_legacy_passes_kwargs(tmp_path):
     opts = ExecutionOptions.from_legacy(
-        "LocalExecutor", "", autosave=True, results_dir=tmp_path
+        "LocalExecutor", "", autosave={"enabled": True, "results_dir": tmp_path}
     )
-    assert opts.autosave and opts.results_dir == Path(tmp_path)
+    assert opts.autosave.enabled and opts.autosave.results_dir == Path(tmp_path)
 
 
 def test_local_task_runner():

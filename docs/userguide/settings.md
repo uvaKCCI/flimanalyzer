@@ -166,8 +166,9 @@ Some tools have a table with a row for each feature, for example the table of ra
   "preprocess": { ... },
   "filters": { ... },
   "tools": {
-    "Summarize": {"config": { ... }, "autosave": false, "results_dir": null},
-    "K-Means": {"config": { ... }, "autosave": true, "results_dir": "results"}
+    "Summarize": {"config": { ... }, "autosave": {"enabled": false, "results_dir": null, "formats": []}},
+    "K-Means": {"config": { ... }, "autosave": {"enabled": true, "results_dir": "results",
+                "formats": [{"kind": "plot", "format": "svg"}]}}
   }
 }
 ```
@@ -183,6 +184,6 @@ Some tools have a table with a row for each feature, for example the table of ra
 * `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it and `appsettings_path` out.
 * `import` and `preprocess`: the import settings.
 * `filters`: the range filters, and whether they are switched on.
-* `tools`: each tool has its own section, named after the tool, with its settings (`config`), whether its results are saved (`autosave`) and in which folder (`results_dir`).
+* `tools`: each tool has its own section, named after the tool, with its settings (`config`) and its `autosave` section: whether its results are saved (`enabled`), in which folder (`results_dir`), and in which formats (`formats`, one entry per format with its `kind` and `format`, for example `{"kind": "table", "format": "csv"}`; a kind not listed is saved in its default format).
 
-Older files are converted when they are read: `working_dir` becomes `results_dir`, and `display`, which is no longer used, is dropped.
+Older files are converted when they are read: `working_dir` becomes `results_dir`, a tool's `autosave` and `results_dir` become its `autosave` section (with the default formats, as before), and `display`, which is no longer used, is dropped.

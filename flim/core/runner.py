@@ -314,6 +314,7 @@ class FlowRun:
         self.end_time = None
         self.notes: List[str] = []  # for the run summary, e.g. guessed columns
         self.settings_record: List[str] = []  # the settings files, for the run summary
+        self.save_formats: list = []  # AutosaveConfig.formats of the run
         self.graph = nx.DiGraph()
         self._label_counts = {}
         self._key_nodes = {}
@@ -400,6 +401,7 @@ class FlowRun:
                     *[clean_path_component(t) for t in tag_list]
                 ),
                 "name": label,
+                "formats": self.save_formats,
             }
 
         # tools write files they produce (e.g. models) next to the saved results
@@ -727,6 +729,7 @@ def run_flow(
     on_start: Optional[Callable[[FlowRun], None]] = None,
     notes: Sequence[str] = (),
     settings_record: Sequence[str] = (),
+    save_formats: Sequence = (),
 ) -> FlowRun:
     """Runs ``build`` as a Prefect flow; tool calls inside it become task runs.
 
@@ -744,6 +747,9 @@ def run_flow(
         notes: lines for the run summary, e.g. the guesses a validation applied.
         settings_record: lines for the run summary naming the settings files used
             (`SettingsManager.record`).
+        save_formats: the formats the tasks save their results in
+            (`AutosaveConfig.formats`); a kind not listed is saved in its default
+            format.
 
     Returns:
         FlowRun: recorded task graph and results; ``state`` is completed,
@@ -757,6 +763,7 @@ def run_flow(
     run = FlowRun(name, on_progress=on_progress, cancel_token=cancel_token)
     run.notes = list(notes)
     run.settings_record = list(settings_record)
+    run.save_formats = list(save_formats)
     if autosave_dir:
         run.autosave_dir = unique_run_folder(
             autosave_dir, run.start_time.strftime("%Y-%m-%d_%H-%M-%S")

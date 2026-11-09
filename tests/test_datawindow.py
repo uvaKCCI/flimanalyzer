@@ -108,7 +108,15 @@ def test_saving_keeps_the_window_columns(frame, monkeypatch, tmp_path, flim_data
     _answer_file_dialog(monkeypatch, tmp_path / "pivot.txt")
     from flim.gui.dialogs import save_dataframe
 
+    warned = []
+
+    def save_anyway(dialog):
+        warned.append(dialog.GetMessage())
+        return wx.ID_YES
+
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", save_anyway)
     save_dataframe(window, "Save", window.data, "pivot.txt")
+    assert "headers of several lines are saved as one line" in warned[0]
     # the file has the header on one line
     assert "NAD(P)H t1" in pd.read_table(tmp_path / "pivot.txt").columns
     assert "NAD(P)H\nt1" in window.data.columns  # the data shown is unchanged
@@ -291,3 +299,34 @@ def test_column_range_filter_reaches_the_user_settings_file(
         frame.OnCloseAll(None)
         frame.Destroy()
 
+
+
+
+@pytest.mark.parametrize("index, fmt, sep", [(0, "tsv", "\t"), (1, "csv", ",")])
+def test_table_formats_in_the_save_dialog(frame, monkeypatch, tmp_path, flim_data, index, fmt, sep):
+    from flim.gui.dialogs import save_dataframe
+
+    window = _open(frame, flim_data)
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "cells"))
+    monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: index)
+    path = save_dataframe(window, "Save", window.data, "cells.txt", saveindex=False)
+    assert path.endswith(".txt" if fmt == "tsv" else ".csv")  # the ending is added
+    assert pd.read_csv(path, sep=sep).shape == flim_data.shape
+
+
+def test_comma_in_a_header_warns_with_csv(frame, monkeypatch, tmp_path, flim_data):
+    from flim.gui.dialogs import save_dataframe
+
+    data = flim_data.rename(columns={FEATURE: "t1, ns"})
+    window = _open(frame, data)
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "cells.csv"))
+    monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: 1)
+    warned = []
+    monkeypatch.setattr(
+        wx.MessageDialog, "ShowModal", lambda dlg: warned.append(dlg.GetMessage()) or wx.ID_NO
+    )
+    assert save_dataframe(window, "Save", window.data, "cells.txt") is None  # not saved
+    assert "t1, ns: contains a comma" in warned[0]
+    assert not (tmp_path / "cells.csv").exists()

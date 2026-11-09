@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from flim.core.saving import AutosaveConfig
+
 from flim.configs import KMeansConfig, SummaryConfig
 from flim.core.registry import tools
 from flim.core.settings import SETTINGS_VERSION, AppSettings, save_settings
@@ -30,15 +32,18 @@ def test_readers_get_copies():
 def test_set_tool_writes_only_that_tool(tmp_path):
     path = tmp_path / "usersettings.json"
     manager = SettingsManager(user_file=UserSettingsFile(path))
-    settings = manager.set_tool(KMEANS, KMeansConfig(n_clusters=4), True, "/results")
+    settings = manager.set_tool(
+        KMEANS, KMeansConfig(n_clusters=4), AutosaveConfig(enabled=True, results_dir="/results")
+    )
     assert settings.tools.config(KMEANS).n_clusters == 4
     assert manager.version == 1
     data = written(path)
     assert data["schema_version"] == SETTINGS_VERSION
     assert set(data) == {"schema_version", "tools"}
     assert set(data["tools"]) == {"K-Means"}
-    assert data["tools"]["K-Means"]["autosave"] is True
-    assert data["tools"]["K-Means"]["results_dir"] == "/results"
+    assert data["tools"]["K-Means"]["autosave"] == {
+        "enabled": True, "results_dir": "/results", "formats": []
+    }
 
 
 def test_changes_are_applied_at_the_next_start(tmp_path):

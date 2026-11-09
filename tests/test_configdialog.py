@@ -234,7 +234,7 @@ def test_execution_options(dialog, tmp_path):
     d.folder.SetPath(str(tmp_path))
     d.validate()
     execution = d.result().execution
-    assert execution.autosave and execution.results_dir == Path(tmp_path)
+    assert execution.autosave.enabled and execution.autosave.results_dir == Path(tmp_path)
     assert execution.execution.workers == 3  # other options are kept
 
 
@@ -256,11 +256,11 @@ def test_results_folder_is_stored_canonical(dialog, tmp_path):
     d.autosave.SetValue(True)
     d.folder.SetPath(str(tmp_path / "link"))
     d.validate()
-    assert d.result().execution.results_dir == Path(tmp_path / "real")
+    assert d.result().execution.autosave.results_dir == Path(tmp_path / "real")
 
 
 def test_autosave_locked(dialog, tmp_path):
-    options = ExecutionOptions(autosave=False)
+    options = ExecutionOptions()
     d = dialog("Sort", execution=options, autosave_locked=True)
     assert d.autosave.GetValue() and not d.autosave.IsEnabled()
 
@@ -400,3 +400,36 @@ def test_split_needs_a_column_to_split_by(dialog):
     d = dialog("Split", SplitConfig(grouping=["Treatment"]))
     d.validate()
     assert not marker(d, "grouping")[0] and d.ok_button.IsEnabled()
+
+
+def test_save_formats_of_the_tool_outputs(dialog, tmp_path):
+    from flim.core.saving import PlotSaveOptions, TableSaveOptions
+
+    kmeans = dialog("K-Means")
+    assert kmeans.save_kinds() == ["table"]  # its only declared output
+    assert list(kmeans.formats.editors) == ["table_formats"]
+    # outputs known only when it runs: all kinds
+    d = dialog("Box Plot")
+    assert d.save_kinds() == ["table", "plot"]
+    d.autosave.SetValue(True)
+    d.folder.SetPath(str(tmp_path))
+    d.formats.editors["plot_formats"].set(["png", "svg"])
+    d.formats.editors["plot_dpi"].set(150)
+    d.validate()
+    formats = d.result().execution.autosave.formats
+    assert formats == [
+        TableSaveOptions(), PlotSaveOptions(dpi=150), PlotSaveOptions(format="svg")
+    ]
+
+
+def test_a_kind_without_format_is_an_error(dialog, tmp_path):
+    d = dialog("Box Plot")
+    d.autosave.SetValue(True)
+    d.folder.SetPath(str(tmp_path))
+    d.formats.editors["plot_formats"].set([])
+    d.validate()
+    assert d.formats.markers["plot_formats"].IsShown()
+    assert any("at least one format" in i.message for i in d.execution_issues())
+    d.autosave.SetValue(False)  # not saving: the formats don't matter
+    d.validate()
+    assert not d.formats.markers["plot_formats"].IsShown()

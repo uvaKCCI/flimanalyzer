@@ -2,11 +2,11 @@
 
 import importlib.util
 import logging
-from pathlib import Path
 from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from flim.core.saving import AutosaveConfig
 from flim.core.config import BaseConfig
 
 logger = logging.getLogger(__name__)
@@ -65,18 +65,17 @@ DASK = (DaskLocalExecutorSettings, DaskClusterExecutorSettings)
 
 
 class ExecutionOptions(BaseConfig):
-    """The executor of a run and the run's own options: autosave, results folder, task
-    tags and device policy."""
+    """The executor of a run and the run's own options: whether, where and in which
+    formats it saves its results (`autosave`), task tags and device policy."""
 
     execution: ExecutorSettings = Field(default_factory=LocalExecutorSettings)
-    autosave: bool = False
-    results_dir: Optional[Path] = None
+    autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
     task_tags: list[str] = []
     device_policy: Literal["prefer", "cpu-only"] = "prefer"
 
     @model_validator(mode="after")
     def _check_autosave(self):
-        if self.autosave and self.results_dir is None:
+        if self.autosave.enabled and self.autosave.results_dir is None:
             raise ValueError("autosave needs a results_dir")
         return self
 
@@ -97,7 +96,7 @@ class ExecutionOptions(BaseConfig):
             executor: `LocalExecutor`, `LocalDaskExecutor` or `DaskExecutor`. An
                 unknown name is logged and selects `LocalExecutor`.
             execargs: The executor's args, e.g. `"num_workers=4,scheduler=processes"`.
-            **kwargs: Further options of the run, e.g. `autosave`, `results_dir`.
+            **kwargs: Further options of the run, e.g. `autosave`.
 
         Returns:
             The execution options.
