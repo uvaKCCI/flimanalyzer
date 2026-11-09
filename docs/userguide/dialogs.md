@@ -24,7 +24,7 @@ When you choose another table, the dialog lists the columns of that table, for e
 
 At the bottom of the dialog, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in`, then type a folder or click the button next to it to choose one. The folder is created if it doesn't exist yet. By default, it is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)).
 
-Below the folder, the dialog has a field for each kind of result the tool makes, with the formats to save it in. You can check several formats of one kind; each needs at least one:
+Below the folder, the `Output` box has a column for each kind of result the tool makes, with the formats to save it in and their options. You can check several formats of one kind; each kind needs at least one:
 
 * `Tables`: `tsv`, tab-separated text with the ending `.txt` (default), and `csv`, comma-separated text (`.csv`). Tables are saved without the row numbers.
 * `Plots`: `png` (default), `svg` and `pdf`. `Resolution (dpi)` applies to `png`; the default is 300 dpi.

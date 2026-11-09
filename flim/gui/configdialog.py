@@ -253,7 +253,7 @@ class ConfigDialog(wx.Dialog):
         return kinds or sorted(classes, key=lambda k: (k != "table", k))
 
     def _execution_controls(self):
-        from flim.core.saving import formats_model, formats_values
+        from flim.core.saving import formats_model
 
         outer = wx.BoxSizer(wx.VERTICAL)
         row = wx.BoxSizer(wx.HORIZONTAL)
@@ -271,25 +271,42 @@ class ConfigDialog(wx.Dialog):
         row.Add(self.autosave, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         row.Add(self.folder, 1, wx.EXPAND)
         outer.Add(row, 0, wx.EXPAND)
-        # the formats, per kind of output, generated from the data types' save options
+        # the formats in an "Output" box: a column per kind of output, its fields
+        # (generated from the data type's save options) one under the other
         kinds = self.save_kinds()
         self.formats_model = formats_model(kinds)
-        self.formats = FieldsPanel(self, self.formats_model)
-        self.formats.set_values(
-            formats_values(self.formats_model, self.execution.autosave.formats, kinds)
-        )
-        self.formats.on_change = self.validate
-        outer.Add(self.formats, 0, wx.EXPAND | wx.TOP, 4)
+        box = wx.StaticBoxSizer(wx.HORIZONTAL, self, "Output")
+        self.format_panels = {}
+        for kind in kinds:
+            panel = FieldsPanel(box.GetStaticBox(), formats_model([kind]), stacked=True)
+            panel.on_change = self.validate
+            box.Add(panel, 0, wx.ALL, 6)
+            self.format_panels[kind] = panel
+        self.formats = _Panels(self.format_panels.values())
+        self.set_formats(self.execution.autosave.formats)
+        outer.Add(box, 0, wx.EXPAND | wx.TOP, 4)
         return outer
+
+    def set_formats(self, formats) -> None:
+        """Show formats (AutosaveConfig.formats) in the Output box."""
+        from flim.core.saving import formats_values
+
+        values = formats_values(self.formats_model, formats, self.save_kinds())
+        for panel in self.format_panels.values():
+            panel.set_values(values)
 
     def save_formats(self) -> tuple[list, dict]:
         """Return the formats chosen in the dialog, and an error per format field."""
         from flim.core.saving import formats_from_values
 
-        try:
-            values = self.formats.values(self.formats_model())
-        except FieldErrors as err:
-            return [], dict(err.errors)
+        values, errors = {}, {}
+        for panel in self.format_panels.values():
+            try:
+                values.update(panel.values(panel.model()))
+            except FieldErrors as err:
+                errors.update(err.errors)
+        if errors:
+            return [], errors
         return formats_from_values(values, self.save_kinds())
 
     def fit_contents(self) -> None:
@@ -517,16 +534,12 @@ class ConfigDialog(wx.Dialog):
             return False
         self.config = config
         self.fields.set_values(config)
-        from flim.core.saving import formats_values
-
         if not self.autosave_locked:
             self.autosave.SetValue(entry.autosave.enabled)
         if entry.autosave.results_dir:
             self.folder.SetPath(str(entry.autosave.results_dir))
         if entry.autosave.formats:
-            self.formats.set_values(
-                formats_values(self.formats_model, entry.autosave.formats, self.save_kinds())
-            )
+            self.set_formats(entry.autosave.formats)
         self.validate()
         self.fit_contents()
         self.settings_message.SetLabel(f"Loaded from {name}")
@@ -625,3 +638,21 @@ class ConfigDialog(wx.Dialog):
             input_names=self.selected_names(),
             execution=ExecutionOptions.model_validate(execution.model_dump()),
         )
+
+
+class _Panels:
+    """Several FieldsPanels used as one: their editors and markers, by field name."""
+
+    def __init__(self, panels):
+        self.panels = list(panels)
+        self.editors = {n: e for p in self.panels for n, e in p.editors.items()}
+        self.markers = {n: m for p in self.panels for n, m in p.markers.items()}
+
+    def Enable(self, enabled=True) -> None:
+        for panel in self.panels:
+            panel.Enable(enabled)
+
+    def show_issue(self, name, severity, message="") -> None:
+        for panel in self.panels:
+            if name in panel.editors:
+                panel.show_issue(name, severity, message)

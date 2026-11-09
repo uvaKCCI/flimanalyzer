@@ -347,6 +347,33 @@ class MultiChoiceEditor(_CheckList):
         self.set_items(self.spec.choices, [v for v in self.spec.choices if v in value])
 
 
+class FewChoicesEditor(Editor):
+    """A few choices (up to `FEW_CHOICES`) to check: one checkbox each, one under the
+    other, without a list box."""
+
+    def create(self, parent):
+        self.panel = wx.Panel(parent)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.boxes = {}
+        for choice in self.spec.choices:
+            box = wx.CheckBox(self.panel, label=str(choice))
+            box.Bind(wx.EVT_CHECKBOX, self.changed)
+            sizer.Add(box, 0, wx.BOTTOM, 2)
+            self.boxes[choice] = box
+        self.panel.SetSizer(sizer)
+        return self.panel
+
+    def get(self):
+        return [c for c in self.spec.choices if self.boxes[c].GetValue()]
+
+    def set(self, value):
+        for choice, box in self.boxes.items():
+            box.SetValue(choice in (value or []))
+
+
+FEW_CHOICES = 4  # multi-choice fields with up to this many choices: FewChoicesEditor
+
+
 def _one_line(name) -> str:
     return str(name).replace("\n", " ")
 
@@ -1368,6 +1395,8 @@ def editor_class(spec: FieldSpec) -> type[Editor]:
         return FeaturesEditor if spec.role == "feature" else CategoriesEditor
     if spec.kind == "modelmap" and spec.role == "feature":
         return FeatureSettingsEditor
+    if spec.kind == "multichoice" and len(spec.choices) <= FEW_CHOICES:
+        return FewChoicesEditor
     return {
         "choice": ChoiceEditor,
         "multichoice": MultiChoiceEditor,
@@ -1413,10 +1442,12 @@ class FieldsPanel(wx.Panel):
     Fields are shown in their order (flim.core.fields.field_order): small fields that
     follow each other share a grid of 1 to 3 fields per row (label, editor, marker);
     path fields take a row of their own; lists and tables take the full width; nested
-    configs are titled groups, or collapsible sections if advanced.
+    configs are titled groups, or collapsible sections if advanced. With `stacked`,
+    the fields are shown one under the other, each label above its editor, in the
+    model's order (e.g. a column of a few fields).
     """
 
-    def __init__(self, parent, model: type, exclude=()):
+    def __init__(self, parent, model: type, exclude=(), stacked=False):
         super().__init__(parent)
         self.model = model
         self.on_change: Optional[Callable[[], None]] = None
@@ -1425,6 +1456,9 @@ class FieldsPanel(wx.Panel):
         self.widgets: dict[str, list] = {}  # field -> its label and editor
         self.fixed: set = set()  # fields that allow only one value now (not shown)
         specs = [s for s in visible(describe(model)) if s.name not in exclude]
+        if stacked:
+            self._stack(specs)
+            return
         large = {s.name: editor_for(model, s).expands for s in specs}
         specs = sorted(
             specs, key=lambda s: field_order(s, specs.index(s), large[s.name])
@@ -1459,6 +1493,17 @@ class FieldsPanel(wx.Panel):
             sizer.Add(row, 0, wx.LEFT | wx.TOP, 4)
             editor = self._editor(spec)
             sizer.Add(editor.control, 1 if editor.grows else 0, wx.EXPAND | wx.ALL, 4)
+        self.SetSizer(sizer)
+
+    def _stack(self, specs) -> None:
+        """Each field under the previous one: its label and marker, then its editor."""
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        for spec in specs:
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            row.Add(self._label(spec), 0, wx.RIGHT, 6)
+            row.Add(self._marker(spec), 0)
+            sizer.Add(row, 0, wx.TOP, 4)
+            sizer.Add(self._editor(spec).control, 0, wx.EXPAND | wx.TOP, 2)
         self.SetSizer(sizer)
 
     def _add_grid(self, sizer, specs) -> None:
