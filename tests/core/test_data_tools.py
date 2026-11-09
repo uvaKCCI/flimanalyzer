@@ -335,9 +335,16 @@ def test_split(data):
     assert sum(len(t) for t in results.values()) == len(data)
 
 
-def test_split_needs_columns():
-    with pytest.raises(ValueError, match="columns to split by"):
-        SplitConfig(grouping=[])
+def test_split_needs_columns(data):
+    # a valid setting (its default), but the run needs a column to split by
+    config = SplitConfig.model_validate(SplitConfig().model_dump(mode="json"))
+    assert config.grouping == []
+    issues = Split.validate(config, [TableSchema.from_frame(data)])
+    assert [(i.field, i.message) for i in issues] == [
+        ("grouping", "Select at least 1 grouping column")
+    ]
+    with pytest.raises(ValueError, match="select at least 1 grouping column"):
+        Split()(data, config=config)
 
 
 def test_split_outputs_known_from_the_schema(data):

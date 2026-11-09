@@ -227,6 +227,7 @@ class SortConfig(DataTaskConfig):
 class SplitConfig(DataTaskConfig):
     """Splits a table by the values of the ``grouping`` columns."""
 
+    min_grouping = 1
     hidden_fields = frozenset({"features"})
 
     grouping: list[CategoryColumn] = Field(
@@ -234,13 +235,6 @@ class SplitConfig(DataTaskConfig):
         title="Split by",
         description="A table for each combination of the values of these columns.",
     )
-
-    @field_validator("grouping")
-    @classmethod
-    def _some_columns(cls, grouping):
-        if not grouping:
-            raise ValueError("Select the columns to split by")
-        return grouping
 
 
 class UnpivotConfig(DataTaskConfig):

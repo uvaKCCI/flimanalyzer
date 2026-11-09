@@ -23,7 +23,6 @@ from flim.core.settings import (
     check_settings_file,
     merge_sections,
     migrate,
-    save_settings,
     tool_settings,
     update_settings,
 )
@@ -259,8 +258,35 @@ class SettingsManager:
         return lines
 
     def export(self, path) -> None:
-        """Writes all current settings, in the current version, to a file."""
-        save_settings(self.settings, path)
+        """Write all current settings, in the current version, to an app settings file.
+
+        Every installed tool's settings are written, its defaults if none are set, so
+        that the file does not depend on the defaults of the version that reads it.
+        Defaults that do not pass validation are not written: they could not be used
+        when the file is read.
+        `appsettings_path` is left out: it is read only from the user settings file.
+
+        Args:
+            path: The file; it is replaced if it exists.
+        """
+        from flim.core.registry import tools as registry
+
+        settings = self.settings
+        for group in registry.by_category().values():
+            for tool in group:
+                if settings.tools.entry(tool) is not None:
+                    continue
+                config = tool.config_class()
+                try:
+                    tool.config_class.model_validate(config.model_dump(mode="json"))
+                except ValidationError:
+                    continue
+                settings.tools.set(tool, config)
+        data = settings.to_json()
+        data.pop("appsettings_path", None)
+        data["tools"] = dict(sorted(data["tools"].items()))
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2, default=str)
 
 
 # --- app settings files and their search path ---

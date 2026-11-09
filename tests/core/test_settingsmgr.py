@@ -190,6 +190,26 @@ def test_export_writes_all_settings(tmp_path):
     data = written(out)
     assert data["schema_version"] == SETTINGS_VERSION
     assert {"import", "filters", "tools"} <= set(data)
+    # every installed tool, its defaults if not set; read only from the user file
+    names = [t.name for group in tools.by_category().values() for t in group]
+    assert sorted(data["tools"]) == sorted(names)
+    assert data["tools"][KMEANS.name]["config"]["n_clusters"] == 2
+    assert data["tools"]["Summarize"]["config"]["classname"]
+    assert "appsettings_path" not in data
+    assert all("legacy" not in entry for entry in data["tools"].values())
+    # the exported file gives the same settings, and none of them is reported
+    from flim.core.settings import check_settings_file
+
+    check = check_settings_file(out)
+    assert not check.problems and check.not_checked == []
+    assert SettingsManager().apply(check).tools.config(KMEANS).n_clusters == 2
+
+
+def test_legacy_is_written_only_if_set(tmp_path):
+    from flim.core.settings import ToolSettings
+
+    assert "legacy" not in ToolSettings().model_dump(mode="json")
+    assert ToolSettings(legacy={"a": 1}).model_dump(mode="json")["legacy"] == {"a": 1}
 
 
 def test_older_user_file_is_migrated(tmp_path):

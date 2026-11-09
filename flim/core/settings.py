@@ -32,7 +32,14 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    ValidationError,
+    model_serializer,
+)
 
 from flim.core.config import TaskConfig
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
@@ -87,6 +94,15 @@ class ToolSettings(_Settings):
     autosave: bool = False
     results_dir: Optional[Path] = None
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
+
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler):
+        # `legacy` is written only if set: it is used only for 0.5 settings of tools
+        # of other packages
+        data = handler(self)
+        if data.get("legacy") is None:
+            data.pop("legacy", None)
+        return data
 
 
 class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):

@@ -388,3 +388,15 @@ def test_tall_dialog_fits_a_small_screen(dialog, monkeypatch):
     assert d.GetSize().height <= 718
     assert d.ok_button.GetRect().GetBottom() <= d.GetClientSize().height
     assert d.fields.GetBestSize().height > d.scroll.GetSize().height  # it scrolls
+
+
+def test_split_needs_a_column_to_split_by(dialog):
+    from flim.configs import SplitConfig
+
+    d = dialog("Split")
+    d.validate()
+    assert marker(d, "grouping") == (True, "Select at least 1 grouping column")
+    assert not d.ok_button.IsEnabled()
+    d = dialog("Split", SplitConfig(grouping=["Treatment"]))
+    d.validate()
+    assert not marker(d, "grouping")[0] and d.ok_button.IsEnabled()

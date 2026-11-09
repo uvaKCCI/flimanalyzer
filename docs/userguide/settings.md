@@ -81,7 +81,7 @@ flimbatch -i data/ -o results/ -s settings.json --run Summarize
 
 **Menu Access:** `File` > `Export Settings...` and `File` > `Import Settings...`
 
-`Export Settings...` saves all current settings to a file. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
+`Export Settings...` saves all current settings to a file. It includes the settings of every installed tool, with the tool's defaults if you haven't changed them, so that the file gives the same settings in a later FLIMAnalyzer version, even if the defaults change there. `appsettings_path` is not saved: it only has an effect in the user settings file. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
 
 You can import settings files from this and older FLIMAnalyzer versions, including FLIMAnalyzer 0.5 (see [Settings files from older versions](#settings-files-from-older-versions)). Settings are always saved in the current format.
 
