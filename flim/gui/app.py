@@ -237,8 +237,11 @@ class AppFrame(wx.Frame):
         savesettingsitem = filemenu.Append(
             wx.ID_ANY, "Export Settings...", "Save the settings to a file"
         )
+        # standard ids: wx moves Settings and Exit (Quit) to the app menu on macOS
+        viewsettingsitem = filemenu.Append(
+            wx.ID_PREFERENCES, "Settings...", "Show the app settings and where they come from"
+        )
         filemenu.AppendSeparator()
-        # standard ids: wx moves Exit (Quit) to the app menu on macOS
         exitmenuitem = filemenu.Append(wx.ID_EXIT, "E&xit", "Exit the application")
 
         self.windowmenu = wx.Menu()
@@ -263,6 +266,7 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.OnCloseApp)
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
+        self.Bind(wx.EVT_MENU, self.OnViewSettings, viewsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
         self.Bind(wx.EVT_MENU, self.OnDocumentation, docsitem)
         self.Bind(wx.EVT_MENU, self.OnAbout, aboutitem)
@@ -532,6 +536,12 @@ class AppFrame(wx.Frame):
             return
         self.settings_manager.apply(check)
         self.filters = self.settings.filters
+
+    def OnViewSettings(self, event):
+        from flim.gui.settingsview import SettingsViewer
+
+        with SettingsViewer(self, self.settings_manager) as dialog:
+            dialog.ShowModal()
 
     def OnSaveSettings(self, event):
         with wx.FileDialog(

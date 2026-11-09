@@ -214,21 +214,30 @@ class AppSettings(_Settings):
     schema_version: int = SETTINGS_VERSION
     results_dir: Optional[Path] = Field(
         default=None,
+        title="Results folder",
         description="Results folder. None defaults to the folder FLIMAnalyzer was"
         " started from.",
     )
-    execution: ExecutorSettings = Field(default_factory=LocalExecutorSettings)
+    execution: ExecutorSettings = Field(
+        default_factory=LocalExecutorSettings,
+        title="Executor",
+        description="Where and how the tasks of a run are executed.",
+    )
     prefect_server: bool = Field(
-        default=True, description="Use or start a local Prefect server for the runs."
+        default=True,
+        title="Prefect server",
+        description="Use or start a local Prefect server for the runs.",
     )
     log_dir: Optional[Path] = Field(
         default=None,
+        title="Log folder",
         description="Log folder. None defaults to FLIM_LOG_DIR, else the platform's log"
         " folder.",
     )
     cache: CacheSettings = Field(default_factory=CacheSettings)
     strict: Optional[bool] = Field(
         default=None,
+        title="Workflows: missing columns",
         description="Workflows: columns not in the data are errors (True) or replaced by"
         " the closest match (False). A workflow's own setting takes precedence. None"
         " defaults to strict in flimbatch and to guessing, shown before the run, in the"

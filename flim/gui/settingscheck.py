@@ -1,6 +1,7 @@
 """The choice the GUI offers when some settings of a settings file cannot be used."""
 
 import logging
+from pathlib import Path
 from typing import Callable, Optional
 
 import wx
@@ -150,3 +151,31 @@ def _save_file(parent) -> Optional[str]:
         style=wx.FD_SAVE,
     ) as dialog:
         return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else None
+
+
+NO_FILE = "No app settings file"
+
+
+def pick_app_settings(files: list[Path], parent=None) -> Optional[Path]:
+    """Ask which app settings file to start with.
+
+    Args:
+        files: The files in the app settings search path (`list_app_settings`).
+        parent: The parent window.
+
+    Returns:
+        The chosen file, or None for no file (also on Cancel).
+    """
+    choices = [NO_FILE] + [f"{f.name}  ({f.parent})" for f in files]
+    with wx.SingleChoiceDialog(
+        parent,
+        "Start with an app settings file? Its settings apply to this session.",
+        "App Settings File",
+        choices,
+    ) as dialog:
+        if dialog.ShowModal() != wx.ID_OK or dialog.GetSelection() == 0:
+            logging.info("Started without an app settings file")
+            return None
+        chosen = files[dialog.GetSelection() - 1]
+    logging.info(f"App settings file chosen at startup: {chosen}")
+    return chosen

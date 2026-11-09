@@ -185,6 +185,24 @@ def test_unreadable_user_settings_file_is_reported(
     assert "renamed to" in capsys.readouterr().err
 
 
+def test_startup_choice_of_app_settings_file(monkeypatch, clean_logging, tmp_path):
+    import json
+
+    folder = tmp_path / "appsettings"
+    folder.mkdir()
+    (folder / "cells.json").write_text(json.dumps({"schema_version": 2}))
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
+    offered = []
+    monkeypatch.setattr(
+        analyzerapp, "pick_app_settings", lambda files: offered.append(files) or files[0]
+    )
+    manager = _start(monkeypatch, [])
+    assert offered == [[folder / "cells.json"]] and manager.source == folder / "cells.json"
+    offered.clear()
+    _start(monkeypatch, ["-s", str(folder / "cells.json")])  # -s: no question
+    assert offered == []
+
+
 def test_unavailable_executor_stops_the_start(monkeypatch, capsys):
     from flim.core.execution import ExecutionOptions
 

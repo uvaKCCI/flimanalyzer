@@ -167,3 +167,43 @@ def test_complete_refuses_unknown_keys_and_tools_not_installed(tmp_path, content
     session_settings(str(path))  # accepted otherwise
     with pytest.raises(ValueError, match=listed):
         session_settings(str(path), complete=True)
+
+
+# --- the choice of app settings file at startup ---
+
+
+def test_pick_is_asked_only_with_files_and_without_a_file_given(tmp_path, monkeypatch):
+    folder = tmp_path / "appsettings"
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
+    offered = []
+
+    def pick(files):
+        offered.append(files)
+        return files[0]
+
+    session_settings(pick=pick)  # the folder doesn't exist
+    folder.mkdir()
+    session_settings(pick=pick)  # no files
+    assert offered == []
+    cells = write(folder, {"schema_version": 2, "results_dir": "r"}, "cells.json")
+    write(folder, {"schema_version": 2}, "other.json")
+    manager = session_settings(pick=pick)
+    assert offered == [[cells, folder / "other.json"]]
+    assert manager.source == cells and manager.settings.results_dir == Path("r")
+    session_settings(str(folder / "other.json"), pick=pick)  # given with -s: no question
+    assert len(offered) == 1
+
+
+def test_pick_of_no_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
+    write(tmp_path, {"schema_version": 2, "results_dir": "r"}, "cells.json")
+    manager = session_settings(pick=lambda files: None)
+    assert manager.source is None and manager.settings.results_dir is None
+
+
+def test_picked_file_is_checked_like_s(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
+    path = write(tmp_path, MIXED, "cells.json")
+    asked = []
+    session_settings(pick=lambda files: files[0], choose=lambda c: asked.append(c))
+    assert [c.path for c in asked] == [path]

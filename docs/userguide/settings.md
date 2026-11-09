@@ -16,6 +16,20 @@ The settings come from several layers. Each layer changes only the settings it h
 
 `flimbatch` does not read the user settings file, so its results don't depend on settings changed in the GUI.
 
+## Viewing the app settings
+
+**Menu Access:** `File` > `Settings...` (on macOS: `FLIMAnalyzer` > `Settings...`)
+
+The dialog lists the app settings of this session: the results folder, the executor, the Prefect server, the log folder and how workflows handle missing columns. For each setting it shows:
+
+* its value;
+* where the value comes from: the built-in default, the user settings file, the app settings file, an environment variable or a command-line option;
+* the command-line option and the environment variable that change it.
+
+Below the table, it names the user settings file and the app settings file of the session, and the log file. Pointing at a row shows the setting's full value and its description.
+
+The dialog only shows the settings. They apply when FLIMAnalyzer starts: to change them, start it with the command-line option, the environment variable, or an app settings file (`-s`) that sets them. The results folder can also be set for each run in a tool's dialog (`Save results in`).
+
 ## The user settings file
 
 The GUI saves the settings you change in it to the user settings file, automatically. These are the settings of the tool dialogs, including the folder under `Save results in`, and the range filters. They apply again the next time the GUI starts. The import settings are kept only while the GUI is open.
@@ -45,6 +59,10 @@ The app settings folders are, in this order:
 1. The folders in the environment variable `FLIM_APP_SETTINGS_PATH`, if it is set. The folders are separated by `:` on macOS and Linux, and by `;` on Windows.
 2. Otherwise, the folders listed in `appsettings_path` in the user settings file.
 3. Otherwise, the folder `appsettings` in the platform's settings folder, for example `~/Library/Application Support/FLIMAnalyzer/appsettings` on macOS.
+
+### Choosing an app settings file at startup
+
+If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI looks for `.json` files in the app settings folders. If it finds at least one, it asks which to start with: `No app settings file`, or one of the files, listed with its folder. `Cancel` starts without one. The chosen file is checked like a file given with `-s` (see [Settings files from older versions](#settings-files-from-older-versions)). If the folders have no files, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`.
 
 ### `defaults.json` (deprecated)
 

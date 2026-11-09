@@ -128,5 +128,8 @@ def user_settings_file(tmp_path, monkeypatch):
     the platform's settings folder."""
     path = tmp_path / "user-settings.json"
     monkeypatch.setenv("FLIM_USER_SETTINGS", str(path))
+    # nor the app settings files in the platform's settings folder (the GUI would ask
+    # which to start with)
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path / "appsettings"))
     return path
 

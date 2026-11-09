@@ -212,3 +212,40 @@ def test_tool_save_to_a_current_file_does_not_ask(dialog, tmp_path, answers):
     assert dialog("Summarize").save_settings(str(path))
     data = json.loads(path.read_text())
     assert offered == [] and data["results_dir"] == "other" and "Summarize" in data["tools"]
+
+
+# --- File > Settings... ---
+
+
+def test_settings_viewer_shows_each_setting(frame):
+    from flim.gui.settingsview import COLUMNS, SettingsViewer
+
+    viewer = SettingsViewer(frame, frame.settings_manager)
+    try:
+        table = viewer.table
+        assert table.GetColumnCount() == len(COLUMNS)
+        titles = [table.GetItemText(i, 0) for i in range(table.GetItemCount())]
+        assert titles == ["Results folder", "Executor", "Prefect server", "Log folder",
+                          "Workflows: missing columns"]
+        assert table.GetItemText(1, 1) == "local, workers: automatic"
+        assert table.GetItemText(1, 2) == "built-in default"
+        assert "User settings file:" in viewer.files.GetLabel()
+    finally:
+        viewer.Destroy()
+
+
+def test_file_menu_has_settings(frame):
+    item = frame.GetMenuBar().FindItemById(wx.ID_PREFERENCES)
+    assert item is not None and item.GetItemLabelText() == "Settings..."
+
+
+def test_pick_app_settings(tmp_path, answers):
+    queue, offered = answers
+    files = [tmp_path / "a.json", tmp_path / "b.json"]
+    queue.append(f"b.json  ({tmp_path})")
+    assert settingscheck.pick_app_settings(files) == files[1]
+    assert offered[0][1][0] == settingscheck.NO_FILE
+    queue.append(settingscheck.NO_FILE)
+    assert settingscheck.pick_app_settings(files) is None
+    queue.append(None)  # Cancel
+    assert settingscheck.pick_app_settings(files) is None

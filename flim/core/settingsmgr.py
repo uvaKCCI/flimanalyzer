@@ -30,6 +30,23 @@ from flim.core.settings import (
 APP_NAME = "FLIMAnalyzer"
 LOCK_TIMEOUT = 10  # seconds to wait for another instance writing the user settings file
 APP_SETTINGS_PATH_VAR = "FLIM_APP_SETTINGS_PATH"
+# the environment variables and command-line options of the app settings
+ENV_NAMES = {
+    "results_dir": "FLIM_RESULTS_DIR",
+    "execution": "FLIM_EXECUTION",
+    "prefect_server": "FLIM_PREFECT_SERVER",
+    "log_dir": "FLIM_LOG_DIR",
+    "cache": "FLIM_CACHE_DIR",
+    "strict": "FLIM_STRICT",
+}
+OPTION_NAMES = {
+    "results_dir": "-o",
+    "execution": "-e",
+    "prefect_server": "--no-prefect-server",
+    "log_dir": "--log-dir",
+    "cache": "--cache-dir",
+    "strict": "--strict, --no-strict",
+}
 
 
 def user_settings_path() -> Path:
@@ -127,6 +144,11 @@ class UserSettingsFile:
                 raise
 
 
+def _sections(data: dict) -> list[str]:
+    """Return the section names of settings data, without `schema_version`."""
+    return [key for key in data if key != "schema_version"]
+
+
 class SettingsManager:
     """Manages the settings of this instance (GUI or flimbatch). All
     changes are applied through it, one at a time: it validates and applies them,
@@ -148,8 +170,13 @@ class SettingsManager:
         self._lock = threading.RLock()
         self._user_file = user_file
         settings = base if base is not None else AppSettings.default()
+        # setting -> the layer that set it, e.g. "user settings file"; settings not
+        # listed have their built-in defaults
+        self.origins: dict[str, str] = {}
         if user_file is not None:
-            settings = update_settings(settings, user_file.read())
+            data = user_file.read()
+            settings = update_settings(settings, data)
+            self.origins.update(dict.fromkeys(_sections(data), "user settings file"))
         self._settings = settings
         self._version = 0
         self.source: Optional[Path] = None  # the app settings file of this session
@@ -195,6 +222,8 @@ class SettingsManager:
         with self._lock:
             self._settings = update_settings(self._settings, changes)
             self._version += 1
+            if keep:
+                self.origins.update(dict.fromkeys(_sections(changes), "user settings file"))
             if keep and self._user_file is not None:
                 try:
                     self._user_file.merge(changes)
@@ -230,6 +259,7 @@ class SettingsManager:
         settings = self.update(check.sections, keep=False)
         self.source = check.path
         self.check = check
+        self.origins.update(dict.fromkeys(_sections(check.sections), "app settings file"))
         return settings
 
     def record(self) -> list[str]:
@@ -473,6 +503,7 @@ def session_settings(
     base: Optional[AppSettings] = None,
     choose: Optional[Choice] = None,
     complete: bool = False,
+    pick: Optional[Callable[[list[Path]], Optional[Path]]] = None,
 ) -> SettingsManager:
     """Create the settings manager of a session from all settings layers.
 
@@ -493,6 +524,8 @@ def session_settings(
             it, such a file is refused (`strict_choice`).
         complete: Refuse an app settings file unless all its settings can be used
             and checked (see `strict_choice`); for flimbatch.
+        pick: Called without `settings_file` if the app settings search path has
+            files (`list_app_settings`); returns the file to use, or None for none.
 
     Returns:
         The settings manager. Its `source` is the path of the app settings file, or
@@ -505,8 +538,11 @@ def session_settings(
             command-line value is invalid.
     """
     manager = SettingsManager(base, user_file)
+    search_path = app_settings_path(manager.settings.appsettings_path)
+    if not settings_file and pick is not None:
+        files = list_app_settings(search_path)
+        settings_file = pick(files) if files else None
     if settings_file:
-        search_path = app_settings_path(manager.settings.appsettings_path)
         check = check_settings_file(find_app_settings(settings_file, search_path))
         if choose and check.problems:
             chosen = choose(check)
@@ -514,9 +550,15 @@ def session_settings(
             chosen = strict_choice(check, complete=complete)
         if chosen is not None:
             manager.apply(chosen)
-    for changes in (environment_changes(), command_line or {}):
+    for changes, names, layer in (
+        (environment_changes(), ENV_NAMES, "environment"),
+        (command_line or {}, OPTION_NAMES, "command line"),
+    ):
         if changes:
             manager.update(_completed(changes, manager.settings), keep=False)
+            manager.origins.update(
+                {key: f"{layer} ({names.get(key, key)})" for key in _sections(changes)}
+            )
     return manager
 
 

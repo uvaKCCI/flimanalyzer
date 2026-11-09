@@ -98,18 +98,46 @@ def choose_settings(check):
             message lists the problems.
     """
     try:
-        import wx
+        import wx  # noqa: F401
     except ImportError:
         raise ValueError(check.summary()) from None
-    from flim.gui.app import FLIMAnalyzerApp
     from flim.gui.settingscheck import choose_settings as ask
+
+    _gui_app()
+    return ask(check)
+
+
+def _gui_app():
+    """Create the GUI app for a dialog before the main window, if there is none."""
+    import wx
+
+    from flim.gui.app import FLIMAnalyzerApp
 
     global _startup_app
     if not isinstance(wx.GetApp(), FLIMAnalyzerApp):
         # opens no window; interactive_run opens the main window. Kept referenced:
         # an app without a reference is destroyed at once.
         _startup_app = FLIMAnalyzerApp()
-    return ask(check)
+
+
+def pick_app_settings(files):
+    """Ask which app settings file to start with (flim.gui.settingscheck), before the
+    main window opens.
+
+    Args:
+        files: The files in the app settings search path.
+
+    Returns:
+        The chosen file, or None for no file; None without wxPython.
+    """
+    try:
+        import wx  # noqa: F401
+    except ImportError:
+        return None
+    from flim.gui.settingscheck import pick_app_settings as ask
+
+    _gui_app()
+    return ask(files)
 
 
 def init_logger(loglevel):
@@ -158,6 +186,7 @@ def main(argv=None):
             changes,
             user_file=UserSettingsFile(user_settings_path()),
             choose=choose_settings,
+            pick=pick_app_settings,
         )
         execution = ExecutionOptions(execution=manager.settings.execution)
         execution.check_available()
