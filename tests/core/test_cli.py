@@ -129,7 +129,7 @@ def test_only_given_options_become_changes():
     assert changes == {
         "results_dir": "out",
         "prefect_server": False,
-        "log_dir": "logs",
+        "log": {"dir": "logs"},  # partial: the session settings complete it
         "cache": {"dir": "cache"},  # partial: the session settings complete it
         "strict": False,
         "execution": {"executor": "local", "workers": 2},

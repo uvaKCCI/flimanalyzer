@@ -8,6 +8,8 @@ import logging
 from importlib.metadata import entry_points
 from typing import Optional
 
+logger = logging.getLogger(__name__)
+
 API_VERSION = 1  # tools declaring another api_version are not registered
 
 # menu and tool panel order; categories not listed here follow, sorted by name
@@ -108,7 +110,7 @@ def discover(group: str = TOOLS_GROUP) -> list[str]:
             ep.load()
             loaded.append(ep.name)
         except Exception:
-            logging.exception(
+            logger.exception(
                 f"Could not load {group} entry point '{ep.name}' ({ep.value})"
             )
     return loaded

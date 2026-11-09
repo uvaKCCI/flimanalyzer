@@ -27,7 +27,7 @@ def test_defaults():
 
 def test_each_setting_names_its_layer(tmp_path, monkeypatch):
     user = tmp_path / "user.json"
-    user.write_text(json.dumps({"schema_version": 2, "log_dir": "logs"}))
+    user.write_text(json.dumps({"schema_version": 2, "log": {"dir": "logs"}}))
     app = tmp_path / "cells.json"
     app.write_text(json.dumps({"schema_version": 2, "strict": True,
                                "execution": {"executor": "dask-local", "workers": 8}}))
@@ -50,7 +50,8 @@ def test_each_setting_names_its_layer(tmp_path, monkeypatch):
     assert shown["execution"].value == "dask-local, 8 workers, scheduler: threads"
     assert shown["strict"].origin == "app settings file"
     assert shown["strict"].value == "errors"
-    assert shown["log_dir"].origin == "user settings file"
+    assert shown["log"].origin == "user settings file"
+    assert shown["log"].value == "logs; logs kept 30 days"
 
 
 def test_a_change_in_the_gui_comes_from_the_user_settings_file(tmp_path):

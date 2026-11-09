@@ -34,7 +34,7 @@ Before a workflow runs, its settings are checked against the data (see [Workflow
 | `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`, the default in batch mode), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4`. An unknown name is an error. |
 | `--no-prefect-server` | don't start a local Prefect server if none is found; a temporary one is used instead (see [Prefect server](/install/index.md#prefect-server)). |
-| `--log-dir` | sets the log folder setting (`log_dir`) |
+| `--log-dir` | log folder (`log` > `dir`); default: the output folder (see [Log files](/install/index.md#log-files)) |
 | `--cache-dir` | sets the cache folder setting (`cache` > `dir`) |
 | `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical`. The messages are shown in the terminal. |
 

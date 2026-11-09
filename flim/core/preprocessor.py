@@ -8,6 +8,8 @@ import numpy as np
 import numbers
 import flim.core
 
+logger = logging.getLogger(__name__)
+
 TRP_RZERO = 2.1
 ONE_SIXTH = 1.0 / 6
 
@@ -199,7 +201,7 @@ class defaultpreprocessor:
         newheaders.extend(sorted(set(data.columns.values) - set(first)))
         if len(newheaders) == len(data.columns):
             data = data.reindex(newheaders, axis=1)
-        logging.debug(f"Reordered headers: {data.columns.values}")
+        logger.debug(f"Reordered headers: {data.columns.values}")
         return data
 
     def drop_columns(

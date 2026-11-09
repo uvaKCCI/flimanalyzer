@@ -7,6 +7,8 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 
 from flim.core.config import BaseConfig, FeatureColumn, TaskConfig
 
+logger = logging.getLogger(__name__)
+
 LegendPosition = Literal["right", "top", "bottom", "left", "inside", "none"]
 # legend positions outside the plots, and none
 OUTSIDE_POSITIONS = ("right", "top", "bottom", "left", "none")
@@ -364,7 +366,7 @@ class HistogramConfig(DistributionPlotConfig):
         # that it never read; they are skipped to keep the plots unchanged.
         features = params.pop("features", [])
         if not isinstance(features, list):  # "all_features": not a fixed set
-            logging.info("Frequency Histogram: 'all features' is not kept")
+            logger.info("Frequency Histogram: 'all features' is not kept")
             features = []
         settings = {}
         for feature, spec in (params.pop("featuresettings", {}) or {}).items():
@@ -373,7 +375,7 @@ class HistogramConfig(DistributionPlotConfig):
             try:
                 settings[feature] = HistogramRange(**spec)
             except (TypeError, ValidationError) as err:
-                logging.debug(f"Histogram settings of {feature} skipped: {err}")
+                logger.debug(f"Histogram settings of {feature} skipped: {err}")
         params.pop("bins", None)  # not used by the plugin
         return {"features": {f: settings.get(f, HistogramRange()) for f in features}}
 

@@ -14,6 +14,8 @@ import wx.adv
 from flim.core.paths import shorten_path
 from flim.core.runner import FINAL_STATUSES, CancelToken
 
+logger = logging.getLogger(__name__)
+
 
 def open_in_file_browser(path):
     """Shows a folder in Finder (macOS), Explorer (Windows) or, elsewhere, with
@@ -158,7 +160,7 @@ class RunProgressDialog(wx.Dialog):
                     self.cancel_token, self._on_progress, self._on_start
                 )
         except Exception as e:
-            logging.exception("Run failed")
+            logger.exception("Run failed")
             self.error = e
         wx.CallAfter(self._finished)
 

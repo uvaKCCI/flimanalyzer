@@ -9,6 +9,8 @@ import re
 import importlib
 import pkgutil
 
+logger = logging.getLogger(__name__)
+
 
 def get_available_parsers(pkdir="core.parser"):
     for module_loader, name, ispkg in pkgutil.iter_modules([pkdir]):
@@ -23,14 +25,14 @@ def instantiate_parser(fullname):
         return None
     modulename = fullname.rpartition(".")[0]
     classname = fullname.rpartition(".")[2]
-    logging.debug(f"Parser modulename={modulename}, classname={classname}")
+    logger.debug(f"Parser modulename={modulename}, classname={classname}")
     try:
         module = importlib.import_module(modulename)
         class_ = getattr(module, classname)
         parserinstance = class_()
     except Exception:
-        logging.error(f"Error instantiating {fullname} parser.")
-        logging.error(Exception)
+        logger.error(f"Error instantiating {fullname} parser.")
+        logger.error(Exception)
         parserinstance = None
     return parserinstance
 

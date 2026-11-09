@@ -11,6 +11,8 @@ from pubsub import pub
 
 from flim.gui.events import FILTERS_UPDATED, ANALYSIS_BINS_UPDATED
 
+logger = logging.getLogger(__name__)
+
 EVT_FU_TYPE = wx.NewEventType()
 EVT_FILTERUPDATED = wx.PyEventBinder(EVT_FU_TYPE, 1)
 
@@ -116,10 +118,10 @@ class AnalysisListCtrl(
         return None
 
     def SetRow(self, key, rowdata):
-        logging.debug("AnalysisListCtrl.SetRow")
+        logger.debug("AnalysisListCtrl.SetRow")
         idx = self.get_index_by_key(key)
         if idx is not None:
-            logging.debug(f"Updating index {idx}: {rowdata}")
+            logger.debug(f"Updating index {idx}: {rowdata}")
             self.SetItem(idx, 2, str(rowdata[0]))
             self.SetItem(idx, 3, str(rowdata[1]))
             self.Update()
@@ -181,20 +183,20 @@ class AnalysisListCtrl(
         idx = event.GetIndex()
         col = event.GetColumn()
         rowkey = self.GetItem(idx, self.get_key_col()).GetText()
-        logging.debug(self.data[rowkey])
+        logger.debug(self.data[rowkey])
         newvalue = event.GetItem().GetText()
         if col in [2, 3]:
             newvalue = float(newvalue)
         elif col == 4:
             newvalue = int(newvalue)
         self.data[rowkey][col - 2] = newvalue
-        logging.debug(self.data[rowkey])
+        logger.debug(self.data[rowkey])
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey: self.data[rowkey]})
 
     def OnCheckItem(self, index, flag):
         rowkey = self.GetItem(index, self.get_key_col()).GetText()
-        logging.debug(f"OnCheckItem {rowkey}")
+        logger.debug(f"OnCheckItem {rowkey}")
         if self.enableevents:
             # looked up by the cell text: a data key that is not a string (e.g. a
             # MultiIndex tuple) raises KeyError
@@ -290,9 +292,9 @@ class FilterListCtrl(AnalysisListCtrl):
         self.fire_rowsupdated_event(changed)
 
     def OnFilterUpdated(self, event):
-        logging.debug(f"{len(event.GetUpdatedItems())} updated")
+        logger.debug(f"{len(event.GetUpdatedItems())} updated")
         for i in event.GetUpdatedItems():
-            logging.debug(i)
+            logger.debug(i)
         event.Skip()
 
     def GetDroppedRows(self, rowkey):
@@ -302,20 +304,20 @@ class FilterListCtrl(AnalysisListCtrl):
         if droppedrows is None:
             droppedrows = {}
         self.dropped = droppedrows
-        logging.debug(f"{len(droppedrows)} filters")
+        logger.debug(f"{len(droppedrows)} filters")
         for idx in range(self.GetItemCount()):
             key = self.GetItem(idx, self.get_key_col()).GetText()
             if key in droppedrows:
                 dropped = droppedrows[key]
                 no_droppedfromview = len(self.get_view_dropped(key))
                 self.SetItem(idx, 4, f"{no_droppedfromview:,}")
-                logging.debug(
+                logger.debug(
                     f"\tSetting dropped row, key={key}, index={idx}: {len(dropped)},"
                     f" dropped from view: {no_droppedfromview}"
                 )
             else:
                 self.SetItem(idx, 4, "---")
-                logging.debug(
+                logger.debug(
                     f"\tSetting dropped row, index={idx}, key={key}, dropped=---"
                 )
         self.Update()
@@ -323,7 +325,7 @@ class FilterListCtrl(AnalysisListCtrl):
     def UpdateDroppedRows(self, droppedrows):
         if not self.showdropped:
             return
-        logging.debug(f"FilterListCtrl.UpdateDroppedRows, {len(droppedrows)} filters")
+        logger.debug(f"FilterListCtrl.UpdateDroppedRows, {len(droppedrows)} filters")
         droppedidx = {self.get_index_by_key(key): key for key in droppedrows}
         for idx in range(self.GetItemCount()):
             key = droppedidx.get(idx)
@@ -332,13 +334,13 @@ class FilterListCtrl(AnalysisListCtrl):
                 self.dropped[key] = dropped
                 no_droppedfromview = len(self.get_view_dropped(key))
                 self.SetItem(idx, 4, f"{no_droppedfromview:,}")
-                logging.debug(
+                logger.debug(
                     f"\tUpdating dropped row (SELECTED), key={key}, index={idx}:"
                     f" {len(dropped)}, dropped from view: {no_droppedfromview}"
                 )
             else:
                 self.SetItem(idx, 4, "---")
-                logging.debug(
+                logger.debug(
                     f"\tUpdating dropped row (NOT SELECTED), key={key}, index={idx}"
                 )
         self.Update()
@@ -371,7 +373,7 @@ class FilterListCtrl(AnalysisListCtrl):
         if len(alldroppedrows) > 0:
             alldroppedrows = np.concatenate(alldroppedrows)
             alldroppedrows = np.unique(alldroppedrows)
-        logging.debug(f"total dropped rows: {len(alldroppedrows)}")
+        logger.debug(f"total dropped rows: {len(alldroppedrows)}")
         return alldroppedrows
 
     def EndLabelEdit(self, event):
@@ -380,29 +382,29 @@ class FilterListCtrl(AnalysisListCtrl):
         rowkey = self.GetItem(idx, self.get_key_col()).GetText()
         filter = self.data[rowkey]
         newvalue = event.GetItem().GetText()
-        logging.debug("FilterListCtrl.EndLabelEdit")
-        logging.debug(f"\t{self.data[rowkey].get_params()}")
+        logger.debug("FilterListCtrl.EndLabelEdit")
+        logger.debug(f"\t{self.data[rowkey].get_params()}")
         if col == 2:
             if float(newvalue) == self.data[rowkey].get_rangelow():
-                logging.debug("\tnothing to update")
+                logger.debug("\tnothing to update")
                 return
             self.data[rowkey].set_rangelow(float(newvalue))
         elif col == 3:
             if float(newvalue) == self.data[rowkey].get_rangehigh():
-                logging.debug("\tnothing to update")
+                logger.debug("\tnothing to update")
                 return
             self.data[rowkey].set_rangehigh(float(newvalue))
         if filter.is_selected():
             self.dropped[rowkey] = filter.get_dropped(self.dataframe)
         elif self.dropped.get(rowkey) is not None:
             del self.dropped[rowkey]
-        logging.debug(f"\t{self.data[rowkey].get_params()}")
+        logger.debug(f"\t{self.data[rowkey].get_params()}")
         self.UpdateDroppedRows(self.dropped)
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey: self.data[rowkey]})
 
     def OnCheckItem(self, index, flag):
-        logging.debug("OnCheckItem")
+        logger.debug("OnCheckItem")
         rowkey = self.GetItem(index, self.get_key_col()).GetText()
         filter = self.data[rowkey]
         filter.select(flag)
@@ -410,7 +412,7 @@ class FilterListCtrl(AnalysisListCtrl):
             self.dropped[rowkey] = filter.get_dropped(self.dataframe)
         elif self.dropped.get(rowkey) is not None:
             del self.dropped[rowkey]
-        logging.debug(f"\t{self.data[rowkey].get_params()}")
+        logger.debug(f"\t{self.data[rowkey].get_params()}")
         self.UpdateDroppedRows(self.dropped)
 
         if self.enableevents:

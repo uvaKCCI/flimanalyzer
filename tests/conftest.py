@@ -131,5 +131,7 @@ def user_settings_file(tmp_path, monkeypatch):
     # nor the app settings files in the platform's settings folder (the GUI would ask
     # which to start with)
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path / "appsettings"))
+    # nor the platform's log folder (the default, so that FLIM_LOG_DIR stays unset)
+    monkeypatch.setattr("flim.core.logs.default_log_dir", lambda: tmp_path / "logs")
     return path
 

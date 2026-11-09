@@ -20,6 +20,8 @@ from flim.core.tool import Tool, pyplot_lock
 from flim.core.types import OutputSpec, TableType
 from flim.tools.common import categories_first, category_columns, selected_features
 
+logger = logging.getLogger(__name__)
+
 
 def complete_rows(data: pd.DataFrame, features: list[str]) -> pd.DataFrame:
     """The rows without missing values in ``features``, with their category columns,
@@ -310,7 +312,7 @@ class Categorizer(Tool[CategorizerConfig]):
             assigned |= match
         labels = list(dict.fromkeys([r.value for r in config.rules] + [config.default]))
         if config.name in table.columns:
-            logging.info(f"{self.name}: replacing column '{config.name}'")
+            logger.info(f"{self.name}: replacing column '{config.name}'")
             table = table.drop(columns=config.name)
         table.insert(
             len(categories), config.name, pd.Categorical(values, categories=labels)

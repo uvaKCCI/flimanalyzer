@@ -36,11 +36,19 @@ def _no_server(monkeypatch):
 # --- init_logger ---
 
 
-def test_log_file_in_the_start_folder(clean_logging):
-    analyzerapp.init_logger("DEBUG")
-    logging.debug("hello")
-    assert logging.root.level == logging.DEBUG
-    assert "hello" in (clean_logging / "flimanalyzer.log").read_text()
+def test_session_log_file_in_the_log_folder(monkeypatch, clean_logging, tmp_path):
+    monkeypatch.setenv("FLIM_LOG_DIR", str(tmp_path / "logs"))
+    _start(monkeypatch, [])
+    for handler in logging.root.handlers:
+        handler.flush()
+    (path,) = (tmp_path / "logs").glob("flimanalyzer_*.log")
+    assert "FLIMAnalyzer version" in path.read_text()  # logged before the file opened
+    assert not (clean_logging / "flimanalyzer.log").exists()  # not in the start folder
+
+
+def test_log_dir_option(monkeypatch, clean_logging, tmp_path):
+    _start(monkeypatch, ["--log-dir", str(tmp_path / "mine")])
+    assert list((tmp_path / "mine").glob("flimanalyzer_*.log"))
 
 
 def test_log_replaces_earlier_handlers(clean_logging):
@@ -123,7 +131,7 @@ def test_command_line_options_set_the_session_settings(monkeypatch, clean_loggin
          "--cache-dir", "cache", "--strict"]
     )
     settings = started["manager"].settings
-    assert settings.results_dir == Path("out") and settings.log_dir == Path("logs")
+    assert settings.results_dir == Path("out") and settings.log.dir == Path("logs")
     assert settings.execution.workers == 3 and settings.prefect_server is False
     assert settings.cache.dir == Path("cache") and settings.strict is True
     assert settings.cache.max_size_mb == 2048  # only the cache folder changed

@@ -7,6 +7,8 @@ import logging
 import matplotlib.pyplot as plt
 import networkx as nx
 
+logger = logging.getLogger(__name__)
+
 # (edge color, face color) per node kind
 NODE_COLORS = {
     "output": ((1.0, 0.5, 0.5), (1.0, 0.8, 0.8)),
@@ -104,5 +106,5 @@ class WorkflowGraph:
             try:
                 fig.canvas.mpl_connect(evt, routine)
             except Exception:
-                logging.debug(f"Could not connect {evt} for {routine} in {fig}")
+                logger.debug(f"Could not connect {evt} for {routine} in {fig}")
         return fig, ax

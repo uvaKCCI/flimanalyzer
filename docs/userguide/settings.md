@@ -88,7 +88,7 @@ These environment variables set the same settings as the command-line options. T
 | `FLIM_EXECUTION__ADDRESS` | address of the Dask cluster (`dask`) |
 | `FLIM_EXECUTION` | the executor settings as JSON, instead of the four variables above, for example `{"executor": "dask-local", "workers": 8}` |
 | `FLIM_PREFECT_SERVER` | `false` does the same as `--no-prefect-server` |
-| `FLIM_LOG_DIR` | log folder setting, as `--log-dir` |
+| `FLIM_LOG_DIR` | log folder (`log` > `dir`), as `--log-dir` |
 | `FLIM_CACHE_DIR` | cache folder setting, as `--cache-dir` |
 | `FLIM_STRICT` | `true` or `false`, as `--strict` or `--no-strict` |
 | `FLIM_APP_SETTINGS_PATH` | the app settings search path (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder |
@@ -158,7 +158,7 @@ Some tools have a table with a row for each feature, for example the table of ra
   "results_dir": "/Users/mst3k/results",
   "execution": {"executor": "local", "workers": null},
   "prefect_server": true,
-  "log_dir": null,
+  "log": {"dir": null, "max_age_days": 30},
   "cache": {"dir": null, "max_size_mb": 2048, "max_age_days": 7},
   "strict": null,
   "appsettings_path": [],
@@ -176,7 +176,7 @@ Some tools have a table with a row for each feature, for example the table of ra
 * `results_dir`: the folder under `Save results in` for tools that have no folder of their own. If it is not set (`null`), the results go to the folder FLIMAnalyzer was started from.
 * `execution`: the executor and its options, as with `-e` (see [Concurrent and Distributed Execution](/userguide/execution)). For example, `{"executor": "dask-local", "workers": 8, "scheduler": "processes"}`, or `{"executor": "dask", "address": "tcp://host:8786"}`.
 * `prefect_server`: `false` does the same as `--no-prefect-server`.
-* `log_dir`: the log folder setting.
+* `log`: the log folder (`dir`) and how many days the GUI keeps its log files (`max_age_days`). If the folder is not set (`null`), the GUI uses the platform's log folder and `flimbatch` its output folder (see [Log files](/install/index.md#log-files)).
 * `cache`: the cache folder setting (`dir`), the maximum cache size in MB (`max_size_mb`) and the maximum age of cached items in days (`max_age_days`).
 * `strict`: workflows: `true` makes columns that are not in the data errors; `false` replaces them by the closest matching column. A workflow's own `Strict` setting takes precedence. If it is not set (`null`), missing columns are guessed in the GUI, where the guesses are shown before the run, and are errors in `flimbatch`.
 * `appsettings_path`: the folders searched for app settings files. It is read from the user settings file (see [App settings files](#app-settings-files)).

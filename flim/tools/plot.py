@@ -39,6 +39,8 @@ from flim.core.tool import Tool
 from flim.core.types import OutputSpec, PlotType, TableType
 from flim.tools.common import category_columns, selected_features
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_LINESTYLES = ["-", "--", ":", "-."]
 
 
@@ -588,7 +590,7 @@ def grouped_meanbarplot(
         mean = groupeddata.mean()
         if groupeddata.ngroups == len(data):
             dataindex = data.set_index(list(categories), drop=True).index
-            logging.debug("Single value per group. Keeping index of original data.")
+            logger.debug("Single value per group. Keeping index of original data.")
             mean = mean.reindex(index=dataindex)
         if error_bar != "None":
             error = groupeddata.std() if error_type == "std" else groupeddata.sem()
@@ -894,7 +896,7 @@ def grouped_kdeplot(data, column, ax, groups=(), show_legend=True, **kwargs):
             try:
                 sns.kdeplot(group[column], label=clean_label(name), **kwargs, **style)
             except Exception as err:
-                logging.error(err)
+                logger.error(err)
         # from the curves drawn (none for e.g. a constant column)
         if show_legend and ax.get_legend_handles_labels()[0]:
             ax.legend(**group_legend_options(groups))
@@ -902,7 +904,7 @@ def grouped_kdeplot(data, column, ax, groups=(), show_legend=True, **kwargs):
         try:
             sns.kdeplot(data[column], **kwargs)
         except Exception as err:
-            logging.error(err)
+            logger.error(err)
     ax.autoscale(enable=True, axis="y")
     ax.set_ylim(0, None)
 

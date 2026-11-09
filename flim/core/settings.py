@@ -10,7 +10,7 @@ A settings file has a section per settings area, and one per tool::
 
     {"schema_version": 2,
      "results_dir": null, "execution": {"executor": "local", ...},
-     "prefect_server": true, "log_dir": null, "cache": {...},
+     "prefect_server": true, "log": {...}, "cache": {...},
      "import": {...}, "preprocess": {...}, "filters": {...},
      "tools": {"Summarize": {"config": {...}, "autosave": false, "results_dir": null},
                ...}}
@@ -43,6 +43,8 @@ from pydantic import (
 
 from flim.core.config import TaskConfig
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
+
+logger = logging.getLogger(__name__)
 
 SETTINGS_VERSION = 2
 
@@ -132,7 +134,7 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
             if entry is not None and entry.legacy is not None:
                 return tool.config_class.from_legacy_params(entry.legacy)
         except Exception as err:
-            logging.warning(f"{tool.name}: settings not valid, using the defaults ({err})")
+            logger.warning(f"{tool.name}: settings not valid, using the defaults ({err})")
         return tool.config_class()
 
     def set(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> None:
@@ -210,6 +212,22 @@ class CacheSettings(_Settings):
     )
 
 
+class LogSettings(_Settings):
+    """Where the log files are written, and how long the GUI keeps them."""
+
+    dir: Optional[Path] = Field(
+        default=None,
+        title="Log folder",
+        description="Log folder. None: the platform's log folder for the GUI, the"
+        " output folder for flimbatch.",
+    )
+    max_age_days: int = Field(
+        default=30,
+        ge=1,
+        description="The GUI removes its log files older than this at startup (days).",
+    )
+
+
 class AppSettings(_Settings):
     schema_version: int = SETTINGS_VERSION
     results_dir: Optional[Path] = Field(
@@ -228,11 +246,10 @@ class AppSettings(_Settings):
         title="Prefect server",
         description="Use or start a local Prefect server for the runs.",
     )
-    log_dir: Optional[Path] = Field(
-        default=None,
+    log: LogSettings = Field(
+        default_factory=LogSettings,
         title="Log folder",
-        description="Log folder. None defaults to FLIM_LOG_DIR, else the platform's log"
-        " folder.",
+        description="Log folder and how long the GUI keeps its log files.",
     )
     cache: CacheSettings = Field(default_factory=CacheSettings)
     strict: Optional[bool] = Field(
@@ -377,7 +394,7 @@ def _v0_tools(plugins: dict) -> dict:
                 config = config_class.from_legacy_params(legacy)
                 entry["config"] = config.model_dump(mode="json")
             except Exception as err:  # e.g. a plugin of another package
-                logging.info(f"Settings of {name} kept as plugin parameters ({err})")
+                logger.info(f"Settings of {name} kept as plugin parameters ({err})")
                 entry["legacy"] = legacy
         entries[name] = entry
     return entries
@@ -470,7 +487,7 @@ def _validated(data: dict) -> AppSettings:
     settings = AppSettings.model_validate(data)
     unknown = _unknown_keys(settings)
     if unknown:
-        logging.warning(f"Settings: ignoring unknown keys {', '.join(unknown)}")
+        logger.warning(f"Settings: ignoring unknown keys {', '.join(unknown)}")
     return settings
 
 

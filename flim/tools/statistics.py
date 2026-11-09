@@ -25,6 +25,8 @@ from flim.tools.common import (
     set_lineage,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def percentile(n):
     def percentile_(x):
@@ -229,7 +231,7 @@ class RelativeChange(Tool[RelativeChangeConfig]):
             missing = matched.loc[matched["_merge"] == "left_only", keys]
             if len(missing):
                 groups = missing.drop_duplicates().astype(str).agg(", ".join, axis=1)
-                logging.warning(
+                logger.warning(
                     f"{self.name}: no '{config.reference_value}' rows in"
                     f" {' / '.join(keys)} {'; '.join(groups)}: left empty"
                 )
@@ -291,7 +293,7 @@ class SeriesAnalysis(Tool[SeriesAnalysisConfig]):
         shared = set(lines[0]).intersection(*lines[1:])
         label = "\n".join(line for line in lines[0] if line in shared)
         steps = ["\n".join(l for l in f if l not in shared) for f in lines]
-        logging.debug(f"series {label}: {steps}")
+        logger.debug(f"series {label}: {steps}")
 
         columns = categories + features if config.merge_input else categories
         table = data[columns].copy()

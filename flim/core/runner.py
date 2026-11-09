@@ -50,6 +50,8 @@ from prefect.task_runners import ThreadPoolTaskRunner
 from flim.core.tool import TaskCancelled, pyplot_lock, release_figures
 from flim.results import clean_path_component, save_results
 
+logger = logging.getLogger(__name__)
+
 __all__ = [
     "Parameter",
     "TaskOutput",
@@ -101,7 +103,7 @@ class CancelToken:
 
                 distributed.Event(self.name, client=self._client).set()
             except Exception:
-                logging.exception("Could not signal cancellation to the Dask workers")
+                logger.exception("Could not signal cancellation to the Dask workers")
 
     def is_set(self) -> bool:
         if self._local is not None:
@@ -387,7 +389,7 @@ class FlowRun:
             if self.graph.nodes[u]["status"] in ("failed", "skipped", "cancelled")
         ]
         if failed:
-            logging.warning(f"Skipping {label}: upstream task failed.")
+            logger.warning(f"Skipping {label}: upstream task failed.")
             self.graph.nodes[node]["status"] = "skipped"
             return TaskOutput(None, node)
 
@@ -431,13 +433,13 @@ class FlowRun:
                 attrs["resources"] = _granted(attrs.get("tool"))
             elif state.is_pending() and state.name == "NotReady":
                 attrs.update(status="skipped", ref=None, message=state.message)
-                logging.warning(f"Skipped {attrs['label']}: upstream task did not complete.")
+                logger.warning(f"Skipped {attrs['label']}: upstream task did not complete.")
             elif isinstance(exc := ref.result(raise_on_failure=False), TaskCancelled):
                 attrs.update(status="cancelled", ref=None, message=str(exc) or "Cancelled")
-                logging.info(f"{attrs['label']} cancelled: {attrs['message']}")
+                logger.info(f"{attrs['label']} cancelled: {attrs['message']}")
             else:
                 attrs.update(status="failed", ref=None, message=state.message)
-                logging.error(f"{attrs['label']} failed: {state.message}")
+                logger.error(f"{attrs['label']} failed: {state.message}")
         self._report_progress(attrs["label"])
 
     def resources(self) -> List[tuple]:
@@ -471,7 +473,7 @@ class FlowRun:
         try:
             self.on_progress(done, len(tasks), label, self.complete)
         except Exception:
-            logging.exception("Progress callback failed")
+            logger.exception("Progress callback failed")
 
     def wait(self):
         """Waits for all submitted tasks and records their final status."""
@@ -644,7 +646,7 @@ def select(outputs, key_pattern: str = "(.*?)", value_pattern: str = None) -> li
                         selected.append(
                             TaskOutput(element, out.node) if is_handle else element
                         )
-    logging.debug(f"select {key_pattern}, {value_pattern}: {len(selected)} items")
+    logger.debug(f"select {key_pattern}, {value_pattern}: {len(selected)} items")
     return selected
 
 
@@ -665,7 +667,7 @@ def _flow_body():
         try:
             on_start(run)
         except Exception:
-            logging.exception("Start callback failed")
+            logger.exception("Start callback failed")
     task_runner = getattr(context, "task_runner", None)
     if type(task_runner).__name__ == "DaskTaskRunner":
         # let tasks in other processes see a cancel; the client (and a local

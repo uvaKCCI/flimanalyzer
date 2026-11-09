@@ -102,7 +102,7 @@ Run `flimanalyzer --help` for all command-line options.
 | `-o`, `--output` | results folder: the folder under `Save results in` for tools that have no folder of their own |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4` (see [Concurrent and Distributed Execution](/userguide/execution)) |
 | `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |
-| `--log-dir` | sets the log folder setting (`log_dir`) |
+| `--log-dir` | log folder (`log` > `dir`; see [Log files](#log-files)) |
 | `--cache-dir` | sets the cache folder setting (`cache` > `dir`) |
 | `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. Default: the closest columns are used, and the dialog shows them before the run (see [Workflows](/userguide/workflows.md#checking-the-settings)). |
 | `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
@@ -116,7 +116,28 @@ These options can also be set with environment variables, and in an app settings
 * The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`: use `local`, `dask-local` and `dask`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
 * `-a`, `--execargs`: put the options after the executor name, as `-e NAME:KEY=VALUE,...`. `num_workers` is now `workers`. For example, `-e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"` becomes `-e dask-local:workers=8,scheduler=processes`.
 
-The GUI writes its messages to the log file `flimanalyzer.log`, in the folder it was started from. The file is replaced each time FLIMAnalyzer starts. When an error message says "see the log", the details are in this file.
+## Log files
+
+FLIMAnalyzer writes its messages to a log file. When an error message says "see the log", the details are in this file. Each session gets its own file, named after the program, its start time and its process ID, for example `flimanalyzer_2026-11-09T14-23-43_12345.log` or `flimbatch_2026-11-09T14-23-43_12345.log`. A file is never overwritten.
+
+The log folder is, first match:
+
+1. The folder given with `--log-dir`, or in the environment variable `FLIM_LOG_DIR`, or in `log` > `dir` in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
+2. For the GUI, the platform's log folder:
+   * macOS: `~/Library/Logs/FLIMAnalyzer`
+   * Linux: `~/.local/state/FLIMAnalyzer/log`
+   * Windows: `%LOCALAPPDATA%\FLIMAnalyzer\Logs`
+3. For `flimbatch`, its output folder (`-o`), next to the results. `flimbatch` also writes its messages to the console.
+
+If the log folder can't be created or written to, the log goes to the folder `FLIMAnalyzer` in the system's temporary folder, and FLIMAnalyzer says so. The Settings dialog of the GUI shows the log file in use (`File` > `Settings...`).
+
+A log file that reaches 10 MB is renamed with `.1` added (`.2`, `.3` for older parts; up to three are kept), and a new one is started. When the GUI starts, it removes the log files in its log folder that are older than 30 days; `log` > `max_age_days` in an app settings file sets another number of days. It removes only files named like FLIMAnalyzer's log files. `flimbatch` doesn't remove logs, because its log folder is usually a results folder.
+
+`--log` sets the level of the messages written, for FLIMAnalyzer and for the libraries it uses. Each message names where it comes from, for example `flim.core.runner` or `matplotlib`.
+
+### Log files on a cluster
+
+On a cluster, administrators can set one log folder for every user, for example on fast scratch space, by setting `FLIM_LOG_DIR` in the environment module or in the launch script of an Open OnDemand app. The variable can contain `$USER`, as the shell expands it, for example `export FLIM_LOG_DIR=/scratch/$USER/flimanalyzer-logs`. Without it, the GUI writes to the platform's log folder in the home directory, and batch jobs write to their output folder.
 
 ## Using a GPU
 

@@ -24,6 +24,8 @@ from flim.core.tool import Tool, pyplot_lock
 from flim.core.types import FileType, OutputSpec, PlotType, TableType
 from flim.tools.common import category_columns, selected_features
 
+logger = logging.getLogger(__name__)
+
 # size of the encoder output of each architecture (flim.analysis.ml.autoencoder)
 ENCODED_SIZE = {
     "AE Simulator 1-6": 6,
@@ -103,7 +105,7 @@ class AETraining(Tool[AETrainConfig]):
         output_dir = self.context.output_dir
         if not output_dir:
             output_dir = Path(tempfile.mkdtemp(prefix="flim-autoencoder-"))
-            logging.warning(
+            logger.warning(
                 f"{self.name}: no results folder set, saving models in {output_dir}"
             )
         os.makedirs(output_dir, exist_ok=True)
@@ -225,7 +227,7 @@ class AETraining(Tool[AETrainConfig]):
         label = f"{batch_size}-{learning_rate}-{weight_decay}"
         device = _torch_device(self.context.device)
         epochs = config.epochs
-        logging.info(f"Training {config.architecture} {label} on {device}.")
+        logger.info(f"Training {config.architecture} {label} on {device}.")
         ae = self._new_model(config).to(device)
         criterion = nn.MSELoss()
         # with the CPU selected, PyTorch's optimizer must not query CUDA (#143: a CUDA
@@ -270,7 +272,7 @@ class AETraining(Tool[AETrainConfig]):
                         loss.backward()
                         optimizer.step()
                 (loss_train if split == 0 else loss_val).append(cumulative / (i + 1))
-            logging.debug(
+            logger.debug(
                 f"Epoch {epoch}: training loss {loss_train[-1]:.4f},"
                 f" validation loss {loss_val[-1]:.4f}"
             )
@@ -344,7 +346,7 @@ class AETraining(Tool[AETrainConfig]):
         )
         for column in ("Epoch", "Batch Size", "Learning Rate", "Weight Decay"):
             loss_df[column] = loss_df[column].astype("category")
-        logging.info(f"Training {label} complete.")
+        logger.info(f"Training {label} complete.")
 
         results.update(
             {
@@ -496,7 +498,7 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
             torch.as_tensor(reconstructed),
             torch.as_tensor(values.to_numpy(dtype=np.float32)),
         )
-        logging.debug(f"{os.path.basename(path)}: loss {loss.item():.4f}")
+        logger.debug(f"{os.path.basename(path)}: loss {loss.item():.4f}")
         if encoded.ndim == 1:
             encoded = encoded.reshape(-1, 1)
         categories = data[category_columns(data)].reset_index(drop=True)

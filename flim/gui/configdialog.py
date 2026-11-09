@@ -28,6 +28,8 @@ from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.settings import read_tool_settings, tool_settings, write_tool_settings
 from flim.gui.editors import FieldErrors, FieldsPanel
 
+logger = logging.getLogger(__name__)
+
 SEVERITY_ORDER = ("error", "guessed", "warning")  # first: most severe
 
 
@@ -465,7 +467,7 @@ class ConfigDialog(wx.Dialog):
             else:
                 config = self.tool.config_class.from_legacy_params(entry.legacy or {})
         except Exception as err:
-            logging.exception(f"Settings in {path} could not be read")
+            logger.exception(f"Settings in {path} could not be read")
             self.settings_message.SetLabel(f"Could not load {name}: {err}")
             return False
         self.config = config
@@ -524,7 +526,7 @@ class ConfigDialog(wx.Dialog):
         try:
             write()
         except Exception as err:
-            logging.exception(f"Settings could not be saved to {path}")
+            logger.exception(f"Settings could not be saved to {path}")
             self.settings_message.SetLabel(f"Could not save to {name}: {err}")
             return False
         self.settings_message.SetLabel(f"Saved to {name}")

@@ -8,6 +8,8 @@ import pandas as pd
 import re
 from joblib import dump
 
+logger = logging.getLogger(__name__)
+
 
 def clean_path_component(name: str) -> str:
     """Makes a result/tag name usable as a file or directory name."""
@@ -53,7 +55,7 @@ def save_results(results, directory: str | os.PathLike, name: str) -> None:
         name (str): name of the task that produced the results.
     """
     os.makedirs(directory, exist_ok=True)
-    logging.debug(f"Saving results of {name} to {directory}")
+    logger.debug(f"Saving results of {name} to {directory}")
     if isinstance(results, dict):
         to_pickle = {
             k: v for k, v in results.items() if not isinstance(v, matplotlib.figure.Figure)

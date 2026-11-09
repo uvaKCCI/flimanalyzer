@@ -11,6 +11,8 @@ import ctypes.util
 import logging
 import sys
 
+logger = logging.getLogger(__name__)
+
 _UTF8 = 0x08000100  # kCFStringEncodingUTF8
 
 
@@ -46,7 +48,7 @@ def set_bundle_name(name):
         if info:
             msg_set(info, sel("setObject:forKey:"), nsstring(name), nsstring("CFBundleName"))
     except Exception as e:
-        logging.debug(f"Could not set the macOS bundle name: {e!r}")
+        logger.debug(f"Could not set the macOS bundle name: {e!r}")
 
 
 def set_display_name(name):
@@ -75,4 +77,4 @@ def set_display_name(name):
         finally:
             cf.CFRelease(value)
     except Exception as e:
-        logging.debug(f"Could not set the macOS display name: {e!r}")
+        logger.debug(f"Could not set the macOS display name: {e!r}")

@@ -5,6 +5,8 @@
 import logging
 import numpy as np
 
+logger = logging.getLogger(__name__)
+
 
 class Filter:
     def __init__(self, name, selected=False, params=None, descr=""):
@@ -150,7 +152,7 @@ class RangeFilter(Filter):
         if self.name not in data.columns.values:
             return []
         low, high = self.get_range()
-        logging.debug(f"{self.is_selected()}, filtering {self.name}: {low}, {high}")
+        logger.debug(f"{self.is_selected()}, filtering {self.name}: {low}, {high}")
         droppedrows = []
         if self.dropna:
             droppedrows = np.flatnonzero(
@@ -162,5 +164,5 @@ class RangeFilter(Filter):
             droppedrows = np.flatnonzero(
                 (data[self.name] > high) | (data[self.name] < low)
             )
-        logging.debug(f"dropped rows: {droppedrows}")
+        logger.debug(f"dropped rows: {droppedrows}")
         return droppedrows

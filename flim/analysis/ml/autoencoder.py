@@ -14,6 +14,8 @@ import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from abc import abstractmethod
 
+logger = logging.getLogger(__name__)
+
 
 def get_autoencoder_classes():
     pkdir = os.path.dirname(__file__)
@@ -38,8 +40,8 @@ def create_instance(clazz, **kwargs):
         modulename = clazz.__module__
         classname = clazz.__name__
     else:
-        logging.error(f"Error instantiating {clazz} autoencoder.")
-    logging.debug(
+        logger.error(f"Error instantiating {clazz} autoencoder.")
+    logger.debug(
         f"Autoencoder modulename={modulename}, classname={classname}, {kwargs}"
     )
     try:
@@ -47,8 +49,8 @@ def create_instance(clazz, **kwargs):
         class_ = getattr(module, classname)
         toolinstance = class_(**kwargs)
     except Exception as err:
-        logging.error(f"Error: {err}")
-        logging.error(
+        logger.error(f"Error: {err}")
+        logger.error(
             f"Error instantiating {modulename}.{classname} autoencoder, {kwargs}"
         )
         toolinstance = None

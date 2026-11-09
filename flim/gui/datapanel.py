@@ -24,6 +24,8 @@ from flim.gui.events import (
 import flim.gui.dialogs
 from flim.gui.dialogs import SelectGroupsDlg, ConfigureFiltersDlg, RenameGroupsDlg
 
+logger = logging.getLogger(__name__)
+
 EVEN_ROW_COLOUR = "#CCE6FF"
 GRID_LINE_COLOUR = "#ccc"
 
@@ -233,12 +235,12 @@ class PandasFrame(wx.Frame):
         for group in groups:
             self.popupmenus[group] = self.create_popupmenu(group)
         if self.grid is not None:
-            logging.debug(
+            logger.debug(
                 f"datapanel.PandasFrame.SetData - REFRESHING {self.GetTitle()}"
             )
             self.update_view()
         else:
-            logging.debug(
+            logger.debug(
                 f"datapanel.PandasFrame.SetData - NOT REFRESHING {self.GetTitle()}"
             )
 
@@ -362,7 +364,7 @@ class PandasFrame(wx.Frame):
             and newdata is not None
             and self.data.__dict__ == originaldata.__dict__
         ):
-            logging.debug(f"{self.GetTitle()}")
+            logger.debug(f"{self.GetTitle()}")
             self.SetData(
                 data=newdata,
                 showcolindex=self.showcolindex,
@@ -632,7 +634,7 @@ class PandasFrame(wx.Frame):
                 isinstance(colseries, (str, bytes, collections.abc.Iterable))
             ):
                 # handle strings, categories, objects
-                logging.debug(f"AUTOSIZE col {col}")
+                logger.debug(f"AUTOSIZE col {col}")
                 rowidx = colseries.map(len).idxmax()
                 valuestr = colseries[rowidx]
             else:
@@ -646,7 +648,7 @@ class PandasFrame(wx.Frame):
                     valuestr = f"{value:.{self.precision}f}"
                 else:
                     valuestr = str(int(value))  # integer part only
-                logging.debug(
+                logger.debug(
                     f"minval={minval}, maxval={maxval}, value={value},"
                     f" valuestr={valuestr}"
                 )
@@ -679,15 +681,15 @@ class PandasFrame(wx.Frame):
             return
         selcolumns = dlg.get_selected()
         dlg.Destroy()
-        logging.debug(usedata.head())
+        logger.debug(usedata.head())
         if len(selgroups) > 0:
             indexgroups = [
                 g
                 for g in usedata.columns.values
                 if g in self.groups and g not in selgroups
             ]
-            logging.debug(f"index groups: {indexgroups}")
-            logging.debug(f"pivoting {selgroups} in {self.groups}")
+            logger.debug(f"index groups: {indexgroups}")
+            logger.debug(f"pivoting {selgroups} in {self.groups}")
             pivot_data = usedata.reset_index()
             selcolumns.extend(self.groups)
             pivot_data = pd.pivot_table(

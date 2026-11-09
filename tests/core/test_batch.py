@@ -75,7 +75,8 @@ def test_range_filters():
     assert len(unused) == 3
 
 
-def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path):
+def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path, monkeypatch):
+    monkeypatch.delenv("FLIM_LOG_DIR", raising=False)  # default: the output folder
     settings.tools.set(
         tools.get("Summarize"),
         SummaryConfig(grouping=["Treatment"], features=["FLIRR"], aggs=["mean"]),
@@ -98,6 +99,9 @@ def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path):
     text = run_summary.read_text()
     assert "User settings file: not read" in text
     assert f"App settings file: {path} (schema version 2)" in text
+    # the log goes with the results: flimbatch's log folder is the output folder
+    (log,) = out.glob("flimbatch_*.log")
+    assert "Saved" in log.read_text()
 
 
 @pytest.mark.parametrize(

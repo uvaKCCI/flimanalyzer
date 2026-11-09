@@ -13,6 +13,8 @@ import time
 import urllib.request
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 4200
 
@@ -77,18 +79,18 @@ def _start_server(host: str, port: int, timeout: float, log_file: str | os.PathL
     """
     api_url = f"http://{host}:{port}/api"
     cmd = _prefect_cli() + ["server", "start", "--host", host, "--port", str(port)]
-    logging.info(f"Starting Prefect server: {' '.join(cmd)}")
+    logger.info(f"Starting Prefect server: {' '.join(cmd)}")
     log = open(log_file, "a")
     try:
         process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
     except OSError as err:
         log.close()
-        logging.warning(f"Could not start Prefect server: {err}")
+        logger.warning(f"Could not start Prefect server: {err}")
         return None
     deadline = time.monotonic() + timeout
     while not _is_healthy(api_url):
         if process.poll() is not None or time.monotonic() > deadline:
-            logging.warning(f"Prefect server on port {port} did not start, see {log_file}")
+            logger.warning(f"Prefect server on port {port} did not start, see {log_file}")
             _stop(process, log)
             return None
         time.sleep(0.5)
@@ -135,9 +137,9 @@ def ensure_prefect_server(
     if configured:
         error = _configured_server_error()
         if error is None:
-            logging.info(f"Using Prefect server at {configured}")
+            logger.info(f"Using Prefect server at {configured}")
             return configured
-        logging.warning(
+        logger.warning(
             f"Configured Prefect server at {configured} is not available ({error}),"
             " looking for a local server"
         )
@@ -145,7 +147,7 @@ def ensure_prefect_server(
     api_url = f"http://{host}:{port}/api"
     if not _is_healthy(api_url):
         if not start:
-            logging.info("No Prefect server found, using temporary servers")
+            logger.info("No Prefect server found, using temporary servers")
             return None
         api_url = _start_server(host, port, timeout, log_file)
         if api_url is None:
@@ -156,7 +158,7 @@ def ensure_prefect_server(
                 " Configure a Prefect server in a Prefect profile, or start without"
                 " one with --no-prefect-server."
             )
-    logging.info(f"Using Prefect server at {api_url}")
+    logger.info(f"Using Prefect server at {api_url}")
     # subprocesses (e.g. Dask workers) pick the server up from the environment
     os.environ["PREFECT_API_URL"] = api_url
     return api_url
@@ -164,7 +166,7 @@ def ensure_prefect_server(
 
 def _stop(process, log):
     if process.poll() is None:
-        logging.info("Stopping Prefect server")
+        logger.info("Stopping Prefect server")
         process.terminate()
         try:
             process.wait(timeout=10)
@@ -242,7 +244,7 @@ def checked_prefect_server():
         active = "url" in _session
         api_url = _session.get("url")
         if api_url and not _available(api_url):
-            logging.warning(
+            logger.warning(
                 f"Prefect server at {api_url} is no longer available,"
                 " finding or starting a server again"
             )

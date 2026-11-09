@@ -12,6 +12,8 @@ from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
 from flim.results import write_table
 
+logger = logging.getLogger(__name__)
+
 
 def check_data_msg(data):
     ok = data is not None and len(data) > 0
@@ -75,7 +77,7 @@ def save_figure(
                 fig.savefig(fname, dpi=dpi, bbox_inches="tight")
         except IOError:
             error = f"Error saving figure in file {fname}"
-            logging.error(error)
+            logger.error(error)
             wx.MessageBox(error, "Error", wx.OK)
             return None
         return fname
@@ -249,8 +251,8 @@ class ConfigureFiltersDlg(wx.Dialog):
         )
         share = 100.0 * remaining / viewlength if viewlength else 0.0
         self.remaining_label.SetLabel(f"Remaining: {remaining:,} ({share:.2f}%)")
-        logging.debug(f"Updated: {[name for name in updateditems]}")
-        logging.debug(
+        logger.debug(f"Updated: {[name for name in updateditems]}")
+        logger.debug(
             f"Dropped from view: {viewdropped:,} (of {viewlength:,}); Remaining:"
             f" {remaining:,} ({100.0 * remaining/viewlength:.2f}%)"
         )

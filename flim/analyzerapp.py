@@ -7,6 +7,7 @@ import logging
 import argparse
 import sys
 from flim._version import __version__
+from flim.core import logs
 from flim.core.cli import add_settings_options, command_line_changes, settings_file
 from flim.core.execution import ExecutionOptions
 from flim.core.prefect_server import PrefectServerError, use_prefect_server
@@ -17,6 +18,8 @@ from flim.core.settingsmgr import (
     user_settings_path,
 )
 from flim.core.tools import FLIMAnalyzer
+
+logger = logging.getLogger(__name__)
 
 LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
 _startup_app = None  # the GUI app, if created for a dialog before the main window
@@ -145,18 +148,40 @@ def pick_app_settings(files, default=None, warning=None):
 
 
 def init_logger(loglevel):
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-    numeric_level = getattr(logging, loglevel, None)
-    if not isinstance(numeric_level, int):
+    """Configure logging; records are kept in memory until `open_log`.
+
+    Args:
+        loglevel: The log level, e.g. `INFO`.
+
+    Returns:
+        The handler that keeps the records (flim.core.logs.begin).
+
+    Raises:
+        ValueError: If the level is not a log level.
+    """
+    if not isinstance(getattr(logging, loglevel, None), int):
         raise ValueError(f"Invalid log level: {loglevel}")
-    logging.basicConfig(
-        level=numeric_level,
-        filename="flimanalyzer.log",
-        filemode="w",
-        format="%(levelname)s \t %(asctime)-15s - %(module)s.%(funcName)s: %(message)s",
-    )
-    logging.info(f"Log level: {numeric_level}")
+    memory = logs.begin(loglevel)
+    logger.info(f"Log level: {loglevel}")
+    return memory
+
+
+def open_log(memory, log=None) -> tuple:
+    """Open the session's log file in the log folder, after removing old logs there.
+
+    Args:
+        memory: The handler returned by `init_logger`.
+        log: The `log` settings (LogSettings); None for the defaults.
+
+    Returns:
+        The log file, and a message for the user if it is not in the log folder.
+    """
+    from flim.core.settings import LogSettings
+
+    log = log or LogSettings()
+    folder = log.dir.expanduser() if log.dir else logs.default_log_dir()
+    logs.remove_old_logs(folder, log.max_age_days)
+    return logs.open_log_file("flimanalyzer", folder, memory)
 
 
 def main(argv=None):
@@ -169,9 +194,9 @@ def main(argv=None):
 
     parser = build_parser()
     args = parser.parse_args(argv)
-    init_logger(args.log.upper())
-    logging.info(f"FLIMAnalyzer version {__version__}")
-    logging.debug(args)
+    memory = init_logger(args.log.upper())
+    logger.info(f"FLIMAnalyzer version {__version__}")
+    logger.debug(args)
     import flim.tools  # noqa: F401  (registers the tools: settings files are checked)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.registry import TOOLS_GROUP, discover
@@ -195,16 +220,21 @@ def main(argv=None):
         execution = ExecutionOptions(execution=manager.settings.execution)
         execution.check_available()
     except (FileNotFoundError, ValueError, RuntimeError) as err:
+        logger.error(err)
+        open_log(memory)  # the log folder setting may be what failed
         parser.error(str(err))
+    _, notice = open_log(memory, manager.settings.log)
+    if notice:
+        manager.notices.append(notice)
     for note in notes + more + manager.notices:
         print(f"flimanalyzer: warning: {note}", file=sys.stderr)
-        logging.warning(note)
+        logger.warning(note)
     fa = FLIMAnalyzer(execution=execution)
     try:
         with use_prefect_server(start=manager.settings.prefect_server):
             interactive_run(fa, files=args.input, settings_manager=manager)
     except PrefectServerError as err:
-        logging.error(err)
+        logger.error(err)
         show_startup_error(str(err))
         sys.exit(f"flimanalyzer: {err}")
 

@@ -13,6 +13,8 @@ from typing import Annotated, Any, ClassVar, Literal, Optional, Self, Union
 from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 from pydantic.fields import FieldInfo
 
+logger = logging.getLogger(__name__)
+
 
 class BaseConfig(BaseModel):
     """Base of all configuration models."""
@@ -236,7 +238,7 @@ class TaskConfig(BaseConfig):
             values["features"] = "all"
         unknown = set(params) - cls.legacy_dropped
         if unknown:
-            logging.warning(
+            logger.warning(
                 f"{cls.__name__}: ignoring unknown parameters {sorted(unknown)}"
             )
         return cls(**values)

@@ -7,6 +7,8 @@ import wx
 from flim.configs.analysis import AETrainConfig
 from flim.gui.editors import Editor, register_editor
 
+logger = logging.getLogger(__name__)
+
 
 def architecture_info(name: str, n_features: int) -> tuple[str, str]:
     """(description, layers) of an architecture for ``n_features`` inputs; empty
@@ -19,7 +21,7 @@ def architecture_info(name: str, n_features: int) -> tuple[str, str]:
         model_class = autoencoder.get_autoencoder_classes()[name]
         model = autoencoder.create_instance(model_class, nb_param=max(n_features, 1))
     except Exception as err:
-        logging.debug(f"No information on {name}: {err}")
+        logger.debug(f"No information on {name}: {err}")
         return "", ""
     if model is None:
         return "", ""

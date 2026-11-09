@@ -8,7 +8,7 @@ from flim.core.settings import START_DIR, AppSettings
 from flim.core.settingsmgr import ENV_NAMES, OPTION_NAMES, SettingsManager
 
 # the app settings the viewer shows, in this order (the cache settings are not shown)
-VIEWED = ("results_dir", "execution", "prefect_server", "log_dir", "strict")
+VIEWED = ("results_dir", "execution", "prefect_server", "log", "strict")
 
 
 @dataclass
@@ -67,8 +67,11 @@ def _value(name: str, settings: AppSettings) -> str:
             return "no: a temporary server for each run"
         profile = _prefect_profile()
         return f"yes (Prefect profile: {profile})" if profile else "yes"
-    if name == "log_dir":
-        return str(value) if value else "default"
+    if name == "log":
+        from flim.core.logs import default_log_dir
+
+        folder = str(value.dir) if value.dir else f"default ({default_log_dir()})"
+        return f"{folder}; logs kept {value.max_age_days} days"
     if name == "strict":
         if value is None:
             return "default: the closest match, shown before the run"

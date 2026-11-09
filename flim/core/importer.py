@@ -12,6 +12,8 @@ import pandas as pd
 from flim.core.parser import PATTERN_CATEGORY, defaultparser
 import flim.core.preprocessor as pp
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_EXT = [".txt", ".csv"]
 
 
@@ -109,7 +111,7 @@ class dataimporter:
         return (added_files, skipped_files)
 
     def remove_files(self, rfiles):
-        logging.debug(f"removing {rfiles}")
+        logger.debug(f"removing {rfiles}")
         if rfiles is not None:
             self.files = [f for f in self.files if f not in rfiles]
 
@@ -241,7 +243,7 @@ class dataimporter:
                 cdf = pd.concat(cdflist).reset_index(drop=True)
                 df = pd.concat([df, cdf], axis=1, copy=True)
             allheaders = list(df.columns.values)
-            logging.debug(self.get_reserved_categorycols(parser))
+            logger.debug(self.get_reserved_categorycols(parser))
             categories = [
                 key
                 for key in self.get_reserved_categorycols(parser)

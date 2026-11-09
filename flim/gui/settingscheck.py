@@ -14,6 +14,8 @@ from flim.core.settings import (
     save_sections,
 )
 
+logger = logging.getLogger(__name__)
+
 USE = "Use the settings that can be used; skip the others"
 IGNORE = "Don't use this file"
 UPDATE = "Update the file to the current version; remove the settings that can't be used"
@@ -76,7 +78,7 @@ def choose_settings(
     """
     problems = problems or (lambda c: c.problems)
     while True:
-        logging.warning(check.summary())
+        logger.warning(check.summary())
         options = _options(check)
         with wx.SingleChoiceDialog(
             parent,
@@ -88,7 +90,7 @@ def choose_settings(
         if choice == USE:
             return check
         if choice == IGNORE:
-            logging.info(f"{check.path} not used")
+            logger.info(f"{check.path} not used")
             return None
         if choice == UPDATE:
             if not _confirm_update(check, parent):
@@ -102,7 +104,7 @@ def choose_settings(
                     wx.OK | wx.ICON_ERROR,
                 )
                 continue
-            logging.info(f"{check.path} updated to the current version")
+            logger.info(f"{check.path} updated to the current version")
             return check_settings_file(check.path)
         path = _other_file(parent)
         if path is None:
@@ -315,5 +317,5 @@ def pick_app_settings(
         picked = dialog.result(dialog.ShowModal())
     finally:
         dialog.Destroy()
-    logging.info(f"App settings file chosen at startup: {picked.file or 'none'}")
+    logger.info(f"App settings file chosen at startup: {picked.file or 'none'}")
     return picked

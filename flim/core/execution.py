@@ -9,6 +9,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from flim.core.config import BaseConfig
 
+logger = logging.getLogger(__name__)
+
 # executor names of the command line option -e
 LEGACY_EXECUTORS = {
     "LocalExecutor": "local",
@@ -112,13 +114,13 @@ class ExecutionOptions(BaseConfig):
                 pass
             args[key] = value
         if executor not in LEGACY_EXECUTORS:
-            logging.warning(f"Unknown executor {executor}, using LocalExecutor")
+            logger.warning(f"Unknown executor {executor}, using LocalExecutor")
         name = LEGACY_EXECUTORS.get(executor, "local")
         num_workers = args.pop("num_workers", None)
         if not isinstance(num_workers, int) or num_workers < 1:
             num_workers = None
         if name == "dask" and "address" not in args:
-            logging.info("DaskExecutor without an address: starting a local Dask cluster")
+            logger.info("DaskExecutor without an address: starting a local Dask cluster")
             name = "dask-local"
         if name == "local":
             settings = LocalExecutorSettings(workers=num_workers)

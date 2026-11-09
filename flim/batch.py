@@ -32,10 +32,13 @@ from flim.core.paths import canonical_folder, folder_problem
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
+from flim.core import logs
 from flim.core.cli import add_settings_options, command_line_changes, settings_file
 from flim.core.settings import AppSettings
 from flim.core.settingsmgr import session_settings
 from flim.results import write_table
+
+logger = logging.getLogger(__name__)
 
 IMPORTED = "Imported.txt"
 
@@ -73,7 +76,7 @@ def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
     data, filenames, _ = importer.import_data()
     if data is None or not filenames:
         raise BatchError("None of the files could be read")
-    logging.info(f"Imported {len(filenames)} file(s): {data.shape[0]} rows")
+    logger.info(f"Imported {len(filenames)} file(s): {data.shape[0]} rows")
     if settings.filters.use:
         data = filtered(data, settings.filters.range_filters)
     return data
@@ -86,7 +89,7 @@ def filtered(data: pd.DataFrame, range_filters) -> pd.DataFrame:
     dropped = [rows for rows, p in zip(dropped, range_filters) if p.get("selected")]
     rows = np.unique(np.concatenate([np.asarray(r, dtype=int) for r in dropped] or [[]]))
     if len(rows):
-        logging.info(f"Range filters dropped {len(rows)} rows")
+        logger.info(f"Range filters dropped {len(rows)} rows")
     return data.drop(data.index[rows.astype(int)]).reset_index(drop=True)
 
 
@@ -216,9 +219,9 @@ def parse_arguments(argv=None):
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    logging.basicConfig(
-        level=args.log.upper(), format="%(levelname)s %(message)s", force=True
-    )
+    # the console as before; the log file opens once the output folder is known
+    memory = logs.begin(args.log.upper())
+    logging.getLogger().addHandler(logs.console_handler(args.log.upper()))
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.prefect_server import checked_prefect_server, use_prefect_server
@@ -240,21 +243,27 @@ def main(argv=None) -> int:
         if problem := folder_problem(output):
             raise BatchError(f"--output: {problem}")
         os.makedirs(output, exist_ok=True)
+        # the log goes with the results, unless a log folder is set
+        log_dir = settings.log.dir.expanduser() if settings.log.dir else output
+        log_file, notice = logs.open_log_file("flimbatch", log_dir, memory)
+        if notice:
+            print(f"flimbatch: warning: {notice}", file=sys.stderr)
+        logger.info(f"Log file: {log_file}")
         data = import_table(args.input, settings, exclude=args.exclude)
         path = os.path.join(output, IMPORTED)
         write_table(data, path)
-        logging.info(f"Saved {path}")
+        logger.info(f"Saved {path}")
         strict = True if settings.strict is None else settings.strict
         failed = []
         with use_prefect_server(start=settings.prefect_server):
             for name in args.run:
                 with checked_prefect_server():
                     run = run_tool(
-                    name, data, settings, output, execution, strict, manager.record()
-                )
+                        name, data, settings, output, execution, strict, manager.record()
+                    )
                 if run.failed or run.state != "completed":
                     failed.append(f"{name}: {', '.join(run.failed) or run.state}")
-                logging.info(f"{name}: {run.state}; results in {run.autosave_dir}")
+                logger.info(f"{name}: {run.state}; results in {run.autosave_dir}")
     except (BatchError, RuntimeError, OSError, ValueError) as err:  # incl. FileNotFoundError
         print(f"flimbatch: {err}", file=sys.stderr)
         return 1

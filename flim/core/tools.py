@@ -10,6 +10,8 @@ from flim.core.importer import dataimporter
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.execution import ExecutionOptions
 
+logger = logging.getLogger(__name__)
+
 
 class FLIMAnalyzer:
     def __init__(
@@ -26,8 +28,8 @@ class FLIMAnalyzer:
         self.data = pd.DataFrame()
         # the executor: `execution` if given, else from the -e name and -a args of 0.6
         self.execution = execution or ExecutionOptions.from_legacy(executor, execargs)
-        logging.info(f"Setting up {self.execution.execution.executor} executor: {self.execution}")
-        logging.debug(
+        logger.info(f"Setting up {self.execution.execution.executor} executor: {self.execution}")
+        logger.debug(
             f"Initialized {__name__}.FLIMAnalyzer with"
             f" {importer}, {preprocessor}"
         )

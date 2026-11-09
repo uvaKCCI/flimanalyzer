@@ -41,7 +41,7 @@ While a tool or a workflow runs, a progress dialog shows:
 After every workflow, and after a tool run that was cancelled, a dialog says how the run ended:
 
 * all tasks completed,
-* how many tasks completed and which ones failed (the log file `flimanalyzer.log` has the details; see [Command-line options](/install/index.md#command-line-options)),
+* how many tasks completed and which ones failed (the log file has the details; see [Log files](/install/index.md#log-files)),
 * or after how many tasks the run was cancelled.
 
 If tools reported warnings, the dialog lists them under `Warnings:`, each with the name of its task, up to five. A task with a warning is still completed, and its results are passed on to the next steps. The warnings are also in the log file and in `run_summary.txt`.

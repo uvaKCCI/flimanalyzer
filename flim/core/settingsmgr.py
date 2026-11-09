@@ -28,6 +28,8 @@ from flim.core.settings import (
     update_settings,
 )
 
+logger = logging.getLogger(__name__)
+
 APP_NAME = "FLIMAnalyzer"
 LOCK_TIMEOUT = 10  # seconds to wait for another instance writing the user settings file
 APP_SETTINGS_PATH_VAR = "FLIM_APP_SETTINGS_PATH"
@@ -36,7 +38,7 @@ ENV_NAMES = {
     "results_dir": "FLIM_RESULTS_DIR",
     "execution": "FLIM_EXECUTION",
     "prefect_server": "FLIM_PREFECT_SERVER",
-    "log_dir": "FLIM_LOG_DIR",
+    "log": "FLIM_LOG_DIR",
     "cache": "FLIM_CACHE_DIR",
     "strict": "FLIM_STRICT",
 }
@@ -44,7 +46,7 @@ OPTION_NAMES = {
     "results_dir": "-o",
     "execution": "-e",
     "prefect_server": "--no-prefect-server",
-    "log_dir": "--log-dir",
+    "log": "--log-dir",
     "cache": "--cache-dir",
     "strict": "--strict, --no-strict",
 }
@@ -113,10 +115,10 @@ class UserSettingsFile:
         except FileNotFoundError:  # renamed by another instance
             return
         except OSError as err:
-            logging.warning(f"User settings {self.path} cannot be read ({reason}) or renamed ({err})")
+            logger.warning(f"User settings {self.path} cannot be read ({reason}) or renamed ({err})")
             self.set_aside = (None, reason)
             return
-        logging.warning(f"User settings {self.path} cannot be read ({reason}); renamed to {target}")
+        logger.warning(f"User settings {self.path} cannot be read ({reason}); renamed to {target}")
         self.set_aside = (target, reason)
 
     def merge(self, changes: dict) -> None:
@@ -229,7 +231,7 @@ class SettingsManager:
                 try:
                     self._user_file.merge(changes)
                 except Exception as err:
-                    logging.warning(f"Settings not saved to {self._user_file.path}: {err}")
+                    logger.warning(f"Settings not saved to {self._user_file.path}: {err}")
             return self._settings.model_copy(deep=True)
 
     def set_tool(self, tool, config: TaskConfig, autosave=False, results_dir=None) -> AppSettings:
@@ -256,7 +258,7 @@ class SettingsManager:
         Returns:
             A copy of the new settings.
         """
-        logging.info(check.summary())
+        logger.info(check.summary())
         settings = self.update(check.sections, keep=False)
         self.source = check.path
         self.check = check
@@ -467,8 +469,9 @@ def environment_changes() -> dict:
     """Return the settings set by environment variables, as sections to apply.
 
     Returns:
-        The sections set by the environment; empty if none is set. `FLIM_CACHE_DIR`
-        gives the partial section `{"cache": {"dir": ...}}`.
+        The sections set by the environment; empty if none is set. `FLIM_LOG_DIR` and
+        `FLIM_CACHE_DIR` give the partial sections `{"log": {"dir": ...}}` and
+        `{"cache": {"dir": ...}}`.
 
     Raises:
         ValueError: If a variable has an invalid value; the message names it.
@@ -483,20 +486,25 @@ def environment_changes() -> dict:
     values = env.model_dump(mode="json", exclude_none=True)
     changes = {
         key: values[key]
-        for key in ("results_dir", "execution", "prefect_server", "log_dir", "strict")
+        for key in ("results_dir", "execution", "prefect_server", "strict")
         if key in values
     }
+    if "log_dir" in values:
+        changes["log"] = {"dir": values["log_dir"]}
     if "cache_dir" in values:
         changes["cache"] = {"dir": values["cache_dir"]}
     return changes
 
 
 def _completed(changes: dict, current: AppSettings) -> dict:
-    """Return `changes` with a partial `cache` section completed from `current`."""
-    if "cache" not in changes:
-        return changes
-    cache = {**current.cache.model_dump(mode="json"), **changes["cache"]}
-    return {**changes, "cache": cache}
+    """Return `changes` with partial `log` and `cache` sections completed from
+    `current`."""
+    completed = dict(changes)
+    for section in ("log", "cache"):
+        if section in changes:
+            values = getattr(current, section).model_dump(mode="json")
+            completed[section] = {**values, **changes[section]}
+    return completed
 
 
 # --- the settings of a session ---
@@ -529,7 +537,7 @@ def strict_choice(check: SettingsCheck, *, complete: bool = False) -> SettingsCh
             " and checked is accepted."
         )
     if check.unknown:
-        logging.warning(f"{check.path}: ignoring unknown keys {', '.join(check.unknown)}")
+        logger.warning(f"{check.path}: ignoring unknown keys {', '.join(check.unknown)}")
     return check
 
 
@@ -575,7 +583,7 @@ def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[
         f"The default app settings file {default} cannot be used ({reason}); it is no"
         " longer the default."
     )
-    logging.warning(warning)
+    logger.warning(warning)
     return None, warning
 
 

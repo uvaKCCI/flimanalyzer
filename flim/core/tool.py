@@ -24,6 +24,8 @@ from flim.core.registry import API_VERSION
 from flim.core.schema import TableSchema
 from flim.core.types import DataType, InputSpec, OutputSpec, TableType
 
+logger = logging.getLogger(__name__)
+
 ConfigT = TypeVar("ConfigT", bound=TaskConfig)
 
 # pyplot's figure registry and current-figure state are shared by all threads: tasks
@@ -105,7 +107,7 @@ class RunContext:
     ) -> "RunContext":
         device, note = resolve_device(config.resources.preferred_device)
         if note:
-            logging.info(note)
+            logger.info(note)
         return cls(
             device=device,
             threads=resolve_threads(config.resources.preferred_threads),
@@ -207,7 +209,7 @@ class Tool(Generic[ConfigT]):
     def warn(self, message: str) -> None:
         """Reports a warning of this run: logged now, and listed with the task in the
         run summary (and as its message in the Prefect UI)."""
-        logging.warning(f"{self.name}: {message}")
+        logger.warning(f"{self.name}: {message}")
         context = getattr(self, "context", None)
         if context is not None:
             context.warnings.append(message)
@@ -265,7 +267,7 @@ class Tool(Generic[ConfigT]):
         try:
             results = cls().run(*samples, config=config)
         except Exception as err:
-            logging.debug(f"{cls.name}: no output schema from sample data: {err}")
+            logger.debug(f"{cls.name}: no output schema from sample data: {err}")
             return {o.name: _unknown(o) for o in cls.outputs}
         outputs = {}
         for name, value in results.items():

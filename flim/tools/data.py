@@ -29,6 +29,8 @@ from flim.tools.common import (
     set_lineage,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @register_tool
 class CategoryOrder(Tool[CategoryOrderConfig]):
@@ -215,7 +217,7 @@ class Pivot(Tool[PivotConfig]):
         features = selected_features(data, config.features)
         categories = category_columns(data)
         index = [c for c in categories if c not in config.grouping]
-        logging.debug(f"pivoting {config.grouping}, index {index}")
+        logger.debug(f"pivoting {config.grouping}, index {index}")
         table = pd.pivot_table(
             data[features + categories],
             index=index,

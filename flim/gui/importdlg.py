@@ -9,6 +9,8 @@ from flim.core.preprocessor import defaultpreprocessor
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.dicttablepanel import DictTable, ListTable
 
+logger = logging.getLogger(__name__)
+
 
 class ImportDlg(wx.Dialog):
     def __init__(
@@ -229,7 +231,7 @@ class ImportDlg(wx.Dialog):
                 "flim.core.parser." + parsername
             )
             if parser is None:
-                logging.warning(f"COULD NOT INSTANTIATE PARSER:{parsername}")
+                logger.warning(f"COULD NOT INSTANTIATE PARSER:{parsername}")
                 return
             parser.set_regexpatterns(self.parsetable.GetData())
 
@@ -269,7 +271,7 @@ class ImportDlg(wx.Dialog):
         self.sel_files_label.SetLabel(label)
 
     def OnParserChanged(self, event):
-        logging.debug("Parser changed")
+        logger.debug("Parser changed")
         parsername = self.parser_chooser.GetStringSelection()
         hparser = flim.core.parser.instantiate_parser("flim.core.parser." + parsername)
         self.parsetable = ListTable(
@@ -337,7 +339,7 @@ class ImportDlg(wx.Dialog):
             selected = self.files_list.GetSelections()
             # the first selected file, else the first file
             file = self.files_list.GetString(selected[0]) if selected else files[0]
-            logging.debug(f"Previewing {file}")
+            logger.debug(f"Previewing {file}")
             self.configure_importer(importer, [file])
 
     def OnOpenFile(self, event):

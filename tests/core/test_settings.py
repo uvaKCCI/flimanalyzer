@@ -40,7 +40,8 @@ def test_defaults():
     assert len(settings.filters.range_filters) == 39
     assert settings.results_dir is None and settings.resolved_results_dir() == START_DIR
     assert settings.execution == LocalExecutorSettings() and settings.prefect_server
-    assert settings.log_dir is None and settings.cache.dir is None
+    assert settings.log.dir is None and settings.log.max_age_days == 30
+    assert settings.cache.dir is None
     assert settings.preprocess.rename["Exc2_-Ch3-_"] == "FAD "
     assert settings.filters.range_filters[0]["name"] == "trp t1"
     assert settings.tools.entries == {}  # the tools' defaults: their configs'

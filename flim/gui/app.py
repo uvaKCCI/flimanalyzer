@@ -65,6 +65,8 @@ import flim.gui.dialogs.autoencoder  # noqa: F401
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.unpivot  # noqa: F401
+
+logger = logging.getLogger(__name__)
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
 
 
@@ -166,7 +168,7 @@ class FLIMAnalyzerApp(wx.App):
                 if not os.path.isfile(f) or self.frame.open_data_files([f]) is None:
                     failed.append(f)
             except Exception as e:
-                logging.exception(f"Could not open {f}")
+                logger.exception(f"Could not open {f}")
                 failed.append(f"{f} ({e})")
         if failed:
             wx.MessageBox(
@@ -359,13 +361,13 @@ class AppFrame(wx.Frame):
     def _get_window_frame(self, obj_id):
         for title, window in self.windowframes.items():
             if isinstance(window, PandasFrame) and id(window.GetData()) == obj_id:
-                logging.debug(
+                logger.debug(
                     f"selected: title={title}, obj_id={obj_id},"
                     f" id={id(window.GetData())}"
                 )
                 return title, window
             elif isinstance(window, PlotFrame) and id(window.figure) == obj_id:
-                logging.debug(
+                logger.debug(
                     f"selected: title={title}, obj_id={obj_id}, id={id(window)}"
                 )
                 return title, window
@@ -466,7 +468,7 @@ class AppFrame(wx.Frame):
                 "flim.core.parser." + parsername
             )
             if parser is None:
-                logging.warning(f"Could not instantiate parser {parsername}")
+                logger.warning(f"Could not instantiate parser {parsername}")
                 return
             parser.set_regexpatterns(imported.filename_parser.patterns)
 
@@ -515,7 +517,7 @@ class AppFrame(wx.Frame):
         try:
             self.load_settings(path)
         except Exception as err:
-            logging.exception(f"Settings in {path} could not be read")
+            logger.exception(f"Settings in {path} could not be read")
             wx.MessageBox(
                 f"Could not load the settings in {path}:\n{err}",
                 "Import Settings",
@@ -787,7 +789,7 @@ class AppFrame(wx.Frame):
         if isinstance(window, PandasFrame):
             self.window_zorder = [w for w in self.window_zorder if w != title]
             self.window_zorder.append(title)
-        logging.debug(f"append window {self.window_zorder}")
+        logger.debug(f"append window {self.window_zorder}")
         self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
 
     def remove_window_from_menu(self, title):
@@ -799,7 +801,7 @@ class AppFrame(wx.Frame):
                 if isinstance(window, PandasFrame):
                     title = window.GetTitle()
                     self.window_zorder = [w for w in self.window_zorder if w != title]
-                logging.debug(f"remove window {self.window_zorder}")
+                logger.debug(f"remove window {self.window_zorder}")
                 return True
         return False
 
@@ -807,7 +809,7 @@ class AppFrame(wx.Frame):
         data = event.GetData()
         action = event.GetAction()
         title = event.GetTitle()
-        logging.debug(f"{title}: {action}")
+        logger.debug(f"{title}: {action}")
         if action == "update":
             frame = self.windowframes.get(title)
             if frame:
@@ -850,7 +852,7 @@ class AppFrame(wx.Frame):
 
     def OnClosingDataWindow(self, data, frame):
         title = frame.GetLabel()
-        logging.debug(f"{title}")
+        logger.debug(f"{title}")
         self.remove_window_from_menu(title)
 
     def OnPick(self, event):
@@ -915,7 +917,7 @@ class AppFrame(wx.Frame):
         figure = event.GetFigure()
         title = self.unique_window_title(event.GetTitle())
         action = event.GetAction()
-        logging.debug(f"{title}: {action}")
+        logger.debug(f"{title}: {action}")
         if action == "createnew":
             frame = PlotFrame(self, figure, title)
             frame.Bind(wx.EVT_CLOSE, self.OnClosingPlotWindow)
@@ -924,7 +926,7 @@ class AppFrame(wx.Frame):
             frame.Show()
 
     def OnClosingPlotWindow(self, event):
-        logging.debug("appframe.OnClosingPlotWindow")
+        logger.debug("appframe.OnClosingPlotWindow")
         self.remove_window_from_menu(event.GetEventObject().GetTitle())
         event.Skip()
 
@@ -943,7 +945,7 @@ class AppFrame(wx.Frame):
             wintitle = mitem.GetItemLabelText()
             window = self.windowframes[wintitle]
             self._raise_window(wintitle, window)
-        logging.debug(f"select window {self.window_zorder}")
+        logger.debug(f"select window {self.window_zorder}")
 
     def OnExit(self, event):
         self.Close()
@@ -1015,7 +1017,7 @@ class AppFrame(wx.Frame):
         return title
 
     def OnCloseAll(self, event):
-        logging.debug("appframe.OnCloseAll")
+        logger.debug("appframe.OnCloseAll")
         # a copy of the titles: closing a window removes it from self.windowframes
         windowtitles = [t for t in self.windowframes]
         for title in windowtitles:
@@ -1025,26 +1027,26 @@ class AppFrame(wx.Frame):
         self.window_zorder = []
 
     def OnImport(self, event):
-        logging.debug(f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")
+        logger.debug(f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")
 
     def OnDataUpdated(self, event):
         data, datatype = event.GetUpdatedData()
-        logging.debug(f"###############  OLD appframe.OnDataUpdated - {datatype}")
+        logger.debug(f"###############  OLD appframe.OnDataUpdated - {datatype}")
 
     def OnRangeFilterUpdated(self, event):
         rfilters = event.GetUpdatedItems()
-        logging.debug(
+        logger.debug(
             "###############  OLD appframe.OnRangeFilterUpdated -"
             f" {len(rfilters)} Filters updated:"
         )
 
     def OnApplyFilter(self, event):
-        logging.debug("###############  OLD AppFrame.OnApplyFilter")
+        logger.debug("###############  OLD AppFrame.OnApplyFilter")
         self.data = event.data
         self.analysistab.update_data(event.data)
 
     def OnAnalysisUpdated(self, event):
         updated = event.GetUpdatedItems()
-        logging.debug(f"appframe.OnAnalysisUpdated - {len(updated)} Analysis updated:")
+        logger.debug(f"appframe.OnAnalysisUpdated - {len(updated)} Analysis updated:")
         for key in updated:
-            logging.debug(f"\t {key} {updated[key]}")
+            logger.debug(f"\t {key} {updated[key]}")

@@ -176,8 +176,8 @@ def executor_settings(spec: Optional[str], execargs: Optional[str] = None) -> tu
 def command_line_changes(args) -> tuple[dict, list[str]]:
     """Return the settings set on the command line, as sections to apply.
 
-    Only options that were given are returned. `--cache-dir` gives the partial section
-    `{"cache": {"dir": ...}}`.
+    Only options that were given are returned. `--log-dir` and `--cache-dir` give the
+    partial sections `{"log": {"dir": ...}}` and `{"cache": {"dir": ...}}`.
 
     Args:
         args: The parsed arguments (`add_settings_options`; `allow_guesses` of
@@ -197,7 +197,7 @@ def command_line_changes(args) -> tuple[dict, list[str]]:
     if args.no_prefect_server:
         changes["prefect_server"] = False
     if args.log_dir is not None:
-        changes["log_dir"] = args.log_dir
+        changes["log"] = {"dir": args.log_dir}
     if args.cache_dir is not None:
         changes["cache"] = {"dir": args.cache_dir}
     if getattr(args, "allow_guesses", False):
