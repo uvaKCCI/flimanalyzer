@@ -21,7 +21,6 @@ The `Random Forest` tool trains a random forest to predict a category from the f
     - `Random seed`: with a number (default 0), every run gives the same results. Leave it empty for different results on every run.
     - `Threads`, in the `Resources` section: see [Resources](/userguide/dialogs.md#resources).
 
-    The dialog also shows `Grouping`, but it has no effect on the result.
 
 4. Select the features. Rows with a missing value in any column of the table, not only in the selected features, are left out. In the example, the amplitudes and lifetimes of FAD and NAD(P)H, and FLIRR, are used to predict `Treatment`, with the default number of trees and test fraction.
 

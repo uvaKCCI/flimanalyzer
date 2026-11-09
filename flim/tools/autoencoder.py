@@ -620,11 +620,12 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
         pipeline = _load_model(path, _torch_device(self.context.device))
         scaler = pipeline.named_steps["minmaxscaler"]
         copies = []
+        rng = np.random.default_rng(config.random_seed)  # None: different every run
         for copy_number in range(config.sets):
             self.check_cancelled()
             noisy = values
             if config.add_noise:
-                noisy = values + np.random.normal(
+                noisy = values + rng.normal(
                     mean_noise, scale=std_noise, size=values.shape
                 )
             _, reconstructed = pipeline.transform(noisy.to_numpy(dtype=np.float32))

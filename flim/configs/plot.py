@@ -508,6 +508,7 @@ class PairPlotConfig(PlotConfig):
 
 
 class HeatmapConfig(PlotConfig):
+    hidden_fields = frozenset({"grouping"})  # the correlations are of the whole table
     min_features = 1
     legacy_keys = {
         **PlotConfig.legacy_keys,

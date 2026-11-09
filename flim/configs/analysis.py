@@ -124,6 +124,7 @@ SERIES_STATISTICS: tuple[str, ...] = SeriesStatistic.__args__
 
 
 class SeriesAnalysisConfig(StatisticsConfig):
+    hidden_fields = frozenset({"grouping"})  # the series are rows: nothing is grouped
     min_features = 2
     legacy_keys = {"statistics": None}
 
@@ -178,6 +179,9 @@ class ParallelResources(Resources):
 
 class PCAConfig(MLConfig):
     min_features = 2
+    # scikit-learn uses the seed only for its randomized solver, which FLIM-sized
+    # tables never get (checked with scikit-learn 1.9.1): it has no effect
+    hidden_fields = MLConfig.hidden_fields | {"random_seed"}
     legacy_keys = {
         **MLConfig.legacy_keys,
         "keep_original": "keeporig",
@@ -265,9 +269,6 @@ class RandomForestConfig(MLConfig):
         "target": None,
         "importance_plot": "importancehisto",
     }
-
-    # grouping is shown: its columns are left out of the features
-    hidden_fields = frozenset()
 
     target: Optional[CategoryColumn] = Field(
         default=None, title="Predict", description="The category column to predict."
@@ -570,3 +571,8 @@ class AEAugmentConfig(_ModelFilesConfig):
         description="Add white noise before simulating.",
     )
     snr_db: float = Field(default=0.0, title="Signal-to-noise (dB)")
+    random_seed: Optional[int] = Field(
+        default=None,
+        title="Random seed",
+        description="The same noise, and so the same copies, on every run; empty: random.",
+    )

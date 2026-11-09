@@ -1133,10 +1133,7 @@ class Heatmap(_Plot, Tool[HeatmapConfig]):
         ax.set_xticklabels(
             ax.get_xticklabels(), rotation=45, horizontalalignment="right"
         )
-        grouping = config.grouping
-        ax.set_title(
-            f"Data grouped by {', '.join(grouping)}" if grouping else "Data ungrouped"
-        )
+        ax.set_title("Correlation")
         corr = corr.reset_index().rename(columns={"index": "Feature"})
         corr["Feature"] = corr["Feature"].astype("category")
         return {"Heatmap": ax.get_figure(), "Heatmap Correlation": corr}

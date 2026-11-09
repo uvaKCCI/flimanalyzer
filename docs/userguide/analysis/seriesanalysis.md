@@ -28,7 +28,7 @@ The `Series Analysis` tool analyzes a series of values that is spread across sev
 
     `Include the input` (unchecked by default) also copies the series' columns into the result.
 
-    The dialog also shows `Grouping`, but the tool doesn't use it: each row is analyzed on its own.
+    Each row is analyzed on its own, so the tool has no `Grouping`.
 
     ![](/images/analysis/seriesanalysis-config.png)
 

@@ -484,3 +484,13 @@ def test_no_input_section_without_data(dialog):
         if c.IsSizer() and isinstance(c.GetSizer(), wx.StaticBoxSizer)
     ]
     assert boxes == ["Settings", "Output"]
+
+
+@pytest.mark.parametrize("tool", ["Series Analysis", "Random Forest", "Heatmap"])
+def test_grouping_is_hidden_where_it_has_no_effect(dialog, tool):
+    assert "grouping" not in dialog(tool).fields.editors
+
+
+def test_pca_random_seed_is_hidden(dialog):
+    assert "random_seed" not in dialog("PCA").fields.editors
+    assert "random_seed" in dialog("K-Means").fields.editors  # used there

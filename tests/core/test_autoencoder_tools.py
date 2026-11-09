@@ -173,6 +173,12 @@ def test_train_run_augment(needs_torch, data, tmp_path, device):
         ),
     )
     (simulated,) = augment.values()
+    # a random seed gives the same noise, and so the same copies, on every run
+    seeded = dict(model_files=[files[-1]], sets=2, grouping=["FOV", "Cell"], **common)
+    first = AEAugment()(data, config=AEAugmentConfig(random_seed=7, **seeded))
+    again = AEAugment()(data, config=AEAugmentConfig(random_seed=7, **seeded))
+    (first,), (again,) = first.values(), again.values()
+    pd.testing.assert_frame_equal(first, again)
     assert len(simulated) == 2 * len(data)
     assert "index" not in simulated.columns
     assert simulated["Cell"].nunique() == 2 * len(

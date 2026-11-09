@@ -14,7 +14,8 @@ The `Autoencoder: Augment Data` tool creates simulated copies of a table with mo
 
 3. In the `Configuration: Autoencoder: Augment Data` dialog, set:
     - `Copies`: the number of simulated copies of the table (default 1).
-    - `Add noise` (checked by default): add random (white) noise to the features before the model reconstructs them. The noise is different on every run; there is no random seed.
+    - `Add noise` (checked by default): add random (white) noise to the features before the model reconstructs them. The noise is different on every run, unless `Random seed` is set.
+    - `Random seed` (empty by default): a whole number gives the same noise, and so the same copies, on every run with the same table and model.
     - `Signal-to-noise (dB)`: the ratio of signal to noise, in decibels (default 0). For each feature, the noise power is the mean signal power divided by 10^(dB/10): at 0 dB the noise is as strong as the signal, at 10 dB it has a tenth of its power.
     - `Model files`: the `.model` files saved by `Autoencoder: Train`. Use `Add...` to add files and `Remove` to remove the selected ones. Select at least one. Each model gives its own result.
     - `Grouping`: select at least one category column. The last one, e.g. `Cell`, is renumbered in each copy, so that the copies don't share cells. If its values are numbers, the first copy keeps them, and each further copy adds the largest number plus 1 once more. Otherwise, the copies append `.0`, `.1`, ... to the values.
