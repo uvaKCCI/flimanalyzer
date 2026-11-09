@@ -340,3 +340,29 @@ def test_partial_cache_section_keeps_the_other_cache_settings(monkeypatch):
     monkeypatch.delenv("FLIM_CACHE_DIR", raising=False)
     settings = session_settings(None, {"cache": {"dir": "/c"}}).settings
     assert settings.cache.dir == Path("/c") and settings.cache.max_age_days == 7
+
+
+# --- adding a folder to the app settings search path ---
+
+
+def test_adding_a_folder_keeps_the_default_folder(tmp_path, monkeypatch):
+    from flim.core.settingsmgr import default_app_settings_dir
+
+    monkeypatch.delenv("FLIM_APP_SETTINGS_PATH", raising=False)
+    user = UserSettingsFile(tmp_path / "user.json")
+    manager = SettingsManager(user_file=user)
+    lab = tmp_path / "lab"
+    assert manager.add_to_search_path(lab)
+    expected = [str(default_app_settings_dir()), str(lab.resolve())]
+    assert written(user.path)["appsettings_path"] == expected
+    assert not manager.add_to_search_path(lab)  # already there
+    other = tmp_path / "other"
+    assert manager.add_to_search_path(other)
+    assert written(user.path)["appsettings_path"] == expected + [str(other.resolve())]
+
+
+def test_adding_has_no_effect_with_the_environment_variable(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path / "env"))
+    manager = SettingsManager(user_file=UserSettingsFile(tmp_path / "user.json"))
+    assert manager.search_path_addition(tmp_path / "lab") is None
+    assert not manager.add_to_search_path(tmp_path / "lab")

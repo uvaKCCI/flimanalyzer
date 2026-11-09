@@ -239,13 +239,98 @@ def test_file_menu_has_settings(frame):
     assert item is not None and item.GetItemLabelText() == "Settings..."
 
 
-def test_pick_app_settings(tmp_path, answers):
-    queue, offered = answers
-    files = [tmp_path / "a.json", tmp_path / "b.json"]
-    queue.append(f"b.json  ({tmp_path})")
-    assert settingscheck.pick_app_settings(files) == files[1]
-    assert offered[0][1][0] == settingscheck.NO_FILE
-    queue.append(settingscheck.NO_FILE)
-    assert settingscheck.pick_app_settings(files) is None
-    queue.append(None)  # Cancel
-    assert settingscheck.pick_app_settings(files) is None
+def _startup_dialog(files, default=None, warning=None):
+    return settingscheck.StartupSettingsDialog(None, files, default, warning)
+
+
+def test_startup_dialog_preselects_the_default(wxapp, tmp_path):
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    d = _startup_dialog([a, b], default=b)
+    try:
+        assert d.table.GetItemCount() == 2 and d.table.GetColumnCount() == 3
+        assert d.rows()[1] == (settingscheck.DEFAULT_MARK, "b.json", str(tmp_path))
+        assert d.selected() == b and d.ok.IsEnabled()
+        assert d.GetDefaultItem() is d.ok  # Enter: start with the default
+        assert not d.make_default.IsEnabled()  # already the default
+        assert d.result(wx.ID_OK) == settingscheck.Pick(b, b)
+        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, b)  # skipped
+    finally:
+        d.Destroy()
+
+
+def test_startup_dialog_without_default_selects_nothing(wxapp, tmp_path):
+    a = tmp_path / "a.json"
+    d = _startup_dialog([a])
+    try:
+        assert d.selected() is None and not d.ok.IsEnabled()
+        assert d.GetDefaultItem() is d.skip  # Enter: skip
+        assert d.skip.GetLabel() == settingscheck.SKIP and d.skip.GetId() == wx.ID_CANCEL
+        assert not d.make_default.IsEnabled() and not d.clear.IsEnabled()
+        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, None)
+        d.select(0)
+        assert d.ok.IsEnabled() and d.result(wx.ID_OK) == settingscheck.Pick(a, None)
+    finally:
+        d.Destroy()
+
+
+def test_startup_dialog_makes_another_file_the_default(wxapp, tmp_path):
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    d = _startup_dialog([a, b], default=b)
+    try:
+        d.select(0)
+        assert d.selected() == a and d.make_default.IsEnabled()
+        assert d.result(wx.ID_OK) == settingscheck.Pick(a, b)  # selecting: unchanged
+        d._on_make_default(None)
+        assert [d.table.GetItemText(i, 0) for i in range(2)] == [
+            settingscheck.DEFAULT_MARK, ""
+        ]  # the check mark moves at once
+        assert not d.make_default.IsEnabled() and d.selected() == a
+        assert d.result(wx.ID_OK) == settingscheck.Pick(a, a)
+        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, a)  # also when skipped
+    finally:
+        d.Destroy()
+
+
+def test_startup_dialog_clears_the_default(wxapp, tmp_path):
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    d = _startup_dialog([a, b], default=b)
+    try:
+        d._on_clear(None)
+        assert not d.clear.IsEnabled() and d.table.GetItemText(1, 0) == ""
+        assert d.result(wx.ID_OK) == settingscheck.Pick(b, None)
+        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, None)  # also skipped
+    finally:
+        d.Destroy()
+
+
+def test_startup_dialog_lists_a_default_outside_the_search_path(wxapp, tmp_path):
+    lab = tmp_path / "lab" / "lab.json"
+    d = _startup_dialog([tmp_path / "a.json"], default=lab)
+    try:
+        assert d.files[0] == lab and d.selected() == lab
+    finally:
+        d.Destroy()
+
+
+# --- Export Settings...: the folder and the app settings search path ---
+
+
+@pytest.mark.parametrize("answer, added", [(wx.ID_YES, True), (wx.ID_NO, False)])
+def test_export_offers_the_folder_for_the_search_path(frame, tmp_path, monkeypatch, answer, added):
+    monkeypatch.delenv("FLIM_APP_SETTINGS_PATH", raising=False)
+    asked = []
+
+    def show(dialog):
+        asked.append(dialog.GetMessage())
+        return answer
+
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", show)
+    path = tmp_path / "lab" / "cells.json"
+    path.parent.mkdir()
+    frame.save_settings(path)
+    assert frame.offer_search_path(path) is added
+    assert str(path.parent) in asked[0]
+    folders = [p.resolve() for p in frame.settings.appsettings_path]
+    assert (path.parent.resolve() in folders) is added
+    if added:  # not asked again for a folder already in the search path
+        assert not frame.offer_search_path(path) and len(asked) == 1

@@ -171,15 +171,17 @@ def test_complete_refuses_unknown_keys_and_tools_not_installed(tmp_path, content
 
 # --- the choice of app settings file at startup ---
 
+from flim.core.settingsmgr import Pick, SettingsManager, UserSettingsFile  # noqa: E402
+
 
 def test_pick_is_asked_only_with_files_and_without_a_file_given(tmp_path, monkeypatch):
     folder = tmp_path / "appsettings"
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
     offered = []
 
-    def pick(files):
-        offered.append(files)
-        return files[0]
+    def pick(files, default, warning):
+        offered.append((files, default, warning))
+        return Pick(files[0], default)
 
     session_settings(pick=pick)  # the folder doesn't exist
     folder.mkdir()
@@ -188,7 +190,7 @@ def test_pick_is_asked_only_with_files_and_without_a_file_given(tmp_path, monkey
     cells = write(folder, {"schema_version": 2, "results_dir": "r"}, "cells.json")
     write(folder, {"schema_version": 2}, "other.json")
     manager = session_settings(pick=pick)
-    assert offered == [[cells, folder / "other.json"]]
+    assert offered == [([cells, folder / "other.json"], None, None)]
     assert manager.source == cells and manager.settings.results_dir == Path("r")
     session_settings(str(folder / "other.json"), pick=pick)  # given with -s: no question
     assert len(offered) == 1
@@ -197,7 +199,7 @@ def test_pick_is_asked_only_with_files_and_without_a_file_given(tmp_path, monkey
 def test_pick_of_no_file(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
     write(tmp_path, {"schema_version": 2, "results_dir": "r"}, "cells.json")
-    manager = session_settings(pick=lambda files: None)
+    manager = session_settings(pick=lambda files, default, warning: Pick(None, None))
     assert manager.source is None and manager.settings.results_dir is None
 
 
@@ -205,5 +207,56 @@ def test_picked_file_is_checked_like_s(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
     path = write(tmp_path, MIXED, "cells.json")
     asked = []
-    session_settings(pick=lambda files: files[0], choose=lambda c: asked.append(c))
+    session_settings(
+        pick=lambda files, default, warning: Pick(files[0], default),
+        choose=lambda c: asked.append(c),
+    )
     assert [c.path for c in asked] == [path]
+
+
+def _user(tmp_path, **sections):
+    path = tmp_path / "user.json"
+    path.write_text(json.dumps({"schema_version": 2, **sections}, default=str))
+    return UserSettingsFile(path)
+
+
+def test_default_is_offered_and_kept_or_changed(tmp_path, monkeypatch):
+    folder = tmp_path / "appsettings"
+    folder.mkdir()
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
+    # a default outside the search path is offered too
+    default = write(tmp_path, {"schema_version": 2, "results_dir": "d"}, "lab.json")
+    other = write(folder, {"schema_version": 2}, "other.json")
+    user = _user(tmp_path, default_app_settings=str(default))
+    offered = []
+
+    def pick(files, given, warning):
+        offered.append((files, given))
+        return Pick(given, given)  # Enter: the preselected default
+
+    manager = session_settings(user_file=user, pick=pick)
+    assert offered == [([other], default)] and manager.source == default
+    # the user makes another file the default
+    manager = session_settings(
+        user_file=user, pick=lambda files, given, warning: Pick(other, other)
+    )
+    assert SettingsManager(user_file=user).settings.default_app_settings == other
+    assert manager.record()[1] == f"Default app settings file: {other}"
+
+
+@pytest.mark.parametrize("content", [None, "{not json"])  # missing, not readable
+def test_default_that_cannot_be_used_is_cleared_with_a_warning(tmp_path, monkeypatch, content):
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path / "none"))
+    default = tmp_path / "lab.json"
+    if content is not None:
+        default.write_text(content)
+    user = _user(tmp_path, default_app_settings=str(default))
+    manager = session_settings(user_file=user, pick=lambda *a: pytest.fail("asked"))
+    assert "cannot be used" in manager.notices[0] and str(default) in manager.notices[0]
+    assert SettingsManager(user_file=user).settings.default_app_settings is None
+
+
+def test_default_is_not_exported(tmp_path):
+    manager = SettingsManager(user_file=_user(tmp_path, default_app_settings="x.json"))
+    manager.export(tmp_path / "e.json")
+    assert "default_app_settings" not in json.loads((tmp_path / "e.json").read_text())

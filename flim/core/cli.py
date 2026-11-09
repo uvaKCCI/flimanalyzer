@@ -41,7 +41,7 @@ def add_settings_options(parser: argparse.ArgumentParser, *, output_required=Fal
         "-s",
         "--settings",
         metavar="FILE",
-        help="app settings file: a path, or a name in the app settings folders",
+        help="app settings file: a path, or a name in the app settings search path",
     )
     parser.add_argument("-c", "--config", metavar="FILE", help=argparse.SUPPRESS)
     parser.add_argument(

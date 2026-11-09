@@ -7,6 +7,7 @@ import matplotlib
 
 import logging
 import os
+from pathlib import Path
 import re
 import pandas as pd
 import wx
@@ -552,11 +553,37 @@ class AppFrame(wx.Frame):
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            self.save_settings(fileDialog.GetPath())
+            path = fileDialog.GetPath()
+        self.save_settings(path)
+        self.offer_search_path(path)
 
     def save_settings(self, path) -> None:
         """Writes all current settings, in the current version, to a file."""
         self.settings_manager.export(path)
+
+    def offer_search_path(self, path) -> bool:
+        """Ask whether to add the folder of an exported file to the app settings search
+        path, if adding it has an effect (SettingsManager.search_path_addition).
+
+        Args:
+            path: The exported file.
+
+        Returns:
+            Whether the folder was added.
+        """
+        folder = Path(path).parent
+        if self.settings_manager.search_path_addition(folder) is None:
+            return False
+        with wx.MessageDialog(
+            self,
+            f"Add this folder to your app settings search path?\n\n{folder}\n\n"
+            "The GUI then lists its files when it starts, and -s finds them by name.",
+            "Export Settings",
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+        ) as dialog:
+            if dialog.ShowModal() != wx.ID_YES:
+                return False
+        return self.settings_manager.add_to_search_path(folder)
 
     def get_currentdata(self):
         if len(self.window_zorder) == 0:

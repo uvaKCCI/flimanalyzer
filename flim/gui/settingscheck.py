@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 import wx
 
+from flim.core.settingsmgr import Pick
 from flim.core.settings import (
     SETTINGS_VERSION,
     SettingsCheck,
@@ -153,29 +154,166 @@ def _save_file(parent) -> Optional[str]:
         return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else None
 
 
-NO_FILE = "No app settings file"
+SKIP = "Skip App Settings"
+STARTUP_COLUMNS = ("Default", "File", "Folder")
+DEFAULT_MARK = "\u2713"  # check mark
+MAKE_DEFAULT = "Make Default"
+CLEAR_DEFAULT = "Clear Default"
 
 
-def pick_app_settings(files: list[Path], parent=None) -> Optional[Path]:
-    """Ask which app settings file to start with.
+class StartupSettingsDialog(wx.Dialog):
+    """Asks which app settings file to start with.
+
+    The table lists the files (default, file, folder). With a default set, its row is
+    selected and Enter starts with it; without one, no row is selected and Enter
+    starts without a file (`Skip App Settings`, also Esc). `Make Default` makes the
+    selected file the default, `Clear Default` clears it; the check mark in the
+    Default column shows the default at once, and the change applies with either
+    button."""
+
+    def __init__(self, parent, files: list[Path], default: Optional[Path], warning=None):
+        super().__init__(parent, title="App Settings File")
+        self.files = list(files)
+        if default is not None and default not in self.files:
+            self.files.insert(0, default)
+        self.default = default  # changed by Make Default and Clear Default
+        self.table = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
+        for i, title in enumerate(STARTUP_COLUMNS):
+            self.table.InsertColumn(i, title)
+        self._fill()
+        self.table.Bind(wx.EVT_LIST_ITEM_SELECTED, lambda event: self._update())
+        self.table.Bind(wx.EVT_LIST_ITEM_DESELECTED, lambda event: self._update())
+        self.table.Bind(wx.EVT_LIST_ITEM_ACTIVATED, lambda event: self.EndModal(wx.ID_OK))
+        self.make_default = wx.Button(self, label=MAKE_DEFAULT)
+        self.make_default.Bind(wx.EVT_BUTTON, self._on_make_default)
+        self.clear = wx.Button(self, label=CLEAR_DEFAULT)
+        self.clear.Bind(wx.EVT_BUTTON, self._on_clear)
+        # the Cancel id: Esc and closing the window skip too
+        self.skip = wx.Button(self, wx.ID_CANCEL, SKIP)
+        self.ok = wx.Button(self, wx.ID_OK)
+        buttons = wx.StdDialogButtonSizer()
+        buttons.AddButton(self.skip)
+        buttons.AddButton(self.ok)
+        buttons.Realize()
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        if warning:
+            text = wx.StaticText(self, label=warning)
+            text.SetForegroundColour(wx.Colour(180, 0, 0))
+            text.Wrap(520)
+            sizer.Add(text, 0, wx.ALL, 8)
+        sizer.Add(
+            wx.StaticText(
+                self,
+                label="Start with an app settings file? Its settings apply to this session.",
+            ),
+            0,
+            wx.ALL,
+            8,
+        )
+        sizer.Add(self.table, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        row.Add(self.make_default, 0, wx.RIGHT, 8)
+        row.Add(self.clear, 0)
+        sizer.Add(row, 0, wx.EXPAND | wx.ALL, 8)
+        sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 8)
+        self.SetSizerAndFit(sizer)
+        # long folders are cut off at the right, not widen the dialog
+        self.SetSize(min(max(self.GetSize().width, 560), 760), self.GetSize().height)
+        if default is not None:
+            self.select(self.files.index(default))
+            self.ok.SetDefault()  # Enter: start with the default
+        else:
+            self.skip.SetDefault()  # Enter: start without a file
+            self._update()
+
+    def rows(self) -> list[tuple[str, str, str]]:
+        """Return the table's rows: default mark, file name, folder (`~` for the home
+        folder)."""
+        home = Path.home()
+        rows = []
+        for f in self.files:
+            folder = f.parent
+            if folder.is_relative_to(home):
+                folder = Path("~") / folder.relative_to(home)
+            rows.append((DEFAULT_MARK if f == self.default else "", f.name, str(folder)))
+        return rows
+
+    def _fill(self) -> None:
+        self.table.DeleteAllItems()
+        for row in self.rows():
+            index = self.table.InsertItem(self.table.GetItemCount(), row[0])
+            self.table.SetItem(index, 1, row[1])
+            self.table.SetItem(index, 2, row[2])
+        self.table.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
+        self.table.SetColumnWidth(1, wx.LIST_AUTOSIZE)
+        self.table.SetColumnWidth(2, wx.LIST_AUTOSIZE)
+
+    def select(self, index: int) -> None:
+        """Select the row of file `index`."""
+        self.table.Select(index)
+        self.table.Focus(index)
+        self._update()
+
+    def selected(self) -> Optional[Path]:
+        """Return the selected file; None if no row is selected."""
+        index = self.table.GetFirstSelected()
+        return self.files[index] if index >= 0 else None
+
+    def _update(self) -> None:
+        chosen = self.selected()
+        self.make_default.Enable(chosen is not None and chosen != self.default)
+        self.clear.Enable(self.default is not None)
+        self.ok.Enable(chosen is not None)
+
+    def _set_default(self, default: Optional[Path]) -> None:
+        """Change the default and its check mark; the selection stays."""
+        self.default = default
+        for index, row in enumerate(self.rows()):
+            self.table.SetItem(index, 0, row[0])
+        self._update()
+
+    def _on_make_default(self, event) -> None:
+        self._set_default(self.selected())
+
+    def _on_clear(self, event) -> None:
+        self._set_default(None)
+
+    def result(self, answer: int) -> Pick:
+        """Return the choice for the button the dialog ended with.
+
+        Args:
+            answer: `wx.ID_OK` (start with the selected file) or `wx.ID_CANCEL`
+                (`Skip App Settings`).
+
+        Returns:
+            The file to start with (None when skipped), and the default after the
+            changes made in the dialog, with either button.
+        """
+        chosen = self.selected()
+        return Pick(chosen if answer == wx.ID_OK else None, self.default)
+
+
+def pick_app_settings(
+    files: list[Path], default: Optional[Path] = None, warning: Optional[str] = None,
+    parent=None,
+) -> Pick:
+    """Ask which app settings file to start with (`StartupSettingsDialog`).
 
     Args:
         files: The files in the app settings search path (`list_app_settings`).
+        default: The default app settings file, preselected; None if none is set.
+        warning: A message to show above the list, e.g. that a default was cleared.
         parent: The parent window.
 
     Returns:
-        The chosen file, or None for no file (also on Cancel).
+        The file to start with (None for `Skip App Settings`) and the default from
+        now on.
     """
-    choices = [NO_FILE] + [f"{f.name}  ({f.parent})" for f in files]
-    with wx.SingleChoiceDialog(
-        parent,
-        "Start with an app settings file? Its settings apply to this session.",
-        "App Settings File",
-        choices,
-    ) as dialog:
-        if dialog.ShowModal() != wx.ID_OK or dialog.GetSelection() == 0:
-            logging.info("Started without an app settings file")
-            return None
-        chosen = files[dialog.GetSelection() - 1]
-    logging.info(f"App settings file chosen at startup: {chosen}")
-    return chosen
+    dialog = StartupSettingsDialog(parent, files, default, warning)
+    try:
+        picked = dialog.result(dialog.ShowModal())
+    finally:
+        dialog.Destroy()
+    logging.info(f"App settings file chosen at startup: {picked.file or 'none'}")
+    return picked

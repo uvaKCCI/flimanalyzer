@@ -7,6 +7,7 @@ import logging
 import os
 import tempfile
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional, Sequence
 
@@ -262,6 +263,44 @@ class SettingsManager:
         self.origins.update(dict.fromkeys(_sections(check.sections), "app settings file"))
         return settings
 
+    def search_path_addition(self, folder: str | os.PathLike) -> Optional[list[Path]]:
+        """Return the `appsettings_path` that adds a folder to the app settings search
+        path, or None if adding it has no effect.
+
+        While `appsettings_path` is empty, the search path is the default folder,
+        which the new list keeps. Adding has no effect if the folder is already in
+        the search path, or if `FLIM_APP_SETTINGS_PATH` is set (it replaces
+        `appsettings_path`).
+
+        Args:
+            folder: The folder to add.
+
+        Returns:
+            The new `appsettings_path`, or None.
+        """
+        folder = Path(folder).expanduser().resolve()
+        if os.environ.get(APP_SETTINGS_PATH_VAR):
+            return None
+        current = app_settings_path(self.settings.appsettings_path)
+        if folder in [f.resolve() for f in current]:
+            return None
+        return [*current, folder]
+
+    def add_to_search_path(self, folder: str | os.PathLike) -> bool:
+        """Add a folder to the app settings search path in the user settings file.
+
+        Args:
+            folder: The folder to add.
+
+        Returns:
+            Whether it was added; see `search_path_addition` for when it is not.
+        """
+        path = self.search_path_addition(folder)
+        if path is None:
+            return False
+        self.update({"appsettings_path": [str(p) for p in path]})
+        return True
+
     def record(self) -> list[str]:
         """Return the settings files of this session, for the run summary.
 
@@ -272,6 +311,8 @@ class SettingsManager:
         """
         user = self._user_file.path if self._user_file is not None else "not read"
         lines = [f"User settings file: {user}"]
+        if self._settings.default_app_settings:
+            lines.append(f"Default app settings file: {self._settings.default_app_settings}")
         check = self.check
         if check is None:
             return lines + ["App settings file: none"]
@@ -294,7 +335,8 @@ class SettingsManager:
         that the file does not depend on the defaults of the version that reads it.
         Defaults that do not pass validation are not written: they could not be used
         when the file is read.
-        `appsettings_path` is left out: it is read only from the user settings file.
+        `appsettings_path` and `default_app_settings` are left out: they are read only
+        from the user settings file.
 
         Args:
             path: The file; it is replaced if it exists.
@@ -314,6 +356,7 @@ class SettingsManager:
                 settings.tools.set(tool, config)
         data = settings.to_json()
         data.pop("appsettings_path", None)
+        data.pop("default_app_settings", None)
         data["tools"] = dict(sorted(data["tools"].items()))
         with open(path, "w") as f:
             json.dump(data, f, indent=2, default=str)
@@ -495,6 +538,47 @@ def strict_choice(check: SettingsCheck, *, complete: bool = False) -> SettingsCh
 Choice = Callable[[SettingsCheck], Optional[SettingsCheck]]
 
 
+@dataclass
+class Pick:
+    """The user's choice of app settings file at startup.
+
+    Attributes:
+        file: The file to start with; None for none.
+        default: The default app settings file from now on; None for none.
+    """
+
+    file: Optional[Path]
+    default: Optional[Path]
+
+
+def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[str]]:
+    """Return the default app settings file if it exists and can be read.
+
+    A default that does not exist or cannot be read (see `check_settings_file`) is
+    cleared in the user settings file.
+
+    Returns:
+        The default, or None; and the warning if it was cleared.
+    """
+    default = manager.settings.default_app_settings
+    if default is None:
+        return None, None
+    if not default.is_file():
+        reason = "it does not exist"
+    else:
+        error = check_settings_file(default).error
+        if error is None:
+            return default, None
+        reason = error
+    manager.update({"default_app_settings": None})
+    warning = (
+        f"The default app settings file {default} cannot be used ({reason}); it is no"
+        " longer the default."
+    )
+    logging.warning(warning)
+    return None, warning
+
+
 def session_settings(
     settings_file: Optional[str] = None,
     command_line: Optional[dict] = None,
@@ -503,7 +587,7 @@ def session_settings(
     base: Optional[AppSettings] = None,
     choose: Optional[Choice] = None,
     complete: bool = False,
-    pick: Optional[Callable[[list[Path]], Optional[Path]]] = None,
+    pick: Optional[Callable[..., "Pick"]] = None,
 ) -> SettingsManager:
     """Create the settings manager of a session from all settings layers.
 
@@ -525,7 +609,11 @@ def session_settings(
         complete: Refuse an app settings file unless all its settings can be used
             and checked (see `strict_choice`); for flimbatch.
         pick: Called without `settings_file` if the app settings search path has
-            files (`list_app_settings`); returns the file to use, or None for none.
+            files (`list_app_settings`) or a default app settings file is set, as
+            `pick(files, default, warning)`; returns a `Pick`. A default that does
+            not exist or cannot be read is cleared in the user settings file first,
+            and `warning` says so (also added to the manager's notices if `pick` is
+            not called).
 
     Returns:
         The settings manager. Its `source` is the path of the app settings file, or
@@ -540,8 +628,15 @@ def session_settings(
     manager = SettingsManager(base, user_file)
     search_path = app_settings_path(manager.settings.appsettings_path)
     if not settings_file and pick is not None:
+        default, warning = _usable_default(manager)
         files = list_app_settings(search_path)
-        settings_file = pick(files) if files else None
+        if files or default:
+            picked = pick(files, default, warning)
+            if picked.default != default:
+                manager.update({"default_app_settings": picked.default})
+            settings_file = picked.file
+        elif warning:
+            manager.notices.append(warning)
     if settings_file:
         check = check_settings_file(find_app_settings(settings_file, search_path))
         if choose and check.problems:
@@ -581,6 +676,7 @@ def start_folder_settings() -> tuple[Optional[Path], Optional[str]]:
         return None, None
     return path, (
         f"reading {DEFAULTS_FILE} from the start folder is deprecated: move {path} to"
-        f" an app settings folder (e.g. {default_app_settings_dir()}), give it a name,"
+        f" a folder of the app settings search path (e.g. {default_app_settings_dir()}),"
+        " give it a name,"
         " and start with -s NAME"
     )

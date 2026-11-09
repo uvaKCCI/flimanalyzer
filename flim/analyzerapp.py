@@ -120,24 +120,28 @@ def _gui_app():
         _startup_app = FLIMAnalyzerApp()
 
 
-def pick_app_settings(files):
+def pick_app_settings(files, default=None, warning=None):
     """Ask which app settings file to start with (flim.gui.settingscheck), before the
     main window opens.
 
     Args:
         files: The files in the app settings search path.
+        default: The default app settings file, preselected; None if none is set.
+        warning: A message to show with the question.
 
     Returns:
-        The chosen file, or None for no file; None without wxPython.
+        The `Pick`; without wxPython the default, unchanged.
     """
+    from flim.core.settingsmgr import Pick
+
     try:
         import wx  # noqa: F401
     except ImportError:
-        return None
+        return Pick(default, default)
     from flim.gui.settingscheck import pick_app_settings as ask
 
     _gui_app()
-    return ask(files)
+    return ask(files, default, warning)
 
 
 def init_logger(loglevel):

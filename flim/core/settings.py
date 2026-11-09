@@ -248,6 +248,12 @@ class AppSettings(_Settings):
         description="Folders searched for app settings files, in order. Empty defaults to"
         " the folder appsettings in the platform's settings folder.",
     )
+    default_app_settings: Optional[Path] = Field(
+        default=None,
+        title="Default app settings file",
+        description="The app settings file preselected when the GUI starts without -s."
+        " Read only from the user settings file.",
+    )
     import_: ImportSettings = Field(default_factory=ImportSettings, alias="import")
     preprocess: PreprocessSettings = Field(default_factory=PreprocessSettings)
     filters: FilterSettings = Field(default_factory=FilterSettings)

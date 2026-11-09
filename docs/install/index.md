@@ -98,7 +98,7 @@ Run `flimanalyzer --help` for all command-line options.
 | Option | |
 |---|---|
 | `-i`, `--input` | data files to open at startup, each in its own table window |
-| `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings folders, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
+| `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings search path, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
 | `-o`, `--output` | results folder: the folder under `Save results in` for tools that have no folder of their own |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4` (see [Concurrent and Distributed Execution](/userguide/execution)) |
 | `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |

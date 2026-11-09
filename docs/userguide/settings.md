@@ -26,7 +26,7 @@ The dialog lists the app settings of this session: the results folder, the execu
 * where the value comes from: the built-in default, the user settings file, the app settings file, an environment variable or a command-line option;
 * the command-line option and the environment variable that change it.
 
-Below the table, it names the user settings file and the app settings file of the session, and the log file. Pointing at a row shows the setting's full value and its description.
+Below the table, it names the user settings file, your default app settings file if you have set one, the app settings file of the session, and the log file. Pointing at a row shows the setting's full value and its description.
 
 The dialog only shows the settings. They apply when FLIMAnalyzer starts: to change them, start it with the command-line option, the environment variable, or an app settings file (`-s`) that sets them. The results folder can also be set for each run in a tool's dialog (`Save results in`).
 
@@ -51,10 +51,10 @@ An app settings file is a settings file that you give with `-s` when you start t
 `-s` takes a path or a name:
 
 * A path that exists as given, relative to the current folder or absolute, is used.
-* Otherwise, the name is looked up in the app settings folders, as given and with `.json` added. For example, `-s cells` finds `cells.json`.
+* Otherwise, the name is looked up in the folders of the app settings search path, as given and with `.json` added. For example, `-s cells` finds `cells.json`.
 * If no file matches, or if files in several folders match, FLIMAnalyzer stops with an error. The message names the folders searched, or the files found.
 
-The app settings folders are, in this order:
+The app settings search path is, in this order:
 
 1. The folders in the environment variable `FLIM_APP_SETTINGS_PATH`, if it is set. The folders are separated by `:` on macOS and Linux, and by `;` on Windows.
 2. Otherwise, the folders listed in `appsettings_path` in the user settings file.
@@ -62,11 +62,18 @@ The app settings folders are, in this order:
 
 ### Choosing an app settings file at startup
 
-If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI looks for `.json` files in the app settings folders. If it finds at least one, it asks which to start with: `No app settings file`, or one of the files, listed with its folder. `Cancel` starts without one. The chosen file is checked like a file given with `-s` (see [Settings files from older versions](#settings-files-from-older-versions)). If the folders have no files, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`.
+If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI asks which app settings file to start with. The table lists the `.json` files in the folders of the app settings search path, and your default app settings file if you have set one, with their folders; the default has a check mark. `OK` starts with the selected file, and `Skip App Settings` (or Esc) starts without one. With a default, its row is selected, so pressing Enter starts with it; without one, no row is selected and Enter skips. If there are no files and no default, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`.
+
+* `Make Default` makes the selected file your default from now on.
+* `Clear Default` removes the default.
+
+The check mark moves at once. The change applies whether you then start with a file or skip; selecting a file alone doesn't change the default.
+
+The default is saved in the user settings file (`default_app_settings`). If it no longer exists or can't be read, the GUI says so and removes it as the default. The chosen file is checked like a file given with `-s` (see [Settings files from older versions](#settings-files-from-older-versions)).
 
 ### `defaults.json` (deprecated)
 
-Before 0.7.0, the GUI read `defaults.json` in the folder it was started from. The GUI started without `-s` still uses a `defaults.json` in the start folder, as if it were given with `-s`, and shows a warning that this is deprecated. Started with `-s`, the GUI doesn't read `defaults.json`. To keep using the file, move it to an app settings folder, give it a name, for example `cells.json`, and start with `-s cells`.
+Before 0.7.0, the GUI read `defaults.json` in the folder it was started from. The GUI started without `-s` still uses a `defaults.json` in the start folder, as if it were given with `-s`, and shows a warning that this is deprecated. Started with `-s`, the GUI doesn't read `defaults.json`. To keep using the file, move it to a folder of the app settings search path, give it a name, for example `cells.json`, and start with `-s cells`.
 
 ## Environment variables
 
@@ -84,7 +91,7 @@ These environment variables set the same settings as the command-line options. T
 | `FLIM_LOG_DIR` | log folder setting, as `--log-dir` |
 | `FLIM_CACHE_DIR` | cache folder setting, as `--cache-dir` |
 | `FLIM_STRICT` | `true` or `false`, as `--strict` or `--no-strict` |
-| `FLIM_APP_SETTINGS_PATH` | the app settings folders (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder |
+| `FLIM_APP_SETTINGS_PATH` | the app settings search path (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder |
 | `FLIM_USER_SETTINGS` | path of the user settings file (GUI) |
 
 For example, on macOS and Linux:
@@ -99,7 +106,7 @@ flimbatch -i data/ -o results/ -s settings.json --run Summarize
 
 **Menu Access:** `File` > `Export Settings...` and `File` > `Import Settings...`
 
-`Export Settings...` saves all current settings to a file. It includes the settings of every installed tool, with the tool's defaults if you haven't changed them, so that the file gives the same settings in a later FLIMAnalyzer version, even if the defaults change there. `appsettings_path` is not saved: it only has an effect in the user settings file. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
+`Export Settings...` saves all current settings to a file. If the file's folder isn't in the app settings search path yet, it then asks whether to add it to `appsettings_path` in your user settings file, so that the GUI lists the file at startup and `-s` finds it by name. While `appsettings_path` is empty, the default folder is kept in the search path when a folder is added. The question doesn't appear while `FLIM_APP_SETTINGS_PATH` is set, because it replaces `appsettings_path`. It includes the settings of every installed tool, with the tool's defaults if you haven't changed them, so that the file gives the same settings in a later FLIMAnalyzer version, even if the defaults change there. `appsettings_path` is not saved: it only has an effect in the user settings file. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
 
 You can import settings files from this and older FLIMAnalyzer versions, including FLIMAnalyzer 0.5 (see [Settings files from older versions](#settings-files-from-older-versions)). Settings are always saved in the current format.
 
@@ -173,6 +180,7 @@ Some tools have a table with a row for each feature, for example the table of ra
 * `cache`: the cache folder setting (`dir`), the maximum cache size in MB (`max_size_mb`) and the maximum age of cached items in days (`max_age_days`).
 * `strict`: workflows: `true` makes columns that are not in the data errors; `false` replaces them by the closest matching column. A workflow's own `Strict` setting takes precedence. If it is not set (`null`), missing columns are guessed in the GUI, where the guesses are shown before the run, and are errors in `flimbatch`.
 * `appsettings_path`: the folders searched for app settings files. It is read from the user settings file (see [App settings files](#app-settings-files)).
+* `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it and `appsettings_path` out.
 * `import` and `preprocess`: the import settings.
 * `filters`: the range filters, and whether they are switched on.
 * `tools`: each tool has its own section, named after the tool, with its settings (`config`), whether its results are saved (`autosave`) and in which folder (`results_dir`).

@@ -193,8 +193,12 @@ def test_startup_choice_of_app_settings_file(monkeypatch, clean_logging, tmp_pat
     (folder / "cells.json").write_text(json.dumps({"schema_version": 2}))
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
     offered = []
+    from flim.core.settingsmgr import Pick
+
     monkeypatch.setattr(
-        analyzerapp, "pick_app_settings", lambda files: offered.append(files) or files[0]
+        analyzerapp,
+        "pick_app_settings",
+        lambda files, default, warning: offered.append(files) or Pick(files[0], default),
     )
     manager = _start(monkeypatch, [])
     assert offered == [[folder / "cells.json"]] and manager.source == folder / "cells.json"
