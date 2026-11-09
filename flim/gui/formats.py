@@ -6,10 +6,10 @@ from flim.core.saving import formats_from_values, formats_model, formats_values
 from flim.gui.editors import FieldErrors, FieldsPanel
 
 
-class FormatsBox(wx.StaticBoxSizer):
-    """A box titled "Output" with a column per kind of output (e.g. Tables, Plots); each
-    column holds the kind's formats and options, generated from its save options, one
-    under the other.
+class FormatsBox(wx.BoxSizer):
+    """A row with a column per kind of output (e.g. Tables, Plots); each column holds
+    the kind's formats and options, generated from its save options, one under the
+    other. Dialogs put it in their Output section or box.
 
     Attributes:
         editors: The fields' editors by field name (e.g. `plot_formats`).
@@ -24,12 +24,12 @@ class FormatsBox(wx.StaticBoxSizer):
             formats: The formats to show (`AutosaveConfig.formats`); defaults per kind.
             on_change: Called when a field changes.
         """
-        super().__init__(wx.HORIZONTAL, parent, "Output")
+        super().__init__(wx.HORIZONTAL)
         self.kinds = list(kinds)
         self.model = formats_model(self.kinds)
         self.panels = []
         for kind in self.kinds:
-            panel = FieldsPanel(self.GetStaticBox(), formats_model([kind]), stacked=True)
+            panel = FieldsPanel(parent, formats_model([kind]), stacked=True)
             panel.on_change = on_change
             self.Add(panel, 0, wx.ALL, 6)
             self.panels.append(panel)

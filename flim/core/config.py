@@ -196,6 +196,8 @@ class TaskConfig(BaseConfig):
     prefix: Optional[str] = Field(
         default=None,
         title="Result prefix",
+        # names the results: shown with the output settings in dialogs
+        json_schema_extra={"section": "output"},
         description="Text put in front of the names of the results.",
     )
     resources: Resources = Field(default_factory=Resources, title="Resources")

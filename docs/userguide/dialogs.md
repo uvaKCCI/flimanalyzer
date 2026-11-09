@@ -2,11 +2,17 @@
 
 Every tool and workflow opens a configuration dialog, titled `Configuration: <tool name>`, for example `Configuration: Summarize`. The controls below are the same in all of them. The pages of the tools describe only their own settings.
 
+Every tool dialog has three sections, one under the other:
+
+* `Input`: the data the tool runs on (see [Choosing the data](#choosing-the-data)).
+* `Settings`: the tool's settings, with `Load Settings...` and `Save Settings...` (see [Loading and saving settings](#loading-and-saving-settings)).
+* `Output`: what names the results and how they are saved: `Result prefix` (see [Result prefix](#result-prefix)) and `Save results in` with the formats (see [Saving results](#saving-results)).
+
 A tool needs data: if no table window is open, the GUI says "Open or import data first." instead of opening the dialog.
 
 ## Choosing the data
 
-At the top of the dialog, a line of text says what the tool does. Below it, you choose the table the tool runs on. The list has all open table windows, by their window titles. The table window that was last in front is first in the list and is selected.
+At the top of the dialog, a line of text says what the tool does. Below it, in the `Input` section, you choose the table the tool runs on. The list has all open table windows, by their window titles. The table window that was last in front is first in the list and is selected.
 
 Most tools have one choice, `Data`. Some have more:
 
@@ -22,13 +28,13 @@ When you choose another table, the dialog lists the columns of that table, for e
 
 ## Saving results
 
-At the bottom of the dialog, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in` to save them. The folder is created if it doesn't exist yet.
+In the `Output` section, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in` to save them. The folder is created if it doesn't exist yet.
 
 * `Use the default folder` (checked unless the tool has a folder of its own): the tool saves in the default results folder, shown greyed next to `Save results in`. This is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)). The tool keeps following the default when it changes.
 * Uncheck it to give the tool a folder of its own: type a folder, or click the button next to it to choose one. The tool keeps this folder until you check `Use the default folder` again.
 * `Make Default Folder` makes the folder the default results folder, saved in the user settings file. Every tool that uses the default folder saves there from then on; tools with a folder of their own keep it.
 
-Below the folder, the `Output` box has a column for each kind of result the tool makes, with the formats to save it in and their options. You can check several formats of one kind; each kind needs at least one:
+Below the folder, the `Output` section has a column for each kind of result the tool makes, with the formats to save it in and their options. You can check several formats of one kind; each kind needs at least one:
 
 * `Tables`: `tsv`, tab-separated text with the ending `.txt` (default), and `csv`, comma-separated text (`.csv`). Tables are saved without the row numbers.
 * `Plots`: `png` (default), `svg` and `pdf`. `Resolution (dpi)` applies to `png`; the default is 300 dpi.
@@ -83,7 +89,7 @@ The dialog checks the settings while you change them:
 
 * A field with an error is marked with an error sign. Hover the mouse over the sign to see the message. In lists and tables, the sign is in the row with the error.
 * A warning sign marks a setting that works but may not be what you want, for example a column that a workflow guessed (see [Workflows](/userguide/workflows.md#checking-the-settings)).
-* Messages that are not about a single field, for example about the folder under `Save results in`, are shown in red text above `Save results in`.
+* Messages that are not about a single field, for example about the folder under `Save results in`, are shown in red text above the `Output` section.
 
 `OK` stays disabled while there are errors. Fix them, and `OK` becomes available.
 

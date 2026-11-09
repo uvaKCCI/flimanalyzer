@@ -166,8 +166,18 @@ class ConfigDialog(wx.Dialog):
             text = wx.StaticText(self, label=tool.description)
             text.Wrap(520)
             sizer.Add(text, 0, wx.ALL, 8)
-        self.input_controls = self._input_controls(sizer, selected)
+        # three sections, all visible: Input (the data), Settings (the tool's fields),
+        # Output (the fields that name the results, and how they are saved); a
+        # field's section comes from the config (flim.core.fields, `section`)
+        if self.data_choices:
+            input_box = wx.StaticBoxSizer(wx.VERTICAL, self, "Input")
+            self.input_controls = self._input_controls(input_box, selected)
+            sizer.Add(input_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        else:
+            self.input_controls = []
+        output_names = self.output_field_names()
 
+        settings_box = wx.StaticBoxSizer(wx.VERTICAL, self, "Settings")
         self.scroll = ScrolledPanel(self)
         self.fields = self.create_fields(self.scroll)
         self.fields.on_change = self.validate
@@ -175,12 +185,7 @@ class ConfigDialog(wx.Dialog):
         scroll_sizer.Add(self.fields, 1, wx.EXPAND)
         self.scroll.SetSizer(scroll_sizer)
         self.scroll.SetupScrolling(scroll_x=False)
-        sizer.Add(self.scroll, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 4)
-
-        self.status = wx.StaticText(self, label="")
-        self.status.SetForegroundColour(wx.Colour(180, 0, 0))
-        sizer.Add(self.status, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
-        sizer.Add(self._execution_controls(), 0, wx.EXPAND | wx.ALL, 8)
+        settings_box.Add(self.scroll, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
         for label, tip, handler in (
             (
@@ -201,24 +206,59 @@ class ConfigDialog(wx.Dialog):
             buttons.Add(button, 0, wx.RIGHT, 4)
         self.settings_message = wx.StaticText(self, label="")
         buttons.Add(self.settings_message, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
-        buttons.Add(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL), 0)
+        settings_box.Add(buttons, 0, wx.EXPAND | wx.TOP, 4)
+        sizer.Add(settings_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+
+        self.status = wx.StaticText(self, label="")
+        self.status.SetForegroundColour(wx.Colour(180, 0, 0))
+        sizer.Add(self.status, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+
+        output_box = wx.StaticBoxSizer(wx.VERTICAL, self, "Output")
+        self.output_fields = None
+        if output_names:
+            hidden = [n for n in type(self.config).model_fields if n not in output_names]
+            self.output_fields = FieldsPanel(self, type(self.config), exclude=hidden)
+            self.output_fields.on_change = self.validate
+            output_box.Add(self.output_fields, 0, wx.EXPAND)
+        output_box.Add(self._execution_controls(), 0, wx.EXPAND | wx.TOP, 4)
+        sizer.Add(output_box, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+
+        ok_cancel = self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL)
+        sizer.Add(ok_cancel, 0, wx.EXPAND | wx.ALL, 8)
         # FindWindow searches this dialog's children; FindWindowById all windows
         self.ok_button = self.FindWindow(wx.ID_OK)
         self.ok_button.Bind(wx.EVT_BUTTON, self._on_ok)
-        sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 8)
         self.SetSizer(sizer)
 
-        self.fields.set_values(self.config)
+        self.set_values(self.config)
         self._update_inputs()
-        self.fields.set_values(self.config)  # columns are listed now
+        self.set_values(self.config)  # columns are listed now
         self.validate()
         self._fit()
 
     # --- building ---
 
+    def output_field_names(self) -> list[str]:
+        """Return the config's fields shown in the Output section (e.g. the result
+        prefix), from their `section`."""
+        from flim.core.fields import describe
+
+        return [s.name for s in describe(type(self.config)) if s.section == "output"]
+
     def create_fields(self, parent) -> FieldsPanel:
-        """The field editors; custom dialogs may add to or replace them."""
-        return FieldsPanel(parent, type(self.config))
+        """The editors of the Settings section; custom dialogs may add to or replace
+        them. The Output section's fields (`output_field_names`) are not among them."""
+        return FieldsPanel(parent, type(self.config), exclude=self.output_field_names())
+
+    def panels(self) -> list:
+        """Return the FieldsPanels of the config: Settings, and Output if it has
+        fields."""
+        return [p for p in (self.fields, getattr(self, "output_fields", None)) if p]
+
+    def set_values(self, config) -> None:
+        """Show a config in the fields of both sections."""
+        for panel in self.panels():
+            panel.set_values(config)
 
     def _input_controls(self, sizer, selected) -> list:
         controls = []
@@ -373,11 +413,13 @@ class ConfigDialog(wx.Dialog):
 
     def _update_inputs(self):
         """Tells the editors the columns and tables of the selected inputs."""
-        self.fields.set_schema(combined_schema(self.input_schemas()))
+        for panel in self.panels():
+            panel.set_schema(combined_schema(self.input_schemas()))
         tables = []
         for value in self.selected_inputs():
             tables.extend(value.values() if isinstance(value, dict) else [value])
-        self.fields.set_data([t for t in tables if isinstance(t, pd.DataFrame)])
+        for panel in self.panels():
+            panel.set_data([t for t in tables if isinstance(t, pd.DataFrame)])
 
     def selected_names(self) -> list:
         names = []
@@ -423,6 +465,9 @@ class ConfigDialog(wx.Dialog):
         """The edited config (None if invalid) and its issues."""
         try:
             values = self.fields.values(self.config)
+            if self.output_fields is not None:
+                edited = self.output_fields.values(self.config)
+                values.update({n: edited[n] for n in self.output_fields.editors})
         except FieldErrors as err:
             return None, [Issue(name, message) for name, message in err.errors.items()]
         try:
@@ -462,13 +507,15 @@ class ConfigDialog(wx.Dialog):
         self.issues = issues
         by_field: dict[str, list[Issue]] = {}
         general = []
+        panel_of = {n: p for p in self.panels() for n in p.editors}
         for issue in issues:
             name = top_field(issue.field)
-            if name in self.fields.editors:
+            if name in panel_of:
                 by_field.setdefault(name, []).append(issue)
             else:
                 general.append(issue)
-        for name, editor in self.fields.editors.items():
+        for name, panel in panel_of.items():
+            editor = panel.editors[name]
             field_issues = by_field.get(name, [])
             editor.show_issues(field_issues)  # e.g. markers in the rows of a table
             if field_issues:
@@ -479,9 +526,9 @@ class ConfigDialog(wx.Dialog):
                     f"{i.field}: {i.message}" if i.field != name else i.message
                     for i in field_issues
                 )
-                self.fields.show_issue(name, severity, message)
+                panel.show_issue(name, severity, message)
             else:
-                self.fields.show_issue(name, None)
+                panel.show_issue(name, None)
         self.status.SetLabel(
             "\n".join(f"{i.step}: {i.message}" if i.step else i.message for i in general)
         )
@@ -562,7 +609,7 @@ class ConfigDialog(wx.Dialog):
             self.settings_message.SetLabel(f"Could not load {name}: {err}")
             return False
         self.config = config
-        self.fields.set_values(config)
+        self.set_values(config)
         if not self.autosave_locked:
             self.autosave.SetValue(entry.autosave.enabled)
         if self.use_default is not None:

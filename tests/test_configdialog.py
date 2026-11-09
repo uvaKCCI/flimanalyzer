@@ -87,8 +87,10 @@ def test_unused_fields_and_order(dialog):
     assert "grouping" not in d.fields.editors  # K-Means does not group
     names = list(d.fields.editors)
     # the tool's own settings first, the general ones after
-    assert names.index("n_clusters") < names.index("prefix")
+    assert names.index("n_clusters") < names.index("random_seed")
     assert names.index("tolerance") < names.index("random_seed")
+    # the result prefix names the results: in the Output section
+    assert "prefix" not in names and list(d.output_fields.editors) == ["prefix"]
     label = next(
         w.GetLabel()
         for w in d.fields.GetChildren()
@@ -456,3 +458,29 @@ def test_use_the_default_folder(dialog, tmp_path, stored, follows):
 def test_no_default_folder_controls_without_a_default(dialog):
     d = dialog("K-Means")
     assert d.use_default is None and d.make_default is None
+
+
+
+def test_dialog_sections(dialog, tmp_path):
+    d = dialog("K-Means")
+    boxes = [
+        c.GetSizer().GetStaticBox().GetLabel()
+        for c in d.GetSizer().GetChildren()
+        if c.IsSizer() and isinstance(c.GetSizer(), wx.StaticBoxSizer)
+    ]
+    assert boxes == ["Input", "Settings", "Output"]
+    # the prefix is read and checked like the other fields
+    d.output_fields.editors["prefix"].set("run1")
+    d.fields.editors["features"].set(["x"])
+    d.validate()
+    assert d.result().config.prefix == "run1"
+
+
+def test_no_input_section_without_data(dialog):
+    d = dialog("K-Means", data_choices={})
+    boxes = [
+        c.GetSizer().GetStaticBox().GetLabel()
+        for c in d.GetSizer().GetChildren()
+        if c.IsSizer() and isinstance(c.GetSizer(), wx.StaticBoxSizer)
+    ]
+    assert boxes == ["Settings", "Output"]

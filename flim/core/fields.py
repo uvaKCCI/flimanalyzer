@@ -38,6 +38,7 @@ class FieldSpec:
     advanced: bool = False  # model: a collapsed section (else shown inline)
     bounds: dict = field(default_factory=dict)  # ge, gt, le, lt
     hidden: bool = False  # metadata, in hidden_fields, or only one value allowed
+    section: str = "settings"  # the dialog section: "settings" or "output"
 
 
 def title_of(name: str) -> str:
@@ -71,6 +72,7 @@ def describe(model: type[BaseModel]) -> list[FieldSpec]:
                     extra.get("advanced", getattr(spec.get("model"), "advanced", False))
                 ),
                 hidden=hidden or spec.get("hidden", False),
+                section=extra.get("section", "settings"),
                 **{k: v for k, v in spec.items() if k != "hidden"},
             )
         )
