@@ -659,10 +659,14 @@ class AppFrame(wx.Frame):
             execution=execution,
             autosave_locked=is_workflow,  # workflows always save their results
             strict=self.settings.strict,
+            default_folder=self.settings.resolved_results_dir(),
+            on_make_default=self.make_default_folder,
         )
         if result is None:
             return
-        self.settings_manager.set_tool(tool, result.config, result.execution.autosave)
+        # what the tool stores: no folder if it follows the default folder
+        stored = result.stored_autosave or result.execution.autosave
+        self.settings_manager.set_tool(tool, result.config, stored)
 
         task_runner = self.flimanalyzer.get_task_runner()
         autosave = result.execution.autosave
@@ -1041,6 +1045,11 @@ class AppFrame(wx.Frame):
             for x in self.GetChildren()
             if isinstance(x, wx.Frame)
         ]
+
+    def make_default_folder(self, folder) -> None:
+        """Make a folder the app's default results folder (results_dir), in the user
+        settings file: tools without a folder of their own save there."""
+        self.settings_manager.update({"results_dir": str(folder)})
 
     def unique_window_title(self, title):
         """Return a title no open window has (DataManager.unique_title)."""

@@ -22,7 +22,11 @@ When you choose another table, the dialog lists the columns of that table, for e
 
 ## Saving results
 
-At the bottom of the dialog, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in`, then type a folder or click the button next to it to choose one. The folder is created if it doesn't exist yet. By default, it is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)).
+At the bottom of the dialog, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in` to save them. The folder is created if it doesn't exist yet.
+
+* `Use the default folder` (checked unless the tool has a folder of its own): the tool saves in the default results folder, shown greyed next to `Save results in`. This is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)). The tool keeps following the default when it changes.
+* Uncheck it to give the tool a folder of its own: type a folder, or click the button next to it to choose one. The tool keeps this folder until you check `Use the default folder` again.
+* `Make Default Folder` makes the folder the default results folder, saved in the user settings file. Every tool that uses the default folder saves there from then on; tools with a folder of their own keep it.
 
 Below the folder, the `Output` box has a column for each kind of result the tool makes, with the formats to save it in and their options. You can check several formats of one kind; each kind needs at least one:
 

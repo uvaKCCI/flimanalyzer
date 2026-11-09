@@ -10,9 +10,10 @@ marks problems at their fields (errors keep OK disabled).
 import logging
 import json
 import os
+from pathlib import Path
 import re
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Callable, Optional
 
 import pandas as pd
 import wx
@@ -38,7 +39,9 @@ class DialogResult:
     config: TaskConfig
     inputs: list  # per InputSpec: a DataFrame, or a dict of them (many=True)
     input_names: list  # per InputSpec: a table name, or a list of names
-    execution: ExecutionOptions
+    execution: ExecutionOptions  # for the run: the results folder is resolved
+    # for the tool's settings: no results folder if the tool follows the default
+    stored_autosave: Optional[Any] = None
 
 
 _DIALOGS: dict = {}
@@ -136,6 +139,8 @@ class ConfigDialog(wx.Dialog):
         execution: Optional[ExecutionOptions] = None,
         autosave_locked: bool = False,
         strict: Optional[bool] = None,
+        default_folder=None,
+        on_make_default: Optional[Callable] = None,
     ):
         super().__init__(
             parent,
@@ -148,6 +153,10 @@ class ConfigDialog(wx.Dialog):
         self.execution = execution or ExecutionOptions()
         self.autosave_locked = autosave_locked
         self.strict = strict  # workflows: the default of a config whose strict is None
+        # the app's default results folder (None: no "Use the default folder"), and
+        # what makes a folder the default (SettingsManager)
+        self.default_folder = Path(default_folder) if default_folder else None
+        self.on_make_default = on_make_default
         self.issues: list[Issue] = []
         self._schema_cache: dict[str, TableSchema] = {}
 
@@ -271,6 +280,23 @@ class ConfigDialog(wx.Dialog):
         row.Add(self.autosave, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         row.Add(self.folder, 1, wx.EXPAND)
         outer.Add(row, 0, wx.EXPAND)
+        self.use_default = self.make_default = None
+        if self.default_folder is not None:
+            # follow the app's default folder, or keep a folder of the tool's own
+            row = wx.BoxSizer(wx.HORIZONTAL)
+            self.use_default = wx.CheckBox(self, label="Use the default folder")
+            self.use_default.SetToolTip(
+                "The tool saves in the app's default results folder, also when it changes"
+            )
+            self.use_default.Bind(wx.EVT_CHECKBOX, lambda e: self._follow_default())
+            self.make_default = wx.Button(self, label="Make Default Folder")
+            self.make_default.SetToolTip("Tools without a folder of their own save here")
+            self.make_default.Bind(wx.EVT_BUTTON, lambda e: self._make_default())
+            row.Add(self.use_default, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
+            row.Add(self.make_default, 0)
+            outer.Add(row, 0, wx.LEFT | wx.TOP, 4)
+            self.use_default.SetValue(self._is_default(folder))
+            self._follow_default()
         # the formats in an "Output" box: a column per kind of output, its fields
         # (generated from the data type's save options) one under the other
         kinds = self.save_kinds()
@@ -294,6 +320,34 @@ class ConfigDialog(wx.Dialog):
         values = formats_values(self.formats_model, formats, self.save_kinds())
         for panel in self.format_panels.values():
             panel.set_values(values)
+
+    def _is_default(self, folder) -> bool:
+        """Whether a tool's stored folder means the default: none, or the default
+        folder itself (settings from before a tool could follow the default)."""
+        if folder is None or self.default_folder is None:
+            return True
+        return canonical_folder(str(folder)) == canonical_folder(str(self.default_folder))
+
+    def _follow_default(self) -> None:
+        """Show the default folder, greyed, while the tool follows it."""
+        follows = bool(self.use_default and self.use_default.GetValue())
+        if follows:
+            self.folder.SetPath(str(self.default_folder))
+        self.folder.Enable(not follows)
+        if self.make_default is not None:
+            self.make_default.Enable(not follows)
+        if hasattr(self, "formats"):  # not while the dialog is being built
+            self.validate()
+
+    def _make_default(self) -> None:
+        """Make the folder the app's default results folder; the tool then follows it."""
+        folder = canonical_folder(self.folder.GetPath())
+        if not folder or folder_problem(folder) or self.on_make_default is None:
+            return
+        self.on_make_default(Path(folder))
+        self.default_folder = Path(folder)
+        self.use_default.SetValue(True)
+        self._follow_default()
 
     def save_formats(self) -> tuple[list, dict]:
         """Return the formats chosen in the dialog, and an error per format field."""
@@ -536,8 +590,11 @@ class ConfigDialog(wx.Dialog):
         self.fields.set_values(config)
         if not self.autosave_locked:
             self.autosave.SetValue(entry.autosave.enabled)
-        if entry.autosave.results_dir:
+        if self.use_default is not None:
+            self.use_default.SetValue(self._is_default(entry.autosave.results_dir))
+        if entry.autosave.results_dir and not (self.use_default and self.use_default.GetValue()):
             self.folder.SetPath(str(entry.autosave.results_dir))
+        self._follow_default()
         if entry.autosave.formats:
             self.set_formats(entry.autosave.formats)
         self.validate()
@@ -560,7 +617,7 @@ class ConfigDialog(wx.Dialog):
         if config is None:
             self.settings_message.SetLabel("Not saved: the settings are not valid")
             return False
-        entry = tool_settings(config, self._autosave())
+        entry = tool_settings(config, self._autosave(stored=True))
         while os.path.exists(path):
             check = check_settings_file(path)
             if not needs_rewrite(check):
@@ -616,15 +673,20 @@ class ConfigDialog(wx.Dialog):
             windows.extend(window.GetChildren())
         return committed
 
-    def _autosave(self):
-        """Return the dialog's autosave settings: whether, where, in which formats."""
+    def _autosave(self, stored: bool = False):
+        """Return the dialog's autosave settings: whether, where, in which formats.
+
+        Args:
+            stored: For the tool's settings: no folder if the tool follows the
+                default folder. Otherwise the folder the run saves in.
+        """
         from flim.core.saving import AutosaveConfig
 
         formats, _ = self.save_formats()
+        follows = bool(self.use_default and self.use_default.GetValue())
+        folder = None if stored and follows else canonical_folder(self.folder.GetPath()) or None
         return AutosaveConfig(
-            enabled=self.autosave.GetValue(),
-            results_dir=canonical_folder(self.folder.GetPath()) or None,
-            formats=formats,
+            enabled=self.autosave.GetValue(), results_dir=folder, formats=formats
         )
 
     def result(self) -> DialogResult:
@@ -637,6 +699,7 @@ class ConfigDialog(wx.Dialog):
             inputs=self.selected_inputs(),
             input_names=self.selected_names(),
             execution=ExecutionOptions.model_validate(execution.model_dump()),
+            stored_autosave=self._autosave(stored=True),
         )
 
 

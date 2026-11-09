@@ -433,3 +433,26 @@ def test_a_kind_without_format_is_an_error(dialog, tmp_path):
     d.autosave.SetValue(False)  # not saving: the formats don't matter
     d.validate()
     assert not d.formats.markers["plot_formats"].IsShown()
+
+
+@pytest.mark.parametrize("stored, follows", [(None, True), ("default", True), ("other", False)])
+def test_use_the_default_folder(dialog, tmp_path, stored, follows):
+    default, other = tmp_path / "default", tmp_path / "other"
+    folder = {None: None, "default": default, "other": other}[stored]
+    execution = ExecutionOptions(autosave={"enabled": folder is not None, "results_dir": folder})
+    d = dialog("K-Means", execution=execution, default_folder=default)
+    assert d.use_default.GetValue() is follows
+    assert d.folder.IsEnabled() is not follows
+    d.autosave.SetValue(True)
+    d.validate()
+    if follows:  # settings from before that stored the default folder: follow it too
+        assert d.folder.GetPath() == str(default)
+        assert d._autosave(stored=True).results_dir is None
+        assert d._autosave().results_dir == default  # where the run saves
+    else:
+        assert d._autosave(stored=True).results_dir == other
+
+
+def test_no_default_folder_controls_without_a_default(dialog):
+    d = dialog("K-Means")
+    assert d.use_default is None and d.make_default is None

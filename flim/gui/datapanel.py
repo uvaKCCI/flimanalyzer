@@ -25,6 +25,11 @@ from flim.gui.dialogs import SelectGroupsDlg, ConfigureFiltersDlg, RenameGroupsD
 
 logger = logging.getLogger(__name__)
 
+# the table window's save buttons: all rows (also those hidden by filters), or the rows
+# shown
+SAVE_ALL_ROWS = "Save All Rows..."
+SAVE_SHOWN_ROWS = "Save Shown Rows..."
+
 EVEN_ROW_COLOUR = "#CCE6FF"
 GRID_LINE_COLOUR = "#ccc"
 
@@ -297,10 +302,10 @@ class PandasFrame(wx.Frame):
         pivotviewbutton = wx.Button(self, wx.ID_ANY, "Pivot")
         pivotviewbutton.Bind(wx.EVT_BUTTON, self.OnPivotView)
 
-        saveallbutton = wx.Button(self, wx.ID_ANY, "Save All")
+        saveallbutton = wx.Button(self, wx.ID_ANY, SAVE_ALL_ROWS)
         saveallbutton.Bind(wx.EVT_BUTTON, self.OnSave)
 
-        saveviewbutton = wx.Button(self, wx.ID_ANY, "Save View")
+        saveviewbutton = wx.Button(self, wx.ID_ANY, SAVE_SHOWN_ROWS)
         saveviewbutton.Bind(wx.EVT_BUTTON, self.OnSave)
 
         precisionsizer = wx.FlexGridSizer(1, 2, 0, 0)
@@ -722,7 +727,7 @@ class PandasFrame(wx.Frame):
     def OnSave(self, event):
         original = self.GetTitle()
         buttonlabel = event.GetEventObject().GetLabel()
-        if buttonlabel == "Save All":
+        if buttonlabel == SAVE_ALL_ROWS:
             fname = flim.gui.dialogs.save_dataframe(
                 self,
                 "Save entire data.",
@@ -730,7 +735,7 @@ class PandasFrame(wx.Frame):
                 original + ".txt",
                 saveindex=self.showcolindex,
             )
-        elif buttonlabel == "Save View":
+        elif buttonlabel == SAVE_SHOWN_ROWS:
             fname = flim.gui.dialogs.save_dataframe(
                 self,
                 "Save current data view",

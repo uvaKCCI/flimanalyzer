@@ -135,6 +135,8 @@ def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
     def change(dialog):
         dialog.fields.editors["features"].set(["x"])
         dialog.autosave.SetValue(True)
+        dialog.use_default.SetValue(False)  # a folder of the tool's own
+        dialog._follow_default()
         dialog.folder.SetPath(str(tmp_path))
 
     answer_dialog(monkeypatch, change)
@@ -142,6 +144,49 @@ def test_autosave(frame, monkeypatch, prefect_harness, tmp_path):
     assert any(tmp_path.rglob("*Sort*"))
     entry = frame.settings.tools.entry(tools.get("Sort"))
     assert entry.autosave.enabled and entry.autosave.results_dir == tmp_path
+
+
+def test_a_tool_follows_the_default_folder(frame, monkeypatch, prefect_harness, tmp_path):
+    default = tmp_path / "default"
+    frame.make_default_folder(default)
+
+    def change(dialog):
+        dialog.fields.editors["features"].set(["x"])
+        dialog.autosave.SetValue(True)
+        assert dialog.use_default.GetValue() and not dialog.folder.IsEnabled()
+        assert dialog.folder.GetPath() == str(default)
+
+    answer_dialog(monkeypatch, change)
+    frame.run_tool(tools.get("Sort"))
+    assert any(default.rglob("*Sort*"))  # saved in the default folder
+    entry = frame.settings.tools.entry(tools.get("Sort"))
+    assert entry.autosave.enabled and entry.autosave.results_dir is None  # follows it
+    # a new default: the tool follows it
+    later = tmp_path / "later"
+    frame.make_default_folder(later)
+    answer_dialog(monkeypatch, lambda dialog: None)
+    frame.run_tool(tools.get("Sort"))
+    assert any(later.rglob("*Sort*"))
+
+
+def test_make_default_folder_in_the_dialog(frame, monkeypatch, prefect_harness, tmp_path):
+    own = tmp_path / "own"
+    own.mkdir()
+
+    def change(dialog):
+        dialog.fields.editors["features"].set(["x"])
+        dialog.autosave.SetValue(True)
+        dialog.use_default.SetValue(False)
+        dialog._follow_default()
+        dialog.folder.SetPath(str(own))
+        assert dialog.make_default.IsEnabled()
+        dialog._make_default()
+        assert dialog.use_default.GetValue() and not dialog.make_default.IsEnabled()
+
+    answer_dialog(monkeypatch, change)
+    frame.run_tool(tools.get("Sort"))
+    assert frame.settings.results_dir == own
+    assert frame.settings.tools.entry(tools.get("Sort")).autosave.results_dir is None
 
 
 def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):

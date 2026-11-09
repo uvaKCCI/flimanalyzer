@@ -80,7 +80,7 @@ def test_range_filter_and_view_all(frame, flim_data):
     assert len(window.GetViewData()) == len(flim_data)
 
 
-@pytest.mark.parametrize("button", ["Save View", "Save All"])
+@pytest.mark.parametrize("button", ["Save Shown Rows...", "Save All Rows..."])
 def test_save_renames_the_window(frame, monkeypatch, tmp_path, flim_data, button):
     window = _open(frame, flim_data.copy())
     window.modified = True
@@ -354,7 +354,7 @@ def test_a_renamed_window_keeps_its_item(frame, monkeypatch, tmp_path, flim_data
     window = _open(frame, flim_data, "cells")
     _answer_file_dialog(monkeypatch, tmp_path / "saved.txt")
     window.OnSave(type("E", (), {"GetEventObject": lambda self: type(
-        "B", (), {"GetLabel": lambda self: "Save All"})()})())
+        "B", (), {"GetLabel": lambda self: "Save All Rows..."})()})())
     item = frame.data_manager.get(window.item_id)
     assert item.title == "saved.txt" and not item.modified
     assert frame.windows_by_title()["saved.txt"] is window
