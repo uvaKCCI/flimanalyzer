@@ -124,3 +124,41 @@ def test_workflow_graph_plot(flim_data):
     assert isinstance(fig, matplotlib.figure.Figure)
     # arrows are drawn as empty annotations
     assert {t.get_text() for t in ax.texts if t.get_text()} == {"Input", "Sort"}
+
+
+def test_run_folders_are_unique(tmp_path):
+    from flim.core.runner import unique_run_folder
+
+    first = unique_run_folder(tmp_path / "Summarize", "2026-11-09_14-23-43")
+    second = unique_run_folder(tmp_path / "Summarize", "2026-11-09_14-23-43")
+    third = unique_run_folder(tmp_path / "Summarize", "2026-11-09_14-23-43")
+    assert [first.name, second.name, third.name] == [
+        "2026-11-09_14-23-43", "2026-11-09_14-23-43-2", "2026-11-09_14-23-43-3"
+    ]
+    assert all(f.is_dir() for f in (first, second, third))
+
+
+def test_two_runs_in_one_second_save_to_different_folders(flim_data, tmp_path, monkeypatch):
+    import datetime
+    import types
+
+    import flim.core.runner as runner
+
+    fixed = datetime.datetime(2026, 11, 9, 14, 23, 43)
+
+    class Clock(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed
+
+    # only the runner's clock: Prefect needs the real one
+    monkeypatch.setattr(runner, "datetime", types.SimpleNamespace(datetime=Clock))
+
+    def build():
+        Summarize()(flim_data, config=SummaryConfig(features=["NAD(P)H t1"]), task_tags="s")
+
+    one = run_flow("one", build, autosave_dir=str(tmp_path))
+    two = run_flow("two", build, autosave_dir=str(tmp_path))
+    assert one.autosave_dir != two.autosave_dir
+    assert (one.autosave_dir / "run_summary.txt").exists()
+    assert (two.autosave_dir / "run_summary.txt").exists()
