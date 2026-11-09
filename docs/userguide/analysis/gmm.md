@@ -1,6 +1,6 @@
 # Gaussian Mixed Model
 
-Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters. It fits a Gaussian mixture model: unlike `K-Means`, it describes each cluster as a Gaussian (bell-shaped) distribution. It works on the features as they are; unlike `K-Means`, it doesn't standardize them. Clusters can have different sizes, shapes and orientations. Each data point is assigned to a cluster, and also gets a probability of belonging to each cluster.
+Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters. It fits a Gaussian mixture model: unlike `K-Means`, it describes each cluster as a Gaussian (bell-shaped) distribution. By default it works on the features as they are; unlike `K-Means`, it doesn't standardize them unless `Standardize input` is checked. Clusters can have different sizes, shapes and orientations. Each data point is assigned to a cluster, and also gets a probability of belonging to each cluster.
 
 **Menu Access:** `Analysis` > `Gaussian Mixed Model`
 
@@ -17,6 +17,7 @@ Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters
     - `Method`: `EM` (expectation maximization, default) fits a model with exactly the number of components (clusters) you set. `Variational Bayesian` treats that number as a maximum. It can leave some components empty or nearly empty, so it may find fewer clusters.
     - `Components`: the number of clusters (for `Variational Bayesian`: the maximum number). The default is 2.
     - `Covariance`: the shape of the clusters (default `full`).
+    - `Standardize input` (unchecked by default): scale each feature to a mean of 0 and a standard deviation of 1 over the table before fitting, as `PCA` and `K-Means` do by default. Standardizing matters when features have very different ranges, especially for the `spherical` covariance. The covariance tables then say `(standardized)` in their names, because their values are in standardized units.
         - `full`: each cluster has its own shape and orientation.
         - `tied`: all clusters share the same shape.
         - `diag`: each cluster has its own shape, aligned with the feature axes.
@@ -30,7 +31,7 @@ Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters
 5. The results are shown in new table windows:
     - `Table: GMM <covariance>, Feature Clustering`: the category columns and the selected features, plus a category column `GMM <covariance>` with the cluster of each row, e.g. `GMM full 1`, `GMM full 2`. A column `GMM Prob Component <n>` for each cluster gives the probability that the row belongs to that cluster. Other columns of the table are not included.
     - `Table: GMM <covariance>, Component Information Criteria`: the BIC and AIC scores of models with 1 up to the chosen number of components. They help you choose the number of components (see below).
-    - `Table: GMM <covariance>, Covariance, component <n>`: one table per cluster with its covariance matrix, which describes how the features spread and vary together within the cluster.
+    - `Table: GMM <covariance>, Covariance, component <n>` (with `Standardize input`: `Covariance (standardized)`): one table per cluster with its covariance matrix, which describes how the features spread and vary together within the cluster.
 
 ## Choosing the Number of Components
 

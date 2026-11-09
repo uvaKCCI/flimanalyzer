@@ -31,9 +31,23 @@ def complete_rows(data: pd.DataFrame, features: list[str]) -> pd.DataFrame:
 
 
 def standardized(values: np.ndarray) -> np.ndarray:
+    """Return the values scaled to mean 0 and standard deviation 1 per column
+    (scikit-learn's StandardScaler, over all rows)."""
     from sklearn.preprocessing import StandardScaler
 
     return StandardScaler().fit_transform(values)
+
+
+def prepared(values, standardize: bool) -> np.ndarray:
+    """Return a tool's input for fitting: standardized if `standardize`
+    (`standardize_input`, the same in every tool), else as it is.
+
+    Args:
+        values: The features, e.g. `data[features]`.
+        standardize: The tool's `standardize_input`.
+    """
+    values = np.asarray(values, dtype=float)
+    return standardized(values) if standardize else values
 
 
 def bar_chart(table: pd.DataFrame, index: str) -> Figure:
@@ -50,8 +64,9 @@ class PCAnalysis(Tool[PCAConfig]):
     name = "PCA"
     category = "Analysis"
     description = (
-        "Principal component analysis of the standardized features. Components to"
-        " keep: a number, a fraction (0..1) of the variance to explain, or all."
+        "Principal component analysis of the features, standardized by default."
+        " Components to keep: a number, a fraction (0..1) of the variance to explain,"
+        " or all."
     )
     icon = "pca.png"
 
@@ -60,10 +75,10 @@ class PCAnalysis(Tool[PCAConfig]):
 
         features = selected_features(data, config.features)
         data = complete_rows(data, features)
-        standard = standardized(data[features].to_numpy())
+        values = prepared(data[features], config.standardize_input)
         pca = PCA(n_components=config.n_components, random_state=config.random_seed)
         with threadpool_limits(self.context.threads):
-            components = pca.fit_transform(standard)
+            components = pca.fit_transform(values)
         component_df = pd.DataFrame(
             components,
             columns=[f"PC {i}" for i in range(1, components.shape[1] + 1)],
@@ -72,6 +87,7 @@ class PCAnalysis(Tool[PCAConfig]):
         if config.keep_original:
             parts.append(data[features])
         if config.keep_standardized:
+            standard = values if config.standardize_input else prepared(data[features], True)
             parts.append(
                 pd.DataFrame(standard, columns=[f"{f}\nstandardized" for f in features])
             )
@@ -99,7 +115,7 @@ class PCAnalysis(Tool[PCAConfig]):
 class KMeansClustering(Tool[KMeansConfig]):
     name = "K-Means"
     category = "Analysis"
-    description = "K-means clustering of the standardized features."
+    description = "K-means clustering of the features, standardized by default."
     icon = "kmeans.png"
     outputs = (OutputSpec("K-Means", TableType),)
 
@@ -118,7 +134,7 @@ class KMeansClustering(Tool[KMeansConfig]):
             random_state=config.random_seed,
         )
         with threadpool_limits(self.context.threads):
-            kmeans.fit(standardized(data[features].to_numpy()))
+            kmeans.fit(prepared(data[features], config.standardize_input))
         label = config.cluster_prefix
         table = data.copy()
         table[label] = pd.Categorical([f"{label} {i + 1}" for i in kmeans.labels_])
@@ -154,7 +170,7 @@ class GaussianMixedModel(Tool[GMMConfig]):
 
         features = selected_features(data, config.features)
         data = complete_rows(data, features)
-        values = data[features]
+        values = prepared(data[features], config.standardize_input)
         n, covariance = config.n_components, config.covariance
         seed = config.random_seed
         with threadpool_limits(self.context.threads):
@@ -203,8 +219,10 @@ class GaussianMixedModel(Tool[GMMConfig]):
             ],
             axis=1,
         )
+        # standardized input: the covariances are in standardized units
+        units = " (standardized)" if config.standardize_input else ""
         results = {
-            f"{label}, Covariance, component {i + 1}": pd.DataFrame(
+            f"{label}, Covariance{units}, component {i + 1}": pd.DataFrame(
                 matrix, index=features, columns=features
             )
             for i, matrix in enumerate(matrices)

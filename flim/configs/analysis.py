@@ -189,6 +189,12 @@ class PCAConfig(MLConfig):
         "explained_plot": "explainedhisto",
     }
 
+    standardize_input: bool = Field(
+        default=True,
+        title="Standardize input",
+        description="Scale each feature to mean 0 and standard deviation 1 over the input"
+        " table before fitting.",
+    )
     keep_original: bool = Field(
         default=False,
         title="Include the features",
@@ -216,6 +222,12 @@ class PCAConfig(MLConfig):
 
 class KMeansConfig(MLConfig):
     min_features = 1
+    standardize_input: bool = Field(
+        default=True,
+        title="Standardize input",
+        description="Scale each feature to mean 0 and standard deviation 1 over the input"
+        " table before fitting.",
+    )
     n_clusters: int = Field(default=2, ge=1, title="Clusters")
     cluster_prefix: str = Field(
         default="Cluster",
@@ -250,6 +262,12 @@ class GMMConfig(MLConfig):
     min_features = 1
     legacy_keys = {**MLConfig.legacy_keys, "covariance": "covar_type"}
 
+    standardize_input: bool = Field(
+        default=False,
+        title="Standardize input",
+        description="Scale each feature to mean 0 and standard deviation 1 over the input"
+        " table before fitting.",
+    )
     method: Literal["EM", "Variational Bayesian"] = Field(default="EM", title="Method")
     n_components: int = Field(
         default=2,

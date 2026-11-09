@@ -1,6 +1,6 @@
 # K-Means
 
-The `K-Means` tool finds groups of similar data points (clusters). It works on the standardized features: each feature is rescaled to a mean of 0 and a standard deviation of 1, so that all features have the same weight.
+The `K-Means` tool finds groups of similar data points (clusters). By default it works on the standardized features (`Standardize input`): each feature is rescaled to a mean of 0 and a standard deviation of 1, so that all features have the same weight.
 
 **Menu Access:** `Analysis` > `K-Means`
 
@@ -14,6 +14,7 @@ The `K-Means` tool finds groups of similar data points (clusters). It works on t
 2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `K-Means` menu.
 
 3. In the `Configuration: K-Means` dialog, set:
+    - `Standardize input` (checked by default): scale each feature to a mean of 0 and a standard deviation of 1 over the table before clustering. Unchecked, the features are used as they are, so features with larger values weigh more.
     - `Clusters`: the number of clusters (default 2). To choose it, plot the data and look for groups, or use the elbow method: try different numbers of clusters and pick the point after which more clusters no longer improve the result much.
     - `Cluster column`: the name of the new column (default `Cluster`). The clusters are named after it: `Cluster 1`, `Cluster 2`, ...
     - `Initialization`: how the starting cluster centers are chosen. `k-means++` (default) places them far from each other, which usually gives a result faster. `random` picks them at random.

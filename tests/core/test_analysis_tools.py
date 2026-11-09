@@ -343,3 +343,63 @@ def test_random_forest_reports_the_accuracy(data, plot):
     assert accuracy["Training rows"].iloc[0] + accuracy["Test rows"].iloc[0] == len(data)
     assert ("Plot: Importance Score Plot" in results) == plot
 
+
+
+# --- standardize_input: one setting with one meaning in PCA, K-Means and GMM ---
+
+
+@pytest.mark.parametrize(
+    "tool, config_class, default",
+    [
+        ("PCA", "PCAConfig", True),
+        ("K-Means", "KMeansConfig", True),
+        ("Gaussian Mixed Model", "GMMConfig", False),  # today's defaults
+    ],
+)
+def test_standardize_input_is_the_same_in_every_tool(
+    monkeypatch, flim_data, tool, config_class, default
+):
+    import numpy as np
+
+    import flim.configs as configs
+    import flim.tools.ml as ml
+    from flim.core.registry import tools
+
+    features = ["NAD(P)H t1", "NAD(P)H t2"]
+    raw = flim_data[features].to_numpy(dtype=float)
+    seen = []
+    original = ml.prepared
+
+    def record(values, standardize):
+        result = original(values, standardize)
+        seen.append((standardize, result))
+        return result
+
+    monkeypatch.setattr(ml, "prepared", record)
+    config_cls = getattr(configs, config_class)
+    assert config_cls().standardize_input is default
+    for standardize in (True, False):
+        seen.clear()
+        kwargs = {"features": features, "standardize_input": standardize}
+        if tool == "PCA":
+            kwargs["keep_standardized"] = False
+        tools.get(tool)()(flim_data, config=config_cls(**kwargs))
+        flag, values = seen[0]
+        assert flag is standardize
+        expected = ml.standardized(raw) if standardize else raw
+        np.testing.assert_allclose(values, expected)
+
+
+def test_gmm_covariances_state_standardized_units(flim_data):
+    import flim.configs as configs
+    from flim.core.registry import tools
+
+    features = ["NAD(P)H t1", "NAD(P)H t2"]
+    gmm = tools.get("Gaussian Mixed Model")()
+    plain = gmm(flim_data, config=configs.GMMConfig(features=features, n_components=2))
+    scaled = gmm(
+        flim_data,
+        config=configs.GMMConfig(features=features, n_components=2, standardize_input=True),
+    )
+    assert any("Covariance, component 1" in k for k in plain)
+    assert any("Covariance (standardized), component 1" in k for k in scaled)
