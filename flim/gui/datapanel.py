@@ -11,6 +11,7 @@ import wx.lib.mixins.gridlabelrenderer as glr
 from pubsub import pub
 
 from flim.core.filter import RangeFilter
+from flim.core.filtering import new_range, window_filters
 from flim.core.settings import AppSettings
 from flim.gui.events import (
     EVT_DATA_TYPE,
@@ -185,13 +186,13 @@ class PandasFrame(wx.Frame):
     ):
         """
         Args:
-            filters: FilterSettings, shared by the GUI's data windows (default: the
-                built-in defaults, not shared).
+            filters: WindowFilters (flim.core.filtering), shared by the GUI's data
+                windows (default: the built-in defaults, not shared).
             on_filters_changed: called with ``filters`` after the user changes them
                 (filter checkbox, Filter Settings dialog).
         """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
-        self.filters = filters if filters is not None else AppSettings.default().filters
+        self.filters = filters if filters is not None else window_filters(AppSettings.default())
         self.on_filters_changed = on_filters_changed
         self.enableclose = enableclose
         self.grid = None
@@ -412,7 +413,7 @@ class PandasFrame(wx.Frame):
         elif not isinstance(columns, list):
             columns = [columns]
         rangefilters = [
-            existingfilters[f] if f in existingfilters else RangeFilter(f).get_params()
+            existingfilters[f] if f in existingfilters else new_range(f)
             for f in columns
         ]
         return rangefilters

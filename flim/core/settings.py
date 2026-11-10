@@ -75,10 +75,11 @@ class ImportSettings(_Settings):
 
 
 class FilterSettings(_Settings):
+    """The table windows' filter switches; the filters are the Filter tool's settings
+    (version 2). `use` also decides whether `flimbatch` filters after Import."""
+
     use: bool = False
     show_dropped: bool = True
-    range_filters: list[dict] = []  # flim.core.filter.RangeFilter parameters
-    series_filters: list = []
 
 
 class ToolSettings(_Settings):
@@ -277,16 +278,17 @@ class AppSettings(_Settings):
 
     @classmethod
     def default(cls) -> "AppSettings":
-        """The default settings: those of the importer, and the default range
-        filters."""
+        """The default settings: those of the importer, and the Filter tool's
+        default range filters (those of the table windows up to 0.6)."""
+        from flim.configs import FilterConfig
+        from flim.core.filtering import default_ranges
         from flim.core.importer import dataimporter
 
-        return cls(
-            import_=dataimporter().settings(),
-            filters=FilterSettings(
-                range_filters=[f.get_params() for f in default_range_filters()]
-            ),
+        settings = cls(import_=dataimporter().settings())
+        settings.tools.entries["Filter"] = ToolSettings(
+            config=FilterConfig(filters=default_ranges()).model_dump(mode="json")
         )
+        return settings
 
     def to_json(self) -> dict:
         return self.model_dump(mode="json", by_alias=True)
@@ -419,6 +421,51 @@ def _v1_calculations(calculate: dict) -> list:
     return calculations
 
 
+def _v1_filters(data: dict, changes: "Changes") -> None:
+    """0.6's windows' range filters become the Filter tool's filters (`enabled` =
+    `selected`); the Filter tool's own 0.6 filters are added switched off."""
+    from flim.configs.data import _filters_of_v1, range_of_legacy
+
+    filters = data.get("filters")
+    tools = data.setdefault("tools", {})
+    if not isinstance(filters, dict) or not isinstance(tools, dict):
+        return
+    nodes = []
+    if "range_filters" in filters:
+        for spec in filters.pop("range_filters") or []:
+            low = spec.get("rangelow")
+            allowed = spec.get("allowedmin")
+            if low is not None and allowed is not None and low < allowed:
+                spec = {**spec, "rangelow": allowed}  # as 0.6 clipped it
+            nodes.append(
+                {
+                    "kind": "range",
+                    "column": spec.get("name", ""),
+                    "enabled": bool(spec.get("selected", True)),
+                    **range_of_legacy(spec),
+                }
+            )
+        changes.converted.append("filters.range_filters to the Filter tool's filters")
+    if filters.pop("series_filters", None):
+        changes.dropped.append("filters.series_filters (never used)")
+    entry = tools.get("Filter")
+    config = entry.get("config") if isinstance(entry, dict) else None
+    own = []
+    if isinstance(config, dict) and ("range_filters" in config or "category_filters" in config):
+        own = _filters_of_v1(config, enabled=False)
+        for key in ("range_filters", "category_filters"):
+            config.pop(key, None)
+        if own:
+            changes.converted.append(
+                f"the Filter tool's own {len(own)} filter(s): added switched off"
+            )
+    if nodes or own:
+        entry = tools.setdefault("Filter", {})
+        config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+        config["filters"] = nodes + own + list(config.get("filters") or [])
+        entry["config"] = config
+
+
 def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
     """Upgrade version 1 (0.6) to 2 (0.7).
 
@@ -464,6 +511,7 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
             changes.converted.append("preprocess.calculate to the Calculate tool")
         if not preprocess:
             data.pop("preprocess")
+    _v1_filters(data, changes)
     moved = 0
     for name, entry in (data.get("tools") or {}).items():
         if isinstance(entry, dict) and not isinstance(entry.get("autosave"), dict):

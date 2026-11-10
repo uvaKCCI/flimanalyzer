@@ -170,6 +170,8 @@ def test_category_order():
 
 
 def test_range_filter():
+    from flim.configs.data import RangeFilterNode
+
     legacy = {
         "name": "FLIRR",
         "rangelow": 0.1,
@@ -181,14 +183,15 @@ def test_range_filter():
     }
     unused = {**legacy, "name": "t1", "selected": False}  # the plugin did not apply it
     cfg = FilterConfig.from_legacy_params({"range_filters": [legacy, unused]})
-    assert cfg.range_filters == {"FLIRR": RangeSettings(low=0.1, high=2)}
+    assert cfg.filters == [RangeFilterNode(column="FLIRR", low=0.1, high=2)]
     assert cfg.to_legacy_params()["range_filters"] == [legacy]
     # no limit: written as infinity in the legacy params
     cfg = FilterConfig(range_filters={"x": {"low": 1}})
     (legacy,) = cfg.to_legacy_params()["range_filters"]
     assert (legacy["rangelow"], legacy["rangehigh"]) == (1, float("inf"))
     assert FilterConfig.from_legacy_params(cfg.to_legacy_params()) == cfg
-    assert FilterConfig(range_filters=["x"]).range_filters == {"x": RangeSettings()}
+    # 0.6's fields: a list of columns, filters without limits
+    assert FilterConfig(range_filters=["x"]).filters == [RangeFilterNode(column="x")]
     with pytest.raises(ValidationError):
         RangeSettings(low=2, high=1)
 

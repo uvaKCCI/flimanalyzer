@@ -111,58 +111,153 @@ class RangeSettings(BaseConfig):
         return self
 
 
+class FilterNode(BaseConfig):
+    """A node of a filter tree (base of the filter kinds)."""
+
+    enabled: bool = Field(default=True, title="Use", description="Unchecked: keeps all rows.")
+    kind: str = Field(
+        default="range",
+        title="Kind",
+        description="range: values in [low, high]; category: values to keep;"
+        " expression: a condition.",
+    )
+
+
+class RangeFilterNode(FilterNode):
+    """Keeps the rows whose value lies in [low, high]; empty: no limit."""
+
+    kind: Literal["range"] = "range"
+    column: FeatureColumn = Field(default="", title="Column")
+    low: Optional[float] = Field(default=None, title="Low")
+    high: Optional[float] = Field(default=None, title="High")
+    dropna: bool = Field(
+        default=True, title="Drop missing", description="Also drop rows without a value."
+    )
+
+    @model_validator(mode="after")
+    def _check_range(self):
+        if self.low is not None and self.high is not None and self.low > self.high:
+            raise ValueError(f"low ({self.low}) > high ({self.high})")
+        return self
+
+
+class CategoryFilterNode(FilterNode):
+    """Keeps the rows whose value is one of `keep`."""
+
+    kind: Literal["category"] = "category"
+    column: CategoryColumn = Field(default="", title="Column")
+    keep: list[Any] = Field(default=[], title="Values to keep")
+
+
+class ExpressionFilterNode(FilterNode):
+    """Keeps the rows for which a condition is true, e.g. `FAD tm` > 1000 (column names
+    in backticks, as in Calculate's expressions)."""
+
+    kind: Literal["expression"] = "expression"
+    expression: str = Field(
+        default="",
+        title="Expression",
+        description="A condition: comparisons, & (and), | (or), ~ (not), arithmetic"
+        " and math functions; column names in backticks.",
+    )
+    engine: Literal["pandas"] = "pandas"
+
+
+class FilterGroup(FilterNode):
+    """Combines filters: `all` keeps the rows all of them keep, `any` the rows one of
+    them keeps, `not` the rows that `all` of them would drop. An empty group keeps all
+    rows."""
+
+    kind: Literal["all", "any", "not"] = "all"
+    filters: list["FilterEntry"] = Field(default=[], title="Filters")
+
+
+FilterEntry = Annotated[
+    Union[RangeFilterNode, CategoryFilterNode, ExpressionFilterNode, FilterGroup],
+    Field(discriminator="kind"),
+]
+FilterGroup.model_rebuild()
+
+
+def _filters_of_v1(values: dict, enabled: bool = True) -> list:
+    """0.6's Filter config (`category_filters`, `range_filters` per column) as nodes."""
+    nodes = []
+    ranges = values.get("range_filters") or {}
+    if isinstance(ranges, (list, tuple)):
+        # a list: of columns (no limits), or of the plugin's range filters
+        ranges = {
+            (r["name"] if isinstance(r, dict) else r): (range_of_legacy(r) if isinstance(r, dict) else {})
+            for r in ranges
+        }
+    for column, limits in ranges.items():
+        limits = limits.model_dump() if hasattr(limits, "model_dump") else dict(limits or {})
+        limits = {k: v for k, v in limits.items() if k in ("low", "high", "dropna")}
+        nodes.append({"kind": "range", "column": column, "enabled": enabled, **limits})
+    for column, keep in (values.get("category_filters") or {}).items():
+        nodes.append({"kind": "category", "column": column, "keep": list(keep), "enabled": enabled})
+    return nodes
+
+
 class FilterConfig(DataTaskConfig):
-    legacy_keys = {"range_filters": None}
+    """Keeps the rows that the filters keep: a tree whose top level is an `all` group
+    (a row is kept if every filter of the list keeps it)."""
+
+    legacy_keys = {"filters": None}
     legacy_dropped = frozenset({"use", "inplace", "show_dropped"})  # unused
     hidden_fields = frozenset({"grouping", "features"})
 
-    category_filters: dict[CategoryColumn, list[Any]] = Field(
-        default={},
-        title="Category values to keep",
-        description="For each category column, the values whose rows are kept.",
-    )
-    range_filters: dict[FeatureColumn, RangeSettings] = Field(
-        default={},
-        title="Range filters",
-        description=(
-            "Check the columns to filter: rows outside [low, high] are dropped (empty:"
-            " no limit)."
-        ),
+    filters: list[FilterEntry] = Field(
+        default=[],
+        title="Filters",
+        description="A row is kept if every filter keeps it. A filter on a column the"
+        " table doesn't have keeps all rows.",
     )
 
-    @field_validator("range_filters", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _filters_from_list(cls, filters):
-        """A list of columns: filters without limits (dropping missing values)."""
-        if isinstance(filters, (list, tuple)):
-            return {f: {} for f in filters}
-        return filters
+    def _from_v1(cls, values):
+        """0.6's fields `category_filters` and `range_filters` become filters."""
+        if isinstance(values, dict) and (
+            "category_filters" in values or "range_filters" in values
+        ):
+            values = dict(values)
+            old = {k: values.pop(k) for k in ("category_filters", "range_filters") if k in values}
+            values["filters"] = list(values.get("filters") or []) + _filters_of_v1(old)
+        return values
 
     @classmethod
     def _from_legacy(cls, params):
-        # the plugin: a list of {"name", "rangelow", "rangehigh", "selected", ...};
-        # it applied the selected ones
-        filters = {}
+        # the plugin: range_filters, a list of {"name", "rangelow", "rangehigh",
+        # "selected", ...} (it applied the selected ones), and category_filters
+        filters = []
         for spec in params.pop("range_filters", []) or []:
             if spec.get("selected", True):
-                filters[spec["name"]] = RangeSettings(**range_of_legacy(spec))
-        return {"range_filters": filters}
+                filters.append({"kind": "range", "column": spec["name"], **range_of_legacy(spec)})
+        for column, keep in (params.pop("category_filters", {}) or {}).items():
+            filters.append({"kind": "category", "column": column, "keep": list(keep)})
+        return {"filters": filters}
 
     def _to_legacy(self):
         inf = float("inf")
         return {
             "range_filters": [
                 {
-                    "name": column,
-                    "rangelow": -inf if r.low is None else r.low,
-                    "rangehigh": inf if r.high is None else r.high,
+                    "name": f.column,
+                    "rangelow": -inf if f.low is None else f.low,
+                    "rangehigh": inf if f.high is None else f.high,
                     "allowedmin": None,
                     "allowedmax": None,
                     "selected": True,
-                    "dropna": r.dropna,
+                    "dropna": f.dropna,
                 }
-                for column, r in self.range_filters.items()
-            ]
+                for f in self.filters
+                if f.kind == "range" and f.enabled
+            ],
+            "category_filters": {
+                f.column: list(f.keep)
+                for f in self.filters
+                if f.kind == "category" and f.enabled
+            },
         }
 
 

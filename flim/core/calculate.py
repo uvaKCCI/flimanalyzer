@@ -188,15 +188,29 @@ class Outcome:
     replaced: list = field(default_factory=list)
 
 
+def evaluate(data: pd.DataFrame, expression: str) -> pd.Series:
+    """Evaluate an expression on a table, after checking it (`expression_columns`).
+
+    Args:
+        data: The table.
+        expression: The expression.
+
+    Returns:
+        A value per row.
+
+    Raises:
+        ValueError: If the expression is not allowed.
+    """
+    expression_columns(expression)  # checked before pandas sees it
+    result = data.eval(expression, engine="python", local_dict={}, global_dict={})
+    if not isinstance(result, pd.Series):  # e.g. a number
+        result = pd.Series(result, index=data.index)
+    return result
+
+
 def _evaluate(data: pd.DataFrame, calculation):
     if calculation.kind == "expression":
-        expression_columns(calculation.expression)  # checked before pandas sees it
-        result = data.eval(
-            calculation.expression, engine="python", local_dict={}, global_dict={}
-        )
-        if not isinstance(result, pd.Series):  # e.g. a number
-            result = pd.Series(result, index=data.index)
-        return result
+        return evaluate(data, calculation.expression)
     problem = function_problem(calculation.function, calculation.args, calculation.params)
     if problem:
         raise ValueError(problem)

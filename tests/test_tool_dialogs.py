@@ -69,9 +69,22 @@ def test_category_order_keeps_saved_orders(dialog):
 # --- Filter ---
 
 
+def _ranges(config) -> dict:
+    """The used top-level range filters of a FilterConfig, by column."""
+    return {
+        f.column: RangeSettings(low=f.low, high=f.high, dropna=f.dropna)
+        for f in config.filters
+        if f.kind == "range" and f.enabled
+    }
+
+
+def _categories(config) -> dict:
+    return {f.column: f.keep for f in config.filters if f.kind == "category" and f.enabled}
+
+
 def test_category_filters(dialog):
     d = dialog("Filter")
-    editor = d.fields.editors["category_filters"]
+    editor = d.fields.editors["filters"].categories
     editor.columns.SetSelection(0)
     editor._show_values()
     editor.values.Check(2, False)  # drop Placebo
@@ -82,17 +95,17 @@ def test_category_filters(dialog):
     editor._on_check(None)
     assert editor.get() == {}  # keeps all values: no filter
     editor.set({"FOV": ["1"]})
-    assert d.result().config.category_filters == {"FOV": ["1"]}
+    assert _categories(d.result().config) == {"FOV": ["1"]}
 
 
 def test_range_filters_table(dialog, table):
     config = FilterConfig(range_filters={"t1": RangeSettings(low=120, high=180)})
     d = dialog("Filter", config)
-    editor = d.fields.editors["range_filters"]
+    editor = d.fields.editors["filters"].ranges
     assert editor.features == ["t1", "t2"]  # a row for each numeric column
     assert [editor.is_used(r) for r in range(2)] == [True, False]
     editor.use(1)  # checking fills in the data's range
-    filters = d.result().config.range_filters
+    filters = _ranges(d.result().config)
     assert filters["t1"] == RangeSettings(low=120, high=180)  # kept as configured
     assert filters["t2"].low == pytest.approx(table["t2"].min(), rel=1e-5)
     assert filters["t2"].high == pytest.approx(table["t2"].max(), rel=1e-5)
@@ -110,18 +123,18 @@ def test_save_and_load_feature_settings(dialog, tmp_path):
 
     path = tmp_path / "ranges.json"
     d = dialog("Filter", FilterConfig(range_filters={"t1": {"low": 120, "high": 180}}))
-    d.fields.editors["range_filters"].save_settings(path)
+    d.fields.editors["filters"].ranges.save_settings(path)
     assert json.loads(path.read_text()) == {
         "t1": {"low": 120, "high": 180, "dropna": True}
     }
 
     other = dialog("Filter")
-    editor = other.fields.editors["range_filters"]
+    editor = other.fields.editors["filters"].ranges
     applied, skipped = editor.load_settings(path)
     assert (applied, skipped) == (["t1"], [])
-    assert other.result().config.range_filters == {}  # applied, but not checked
+    assert _ranges(other.result().config) == {}  # applied, but not checked
     editor.use(0)
-    assert other.result().config.range_filters["t1"] == RangeSettings(low=120, high=180)
+    assert _ranges(other.result().config)["t1"] == RangeSettings(low=120, high=180)
 
 
 def test_load_settings_from_an_old_settings_file(dialog, tmp_path):
@@ -154,10 +167,10 @@ def test_load_settings_from_an_old_settings_file(dialog, tmp_path):
         min=100, max=200, bins=20
     )
     filters = dialog("Filter", FilterConfig(range_filters=["t2"]))
-    editor = filters.fields.editors["range_filters"]
+    editor = filters.fields.editors["filters"].ranges
     assert editor.load_settings(path) == (["t2"], ["gone"])
     assert "1 are not in the table" in editor.message.GetLabel()
-    assert filters.result().config.range_filters["t2"] == RangeSettings(
+    assert _ranges(filters.result().config)["t2"] == RangeSettings(
         low=0.2, high=0.8
     )
 
@@ -219,7 +232,8 @@ def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
     assert saved.filters.use  # the other sections are kept
     entry = saved.tools.entry(tools.get("Summarize"))
     assert entry.config["aggs"] == ["max"] and entry.autosave.enabled
-    assert list(json.loads(path.read_text())["tools"]) == ["Summarize"]
+    # the app settings' tools (Filter) and the dialog's
+    assert list(json.loads(path.read_text())["tools"]) == ["Filter", "Summarize"]
 
     again = dialog("Summarize", SummaryConfig(aggs=["min"]))
     assert again.load_settings(str(path))
@@ -643,3 +657,35 @@ def test_calculate_table_of_two_kinds(dialog):
     d.validate()
     # row 2: an unknown function; rows 0 and 1: skipped (columns not in the table)
     assert editor.marks == {0: "warning", 1: "warning", 2: "error"}
+
+
+def test_filter_dialog_keeps_the_whole_tree(dialog, table):
+    from flim.configs.data import (
+        CategoryFilterNode as Category,
+        ExpressionFilterNode as Expression,
+        FilterGroup,
+        RangeFilterNode as Range,
+    )
+
+    config = FilterConfig(
+        filters=[
+            Range(column="t1", low=120, high=180),
+            Range(column="t2", low=0, high=1, enabled=False),  # shown unchecked
+            Range(column="gone", high=3, enabled=False),  # not in the table: kept
+            Category(column="Treatment", keep=["Ctrl"]),
+            Expression(expression="t1 > 100"),
+            FilterGroup(kind="any", filters=[Range(column="t2", high=5), Expression(expression="t1 < 3")]),
+            Range(column="t1", high=500),  # a second range on t1
+        ]
+    )
+    d = dialog("Filter", config)
+    editor = d.fields.editors["filters"]
+    assert [editor.ranges.is_used(r) for r in range(2)] == [True, False]
+    assert editor.ranges.grid.GetCellValue(1, 3) == "1"  # t2's unused range is shown
+    others = editor.others
+    assert others.grid.GetNumberRows() == 3  # the expression, the group, the second t1
+    kind = others._kind_column()
+    assert others.grid.GetCellValue(1, kind) == "any" and others.grid.IsReadOnly(1, kind)
+    assert "any" not in others.columns[kind - others.offset].choices  # no new groups
+    result = d.result().config.filters
+    assert sorted(map(repr, result)) == sorted(map(repr, config.filters))

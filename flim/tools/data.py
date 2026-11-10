@@ -29,7 +29,6 @@ from flim.core.types import InputSpec, OutputSpec, TableType
 from flim.tools.common import (
     categories_first,
     category_columns,
-    feature_columns,
     first_line,
     selected_features,
     set_lineage,
@@ -142,54 +141,76 @@ class Concat(Tool[ConcatConfig]):
 class Filter(Tool[FilterConfig]):
     name = "Filter"
     category = "Data"
-    description = "Keeps the rows with selected category values and values in range."
+    description = (
+        "Keeps the rows that the filters keep: values in ranges, category values,"
+        " conditions; the table windows use the same filters."
+    )
     icon = "filter.png"
     outputs = (OutputSpec("Filtered", TableType),)
 
     def run(self, data, *, config):
-        dropped = []
-        for column, keep in config.category_filters.items():
-            drop = [v for v in data[column].unique() if v not in keep]
-            dropped.append(np.flatnonzero(data[column].isin(drop)))
-        numeric = set(feature_columns(data))
-        for column, limits in config.range_filters.items():
-            if column not in numeric:
-                continue
-            values = data[column]
-            outside = values.isna() if limits.dropna else pd.Series(False, values.index)
-            if limits.low is not None:
-                outside |= values < limits.low
-            if limits.high is not None:
-                outside |= values > limits.high
-            dropped.append(np.flatnonzero(outside))
-        dropped = [rows for rows in dropped if len(rows) > 0]
-        if dropped:
-            rows = np.unique(np.concatenate(dropped))
-            data = data.drop(data.index[rows]).reset_index(drop=True)
-        else:
-            data = data.copy()
-        return {"Filtered": data}
+        from flim.core.filtering import apply_filters, leaf_counts
+
+        outcome = apply_filters(data, config.filters)
+        line = leaf_counts(outcome)
+        if line:
+            logger.info(f"{self.name}: {line}")
+        return {"Filtered": outcome.data.copy()}
 
     @classmethod
     def validate(cls, config, inputs):
-        issues = super().validate(config, inputs)
-        schema = inputs[0]
+        from flim.core.filtering import check
+
+        enabled = set(_enabled_paths(config.filters, "filters"))
+        issues = []
+        for issue in super().validate(config, inputs):
+            node = (issue.field or "").rsplit(".", 1)[0]
+            if "is not in the input" in issue.message and node.startswith("filters["):
+                # a filter on a missing column keeps all rows (as up to 0.6)
+                if node in enabled:
+                    message = issue.message.replace("is not in the input", "is not in the input: keeps all rows")
+                    issues.append(Issue(issue.field, message, "warning"))
+                continue
+            issues.append(issue)
+        schema = inputs[0] if inputs else None
+        complete = schema is not None and schema.complete
+        columns = schema.names if complete else None
+        issues += [Issue(f, m, sev) for f, sev, m in check(config.filters, columns)]
         if schema is None:
             return issues
-        for column, keep in config.category_filters.items():
-            info = schema.column(column)
+        for path, node in _leaves(config.filters, "filters"):
+            if node.kind != "category" or not node.enabled:
+                continue
+            info = schema.column(node.column)
             if info is None or info.levels is None:
                 continue
-            missing = [v for v in keep if v not in info.levels]
+            missing = [v for v in node.keep if v not in info.levels]
             if missing:
                 issues.append(
-                    Issue(
-                        f"category_filters[{column!r}]",
-                        f"Values not in '{column}': {missing}",
-                        "warning",
-                    )
+                    Issue(f"{path}.keep", f"Values not in '{node.column}': {missing}", "warning")
                 )
         return issues
+
+
+def _leaves(filters, path):
+    """(path, node) of every leaf of a filter list, also in groups."""
+    for i, node in enumerate(filters):
+        where = f"{path}[{i}]"
+        if node.kind in ("all", "any", "not"):
+            yield from _leaves(node.filters, f"{where}.filters")
+        else:
+            yield where, node
+
+
+def _enabled_paths(filters, path, enabled=True):
+    """Paths of the nodes that are enabled, with all groups above them."""
+    for i, node in enumerate(filters):
+        where = f"{path}[{i}]"
+        on = enabled and node.enabled
+        if on:
+            yield where
+        if node.kind in ("all", "any", "not"):
+            yield from _enabled_paths(node.filters, f"{where}.filters", on)
 
 
 @register_tool

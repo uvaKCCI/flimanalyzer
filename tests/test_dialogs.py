@@ -19,10 +19,11 @@ def table():
 
 
 def test_filter_dialog(wxapp, table, recwarn):
+    from flim.core.filtering import window_filters
     from flim.core.settings import AppSettings
     from flim.gui.dialogs import ConfigureFiltersDlg
 
-    filters = AppSettings.default().filters
+    filters = window_filters(AppSettings.default())
     dlg = ConfigureFiltersDlg(None, filters=filters, dataframe=table)
     try:
         assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]

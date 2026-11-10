@@ -175,9 +175,10 @@ def test_validate_nested_columns(table):
 
     config = FilterConfig(range_filters={"y": {}}, category_filters={"T": ["a", "c"]})
     issues = Filter.validate(config, [TableSchema.from_frame(table)])
+    # a filter on a column the input doesn't have keeps all rows: a warning
     assert [(i.field, i.severity) for i in issues] == [
-        ("range_filters['y']", "error"),
-        ("category_filters['T']", "warning"),
+        ("filters[0].column", "warning"),
+        ("filters[1].keep", "warning"),
     ]
 
 

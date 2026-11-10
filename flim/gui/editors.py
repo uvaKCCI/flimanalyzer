@@ -916,19 +916,29 @@ class ModelsEditor(_RowIssues, Editor):
 class VariantsEditor(ModelsEditor):
     """A list of configs of several kinds (e.g. Calculate's expressions and
     functions) as one table: a column for the kind, then the fields of all kinds.
-    Cells of fields that a row's kind doesn't have are greyed out and not editable."""
+    Cells of fields that a row's kind doesn't have are greyed out and not editable.
+
+    Kinds with nested lists (e.g. filter groups) are shown, with their simple fields
+    editable, but can't be chosen for a row; their nested values are kept as they are.
+    """
 
     INACTIVE = wx.Colour(225, 225, 225)
 
     def _columns(self):
         disc = self.spec.discriminator
-        per_kind = {}
+        per_kind, self.nested = {}, set()
         for variant in self.spec.variants:
-            per_kind[variant.model_fields[disc].default] = [
+            specs = describe(variant)
+            simple = [
                 s
-                for s in visible(describe(variant))
-                if s.kind not in ("model", "models", "variants")
+                for s in visible(specs)
+                if s.kind not in ("model", "models", "variants") and s.name != disc
             ]
+            nested = any(s.kind in ("models", "variants") for s in specs)
+            for kind in typing.get_args(variant.model_fields[disc].annotation):
+                per_kind[kind] = simple
+                if nested:
+                    self.nested.add(kind)
         self.kind_fields = {k: {s.name for s in v} for k, v in per_kind.items()}
         shared_names = set.intersection(*self.kind_fields.values())
         order = list(self.spec.variants[0].model_fields)
@@ -947,26 +957,33 @@ class VariantsEditor(ModelsEditor):
             title=info.title or title_of(disc),
             kind="choice",
             description=info.description or "",
-            choices=tuple(per_kind),
+            choices=tuple(k for k in per_kind if k not in self.nested),
         )
         return before + [kind] + own + after
+
+    def create(self, parent):
+        self.originals: list[dict] = []  # per row: the values it was set with
+        return super().create(parent)
 
     def _kind_column(self) -> int:
         names = [c.name for c in self.columns]
         return names.index(self.spec.discriminator) + self.offset
 
     def _apply_kind(self, row: int) -> None:
-        """Grey out and clear the cells of fields the row's kind doesn't have."""
+        """Grey out and clear the cells of fields the row's kind doesn't have; the
+        kind of a row with nested values can't be changed."""
         kind = self.grid.GetCellValue(row, self._kind_column()).strip()
         fields = self.kind_fields.get(kind)
         for col, column in enumerate(self.columns):
             col += self.offset
-            active = fields is None or column.name in fields or column.name == self.spec.discriminator
-            self.grid.SetReadOnly(row, col, not active)
-            if active:
+            is_kind = column.name == self.spec.discriminator
+            active = fields is None or column.name in fields or is_kind
+            self.grid.SetReadOnly(row, col, not active or (is_kind and kind in self.nested))
+            if active and not (is_kind and kind in self.nested):
                 self.grid.SetCellBackgroundColour(row, col, self.grid.GetDefaultCellBackgroundColour())
             else:
-                self.grid.SetCellValue(row, col, "")
+                if not active:
+                    self.grid.SetCellValue(row, col, "")
                 self.grid.SetCellBackgroundColour(row, col, self.INACTIVE)
 
     def changed(self, event=None):
@@ -976,21 +993,48 @@ class VariantsEditor(ModelsEditor):
         super().changed(event)
 
     def _on_add(self, event):
-        variant = self.spec.variants[0]
-        self.add_row(variant().model_dump())
+        kind = self.columns[self._kind_column() - self.offset].choices[0]
+        variant = next(
+            v
+            for v in self.spec.variants
+            if kind in typing.get_args(v.model_fields[self.spec.discriminator].annotation)
+        )
+        self.add_row(variant(**{self.spec.discriminator: kind}).model_dump())
+        self.changed()
+
+    def _on_remove(self, event):
+        rows = sorted(
+            set(self.grid.GetSelectedRows()) | {self.grid.GetGridCursorRow()},
+            reverse=True,
+        )
+        for row in rows:
+            if 0 <= row < self.grid.GetNumberRows():
+                self.grid.DeleteRows(row)
+                del self.originals[row]
         self.changed()
 
     def add_row(self, values: dict, key: str = "") -> None:
         super().add_row(values, key)
+        self.originals.append(dict(values))
         self._apply_kind(self.grid.GetNumberRows() - 1)
+
+    def set(self, value):
+        self.originals = []
+        super().set(value)
 
     def rows(self):
         rows = []
-        for key, values in super().rows():
-            fields = self.kind_fields.get(values.get(self.spec.discriminator))
+        shown = {c.name for c in self.columns}
+        disc = self.spec.discriminator
+        for (key, values), original in zip(super().rows(), self.originals):
+            fields = self.kind_fields.get(values.get(disc))
             if fields is not None:
+                values = {k: v for k, v in values.items() if k in fields or k == disc}
+            if original.get(disc) == values.get(disc):
+                # values not shown (e.g. a group's filters) stay as they were
                 values = {
-                    k: v for k, v in values.items() if k in fields or k == self.spec.discriminator
+                    **{k: v for k, v in original.items() if k not in shown and v is not None},
+                    **values,
                 }
             rows.append((key, values))
         return rows
@@ -1388,6 +1432,23 @@ class FeatureSettingsEditor(_RowIssues, Editor):
                 )
                 if values.notna().any():
                     self.ranges[column] = (float(values.min()), float(values.max()))
+
+    def states(self) -> dict:
+        """feature -> (used, {setting: text}) of the rows shown, used or not."""
+        return {
+            feature: (used, {c.name: t.strip() for c, t in zip(self.columns, texts) if t.strip()})
+            for feature, (used, texts) in self._state().items()
+        }
+
+    def set_states(self, used: dict, unused: dict) -> None:
+        """Show settings of used features (checked) and of unused ones (unchecked,
+        shown if the input has the feature)."""
+        state = {}
+        for checked, value in ((False, unused), (True, used)):
+            for feature, settings in (value or {}).items():
+                data = settings if isinstance(settings, dict) else settings.model_dump()
+                state[feature] = (checked, [_cell_text(data.get(c.name)) for c in self.columns])
+        self._show(self.features, state)
 
     def get(self):
         result = {}

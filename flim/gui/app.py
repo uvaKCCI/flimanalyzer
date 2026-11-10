@@ -25,9 +25,10 @@ import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.datamgr import DataManager
 from flim.core.saving import AutosaveConfig
-from flim.tools.data import DropColumns, RenameColumns, import_preprocessor
+from flim.core.filtering import WindowFilters, window_filters, with_window_ranges
+from flim.tools.data import DropColumns, Filter, RenameColumns, import_preprocessor
 from flim.core.types import TableType
-from flim.core.settings import AppSettings
+from flim.core.settings import AppSettings, tool_settings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
 from flim.core.importer import dataimporter
 from flim.core.paths import canonical_folder
@@ -208,9 +209,11 @@ class AppFrame(wx.Frame):
         self.settings_manager = (
             settings_manager if settings_manager is not None else SettingsManager()
         )
-        # the filter settings shared by the data windows; changes are reported to the
-        # settings manager (report_filters)
-        self.filters = self.settings.filters
+        # the filter settings shared by the data windows (the Filter tool's range
+        # filters and the windows' switches); changes are reported to the settings
+        # manager (report_filters)
+        self.filters = WindowFilters()
+        self.refresh_window_filters()
         # the items the windows show (tables, plots): the windows are views of them
         self.data_manager = DataManager()
         self.windowframes = {}  # item ID -> its window
@@ -412,10 +415,31 @@ class AppFrame(wx.Frame):
         settings_manager."""
         return self.settings_manager.settings
 
+    def refresh_window_filters(self) -> None:
+        """Update the windows' shared filters (in place) from the settings: the
+        switches, and the Filter tool's top-level range filters."""
+        current = window_filters(self.settings)
+        self.filters.use = current.use
+        self.filters.show_dropped = current.show_dropped
+        self.filters.range_filters = current.range_filters
+
     def report_filters(self, filters) -> None:
-        """Applies the filter settings ``filters`` (FilterSettings) and writes them to
-        the user settings file."""
-        self.settings_manager.update({"filters": filters.model_dump(mode="json")})
+        """Applies the windows' filters ``filters`` (WindowFilters) and writes them to
+        the user settings file: the switches to `filters`, the range filters to the
+        Filter tool's filters (its other filters are kept)."""
+        settings = self.settings
+        config = settings.tools.config(Filter)
+        config = config.model_copy(
+            update={"filters": with_window_ranges(config.filters, filters.range_filters)}
+        )
+        entry = settings.tools.entry(Filter)
+        stored = tool_settings(config, entry.autosave if entry else None)
+        self.settings_manager.update(
+            {
+                "filters": {"use": filters.use, "show_dropped": filters.show_dropped},
+                "tools": {Filter.name: stored.model_dump(mode="json")},
+            }
+        )
 
     def OnLoadData(self, event):
         dlg = ImportDlg(
@@ -568,7 +592,7 @@ class AppFrame(wx.Frame):
         if check is None:
             return
         self.settings_manager.apply(check)
-        self.filters = self.settings.filters
+        self.refresh_window_filters()
 
     def OnViewSettings(self, event):
         from flim.gui.settingsview import SettingsViewer
@@ -688,6 +712,8 @@ class AppFrame(wx.Frame):
         # what the tool stores: no folder if it follows the default folder
         stored = result.stored_autosave or result.execution.autosave
         self.settings_manager.set_tool(tool, result.config, stored)
+        if getattr(tool, "name", None) == Filter.name:
+            self.refresh_window_filters()  # the windows use the same filters
 
         task_runner = self.flimanalyzer.get_task_runner()
         autosave = result.execution.autosave

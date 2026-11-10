@@ -28,7 +28,7 @@ Follow these steps to view and change the range filters:
 
 2. Click the `Filter Settings...` button.
 
-3. The `Filter Settings` dialog opens. It shows the current minimum and maximum of the range filter for each column with numeric values.
+3. The `Filter Settings` dialog opens. It shows the current minimum and maximum of the range filter for each column with numeric values. A column without a range filter has no limits (`-inf` and `inf`) until you set them.
 
 4. Change the range filters as needed. Check `Use` to switch a filter on. Filters whose `Use` box is unchecked are ignored.
 
@@ -42,4 +42,4 @@ To change the range filter of a single column, it is quicker to check `Filter Da
 
 ## Filters in settings files and batch mode
 
-The range filters are the same in all table windows. They are part of the settings: `File` > `Export Settings...` saves them, and [batch mode](/userguide/batch) uses them when they are switched on (see [Settings](/userguide/settings)). The values selected in category columns are not saved in settings files and are not used in batch mode. To keep a table with only some category values, use the [Filter tool](filtertool.md).
+The range filters are the same in all table windows, and they are the range filters of the [Filter tool](filtertool.md). They are part of the settings: `File` > `Export Settings...` saves them, and [batch mode](/userguide/batch) uses the Filter tool's filters when `Filter Data` is switched on (see [Settings](/userguide/settings)). The values selected in category columns in a table window are not saved in settings files and are not used in batch mode; they apply only to that window. To keep a table with only some category values, use the [Filter tool](filtertool.md).

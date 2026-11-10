@@ -21,11 +21,9 @@ from pathlib import Path
 import sys
 from typing import Optional, Sequence
 
-import numpy as np
 import pandas as pd
 
 from flim.core.execution import ExecutionOptions
-from flim.core.filter import RangeFilter
 from flim.core.importer import dataimporter
 from flim.core.parser import instantiate_parser
 from flim.core.paths import canonical_folder, folder_problem
@@ -47,8 +45,9 @@ class BatchError(Exception):
 
 
 def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
-    """Imports data files and folders with the import, preprocess and filter
-    settings. The range filters are applied only if ``settings.filters.use`` is set.
+    """Imports data files and folders with the import settings and the Rename
+    Columns, Drop Columns and Calculate tools' settings. The Filter tool's filters are
+    applied only if ``settings.filters.use`` is set.
 
     Raises:
         BatchError: the filename parser is unknown, no data files were found, or none
@@ -62,7 +61,7 @@ def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
         parser.set_regexpatterns(imported.filename_parser.patterns)
     from flim.tools.data import import_preprocessor
 
-    preprocessor = import_preprocessor(settings)  # the Rename and Drop Columns tools'
+    preprocessor = import_preprocessor(settings)  # Rename, Drop Columns, Calculate
 
     importer = dataimporter()
     importer.set_delimiter(imported.delimiter)
@@ -77,19 +76,22 @@ def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
         raise BatchError("None of the files could be read")
     logger.info(f"Imported {len(filenames)} file(s): {data.shape[0]} rows")
     if settings.filters.use:
-        data = filtered(data, settings.filters.range_filters)
+        from flim.tools.data import Filter
+
+        data = filtered(data, settings.tools.config(Filter).filters)
     return data
 
 
-def filtered(data: pd.DataFrame, range_filters) -> pd.DataFrame:
-    """``data`` without the rows that the selected range filters drop, renumbered
-    from 0."""
-    dropped = [RangeFilter(params=p).get_dropped(data) for p in range_filters]
-    dropped = [rows for rows, p in zip(dropped, range_filters) if p.get("selected")]
-    rows = np.unique(np.concatenate([np.asarray(r, dtype=int) for r in dropped] or [[]]))
-    if len(rows):
-        logger.info(f"Range filters dropped {len(rows)} rows")
-    return data.drop(data.index[rows.astype(int)]).reset_index(drop=True)
+def filtered(data: pd.DataFrame, filters) -> pd.DataFrame:
+    """``data`` without the rows that the enabled filters (FilterConfig.filters)
+    drop, renumbered from 0."""
+    from flim.core.filtering import apply_filters, leaf_counts
+
+    outcome = apply_filters(data, filters)
+    dropped = len(data) - len(outcome.data)
+    if dropped:
+        logger.info(f"Filters dropped {dropped} rows ({leaf_counts(outcome)})")
+    return outcome.data
 
 
 def run_tool(

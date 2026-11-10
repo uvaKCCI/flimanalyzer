@@ -291,10 +291,10 @@ def test_column_range_filter_reaches_the_user_settings_file(
 
         monkeypatch.setattr(window.grid, "GetColLabelValue", lambda col: column)
         window.OnLabelClick(Click())
-        stored = json.loads(path.read_text())["filters"]["range_filters"]
-        assert {"name": column, "rangehigh": 70.0}.items() <= next(
-            f for f in stored if f["name"] == column
-        ).items()
+        # the windows' range filters are the Filter tool's filters
+        stored = json.loads(path.read_text())["tools"]["Filter"]["config"]["filters"]
+        leaf = next(f for f in stored if f.get("column") == column)
+        assert (leaf["kind"], leaf["high"], leaf["low"]) == ("range", 70.0, None)
     finally:
         frame.OnCloseAll(None)
         frame.Destroy()

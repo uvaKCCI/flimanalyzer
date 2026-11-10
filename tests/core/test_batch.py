@@ -68,11 +68,24 @@ def test_import_with_the_settings(data_dir, settings):
 
 
 def test_range_filters():
+    from flim.configs.data import RangeFilterNode
+
     data = pd.DataFrame({"x": [1.0, 5.0, 10.0], "y": [0.0, 0.0, 0.0]})
-    keep = filtered(data, [{"name": "x", "rangelow": 0, "rangehigh": 6, "selected": True}])
+    keep = filtered(data, [RangeFilterNode(column="x", low=0, high=6)])
     assert list(keep["x"]) == [1.0, 5.0]
-    unused = filtered(data, [{"name": "x", "rangelow": 0, "rangehigh": 6, "selected": False}])
+    unused = filtered(data, [RangeFilterNode(column="x", low=0, high=6, enabled=False)])
     assert len(unused) == 3
+
+
+def test_import_filters_only_with_use(data_dir, settings):
+    from flim.configs import FilterConfig
+    from flim.configs.data import RangeFilterNode
+    from flim.tools.data import Filter
+
+    settings.tools.set(Filter, FilterConfig(filters=[RangeFilterNode(column="FLIRR", high=0)]))
+    assert len(import_table([data_dir], settings)) == 40  # filters.use is off
+    settings.filters.use = True
+    assert len(import_table([data_dir], settings)) == 0
 
 
 def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path, monkeypatch):

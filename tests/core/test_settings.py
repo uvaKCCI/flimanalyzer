@@ -41,14 +41,17 @@ def test_defaults():
     assert settings.schema_version == SETTINGS_VERSION
     assert settings.import_.delimiter == "\t,"
     assert settings.import_.filename_parser.parser == "defaultparser"
-    assert len(settings.filters.range_filters) == 39
+    # the windows' range filters of 0.6, now the Filter tool's filters
+    filters = settings.tools.config(tools.get("Filter")).filters
+    assert len(filters) == 39 and sum(f.enabled for f in filters) == 3
+    assert filters[0].column == "trp t1" and (filters[0].low, filters[0].high) == (0, 2500)
     assert settings.results_dir is None and settings.resolved_results_dir() == START_DIR
     assert settings.execution == LocalExecutorSettings() and settings.prefect_server
     assert settings.log.dir is None and settings.log.max_age_days == 30
     assert settings.cache.dir is None
     assert "preprocess" not in settings.to_json()  # the Rename, Drop, Calculate tools'
-    assert settings.filters.range_filters[0]["name"] == "trp t1"
-    assert settings.tools.entries == {}  # the tools' defaults: their configs'
+    assert set(settings.filters.model_dump()) == {"use", "show_dropped"}
+    assert list(settings.tools.entries) == ["Filter"]  # the others: their configs'
 
 
 def test_settings_of_version_0(caplog):
@@ -136,7 +139,7 @@ def test_settings_of_version_1():
     assert settings.tools.config(tools.get("K-Means")).n_clusters == 7
     # by tool; 0.6's preprocess: the Rename Columns, Drop Columns and Calculate tools
     assert set(settings.to_json()["tools"]) == {
-        "Summarize", "K-Means", "Rename Columns", "Drop Columns", "Calculate"
+        "Summarize", "K-Means", "Rename Columns", "Drop Columns", "Calculate", "Filter"
     }
     # version 2: working_dir is results_dir, display is gone
     assert settings.results_dir == Path("/Users/khs3z/FLIMAnalyzerResults")
@@ -175,7 +178,7 @@ def test_a_file_with_some_sections_changes_only_those():
         "tools": {"Summarize": {"config": SummaryConfig(aggs=["max"]).model_dump()}},
     }
     updated = update_settings(settings, data)
-    assert updated.filters.use and updated.filters.range_filters == []  # replaced
+    assert updated.filters.use and updated.filters.show_dropped  # replaced: default
     assert updated.import_ == settings.import_  # not in the file: kept
     assert updated.tools.config(tools.get("K-Means")).n_clusters == 3
     assert updated.tools.config(tools.get("Summarize")).aggs == ["max"]
@@ -272,3 +275,29 @@ def test_calculate_of_version_1_becomes_function_calculations():
     assert (calculations[2].kind, calculations[2].function, calculations[2].args) == (
         "function", "ratio", ["a", "b"]
     )
+
+
+def test_filters_of_version_1_become_the_filter_tools():
+    from flim.configs.data import RangeFilterNode
+
+    data = json.loads(V1_FILE.read_text())
+    data["filters"]["range_filters"] = [
+        {"name": "t1", "rangelow": -5, "rangehigh": float("inf"), "allowedmin": 0, "selected": True},
+        {"name": "t2", "rangelow": 0, "rangehigh": 10, "selected": False, "dropna": False},
+    ]
+    data["filters"]["series_filters"] = [{"x": 1}]
+    data["tools"]["Filter"] = {
+        "config": {"range_filters": {"t3": {"high": 2}}, "category_filters": {"FOV": ["1"]}}
+    }
+    changes = Changes()
+    settings = AppSettings.model_validate(migrate(data, changes))
+    assert set(settings.filters.model_dump()) == {"use", "show_dropped"}
+    filters = settings.tools.config(tools.get("Filter")).filters
+    assert filters[:3] == [
+        RangeFilterNode(column="t1", low=0),  # clipped by allowedmin, as 0.6 did
+        RangeFilterNode(column="t2", low=0, high=10, dropna=False, enabled=False),
+        RangeFilterNode(column="t3", high=2, enabled=False),  # the tool's own: off
+    ]
+    assert (filters[3].kind, filters[3].keep, filters[3].enabled) == ("category", ["1"], False)
+    assert "the Filter tool's own 2 filter(s): added switched off" in changes.converted
+    assert "filters.series_filters (never used)" in changes.dropped
