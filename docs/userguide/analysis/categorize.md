@@ -14,7 +14,7 @@ The `Categorize Data` tool adds a new category column. The value each row gets d
 2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Categorize Data` menu.
 
 3. In the `Configuration: Categorize Data` dialog, set:
-    * `New column`: the name of the new category column (default `New Cat`). If the table already has a column with this name, it is replaced.
+    * `New column`: the name of the new category column (default `New Cat`). If the table already has a column with this name, it is replaced; the run summary warns about it.
     * `Rules`: each rule is one row and sets one value of the new column. Enter the `Value`, the `Feature` it depends on (a numeric column of the table), and the range `Min` < feature value <= `Max`. `Min` must be smaller than `Max`. Use `Add Rule` and `Remove Rules` to add and remove rules. The default rules are `negative` (-100000 to -0.5), `neutral` (-0.5 to 0.5) and `positive` (0.5 to 100000), all on `FLIRR`.
 
         Rules on the same feature must not overlap; overlapping ranges are an error. Different rules can use different features. If rules on different features match the same row, the first of them sets the row's value.

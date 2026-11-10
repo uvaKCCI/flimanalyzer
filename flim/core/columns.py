@@ -137,3 +137,24 @@ def make_room(columns, names, template: str, renames=None, **fields) -> dict:
         taken.add(new)
         result[name] = new
     return result
+
+
+def free_names(names, taken) -> list[str]:
+    """Return names a tool generates for new columns, each numbered if a column of
+    the table (or an earlier new one) already has it, so no column of the table is
+    overwritten or duplicated.
+
+    Args:
+        names: The wanted names, e.g. `["PC 1", "PC 2"]`.
+        taken: The table's column names.
+
+    Returns:
+        The names, e.g. `["PC 1_1", "PC 2"]` if the table has a column `PC 1`.
+    """
+    used = {str(t) for t in taken}
+    result = []
+    for name in names:
+        free = unique_name(name, name, used)
+        used.add(free)
+        result.append(free)
+    return result

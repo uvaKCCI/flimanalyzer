@@ -21,6 +21,7 @@ from flim.core.config import Issue
 from flim.core.registry import register_tool
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.tool import Tool, pyplot_lock
+from flim.core.columns import free_names
 from flim.core.types import FileType, OutputSpec, PlotType, TableType
 from flim.tools.common import category_columns, selected_features
 
@@ -42,6 +43,16 @@ def combinations(config: AETrainConfig) -> list[tuple]:
             config.batch_sizes, config.learning_rates, config.weight_decays
         )
     )
+
+
+def _train_names(categories, features, encoded_size):
+    """The names AE Train gives its label column and its new columns: numbered if a
+    category column of the input already has them (free_names)."""
+    (label,) = free_names(["Autoencoder"], categories)
+    taken = list(categories) + [label]
+    recon = free_names([f"AE Recon {f}" for f in features], taken)
+    encoded = free_names([f"AE Encoded {i}" for i in range(encoded_size)], taken)
+    return label, recon, encoded
 
 
 def _schema_columns(categories, names, role="feature"):
@@ -291,31 +302,22 @@ class AETraining(Tool[AETrainConfig]):
                     scaler.inverse_transform(decoded[train_samples:]),
                 ]
             )
-        label_columns = category_columns(data) + ["Autoencoder"]
-        label_df = pd.DataFrame(np.concatenate(labels), columns=label_columns)
-        encoders["Autoencoder"].fit(["training", "validation"])
+        categories = category_columns(data)
+        label_column, recon_names, encoded_names = _train_names(
+            categories, config.features, encoded.shape[1]
+        )
+        label_df = pd.DataFrame(
+            np.concatenate(labels), columns=categories + [label_column]
+        )
+        encoders[label_column].fit(["training", "validation"])
         label_df = label_df.apply(lambda x: encoders[x.name].inverse_transform(x))
         label_df = label_df.astype("category")
         decoded_df = pd.concat(
-            [
-                label_df,
-                pd.DataFrame(
-                    decoded,
-                    columns=[f"AE Recon {f}" for f in config.features],
-                    dtype=np.float32,
-                ),
-            ],
+            [label_df, pd.DataFrame(decoded, columns=recon_names, dtype=np.float32)],
             axis=1,
         )
         encoded_df = pd.concat(
-            [
-                label_df,
-                pd.DataFrame(
-                    encoded,
-                    columns=[f"AE Encoded {i}" for i in range(encoded.shape[1])],
-                    dtype=np.float32,
-                ),
-            ],
+            [label_df, pd.DataFrame(encoded, columns=encoded_names, dtype=np.float32)],
             axis=1,
         )
 
@@ -388,8 +390,13 @@ class AETraining(Tool[AETrainConfig]):
             if schema is None
             else [c for c in schema.columns if c.role == "category"]
         )
+        label_column, recon_names, encoded_names = _train_names(
+            [c.name for c in categories],
+            config.features,
+            ENCODED_SIZE[config.architecture],
+        )
         autoencoder = ColumnInfo(
-            name="Autoencoder",
+            name=label_column,
             role="category",
             dtype="category",
             levels=["training", "validation"],
@@ -406,13 +413,8 @@ class AETraining(Tool[AETrainConfig]):
         outputs = {}
         for b, lr, wd in combinations(config):
             label = f"{b}-{lr}-{wd}"
-            decoded = _schema_columns(
-                categories, [f"AE Recon {f}" for f in config.features]
-            )
-            encoded = _schema_columns(
-                categories,
-                [f"AE Encoded {i}" for i in range(ENCODED_SIZE[config.architecture])],
-            )
+            decoded = _schema_columns(categories, recon_names)
+            encoded = _schema_columns(categories, encoded_names)
             for name, columns in (
                 (f"AE Loss-{label}", loss_columns),
                 (
@@ -509,10 +511,10 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
                     categories,
                     pd.DataFrame(
                         reconstructed,
-                        columns=[
-                            f"Recon Feature {i}"
-                            for i in range(1, reconstructed.shape[1] + 1)
-                        ],
+                        columns=free_names(
+                            [f"Recon Feature {i}" for i in range(1, reconstructed.shape[1] + 1)],
+                            categories.columns,
+                        ),
                     ),
                 ],
                 axis=1,
@@ -522,9 +524,10 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
                     categories,
                     pd.DataFrame(
                         encoded,
-                        columns=[
-                            f"Feature {i}" for i in range(1, encoded.shape[1] + 1)
-                        ],
+                        columns=free_names(
+                            [f"Feature {i}" for i in range(1, encoded.shape[1] + 1)],
+                            categories.columns,
+                        ),
                     ),
                 ],
                 axis=1,
@@ -539,9 +542,10 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
             if schema is None
             else [c for c in schema.columns if c.role == "category"]
         )
-        reconstructed = [
-            f"Recon Feature {i}" for i in range(1, len(config.features) + 1)
-        ]
+        reconstructed = free_names(
+            [f"Recon Feature {i}" for i in range(1, len(config.features) + 1)],
+            [c.name for c in categories],
+        )
         outputs = {}
         for path in config.model_files:
             name = os.path.basename(str(path))

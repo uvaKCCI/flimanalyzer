@@ -18,6 +18,7 @@ from flim.core.config import Issue
 from flim.core.registry import register_tool
 from flim.core.tool import Tool, pyplot_lock
 from flim.core.types import OutputSpec, TableType
+from flim.core.columns import free_names
 from flim.tools.common import categories_first, category_columns, selected_features
 
 logger = logging.getLogger(__name__)
@@ -79,18 +80,22 @@ class PCAnalysis(Tool[PCAConfig]):
         pca = PCA(n_components=config.n_components, random_state=config.random_seed)
         with threadpool_limits(self.context.threads):
             components = pca.fit_transform(values)
-        component_df = pd.DataFrame(
-            components,
-            columns=[f"PC {i}" for i in range(1, components.shape[1] + 1)],
-        )
         parts = [data[category_columns(data)]]
         if config.keep_original:
             parts.append(data[features])
+        taken = [c for part in parts for c in part.columns]
         if config.keep_standardized:
             standard = values if config.standardize_input else prepared(data[features], True)
-            parts.append(
-                pd.DataFrame(standard, columns=[f"{f}\nstandardized" for f in features])
-            )
+            names = free_names([f"{f}\nstandardized" for f in features], taken)
+            parts.append(pd.DataFrame(standard, columns=names))
+            taken += names
+        # new names that the table has (e.g. from an earlier PCA) are numbered
+        component_df = pd.DataFrame(
+            components,
+            columns=free_names(
+                [f"PC {i}" for i in range(1, components.shape[1] + 1)], taken
+            ),
+        )
         parts.append(component_df)
         explained = pd.DataFrame(
             {
@@ -137,6 +142,8 @@ class KMeansClustering(Tool[KMeansConfig]):
             kmeans.fit(prepared(data[features], config.standardize_input))
         label = config.cluster_prefix
         table = data.copy()
+        if label in table.columns:  # a name the user chose: replaced, as Calculate
+            self.warn(f"the column '{label}' is replaced by the clusters")
         table[label] = pd.Categorical([f"{label} {i + 1}" for i in kmeans.labels_])
         return {"K-Means": categories_first(table)}
 
@@ -208,15 +215,12 @@ class GaussianMixedModel(Tool[GMMConfig]):
         matrices = full_covariances(model.covariances_, covariance, n, len(features))
         label = f"GMM {covariance}"
         table = data.copy()
-        table[label] = pd.Categorical([f"{label} {i + 1}" for i in predictions])
+        # generated names the table has (e.g. from an earlier GMM) are numbered
+        (column,) = free_names([label], table.columns)
+        table[column] = pd.Categorical([f"{label} {i + 1}" for i in predictions])
+        names = free_names([f"GMM Prob Component {i}" for i in range(1, n + 1)], table.columns)
         table = pd.concat(
-            [
-                table,
-                pd.DataFrame(
-                    probabilities,
-                    columns=[f"GMM Prob Component {i}" for i in range(1, n + 1)],
-                ),
-            ],
+            [table, pd.DataFrame(probabilities, columns=names, index=table.index)],
             axis=1,
         )
         # standardized input: the covariances are in standardized units
@@ -329,8 +333,8 @@ class Categorizer(Tool[CategorizerConfig]):
             values[match] = rule.value
             assigned |= match
         labels = list(dict.fromkeys([r.value for r in config.rules] + [config.default]))
-        if config.name in table.columns:
-            logger.info(f"{self.name}: replacing column '{config.name}'")
+        if config.name in table.columns:  # a name the user chose: replaced
+            self.warn(f"the column '{config.name}' is replaced")
             table = table.drop(columns=config.name)
         table.insert(
             len(categories), config.name, pd.Categorical(values, categories=labels)

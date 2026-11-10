@@ -29,7 +29,7 @@ Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters
 4. Click `OK`.
 
 5. The results are shown in new table windows:
-    - `Table: GMM <covariance>, Feature Clustering`: the category columns and the selected features, plus a category column `GMM <covariance>` with the cluster of each row, e.g. `GMM full 1`, `GMM full 2`. A column `GMM Prob Component <n>` for each cluster gives the probability that the row belongs to that cluster. Other columns of the table are not included.
+    - `Table: GMM <covariance>, Feature Clustering`: the category columns and the selected features, plus a category column `GMM <covariance>` with the cluster of each row, e.g. `GMM full 1`, `GMM full 2`. A column `GMM Prob Component <n>` for each cluster gives the probability that the row belongs to that cluster. Other columns of the table are not included. If the table already has the `GMM <covariance>` column, for example from an earlier GMM, the new one gets a number: `GMM full_1`.
     - `Table: GMM <covariance>, Component Information Criteria`: the BIC and AIC scores of models with 1 up to the chosen number of components. They help you choose the number of components (see below).
     - `Table: GMM <covariance>, Covariance, component <n>` (with `Standardize input`: `Covariance (standardized)`): one table per cluster with its covariance matrix, which describes how the features spread and vary together within the cluster.
 

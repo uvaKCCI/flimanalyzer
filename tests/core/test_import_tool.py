@@ -180,3 +180,80 @@ def test_short_names_are_checked_by_the_registry():
             registry.register(cls)
     assert One.short() == "One" and Long.short() == "Much too long"
     assert Concat.short() == "Concat" and Import.short() == "Import"
+
+
+# --- generated names are numbered; names the user chose are replaced with a warning ---
+
+
+@pytest.fixture
+def cells():
+    rng = np.random.default_rng(2)
+    return pd.DataFrame(
+        {
+            "Treatment": pd.Categorical(["WT", "KO"] * 10),
+            "t1": rng.normal(400, 20, 20),
+            "t2": rng.normal(3000, 100, 20),
+        }
+    )
+
+
+def test_pca_and_gmm_again_keep_the_earlier_columns(cells):
+    from flim.configs import GMMConfig, PCAConfig
+    from flim.tools.ml import GaussianMixedModel as GMM
+    from flim.tools.ml import PCAnalysis
+
+    config = PCAConfig(features=["t1", "t2"], keep_original=True, keep_standardized=True)
+    first = PCAnalysis()(cells, config=config)["Table: PCA Components"]
+    # the earlier PCA's columns selected as features too: kept, the new ones numbered
+    config = config.model_copy(update={"features": ["t1", "t2", "PC 1", "t1\nstandardized"]})
+    again = PCAnalysis()(first, config=config)["Table: PCA Components"]
+    assert len(set(again.columns)) == len(again.columns)  # no duplicates
+    assert {"PC 1", "PC 1_1", "t1\nstandardized_1"} <= set(again.columns)
+
+    gmm = GMMConfig(features=["t1", "t2"], n_components=2)
+    (first,) = [v for k, v in GMM()(cells, config=gmm).items() if k.endswith("Feature Clustering")]
+    (again,) = [v for k, v in GMM()(first, config=gmm).items() if k.endswith("Feature Clustering")]
+    label = [c for c in first.columns if c.startswith("GMM ") and "Prob" not in c][0]
+    assert {label, f"{label}_1"} <= set(again.columns)  # the earlier label is kept
+    assert len(set(again.columns)) == len(again.columns)
+
+
+def test_scale_again_and_unpivot_value(cells):
+    from flim.configs import ScaleConfig, UnpivotConfig
+    from flim.tools.data import Scale, Unpivot
+
+    (first,) = Scale()(cells, config=ScaleConfig(features=["t1"])).values()
+    (again,) = Scale()(first, config=ScaleConfig(features=["t1"])).values()
+    assert list(again.columns[-2:]) == ["t1\nstandardized", "t1\nstandardized_1"]
+    (replaced,) = Scale()(first, config=ScaleConfig(features=["t1"], keep_original=False)).values()
+    assert len(set(replaced.columns)) == len(replaced.columns)
+    data = cells.assign(Value=pd.Categorical(["a"] * 20))  # a category column "Value"
+    (table,) = Unpivot()(data, config=UnpivotConfig(features=["t1", "t2"])).values()
+    assert list(table["Value"].unique()) == ["a"] and "Value_1" in table.columns
+
+
+def test_kmeans_and_categorize_warn_when_they_replace(cells, prefect_harness):
+    from flim.configs import CategorizerConfig, KMeansConfig
+    from flim.configs.analysis import CategoryRule
+    from flim.core.runner import run_flow
+    from flim.tools.ml import Categorizer
+    from flim.tools.ml import KMeansClustering as KMeans
+
+    data = cells.assign(Cluster=pd.Categorical(["x"] * 20), Size=pd.Categorical(["s"] * 20))
+    rules = [CategoryRule(value="long", feature="t1", min=400, max=1000)]
+
+    def build():
+        KMeans()(data, config=KMeansConfig(features=["t1", "t2"], n_clusters=2))
+        Categorizer()(data, config=CategorizerConfig(features=["t1"], name="Size", rules=rules))
+
+    run = run_flow("replace", build)
+    messages = " ".join(a.get("message") or "" for _, a in run.graph.nodes(data=True) if "tool" in a)
+    assert "'Cluster' is replaced" in messages and "'Size' is replaced" in messages
+
+
+def test_autoencoder_names_are_numbered_if_taken():
+    from flim.tools.autoencoder import _train_names
+
+    label, recon, encoded = _train_names(["Autoencoder", "AE Recon t1"], ["t1", "t2"], 2)
+    assert label == "Autoencoder_1"
+    assert recon == ["AE Recon t1_1", "AE Recon t2"] and encoded == ["AE Encoded 0", "AE Encoded 1"]

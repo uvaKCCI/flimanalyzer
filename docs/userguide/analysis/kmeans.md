@@ -16,7 +16,7 @@ The `K-Means` tool finds groups of similar data points (clusters). By default it
 3. In the `Configuration: K-Means` dialog, set:
     - `Standardize input` (checked by default): scale each feature to a mean of 0 and a standard deviation of 1 over the table before clustering. Unchecked, the features are used as they are, so features with larger values weigh more.
     - `Clusters`: the number of clusters (default 2). To choose it, plot the data and look for groups, or use the elbow method: try different numbers of clusters and pick the point after which more clusters no longer improve the result much.
-    - `Cluster column`: the name of the new column (default `Cluster`). The clusters are named after it: `Cluster 1`, `Cluster 2`, ...
+    - `Cluster column`: the name of the new column (default `Cluster`). The clusters are named after it: `Cluster 1`, `Cluster 2`, ... If the table already has a column with this name, for example from an earlier K-Means, it is replaced; the run summary warns about it.
     - `Initialization`: how the starting cluster centers are chosen. `k-means++` (default) places them far from each other, which usually gives a result faster. `random` picks them at random.
     - `Algorithm`: `lloyd` (default, the classic algorithm) or `elkan` (faster when the clusters are well separated, but uses more memory).
     - `Runs`: how many times the clustering is run, each time with different starting centers (default 4). The best result is kept.

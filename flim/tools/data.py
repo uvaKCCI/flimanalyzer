@@ -25,7 +25,7 @@ from flim.configs.data import (
     UnpivotConfig,
 )
 from flim.core import headers
-from flim.core.columns import make_room, unique_name  # noqa: F401  (also used by tests)
+from flim.core.columns import free_names, make_room, unique_name  # noqa: F401  (tests)
 from flim.core.config import Issue
 from flim.core.registry import register_tool, tools
 from flim.core.tool import Tool
@@ -378,12 +378,15 @@ class Unpivot(Tool[UnpivotConfig]):
             parts = headers.split(column)
             value = parts.pop(index)
             values.setdefault(value, {})[headers.join(parts) or self.VALUE] = column
+        # value column names that a category column has are numbered
+        wanted = list(dict.fromkeys(n for s in values.values() for n in s))
+        value_names = dict(zip(wanted, free_names(wanted, categories + [category])))
         pieces = []
         for value, sources in values.items():
             piece = data[categories].copy()
             piece[category] = value
             for name, column in sources.items():
-                piece[name] = data[column]
+                piece[value_names[name]] = data[column]
             pieces.append(piece)
         table = pd.concat(pieces, ignore_index=True)
         table[category] = pd.Categorical(table[category], categories=list(values))
@@ -439,14 +442,17 @@ class Scale(Tool[ScaleConfig]):
             result = scaled(values)
         suffix = SCALED[config.method]
         table = data.copy()
+        # generated names the table has (e.g. from scaling before) are numbered
         if config.keep_original:
-            for feature in features:
-                name = f"{feature}\n{suffix}"
+            names = free_names([f"{f}\n{suffix}" for f in features], table.columns)
+            for feature, name in zip(features, names):
                 table[name] = result[feature]
         else:  # the scaled columns replace the originals, in their place
             for feature in features:
                 table[feature] = result[feature]
-            table = table.rename(columns={f: f"{f}\n{suffix}" for f in features})
+            others = [c for c in table.columns if c not in features]
+            names = free_names([f"{f}\n{suffix}" for f in features], others)
+            table = table.rename(columns=dict(zip(features, names)))
         return {"Scaled": table}
 
 

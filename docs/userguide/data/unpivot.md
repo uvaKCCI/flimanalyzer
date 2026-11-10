@@ -20,6 +20,6 @@ Column headers made by tools can have several lines, one per *level*. Pivoting t
 
 For example, unpivoting the level `Treatment` of the columns `FLIRR` / `ctrl`, `FLIRR` / `Dox15`, `t1` / `ctrl` and `t1` / `Dox15` gives a category column `Treatment` (`ctrl`, `Dox15`) and the value columns `FLIRR` and `t1`: the table before pivoting. Unpivoting the level `Feature` instead gives a category column `Feature` (`FLIRR`, `t1`) and the value columns `ctrl` and `Dox15`.
 
-Columns with a single header line are stacked: their names go into a category column `Feature`, and their values into a column `Value`.
+Columns with a single header line are stacked: their names go into a category column `Feature`, and their values into a column `Value` (`Value_1` if a category column is already named `Value`).
 
 Level names are kept with the table while FLIMAnalyzer is open, but not in saved text files. For a table read from a file, the levels are named by their position: `Feature`, `Level 2`, `Level 3`, ...
