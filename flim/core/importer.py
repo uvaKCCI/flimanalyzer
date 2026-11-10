@@ -9,6 +9,7 @@ import os
 import glob
 import pandas as pd
 
+from flim.core.categories import DELIMITER, fuse
 from flim.core.parser import PATTERN_CATEGORY, defaultparser
 import flim.core.preprocessor as pp
 
@@ -181,7 +182,6 @@ class dataimporter:
         filenames = []
         fheaders = []
         comboheaders = []
-        cdflist = []
         for f in self.files:
             if not os.path.isfile(f):
                 continue
@@ -207,41 +207,30 @@ class dataimporter:
             fheaders.extend(list(headers.keys()))
             filenames.append(f)
 
-            filecdf = None
-            if self.combolist is not None:
-                if len(self.combolist) == 0:
-                    categories = [
-                        cat
-                        for cat in category_dtypes
-                        if cat in df.select_dtypes(["object"]).columns
-                    ]
-                    self.combolist = [
-                        combo for combo in itertools.combinations(categories, 2)
-                    ]
-                for combo in self.combolist:
-                    combocol = "-".join(combo)
-                    cdf = pd.DataFrame(
-                        df[combo[0]]
-                        .str.cat([df[c] for c in combo[1:]], sep="-")
-                        .astype("category")
-                    ).reset_index(drop=True)
-                    cdf.columns = [combocol]
-                    if filecdf is None:
-                        filecdf = cdf
-                    else:
-                        filecdf = pd.concat([filecdf, cdf], axis=1)
-                    comboheaders.append(combocol)
-            if filecdf is not None:
-                cdflist.append(filecdf)
+            if self.combolist is not None and len(self.combolist) == 0:
+                # all pairs of the text category columns of the first file
+                categories = [
+                    cat
+                    for cat in category_dtypes
+                    if cat in df.select_dtypes(["object"]).columns
+                ]
+                self.combolist = [
+                    combo for combo in itertools.combinations(categories, 2)
+                ]
 
         if len(dflist) == 0:
             return None, filenames, set()
         else:
-            fheaders = set(fheaders + comboheaders)
             df = pd.concat(dflist).reset_index(drop=True)
-            if len(cdflist) > 0:
-                cdf = pd.concat(cdflist).reset_index(drop=True)
-                df = pd.concat([df, cdf], axis=1, copy=True)
+            # combined category columns: Fuse Categories' engine, joined with ":"
+            for combo in self.combolist or []:
+                result = fuse(df, list(combo), DELIMITER)
+                for message in result.warnings:
+                    logger.warning(f"Column Combos: {message}")
+                for name, values in result.columns.items():
+                    df[name] = values
+                    comboheaders.append(name)
+            fheaders = set(fheaders + comboheaders)
             allheaders = list(df.columns.values)
             logger.debug(self.get_reserved_categorycols(parser))
             categories = [

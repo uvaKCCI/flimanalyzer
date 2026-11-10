@@ -85,17 +85,22 @@ class defaultparser(object):
             "Directory": os.path.dirname(fname),
             "File": os.path.basename(fname),
         }
-        # the patterns match "/" as separator, also in Windows paths
-        fname = fname.replace("\\", "/")
-        for entry in self.regexpatterns:
-            if entry[PATTERN_USE]:
-                match = re.search(entry[PATTERN_REGEX], fname)
-                if match is not None:
-                    matchstr = match.group(1)
-                    if match.group(1) == "":
-                        components[entry[PATTERN_CATEGORY]] = "?"
-                    else:
-                        components[entry[PATTERN_CATEGORY]] = str(matchstr)
+        # the patterns of Separate Categories' engine: the first group, "?" for an
+        # empty match, "/" for "\\"; a category without a match is left out
+        import pandas as pd
+
+        from flim.core.categories import separate_by_patterns
+
+        patterns = [
+            (entry[PATTERN_CATEGORY], entry[PATTERN_REGEX])
+            for entry in self.regexpatterns
+            if entry[PATTERN_USE]
+        ]
+        if patterns:
+            result = separate_by_patterns(pd.DataFrame({"path": [fname]}), "path", patterns)
+            for name, values in result.columns.items():
+                if not pd.isna(values[0]):
+                    components[name] = str(values[0])
         return components
 
 
