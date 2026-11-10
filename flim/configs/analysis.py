@@ -183,6 +183,7 @@ class PCAConfig(MLConfig):
     # tables never get (checked with scikit-learn 1.9.1): it has no effect
     hidden_fields = MLConfig.hidden_fields | {"random_seed"}
     legacy_keys = {
+        "standardize_input": None,  # new in 0.7.0: no 0.5 name
         **MLConfig.legacy_keys,
         "keep_original": "keeporig",
         "keep_standardized": "keepstd",
@@ -222,6 +223,7 @@ class PCAConfig(MLConfig):
 
 class KMeansConfig(MLConfig):
     min_features = 1
+    legacy_keys = {**MLConfig.legacy_keys, "standardize_input": None}  # new in 0.7.0
     standardize_input: bool = Field(
         default=True,
         title="Standardize input",
@@ -260,7 +262,11 @@ class KMeansConfig(MLConfig):
 
 class GMMConfig(MLConfig):
     min_features = 1
-    legacy_keys = {**MLConfig.legacy_keys, "covariance": "covar_type"}
+    legacy_keys = {
+        **MLConfig.legacy_keys,
+        "covariance": "covar_type",
+        "standardize_input": None,  # new in 0.7.0: no 0.5 name
+    }
 
     standardize_input: bool = Field(
         default=False,
@@ -575,6 +581,8 @@ class AERunConfig(_ModelFilesConfig):
 class AEAugmentConfig(_ModelFilesConfig):
     min_features = 1
     min_grouping = 1
+    # random_seed is new in 0.7.0: no 0.5 name
+    legacy_keys = {**_ModelFilesConfig.legacy_keys, "random_seed": None}
     grouping: list[CategoryColumn] = Field(
         default=[],
         title="Grouping",
