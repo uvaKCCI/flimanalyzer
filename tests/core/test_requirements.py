@@ -20,11 +20,13 @@ EXPECTED = {
     # data
     "Concatenate": (0, 0),
     "Filter": (0, 0),
+    "Fuse Categories": (0, 2),
     "Merge": (0, 0),
     "Order Categories": (0, 0),
     "Pivot": (1, 0),
     "Sort": (0, 0),  # sorting by nothing leaves the table as it is
     "Scale": (1, 0),
+    "Separate Categories": (0, 0),  # one column, checked by the tool
     "Split": (0, 1),  # 0.6 required a column with a config check, now min_grouping
     "Unpivot": (1, 0),
     # analysis

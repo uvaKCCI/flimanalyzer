@@ -1,0 +1,203 @@
+"""Fusing category columns into one, and separating one into several.
+
+Fuse joins the values of category columns with a delimiter (default `:`), e.g. `FOV`
+= `1` and `Cell` = `1` become `FOV:Cell` = `1:1`; Separate reverses it with the same
+delimiter, or takes parts of the values by patterns (regular expressions, the first
+group), as the filename parser does. Both report, as warnings, values that would not
+survive the round trip, e.g. a delimiter inside a value.
+"""
+
+import os
+import re
+from dataclasses import dataclass, field
+from typing import Optional
+
+import pandas as pd
+
+DELIMITER = ":"  # not ".": a decimal point; not "|": regex alternation; not "-": in names
+PARTS = ("value", "file name", "file name without extension")
+EMPTY_MATCH = "?"  # a pattern whose group matched nothing, as the filename parser
+SHOWN = 5  # values named in a warning
+
+
+@dataclass
+class Result:
+    """New columns and the warnings that came with them.
+
+    Attributes:
+        columns: The new columns by name, in order.
+        warnings: Messages for the user, e.g. values that could not be separated.
+    """
+
+    columns: dict = field(default_factory=dict)
+    warnings: list = field(default_factory=list)
+
+
+def _listed(values) -> str:
+    values = list(values)
+    shown = ", ".join(repr(v) for v in values[:SHOWN])
+    return shown + (f" and {len(values) - SHOWN} more" if len(values) > SHOWN else "")
+
+
+def fuse(data: pd.DataFrame, columns, delimiter: str = DELIMITER, name: Optional[str] = None) -> Result:
+    """Join category columns into one category column.
+
+    A row with a missing value in one of the columns gets a missing value. The new
+    column's categories are the combinations that occur, ordered by the source
+    columns' category orders.
+
+    Args:
+        data: The table.
+        columns: The category columns, in order.
+        delimiter: Joins the column names and the values.
+        name: The new column's name; default: the column names joined by the delimiter.
+
+    Returns:
+        The new column, and warnings where the delimiter occurs in a column name or a
+        value (separating back would be ambiguous).
+    """
+    columns = list(columns)
+    name = name or delimiter.join(columns)
+    result = Result()
+    in_names = [c for c in columns if delimiter in str(c)]
+    if in_names:
+        result.warnings.append(
+            f"{delimiter!r} occurs in the column names {_listed(in_names)}: separating"
+            " the fused column back would be ambiguous"
+        )
+    parts = data[columns]
+    texts = parts.astype("string")
+    with_delimiter = set()
+    for column in columns:
+        hits = texts[column].dropna()
+        hits = hits[hits.str.contains(delimiter, regex=False)]
+        with_delimiter.update(hits.unique())
+    if with_delimiter:
+        result.warnings.append(
+            f"{delimiter!r} occurs in the values {_listed(sorted(with_delimiter))}:"
+            " separating the fused column back would be ambiguous"
+        )
+    missing = parts.isna().any(axis=1)
+    joined = texts.fillna("").agg(delimiter.join, axis=1).where(~missing)
+    # categories: the observed combinations, in the order of the source categories
+    keys = []
+    for column in columns:
+        values = parts[column]
+        if isinstance(values.dtype, pd.CategoricalDtype):
+            keys.append(values.cat.codes)
+        else:
+            keys.append(values.astype("string").rank(method="dense"))
+    order = (
+        pd.DataFrame({"value": joined, **{str(i): k for i, k in enumerate(keys)}})
+        .dropna(subset=["value"])
+        .drop_duplicates("value")
+        .sort_values([str(i) for i in range(len(keys))])["value"]
+    )
+    result.columns[name] = pd.Categorical(joined, categories=list(order))
+    return result
+
+
+def _part(values: pd.Series, part: str) -> pd.Series:
+    """Return the part of each value to separate: the value, its file name, or its
+    file name without the extension."""
+    if part not in PARTS:
+        raise ValueError(f"unknown part {part!r}: use {', '.join(PARTS)}")
+    texts = values.astype("string")
+    if part == "value":
+        return texts
+    names = texts.map(lambda v: v if pd.isna(v) else os.path.basename(v.replace("\\", "/")))
+    if part == "file name":
+        return names
+    return names.map(lambda v: v if pd.isna(v) else os.path.splitext(v)[0])
+
+
+def separate(
+    data: pd.DataFrame,
+    column: str,
+    delimiters=(DELIMITER,),
+    names=(),
+    part: str = "value",
+) -> Result:
+    """Separate a category column into several, at delimiters.
+
+    Any of the delimiters separates. A value with more or fewer parts than names is
+    not separated (missing values in its row) and is named in a warning, so no part
+    lands in the wrong column.
+
+    Args:
+        data: The table.
+        column: The category column.
+        delimiters: The delimiters, e.g. `[":"]` (the reverse of Fuse) or `["-", "_"]`.
+        names: The new columns' names by position; an empty name skips that part.
+            Empty: the column name separated the same way (e.g. `FOV:Cell`).
+        part: Which part of the values: `value`, `file name` or `file name without
+            extension`.
+
+    Returns:
+        The new columns, and warnings.
+    """
+    delimiters = [d for d in delimiters if d]
+    if not delimiters:
+        raise ValueError("give at least one delimiter")
+    splitter = re.compile("|".join(re.escape(d) for d in delimiters))
+    names = list(names) or splitter.split(str(column))
+    result = Result()
+    texts = _part(data[column], part)
+    pieces = texts.map(lambda v: v if pd.isna(v) else splitter.split(v))
+    wrong = pieces.dropna()[pieces.dropna().map(len) != len(names)]
+    if len(wrong):
+        result.warnings.append(
+            f"{column}: {len(wrong)} value(s) have not {len(names)} parts and are not"
+            f" separated: {_listed(texts[wrong.index].unique())}"
+        )
+    for i, name in enumerate(names):
+        if not name:
+            continue  # this part is skipped
+        values = pieces.map(lambda p: None if not isinstance(p, list) or len(p) != len(names) else p[i])
+        result.columns[name] = pd.Categorical(values)
+    return result
+
+
+def separate_by_patterns(data: pd.DataFrame, column: str, patterns, part: str = "value") -> Result:
+    """Take parts of a category column's values by patterns, as the filename parser
+    does: per pattern, the first group of its regular expression's first match.
+
+    A group that matches nothing gives `?`; a value the pattern does not match gives a
+    missing value. Backslashes in the values are matched as `/`, so path patterns work
+    for Windows paths too.
+
+    Args:
+        data: The table.
+        column: The category column.
+        patterns: (new column name, regular expression) pairs, in order.
+        part: Which part of the values (see `separate`).
+
+    Returns:
+        The new columns, and a warning per pattern that matched no value.
+
+    Raises:
+        ValueError: If a pattern is not a valid regular expression, or has no group.
+    """
+    result = Result()
+    texts = _part(data[column], part).map(lambda v: v if pd.isna(v) else v.replace("\\", "/"))
+    for name, regex in patterns:
+        try:
+            compiled = re.compile(regex)
+        except re.error as err:
+            raise ValueError(f"{name}: '{regex}' is not a valid pattern ({err})") from None
+        if compiled.groups < 1:
+            raise ValueError(f"{name}: '{regex}' has no group (...) to take")
+
+        def take(value):
+            if pd.isna(value):
+                return None
+            match = compiled.search(value)
+            if match is None:
+                return None
+            return match.group(1) or EMPTY_MATCH
+
+        values = texts.map(take)
+        if values.isna().all() and texts.notna().any():
+            result.warnings.append(f"{name}: the pattern '{regex}' matched no value")
+        result.columns[name] = pd.Categorical(values)
+    return result

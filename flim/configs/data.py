@@ -299,3 +299,89 @@ class ScaleConfig(DataTaskConfig):
         description="Scale within each group of these columns, e.g. per FOV; none: over"
         " the whole table.",
     )
+
+
+class FuseCategoriesConfig(DataTaskConfig):
+    """Joins category columns into one category column, e.g. FOV and Cell into
+    FOV:Cell."""
+
+    min_grouping = 2
+    hidden_fields = frozenset({"features"})
+
+    grouping: list[CategoryColumn] = Field(
+        default=[],
+        title="Columns to fuse",
+        description="The category columns, in the order their values are joined.",
+    )
+    delimiter: str = Field(
+        default=":",
+        min_length=1,
+        title="Delimiter",
+        description="Joins the column names and the values; Separate Categories"
+        " reverses it with the same delimiter.",
+    )
+    name: Optional[str] = Field(
+        default=None,
+        title="New column",
+        description="The new column's name; empty: the column names joined by the"
+        " delimiter.",
+    )
+    keep_original: bool = Field(
+        default=True,
+        title="Keep the original columns",
+        description="Keep the fused columns; unchecked: they are removed.",
+    )
+
+
+class CategoryPattern(BaseConfig):
+    """A new category column, taken from the values by a regular expression."""
+
+    name: str = Field(default="", title="Column")
+    regex: str = Field(
+        default="",
+        title="Pattern",
+        description="A regular expression; its first group (...) is the value.",
+    )
+
+
+class SeparateCategoriesConfig(DataTaskConfig):
+    """Separates a category column into several, at delimiters or by patterns."""
+
+    hidden_fields = frozenset({"features", "grouping"})
+
+    column: Optional[CategoryColumn] = Field(
+        default=None, title="Column", description="The category column to separate."
+    )
+    mode: Literal["delimiters", "patterns"] = Field(
+        default="delimiters",
+        title="Separate",
+        description="delimiters: at the delimiters (the reverse of Fuse Categories);"
+        " patterns: take parts by regular expressions, as the filename parser does.",
+    )
+    part: Literal["value", "file name", "file name without extension"] = Field(
+        default="value",
+        title="Part",
+        description="Which part of the values: the whole value, or the file name of a"
+        " path, with or without its extension.",
+    )
+    delimiters: list[str] = Field(
+        default=[":"],
+        title="Delimiters",
+        description="delimiters mode: any of them separates.",
+    )
+    names: list[str] = Field(
+        default=[],
+        title="New columns",
+        description="delimiters mode: the new columns' names by position; an empty"
+        " name skips that part; none: the column name separated the same way.",
+    )
+    patterns: list[CategoryPattern] = Field(
+        default=[],
+        title="Patterns",
+        description="patterns mode: a new column per pattern.",
+    )
+    keep_original: bool = Field(
+        default=True,
+        title="Keep the original column",
+        description="Keep the separated column; unchecked: it is removed.",
+    )

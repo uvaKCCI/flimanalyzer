@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 
 from flim.configs.data import (
+    FuseCategoriesConfig,
+    SeparateCategoriesConfig,
     ScaleConfig,
     CategoryOrderConfig,
     ConcatConfig,
@@ -400,3 +402,74 @@ class Scale(Tool[ScaleConfig]):
                 table[feature] = result[feature]
             table = table.rename(columns={f: f"{f}\n{suffix}" for f in features})
         return {"Scaled": table}
+
+
+def _with_columns(data, new: dict, after: str, remove=()) -> pd.DataFrame:
+    """Return the table with new columns placed after a column, and some removed.
+
+    New names that are taken get a number (unique_name).
+    """
+    table = data.copy()
+    position = list(table.columns).index(after) + 1
+    for offset, (name, values) in enumerate(new.items()):
+        taken = [c for c in table.columns if c not in remove]
+        table.insert(position + offset, unique_name(name, name, taken), values)
+    return table.drop(columns=list(remove))
+
+
+@register_tool
+class FuseCategories(Tool[FuseCategoriesConfig]):
+    name = "Fuse Categories"
+    category = "Data"
+    description = (
+        "Joins category columns into one category column, e.g. FOV and Cell into"
+        " FOV:Cell; Separate Categories reverses it."
+    )
+    outputs = (OutputSpec("Fused", TableType),)
+
+    def run(self, data, *, config):
+        from flim.core.categories import fuse
+
+        columns = list(config.grouping)
+        result = fuse(data, columns, config.delimiter, config.name)
+        for message in result.warnings:
+            self.warn(message)
+        remove = () if config.keep_original else columns
+        return {"Fused": _with_columns(data, result.columns, columns[-1], remove)}
+
+
+@register_tool
+class SeparateCategories(Tool[SeparateCategoriesConfig]):
+    name = "Separate Categories"
+    category = "Data"
+    description = (
+        "Separates a category column into several: at delimiters (the reverse of"
+        " Fuse Categories), or by patterns, as the filename parser does."
+    )
+    outputs = (OutputSpec("Separated", TableType),)
+
+    @classmethod
+    def validate(cls, config, schemas=()):
+        issues = list(super().validate(config, schemas))
+        if config.column is None:
+            issues.append(Issue("column", "Select the column to separate"))
+        if config.mode == "patterns" and not config.patterns:
+            issues.append(Issue("patterns", "Add at least one pattern"))
+        return issues
+
+    def run(self, data, *, config):
+        from flim.core.categories import separate, separate_by_patterns
+
+        if config.column is None:
+            raise ValueError(f"{self.name}: select the column to separate")
+        if config.mode == "patterns":
+            patterns = [(p.name, p.regex) for p in config.patterns]
+            result = separate_by_patterns(data, config.column, patterns, config.part)
+        else:
+            result = separate(
+                data, config.column, config.delimiters, config.names, config.part
+            )
+        for message in result.warnings:
+            self.warn(message)
+        remove = () if config.keep_original else [config.column]
+        return {"Separated": _with_columns(data, result.columns, config.column, remove)}

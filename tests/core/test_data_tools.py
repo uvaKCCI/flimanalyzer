@@ -419,3 +419,74 @@ def test_scale_keeps_missing_values(data):
     (table,) = Scale()(data, config=ScaleConfig(features=[feature])).values()
     assert np.isnan(table[f"{feature}\nstandardized"].iloc[0])
     assert table[f"{feature}\nstandardized"].iloc[1:].notna().all()
+
+
+# --- Fuse and Separate Categories ---
+
+
+def _cells():
+    return pd.DataFrame(
+        {
+            "FOV": pd.Categorical(["1", "1", "2"]),
+            "Cell": pd.Categorical(["1", "2", "1"]),
+            "t1": [1.0, 2.0, 3.0],
+        }
+    )
+
+
+def test_fuse_categories_places_and_keeps():
+    from flim.configs import FuseCategoriesConfig
+    from flim.tools.data import FuseCategories
+
+    (fused,) = FuseCategories()(_cells(), config=FuseCategoriesConfig(grouping=["FOV", "Cell"])).values()
+    assert list(fused.columns) == ["FOV", "Cell", "FOV:Cell", "t1"]  # after the last
+    assert list(fused["FOV:Cell"]) == ["1:1", "1:2", "2:1"]
+    assert isinstance(fused["FOV:Cell"].dtype, pd.CategoricalDtype)
+    config = FuseCategoriesConfig(grouping=["FOV", "Cell"], name="ID", keep_original=False)
+    (fused,) = FuseCategories()(_cells(), config=config).values()
+    assert list(fused.columns) == ["ID", "t1"]
+
+
+def test_fuse_then_separate_round_trip():
+    from flim.configs import FuseCategoriesConfig, SeparateCategoriesConfig
+    from flim.tools.data import FuseCategories, SeparateCategories
+
+    config = FuseCategoriesConfig(grouping=["FOV", "Cell"], keep_original=False)
+    (fused,) = FuseCategories()(_cells(), config=config).values()
+    config = SeparateCategoriesConfig(column="FOV:Cell", keep_original=False)
+    (back,) = SeparateCategories()(fused, config=config).values()
+    assert list(back.columns) == ["FOV", "Cell", "t1"]
+    pd.testing.assert_frame_equal(
+        back.astype(str), _cells().astype(str), check_dtype=False
+    )
+
+
+def test_separate_by_patterns_and_validation():
+    from flim.configs import SeparateCategoriesConfig
+    from flim.configs.data import CategoryPattern
+    from flim.tools.data import SeparateCategories
+
+    data = pd.DataFrame({"File": pd.Categorical(["/d/ctrl/c1.txt", "/d/dox/c2.txt"]), "t1": [1.0, 2.0]})
+    config = SeparateCategoriesConfig(
+        column="File", mode="patterns",
+        patterns=[CategoryPattern(name="Treatment", regex=r"/d/(.*?)/")],
+    )
+    (table,) = SeparateCategories()(data, config=config).values()
+    assert list(table["Treatment"]) == ["ctrl", "dox"]
+    issues = SeparateCategories.validate(SeparateCategoriesConfig(mode="patterns"), [])
+    assert {i.field for i in issues} == {"column", "patterns"}
+
+
+def test_separate_warns_in_the_run_summary(prefect_harness):
+    from flim.configs import SeparateCategoriesConfig
+    from flim.core.runner import run_flow
+    from flim.tools.data import SeparateCategories
+
+    data = pd.DataFrame({"ID": pd.Categorical(["a:1", "b"]), "t1": [1.0, 2.0]})
+
+    def build():
+        SeparateCategories()(data, config=SeparateCategoriesConfig(column="ID", names=["L", "N"]))
+
+    run = run_flow("separate", build)
+    messages = [a.get("message") for _, a in run.graph.nodes(data=True) if "tool" in a]
+    assert any("have not 2 parts" in (m or "") for m in messages)

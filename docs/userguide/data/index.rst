@@ -32,6 +32,10 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Reorders the rows by the values of one or more columns.
    * - :doc:`Scale <scale>`
      - Scales features: standardized, from 0 to 1, or robust to outliers.
+   * - :doc:`Fuse Categories <fuse>`
+     - Joins category columns into one, for example FOV and Cell into FOV:Cell.
+   * - :doc:`Separate Categories <separate>`
+     - Separates a category column into several, at delimiters or by patterns.
    * - :doc:`Saving Data <save>`
      - Saves a data table to a file.
    
@@ -52,4 +56,6 @@ After you load data, you can change the tables to show trends more clearly, chan
     concat
     sort
     scale
+    fuse
+    separate
     save
