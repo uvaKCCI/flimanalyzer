@@ -13,6 +13,8 @@ The `Separate Categories` tool separates one category column into several, for e
     - `Part`: which part of the values to separate: the whole `value`, or, for a path, its `file name`, with or without its extension.
     - `Keep the original column` (checked by default): unchecked, the separated column is removed.
 
+    Below the settings, the dialog shows an example from the first row, for example `Example: /data/Results-ko_01.txt → Treatment ko, Cell 01`, and warns about values that can't be separated as set.
+
 3. Click `OK`.
 
 The result is `Table: Separated`, with the new columns after the separated column.

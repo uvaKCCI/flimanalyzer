@@ -78,7 +78,9 @@ def fuse(data: pd.DataFrame, columns, delimiter: str = DELIMITER, name: Optional
             " separating the fused column back would be ambiguous"
         )
     missing = parts.isna().any(axis=1)
-    joined = texts.fillna("").agg(delimiter.join, axis=1).where(~missing)
+    joined = texts[columns[0]].str.cat(
+        [texts[c] for c in columns[1:]], sep=delimiter
+    ).where(~missing)
     # categories: the observed combinations, in the order of the source categories
     keys = []
     for column in columns:

@@ -208,6 +208,10 @@ class ConfigDialog(wx.Dialog):
         buttons.Add(self.settings_message, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
         settings_box.Add(buttons, 0, wx.EXPAND | wx.TOP, 4)
         sizer.Add(settings_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        # what the tool does with the first row (Tool.example), if it shows that
+        self.example = wx.StaticText(self, label="")
+        self.example.Hide()
+        sizer.Add(self.example, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
 
         self.status = wx.StaticText(self, label="")
         self.status.SetForegroundColour(wx.Colour(180, 0, 0))
@@ -237,6 +241,36 @@ class ConfigDialog(wx.Dialog):
         self._fit()
 
     # --- building ---
+
+    def selected_tables(self) -> list:
+        """Return the selected input tables (DataFrames), also those of an input
+        with several tables."""
+        tables = []
+        for value in self.selected_inputs():
+            tables.extend(value.values() if isinstance(value, dict) else [value])
+        return [t for t in tables if isinstance(t, pd.DataFrame)]
+
+    def data_issues(self, config) -> list[Issue]:
+        """Show the tool's example line, and return its checks against the input
+        tables' values (Tool.example, Tool.validate_data); none if the config is
+        not valid. A tool whose checks fail is logged, not shown."""
+        if config is None:
+            self._show_example(None)
+            return []
+        tables = self.selected_tables()
+        try:
+            self._show_example(self.tool.example(config, tables))
+            return list(self.tool.validate_data(config, tables))
+        except Exception:
+            logger.exception(f"{self.tool.name}: the checks of the data failed")
+            self._show_example(None)
+            return []
+
+    def _show_example(self, line) -> None:
+        if not hasattr(self, "example"):
+            return
+        self.example.SetLabel(f"Example: {line}" if line else "")
+        self.example.Show(bool(line))
 
     def output_field_names(self) -> list[str]:
         """Return the config's fields shown in the Output section (e.g. the result
@@ -503,7 +537,7 @@ class ConfigDialog(wx.Dialog):
         issues, shows the other issues below the fields, enables OK only if there
         are no errors, and returns all issues."""
         config, issues = self.current_config()
-        issues = issues + self.execution_issues()
+        issues = issues + self.data_issues(config) + self.execution_issues()
         self.issues = issues
         by_field: dict[str, list[Issue]] = {}
         general = []

@@ -490,3 +490,39 @@ def test_separate_warns_in_the_run_summary(prefect_harness):
     run = run_flow("separate", build)
     messages = [a.get("message") for _, a in run.graph.nodes(data=True) if "tool" in a]
     assert any("have not 2 parts" in (m or "") for m in messages)
+
+
+def test_fuse_example_and_data_checks():
+    from flim.configs import FuseCategoriesConfig
+    from flim.tools.data import FuseCategories
+
+    config = FuseCategoriesConfig(grouping=["FOV", "Cell"])
+    assert FuseCategories.example(config, [_cells()]) == "FOV 1, Cell 1 → FOV:Cell 1:1"
+    assert FuseCategories.validate_data(config, [_cells()]) == []
+    data = _cells()
+    data["Time"] = pd.Categorical(["0:30", "1:00", "0:30"])
+    issues = FuseCategories.validate_data(FuseCategoriesConfig(grouping=["FOV", "Time"]), [data])
+    assert [(i.field, i.severity) for i in issues] == [("delimiter", "warning")]
+    assert FuseCategories.example(FuseCategoriesConfig(grouping=["FOV"]), [data]) is None
+
+
+def test_separate_example_and_data_checks():
+    from flim.configs import SeparateCategoriesConfig
+    from flim.configs.data import CategoryPattern
+    from flim.tools.data import SeparateCategories
+
+    data = pd.DataFrame({"File": pd.Categorical(["/d/Results-ko_01.txt", "/d/Results-wt.txt"])})
+    config = SeparateCategoriesConfig(
+        column="File", delimiters=["-", "_"], names=["", "Treatment", "Cell"],
+        part="file name without extension",
+    )
+    assert SeparateCategories.example(config, [data]) == (
+        "/d/Results-ko_01.txt → Treatment ko, Cell 01"
+    )
+    (issue,) = SeparateCategories.validate_data(config, [data])
+    assert issue.field == "names" and "'Results-wt'" in issue.message
+    bad = SeparateCategoriesConfig(
+        column="File", mode="patterns", patterns=[CategoryPattern(name="X", regex="(")]
+    )
+    (issue,) = SeparateCategories.validate_data(bad, [data])
+    assert issue.severity == "error" and "not a valid pattern" in issue.message

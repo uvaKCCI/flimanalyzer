@@ -427,6 +427,38 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
     )
     outputs = (OutputSpec("Fused", TableType),)
 
+    @classmethod
+    def example(cls, config, tables):
+        from flim.core.categories import fuse
+
+        columns = list(config.grouping)
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if len(columns) < 2 or table is None or not set(columns) <= set(table.columns):
+            return None
+        rows = table[columns].dropna()
+        if rows.empty:
+            return None
+        first = rows.iloc[[0]]
+        ((name, values),) = fuse(first, columns, config.delimiter, config.name).columns.items()
+        parts = ", ".join(f"{c} {first[c].iloc[0]}" for c in columns)
+        return f"{parts} \u2192 {name} {values[0]}"
+
+    @classmethod
+    def validate_data(cls, config, tables):
+        from flim.core.categories import fuse
+
+        columns = list(config.grouping)
+        issues = []
+        for table in tables:
+            if not isinstance(table, pd.DataFrame) or not set(columns) <= set(table.columns):
+                continue
+            if len(columns) < 2:
+                continue
+            combinations = table[columns].drop_duplicates()  # few: category values
+            for message in fuse(combinations, columns, config.delimiter).warnings:
+                issues.append(Issue("delimiter", message, "warning"))
+        return issues
+
     def run(self, data, *, config):
         from flim.core.categories import fuse
 
@@ -447,6 +479,56 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
         " Fuse Categories), or by patterns, as the filename parser does."
     )
     outputs = (OutputSpec("Separated", TableType),)
+
+    @classmethod
+    def _separated(cls, config, data):
+        from flim.core.categories import separate, separate_by_patterns
+
+        if config.mode == "patterns":
+            patterns = [(p.name, p.regex) for p in config.patterns]
+            return separate_by_patterns(data, config.column, patterns, config.part)
+        return separate(data, config.column, config.delimiters, config.names, config.part)
+
+    @classmethod
+    def _table(cls, config, tables):
+        return next(
+            (
+                t
+                for t in tables
+                if isinstance(t, pd.DataFrame) and config.column in t.columns
+            ),
+            None,
+        )
+
+    @classmethod
+    def example(cls, config, tables):
+        table = cls._table(config, tables) if config.column else None
+        if table is None or (config.mode == "patterns" and not config.patterns):
+            return None
+        values = table[config.column].dropna()
+        if values.empty:
+            return None
+        first = table.loc[[values.index[0]]]
+        try:
+            result = cls._separated(config, first)
+        except ValueError as err:  # e.g. an invalid pattern: shown as an issue
+            return f"{values.iloc[0]} \u2192 {err}"
+        parts = [f"{n} {v[0]}" for n, v in result.columns.items() if not pd.isna(v[0])]
+        shown = ", ".join(parts) if parts else "not separated"
+        return f"{values.iloc[0]} \u2192 {shown}"
+
+    @classmethod
+    def validate_data(cls, config, tables):
+        table = cls._table(config, tables) if config.column else None
+        if table is None or (config.mode == "patterns" and not config.patterns):
+            return []
+        field = "patterns" if config.mode == "patterns" else "names"
+        distinct = table[[config.column]].drop_duplicates()  # few: category values
+        try:
+            result = cls._separated(config, distinct)
+        except ValueError as err:
+            return [Issue(field, str(err))]
+        return [Issue(field, message, "warning") for message in result.warnings]
 
     @classmethod
     def validate(cls, config, schemas=()):

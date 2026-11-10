@@ -494,3 +494,20 @@ def test_grouping_is_hidden_where_it_has_no_effect(dialog, tool):
 def test_pca_random_seed_is_hidden(dialog):
     assert "random_seed" not in dialog("PCA").fields.editors
     assert "random_seed" in dialog("K-Means").fields.editors  # used there
+
+
+def test_dialog_shows_the_example_and_the_data_checks(dialog):
+    from flim.configs import FuseCategoriesConfig
+
+    d = dialog("Fuse Categories", FuseCategoriesConfig(grouping=["Treatment", "FOV"]))
+    assert d.example.IsShown()
+    assert d.example.GetLabel().startswith("Example: Treatment ")
+    assert "→ Treatment:FOV " in d.example.GetLabel()
+    d.fields.editors["delimiter"].set("r")  # occurs in "Drug"
+    issues = d.validate()
+    assert any(i.field == "delimiter" and i.severity == "warning" for i in issues)
+    assert d.ok_button.IsEnabled()  # a warning: the tool can still run
+
+
+def test_no_example_line_for_other_tools(dialog):
+    assert not dialog("K-Means").example.IsShown()

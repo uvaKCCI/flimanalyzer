@@ -13,8 +13,10 @@ The `Fuse Categories` tool joins two or more category columns into one, for exam
     - `New column`: the new column's name. Empty: the column names joined by the delimiter, for example `FOV:Cell`.
     - `Keep the original columns` (checked by default): unchecked, the fused columns are removed.
 
+    Below the settings, the dialog shows an example from the first row, for example `Example: FOV 1, Cell 2 → FOV:Cell 1:2`.
+
 3. Click `OK`.
 
 The result is `Table: Fused`, with the new column after the last fused column. Its categories are the combinations that occur in the table, in the order of the fused columns' categories. A row with a missing value in one of the columns gets a missing value.
 
-If the delimiter occurs in a column name or in a value (for example the time point `0:30` with the delimiter `:`), separating the column back would be ambiguous. The tool still runs and reports a warning in the run summary; choose another delimiter if you want to separate the column again.
+If the delimiter occurs in a column name or in a value (for example the time point `0:30` with the delimiter `:`), separating the column back would be ambiguous. The dialog warns about this at `Delimiter` before you run the tool; the tool still runs and reports the warning in the run summary. Choose another delimiter if you want to separate the column again.

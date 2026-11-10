@@ -90,6 +90,7 @@ The dialog checks the settings while you change them:
 * A field with an error is marked with an error sign. Hover the mouse over the sign to see the message. In lists and tables, the sign is in the row with the error.
 * A warning sign marks a setting that works but may not be what you want, for example a column that a workflow guessed (see [Workflows](/userguide/workflows.md#checking-the-settings)).
 * Messages that are not about a single field, for example about the folder under `Save results in`, are shown in red text above the `Output` section.
+* Some tools also check the values of the table, not only its columns, for example `Separate Categories`: values that can't be separated as set are a warning at the field. These tools also show an example from the first row below the `Settings` section.
 
 `OK` stays disabled while there are errors. Fix them, and `OK` becomes available.
 

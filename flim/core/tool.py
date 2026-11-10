@@ -279,6 +279,34 @@ class Tool(Generic[ConfigT]):
         return outputs
 
     @classmethod
+    def example(cls, config: ConfigT, tables: Sequence[Any]) -> Optional[str]:
+        """Return one line that shows what the tool does with the first row of the
+        input, for its dialog, e.g. `FOV 1, Cell 2 -> FOV:Cell 1:2`.
+
+        Args:
+            config: The config.
+            tables: The selected input tables (DataFrames).
+
+        Returns:
+            The line; None if the tool shows none (the default).
+        """
+        return None
+
+    @classmethod
+    def validate_data(cls, config: ConfigT, tables: Sequence[Any]) -> list[Issue]:
+        """Check the config against the input tables' values (`validate` checks it
+        against their columns), for the dialog; the run makes the same checks.
+
+        Args:
+            config: The config.
+            tables: The selected input tables (DataFrames).
+
+        Returns:
+            The issues, usually warnings; none by default.
+        """
+        return []
+
+    @classmethod
     def validate(cls, config: ConfigT, inputs: Sequence[Any]) -> list[Issue]:
         """Checks the config against the input schemas: the number of features and
         grouping columns it selects, and that the columns it names exist and have the
