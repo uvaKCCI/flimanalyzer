@@ -351,3 +351,71 @@ def test_split_outputs_known_from_the_schema(data):
     schema = TableSchema.from_frame(data)
     outputs = Split.output_schema(SplitConfig(grouping=["Treatment"]), [schema])
     assert sorted(outputs) == ["Split: Treatment=KO", "Split: Treatment=WT"]
+
+
+# --- Scale ---
+
+
+def test_scale_methods_and_names(data):
+    from flim.configs import ScaleConfig
+    from flim.tools.data import Scale
+
+    features = ["FLIRR"] if "FLIRR" in data.columns else [
+        c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])
+    ][:1]
+    (feature,) = features
+    for method, suffix in (("standardize", "standardized"), ("min-max", "min-max"),
+                           ("robust", "robust")):
+        (table,) = Scale()(data, config=ScaleConfig(features=features, method=method)).values()
+        column = table[f"{feature}\n{suffix}"]
+        assert feature in table.columns  # kept by default
+        if method == "standardize":
+            assert column.mean() == pytest.approx(0, abs=1e-9)
+            assert column.std(ddof=0) == pytest.approx(1)
+        elif method == "min-max":
+            assert (column.min(), column.max()) == pytest.approx((0, 1))
+        else:
+            assert column.median() == pytest.approx(0, abs=1e-9)
+
+
+def test_scale_is_the_same_function_as_standardize_input(data):
+    import numpy as np
+
+    from flim.configs import ScaleConfig
+    from flim.tools.data import Scale
+    from flim.tools.ml import standardized
+
+    feature = [c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])][0]
+    (table,) = Scale()(data, config=ScaleConfig(features=[feature])).values()
+    expected = standardized(data[[feature]].to_numpy(dtype=float))[:, 0]
+    np.testing.assert_allclose(table[f"{feature}\nstandardized"], expected)
+
+
+def test_scale_within_groups_and_replacing(data):
+    from flim.configs import ScaleConfig
+    from flim.tools.data import Scale
+
+    feature = [c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])][0]
+    group = [c for c in data.columns if isinstance(data[c].dtype, pd.CategoricalDtype)][0]
+    config = ScaleConfig(features=[feature], method="min-max", grouping=[group],
+                         keep_original=False)
+    (table,) = Scale()(data, config=config).values()
+    name = f"{feature}\nmin-max"
+    assert feature not in table.columns
+    assert list(table.columns).index(name) == list(data.columns).index(feature)  # in place
+    for _, rows in table.groupby(group, observed=True):
+        assert (rows[name].min(), rows[name].max()) == pytest.approx((0, 1))
+
+
+def test_scale_keeps_missing_values(data):
+    import numpy as np
+
+    from flim.configs import ScaleConfig
+    from flim.tools.data import Scale
+
+    feature = [c for c in data.columns if pd.api.types.is_numeric_dtype(data[c])][0]
+    data = data.copy()
+    data.loc[data.index[0], feature] = np.nan
+    (table,) = Scale()(data, config=ScaleConfig(features=[feature])).values()
+    assert np.isnan(table[f"{feature}\nstandardized"].iloc[0])
+    assert table[f"{feature}\nstandardized"].iloc[1:].notna().all()

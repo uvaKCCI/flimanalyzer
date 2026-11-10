@@ -24,6 +24,7 @@ EXPECTED = {
     "Order Categories": (0, 0),
     "Pivot": (1, 0),
     "Sort": (0, 0),  # sorting by nothing leaves the table as it is
+    "Scale": (1, 0),
     "Split": (0, 1),  # 0.6 required a column with a config check, now min_grouping
     "Unpivot": (1, 0),
     # analysis

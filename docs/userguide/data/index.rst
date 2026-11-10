@@ -30,6 +30,8 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Stacks two or more data tables, or places them side by side.
    * - :doc:`Sort <sort>`
      - Reorders the rows by the values of one or more columns.
+   * - :doc:`Scale <scale>`
+     - Scales features: standardized, from 0 to 1, or robust to outliers.
    * - :doc:`Saving Data <save>`
      - Saves a data table to a file.
    
@@ -49,4 +51,5 @@ After you load data, you can change the tables to show trends more clearly, chan
     order
     concat
     sort
+    scale
     save

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from flim.configs.data import (
+    ScaleConfig,
     CategoryOrderConfig,
     ConcatConfig,
     FilterConfig,
@@ -342,3 +343,60 @@ class Unpivot(Tool[UnpivotConfig]):
         table = table[first + [c for c in table if c not in first]]
         rest = names[:index] + names[index + 1 :]
         return {"Unpivoted": headers.set_level_names(table, rest)}
+
+
+# the line added to the names of scaled columns, per method
+SCALED = {"standardize": "standardized", "min-max": "min-max", "robust": "robust"}
+
+
+def _scaler(method: str):
+    """Return a function that scales the columns of a 2D array with a method."""
+    if method == "standardize":
+        from flim.tools.ml import standardized  # the same as Standardize input
+
+        return standardized
+    from sklearn.preprocessing import MinMaxScaler, RobustScaler
+
+    scaler = {"min-max": MinMaxScaler, "robust": RobustScaler}[method]
+    return lambda values: scaler().fit_transform(values)
+
+
+@register_tool
+class Scale(Tool[ScaleConfig]):
+    name = "Scale"
+    category = "Data"
+    description = (
+        "Scales the selected features: standardize (mean 0, standard deviation 1),"
+        " min-max (0 to 1) or robust (median 0, interquartile range 1), over the whole"
+        " table or within each group."
+    )
+    outputs = (OutputSpec("Scaled", TableType),)
+
+    def run(self, data, *, config):
+        features = selected_features(data, config.features)
+        if not features:
+            raise ValueError(f"{self.name}: select the features to scale")
+        scale = _scaler(config.method)
+        values = data[features].astype(float)
+
+        def scaled(frame):
+            return pd.DataFrame(scale(frame.to_numpy()), index=frame.index, columns=features)
+
+        if config.grouping:
+            groups = values.groupby(
+                [data[g] for g in config.grouping], observed=True, dropna=False
+            )
+            result = pd.concat([scaled(frame) for _, frame in groups]).reindex(data.index)
+        else:
+            result = scaled(values)
+        suffix = SCALED[config.method]
+        table = data.copy()
+        if config.keep_original:
+            for feature in features:
+                name = f"{feature}\n{suffix}"
+                table[name] = result[feature]
+        else:  # the scaled columns replace the originals, in their place
+            for feature in features:
+                table[feature] = result[feature]
+            table = table.rename(columns={f: f"{f}\n{suffix}" for f in features})
+        return {"Scaled": table}

@@ -273,3 +273,29 @@ class UnpivotConfig(DataTaskConfig):
 
     def _to_legacy(self):
         return {"category_name": self.category_name or "Category"}
+
+
+class ScaleConfig(DataTaskConfig):
+    """Scales the selected features, over the whole table or within each group."""
+
+    min_features = 1
+
+    method: Literal["standardize", "min-max", "robust"] = Field(
+        default="standardize",
+        title="Method",
+        description="standardize: mean 0, standard deviation 1 (as Standardize input);"
+        " min-max: 0 to 1; robust: median 0, interquartile range 1, less affected by"
+        " outliers.",
+    )
+    keep_original: bool = Field(
+        default=True,
+        title="Keep the original features",
+        description="Add the scaled features as new columns; unchecked: they replace"
+        " the original columns.",
+    )
+    grouping: list[CategoryColumn] = Field(
+        default=[],
+        title="Grouping",
+        description="Scale within each group of these columns, e.g. per FOV; none: over"
+        " the whole table.",
+    )

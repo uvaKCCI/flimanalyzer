@@ -23,7 +23,7 @@ from flim.configs.data import (
     SortConfig,
     UnpivotConfig,
 )
-from flim.configs.data import SplitConfig  # noqa: F401  (re-exported)
+from flim.configs.data import ScaleConfig, SplitConfig  # noqa: F401  (re-exported)
 from flim.configs.plot import (
     BarPlotConfig,
     BoxPlotConfig,
