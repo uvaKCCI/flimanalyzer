@@ -20,7 +20,9 @@ EXPECTED = {
     # data
     "Concatenate": (0, 0),
     "Calculate": (0, 0),
+    "Directory/File to Source": (0, 0),
     "Drop Columns": (0, 0),
+    "Import": (0, 0),
     "Filter": (0, 0),
     "Fuse Categories": (0, 2),
     "Merge": (0, 0),

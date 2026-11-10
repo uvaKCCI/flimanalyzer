@@ -17,6 +17,49 @@ class DataTaskConfig(TaskConfig):
     pass
 
 
+class ColumnRename(BaseConfig):
+    """A column of the table and its new name."""
+
+    column: str = Field(default="", title="Column")
+    new: str = Field(default="", title="New name")
+
+
+class ProtectedNamesConfig(BaseConfig):
+    """Fields of tools that write columns of protected names (Source, Input, ...):
+    how they rename a column of the table that already has such a name."""
+
+    clash_name: str = Field(
+        default="{name} (before {tool})",
+        title="Rename existing columns as",
+        description="A column the table already has under a name this tool writes"
+        " (e.g. Source): {name} is its name, {tool} the tool's short name.",
+    )
+    clash_renames: list[ColumnRename] = Field(
+        default=[],
+        title="Renamed columns",
+        description="Per column, its new name (instead of the template above).",
+    )
+
+    def renames(self) -> dict:
+        """The renamed columns as old name -> new name."""
+        return {r.column: r.new for r in self.clash_renames if r.column and r.new}
+
+    @field_validator("clash_renames", mode="before")
+    @classmethod
+    def _renames_from_dict(cls, renames):
+        """A dict old -> new name is taken too."""
+        if isinstance(renames, dict):
+            return [{"column": k, "new": v} for k, v in renames.items()]
+        return renames
+
+    @field_validator("clash_name")
+    @classmethod
+    def _template(cls, template):
+        from flim.core.columns import check_template
+
+        return check_template(template)
+
+
 class CategoryOrderConfig(DataTaskConfig):
     """Order of the values of category columns; the columns are sorted by them."""
 
@@ -49,8 +92,8 @@ class CategoryOrderConfig(DataTaskConfig):
         }
 
 
-class ConcatConfig(DataTaskConfig):
-    legacy_keys = {"mode": None}
+class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
+    legacy_keys = {"mode": None, "clash_name": None, "clash_renames": None}
     legacy_dropped = frozenset({"source_suffix"})  # unused
     hidden_fields = frozenset({"grouping", "features"})
 
@@ -70,6 +113,12 @@ class ConcatConfig(DataTaskConfig):
         default=False,
         title="Numeric columns only",
         description="Columns: append only the numeric columns of the other tables.",
+    )
+    clash_name: str = Field(
+        default="{name} ({table})",
+        title="Rename existing columns as",
+        description="Rows: an Input column a table already has (e.g. from an earlier"
+        " Concatenate): {name} is its name, {table} the table's.",
     )
 
     @classmethod
@@ -616,4 +665,50 @@ class CalculateConfig(DataTaskConfig):
         title="Calculations",
         description="In order; a calculation that uses a column the table doesn't"
         " have is skipped.",
+    )
+
+
+class ImportConfig(DataTaskConfig, ProtectedNamesConfig):
+    """How Import reads data files: the files themselves are its input, given per
+    run, so a workflow that starts with Import analyses any data set."""
+
+    hidden_fields = frozenset({"features", "grouping"})
+
+    delimiter: str = Field(
+        default="\t,",
+        title="Column delimiters",
+        description="Each of these characters separates columns (default: tab and comma).",
+    )
+    exclude_files: list[str] = Field(
+        default=[],
+        title="Leave out files",
+        description="File names (without folder) that are not imported.",
+    )
+    parser: str = Field(
+        default="defaultparser",
+        title="Filename parser",
+        description="Takes category values from the file names, e.g. fov_treatment_cell_parser.",
+    )
+    patterns: list[dict] = Field(
+        default=[],
+        title="Filename patterns",
+        description="The parser's patterns ({Use, Category, Regex}); empty: the parser's own.",
+    )
+    category_combinations: Optional[list[list[str]]] = Field(
+        default=None,
+        title="Column combos",
+        description="Pairs of category columns joined into one (Fuse Categories, ':');"
+        " empty list: all pairs; none: no combinations.",
+    )
+
+
+class SourceFromPathConfig(DataTaskConfig, ProtectedNamesConfig):
+    """Builds the `Source` column (file URIs) from `Directory` and `File`."""
+
+    hidden_fields = frozenset({"features", "grouping"})
+
+    keep_original: bool = Field(
+        default=True,
+        title="Keep Directory and File",
+        description="Unchecked: the Directory and File columns are removed.",
     )

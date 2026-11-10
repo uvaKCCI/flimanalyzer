@@ -48,10 +48,15 @@ def _answer_file_dialog(monkeypatch, path):
     monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(path))
 
 
-def _set_import_files(frame, files):
-    """Sets the files of the import dialog, as the dialog does (for this session)."""
-    imported = frame.settings.import_.model_dump(mode="json", by_alias=True)
-    frame.settings_manager.update({"import": {**imported, "include_files": files}}, keep=False)
+def _answer_import(monkeypatch, files):
+    """The import dialog answers Import with ``files`` (chosen for this run only)."""
+    from flim.gui.importdlg import ImportDlg
+
+    def show(dlg):
+        dlg.files = list(files)
+        return wx.ID_OK
+
+    monkeypatch.setattr(ImportDlg, "ShowModal", show)
 
 
 def _new_windows(frame, before):
@@ -141,30 +146,29 @@ def test_save_and_load_settings(frame, monkeypatch, tmp_path):
 
     path = tmp_path / "settings.json"
     manager = frame.settings_manager
-    imported = frame.settings.import_.model_dump(mode="json", by_alias=True)
-    manager.update({"import": {**imported, "delimiter": ";"}}, keep=False)
+    from flim.configs import ImportConfig
+
+    manager.set_tool(tools.get("Import"), ImportConfig(delimiter=";"))
     manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=5))
     _answer_file_dialog(monkeypatch, path)
     frame.OnSaveSettings(None)
     assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
 
-    manager.update({"import": {**imported, "delimiter": "\t"}, "tools": {}}, keep=False)
+    manager.set_tool(tools.get("Import"), ImportConfig(delimiter="\t"))
     manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=2))
     frame.OnLoadSettings(None)
-    assert frame.settings.import_.delimiter == ";"
+    assert frame.settings.tools.config(tools.get("Import")).delimiter == ";"
     assert frame.settings.tools.config(tools.get("K-Means")).n_clusters == 5
 
 
 def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
-    from flim.gui.importdlg import ImportDlg
 
     files = []
     for name, part in (("Results_FOV1_WT_1.txt", flim_data.iloc[:10]), ("Results_FOV2_KO_2.txt", flim_data.iloc[10:25])):
         path = tmp_path / name
         part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
         files.append(str(path))
-    _set_import_files(frame, files)
-    monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
+    _answer_import(monkeypatch, files)
     before = set(frame.windows_by_title())
     frame.OnImportData(None)
     (title, window), = _new_windows(frame, before).items()
@@ -173,10 +177,8 @@ def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
 
 
 def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
-    from flim.gui.importdlg import ImportDlg
 
-    _set_import_files(frame, [str(tmp_path / "gone.txt")])
-    monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
+    _answer_import(monkeypatch, [str(tmp_path / "gone.txt")])
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
     before = set(frame.windows_by_title())
@@ -204,15 +206,13 @@ def test_open_file_of_an_open_windows_name_opens_a_new_window(frame, tmp_path):
 
 
 def test_import_again_opens_a_new_window(frame, monkeypatch, tmp_path, flim_data):
-    from flim.gui.importdlg import ImportDlg
 
     files = []
     for name, part in (("Results_FOV1_WT_1.txt", flim_data.iloc[:10]), ("Results_FOV2_KO_2.txt", flim_data.iloc[10:25])):
         path = tmp_path / name
         part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
         files.append(str(path))
-    monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    _set_import_files(frame, files)
+    _answer_import(monkeypatch, files)
     frame.OnImportData(None)
     first = frame.windows_by_title()["Imported Data"]
     first.modified = True  # changed, not saved

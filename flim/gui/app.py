@@ -26,7 +26,7 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.datamgr import DataManager
 from flim.core.saving import AutosaveConfig
 from flim.core.filtering import WindowFilters, window_filters, with_window_ranges
-from flim.tools.data import DropColumns, Filter, RenameColumns, import_preprocessor
+from flim.tools.data import DropColumns, Filter, Import, RenameColumns, import_steps
 from flim.core.types import TableType
 from flim.core.settings import AppSettings, tool_settings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
@@ -375,6 +375,8 @@ class AppFrame(wx.Frame):
         menu = wx.Menu()
         buttons = []
         for tool in tools.by_category()[category]:
+            if not tool.in_menus:
+                continue
             item = menu.Append(wx.ID_ANY, tool.name)
             handler = lambda event, tool=tool: self.run_tool(tool)
             self.Bind(wx.EVT_MENU, handler, item)
@@ -451,12 +453,7 @@ class AppFrame(wx.Frame):
             singlefile=True,
         )
         if dlg.ShowModal() == wx.ID_OK:
-            imported = dlg.get_settings().import_
-            # for this session only: they include data file paths
-            self.settings_manager.update(
-                {"import": imported.model_dump(mode="json", by_alias=True)}, keep=False
-            )
-            self.open_data_files(imported.include_files, imported.delimiter)
+            self.open_data_files(dlg.files, "\t,")
 
     def open_data_files(self, files, delimiter=None):
         """Opens data files in a data window, as File > Open does.
@@ -471,11 +468,12 @@ class AppFrame(wx.Frame):
             several files, made unique), or None if no file could be read.
         """
         importer = dataimporter()
-        importer.set_delimiter(delimiter or self.settings.import_.delimiter)
+        importer.set_delimiter(delimiter or self.settings.tools.config(Import).delimiter)
         importer.set_files(list(files))
         importer.set_parser(None)
         importer.set_preprocessor(None)
-        data, filenames, fheaders = importer.import_data()
+        # the table as it is: columns it has (e.g. Source) are not added again
+        data, filenames, fheaders = importer.import_data(keep_existing=True)
         if not filenames:
             return None
 
@@ -504,44 +502,20 @@ class AppFrame(wx.Frame):
         dlg = ImportDlg(self, "Import File(s)", self.settings)
         if dlg.ShowModal() == wx.ID_OK:
             settings = dlg.get_settings()
-            imported = settings.import_
-            # for this session only: they include data file paths; the rename and
-            # drop settings are the Rename Columns and Drop Columns tools'
-            tools_changed = {
+            # the Import, Rename Columns and Drop Columns tools' settings, as for
+            # any tool dialog (no files: they are given per run)
+            changed = {
                 tool.name: settings.tools.entry(tool).model_dump(mode="json")
-                for tool in (RenameColumns, DropColumns)
+                for tool in (Import, RenameColumns, DropColumns)
                 if settings.tools.entry(tool) is not None
             }
-            self.settings_manager.update(
-                {
-                    "import": imported.model_dump(mode="json", by_alias=True),
-                    **({"tools": tools_changed} if tools_changed else {}),
-                },
-                keep=False,
-            )
-
-            parsername = imported.filename_parser.parser
-            parser = flim.core.parser.instantiate_parser(
-                "flim.core.parser." + parsername
-            )
-            if parser is None:
-                logger.warning(f"Could not instantiate parser {parsername}")
+            self.settings_manager.update({"tools": changed})
+            try:
+                data = import_steps(dlg.files, self.settings)
+            except ValueError as err:
+                wx.MessageBox(str(err), "Import", wx.OK | wx.ICON_WARNING)
                 return
-            parser.set_regexpatterns(imported.filename_parser.patterns)
-
-            preprocessor = import_preprocessor(self.settings)
-
-            importer = dataimporter()
-            importer.set_parser(parser)
-            importer.set_delimiter(imported.delimiter)
-            importer.set_files(imported.include_files)
-            importer.set_column_combos(imported.category_combinations)
-            importer.set_preprocessor(preprocessor)
-            data, filenames, fheaders = importer.import_data()
-            if data is None:
-                wx.MessageBox("None of the files could be read.", "Import", wx.OK | wx.ICON_WARNING)
-                return
-
+            filenames = list(dlg.files)
             windowtitle = os.path.basename(filenames[0])
             if len(filenames) != 1:
                 windowtitle = "Imported Data"

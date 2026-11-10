@@ -92,8 +92,8 @@ def test_concat(data):
     tables = {"A": data.iloc[:8], "B": data.iloc[8:]}
     df = table(Concat()(tables, config=ConcatConfig()))
     assert len(df) == len(data)
-    assert df["Source"].value_counts().to_dict() == {"A": 8, "B": 12}
-    assert df["Source"].dtype == "category"
+    assert df["Input"].value_counts().to_dict() == {"A": 8, "B": 12}
+    assert df["Input"].dtype == "category"
     assert df["Treatment"].dtype == "category"
     assert "Old Index" not in df.columns
     wide = table(
@@ -290,7 +290,7 @@ def test_output_schemas(data):
     merged = Merge.output_schema(MergeConfig(), [schema, schema])
     assert merged["Merged"].schema.complete
     concat = Concat.output_schema(ConcatConfig(), [{"A": schema, "B": schema}])
-    assert concat["Concatenated"].schema.column("Source").levels == ["A", "B"]
+    assert concat["Concatenated"].schema.column("Input").levels == ["A", "B"]
     unpivoted = Unpivot.output_schema(UnpivotConfig(features=["t1"]), [schema])
     assert unpivoted["Unpivoted"].schema.column("Feature").levels == ["t1"]
     # the pivot's level names reach the unpivot through the schemas

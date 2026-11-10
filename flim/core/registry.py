@@ -19,6 +19,15 @@ TOOLS_GROUP = "flimanalyzer.tools"
 GUI_GROUP = "flimanalyzer.gui"
 
 
+SHORT_NAME_LENGTH = 10  # Tool.short_name
+
+
+def _names(cls) -> set[str]:
+    """A tool's name, former names and short name, in lower case."""
+    names = {cls.name, *getattr(cls, "former_names", ()), getattr(cls, "short_name", "")}
+    return {n.casefold() for n in names if n}
+
+
 class ToolRegistry:
     def __init__(self):
         self._tools = {}  # name -> class
@@ -45,6 +54,23 @@ class ToolRegistry:
                 f"Tool name conflict: '{cls.name}' is used by {existing.__qualname__}"
                 f" and {cls.__qualname__}"
             )
+        short = getattr(cls, "short_name", "")
+        if short and len(short) > SHORT_NAME_LENGTH:
+            raise ValueError(
+                f"{cls.__qualname__}: short_name '{short}' is longer than"
+                f" {SHORT_NAME_LENGTH} characters"
+            )
+        mine = _names(cls)
+        for other in self._tools.values():
+            if other is cls or other.name == cls.name:
+                continue
+            shared = mine & _names(other)
+            if shared:
+                raise ValueError(
+                    f"Tool name conflict: {cls.__qualname__} and {other.__qualname__}"
+                    f" both use '{sorted(shared)[0]}' (names, former names and short"
+                    " names must differ, ignoring case)"
+                )
         self._tools[cls.name] = cls
         return cls
 

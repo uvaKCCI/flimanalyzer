@@ -40,16 +40,15 @@ def write(tmp_path, content, name="settings.json"):
 def test_check_sorts_the_keys(tmp_path):
     check = check_settings_file(write(tmp_path, MIXED))
     assert check.version == 1 and check.error is None and check.problems
-    assert check.converted == ["working_dir to results_dir"]
-    assert check.dropped == ["display (histogram ranges)"]
-    assert check.unknown == ["bogus_section", "import.bogus_key"]
+    assert check.converted == ["working_dir to results_dir", "import to the Import tool"]
+    assert check.dropped == ["display (histogram ranges)", "import.bogus_key (unknown)"]
+    assert check.unknown == ["bogus_section"]
     assert [i.split(":")[0] for i in check.invalid] == ["execution", "tools.Summarize.config"]
     assert check.not_checked == ["tools.Other Plugin"]
     # usable: without unknown keys and without the sections with invalid values
-    assert set(check.sections) == {"results_dir", "import", "tools"}
-    assert check.sections["import"]["delimiter"] == ";"
-    assert "bogus_key" not in check.sections["import"]
-    assert list(check.sections["tools"]) == ["Other Plugin"]
+    assert set(check.sections) == {"results_dir", "tools"}
+    assert check.sections["tools"]["Import"]["config"]["delimiter"] == ";"
+    assert sorted(check.sections["tools"]) == ["Import", "Other Plugin"]
     text = check.summary()
     for line in ("schema version 1", "bogus_section", "working_dir to results_dir"):
         assert line in text
@@ -132,7 +131,7 @@ def test_session_asks_only_for_files_with_problems(tmp_path):
     manager = session_settings(str(path), choose=choose)
     assert [c.path for c in asked] == [path]
     assert manager.settings.results_dir == Path("res") and manager.source == path
-    assert manager.settings.import_.delimiter == ";"
+    assert manager.settings.tools.config(tools.get("Import")).delimiter == ";"
 
 
 def test_session_choice_of_no_file(tmp_path):

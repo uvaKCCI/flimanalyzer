@@ -127,11 +127,18 @@ class Tool(Generic[ConfigT]):
     name: ClassVar[str] = ""
     # earlier names, under which settings may have been saved
     former_names: ClassVar[tuple[str, ...]] = ()
+    # a short form of the name where space is tight, e.g. in column names a tool
+    # writes ("Source (before Import)"); at most SHORT_NAME_LENGTH characters; empty:
+    # the name
+    short_name: ClassVar[str] = ""
     category: ClassVar[str] = ""
     description: ClassVar[str] = ""
     icon: ClassVar[Optional[str]] = None  # resource name; the GUI loads the bitmap
     api_version: ClassVar[int] = API_VERSION
     graph_kind: ClassVar[str] = "tool"  # node style in the workflow graph
+    # False: not in the tool menus and the tool panel (e.g. Import, run from the
+    # File menu)
+    in_menus: ClassVar[bool] = True
     # True if the whole task draws with pyplot (see pyplot_lock)
     draws_figures: ClassVar[bool] = False
     inputs: ClassVar[tuple[InputSpec, ...]] = (InputSpec("data", TableType),)
@@ -150,6 +157,11 @@ class Tool(Generic[ConfigT]):
 
     def __init__(self):
         self.context = RunContext()
+
+    @classmethod
+    def short(cls) -> str:
+        """The short name, or the name if the tool has none."""
+        return cls.short_name or cls.name
 
     def __repr__(self):
         return f"<{type(self).__name__}>: {self.name}"
@@ -291,6 +303,20 @@ class Tool(Generic[ConfigT]):
             The line; None if the tool shows none (the default).
         """
         return None
+
+    @classmethod
+    def proposals(cls, config: ConfigT, tables: Sequence[Any]) -> dict[str, Any]:
+        """Return values the dialog fills into empty fields once the input tables are
+        known, e.g. the new names of columns in the way of the tool's.
+
+        Args:
+            config: The config.
+            tables: The selected input tables (DataFrames).
+
+        Returns:
+            Field name -> value; none by default.
+        """
+        return {}
 
     @classmethod
     def validate_data(cls, config: ConfigT, tables: Sequence[Any]) -> list[Issue]:

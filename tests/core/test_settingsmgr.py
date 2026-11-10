@@ -194,7 +194,7 @@ def test_export_writes_all_settings(tmp_path):
     manager.export(out)
     data = written(out)
     assert data["schema_version"] == SETTINGS_VERSION
-    assert {"import", "filters", "tools"} <= set(data)
+    assert {"filters", "tools"} <= set(data) and "import" not in data
     # every installed tool, its defaults if not set; read only from the user file
     names = [t.name for group in tools.by_category().values() for t in group]
     assert sorted(data["tools"]) == sorted(names)

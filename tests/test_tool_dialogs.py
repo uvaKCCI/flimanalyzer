@@ -689,3 +689,14 @@ def test_filter_dialog_keeps_the_whole_tree(dialog, table):
     assert "any" not in others.columns[kind - others.offset].choices  # no new groups
     result = d.result().config.filters
     assert sorted(map(repr, result)) == sorted(map(repr, config.filters))
+
+
+def test_source_dialog_proposes_the_new_name_of_a_source_column(dialog):
+    d = dialog("Directory/File to Source")
+    table = pd.DataFrame({"Directory": ["/d"], "File": ["a.txt"], "Source": ["mine"]})
+    d._fill_proposals([table])
+    editor = d.fields.editors["clash_renames"]
+    assert editor.get() == [{"column": "Source", "new": "Source (before Add Source)"}]
+    editor.set([{"column": "Source", "new": "Origin"}])  # the user's choice
+    d._fill_proposals([table])  # not filled again: the field is not empty
+    assert d.result().config.renames() == {"Source": "Origin"}

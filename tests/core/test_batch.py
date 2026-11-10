@@ -52,9 +52,12 @@ def data_dir(tmp_path):
 
 @pytest.fixture
 def settings():
+    from flim.configs import ImportConfig
+    from flim.tools.data import Import
+
     settings = AppSettings.default()
-    settings.import_.filename_parser.parser = "fov_treatment_cell_parser"
-    settings.import_.filename_parser.patterns = []  # the parser's own
+    # the parser's own patterns
+    settings.tools.set(Import, ImportConfig(parser="fov_treatment_cell_parser"))
     return settings
 
 

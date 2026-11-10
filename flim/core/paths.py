@@ -94,3 +94,28 @@ def unique_run_folder(parent: str | os.PathLike, name: str) -> Path:
             return folder
         except FileExistsError:
             number += 1
+
+
+def path_uri(directory: str, name: str) -> str:
+    """The `file://` URI of a file given by its folder and name, as recorded on any
+    system: Windows paths (with a drive letter or a server share) and POSIX paths.
+
+    Args:
+        directory: The folder, absolute (else the result is a relative reference).
+        name: The file name.
+
+    Returns:
+        The URI, with special characters percent-encoded (a space as `%20`), e.g.
+        ``file:///D:/KCCI/Results-a.txt``.
+    """
+    import re
+    from pathlib import PurePosixPath, PureWindowsPath
+    from urllib.parse import quote
+
+    folder = directory.replace("\\", "/").rstrip("/")
+    text = f"{folder}/{name}" if folder else name
+    if re.match(r"^[A-Za-z]:/", text) or text.startswith("//"):
+        return PureWindowsPath(text).as_uri()
+    if text.startswith("/"):
+        return PurePosixPath(text).as_uri()
+    return quote(text)

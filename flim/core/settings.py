@@ -59,21 +59,6 @@ class _Settings(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class ParserSettings(_Settings):
-    parser: str = Field(default="defaultparser", description="Filename parser class")
-    patterns: list = []  # the regex parser's [{Use, Category, Regex}, ...]
-
-
-class ImportSettings(_Settings):
-    include_files: list[str] = []
-    exclude_files: list[str] = []
-    delimiter: str = "\t,"
-    filename_parser: ParserSettings = Field(default_factory=ParserSettings)
-    category_columns: list[str] = []
-    fitting_columns: list[str] = []
-    category_combinations: Optional[list] = None
-
-
 class FilterSettings(_Settings):
     """The table windows' filter switches; the filters are the Filter tool's settings
     (version 2). `use` also decides whether `flimbatch` filters after Import."""
@@ -270,7 +255,6 @@ class AppSettings(_Settings):
         description="The app settings file preselected when the GUI starts without -s."
         " Read only from the user settings file.",
     )
-    import_: ImportSettings = Field(default_factory=ImportSettings, alias="import")
     filters: FilterSettings = Field(default_factory=FilterSettings)
     tools: ToolSettingsMap = Field(default_factory=ToolSettingsMap)
 
@@ -278,13 +262,12 @@ class AppSettings(_Settings):
 
     @classmethod
     def default(cls) -> "AppSettings":
-        """The default settings: those of the importer, and the Filter tool's
-        default range filters (those of the table windows up to 0.6)."""
+        """The default settings: the Filter tool's default range filters (those of
+        the table windows up to 0.6); the other tools' defaults are their configs'."""
         from flim.configs import FilterConfig
         from flim.core.filtering import default_ranges
-        from flim.core.importer import dataimporter
 
-        settings = cls(import_=dataimporter().settings())
+        settings = cls()
         settings.tools.entries["Filter"] = ToolSettings(
             config=FilterConfig(filters=default_ranges()).model_dump(mode="json")
         )
@@ -421,6 +404,37 @@ def _v1_calculations(calculate: dict) -> list:
     return calculations
 
 
+def _v1_import(data: dict, changes: "Changes") -> None:
+    """0.6's `import` section becomes the Import tool's settings; its file list (the
+    files of the last import, kept only for the session) and the derived column
+    lists are dropped."""
+    section = data.pop("import", None)
+    if not isinstance(section, dict):
+        return
+    parser = section.get("filename_parser") or {}
+    config = {
+        "delimiter": section.get("delimiter", "\t,"),
+        "exclude_files": list(section.get("exclude_files") or []),
+        "parser": parser.get("parser", "defaultparser"),
+        "patterns": list(parser.get("patterns") or []),
+        "category_combinations": section.get("category_combinations"),
+    }
+    combos = config["category_combinations"]
+    if combos is not None:
+        config["category_combinations"] = [list(c) for c in combos]
+    tools = data.setdefault("tools", {})
+    if isinstance(tools, dict):
+        entry = tools.setdefault("Import", {})
+        entry["config"] = {**config, **(entry.get("config") or {})}
+    changes.converted.append("import to the Import tool")
+    dropped = [k for k in ("include_files", "category_columns", "fitting_columns") if section.get(k)]
+    if dropped:
+        changes.dropped.append(f"import: {', '.join(dropped)} (not settings)")
+    known = {"delimiter", "exclude_files", "filename_parser", "category_combinations",
+             "include_files", "category_columns", "fitting_columns"}  # fmt: skip
+    changes.dropped += [f"import.{k} (unknown)" for k in section if k not in known]
+
+
 def _v1_filters(data: dict, changes: "Changes") -> None:
     """0.6's windows' range filters become the Filter tool's filters (`enabled` =
     `selected`); the Filter tool's own 0.6 filters are added switched off."""
@@ -512,6 +526,7 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
         if not preprocess:
             data.pop("preprocess")
     _v1_filters(data, changes)
+    _v1_import(data, changes)
     moved = 0
     for name, entry in (data.get("tools") or {}).items():
         if isinstance(entry, dict) and not isinstance(entry.get("autosave"), dict):

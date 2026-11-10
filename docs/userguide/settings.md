@@ -1,6 +1,6 @@
 # Settings
 
-FLIMAnalyzer keeps its settings in JSON files. A settings file holds the import settings (delimiter, filename parser), the range filters, the results folder, the executor, and the settings of each tool, such as the grouping and features chosen in its dialog. [Batch mode](/userguide/batch) uses the same files.
+FLIMAnalyzer keeps its settings in JSON files. A settings file holds the range filters, the results folder, the executor, and the settings of each tool, such as the grouping and features chosen in its dialog. [Batch mode](/userguide/batch) uses the same files.
 
 The range filters (see [Filtering Data](/userguide/data/filter.md#filtering-columns-with-numeric-values)) are part of the settings, as the `Filter` tool's filters. The values selected in category columns of a table window are not.
 
@@ -32,7 +32,7 @@ The dialog only shows the settings. They apply when FLIMAnalyzer starts: to chan
 
 ## The user settings file
 
-The GUI saves the settings you change in it to the user settings file, automatically. These are the settings of the tool dialogs, including the folder under `Save results in`, and the range filters. They apply again the next time the GUI starts. The import settings are kept only while the GUI is open.
+The GUI saves the settings you change in it to the user settings file, automatically. These are the settings of the tool dialogs, including the folder under `Save results in`, and the range filters. They apply again the next time the GUI starts. This includes the settings of `File` > `Import...` (the Import tool's: delimiter, filename parser, files to leave out); the files you import are not saved.
 
 The user settings file is `usersettings.json` in the platform's settings folder:
 
@@ -162,7 +162,6 @@ Some tools have a table with a row for each feature, for example the table of ra
   "cache": {"dir": null, "max_size_mb": 2048, "max_age_days": 7},
   "strict": null,
   "appsettings_path": [],
-  "import": { ... },
   "filters": { ... },
   "tools": {
     "Summarize": {"config": { ... }, "autosave": {"enabled": false, "results_dir": null, "formats": []}},
@@ -181,8 +180,8 @@ Some tools have a table with a row for each feature, for example the table of ra
 * `strict`: workflows: `true` makes columns that are not in the data errors; `false` replaces them by the closest matching column. A workflow's own `Strict` setting takes precedence. If it is not set (`null`), missing columns are guessed in the GUI, where the guesses are shown before the run, and are errors in `flimbatch`.
 * `appsettings_path`: the folders searched for app settings files. It is read from the user settings file (see [App settings files](#app-settings-files)).
 * `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it and `appsettings_path` out.
-* `import`: the import settings. The columns that `Import...` renames, drops and calculates are the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools, in `tools`.
+* The settings of `File` > `Import...` are the `Import` tool's, in `tools`: `delimiter`, `exclude_files`, `parser`, `patterns`, `category_combinations`, and `clash_name` and `clash_renames` (see [The Source column](/userguide/data/load.md#the-source-column)). The columns `Import...` renames, drops and calculates are the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools.
 * `filters`: whether the table windows filter their rows (`use`, also used by `flimbatch` after the import) and show the dropped rows (`show_dropped`). The filters themselves are the settings of the `Filter` tool, in `tools` (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
 * `tools`: each tool has its own section, named after the tool, with its settings (`config`) and its `autosave` section: whether its results are saved (`enabled`), in which folder (`results_dir`), and in which formats (`formats`, one entry per format with its `kind` and `format`, for example `{"kind": "table", "format": "csv"}`; a kind not listed is saved in its default format).
 
-Older files are converted when they are read: `working_dir` becomes `results_dir`, a tool's `autosave` and `results_dir` become its `autosave` section (with the default formats, as before), the `preprocess` section becomes the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools (each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` calculates them), the range filters in `filters` become the `Filter` tool's filters (each switched on as it was selected; the `Filter` tool's own filters of the older file are added switched off), and `display`, which is no longer used, is dropped.
+Older files are converted when they are read: `working_dir` becomes `results_dir`, a tool's `autosave` and `results_dir` become its `autosave` section (with the default formats, as before), the `preprocess` section becomes the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools (each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` calculates them), the `import` section becomes the `Import` tool's settings (its list of the last imported files is dropped), the range filters in `filters` become the `Filter` tool's filters (each switched on as it was selected; the `Filter` tool's own filters of the older file are added switched off), and `display`, which is no longer used, is dropped.

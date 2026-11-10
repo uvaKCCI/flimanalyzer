@@ -84,7 +84,7 @@ def loss_summary(trained, tags: str):
     Summarize()(
         losses,
         config=SummaryConfig(
-            grouping=["Source"] + LOSS_GROUPING,
+            grouping=["Input"] + LOSS_GROUPING,
             features=["Training Loss", "Validation Loss", "Model File"],
             aggs=["min"],
         ),

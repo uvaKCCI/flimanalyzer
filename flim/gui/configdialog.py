@@ -454,6 +454,23 @@ class ConfigDialog(wx.Dialog):
             tables.extend(value.values() if isinstance(value, dict) else [value])
         for panel in self.panels():
             panel.set_data([t for t in tables if isinstance(t, pd.DataFrame)])
+        self._fill_proposals([t for t in tables if isinstance(t, pd.DataFrame)])
+
+    def _fill_proposals(self, tables) -> None:
+        """Fill the tool's proposals (Tool.proposals) into fields that are empty."""
+        config, _ = self.current_config()
+        if config is None or not tables:
+            return
+        try:
+            proposals = self.tool.proposals(config, tables)
+        except Exception:
+            logger.exception(f"{self.tool.name}: the proposals failed")
+            return
+        for panel in self.panels():
+            for name, value in proposals.items():
+                editor = panel.editors.get(name)
+                if editor is not None and not getattr(config, name, None):
+                    editor.set(value)
 
     def selected_names(self) -> list:
         names = []

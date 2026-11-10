@@ -6,13 +6,14 @@ import flim.core
 from flim.core.importer import dataimporter
 from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE
 from flim.configs.data import (
+    ImportConfig,
     DropColumnsConfig,
     DropRule,
     RenameColumnsConfig,
     Replacement,
 )
 from flim.core.preprocessor import defaultpreprocessor
-from flim.tools.data import DropColumns, RenameColumns
+from flim.tools.data import DropColumns, Import, RenameColumns
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.dicttablepanel import DictTable, ListTable
 
@@ -32,7 +33,9 @@ class ImportDlg(wx.Dialog):
     ):
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         self.importer = dataimporter()
-        self.settings = settings  # AppSettings: updated by Open and Import
+        self.settings = settings  # AppSettings: updated by Import
+        self.config = settings.tools.config(Import)  # how to import
+        self.files: list = []  # the files chosen (for this run only)
         self.parsefname = parsefname
         self.preprocess = preprocess
         self.excludefiles = excludefiles
@@ -56,7 +59,7 @@ class ImportDlg(wx.Dialog):
         box = wx.BoxSizer(wx.VERTICAL)
 
         delimiter_label = wx.StaticText(self, wx.ID_ANY, "Column Delimiter:")
-        self.delimiter_panel = DelimiterPanel(self, settings.import_.delimiter)
+        self.delimiter_panel = DelimiterPanel(self, self.config.delimiter)
         configsizer.Add(
             delimiter_label, 0, wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL, 5
         )
@@ -68,7 +71,7 @@ class ImportDlg(wx.Dialog):
             parser_label = wx.StaticText(self, wx.ID_ANY, "Filename Parser:")
             self.avail_parsers = flim.core.parser.get_available_parsers()
             # the parser's name (the dict holds the classes)
-            sel_parser = settings.import_.filename_parser.parser
+            sel_parser = self.config.parser
             if sel_parser not in self.avail_parsers:
                 sel_parser = next(iter(self.avail_parsers))
             self.parser_chooser = wx.ComboBox(
@@ -88,8 +91,12 @@ class ImportDlg(wx.Dialog):
             fparse_label = wx.StaticText(self, wx.ID_ANY, "Parse from Filenames:")
             self.fparsegrid = wx.grid.Grid(self, -1)
             self.fparsegrid.SetDefaultColSize(200, True)
+            # the saved patterns of the saved parser, else the parser's own
+            patterns = hparser.get_regexpatterns()
+            if self.config.patterns and sel_parser == self.config.parser:
+                patterns = [dict(p) for p in self.config.patterns]
             self.parsetable = ListTable(
-                hparser.get_regexpatterns(),
+                patterns,
                 headers=[
                     PATTERN_USE,
                     PATTERN_CATEGORY,
@@ -110,7 +117,8 @@ class ImportDlg(wx.Dialog):
             # Combined col labels
             combo_label = wx.StaticText(self, wx.ID_ANY, "Column Combos:")
             self.combo_panel = wx.Panel(self, wx.ID_ANY)
-            wx.CheckBox(self.combo_panel, wx.ID_ANY)
+            combos = wx.CheckBox(self.combo_panel, wx.ID_ANY)
+            combos.SetValue(self.config.category_combinations is not None)
             configsizer.Add(
                 combo_label, 0, wx.ALL | wx.ALIGN_RIGHT | wx.ALIGN_CENTER_VERTICAL, 5
             )
@@ -159,7 +167,7 @@ class ImportDlg(wx.Dialog):
             self.exclude_files_list = wx.TextCtrl(
                 self,
                 wx.ID_ANY,
-                value="\n".join(settings.import_.exclude_files),
+                value="\n".join(self.config.exclude_files),
                 style=wx.TE_MULTILINE | wx.EXPAND,
             )
             filesizer.Add(exclude_label, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 5)
@@ -243,10 +251,30 @@ class ImportDlg(wx.Dialog):
             entry = self.settings.tools.entry(tool)
             self.settings.tools.set(tool, config, entry.autosave if entry else None)
 
+    def import_config(self) -> ImportConfig:
+        """The Import tool's settings as the dialog shows them."""
+        values = {"delimiter": self.delimiter_panel.get_delimiters()}
+        if self.parsefname:
+            values["parser"] = self.parser_chooser.GetStringSelection()
+            patterns = [dict(p) for p in self.parsetable.GetData()]
+            values["patterns"] = patterns
+            comboscb = self.combo_panel.GetChildren()[0]
+            categories = [p[PATTERN_CATEGORY] for p in patterns]
+            values["category_combinations"] = (
+                [list(c) for c in itertools.combinations(categories, 2)]
+                if comboscb.GetValue()
+                else None
+            )
+        if self.excludefiles:
+            values["exclude_files"] = [
+                t for t in self.exclude_files_list.GetValue().splitlines() if t
+            ]
+        return self.config.model_copy(update=values)
+
     def get_settings(self):
-        """The AppSettings passed to the dialog; after Open or Import, its import
-        section (and, with preprocessing, the Rename Columns and Drop Columns tools'
-        settings) holds the dialog's values."""
+        """The AppSettings passed to the dialog; after Import, the Import tool's
+        settings (and, with preprocessing, the Rename Columns and Drop Columns
+        tools') hold the dialog's values. The chosen files are in `files`."""
         return self.settings
 
     def OnRGridSize(self, event):
@@ -381,10 +409,7 @@ class ImportDlg(wx.Dialog):
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             # the import settings of the chosen file
-            files = fileDialog.GetPaths()
-            self.importer.set_delimiter("\t,")
-            self.configure_importer(self.importer, files)
-            self.settings.import_ = self.importer.settings()
+            self.files = fileDialog.GetPaths()
             self.EndModal(wx.ID_OK)
 
     def OnImportFiles(self, event):
@@ -397,8 +422,11 @@ class ImportDlg(wx.Dialog):
                 "Add files to be imported.", "Error", wx.OK | wx.ICON_INFORMATION
             )
         else:
-            self.configure_importer(self.importer, files)
-            self.settings.import_ = self.importer.settings()
+            self.files = files
+            entry = self.settings.tools.entry(Import)
+            self.settings.tools.set(
+                Import, self.import_config(), entry.autosave if entry else None
+            )
             if self.preprocess:
                 self.store_rename_and_drop()
             self.EndModal(wx.ID_OK)

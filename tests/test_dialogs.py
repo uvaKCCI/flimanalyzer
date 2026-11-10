@@ -107,7 +107,10 @@ def test_import_dialog_opens_with_a_saved_parser(wxapp):
     from flim.gui.importdlg import ImportDlg
 
     settings = AppSettings.default()
-    settings.import_.filename_parser.parser = "fov_treatment_cell_parser"
+    from flim.configs import ImportConfig
+    from flim.tools.data import Import
+
+    settings.tools.set(Import, ImportConfig(parser="fov_treatment_cell_parser"))
     # failed when the dialog used the parser's class, not its name, as the value
     dlg = ImportDlg(None, "Import", settings)
     try:
@@ -164,6 +167,8 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
             len([c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)])
             for box in boxes
         )
-        assert n_tools == 2 + len(tools)
+        # Open and Import, and the tools of the menus (not Import: File > Import...)
+        in_menus = [t for group in tools.by_category().values() for t in group if t.in_menus]
+        assert n_tools == 2 + len(in_menus)
     finally:
         frame.Destroy()

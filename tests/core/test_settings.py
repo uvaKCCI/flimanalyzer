@@ -39,8 +39,9 @@ V1_FILE = Path(__file__).parent / "data" / "settings_v1.json"
 def test_defaults():
     settings = AppSettings.default()
     assert settings.schema_version == SETTINGS_VERSION
-    assert settings.import_.delimiter == "\t,"
-    assert settings.import_.filename_parser.parser == "defaultparser"
+    imported = settings.tools.config(tools.get("Import"))  # the Import tool's defaults
+    assert imported.delimiter == "\t," and imported.parser == "defaultparser"
+    assert "import" not in settings.to_json()
     # the windows' range filters of 0.6, now the Filter tool's filters
     filters = settings.tools.config(tools.get("Filter")).filters
     assert len(filters) == 39 and sum(f.enabled for f in filters) == 3
@@ -60,7 +61,7 @@ def test_settings_of_version_0(caplog):
     assert not caplog.records  # every key known
     assert settings.schema_version == SETTINGS_VERSION
     assert settings.results_dir == Path("/data/results")
-    assert settings.import_.delimiter == "\t"
+    assert settings.tools.config(tools.get("Import")).delimiter == "\t"
     assert settings.filters.use is False and settings.filters.show_dropped is True
     store = settings.tools
     summary = store.config(tools.get("Summarize"))
@@ -93,11 +94,11 @@ def test_saved_in_the_current_version_and_read_back(tmp_path):
 
 
 def test_unknown_keys_are_reported_not_fatal(caplog):
-    data = {"schema_version": SETTINGS_VERSION, "colour": "red", "import": {"x": 1}}
+    data = {"schema_version": SETTINGS_VERSION, "colour": "red", "filters": {"x": 1}}
     with caplog.at_level(logging.WARNING):
         settings = settings_from_data(data)
-    assert "colour" in caplog.text and "import_.x" in caplog.text
-    assert settings.import_.delimiter == "\t,"
+    assert "colour" in caplog.text and "filters.x" in caplog.text
+    assert settings.filters.use is False
 
 
 def test_newer_versions_are_refused():
@@ -114,20 +115,17 @@ def test_invalid_tool_settings_give_the_defaults(caplog):
     assert "not valid" in caplog.text
 
 
-def test_settings_from_the_importer_and_preprocessor(tmp_path):
-    from flim.core.importer import dataimporter
-    from flim.core.parser import treatment_fov_cell_parser
-    importer = dataimporter()
-    importer.set_delimiter(";")
-    importer.set_parser(treatment_fov_cell_parser())
-    data_file = tmp_path / "a.txt"
+def test_the_import_tool_reads_files_of_its_input(tmp_path):
+    from flim.configs import ImportConfig
+    from flim.tools.data import Import
+
+    # the Import tool reads the data files of its input with its config
+    data_file = tmp_path / "Results-ko_FOV2_3.txt"
     data_file.write_text("x\n1\n")
-    importer.set_files([str(data_file)])
-    imported = importer.settings()
-    assert (imported.delimiter, imported.include_files) == (";", [str(data_file)])
-    # the parser's own name (was "defaultparser" for every parser)
-    assert imported.filename_parser.parser == "treatment_fov_cell_parser"
-    assert imported.filename_parser.patterns[0]["Category"] == "Treatment"
+    config = ImportConfig(delimiter=";", parser="treatment_fov_cell_parser")
+    (table,) = Import()([str(tmp_path)], config=config).values()
+    assert table["Source"].iloc[0] == data_file.resolve().as_uri()
+    assert table["Source"].dtype == object  # text, not a category
 
 
 def test_settings_of_version_1():
@@ -139,7 +137,8 @@ def test_settings_of_version_1():
     assert settings.tools.config(tools.get("K-Means")).n_clusters == 7
     # by tool; 0.6's preprocess: the Rename Columns, Drop Columns and Calculate tools
     assert set(settings.to_json()["tools"]) == {
-        "Summarize", "K-Means", "Rename Columns", "Drop Columns", "Calculate", "Filter"
+        "Summarize", "K-Means", "Rename Columns", "Drop Columns", "Calculate", "Filter",
+        "Import",
     }
     # version 2: working_dir is results_dir, display is gone
     assert settings.results_dir == Path("/Users/khs3z/FLIMAnalyzerResults")
@@ -179,7 +178,6 @@ def test_a_file_with_some_sections_changes_only_those():
     }
     updated = update_settings(settings, data)
     assert updated.filters.use and updated.filters.show_dropped  # replaced: default
-    assert updated.import_ == settings.import_  # not in the file: kept
     assert updated.tools.config(tools.get("K-Means")).n_clusters == 3
     assert updated.tools.config(tools.get("Summarize")).aggs == ["max"]
 
@@ -204,7 +202,7 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
     write_tool_settings(path, kmeans, tool_settings(KMeansConfig(n_clusters=9)))
     settings = load_settings(path)
     assert settings.tools.config(kmeans).n_clusters == 9
-    assert settings.import_.delimiter == "\t"  # from the version 0 file
+    assert settings.tools.config(tools.get("Import")).delimiter == "\t"  # version 0
     summary = settings.tools.config(tools.get("Summarize"))
     assert summary.aggs == ["mean", "sem"]
     # saved under a former name: replaced, read by the renamed tool
@@ -301,3 +299,17 @@ def test_filters_of_version_1_become_the_filter_tools():
     assert (filters[3].kind, filters[3].keep, filters[3].enabled) == ("category", ["1"], False)
     assert "the Filter tool's own 2 filter(s): added switched off" in changes.converted
     assert "filters.series_filters (never used)" in changes.dropped
+
+
+def test_import_of_version_1_becomes_the_import_tools():
+    data = json.loads(V1_FILE.read_text())
+    data["import"].update(
+        {"delimiter": ";", "include_files": ["/data/a.txt"], "exclude_files": ["b.txt"], "x": 1}
+    )
+    changes = Changes()
+    settings = AppSettings.model_validate(migrate(data, changes))
+    config = settings.tools.config(tools.get("Import"))
+    assert (config.delimiter, config.exclude_files) == (";", ["b.txt"])
+    assert "import to the Import tool" in changes.converted
+    assert any("include_files" in d for d in changes.dropped)
+    assert "import.x (unknown)" in changes.dropped

@@ -1,6 +1,7 @@
 """Data tools: reorder, combine, filter and reshape tables."""
 
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -10,7 +11,9 @@ from flim.configs.data import (
     DropColumnsConfig,
     RenameColumnsConfig,
     FuseCategoriesConfig,
+    ImportConfig,
     SeparateCategoriesConfig,
+    SourceFromPathConfig,
     ScaleConfig,
     CategoryOrderConfig,
     ConcatConfig,
@@ -22,10 +25,11 @@ from flim.configs.data import (
     UnpivotConfig,
 )
 from flim.core import headers
+from flim.core.columns import make_room, unique_name  # noqa: F401  (also used by tests)
 from flim.core.config import Issue
-from flim.core.registry import register_tool
+from flim.core.registry import register_tool, tools
 from flim.core.tool import Tool
-from flim.core.types import InputSpec, OutputSpec, TableType
+from flim.core.types import FileType, InputSpec, OutputSpec, TableType
 from flim.tools.common import (
     categories_first,
     category_columns,
@@ -82,15 +86,38 @@ def _row_mismatch(first: pd.DataFrame, other: pd.DataFrame):
     return f"first difference in row {row + 1}, {column}: {a.at[row, column]} and {b.at[row, column]}"
 
 
+INPUT = "Input"  # Concatenate's column: the table each row came from
+SOURCE = "Source"  # each row's origin, a URI (flim.core.importer.SOURCE)
+
+
 @register_tool
 class Concat(Tool[ConcatConfig]):
     name = "Concatenate"
     former_names = ("Concat Data",)
+    short_name = "Concat"
     category = "Data"
     description = "Appends tables below (rows) or next to (columns) each other."
     icon = "concatenate.png"
     inputs = (InputSpec("tables", TableType, many=True),)
     outputs = (OutputSpec("Concatenated", TableType),)
+
+    @classmethod
+    def validate_data(cls, config, tables):
+        if config.mode == "horizontal":
+            return []
+        issues = []
+        for i, table in enumerate(tables):
+            renames = make_room(
+                table.columns, [INPUT], config.clash_name, config.renames(),
+                tool=cls.short(), table=f"table {i + 1}",
+            )  # fmt: skip
+            if renames:
+                issues.append(
+                    Issue("clash_name", f"a table has an '{INPUT}' column: it is renamed"
+                          f" by '{config.clash_name}'", "warning")
+                )
+                break
+        return issues
 
     def run(self, tables: dict, *, config):
         horizontal = config.mode == "horizontal"
@@ -123,17 +150,22 @@ class Concat(Tool[ConcatConfig]):
                 )
                 taken.update(frames[i].columns)
             return {"Concatenated": pd.concat(frames, axis=1, copy=True)}
+        # an Input column a table already has (e.g. from an earlier Concatenate) is
+        # renamed, by default "Input (<table>)"
+        for i, (name, df) in enumerate(zip(tables, frames)):
+            renames = make_room(
+                df.columns, [INPUT], config.clash_name, config.renames(),
+                tool=self.short(), table=name,
+            )  # fmt: skip
+            if renames:
+                frames[i] = df.rename(columns=renames)
+                self.warn(f"{name}: the column '{INPUT}' is renamed '{renames[INPUT]}'")
         catcols = list(dict.fromkeys(c for df in frames for c in category_columns(df)))
-        concat = pd.concat(
-            frames,
-            axis=1 if horizontal else 0,
-            copy=True,
-            keys=list(tables),
-            names=["Source", "Old Index"],
-        ).reset_index()
-        concat = concat.drop("Old Index", axis=1)
+        concat = pd.concat(frames, axis=0, copy=True, keys=list(tables))
+        names = concat.index.get_level_values(0)  # the table of each row
+        concat = concat.reset_index(drop=True)
         concat[catcols] = concat[catcols].astype("category")
-        concat["Source"] = concat["Source"].astype("category")
+        concat.insert(0, INPUT, pd.Categorical(names))  # categories sorted, as in 0.6
         return {"Concatenated": concat}
 
 
@@ -311,16 +343,6 @@ class Split(Tool[SplitConfig]):
             self.table_name(grouping, values): group.copy()
             for values, group in data.groupby(grouping, observed=True, sort=True)
         }
-
-
-def unique_name(name: str, default: str, existing) -> str:
-    """``name`` (or ``default`` if empty), numbered if it is already taken."""
-    name = name or default
-    base, i = name, 1
-    while name in existing:
-        name = f"{base}_{i}"
-        i += 1
-    return name
 
 
 @register_tool
@@ -739,3 +761,163 @@ def import_preprocessor(settings):
     preprocessor.set_replacementheaders({r.part: r.new for r in rename.replacements})
     preprocessor.set_dropcolumns([(r.text, r.match) for r in drop.drop])
     return preprocessor
+
+
+@register_tool
+class Import(Tool[ImportConfig]):
+    name = "Import"
+    category = "Data"
+    description = (
+        "Reads data files (files, or folders with their subfolders: .txt and .csv)"
+        " into one table, with category values from the file names and a Source"
+        " column with each row's file."
+    )
+    in_menus = False  # File > Import...
+    inputs = (InputSpec("files", FileType, description="Data files and folders."),)
+    outputs = (OutputSpec("Imported", TableType),)
+
+    def run(self, files, *, config):
+        from flim.core.importer import dataimporter
+        from flim.core.parser import instantiate_parser
+
+        parser = instantiate_parser(f"flim.core.parser.{config.parser}")
+        if parser is None:
+            raise ValueError(f"{self.name}: unknown filename parser {config.parser}")
+        if config.patterns:
+            parser.set_regexpatterns(config.patterns)
+        importer = dataimporter()
+        importer.set_delimiter(config.delimiter)
+        paths = [str(f) for f in ([files] if isinstance(files, (str, os.PathLike)) else files)]
+        importer.add_files(paths, exclude=list(config.exclude_files))
+        if not importer.get_files():
+            raise ValueError(f"{self.name}: no data files found")
+        importer.set_parser(parser)
+        importer.set_column_combos(config.category_combinations)
+        importer.set_preprocessor(None)
+        data, filenames, _ = importer.import_data(
+            clash_name=config.clash_name,
+            clash_renames=config.renames(),
+            tool=self.short(),
+        )
+        if data is None or not filenames:
+            raise ValueError(f"{self.name}: none of the files could be read")
+        for message in _clash_messages(importer):
+            self.warn(message)
+        logger.info(f"{self.name}: {len(filenames)} file(s), {len(data)} rows")
+        return {"Imported": data}
+
+
+def _clash_messages(importer) -> list[str]:
+    """Warnings on the columns of the files that Import renamed or replaced."""
+    messages = []
+    renamed: dict = {}
+    for renames in importer.renamed.values():
+        for old, new in renames.items():
+            renamed.setdefault((old, new), 0)
+            renamed[(old, new)] += 1
+    for (old, new), n in renamed.items():
+        messages.append(f"the column '{old}' of {n} file(s) is renamed '{new}'")
+    replaced: dict = {}
+    for columns in importer.replaced.values():
+        for column in columns:
+            replaced[column] = replaced.get(column, 0) + 1
+    for column, n in replaced.items():
+        messages.append(
+            f"the column '{column}' of {n} file(s) is replaced by the file names'"
+        )
+    return messages
+
+
+IMPORT_STEPS = ("Rename Columns", "Drop Columns", "Calculate")  # after Import
+
+
+def import_steps(files, settings, exclude=()) -> pd.DataFrame:
+    """Import data files as `File` > `Import...` and `flimbatch` do: Import, then
+    Rename Columns, Drop Columns and Calculate, each with its settings.
+
+    Args:
+        files: Data files and folders.
+        settings: The app settings (AppSettings).
+        exclude: Further file names to leave out.
+
+    Returns:
+        The table.
+
+    Raises:
+        ValueError: If no file is found or can be read, or a step fails.
+    """
+    config = settings.tools.config(Import)
+    if exclude:
+        config = config.model_copy(
+            update={"exclude_files": list(config.exclude_files) + list(exclude)}
+        )
+    (table,) = Import()(files, config=config).values()
+    for name in IMPORT_STEPS:
+        tool = tools.get(name)
+        (table,) = tool()(table, config=settings.tools.config(tool)).values()
+    return table
+
+
+@register_tool
+class SourceFromPath(Tool[SourceFromPathConfig]):
+    name = "Directory/File to Source"
+    short_name = "Add Source"
+    category = "Data"
+    description = (
+        "Builds the Source column (each row's file as a URI) from the Directory and"
+        " File columns of tables imported by FLIMAnalyzer 0.6 or earlier."
+    )
+    outputs = (OutputSpec("With Source", TableType),)
+
+    @classmethod
+    def validate(cls, config, inputs):
+        issues = list(super().validate(config, inputs))
+        schema = inputs[0] if inputs else None
+        if schema is not None and schema.complete:
+            missing = [c for c in ("Directory", "File") if schema.column(c) is None]
+            if missing:
+                issues.append(Issue(None, f"The table has no {' or '.join(missing)} column"))
+        return issues
+
+    @classmethod
+    def proposals(cls, config, tables):
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None:
+            return {}
+        renames = make_room(
+            table.columns, [SOURCE], config.clash_name, config.renames(),
+            tool=cls.short(),
+        )  # fmt: skip
+        if not renames:
+            return {}
+        return {"clash_renames": [{"column": k, "new": v} for k, v in renames.items()]}
+
+    @classmethod
+    def validate_data(cls, config, tables):
+        renames = cls.proposals(config, tables).get("clash_renames") or []
+        return [
+            Issue("clash_renames", f"'{r['column']}' is taken: renamed '{r['new']}'", "warning")
+            for r in renames
+        ]
+
+    def run(self, data, *, config):
+        from flim.core.paths import path_uri
+
+        for column in ("Directory", "File"):
+            if column not in data.columns:
+                raise ValueError(f"{self.name}: the table has no {column} column")
+        source = [
+            None if pd.isna(d) or pd.isna(f) else path_uri(str(d), str(f))
+            for d, f in zip(data["Directory"], data["File"])
+        ]
+        renames = make_room(
+            data.columns, [SOURCE], config.clash_name, config.renames(),
+            tool=self.short(),
+        )  # fmt: skip
+        table = data.rename(columns=renames)
+        if renames:
+            self.warn(f"the column '{SOURCE}' is renamed '{renames[SOURCE]}'")
+        table[SOURCE] = pd.Series(source, index=data.index, dtype="object")
+        if not config.keep_original:
+            table = table.drop(columns=["Directory", "File"])
+        return {"With Source": table}

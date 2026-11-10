@@ -7,15 +7,23 @@ import itertools
 import logging
 import os
 import glob
+from pathlib import Path
 import pandas as pd
 
 from flim.core.categories import DELIMITER, fuse
+from flim.core.columns import CLASH_TEMPLATE, PROTECTED, make_room
 from flim.core.parser import PATTERN_CATEGORY, defaultparser
 import flim.core.preprocessor as pp
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_EXT = [".txt", ".csv"]
+SOURCE = "Source"  # the column with each row's origin, a URI
+
+
+def source_uri(path) -> str:
+    """The URI of a data file, e.g. `file:///data/9SR/Results-a-Dox15_01.txt`."""
+    return Path(path).resolve().as_uri()
 
 
 class dataimporter:
@@ -27,20 +35,6 @@ class dataimporter:
         self.parser = defaultparser()
         self.preprocessor = None
         self.combolist = None
-
-    def settings(self):
-        """The import settings (ImportSettings) of this importer."""
-        from flim.core.settings import ImportSettings
-
-        return ImportSettings(
-            include_files=list(self.files),
-            exclude_files=list(self.excluded_files),
-            delimiter=self.delimiter,
-            filename_parser=self.parser.settings(),
-            category_columns=self.get_reserved_categorycols(),
-            fitting_columns=[],
-            category_combinations=self.combolist,
-        )
 
     def set_parser(self, parser):
         if parser is not None:
@@ -142,7 +136,6 @@ class dataimporter:
             "New Cat",
             "Origin",
             "AE Label",
-            "Source",
             "Time",
             "Combined",
             "Cell line-Compartment",
@@ -170,7 +163,34 @@ class dataimporter:
         )
         return sorted(set(rcatnames))
 
-    def import_data(self, delimiter=None, parser=None, preprocessor=None, nrows=None):
+    def import_data(
+        self,
+        delimiter=None,
+        parser=None,
+        preprocessor=None,
+        nrows=None,
+        keep_existing=False,
+        clash_name=CLASH_TEMPLATE,
+        clash_renames=None,
+        tool="Import",
+    ):
+        """Read the files into one table.
+
+        Each file's rows get the columns of its file name: `Directory`, `File`, the
+        filename parser's categories, and `Source` (the file as a URI). A file that
+        already has a column of such a name: with `keep_existing` (File > Open: the
+        table as it is, e.g. one saved by FLIMAnalyzer) the column is kept and not
+        added; else a column of a protected name (`Source`, `Directory`, `File`) is
+        renamed (`clash_name`, `clash_renames`) and a category of the parser
+        replaces the file's column. What was renamed or replaced is in `renamed` and
+        `replaced`; `tool` is the template's `{tool}`.
+
+        Returns:
+            The table (None if no file could be read), the files read, and the names
+            of the columns taken from the file names.
+        """
+        self.renamed: dict = {}  # file -> {old: new}
+        self.replaced: dict = {}  # file -> columns replaced by the parser's
         if delimiter is None:
             delimiter = self.delimiter
         delimiter = "|".join(delimiter)
@@ -198,8 +218,22 @@ class dataimporter:
                 nrows=nrows,
             )
             headers = parser.parsefilename(f)
-            for key in headers:
-                df[key] = headers[key]
+            headers[SOURCE] = source_uri(f)  # provenance: a text column, a URI
+            if keep_existing:
+                headers = {k: v for k, v in headers.items() if k not in df.columns}
+            else:
+                protected = [k for k in headers if k in PROTECTED]
+                renames = make_room(
+                    df.columns, protected, clash_name, clash_renames, tool=tool
+                )
+                if renames:
+                    df = df.rename(columns=renames)
+                    self.renamed[f] = renames
+                replaced = [k for k in headers if k in df.columns]
+                if replaced:
+                    self.replaced[f] = replaced
+            for key, value in headers.items():
+                df[key] = value
             if preprocessor is not None:
                 df, ch = preprocessor.rename_headers(df)
                 df, dl = preprocessor.drop_columns(df)

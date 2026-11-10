@@ -24,8 +24,6 @@ from typing import Optional, Sequence
 import pandas as pd
 
 from flim.core.execution import ExecutionOptions
-from flim.core.importer import dataimporter
-from flim.core.parser import instantiate_parser
 from flim.core.paths import canonical_folder, folder_problem
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
@@ -45,39 +43,23 @@ class BatchError(Exception):
 
 
 def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
-    """Imports data files and folders with the import settings and the Rename
-    Columns, Drop Columns and Calculate tools' settings. The Filter tool's filters are
-    applied only if ``settings.filters.use`` is set.
+    """Imports data files and folders as `File` > `Import...` does: the Import tool,
+    then Rename Columns, Drop Columns and Calculate, with their settings. The Filter
+    tool's filters are applied only if ``settings.filters.use`` is set.
 
     Raises:
         BatchError: the filename parser is unknown, no data files were found, or none
             of the files could be read.
     """
-    imported = settings.import_
-    parser = instantiate_parser(f"flim.core.parser.{imported.filename_parser.parser}")
-    if parser is None:
-        raise BatchError(f"Unknown filename parser {imported.filename_parser.parser}")
-    if imported.filename_parser.patterns:
-        parser.set_regexpatterns(imported.filename_parser.patterns)
-    from flim.tools.data import import_preprocessor
+    from flim.tools.data import Filter, import_steps
 
-    preprocessor = import_preprocessor(settings)  # Rename, Drop Columns, Calculate
-
-    importer = dataimporter()
-    importer.set_delimiter(imported.delimiter)
-    importer.add_files(list(files), exclude=list(exclude) + imported.exclude_files)
-    if not importer.get_files():
-        raise BatchError("No data files found")
-    importer.set_parser(parser)
-    importer.set_column_combos(imported.category_combinations)
-    importer.set_preprocessor(preprocessor)
-    data, filenames, _ = importer.import_data()
-    if data is None or not filenames:
-        raise BatchError("None of the files could be read")
-    logger.info(f"Imported {len(filenames)} file(s): {data.shape[0]} rows")
+    try:
+        data = import_steps(list(files), settings, exclude=exclude)
+    except ValueError as err:
+        message = str(err).removeprefix("Import: ")
+        raise BatchError(message[:1].upper() + message[1:]) from None
+    logger.info(f"Imported {data.shape[0]} rows")
     if settings.filters.use:
-        from flim.tools.data import Filter
-
         data = filtered(data, settings.tools.config(Filter).filters)
     return data
 

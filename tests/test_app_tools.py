@@ -81,8 +81,9 @@ def test_menus_and_tool_panel_from_the_registry(frame):
     ]
     data_menu = menubar.GetMenu(titles.index("Data"))
     assert [i.GetItemLabelText() for i in data_menu.GetMenuItems()] == [
-        t.name for t in tools.by_category()["Data"]
+        t.name for t in tools.by_category()["Data"] if t.in_menus
     ]
+    assert "Import" not in [i.GetItemLabelText() for i in data_menu.GetMenuItems()]
 
 
 def test_run_a_tool(frame, monkeypatch, prefect_harness):

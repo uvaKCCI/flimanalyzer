@@ -67,12 +67,6 @@ class defaultparser(object):
         else:
             self.compiledpatterns = {}
 
-    def settings(self):
-        """The parser (its class name) and its patterns, as ParserSettings."""
-        from flim.core.settings import ParserSettings
-
-        return ParserSettings(parser=type(self).__name__, patterns=self.regexpatterns)
-
     def get_regexpatterns(self):
         return self.regexpatterns
 
