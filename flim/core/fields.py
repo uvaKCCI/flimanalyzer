@@ -33,6 +33,8 @@ class FieldSpec:
     allow_all: bool = False  # columns: "all" is allowed (all features)
     item_type: Optional[type] = None  # numbers: int or float
     model: Optional[type] = None  # model, models: the nested config class
+    variants: tuple = ()  # variants: the config classes of the kinds of entries
+    discriminator: Optional[str] = None  # variants: the field naming an entry's kind
     column_field: Optional[str] = None  # value: the field naming the column
     order: Optional[float] = None  # position in dialogs, see field_order
     advanced: bool = False  # model: a collapsed section (else shown inline)
@@ -152,7 +154,8 @@ def describe_annotation(annotation, metadata=()) -> dict:
     Kinds: bool, choice, multichoice, int, float, number (int or float), mixed (a
     number or one of ``choices``), text, value (a value of the column another field
     names), column, columns, path, paths, numbers, model, models, modelmap (a dict of
-    configs, e.g. per feature), json (anything else).
+    configs, e.g. per feature), variants (a list of configs of several kinds, told
+    apart by a discriminator field), json (anything else).
     """
     annotation, metadata = _unwrap(annotation, list(metadata))
     optional = False
@@ -220,6 +223,13 @@ def describe_annotation(annotation, metadata=()) -> dict:
             return {"kind": "paths"}
         if _is_model(item):
             return {"kind": "models", "model": item}
+        discriminator = next(
+            (getattr(m, "discriminator", None) for m in item_metadata if getattr(m, "discriminator", None)),
+            None,
+        )
+        variants = typing.get_args(item) if _is_union(item) else ()
+        if discriminator and variants and all(_is_model(v) for v in variants):
+            return {"kind": "variants", "variants": variants, "discriminator": discriminator}
     if origin is dict:
         key, value = typing.get_args(annotation) or (Any, Any)
         key, key_metadata = _unwrap(key, [])

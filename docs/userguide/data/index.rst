@@ -40,6 +40,8 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Replaces parts of the column names, as Import does.
    * - :doc:`Drop Columns <drop>`
      - Removes columns by their names, as Import does.
+   * - :doc:`Calculate <calculate>`
+     - Adds columns calculated from others, by expressions or functions, as Import does.
    * - :doc:`Saving Data <save>`
      - Saves a data table to a file.
    
@@ -64,4 +66,5 @@ After you load data, you can change the tables to show trends more clearly, chan
     separate
     rename
     drop
+    calculate
     save

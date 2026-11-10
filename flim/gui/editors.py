@@ -6,13 +6,14 @@ editors offer the columns of the input tables (``set_schema``).
 """
 
 import json
+import typing
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 import wx
 import wx.grid
 
-from flim.core.fields import FieldSpec, describe, field_order, visible
+from flim.core.fields import FieldSpec, describe, field_order, title_of, visible
 from flim.core.schema import TableSchema
 from flim.core.validation import guess_column
 
@@ -728,11 +729,58 @@ class ModelsEditor(_RowIssues, Editor):
         """(label, handler) of further buttons below the table."""
         return []
 
-    def create(self, parent):
-        model = self.spec.model
-        self.columns = [
-            s for s in visible(describe(model)) if s.kind not in ("model", "models")
+    def _columns(self) -> list:
+        """The fields shown as columns."""
+        return [
+            s
+            for s in visible(describe(self.spec.model))
+            if s.kind not in ("model", "models", "variants")
         ]
+
+    def _column_choices(self) -> dict:
+        """The values offered per column (name -> values); bool fields: yes, no."""
+        choices = {c.name: c.choices for c in self.columns if c.choices}
+        choices.update({c.name: ("yes", "no") for c in self.columns if c.kind == "bool"})
+        return choices
+
+    def _cell_text(self, column, value) -> str:
+        """The text of a cell: lists comma separated, dicts as `key=value`."""
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "yes" if value else "no"
+        if isinstance(value, (list, tuple)):
+            return ", ".join(str(v) for v in value)
+        if isinstance(value, dict):
+            return ", ".join(f"{k}={v}" for k, v in value.items())
+        return str(value)
+
+    def _cell_value(self, column, text: str):
+        """The value of a cell's text, as the config's validation takes it."""
+        container = self.containers.get(column.name)
+        if container is list:
+            return [t.strip() for t in text.split(",") if t.strip()]
+        if container is dict:
+            pairs = [t.split("=", 1) for t in text.split(",") if t.strip()]
+            if any(len(p) != 2 for p in pairs):
+                raise ValueError(f"{column.title}: write key=value, e.g. const=3100")
+            return {k.strip(): v.strip() for k, v in pairs}
+        return text
+
+    def _containers(self) -> dict:
+        """List and dict fields by name (their cells are converted)."""
+        models = self.spec.variants or (self.spec.model,)
+        containers = {}
+        for model in models:
+            for name, info in model.model_fields.items():
+                origin = typing.get_origin(info.annotation)
+                if origin in (list, dict):
+                    containers[name] = origin
+        return containers
+
+    def create(self, parent):
+        self.columns = self._columns()
+        self.containers = self._containers()
         self.offset = 1 if self.key_title else 0
         panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -746,7 +794,7 @@ class ModelsEditor(_RowIssues, Editor):
         self.grid.SetMinSize((-1, 110))
         # rows with issues: a marker in the first column, the messages as tooltip
         self._init_row_issues()
-        self._set_choices({c.name: c.choices for c in self.columns if c.choices})
+        self._set_choices(self._column_choices())
         self.grid.GetGridWindow().Bind(wx.EVT_MOTION, self._on_motion)
         self.grid.Bind(wx.grid.EVT_GRID_CELL_CHANGED, self.changed)
         sizer.Add(self.grid, 1, wx.EXPAND)
@@ -792,7 +840,7 @@ class ModelsEditor(_RowIssues, Editor):
         # column cells: a drop-down of the input's columns of the role (unknown: text)
         if schema is None:
             return
-        choices = {c.name: c.choices for c in self.columns if c.choices}
+        choices = self._column_choices()
         for column in self.columns:
             if column.kind == "column":
                 choices[column.name] = schema.by_role(column.role)
@@ -832,7 +880,7 @@ class ModelsEditor(_RowIssues, Editor):
             for col, column in enumerate(self.columns):
                 text = self.grid.GetCellValue(row, col + self.offset).strip()
                 if text != "":
-                    values[column.name] = text
+                    values[column.name] = self._cell_value(column, text)
             key = self.grid.GetCellValue(row, 0).strip() if self.key_title else ""
             rows.append((key, values))
         return rows
@@ -843,9 +891,8 @@ class ModelsEditor(_RowIssues, Editor):
         if self.key_title:
             self.grid.SetCellValue(row, 0, key)
         for col, column in enumerate(self.columns):
-            cell = values.get(column.name)
             self.grid.SetCellValue(
-                row, col + self.offset, "" if cell is None else str(cell)
+                row, col + self.offset, self._cell_text(column, values.get(column.name))
             )
 
     def get(self):
@@ -864,6 +911,89 @@ class ModelsEditor(_RowIssues, Editor):
                 item if isinstance(item, dict) else item.model_dump(), str(key)
             )
         self.grid.AutoSizeColumns()
+
+
+class VariantsEditor(ModelsEditor):
+    """A list of configs of several kinds (e.g. Calculate's expressions and
+    functions) as one table: a column for the kind, then the fields of all kinds.
+    Cells of fields that a row's kind doesn't have are greyed out and not editable."""
+
+    INACTIVE = wx.Colour(225, 225, 225)
+
+    def _columns(self):
+        disc = self.spec.discriminator
+        per_kind = {}
+        for variant in self.spec.variants:
+            per_kind[variant.model_fields[disc].default] = [
+                s
+                for s in visible(describe(variant))
+                if s.kind not in ("model", "models", "variants")
+            ]
+        self.kind_fields = {k: {s.name for s in v} for k, v in per_kind.items()}
+        shared_names = set.intersection(*self.kind_fields.values())
+        order = list(self.spec.variants[0].model_fields)
+        shared = [s for s in next(iter(per_kind.values())) if s.name in shared_names]
+        before = [s for s in shared if order.index(s.name) < order.index(disc)]
+        after = [s for s in shared if s not in before]
+        own, seen = [], set()
+        for specs in per_kind.values():
+            for s in specs:
+                if s.name not in shared_names and s.name not in seen:
+                    own.append(s)
+                    seen.add(s.name)
+        info = self.spec.variants[0].model_fields[disc]
+        kind = FieldSpec(
+            name=disc,
+            title=info.title or title_of(disc),
+            kind="choice",
+            description=info.description or "",
+            choices=tuple(per_kind),
+        )
+        return before + [kind] + own + after
+
+    def _kind_column(self) -> int:
+        names = [c.name for c in self.columns]
+        return names.index(self.spec.discriminator) + self.offset
+
+    def _apply_kind(self, row: int) -> None:
+        """Grey out and clear the cells of fields the row's kind doesn't have."""
+        kind = self.grid.GetCellValue(row, self._kind_column()).strip()
+        fields = self.kind_fields.get(kind)
+        for col, column in enumerate(self.columns):
+            col += self.offset
+            active = fields is None or column.name in fields or column.name == self.spec.discriminator
+            self.grid.SetReadOnly(row, col, not active)
+            if active:
+                self.grid.SetCellBackgroundColour(row, col, self.grid.GetDefaultCellBackgroundColour())
+            else:
+                self.grid.SetCellValue(row, col, "")
+                self.grid.SetCellBackgroundColour(row, col, self.INACTIVE)
+
+    def changed(self, event=None):
+        if isinstance(event, wx.grid.GridEvent) and event.GetRow() >= 0:
+            self._apply_kind(event.GetRow())
+            self.grid.ForceRefresh()
+        super().changed(event)
+
+    def _on_add(self, event):
+        variant = self.spec.variants[0]
+        self.add_row(variant().model_dump())
+        self.changed()
+
+    def add_row(self, values: dict, key: str = "") -> None:
+        super().add_row(values, key)
+        self._apply_kind(self.grid.GetNumberRows() - 1)
+
+    def rows(self):
+        rows = []
+        for key, values in super().rows():
+            fields = self.kind_fields.get(values.get(self.spec.discriminator))
+            if fields is not None:
+                values = {
+                    k: v for k, v in values.items() if k in fields or k == self.spec.discriminator
+                }
+            rows.append((key, values))
+        return rows
 
 
 class ModelMapEditor(ModelsEditor):
@@ -1406,6 +1536,7 @@ def editor_class(spec: FieldSpec) -> type[Editor]:
         "paths": PathsEditor,
         "model": ModelEditor,
         "models": ModelsEditor,
+        "variants": VariantsEditor,
         "modelmap": ModelMapEditor,
         "json": JsonEditor,
     }.get(spec.kind, TextEditor)

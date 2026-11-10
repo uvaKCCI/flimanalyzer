@@ -11,9 +11,8 @@ A settings file has a section per settings area, and one per tool::
     {"schema_version": 2,
      "results_dir": null, "execution": {"executor": "local", ...},
      "prefect_server": true, "log": {...}, "cache": {...},
-     "import": {...}, "preprocess": {...}, "filters": {...},
-     "tools": {"Summarize": {"config": {...}, "autosave": false, "results_dir": null},
-               ...}}
+     "import": {...}, "filters": {...},
+     "tools": {"Summarize": {"config": {...}, "autosave": {...}}, ...}}
 
 A file may have only some of the sections (e.g. only one tool's, saved from its
 dialog): loading it changes only those (:func:`update_settings`).
@@ -21,7 +20,8 @@ dialog): loading it changes only those (:func:`update_settings`).
 - :class:`ToolSettingsMap`: the settings of each tool (its config, autosave and results
   folder), by tool name.
 - :class:`AppSettings`: the results folder, the executor, the Prefect server, the log and
-  cache folders, import, preprocessing, filters and the tool settings.
+  cache folders, import, filters and the tool settings (Import's renaming, dropping
+  and calculating: the Rename Columns, Drop Columns and Calculate tools' settings).
 """
 
 import copy
@@ -72,12 +72,6 @@ class ImportSettings(_Settings):
     category_columns: list[str] = []
     fitting_columns: list[str] = []
     category_combinations: Optional[list] = None
-
-
-class PreprocessSettings(_Settings):
-    # new column -> [function name, [argument columns]]; rename and drop are the Rename
-    # Columns and Drop Columns tools' settings (version 2)
-    calculate: dict[str, list] = {}
 
 
 class FilterSettings(_Settings):
@@ -276,7 +270,6 @@ class AppSettings(_Settings):
         " Read only from the user settings file.",
     )
     import_: ImportSettings = Field(default_factory=ImportSettings, alias="import")
-    preprocess: PreprocessSettings = Field(default_factory=PreprocessSettings)
     filters: FilterSettings = Field(default_factory=FilterSettings)
     tools: ToolSettingsMap = Field(default_factory=ToolSettingsMap)
 
@@ -284,14 +277,12 @@ class AppSettings(_Settings):
 
     @classmethod
     def default(cls) -> "AppSettings":
-        """The default settings: those of the importer and preprocessor, and the
-        default range filters."""
+        """The default settings: those of the importer, and the default range
+        filters."""
         from flim.core.importer import dataimporter
-        from flim.core.preprocessor import defaultpreprocessor
 
         return cls(
             import_=dataimporter().settings(),
-            preprocess=defaultpreprocessor().settings(),
             filters=FilterSettings(
                 range_filters=[f.get_params() for f in default_range_filters()]
             ),
@@ -411,6 +402,23 @@ def _renamed_key(values: dict, old: str, new: str) -> bool:
     return False
 
 
+def _v1_calculations(calculate: dict) -> list:
+    """0.6's `{column: [function, [argument columns]]}` as Calculate's calculations:
+    in the order Import makes the default ones, then the others in file order."""
+    from flim.core.preprocessor import DEFAULT_CALCULATIONS
+
+    order = {name: i for i, (name, _, _) in enumerate(DEFAULT_CALCULATIONS)}
+    names = sorted(calculate, key=lambda n: order.get(n, len(order)))
+    calculations = []
+    for name in names:
+        entry = calculate[name]
+        function, args = (list(entry) + [None, []])[:2]
+        calculations.append(
+            {"kind": "function", "name": name, "function": function, "args": args}
+        )
+    return calculations
+
+
 def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
     """Upgrade version 1 (0.6) to 2 (0.7).
 
@@ -449,6 +457,13 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
                 "drop": [{"text": t, "match": "contains"} for t in drop]
             }
             changes.converted.append("preprocess.drop to the Drop Columns tool")
+        if "calculate" in preprocess:
+            data["tools"].setdefault("Calculate", {})["config"] = {
+                "calculations": _v1_calculations(preprocess.pop("calculate") or {})
+            }
+            changes.converted.append("preprocess.calculate to the Calculate tool")
+        if not preprocess:
+            data.pop("preprocess")
     moved = 0
     for name, entry in (data.get("tools") or {}).items():
         if isinstance(entry, dict) and not isinstance(entry.get("autosave"), dict):

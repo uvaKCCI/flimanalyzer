@@ -47,7 +47,7 @@ In addition to opening files, the import can:
 6. **Optional:** In the `Drop Columns` table, enter the columns to drop from the data, one per line. **Note: A column is dropped if its header contains an entry anywhere, not only if the whole header matches.** These are the settings of the [Drop Columns](/userguide/data/drop.md) tool; an entry that has another match there (for example `ends with`) keeps it.
 
 7. Click `Add Files` to select one or more files to import. **Data from all listed files will be concatenated into a single data table.** Select individual files in the list and click `Remove Files` to remove them from the list. Click `Reset` to clear the file list.
-8. Click `Import`. FLIMAnalyzer reads the listed files, processes them and stacks them into a single data table. The files should all have the same column headers (the first line of each file).
+8. Click `Import`. FLIMAnalyzer reads the listed files, processes them and stacks them into a single data table. It then adds the calculated columns of the [Calculate](/userguide/data/calculate.md) tool's settings, for example `NAD(P)H tm` and `FLIRR`. The files should all have the same column headers (the first line of each file).
 
 ![](/images/files/import-dlg.png)
 

@@ -5,8 +5,6 @@ further features."""
 
 import logging
 import numpy as np
-import numbers
-import flim.core
 
 logger = logging.getLogger(__name__)
 
@@ -81,70 +79,36 @@ DEFAULT_RENAME = {
 DEFAULT_DROP = ("Exc1_", "Exc2_", "Exc3_")
 
 
+# the calculations Import makes by default (the Calculate tool's defaults), in order:
+# a calculation can use the columns of earlier ones
+DEFAULT_CALCULATIONS = (
+    ('NAD(P)H tm', 'tm', ['NAD(P)H a1[%]', 'NAD(P)H t1', 'NAD(P)H a2[%]', 'NAD(P)H t2']),
+    ('NAD(P)H a2[%]/a1[%]', 'ratio', ['NAD(P)H a2[%]', 'NAD(P)H a1[%]']),
+    ('NADPH %', 'nadph_perc', ['NAD(P)H t2']),
+    ('NADH %', 'nadh_perc', ['NADPH %']),
+    ('NADPH/NADH', 'ratio', ['NADPH %', 'NADH %']),  # after NADH % (0.6: before)
+    ('trp tm', 'tm', ['trp a1[%]', 'trp t1', 'trp a2[%]', 'trp t2']),
+    ('trp E%1', 'trp_Eperc_1', ['trp tm']),
+    ('trp E%2', 'trp_Eperc_2', ['trp t1', 'trp t2']),
+    ('trp E%3', 'trp_Eperc_3', ['trp t1']),
+    ('trp r1', 'trp_r', ['trp E%1']),
+    ('trp r2', 'trp_r', ['trp E%2']),
+    ('trp r3', 'trp_r', ['trp E%3']),
+    ('trp a1[%]/a2[%]', 'ratio', ['trp a1[%]', 'trp a2[%]']),
+    ('FAD tm', 'tm', ['FAD a1[%]', 'FAD t1', 'FAD a2[%]', 'FAD t2']),
+    ('FAD a1[%]/a2[%]', 'ratio', ['FAD a1[%]', 'FAD a2[%]']),
+    ('FAD photons/NAD(P)H photons', 'ratio', ['FAD photons', 'NAD(P)H photons']),
+    ('NAD(P)H tm/FAD tm', 'ratio', ['NAD(P)H tm', 'FAD tm']),
+    ('FLIRR', 'ratio', ['NAD(P)H a2[%]', 'FAD a1[%]']),
+    ('NADPH a2/FAD a1', 'ratio', ['NAD(P)H a2', 'FAD a1']),
+)
+
+
 class defaultpreprocessor:
     def __init__(self):
         self.newheaders = dict(DEFAULT_RENAME)
         self.dropcolumns = list(DEFAULT_DROP)
-        self.calccolumns = [
-            "NAD(P)H tm",
-            "NAD(P)H a2[%]/a1[%]",
-            "NADPH %",
-            "NADPH/NADH",
-            "NADH %",
-            "trp tm",
-            "trp E%1",
-            "trp E%2",
-            "trp E%3",
-            "trp r1",
-            "trp r2",
-            "trp r3",
-            "trp a1[%]/a2[%]",
-            "FAD tm",
-            "FAD a1[%]/a2[%]",
-            "FAD photons/NAD(P)H photons",
-            "NAD(P)H tm/FAD tm",
-            "FLIRR",
-            "NADPH a2/FAD a1",
-        ]
-        self.functions = {
-            "NADPH %": [nadph_perc.__name__, ["NAD(P)H t2"]],
-            "NAD(P)H tm": [
-                tm.__name__,
-                ["NAD(P)H a1[%]", "NAD(P)H t1", "NAD(P)H a2[%]", "NAD(P)H t2"],
-            ],
-            "NAD(P)H a2[%]/a1[%]": [ratio.__name__, ["NAD(P)H a2[%]", "NAD(P)H a1[%]"]],
-            "NADH %": [nadh_perc.__name__, ["NADPH %"]],
-            "NADPH/NADH": [ratio.__name__, ["NADPH %", "NADH %"]],
-            "trp tm": [tm.__name__, ["trp a1[%]", "trp t1", "trp a2[%]", "trp t2"]],
-            "trp E%1": [trp_Eperc_1.__name__, ["trp tm"]],
-            "trp E%2": [trp_Eperc_2.__name__, ["trp t1", "trp t2"]],
-            "trp E%3": [trp_Eperc_3.__name__, ["trp t1"]],
-            "trp r1": [trp_r.__name__, ["trp E%1"]],
-            "trp r2": [trp_r.__name__, ["trp E%2"]],
-            "trp r3": [trp_r.__name__, ["trp E%3"]],
-            "trp a1[%]/a2[%]": [ratio.__name__, ["trp a1[%]", "trp a2[%]"]],
-            "FAD tm": [tm.__name__, ["FAD a1[%]", "FAD t1", "FAD a2[%]", "FAD t2"]],
-            "FAD a1[%]/a2[%]": [ratio.__name__, ["FAD a1[%]", "FAD a2[%]"]],
-            "FAD photons/NAD(P)H photons": [
-                ratio.__name__,
-                ["FAD photons", "NAD(P)H photons"],
-            ],
-            "NAD(P)H tm/FAD tm": [ratio.__name__, ["NAD(P)H tm", "FAD tm"]],
-            "FLIRR": [ratio.__name__, ["NAD(P)H a2[%]", "FAD a1[%]"]],
-            "NADPH a2/FAD a1": [ratio.__name__, ["NAD(P)H a2", "FAD a1"]],
-        }
-
-    def settings(self):
-        """The preprocess settings (PreprocessSettings) of this preprocessor."""
-        from flim.core.settings import PreprocessSettings
-
-        return PreprocessSettings(calculate=dict(self.functions))
-
-    def columns_available(self, data, args):
-        for arg in args:
-            if not isinstance(arg, numbers.Number) and data.get(arg) is None:
-                return False
-        return True
+        self.calculations = None  # None: the Calculate tool's defaults
 
     def set_replacementheaders(self, headers):
         self.newheaders = headers
@@ -175,25 +139,32 @@ class defaultpreprocessor:
             data.columns = currentheaders
         return data, changedheaders
 
+    def set_calculations(self, calculations):
+        """Set the calculations (the Calculate tool's `calculations`); None: its
+        defaults."""
+        self.calculations = calculations
+
     def calculate(self, data, inplace=True):
-        calculated = []
-        skipped = []
-        if not inplace:
-            data = data.copy()
-        for acol in self.calccolumns:
-            if acol in self.functions:
-                funcname = self.functions[acol][0]
-                funcargs = self.functions[acol][1]
-                funcobj = getattr(flim.core.preprocessor, funcname)
-                func = np.vectorize(funcobj)
-                if not self.columns_available(data, funcargs):
-                    skipped.append(self.functions[acol])
-                    continue
-                data[acol] = func(*np.transpose(data[funcargs].values))
-                calculated.append(self.functions[acol])
-            else:
-                skipped.append(self.functions[acol])
-        return data, calculated, skipped
+        """Calculate the new columns; a calculation that uses a column the table
+        doesn't have is skipped. Returns the table, the calculated and the skipped
+        columns' names."""
+        from flim.core.calculate import calculate
+
+        calculations = self.calculations
+        if calculations is None:
+            from flim.configs.data import CalculateConfig
+
+            calculations = CalculateConfig().calculations
+        outcome = calculate(data, calculations)
+        for name, reason in outcome.skipped.items():
+            logger.debug(f"Calculate: {name} skipped: {reason}")
+        if inplace:
+            for name in outcome.data.columns.difference(data.columns, sort=False):
+                data[name] = outcome.data[name]
+            for name in outcome.replaced:
+                data[name] = outcome.data[name]
+            outcome.data = data
+        return outcome.data, outcome.calculated, list(outcome.skipped)
 
     def reorder_columns(self, data, first=[]):
         if first is None or len(first) == 0:

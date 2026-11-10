@@ -46,7 +46,7 @@ def test_defaults():
     assert settings.execution == LocalExecutorSettings() and settings.prefect_server
     assert settings.log.dir is None and settings.log.max_age_days == 30
     assert settings.cache.dir is None
-    assert set(settings.preprocess.model_dump()) == {"calculate"}  # rename, drop: tools
+    assert "preprocess" not in settings.to_json()  # the Rename, Drop, Calculate tools'
     assert settings.filters.range_filters[0]["name"] == "trp t1"
     assert settings.tools.entries == {}  # the tools' defaults: their configs'
 
@@ -114,8 +114,6 @@ def test_invalid_tool_settings_give_the_defaults(caplog):
 def test_settings_from_the_importer_and_preprocessor(tmp_path):
     from flim.core.importer import dataimporter
     from flim.core.parser import treatment_fov_cell_parser
-    from flim.core.preprocessor import defaultpreprocessor
-
     importer = dataimporter()
     importer.set_delimiter(";")
     importer.set_parser(treatment_fov_cell_parser())
@@ -127,9 +125,6 @@ def test_settings_from_the_importer_and_preprocessor(tmp_path):
     # the parser's own name (was "defaultparser" for every parser)
     assert imported.filename_parser.parser == "treatment_fov_cell_parser"
     assert imported.filename_parser.patterns[0]["Category"] == "Treatment"
-    preprocessor = defaultpreprocessor()
-    preprocessor.functions = {"x2": ["tm", ["x"]]}
-    assert preprocessor.settings().calculate == {"x2": ["tm", ["x"]]}
 
 
 def test_settings_of_version_1():
@@ -139,9 +134,9 @@ def test_settings_of_version_1():
     assert (entry.autosave.enabled, entry.autosave.results_dir) == (True, Path("results"))
     assert entry.autosave.formats == []
     assert settings.tools.config(tools.get("K-Means")).n_clusters == 7
-    # by tool; 0.6's preprocess.rename and drop: the Rename and Drop Columns tools
+    # by tool; 0.6's preprocess: the Rename Columns, Drop Columns and Calculate tools
     assert set(settings.to_json()["tools"]) == {
-        "Summarize", "K-Means", "Rename Columns", "Drop Columns"
+        "Summarize", "K-Means", "Rename Columns", "Drop Columns", "Calculate"
     }
     # version 2: working_dir is results_dir, display is gone
     assert settings.results_dir == Path("/Users/khs3z/FLIMAnalyzerResults")
@@ -231,7 +226,7 @@ def test_rename_and_drop_of_version_1_become_tool_settings():
     data["preprocess"]["drop"] = ["Exc1_", "Exc4_"]
     changes = Changes()
     migrated = migrate(data, changes)
-    assert set(migrated["preprocess"]) == {"calculate"}
+    assert "preprocess" not in migrated
     assert "preprocess.rename to the Rename Columns tool" in changes.converted
     assert "preprocess.drop to the Drop Columns tool" in changes.converted
     settings = AppSettings.model_validate(migrated)
@@ -257,3 +252,23 @@ def test_import_applies_the_tools_settings():
     data, dropped = preprocessor.drop_columns(data)
     assert dropped == ["x"]
     assert list(data.columns) == ["t1", "xy"]
+
+
+def test_calculate_of_version_1_becomes_function_calculations():
+    from flim.tools.data import Calculate
+
+    data = json.loads(V1_FILE.read_text())
+    data["preprocess"]["calculate"] = {
+        "NADPH/NADH": ["ratio", ["NADPH %", "NADH %"]],
+        "mine": ["ratio", ["a", "b"]],
+        "NADH %": ["nadh_perc", ["NADPH %"]],
+    }
+    changes = Changes()
+    settings = AppSettings.model_validate(migrate(data, changes))
+    assert "preprocess.calculate to the Calculate tool" in changes.converted
+    calculations = settings.tools.config(Calculate).calculations
+    # Import's order first (NADH % before NADPH/NADH), then the others
+    assert [c.name for c in calculations] == ["NADH %", "NADPH/NADH", "mine"]
+    assert (calculations[2].kind, calculations[2].function, calculations[2].args) == (
+        "function", "ratio", ["a", "b"]
+    )

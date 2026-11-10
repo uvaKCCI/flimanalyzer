@@ -603,3 +603,43 @@ def test_no_statistics_disable_ok(dialog):
     d.fields.editors["aggs"].check_all(False)  # every statistic unchecked
     d.validate()
     assert not d.ok_button.IsEnabled()
+
+
+def test_calculate_table_of_two_kinds(dialog):
+    from flim.configs import CalculateConfig
+    from flim.configs.data import ExpressionCalculation, FunctionCalculation
+
+    config = CalculateConfig(
+        calculations=[
+            ExpressionCalculation(name="r", expression="`FAD tm` / 2", keep=False),
+            FunctionCalculation(name="E", function="trp_Eperc_1", args=["trp tm"], params={"const": 3100}),
+        ]
+    )
+    d = dialog("Calculate", config)
+    editor = d.fields.editors["calculations"]
+    titles = [editor.grid.GetColLabelValue(c) for c in range(editor.grid.GetNumberCols())]
+    assert titles == [
+        "Use", "Column", "Kind", "Expression", "Function", "Arguments", "Parameters",
+        "Keep", "Type", "Description",
+    ]
+    col = {t: i for i, t in enumerate(titles)}
+    grid = editor.grid
+    assert grid.GetCellValue(0, col["Keep"]) == "no"
+    assert grid.GetCellValue(1, col["Arguments"]) == "trp tm"
+    assert grid.GetCellValue(1, col["Parameters"]) == "const=3100.0"
+    # the cells of the other kind's fields are not editable
+    assert grid.IsReadOnly(0, col["Function"]) and not grid.IsReadOnly(0, col["Expression"])
+    assert grid.IsReadOnly(1, col["Expression"]) and not grid.IsReadOnly(1, col["Arguments"])
+    calculations = d.result().config.calculations
+    assert calculations == config.calculations
+    # a new row is an expression; changing its kind changes the editable cells
+    editor._on_add(None)
+    assert grid.GetCellValue(2, col["Kind"]) == "expression"
+    grid.SetCellValue(2, col["Kind"], "function")
+    editor._apply_kind(2)
+    assert grid.IsReadOnly(2, col["Expression"]) and not grid.IsReadOnly(2, col["Function"])
+    grid.SetCellValue(2, col["Column"], "x")
+    grid.SetCellValue(2, col["Function"], "nope")
+    d.validate()
+    # row 2: an unknown function; rows 0 and 1: skipped (columns not in the table)
+    assert editor.marks == {0: "warning", 1: "warning", 2: "error"}

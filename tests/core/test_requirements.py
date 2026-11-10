@@ -19,6 +19,7 @@ from flim.core.schema import TableSchema
 EXPECTED = {
     # data
     "Concatenate": (0, 0),
+    "Calculate": (0, 0),
     "Drop Columns": (0, 0),
     "Filter": (0, 0),
     "Fuse Categories": (0, 2),

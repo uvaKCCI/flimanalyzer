@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 
 from flim.configs.data import (
+    CalculateConfig,
     DropColumnsConfig,
     RenameColumnsConfig,
     FuseCategoriesConfig,
@@ -634,9 +635,76 @@ class DropColumns(Tool[DropColumnsConfig]):
         return {"Columns Dropped": data.drop(columns=dropped)}
 
 
+@register_tool
+class Calculate(Tool[CalculateConfig]):
+    name = "Calculate"
+    category = "Data"
+    description = (
+        "Calculates new columns from others, in order: by expressions (arithmetic,"
+        " comparisons, math functions) or by registered functions such as tm and"
+        " ratio. Import makes the same calculations."
+    )
+    outputs = (OutputSpec("Calculated", TableType),)
+
+    @classmethod
+    def _issues(cls, problems) -> list:
+        return [
+            Issue(f"calculations[{i}].{field}", message, severity)
+            for i, field, severity, message in problems
+        ]
+
+    @classmethod
+    def validate(cls, config, schemas=()):
+        from flim.core.calculate import check
+
+        issues = list(super().validate(config, schemas))
+        # columns are checked against the tables (validate_data): without them only
+        # what doesn't depend on the data
+        return issues + cls._issues(check(config.calculations))
+
+    @classmethod
+    def validate_data(cls, config, tables):
+        from flim.core.calculate import check
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None:
+            return []
+        problems = check(config.calculations, list(table.columns))
+        return cls._issues([p for p in problems if p[2] == "warning"])
+
+    @classmethod
+    def example(cls, config, tables):
+        from flim.core.calculate import calculate
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None or table.empty:
+            return None
+        try:
+            outcome = calculate(table.iloc[:1], config.calculations)
+        except ValueError:
+            return None  # shown as an issue
+        shown = [n for n in outcome.calculated if n in outcome.data.columns]
+        if not shown:
+            return "nothing calculated"
+        value = outcome.data[shown[0]].iloc[0]
+        text = f"{value:.4g}" if isinstance(value, float) else str(value)
+        more = f" (and {len(shown) - 1} more)" if len(shown) > 1 else ""
+        return f"{shown[0]} = {text}{more}"
+
+    def run(self, data, *, config):
+        from flim.core.calculate import calculate
+
+        outcome = calculate(data, config.calculations)
+        for name, reason in outcome.skipped.items():
+            self.warn(f"{name} skipped: {reason}")
+        for name in outcome.replaced:
+            self.warn(f"{name}: the input column is replaced")
+        return {"Calculated": outcome.data}
+
+
 def import_preprocessor(settings):
-    """Return the preprocessor that Import applies, with the Rename Columns and
-    Drop Columns tools' settings (its calculations are its own, as before).
+    """Return the preprocessor that Import applies, with the Rename Columns, Drop
+    Columns and Calculate tools' settings.
 
     Args:
         settings: The app settings (AppSettings).
@@ -646,6 +714,7 @@ def import_preprocessor(settings):
     rename = settings.tools.config(RenameColumns)
     drop = settings.tools.config(DropColumns)
     preprocessor = defaultpreprocessor()
+    preprocessor.set_calculations(settings.tools.config(Calculate).calculations)
     preprocessor.set_replacementheaders({r.part: r.new for r in rename.replacements})
     preprocessor.set_dropcolumns([(r.text, r.match) for r in drop.drop])
     return preprocessor

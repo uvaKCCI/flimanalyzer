@@ -1,6 +1,6 @@
 """Configs of the Data tools."""
 
-from typing import Any, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import Field, field_validator, model_validator
 
@@ -446,4 +446,79 @@ class DropColumnsConfig(DataTaskConfig):
         default_factory=_default_drop_rules,
         title="Drop",
         description="The columns whose names match one of these.",
+    )
+
+
+class Calculation(BaseConfig):
+    """A new column calculated from others (base of the calculation kinds)."""
+
+    enabled: bool = Field(default=True, title="Use", description="Unchecked: not calculated.")
+    name: str = Field(default="", title="Column", description="The new column's name.")
+    kind: str = Field(
+        default="expression",
+        title="Kind",
+        description="expression: a formula; function: a registered function.",
+    )
+    keep: bool = Field(
+        default=True,
+        title="Keep",
+        description="Unchecked: a helper column, used by later calculations but not"
+        " in the result.",
+    )
+    column_type: Literal["feature", "category"] = Field(
+        default="feature", title="Type", description="category: values become categories."
+    )
+    description: str = Field(default="", title="Description")
+
+
+class ExpressionCalculation(Calculation):
+    """A column calculated by an expression of columns, numbers and math functions."""
+
+    kind: Literal["expression"] = "expression"
+    expression: str = Field(
+        default="",
+        title="Expression",
+        description="Arithmetic, comparisons and math functions (log, sqrt, ...);"
+        " column names with spaces or other characters in backticks: `FAD tm`.",
+    )
+    engine: Literal["pandas"] = "pandas"
+
+
+class FunctionCalculation(Calculation):
+    """A column calculated by a registered function, row by row."""
+
+    kind: Literal["function"] = "function"
+    function: str = Field(default="", title="Function", description="e.g. tm, ratio.")
+    args: list[str] = Field(
+        default=[], title="Arguments", description="The columns, in the function's order."
+    )
+    params: dict[str, float] = Field(
+        default={}, title="Parameters", description="Keyword parameters, e.g. const=3100."
+    )
+
+
+CalculationEntry = Annotated[
+    Union[ExpressionCalculation, FunctionCalculation], Field(discriminator="kind")
+]
+
+
+def _default_calculations() -> list:
+    from flim.core.preprocessor import DEFAULT_CALCULATIONS
+
+    return [
+        FunctionCalculation(name=n, function=f, args=list(a))
+        for n, f, a in DEFAULT_CALCULATIONS
+    ]
+
+
+class CalculateConfig(DataTaskConfig):
+    """Calculates new columns, in order: later ones may use earlier ones' columns."""
+
+    hidden_fields = frozenset({"features", "grouping"})
+
+    calculations: list[CalculationEntry] = Field(
+        default_factory=_default_calculations,
+        title="Calculations",
+        description="In order; a calculation that uses a column the table doesn't"
+        " have is skipped.",
     )

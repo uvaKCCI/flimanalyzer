@@ -67,5 +67,7 @@ def test_calculate_adds_columns_from_available_inputs(flim_data):
     )
     # no trp columns in the input, so trp calculations are skipped
     assert "trp tm" not in data.columns
-    assert any(entry[1][0].startswith("trp") for entry in skipped)
+    assert any(name.startswith("trp") for name in skipped)
     assert len(calculated) > 0
+    # after NADH % (0.6 calculated it before NADH % and so always skipped it)
+    assert "NADPH/NADH" in calculated
