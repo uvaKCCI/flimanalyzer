@@ -259,9 +259,50 @@ class Merge(Tool[MergeConfig]):
         if on is None:
             right_cats = set(category_columns(right))
             on = [c for c in category_columns(left) if c in right_cats]
-        merged = pd.merge(left, right, how=config.how, on=on)
+        suffixes = (config.suffix_left, config.suffix_right)
+        merged = pd.merge(left, right, how=config.how, on=on, suffixes=suffixes)
         merged[on] = merged[on].astype("category")
+        # columns both tables have (not merged on): one column if they agree
+        shared = [c for c in left.columns if c in right.columns and c not in on]
+        kept = []
+        for column in shared:
+            a, b = (merged[f"{column}{s}"] for s in suffixes)
+            if config.combine_identical and _agree(a, b):
+                position = list(merged.columns).index(a.name)
+                values = _combined(a, b)
+                merged = merged.drop(columns=[a.name, b.name])
+                merged.insert(position, column, values)
+            else:
+                kept.append(column)
+        if kept:
+            listed = ", ".join(f"'{c}'" for c in kept[:5]) + (" ..." if len(kept) > 5 else "")
+            self.warn(
+                f"{len(kept)} column(s) of both tables differ and keep the suffixes"
+                f" '{suffixes[0]}', '{suffixes[1]}': {listed}"
+            )
         return {"Merged": categories_first(merged)}
+
+
+def _agree(a: pd.Series, b: pd.Series) -> bool:
+    """Whether two columns have the same value in every row where both have one
+    (exactly; `1` equals `1.0`)."""
+    both = a.notna() & b.notna()
+    if not both.any():
+        return True
+    return bool((a[both].astype(object) == b[both].astype(object)).all())
+
+
+def _combined(a: pd.Series, b: pd.Series) -> pd.Series:
+    """Column `a` with its missing values taken from `b`, keeping `a`'s type."""
+    fill = a.isna() & b.notna()
+    result = a.copy()
+    if not fill.any():
+        return result
+    if isinstance(result.dtype, pd.CategoricalDtype):
+        new = [v for v in pd.unique(b[fill]) if v not in result.cat.categories]
+        result = result.cat.add_categories(new)
+    result[fill] = b[fill]
+    return result
 
 
 @register_tool

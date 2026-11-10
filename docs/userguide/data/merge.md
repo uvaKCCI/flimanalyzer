@@ -26,6 +26,10 @@ To use the `Merge` tool, follow the steps below:
 
     `Merge on` sets the category columns whose values have to match. `Automatic` uses all category columns that the two tables share.
 
+    Other columns that both tables have, for example `Source` or a feature in both, are handled by:
+    - `Combine identical columns` (checked by default): a column whose values are the same in both tables, in every row where both have a value, becomes one column with its name. Values are compared exactly; with `outer`, `left` or `right`, a row that has a value in only one table takes that value.
+    - `Suffix of the first table` and `Suffix of the second table` (default ` (left)` and ` (right)`): the other columns of both tables keep both versions, for example `FLIRR (left)` and `FLIRR (right)`; the run summary lists them. Enter `_x` and `_y` to name them as FLIMAnalyzer 0.6 did.
+
     ![](/images/data/merge-dialog.png)
 
 3. Click `OK`.

@@ -311,7 +311,10 @@ class FilterConfig(DataTaskConfig):
 
 
 class MergeConfig(DataTaskConfig):
-    legacy_keys = {"how": None, "on": None}
+    legacy_keys = {
+        "how": None, "on": None, "suffix_left": None, "suffix_right": None,
+        "combine_identical": None,
+    }  # fmt: skip
     legacy_dropped = frozenset({"left_index", "right_index"})
     hidden_fields = frozenset({"grouping", "features"})
 
@@ -328,6 +331,28 @@ class MergeConfig(DataTaskConfig):
         title="Merge on",
         description="Columns to merge on; automatic: the category columns both have.",
     )
+    combine_identical: bool = Field(
+        default=True,
+        title="Combine identical columns",
+        description="A column both tables have, with the same values wherever both"
+        " have one, becomes one column; other such columns get the suffixes.",
+    )
+    suffix_left: str = Field(
+        default=" (left)",
+        title="Suffix of the first table",
+        description="Appended to the names of its columns that the other table has too.",
+    )
+    suffix_right: str = Field(
+        default=" (right)",
+        title="Suffix of the second table",
+        description="Appended to the names of its columns that the first table has too.",
+    )
+
+    @model_validator(mode="after")
+    def _suffixes_differ(self):
+        if self.suffix_left == self.suffix_right:
+            raise ValueError("the two suffixes must differ")
+        return self
 
     @classmethod
     def _from_legacy(cls, params):

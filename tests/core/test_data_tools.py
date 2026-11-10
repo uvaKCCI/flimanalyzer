@@ -155,6 +155,36 @@ def test_merge(data):
     assert len(by_fov) == 3
 
 
+def test_merge_combines_identical_columns_and_names_the_others(data, prefect_harness):
+    from flim.core.runner import run_flow
+
+    keys = ["Treatment", "FOV", "Cell"]
+    left = data[keys + ["t1", "t2"]].assign(Source="file:///a.txt")
+    right = data[keys + ["t1"]].assign(t2=data["t2"] + 1, Source="file:///a.txt")
+    df = table(Merge()(left, right))
+    # t1 and Source agree: one column each; t2 differs: both, with suffixes
+    assert list(df.columns) == keys + ["t1", "t2 (left)", "Source", "t2 (right)"]
+    kept = table(Merge()(left, right, config=MergeConfig(combine_identical=False)))
+    assert {"t1 (left)", "t1 (right)", "Source (left)"} <= set(kept.columns)
+    old = table(Merge()(left, right, config=MergeConfig(suffix_left="_x", suffix_right="_y")))
+    assert {"t2_x", "t2_y"} <= set(old.columns)
+    with pytest.raises(ValueError, match="must differ"):
+        MergeConfig(suffix_left="_a", suffix_right="_a")
+    run = run_flow("merge", lambda: Merge()(left, right))
+    messages = [a.get("message") or "" for _, a in run.graph.nodes(data=True) if "tool" in a]
+    assert any("1 column(s) of both tables differ" in m and "'t2'" in m for m in messages)
+
+
+def test_merge_outer_join_takes_the_value_of_either_side():
+    left = pd.DataFrame({"FOV": pd.Categorical(["1", "2"]), "t1": [1.0, 2.0], "Note": pd.Categorical(["a", "b"])})
+    right = pd.DataFrame({"FOV": pd.Categorical(["2", "3"]), "t1": [2, 3], "Note": pd.Categorical(["b", "c"])})
+    df = table(Merge()(left, right, config=MergeConfig(how="outer")))
+    # equal where both have a value (2.0 and 2): one column, filled from either side
+    assert list(df.columns) == ["FOV", "Note", "t1"]  # category columns first
+    assert list(df["t1"]) == [1.0, 2.0, 3.0] and list(df["Note"]) == ["a", "b", "c"]
+    assert isinstance(df["Note"].dtype, pd.CategoricalDtype)  # the left table's type
+
+
 def test_pivot(data):
     df = table(
         Pivot()(data, config=PivotConfig(grouping=["Treatment"], features=["t1"]))
