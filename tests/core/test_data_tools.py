@@ -526,3 +526,46 @@ def test_separate_example_and_data_checks():
     )
     (issue,) = SeparateCategories.validate_data(bad, [data])
     assert issue.severity == "error" and "not a valid pattern" in issue.message
+
+
+def test_rename_columns_in_order_and_unique():
+    from flim.configs import RenameColumnsConfig
+    from flim.configs.data import Replacement
+    from flim.tools.data import RenameColumns
+
+    data = pd.DataFrame({"Exc1_-Ch1-_t1": [1.0], "Exc2_-Ch3-_t1": [2.0], "x": [3.0]})
+    (renamed,) = RenameColumns()(data, config=RenameColumnsConfig()).values()
+    assert list(renamed.columns) == ["trp t1", "FAD t1", "x"]
+    # in order: the second replacement applies to the first one's result
+    config = RenameColumnsConfig(
+        replacements=[Replacement(part="_t1", new=" y"), Replacement(part=" y", new=" z")]
+    )
+    assert RenameColumns.example(config, [data]) == "Exc1_-Ch1-_t1 \u2192 Exc1_-Ch1- z (and 1 more)"
+    assert RenameColumns.example(RenameColumnsConfig(), [data]) == (
+        "Exc1_-Ch1-_t1 \u2192 trp t1 (and 1 more)"
+    )
+    clash = RenameColumnsConfig(replacements=[Replacement(part="Exc2_-Ch3-_", new="Exc1_-Ch1-_")])
+    with pytest.raises(ValueError, match="not unique"):
+        RenameColumns().run(data, config=clash)
+    with pytest.raises(ValueError, match="needs the part"):
+        RenameColumnsConfig(replacements=[Replacement(part="", new="a")])
+
+
+def test_drop_columns_match_modes():
+    from flim.configs import DropColumnsConfig
+    from flim.configs.data import DropRule
+    from flim.tools.data import DropColumns
+
+    data = pd.DataFrame({"Exc1_t1": [1], "t1": [2], "t1 sd": [3], "sd t1": [4], " ": [5]})
+
+    def kept(*rules):
+        config = DropColumnsConfig(drop=[DropRule(text=t, match=m) for t, m in rules])
+        (table,) = DropColumns()(data, config=config).values()
+        return list(table.columns)
+
+    assert kept() == ["Exc1_t1", "t1", "t1 sd", "sd t1"]  # the empty header
+    assert kept(("Exc1_", "contains")) == ["t1", "t1 sd", "sd t1"]
+    assert kept(("t1", "starts with")) == ["Exc1_t1", "sd t1"]
+    assert kept(("t1", "ends with")) == ["t1 sd"]
+    assert kept(("t1", "is")) == ["Exc1_t1", "t1 sd", "sd t1"]
+    assert DropColumns.example(DropColumnsConfig(), [data]) == "drops Exc1_t1, (empty header)"

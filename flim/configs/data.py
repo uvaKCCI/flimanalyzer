@@ -385,3 +385,65 @@ class SeparateCategoriesConfig(DataTaskConfig):
         title="Keep the original column",
         description="Keep the separated column; unchecked: it is removed.",
     )
+
+
+class Replacement(BaseConfig):
+    """Replaces a part of the column names."""
+
+    part: str = Field(default="", title="Part", description="The text to replace.")
+    new: str = Field(default="", title="New text", description="Its replacement.")
+
+
+def _default_replacements() -> list:
+    from flim.core.preprocessor import DEFAULT_RENAME
+
+    return [Replacement(part=p, new=n) for p, n in DEFAULT_RENAME.items()]
+
+
+class RenameColumnsConfig(DataTaskConfig):
+    """Replaces parts of the column names, in order."""
+
+    hidden_fields = frozenset({"features", "grouping"})
+
+    replacements: list[Replacement] = Field(
+        default_factory=_default_replacements,
+        title="Replace",
+        description="In order: each replaces its part in every column name that"
+        " contains it; a whole name is replaced if the part is the full name.",
+    )
+
+    @field_validator("replacements")
+    @classmethod
+    def _parts_given(cls, replacements):
+        if any(not r.part for r in replacements):
+            raise ValueError("a replacement needs the part to replace")
+        return replacements
+
+
+class DropRule(BaseConfig):
+    """Drops the columns whose names match a text."""
+
+    text: str = Field(default="", title="Text")
+    match: Literal["contains", "starts with", "ends with", "is"] = Field(
+        default="contains",
+        title="Match",
+        description="contains: names that contain the text; is: the whole name.",
+    )
+
+
+def _default_drop_rules() -> list:
+    from flim.core.preprocessor import DEFAULT_DROP
+
+    return [DropRule(text=t) for t in DEFAULT_DROP]
+
+
+class DropColumnsConfig(DataTaskConfig):
+    """Drops columns by their names; a column with an empty header too."""
+
+    hidden_fields = frozenset({"features", "grouping"})
+
+    drop: list[DropRule] = Field(
+        default_factory=_default_drop_rules,
+        title="Drop",
+        description="The columns whose names match one of these.",
+    )

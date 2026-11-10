@@ -36,6 +36,10 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Joins category columns into one, for example FOV and Cell into FOV:Cell.
    * - :doc:`Separate Categories <separate>`
      - Separates a category column into several, at delimiters or by patterns.
+   * - :doc:`Rename Columns <rename>`
+     - Replaces parts of the column names, as Import does.
+   * - :doc:`Drop Columns <drop>`
+     - Removes columns by their names, as Import does.
    * - :doc:`Saving Data <save>`
      - Saves a data table to a file.
    
@@ -58,4 +62,6 @@ After you load data, you can change the tables to show trends more clearly, chan
     scale
     fuse
     separate
+    rename
+    drop
     save

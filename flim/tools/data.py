@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 
 from flim.configs.data import (
+    DropColumnsConfig,
+    RenameColumnsConfig,
     FuseCategoriesConfig,
     SeparateCategoriesConfig,
     ScaleConfig,
@@ -555,3 +557,95 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
             self.warn(message)
         remove = () if config.keep_original else [config.column]
         return {"Separated": _with_columns(data, result.columns, config.column, remove)}
+
+
+@register_tool
+class RenameColumns(Tool[RenameColumnsConfig]):
+    name = "Rename Columns"
+    category = "Data"
+    description = (
+        "Replaces parts of the column names, in order, e.g. 'Exc1_-Ch1-_' with 'trp '."
+        " Import applies the same replacements to the files it reads."
+    )
+    outputs = (OutputSpec("Renamed", TableType),)
+
+    @classmethod
+    def example(cls, config, tables):
+        from flim.core.columns import renamed_columns
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None:
+            return None
+        pairs = [(r.part, r.new) for r in config.replacements]
+        changed = [
+            (old, new)
+            for old, new in zip(table.columns, renamed_columns(table.columns, pairs))
+            if str(old) != new
+        ]
+        if not changed:
+            return "no column name changes"
+        old, new = changed[0]
+        more = f" (and {len(changed) - 1} more)" if len(changed) > 1 else ""
+        return f"{old} \u2192 {new}{more}"
+
+    def run(self, data, *, config):
+        from flim.core.columns import renamed_columns
+
+        pairs = [(r.part, r.new) for r in config.replacements]
+        names = renamed_columns(data.columns, pairs)
+        if len(set(names)) < len(names):
+            duplicates = sorted({n for n in names if names.count(n) > 1})
+            raise ValueError(
+                f"{self.name}: the new names are not unique: {', '.join(duplicates)}"
+            )
+        table = data.copy()
+        table.columns = names
+        return {"Renamed": table}
+
+
+@register_tool
+class DropColumns(Tool[DropColumnsConfig]):
+    name = "Drop Columns"
+    category = "Data"
+    description = (
+        "Drops the columns whose names contain, start with, end with or are a text;"
+        " also a column with an empty header. Import drops the same columns."
+    )
+    outputs = (OutputSpec("Columns Dropped", TableType),)
+
+    @classmethod
+    def example(cls, config, tables):
+        from flim.core.columns import columns_to_drop
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None:
+            return None
+        dropped = columns_to_drop(table.columns, [(r.text, r.match) for r in config.drop])
+        if not dropped:
+            return "no columns dropped"
+        dropped = [n if n.strip() else "(empty header)" for n in dropped]
+        shown = ", ".join(dropped[:3]) + (f" and {len(dropped) - 3} more" if len(dropped) > 3 else "")
+        return f"drops {shown}"
+
+    def run(self, data, *, config):
+        from flim.core.columns import columns_to_drop
+
+        dropped = columns_to_drop(data.columns, [(r.text, r.match) for r in config.drop])
+        return {"Columns Dropped": data.drop(columns=dropped)}
+
+
+def import_preprocessor(settings):
+    """Return the preprocessor that Import applies, with the Rename Columns and
+    Drop Columns tools' settings (its calculations are its own, as before).
+
+    Args:
+        settings: The app settings (AppSettings).
+    """
+    from flim.core.preprocessor import defaultpreprocessor
+
+    rename = settings.tools.config(RenameColumns)
+    drop = settings.tools.config(DropColumns)
+    preprocessor = defaultpreprocessor()
+    preprocessor.set_replacementheaders({r.part: r.new for r in rename.replacements})
+    preprocessor.set_dropcolumns([(r.text, r.match) for r in drop.drop])
+    return preprocessor

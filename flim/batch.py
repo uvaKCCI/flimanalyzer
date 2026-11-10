@@ -29,7 +29,6 @@ from flim.core.filter import RangeFilter
 from flim.core.importer import dataimporter
 from flim.core.parser import instantiate_parser
 from flim.core.paths import canonical_folder, folder_problem
-from flim.core.preprocessor import defaultpreprocessor
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
 from flim.core import logs
@@ -61,9 +60,9 @@ def import_table(files, settings: AppSettings, exclude=()) -> pd.DataFrame:
         raise BatchError(f"Unknown filename parser {imported.filename_parser.parser}")
     if imported.filename_parser.patterns:
         parser.set_regexpatterns(imported.filename_parser.patterns)
-    preprocessor = defaultpreprocessor()
-    preprocessor.set_replacementheaders(settings.preprocess.rename)
-    preprocessor.set_dropcolumns(settings.preprocess.drop)
+    from flim.tools.data import import_preprocessor
+
+    preprocessor = import_preprocessor(settings)  # the Rename and Drop Columns tools'
 
     importer = dataimporter()
     importer.set_delimiter(imported.delimiter)

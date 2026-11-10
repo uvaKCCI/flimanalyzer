@@ -5,7 +5,14 @@ import os
 import flim.core
 from flim.core.importer import dataimporter
 from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE
+from flim.configs.data import (
+    DropColumnsConfig,
+    DropRule,
+    RenameColumnsConfig,
+    Replacement,
+)
 from flim.core.preprocessor import defaultpreprocessor
+from flim.tools.data import DropColumns, RenameColumns
 from flim.gui.delimpanel import DelimiterPanel
 from flim.gui.dicttablepanel import DictTable, ListTable
 
@@ -118,8 +125,10 @@ class ImportDlg(wx.Dialog):
             rename_label = wx.StaticText(self, wx.ID_ANY, "Rename Columns:")
             self.rgrid = wx.grid.Grid(self, -1)
             self.rgrid.SetDefaultColSize(200, True)
+            rename = settings.tools.config(RenameColumns)
             self.headertable = DictTable(
-                settings.preprocess.rename, headers=["Original name", "New name"]
+                {r.part: r.new for r in rename.replacements},
+                headers=["Original name", "New name"],
             )
             self.rgrid.SetTable(self.headertable, takeOwnership=True)
             self.rgrid.SetRowLabelSize(0)
@@ -130,7 +139,7 @@ class ImportDlg(wx.Dialog):
                 self,
                 wx.ID_ANY,
                 size=(200, 100),
-                value="\n".join(settings.preprocess.drop),
+                value="\n".join(r.text for r in settings.tools.config(DropColumns).drop),
                 style=wx.TE_MULTILINE | wx.EXPAND,
             )
 
@@ -212,9 +221,32 @@ class ImportDlg(wx.Dialog):
 
         self.SetSizerAndFit(box)
 
+    def drop_rules(self) -> list:
+        """Return the drop rules of the list: one per line; a text that a rule of the
+        settings has keeps that rule's match, a new one matches by `contains`."""
+        known = {r.text: r for r in self.settings.tools.config(DropColumns).drop}
+        lines = [t for t in self.drop_col_list.GetValue().splitlines() if t]
+        return [known.get(t, DropRule(text=t)) for t in lines]
+
+    def store_rename_and_drop(self) -> None:
+        """Store the dialog's rename and drop as the Rename Columns and Drop Columns
+        tools' settings; their autosave settings are kept."""
+        rename = RenameColumnsConfig(
+            replacements=[
+                Replacement(part=p, new=n) for p, n in self.headertable.GetDict().items() if p
+            ]
+        )
+        for tool, config in (
+            (RenameColumns, rename),
+            (DropColumns, DropColumnsConfig(drop=self.drop_rules())),
+        ):
+            entry = self.settings.tools.entry(tool)
+            self.settings.tools.set(tool, config, entry.autosave if entry else None)
+
     def get_settings(self):
         """The AppSettings passed to the dialog; after Open or Import, its import
-        (and, with preprocessing, preprocess) section holds the dialog's values."""
+        section (and, with preprocessing, the Rename Columns and Drop Columns tools'
+        settings) holds the dialog's values."""
         return self.settings
 
     def OnRGridSize(self, event):
@@ -251,12 +283,9 @@ class ImportDlg(wx.Dialog):
             importer.set_parser(None)
 
         if self.preprocess:
-            dropped = self.drop_col_list.GetValue().splitlines()
-            if len(dropped) == 1 and dropped[0] == "":
-                dropped = None
             preprocessor = defaultpreprocessor()
             preprocessor.set_replacementheaders(self.headertable.GetDict())
-            preprocessor.set_dropcolumns(dropped)
+            preprocessor.set_dropcolumns([(r.text, r.match) for r in self.drop_rules()])
             parsername = self.parser_chooser.GetStringSelection()
             importer.set_preprocessor(preprocessor)
         else:
@@ -371,5 +400,5 @@ class ImportDlg(wx.Dialog):
             self.configure_importer(self.importer, files)
             self.settings.import_ = self.importer.settings()
             if self.preprocess:
-                self.settings.preprocess = self.importer.get_preprocessor().settings()
+                self.store_rename_and_drop()
             self.EndModal(wx.ID_OK)

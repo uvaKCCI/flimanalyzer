@@ -43,8 +43,8 @@ In addition to opening files, the import can:
     | Results-b-ctrl-1 | b | ctrl | 1 |
     | Results-b-ctrl-2 | b | ctrl | 2 |
 
-5. **Optional:** In the `Rename Columns` table, enter how column headers are renamed. **Each entry replaces matching text anywhere in a column header, not only whole headers.** To rename nothing, remove all values in the first column.
-6. **Optional:** In the `Drop Columns` table, enter the columns to drop from the data. **Note: A column is dropped if its header contains an entry anywhere, not only if the whole header matches.**
+5. **Optional:** In the `Rename Columns` table, enter how column headers are renamed. **Each entry replaces matching text anywhere in a column header, not only whole headers.** To rename nothing, remove all values in the first column. These are the settings of the [Rename Columns](/userguide/data/rename.md) tool.
+6. **Optional:** In the `Drop Columns` table, enter the columns to drop from the data, one per line. **Note: A column is dropped if its header contains an entry anywhere, not only if the whole header matches.** These are the settings of the [Drop Columns](/userguide/data/drop.md) tool; an entry that has another match there (for example `ends with`) keeps it.
 
 7. Click `Add Files` to select one or more files to import. **Data from all listed files will be concatenated into a single data table.** Select individual files in the list and click `Remove Files` to remove them from the list. Click `Reset` to clear the file list.
 8. Click `Import`. FLIMAnalyzer reads the listed files, processes them and stacks them into a single data table. The files should all have the same column headers (the first line of each file).

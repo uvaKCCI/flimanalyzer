@@ -19,11 +19,13 @@ from flim.core.schema import TableSchema
 EXPECTED = {
     # data
     "Concatenate": (0, 0),
+    "Drop Columns": (0, 0),
     "Filter": (0, 0),
     "Fuse Categories": (0, 2),
     "Merge": (0, 0),
     "Order Categories": (0, 0),
     "Pivot": (1, 0),
+    "Rename Columns": (0, 0),
     "Sort": (0, 0),  # sorting by nothing leaves the table as it is
     "Scale": (1, 0),
     "Separate Categories": (0, 0),  # one column, checked by the tool

@@ -115,6 +115,31 @@ def test_import_dialog_opens_with_a_saved_parser(wxapp):
         dlg.Destroy()
 
 
+def test_import_dialog_uses_the_rename_and_drop_tools_settings(wxapp):
+    from flim.configs import DropColumnsConfig
+    from flim.configs.data import DropRule
+    from flim.core.settings import AppSettings
+    from flim.gui.importdlg import ImportDlg
+    from flim.tools.data import DropColumns, RenameColumns
+
+    settings = AppSettings.default()
+    settings.tools.set(DropColumns, DropColumnsConfig(drop=[DropRule(text="sd", match="ends with")]))
+    dlg = ImportDlg(None, "Import", settings)
+    try:
+        assert dlg.drop_col_list.GetValue() == "sd"
+        assert dlg.headertable.GetDict()["Exc2_-Ch3-_"] == "FAD "
+        dlg.drop_col_list.SetValue("sd\nExc1_")
+        dlg.store_rename_and_drop()
+        # a rule's match is kept while its text is; a new text matches by contains
+        assert [(r.text, r.match) for r in settings.tools.config(DropColumns).drop] == [
+            ("sd", "ends with"), ("Exc1_", "contains")
+        ]
+        rename = settings.tools.config(RenameColumns).replacements
+        assert ("Exc2_-Ch3-_", "FAD ") in [(r.part, r.new) for r in rename]
+    finally:
+        dlg.Destroy()
+
+
 def test_tool_panel_two_rows_groups_on_one_line(wxapp):
     import wx
     from flim.core.registry import tools

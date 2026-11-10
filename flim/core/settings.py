@@ -75,10 +75,9 @@ class ImportSettings(_Settings):
 
 
 class PreprocessSettings(_Settings):
-    # new column -> [function name, [argument columns]]
+    # new column -> [function name, [argument columns]]; rename and drop are the Rename
+    # Columns and Drop Columns tools' settings (version 2)
     calculate: dict[str, list] = {}
-    drop: list[str] = []  # column name parts to drop
-    rename: dict[str, str] = {}  # column name part -> replacement
 
 
 class FilterSettings(_Settings):
@@ -435,6 +434,21 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
         changes.converted.append("working_dir to results_dir")
     if data.pop("display", None) is not None:
         changes.dropped.append("display (histogram ranges)")
+    # Import's rename and drop: the Rename Columns and Drop Columns tools' settings
+    preprocess = data.get("preprocess")
+    if isinstance(preprocess, dict) and isinstance(data.setdefault("tools", {}), dict):
+        if "rename" in preprocess:
+            rename = preprocess.pop("rename") or {}
+            data["tools"].setdefault("Rename Columns", {})["config"] = {
+                "replacements": [{"part": p, "new": n} for p, n in rename.items()]
+            }
+            changes.converted.append("preprocess.rename to the Rename Columns tool")
+        if "drop" in preprocess:
+            drop = preprocess.pop("drop") or []
+            data["tools"].setdefault("Drop Columns", {})["config"] = {
+                "drop": [{"text": t, "match": "contains"} for t in drop]
+            }
+            changes.converted.append("preprocess.drop to the Drop Columns tool")
     moved = 0
     for name, entry in (data.get("tools") or {}).items():
         if isinstance(entry, dict) and not isinstance(entry.get("autosave"), dict):

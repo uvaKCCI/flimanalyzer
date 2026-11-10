@@ -25,10 +25,10 @@ import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.datamgr import DataManager
 from flim.core.saving import AutosaveConfig
+from flim.tools.data import DropColumns, RenameColumns, import_preprocessor
 from flim.core.types import TableType
 from flim.core.settings import AppSettings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
-from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
 from flim.core.paths import canonical_folder
 from flim.core.graph import WorkflowGraph
@@ -480,12 +480,18 @@ class AppFrame(wx.Frame):
         dlg = ImportDlg(self, "Import File(s)", self.settings)
         if dlg.ShowModal() == wx.ID_OK:
             settings = dlg.get_settings()
-            imported, preprocess = settings.import_, settings.preprocess
-            # for this session only: they include data file paths
+            imported = settings.import_
+            # for this session only: they include data file paths; the rename and
+            # drop settings are the Rename Columns and Drop Columns tools'
+            tools_changed = {
+                tool.name: settings.tools.entry(tool).model_dump(mode="json")
+                for tool in (RenameColumns, DropColumns)
+                if settings.tools.entry(tool) is not None
+            }
             self.settings_manager.update(
                 {
                     "import": imported.model_dump(mode="json", by_alias=True),
-                    "preprocess": preprocess.model_dump(mode="json"),
+                    **({"tools": tools_changed} if tools_changed else {}),
                 },
                 keep=False,
             )
@@ -499,9 +505,7 @@ class AppFrame(wx.Frame):
                 return
             parser.set_regexpatterns(imported.filename_parser.patterns)
 
-            preprocessor = defaultpreprocessor()
-            preprocessor.set_replacementheaders(preprocess.rename)
-            preprocessor.set_dropcolumns(preprocess.drop)
+            preprocessor = import_preprocessor(self.settings)
 
             importer = dataimporter()
             importer.set_parser(parser)

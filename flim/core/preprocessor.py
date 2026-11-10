@@ -71,14 +71,20 @@ def ratio(v1, v2):
         return np.nan
 
 
+# the column name parts Import replaces and drops by default (the Rename Columns and
+# Drop Columns tools' defaults): the channels of the FLIM exports
+DEFAULT_RENAME = {
+    "Exc1_-Ch1-_": "trp ",
+    "Exc1_-Ch2-_": "NAD(P)H ",
+    "Exc2_-Ch3-_": "FAD ",
+}
+DEFAULT_DROP = ("Exc1_", "Exc2_", "Exc3_")
+
+
 class defaultpreprocessor:
     def __init__(self):
-        self.newheaders = {
-            "Exc1_-Ch1-_": "trp ",
-            "Exc1_-Ch2-_": "NAD(P)H ",
-            "Exc2_-Ch3-_": "FAD ",
-        }
-        self.dropcolumns = ["Exc1_", "Exc2_", "Exc3_"]
+        self.newheaders = dict(DEFAULT_RENAME)
+        self.dropcolumns = list(DEFAULT_DROP)
         self.calccolumns = [
             "NAD(P)H tm",
             "NAD(P)H a2[%]/a1[%]",
@@ -132,11 +138,7 @@ class defaultpreprocessor:
         """The preprocess settings (PreprocessSettings) of this preprocessor."""
         from flim.core.settings import PreprocessSettings
 
-        return PreprocessSettings(
-            calculate=dict(self.functions),
-            drop=list(self.dropcolumns or []),
-            rename=dict(self.newheaders or {}),
-        )
+        return PreprocessSettings(calculate=dict(self.functions))
 
     def columns_available(self, data, args):
         for arg in args:
@@ -158,12 +160,12 @@ class defaultpreprocessor:
             return None
         if newheaders is None:
             newheaders = self.newheaders
+        from flim.core.columns import renamed_columns
+
         oldheaders = list(data.columns.values)
-        currentheaders = [c for c in oldheaders]
-        for newheader in newheaders:
-            currentheaders = [
-                c.replace(newheader, newheaders[newheader]) for c in currentheaders
-            ]
+        # in order; an empty part is skipped (it would insert text between all
+        # characters)
+        currentheaders = renamed_columns(oldheaders, list(dict(newheaders).items()))
         changedheaders = {
             oldheaders[i]: currentheaders[i]
             for i in range(len(oldheaders))
@@ -217,21 +219,14 @@ class defaultpreprocessor:
             return None
         if drops is None:
             drops = self.dropcolumns
-        currentheaders = list(data.columns.values)
-        droplist = []
-        for header in currentheaders:
-            found = False
-            if func == "startswith":
-                found = any(header.startswith(d) for d in drops)
-            elif func == "endswith":
-                found = any(header.endswith(d) for d in drops)
-            elif func == "contains":
-                found = any([d in header for d in drops])
-            elif func == "is":
-                found = any(header == d for d in drops)
-            found = found or (dropemptyheader and header == " ")
-            if found:
-                droplist.append(header)
+        from flim.core.columns import columns_to_drop
+
+        # a plain text matches as `func`; (text, match) rules as their match
+        names = {"startswith": "starts with", "endswith": "ends with"}
+        rules = [
+            (d, names.get(func, func)) if isinstance(d, str) else d for d in drops or []
+        ]
+        droplist = columns_to_drop(data.columns, rules, drop_empty=dropemptyheader)
         if not preview:
             if inplace:
                 data.drop(droplist, axis=1, inplace=inplace)

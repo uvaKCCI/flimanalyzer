@@ -24,7 +24,9 @@ from flim.configs.data import (
     UnpivotConfig,
 )
 from flim.configs.data import (  # noqa: F401  (re-exported)
+    DropColumnsConfig,
     FuseCategoriesConfig,
+    RenameColumnsConfig,
     ScaleConfig,
     SeparateCategoriesConfig,
     SplitConfig,

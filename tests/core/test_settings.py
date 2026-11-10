@@ -4,6 +4,7 @@ import json
 import logging
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from flim.core.saving import AutosaveConfig
@@ -17,6 +18,7 @@ from flim.core.settings import (
     SETTINGS_VERSION,
     START_DIR,
     AppSettings,
+    Changes,
     ToolSettings,
     load_settings,
     migrate,
@@ -44,7 +46,7 @@ def test_defaults():
     assert settings.execution == LocalExecutorSettings() and settings.prefect_server
     assert settings.log.dir is None and settings.log.max_age_days == 30
     assert settings.cache.dir is None
-    assert settings.preprocess.rename["Exc2_-Ch3-_"] == "FAD "
+    assert set(settings.preprocess.model_dump()) == {"calculate"}  # rename, drop: tools
     assert settings.filters.range_filters[0]["name"] == "trp t1"
     assert settings.tools.entries == {}  # the tools' defaults: their configs'
 
@@ -126,8 +128,8 @@ def test_settings_from_the_importer_and_preprocessor(tmp_path):
     assert imported.filename_parser.parser == "treatment_fov_cell_parser"
     assert imported.filename_parser.patterns[0]["Category"] == "Treatment"
     preprocessor = defaultpreprocessor()
-    preprocessor.set_dropcolumns(["x"])
-    assert preprocessor.settings().drop == ["x"]
+    preprocessor.functions = {"x2": ["tm", ["x"]]}
+    assert preprocessor.settings().calculate == {"x2": ["tm", ["x"]]}
 
 
 def test_settings_of_version_1():
@@ -137,7 +139,10 @@ def test_settings_of_version_1():
     assert (entry.autosave.enabled, entry.autosave.results_dir) == (True, Path("results"))
     assert entry.autosave.formats == []
     assert settings.tools.config(tools.get("K-Means")).n_clusters == 7
-    assert set(settings.to_json()["tools"]) == {"Summarize", "K-Means"}  # by tool
+    # by tool; 0.6's preprocess.rename and drop: the Rename and Drop Columns tools
+    assert set(settings.to_json()["tools"]) == {
+        "Summarize", "K-Means", "Rename Columns", "Drop Columns"
+    }
     # version 2: working_dir is results_dir, display is gone
     assert settings.results_dir == Path("/Users/khs3z/FLIMAnalyzerResults")
     assert "display" not in settings.to_json() and "working_dir" not in settings.to_json()
@@ -217,3 +222,38 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
     assert read_tool_settings(path, kmeans).config["n_clusters"] == 4
     with pytest.raises(ValueError, match="not a settings file"):
         write_tool_settings(path, kmeans, tool_settings(KMeansConfig()))
+
+
+def test_rename_and_drop_of_version_1_become_tool_settings():
+    from flim.tools.data import DropColumns, RenameColumns
+
+    data = json.loads(V1_FILE.read_text())
+    data["preprocess"]["drop"] = ["Exc1_", "Exc4_"]
+    changes = Changes()
+    migrated = migrate(data, changes)
+    assert set(migrated["preprocess"]) == {"calculate"}
+    assert "preprocess.rename to the Rename Columns tool" in changes.converted
+    assert "preprocess.drop to the Drop Columns tool" in changes.converted
+    settings = AppSettings.model_validate(migrated)
+    rename = settings.tools.config(RenameColumns)
+    assert [(r.part, r.new) for r in rename.replacements][2] == ("Exc2_-Ch3-_", "FAD ")
+    drop = settings.tools.config(DropColumns)
+    assert [(r.text, r.match) for r in drop.drop] == [
+        ("Exc1_", "contains"), ("Exc4_", "contains")
+    ]
+
+
+def test_import_applies_the_tools_settings():
+    from flim.configs import DropColumnsConfig, RenameColumnsConfig
+    from flim.configs.data import DropRule, Replacement
+    from flim.tools.data import DropColumns, RenameColumns, import_preprocessor
+
+    settings = AppSettings.default()
+    settings.tools.set(RenameColumns, RenameColumnsConfig(replacements=[Replacement(part="a_", new="")]))
+    settings.tools.set(DropColumns, DropColumnsConfig(drop=[DropRule(text="x", match="is")]))
+    preprocessor = import_preprocessor(settings)
+    data = pd.DataFrame({"a_t1": [1.0], "x": [2.0], "xy": [3.0]})
+    data, _ = preprocessor.rename_headers(data)
+    data, dropped = preprocessor.drop_columns(data)
+    assert dropped == ["x"]
+    assert list(data.columns) == ["t1", "xy"]
