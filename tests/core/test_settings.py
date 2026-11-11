@@ -39,9 +39,7 @@ V1_FILE = Path(__file__).parent / "data" / "settings_v1.json"
 def test_defaults():
     settings = AppSettings.default()
     assert settings.schema_version == SETTINGS_VERSION
-    imported = settings.tools.config(tools.get("Import"))  # the Import tool's defaults
-    assert imported.delimiter == "\t," and imported.parser == "defaultparser"
-    assert "import" not in settings.to_json()
+    assert "import" not in settings.to_json()  # reading: a workflow file's
     # the windows' range filters of 0.6, now the Filter tool's filters
     filters = settings.tools.config(tools.get("Filter")).filters
     assert len(filters) == 39 and sum(f.enabled for f in filters) == 3
@@ -61,7 +59,7 @@ def test_settings_of_version_0(caplog):
     assert not caplog.records  # every key known
     assert settings.schema_version == SETTINGS_VERSION
     assert settings.results_dir == Path("/data/results")
-    assert settings.tools.config(tools.get("Import")).delimiter == "\t"
+    assert "import" not in settings.to_json()  # dropped: a workflow file's
     assert settings.filters.use is False and settings.filters.show_dropped is True
     store = settings.tools
     summary = store.config(tools.get("Summarize"))
@@ -138,7 +136,6 @@ def test_settings_of_version_1():
     # by tool; 0.6's preprocess: the Rename Columns, Drop Columns and Calculate tools
     assert set(settings.to_json()["tools"]) == {
         "Summarize", "K-Means", "Rename Columns", "Drop Columns", "Calculate", "Filter",
-        "Import",
     }
     # version 2: working_dir is results_dir, display is gone
     assert settings.results_dir == Path("/Users/khs3z/FLIMAnalyzerResults")
@@ -202,7 +199,7 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
     write_tool_settings(path, kmeans, tool_settings(KMeansConfig(n_clusters=9)))
     settings = load_settings(path)
     assert settings.tools.config(kmeans).n_clusters == 9
-    assert settings.tools.config(tools.get("Import")).delimiter == "\t"  # version 0
+    assert "import" not in settings.to_json()  # version 0's import: dropped
     summary = settings.tools.config(tools.get("Summarize"))
     assert summary.aggs == ["mean", "sem"]
     # saved under a former name: replaced, read by the renamed tool
@@ -301,15 +298,11 @@ def test_filters_of_version_1_become_the_filter_tools():
     assert "filters.series_filters (never used)" in changes.dropped
 
 
-def test_import_of_version_1_becomes_the_import_tools():
+def test_import_of_version_1_is_dropped_for_a_workflow_file():
     data = json.loads(V1_FILE.read_text())
-    data["import"].update(
-        {"delimiter": ";", "include_files": ["/data/a.txt"], "exclude_files": ["b.txt"], "x": 1}
-    )
+    data["import"]["filename_parser"] = {"parser": "fov_treatment_cell_parser"}
     changes = Changes()
     settings = AppSettings.model_validate(migrate(data, changes))
-    config = settings.tools.config(tools.get("Import"))
-    assert (config.delimiter, config.exclude_files) == (";", ["b.txt"])
-    assert "import to the Import tool" in changes.converted
-    assert any("include_files" in d for d in changes.dropped)
-    assert "import.x (unknown)" in changes.dropped
+    assert "import" not in settings.to_json() and "Import" not in settings.to_json()["tools"]
+    (dropped,) = [d for d in changes.dropped if d.startswith("import")]
+    assert "fov_treatment_cell_parser" in dropped and "workflow file" in dropped

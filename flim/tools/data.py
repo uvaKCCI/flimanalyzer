@@ -829,8 +829,7 @@ def import_preprocessor(settings):
     return preprocessor
 
 
-@register_tool
-class Import(Tool[ImportConfig]):
+class Import(Tool[ImportConfig]):  # not registered: the GUI's Import dialog only
     name = "Import"
     category = "Data"
     description = (

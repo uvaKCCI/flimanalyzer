@@ -102,12 +102,12 @@ Which GPU can be used depends on the PyTorch build that was installed (see [Inst
 
 ## Run FLIMAnalyzer in batch mode
 
-`flimbatch` imports data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. It takes its settings from an app settings file, given with `-s` and saved in the GUI (File > Export Settings...): the import settings and the settings of each tool. A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
+`flimbatch` reads data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. A workflow file (`--workflow`, or a built-in one such as `--run "Import: FOV, Treatment, Cell"`) says exactly what is done with the files; tools take their settings from an app settings file, given with `-s` and saved in the GUI (File > Export Settings...). A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
 
     uv run flimbatch -i data/ -o results/ -s settings.json \
         --run Summarize --run "Basic FLIRR Analysis"
 
-The imported table is saved as `results/Imported.txt`, and each tool's results in `results/<tool name>/`. A workflow column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error. `--no-strict` uses the closest column instead and lists it in the run summary. The exit code is 1 if a check or task failed. Run `flimbatch --help` for all options.
+Each tool's or workflow's results are saved in `results/<name>/`; a workflow file saves the steps it marks to save. `--dry-run` checks the runs against the files without running them. A workflow column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error. `--no-strict` uses the closest column instead and lists it in the run summary. The exit code is 1 if a check or task failed. Run `flimbatch --help` for all options.
 
 `flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
 

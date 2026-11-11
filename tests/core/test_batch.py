@@ -1,4 +1,4 @@
-"""Batch mode (flim.batch): import and run tools or workflows without the GUI."""
+"""Batch mode (flim.batch): read files and run tools or workflows without the GUI."""
 
 import logging
 
@@ -8,7 +8,9 @@ import pytest
 
 import flim.tools  # noqa: F401  (registers the tools)
 import flim.workflow  # noqa: F401  (registers the workflows)
-from flim.batch import BatchError, filtered, import_table, main
+import json
+
+from flim.batch import main
 from flim.configs import SummaryConfig
 from flim.configs.workflow import BasicFLIRRConfig
 from flim.core.registry import tools
@@ -16,6 +18,16 @@ from flim.core.settings import AppSettings, save_settings
 
 
 pytestmark = pytest.mark.usefixtures("prefect_harness")
+
+
+@pytest.fixture(autouse=True)
+def restore_registry():
+    """main() registers the workflow files in the shared registry; other tests expect
+    only the tools and code-defined workflows."""
+    saved = dict(tools._tools)
+    yield
+    tools._tools.clear()
+    tools._tools.update(saved)
 
 
 @pytest.fixture(autouse=True)
@@ -52,72 +64,90 @@ def data_dir(tmp_path):
 
 @pytest.fixture
 def settings():
-    from flim.configs import ImportConfig
-    from flim.tools.data import Import
-
-    settings = AppSettings.default()
-    # the parser's own patterns
-    settings.tools.set(Import, ImportConfig(parser="fov_treatment_cell_parser"))
-    return settings
+    return AppSettings.default()
 
 
-def test_import_with_the_settings(data_dir, settings):
-    data = import_table([data_dir], settings)
-    assert len(data) == 40
-    assert set(data["Treatment"]) == {"WT", "KO"}
-    assert {"FOV", "Cell", "FLIRR"} <= set(data.columns)
-    with pytest.raises(BatchError, match="No data files"):
-        import_table([data_dir / "missing"], settings)
-
-
-def test_range_filters():
-    from flim.configs.data import RangeFilterNode
-
-    data = pd.DataFrame({"x": [1.0, 5.0, 10.0], "y": [0.0, 0.0, 0.0]})
-    keep = filtered(data, [RangeFilterNode(column="x", low=0, high=6)])
-    assert list(keep["x"]) == [1.0, 5.0]
-    unused = filtered(data, [RangeFilterNode(column="x", low=0, high=6, enabled=False)])
-    assert len(unused) == 3
-
-
-def test_import_filters_only_with_use(data_dir, settings):
-    from flim.configs import FilterConfig
-    from flim.configs.data import RangeFilterNode
-    from flim.tools.data import Filter
-
-    settings.tools.set(Filter, FilterConfig(filters=[RangeFilterNode(column="FLIRR", high=0)]))
-    assert len(import_table([data_dir], settings)) == 40  # filters.use is off
-    settings.filters.use = True
-    assert len(import_table([data_dir], settings)) == 0
-
-
-def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path, monkeypatch):
-    monkeypatch.delenv("FLIM_LOG_DIR", raising=False)  # default: the output folder
-    settings.tools.set(
-        tools.get("Summarize"),
-        SummaryConfig(grouping=["Treatment"], features=["FLIRR"], aggs=["mean"]),
-    )
+def _settings_file(settings, tmp_path):
     path = tmp_path / "settings.json"
     save_settings(settings, path)
+    return path
+
+
+SEPARATE = {
+    "column": "Source", "mode": "patterns",
+    "patterns": [
+        {"name": "FOV", "regex": ".*/.*?[_-](.*?)[_-]"},
+        {"name": "Treatment", "regex": ".*/.*?[_-].*?[_-](.*?)[_-]"},
+    ],
+}  # fmt: skip
+
+
+def test_run_a_tool_on_each_file(data_dir, settings, tmp_path, monkeypatch):
+    monkeypatch.delenv("FLIM_LOG_DIR", raising=False)  # default: the output folder
+    settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["FLIRR"], aggs=["mean"]))
+    path = _settings_file(settings, tmp_path)
     out = tmp_path / "out"
-    code = main(
-        ["-i", str(data_dir), "-o", str(out), "-c", str(path), "--run", "Summarize",
-         "--no-prefect-server"]
-    )
+    code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Summarize",
+                 "--no-prefect-server"])
     assert code == 0
-    imported = pd.read_csv(out / "Imported.txt", sep="\t")
-    assert len(imported) == 40
-    (summary,) = (out / "Summarize").rglob("*Summary*")
-    table = pd.read_csv(summary, sep="\t")  # tab-separated, no index column (#119)
-    assert list(table.columns) == ["Treatment", "FLIRR mean"]
-    assert set(table["Treatment"]) == {"WT", "KO"}
+    assert not (out / "Imported.txt").exists()  # no fixed outputs: the run's only
+    summaries = sorted((out / "Summarize").rglob("*Summary*"))
+    assert len(summaries) == 8  # one per file
+    table = pd.read_csv(summaries[0], sep="\t")  # tab-separated, no index column (#119)
+    assert list(table.columns) == ["FLIRR mean"]
     (run_summary,) = (out / "Summarize").rglob("run_summary.txt")
     text = run_summary.read_text()
     assert "User settings file: not read" in text
     assert f"App settings file: {path} (schema version 2)" in text
-    # the log goes with the results: flimbatch's log folder is the output folder
-    (log,) = out.glob("flimbatch_*.log")
-    assert "Saved" in log.read_text()
+    (log,) = out.glob("flimbatch_*.log")  # the log goes with the results
+    assert "Read 8 file(s)" in log.read_text()
+
+
+def test_a_workflow_file_joins_the_files(data_dir, settings, tmp_path):
+    workflow = tmp_path / "per-treatment.json"
+    workflow.write_text(json.dumps({
+        "name": "per treatment",
+        "steps": [
+            {"id": "1", "tool": "Concatenate", "config": {"add_input": False}},
+            {"id": "2", "tool": "Separate Categories", "config": SEPARATE},
+            {"id": "3", "tool": "Summarize", "save": True,
+             "config": {"grouping": ["Treatment"], "features": ["FLIRR"], "aggs": ["mean"]}},
+        ],
+    }))
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "--workflow", str(workflow),
+                 "--no-prefect-server"])
+    assert code == 0
+    saved = [p for p in (out / "per treatment").rglob("*.txt") if p.name != "run_summary.txt"]
+    (summary,) = saved  # only the step that saves
+    table = pd.read_csv(summary, sep="\t")
+    assert list(table.columns) == ["Treatment", "FLIRR mean"] and set(table["Treatment"]) == {"WT", "KO"}
+
+
+def test_the_built_in_import_workflows_run_by_name(data_dir, tmp_path):
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "--run", "Import: FOV, Treatment, Cell",
+                 "--no-prefect-server"])
+    assert code == 0
+    (calculated,) = (out / "Import: FOV, Treatment, Cell").rglob("*Calculated*")
+    table = pd.read_csv(calculated, sep="\t")
+    assert len(table) == 40 and set(table["Treatment"]) == {"WT", "KO"}
+
+
+def test_a_run_is_required(data_dir, tmp_path, capsys):
+    with pytest.raises(SystemExit):
+        main(["-i", str(data_dir), "-o", str(tmp_path)])
+    assert "--run NAME or --workflow FILE" in capsys.readouterr().err
+
+
+def test_dry_run_checks_and_runs_nothing(data_dir, settings, tmp_path, capsys):
+    settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["gone"], aggs=["mean"]))
+    path = _settings_file(settings, tmp_path)
+    assert main(["-i", str(data_dir), "--dry-run", "--run", "Import"]) == 0
+    assert "Import: OK (8 file(s))" in capsys.readouterr().out
+    assert main(["-i", str(data_dir), "--dry-run", "-s", str(path), "--run", "Summarize"]) == 1
+    assert "'gone'" in capsys.readouterr().err
+    assert not list(tmp_path.glob("Summarize*"))
 
 
 @pytest.mark.parametrize(
@@ -130,10 +160,7 @@ def test_run_a_tool_with_its_settings(data_dir, settings, tmp_path, monkeypatch)
 def test_settings_that_cannot_be_used_or_checked_stop_the_run(
     data_dir, settings, tmp_path, capsys, extra, listed
 ):
-    import json
-
-    path = tmp_path / "settings.json"
-    save_settings(settings, path)
+    path = _settings_file(settings, tmp_path)
     path.write_text(json.dumps({**json.loads(path.read_text()), **extra}))
     code = main(["-i", str(data_dir), "-o", str(tmp_path / "out"), "-s", str(path),
                  "--run", "Summarize", "--no-prefect-server"])
@@ -144,16 +171,20 @@ def test_settings_that_cannot_be_used_or_checked_stop_the_run(
 
 
 def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp_path):
+    # one file with the category columns, as a table saved by FLIMAnalyzer
+    rows = []
+    for path in sorted(data_dir.iterdir()):
+        _, fov, treatment, cell = path.stem.split("_")
+        rows.append(pd.read_csv(path, sep="\t").assign(Treatment=treatment, FOV=fov, Cell=cell))
+    table = tmp_path / "table.txt"
+    pd.concat(rows).to_csv(table, sep="\t", index=False)
     settings.tools.set(
         tools.get("Basic FLIRR Analysis"),
         # the fewest features its steps take (pair plots of FAD and of NAD features)
-        BasicFLIRRConfig(
-            grouping=["Treatment", "FOV"], features=["FAD a1%", "NAD(P)H a2%"]
-        ),
+        BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=["FAD a1%", "NAD(P)H a2%"]),
     )
-    path = tmp_path / "settings.json"
-    save_settings(settings, path)
-    args = ["-i", str(data_dir), "-c", str(path), "--run", "Basic FLIRR Analysis",
+    path = _settings_file(settings, tmp_path)
+    args = ["-i", str(table), "-s", str(path), "--run", "Basic FLIRR Analysis",
             "--no-prefect-server"]
     assert main(args + ["-o", str(tmp_path / "strict")]) == 1  # 'FAD a1%' is missing
     assert not (tmp_path / "strict" / "Basic FLIRR Analysis").exists()
@@ -166,12 +197,13 @@ def test_unknown_tools_and_missing_files(data_dir, tmp_path, capsys):
     assert main(["-i", str(data_dir), "-o", str(tmp_path), "--run", "Nothing",
                  "--no-prefect-server"]) == 1
     assert "No tool or workflow named 'Nothing'" in capsys.readouterr().err
-    assert main(["-i", str(tmp_path / "gone"), "-o", str(tmp_path / "o")]) == 1
+    assert main(["-i", str(tmp_path / "gone"), "-o", str(tmp_path / "o"), "--run", "Import"]) == 1
+    assert "No data files could be read" in capsys.readouterr().err
 
 
 def test_output_folder_that_cannot_be_used(data_dir, tmp_path, capsys):
     (tmp_path / "file").write_text("x")
-    assert main(["-i", str(data_dir), "-o", str(tmp_path / "file" / "out")]) == 1
+    assert main(["-i", str(data_dir), "-o", str(tmp_path / "file" / "out"), "--run", "Import"]) == 1
     assert "--output:" in capsys.readouterr().err
 
 
@@ -185,9 +217,9 @@ def test_the_application_command_hands_batch_runs_to_flimbatch(data_dir, tmp_pat
         "sys.modules['wx'] = None  # batch runs must not import wx\n"
         "from flim import analyzerapp\n"
         f"sys.argv = ['flimanalyzer', '--batch', '-i', {str(data_dir)!r},"
-        f" '-o', {str(out)!r}, '--no-prefect-server']\n"
+        f" '-o', {str(out)!r}, '--run', 'Import', '--no-prefect-server']\n"
         "analyzerapp.main()\n"
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-2000:]
-    assert (out / "Imported.txt").exists()
+    assert list((out / "Import").rglob("*Calculated*"))

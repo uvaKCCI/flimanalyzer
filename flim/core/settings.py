@@ -410,34 +410,17 @@ def _v1_calculations(calculate: dict) -> list:
 
 
 def _v1_import(data: dict, changes: "Changes") -> None:
-    """0.6's `import` section becomes the Import tool's settings; its file list (the
-    files of the last import, kept only for the session) and the derived column
-    lists are dropped."""
+    """0.6's `import` section (delimiter, filename parser and patterns, files left
+    out, column combinations) is dropped: what a run does with the files is a
+    workflow file's (e.g. the built-in `Import: FOV, Treatment, Cell`)."""
     section = data.pop("import", None)
     if not isinstance(section, dict):
         return
-    parser = section.get("filename_parser") or {}
-    config = {
-        "delimiter": section.get("delimiter", "\t,"),
-        "exclude_files": list(section.get("exclude_files") or []),
-        "parser": parser.get("parser", "defaultparser"),
-        "patterns": list(parser.get("patterns") or []),
-        "category_combinations": section.get("category_combinations"),
-    }
-    combos = config["category_combinations"]
-    if combos is not None:
-        config["category_combinations"] = [list(c) for c in combos]
-    tools = data.setdefault("tools", {})
-    if isinstance(tools, dict):
-        entry = tools.setdefault("Import", {})
-        entry["config"] = {**config, **(entry.get("config") or {})}
-    changes.converted.append("import to the Import tool")
-    dropped = [k for k in ("include_files", "category_columns", "fitting_columns") if section.get(k)]
-    if dropped:
-        changes.dropped.append(f"import: {', '.join(dropped)} (not settings)")
-    known = {"delimiter", "exclude_files", "filename_parser", "category_combinations",
-             "include_files", "category_columns", "fitting_columns"}  # fmt: skip
-    changes.dropped += [f"import.{k} (unknown)" for k in section if k not in known]
+    parser = (section.get("filename_parser") or {}).get("parser", "defaultparser")
+    changes.dropped.append(
+        f"import (filename parser {parser}): use a workflow file, e.g. one of the"
+        " built-in Import files"
+    )
 
 
 def _v1_filters(data: dict, changes: "Changes") -> None:

@@ -436,3 +436,47 @@ def register_workflow_files(search_path=()) -> list[str]:
     for message in messages:
         logger.warning(message)
     return messages
+
+
+def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
+    """Check a workflow's steps against the tables it would run on, without running
+    it: each step's settings against the columns it gets, as far as they are known
+    (each step's outputs are worked out from its inputs, see Tool.output_schema).
+
+    Args:
+        definition: The workflow.
+        schemas: The run's tables' schemas (TableSchema) by name.
+
+    Returns:
+        The errors, each naming its step and tool.
+    """
+    from flim.core.registry import tools
+    from flim.core.schema import TableSchema
+
+    shapes, errors = _shapes(definition)
+    first = next(iter(schemas.values()), None)
+    known = {INPUT: [first]}  # per step: its outputs' schemas, in order
+    previous = INPUT
+    for step in definition.steps:
+        tool = tools.get(step.tool)
+        config = tool.config_class.model_validate(step.config)
+        inputs = []
+        for reference in step.inputs or [previous]:
+            source, number = parse_reference(reference)
+            outputs = known.get(source) or []
+            inputs.append(outputs[number - 1] if number <= len(outputs) else None)
+        if tool.inputs and tool.inputs[0].many:
+            source = (step.inputs or [previous])[0]
+            many = schemas if source == INPUT else {"Input": inputs[0]}
+            inputs = [None if None in many.values() else many]
+        for issue in tool.validate(config, inputs):
+            if issue.severity == "error":
+                where = f"{issue.field}: " if issue.field else ""
+                errors.append(f"step {step.id} ({step.tool}): {where}{issue.message}")
+        try:
+            specs = list(tool.output_schema(config, inputs).values())
+        except Exception:  # the outputs can't be worked out: not checked further
+            specs = []
+        known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
+        previous = step.id
+    return errors

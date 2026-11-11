@@ -146,18 +146,18 @@ def test_save_and_load_settings(frame, monkeypatch, tmp_path):
 
     path = tmp_path / "settings.json"
     manager = frame.settings_manager
-    from flim.configs import ImportConfig
+    from flim.configs import RenameColumnsConfig
 
-    manager.set_tool(tools.get("Import"), ImportConfig(delimiter=";"))
+    manager.set_tool(tools.get("Rename Columns"), RenameColumnsConfig(replacements=[]))
     manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=5))
     _answer_file_dialog(monkeypatch, path)
     frame.OnSaveSettings(None)
     assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
 
-    manager.set_tool(tools.get("Import"), ImportConfig(delimiter="\t"))
+    manager.set_tool(tools.get("Rename Columns"), RenameColumnsConfig())
     manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=2))
     frame.OnLoadSettings(None)
-    assert frame.settings.tools.config(tools.get("Import")).delimiter == ";"
+    assert frame.settings.tools.config(tools.get("Rename Columns")).replacements == []
     assert frame.settings.tools.config(tools.get("K-Means")).n_clusters == 5
 
 
