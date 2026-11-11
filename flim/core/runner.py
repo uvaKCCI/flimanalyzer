@@ -29,6 +29,7 @@ used. Tools that draw figures hold :data:`pyplot_lock`, as pyplot is not thread-
 import contextlib
 import contextvars
 import copy
+from dataclasses import dataclass
 import datetime
 import logging
 import os
@@ -150,6 +151,27 @@ def Parameter(name: str, default: Any = None) -> Any:
     return default
 
 
+@dataclass(frozen=True)
+class Nth:
+    """A key that selects a tool's result by position: `Nth(2)` is its second output,
+    in the order the tool returns them (a workflow file's `"4.2"`)."""
+
+    number: int  # from 1
+
+    def __str__(self):
+        return f"output {self.number}"
+
+
+def _lookup(value, key):
+    """`value[key]`; an `Nth` key selects by position."""
+    if isinstance(key, Nth):
+        values = list(value.values())
+        if key.number > len(values):
+            raise KeyError(f"no {key}: the step has {len(values)} output(s)")
+        return values[key.number - 1]
+    return value[key]
+
+
 class TaskOutput:
     """Handle to the (possibly not yet computed) result of a tool call."""
 
@@ -175,7 +197,7 @@ class TaskOutput:
         for key in self.keys:
             if value is None:
                 return None
-            value = value[key]
+            value = _lookup(value, key)
         return value
 
     def __repr__(self):
@@ -188,7 +210,7 @@ def _unwrap(obj: Any) -> Any:
         if obj.get(_MARKER):
             value = obj["ref"]
             for key in obj["keys"]:
-                value = value[key]
+                value = _lookup(value, key)
             return value
         return {k: _unwrap(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -250,7 +272,12 @@ def run_tool(tool, label: str, kwargs: Dict[str, Any], autosave: Optional[dict])
     """Prefect task that runs a single tool call."""
     results = _run_tool(tool, kwargs)
     if autosave:
-        save_results(results, **autosave)
+        only = autosave.get("only")
+        saved = results
+        if only is not None:  # a workflow file's step saves some of its outputs
+            items = list(results.items())
+            saved = dict(items[n - 1] for n in only if n <= len(items))
+        save_results(saved, **{k: v for k, v in autosave.items() if k != "only"})
     warnings = getattr(getattr(tool, "context", None), "warnings", None)
     if warnings:
         # the warnings become the completed task's message (run summary, Prefect UI);
@@ -396,7 +423,8 @@ class FlowRun:
             return TaskOutput(None, node)
 
         autosave = None
-        if self.autosave_dir:
+        save = getattr(tool, "_save", None)  # a workflow file's step: True, False, [n]
+        if self.autosave_dir and save is not False:
             autosave = {
                 "directory": self.autosave_dir.joinpath(
                     *[clean_path_component(t) for t in tag_list]
@@ -404,6 +432,8 @@ class FlowRun:
                 "name": label,
                 "formats": self.save_formats,
             }
+            if isinstance(save, (list, tuple)):
+                autosave["only"] = list(save)
 
         # tools write files they produce (e.g. models) next to the saved results
         tool._output_dir = autosave["directory"] if autosave else None

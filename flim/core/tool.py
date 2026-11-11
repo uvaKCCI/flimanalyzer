@@ -100,6 +100,10 @@ class RunContext:
     output_dir: Optional[Path] = None
     # warnings of this run (Tool.warn): the task's message in the run summary
     warnings: list = field(default_factory=list)
+    # parts of the settings applied and skipped (Tool.applied, Tool.skip), for a
+    # workflow file step's `processing`
+    applied: int = 0
+    skipped: list = field(default_factory=list)
 
     @classmethod
     def for_config(
@@ -213,10 +217,55 @@ class Tool(Generic[ConfigT]):
         )
         with pyplot_lock if self.draws_figures else contextlib.nullcontext():
             results = self.display_names(self.run(*inputs, config=config))
+        self.check_processing()
         release_figures(results)
         if config.prefix:
             results = {f"{config.prefix}{k}": v for k, v in results.items()}
         return results
+
+    def applied(self, count: int = 1) -> None:
+        """Reports parts of the settings that were applied to the data (e.g. a
+        calculation that was made), for a workflow file step's `processing`."""
+        context = getattr(self, "context", None)
+        if context is not None:
+            context.applied += count
+
+    def skip(self, message: str, warn: bool = False) -> None:
+        """Reports a part of the settings that does not apply to the data (e.g. a
+        calculation whose columns are missing). In a workflow file step it is a
+        skipped part for the step's `processing`, and a warning in the run summary;
+        otherwise it is logged only (e.g. the default filters on channels many data
+        sets don't have), unless `warn`."""
+        if warn or getattr(self, "_processing", None) is not None:
+            self.warn(message)
+        else:
+            logger.info(f"{self.name}: {message}")
+        context = getattr(self, "context", None)
+        if context is not None:
+            context.skipped.append(message)
+
+    def check_processing(self) -> None:
+        """Fails the run if a workflow file step's `processing` doesn't allow what
+        was skipped: `require_all` no skipped part, `allow_partial` at least one
+        applied part (if any were skipped), `allow_none` anything.
+
+        Raises:
+            ValueError: If the step's processing doesn't allow it.
+        """
+        processing = getattr(self, "_processing", None)
+        context = getattr(self, "context", None)
+        if processing is None or context is None or not context.skipped:
+            return
+        skipped = len(context.skipped)
+        if processing == "require_all":
+            raise ValueError(
+                f"{self.name}: {skipped} part(s) of the settings don't apply"
+                " (processing: require_all): " + "; ".join(context.skipped)
+            )
+        if processing == "allow_partial" and context.applied == 0:
+            raise ValueError(
+                f"{self.name}: none of the settings apply (processing: allow_partial)"
+            )
 
     def warn(self, message: str) -> None:
         """Reports a warning of this run: logged now, and listed with the task in the

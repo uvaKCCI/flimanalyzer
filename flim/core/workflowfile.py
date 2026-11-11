@@ -254,3 +254,185 @@ def workflow_files(search_path=()) -> list[Path]:
         if folder.is_dir():
             files += sorted(folder.glob("*.json"))
     return files
+
+
+# --- running workflow files ---------------------------------------------------------
+
+MAPPED, SINGLE = "per table", "one table"
+
+
+def _shapes(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
+    """Work out, per step, whether it runs once per table (mapped) or once, and the
+    errors of steps that combine the two. The run's tables are mapped; a step whose
+    input takes many tables (e.g. Concatenate) makes one table of them."""
+    from flim.core.registry import tools
+    from flim.core.workflow import Workflow
+
+    shapes, errors, previous = {INPUT: MAPPED}, [], INPUT
+    for step in definition.steps:
+        references = step.inputs or [previous]
+        sources = {shapes.get(parse_reference(r)[0], MAPPED) for r in references}
+        tool = tools.get(step.tool) if step.tool in tools else None
+        if tool is not None and issubclass(tool, Workflow):
+            errors.append(f"step {step.id}: workflows as steps are not supported yet")
+        if tool is not None and tool.inputs and tool.inputs[0].many:
+            if len(references) != 1:
+                errors.append(f"step {step.id}: {step.tool} takes one input, the tables")
+            shapes[step.id] = SINGLE
+        elif len(sources) > 1:
+            errors.append(
+                f"step {step.id}: combines tables per file with a single table;"
+                " reduce them first (e.g. Concatenate)"
+            )
+            shapes[step.id] = SINGLE
+        else:
+            shapes[step.id] = sources.pop()
+        previous = step.id
+    return shapes, errors
+
+
+def _saved(step: WorkflowStep):
+    """A step's `save` as the runner takes it: True, False or output numbers."""
+    if isinstance(step.save, bool):
+        return step.save
+    return [parse_reference(r)[1] for r in step.save]
+
+
+def _file_workflow_base():
+    """The base class of workflows defined by files (created on first use: it needs
+    the Workflow class, which imports much of the core)."""
+    global FileWorkflow
+    if "FileWorkflow" in globals():
+        return FileWorkflow
+    from flim.configs.workflow import WorkflowConfig
+    from flim.core.config import Issue
+    from flim.core.registry import tools
+    from flim.core.runner import Nth
+    from flim.core.types import InputSpec, TableType
+    from flim.core.validation import ValidationReport
+    from flim.core.workflow import Workflow, workflow_input
+
+    class FileWorkflowConfig(WorkflowConfig):
+        """A workflow file's run settings: the steps carry their own."""
+
+        hidden_fields = frozenset({"prefix", "strict", "grouping", "features"})
+
+    class _FileWorkflow(Workflow[FileWorkflowConfig]):
+        """A workflow defined by a workflow file (`definition`)."""
+
+        definition = None  # WorkflowDefinition, set per file
+        path = None  # the file
+        inputs = (InputSpec("tables", TableType, many=True),)
+
+        @classmethod
+        def is_strict(cls, config, default=None) -> bool:
+            return True  # workflow files never guess columns
+
+        @classmethod
+        def structure_issues(cls) -> list:
+            return [Issue(None, e) for e in _shapes(cls.definition)[1]]
+
+        def resolve(self, config, inputs, strict=None):
+            return ValidationReport(config=config, issues=self.structure_issues())
+
+        @classmethod
+        def validate(cls, config, inputs, strict=None):
+            return cls.structure_issues()
+
+        def build(self, tables, *, config):
+            if not isinstance(tables, dict):
+                tables = {"Input": tables}
+            shapes, _ = _shapes(self.definition)
+            outputs = {
+                INPUT: {name: workflow_input(t, name, save=False) for name, t in tables.items()}
+            }
+            previous = INPUT
+            for step in self.definition.steps:
+                tool_class = tools.get(step.tool)
+                step_config = tool_class.config_class.model_validate(step.config)
+                sources = []
+                for reference in step.inputs or [previous]:
+                    source, number = parse_reference(reference)
+                    value = outputs[source]
+                    pick = (lambda v: v) if source == INPUT else (lambda v, n=number: v[Nth(n)])
+                    if isinstance(value, dict):
+                        sources.append({k: pick(v) for k, v in value.items()})
+                    else:
+                        sources.append(pick(value))
+
+                def call(inputs, tags):
+                    tool = tool_class()
+                    tool._save = _saved(step)
+                    tool._processing = step.processing
+                    return tool(*inputs, config=step_config, task_tags=tags)
+
+                if tool_class.inputs and tool_class.inputs[0].many:
+                    (source,) = sources
+                    tables_in = source if isinstance(source, dict) else {"Input": source}
+                    outputs[step.id] = call([tables_in], [step.id])
+                elif shapes[step.id] == MAPPED:
+                    names = list(sources[0])
+                    outputs[step.id] = {
+                        name: call([s[name] for s in sources], [name]) for name in names
+                    }
+                else:
+                    outputs[step.id] = call(sources, [step.id])
+                previous = step.id
+
+    FileWorkflow = _FileWorkflow
+    return FileWorkflow
+
+
+def workflow_class(definition: WorkflowDefinition, path: Optional[Path] = None):
+    """Return a workflow class (a tool) that runs a workflow file's steps.
+
+    Args:
+        definition: The workflow.
+        path: Its file.
+    """
+    base = _file_workflow_base()
+    name = "".join(c for c in definition.name.title() if c.isalnum()) or "Workflow"
+    return type(
+        f"{name}FileWorkflow",
+        (base,),
+        {
+            "name": definition.name,
+            "description": definition.description or f"Workflow file {getattr(path, 'name', '')}",
+            "definition": definition,
+            "path": path,
+            "__module__": __name__,
+        },
+    )
+
+
+def register_workflow_files(search_path=()) -> list[str]:
+    """Register the built-in workflow files and those in the search path, by name.
+
+    A file with errors, or whose name a tool or another workflow already has
+    (ignoring case), is not registered.
+
+    Args:
+        search_path: The folders (see `workflow_path`).
+
+    Returns:
+        A message per file that was not registered.
+    """
+    from flim.core.registry import tools
+
+    base = _file_workflow_base()
+    messages = []
+    for path in workflow_files(search_path):
+        check = check_workflow_file(path)
+        if check.errors:
+            messages.append(f"{path}: not loaded: {'; '.join(check.errors)}")
+            continue
+        name = check.definition.name
+        if name in tools and issubclass(tools.get(name), base) and tools.get(name).path == path:
+            tools.unregister(name)  # read again, e.g. after the file changed
+        try:
+            tools.register(workflow_class(check.definition, path))
+        except ValueError as err:
+            messages.append(f"{path}: not loaded: {err}")
+    for message in messages:
+        logger.warning(message)
+    return messages

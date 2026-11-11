@@ -185,6 +185,10 @@ class Filter(Tool[FilterConfig]):
         from flim.core.filtering import apply_filters, leaf_counts
 
         outcome = apply_filters(data, config.filters)
+        # parts: a filter on a column the table doesn't have keeps all rows
+        self.applied(len(outcome.dropped) - len(outcome.notes))
+        for path, note in outcome.notes.items():
+            self.skip(f"{path}: {note}")
         line = leaf_counts(outcome)
         if line:
             logger.info(f"{self.name}: {line}")
@@ -685,6 +689,12 @@ class RenameColumns(Tool[RenameColumnsConfig]):
 
         pairs = [(r.part, r.new) for r in config.replacements]
         names = renamed_columns(data.columns, pairs)
+        # parts: a replacement whose part occurs in no column name is skipped
+        for part, _ in pairs:
+            if any(part in str(c) for c in data.columns):
+                self.applied()
+            else:
+                self.skip(f"no column name contains '{part}'")
         if len(set(names)) < len(names):
             duplicates = sorted({n for n in names if names.count(n) > 1})
             raise ValueError(
@@ -722,7 +732,14 @@ class DropColumns(Tool[DropColumnsConfig]):
     def run(self, data, *, config):
         from flim.core.columns import columns_to_drop
 
-        dropped = columns_to_drop(data.columns, [(r.text, r.match) for r in config.drop])
+        rules = [(r.text, r.match) for r in config.drop]
+        dropped = columns_to_drop(data.columns, rules)
+        # parts: a rule that matches no column is skipped
+        for text, match in rules:
+            if columns_to_drop(data.columns, [(text, match)], drop_empty=False):
+                self.applied()
+            else:
+                self.skip(f"no column name {match} '{text}'")
         return {"Columns Dropped": data.drop(columns=dropped)}
 
 
@@ -786,8 +803,9 @@ class Calculate(Tool[CalculateConfig]):
         from flim.core.calculate import calculate
 
         outcome = calculate(data, config.calculations)
+        self.applied(len(outcome.calculated))
         for name, reason in outcome.skipped.items():
-            self.warn(f"{name} skipped: {reason}")
+            self.skip(f"{name} skipped: {reason}", warn=True)  # as since it was added
         for name in outcome.replaced:
             self.warn(f"{name}: the input column is replaced")
         return {"Calculated": outcome.data}

@@ -164,8 +164,17 @@ class _Input(Tool[TaskConfig]):
         return inputs[0]  # the table itself, for the steps that use it
 
 
-def workflow_input(data, name: str = "Input", task_tags=None):
-    """The input table of a workflow, the first node of its graph."""
+def workflow_input(data, name: str = "Input", task_tags=None, save=None):
+    """The input table of a workflow, the first node of its graph.
+
+    Args:
+        data: The table.
+        name: The node's name.
+        task_tags: Tags of the node's task; default: the name.
+        save: False: the table is not saved with the run's results (workflow files
+            save only what their steps' `save` says).
+    """
     step = _Input()
     step.name = name
+    step._save = save
     return step(data, task_tags=task_tags or name)
