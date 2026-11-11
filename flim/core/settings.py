@@ -429,6 +429,7 @@ def _v1_import(data: dict, changes: "Changes") -> None:
     section = data.pop("import", None)
     if not isinstance(section, dict):
         return
+    changes.import_section = section
     parser = (section.get("filename_parser") or {}).get("parser", "defaultparser")
     changes.dropped.append(
         f"import (filename parser {parser}): use a workflow file, e.g. one of the"
@@ -567,6 +568,9 @@ class Changes:
 
     converted: list[str] = field(default_factory=list)
     dropped: list[str] = field(default_factory=list)
+    # the `import` section of a file of FLIMAnalyzer 0.6 (version 1), dropped: it can
+    # be saved as a workflow file (SettingsCheck.import_workflow)
+    import_section: Optional[dict] = None
 
 
 def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
@@ -685,6 +689,9 @@ class SettingsCheck:
     invalid: list[str] = field(default_factory=list)
     not_checked: list[str] = field(default_factory=list)
     sections: dict = field(default_factory=dict)
+    # a workflow file (its content) that imports as the file's 0.6 import settings
+    # did; offered to be saved, never applied (see flim.core.workflowfile)
+    import_workflow: Optional[dict] = None
 
     @property
     def problems(self) -> bool:
@@ -796,6 +803,12 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
         check.error = str(err)
         return check
     check.converted, check.dropped = changes.converted, changes.dropped
+    if changes.import_section is not None:
+        from flim.core.workflowfile import import_workflow_data
+
+        check.import_workflow = import_workflow_data(
+            changes.import_section, data.get("tools") or {}, f"Import ({path.stem})"
+        )
     data.pop("schema_version", None)
     if "tools" in data and not isinstance(data["tools"], dict):
         check.invalid.append("tools: not a mapping of tool names to settings")

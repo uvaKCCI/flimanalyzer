@@ -319,3 +319,51 @@ def pick_app_settings(
         dialog.Destroy()
     logger.info(f"App settings file chosen at startup: {picked.file or 'none'}")
     return picked
+
+
+def offer_import_workflow(check, parent, settings_manager) -> Optional[Path]:
+    """If a settings file has import settings of FLIMAnalyzer 0.6, ask whether to save
+    them as a workflow file (`SettingsCheck.import_workflow`); nothing is applied
+    otherwise. The saved file is registered, so File > Import... offers it.
+
+    Args:
+        check: The result of `check_settings_file`.
+        parent: The parent window.
+        settings_manager: The session's SettingsManager (the workflow search path).
+
+    Returns:
+        The saved file, or None.
+    """
+    import json
+
+    from flim.core.registry import tools
+    from flim.core.workflowfile import check_workflow_file, workflow_class, workflow_path
+
+    data = getattr(check, "import_workflow", None)
+    if not data:
+        return None
+    question = (
+        f"{check.path.name} has import settings of FLIMAnalyzer 0.6 (delimiter,"
+        " filename parser, renamed, dropped and calculated columns). FLIMAnalyzer now"
+        " imports with workflow files, so these settings are not used.\n\nSave them as"
+        " a workflow file, to choose in File > Import...?"
+    )
+    with wx.MessageDialog(parent, question, "Import settings", style=wx.YES_NO | wx.ICON_QUESTION) as dialog:
+        dialog.SetYesNoLabels("Save as Workflow File...", "Don't Save")
+        if dialog.ShowModal() != wx.ID_YES:
+            return None
+    folder = workflow_path(settings_manager.settings.workflow_paths)[0]
+    folder.mkdir(parents=True, exist_ok=True)
+    with wx.FileDialog(
+        parent, "Save as Workflow File", defaultDir=str(folder),
+        defaultFile=f"{check.path.stem}-import.json", wildcard="Workflow files (*.json)|*.json",
+        style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+    ) as dialog:  # fmt: skip
+        if dialog.ShowModal() != wx.ID_OK:
+            return None
+        path = Path(dialog.GetPath())
+    path.write_text(json.dumps(data, indent=2) + "\n")
+    result = check_workflow_file(path)
+    if result.definition is not None and result.definition.name not in tools:
+        tools.register(workflow_class(result.definition, path))
+    return path

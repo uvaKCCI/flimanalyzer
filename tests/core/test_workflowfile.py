@@ -1,6 +1,7 @@
 """Workflow files: format and checks (flim.core.workflowfile)."""
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -277,3 +278,44 @@ def test_every_built_in_file_is_valid():
     assert len(files) == 9
     for path in files:
         assert check_workflow_file(path).errors == [], path
+
+
+def test_old_import_settings_become_an_equivalent_workflow(prefect_harness, raw_dir, tmp_path):
+    from flim.core.importer import dataimporter
+    from flim.core.parser import instantiate_parser
+    from flim.core.reader import read_tables
+    from flim.core.settings import AppSettings, check_settings_file, load_settings
+    from flim.tools.data import import_preprocessor
+
+    v1 = json.loads((Path(__file__).parent / "data" / "settings_v1.json").read_text())
+    v1["import"]["filename_parser"] = {"parser": "fov_treatment_cell_parser", "patterns": []}
+    v1["import"]["category_combinations"] = [["FOV", "Treatment"]]
+    settings_file = write(tmp_path, v1, "old.json")
+    check = check_settings_file(settings_file)
+    assert check.import_workflow["name"] == "Import (old)"
+    path = write(tmp_path, check.import_workflow, "old-import.json")
+    result = check_workflow_file(path)
+    assert result.errors == []
+    tools_in_order = [s.tool for s in result.definition.steps]
+    assert tools_in_order == [
+        "Rename Columns", "Drop Columns", "Concatenate", "Separate Categories",
+        "Fuse Categories", "Calculate",
+    ]
+    run = workflow_class(result.definition)().run_flow(read_tables([raw_dir]).tables)
+    assert run.state == "completed", run.failed
+    (new,) = [v for r in run.results() if isinstance(r, dict) for k, v in r.items() if k == "Table: Calculated"]
+    # 0.6: the importer with the file's settings
+    settings = load_settings(settings_file, AppSettings.default())
+    importer = dataimporter()
+    importer.set_files([str(raw_dir)])
+    importer.set_parser(instantiate_parser("flim.core.parser.fov_treatment_cell_parser"))
+    importer.set_column_combos([("FOV", "Treatment")])
+    importer.set_preprocessor(import_preprocessor(settings))
+    old, _, _ = importer.import_data()
+    assert set(new.columns) == set(old.columns)
+    columns = sorted(old.columns)
+    pd.testing.assert_frame_equal(
+        new.sort_values("Source").reset_index(drop=True)[columns],
+        old.sort_values("Source").reset_index(drop=True)[columns],
+        check_categorical=False,
+    )

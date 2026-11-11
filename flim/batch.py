@@ -296,6 +296,13 @@ def main(argv=None) -> int:
         # settings or on which tools are installed
         manager = session_settings(name, changes, complete=True)
         settings = manager.settings
+        if getattr(manager.check, "import_workflow", None):
+            print(
+                "flimbatch: warning: the settings file's import settings (FLIMAnalyzer"
+                " 0.6) are not used; to keep them, open the file in the GUI (File >"
+                " Import Settings...) and save them as a workflow file",
+                file=sys.stderr,
+            )
         search_path = workflow_path(settings.workflow_paths)
         for message in register_workflow_files(search_path):
             print(f"flimbatch: warning: {message}", file=sys.stderr)

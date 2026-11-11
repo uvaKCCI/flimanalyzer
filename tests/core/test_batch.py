@@ -223,3 +223,13 @@ def test_the_application_command_hands_batch_runs_to_flimbatch(data_dir, tmp_pat
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-2000:]
     assert list((out / "Import").rglob("*Calculated*"))
+
+
+def test_old_import_settings_are_not_used_and_said_so(data_dir, tmp_path, capsys):
+    from pathlib import Path
+
+    v1 = Path(__file__).parent / "data" / "settings_v1.json"
+    path = tmp_path / "old.json"
+    path.write_text(v1.read_text())
+    main(["-i", str(data_dir), "--dry-run", "-s", str(path), "--run", "Import"])
+    assert "import settings (FLIMAnalyzer 0.6) are not used" in capsys.readouterr().err

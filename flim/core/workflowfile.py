@@ -562,3 +562,76 @@ def describe_steps(definition: WorkflowDefinition) -> str:
             extra.append("saved")
         lines.append(f"{number}. {step.tool}" + (f" ({', '.join(extra)})" if extra else ""))
     return "\n".join(lines)
+
+
+def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
+    """The content of a workflow file that imports as the `import` settings of a
+    FLIMAnalyzer 0.6 settings file did: read the files (its delimiter, its files left
+    out), rename and drop columns, join the files, take the categories of its filename
+    parser from the paths, fuse its column combinations, calculate.
+
+    Args:
+        section: The file's `import` section (version 1).
+        tools_data: The file's `tools` section (current version): the Rename Columns,
+            Drop Columns and Calculate settings; defaults where it has none.
+        name: The workflow's name.
+
+    Returns:
+        The workflow file's content (JSON data).
+    """
+    from flim.configs import (
+        CalculateConfig, ConcatConfig, DropColumnsConfig, FuseCategoriesConfig,
+        RenameColumnsConfig, SeparateCategoriesConfig,
+    )  # fmt: skip
+    from flim.configs.data import CategoryPattern
+    from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE, instantiate_parser
+
+    def settings(tool, config_class):
+        config = (tools_data.get(tool) or {}).get("config")
+        try:
+            value = config_class.model_validate(config) if config else config_class()
+        except ValidationError:
+            value = config_class()
+        data = value.model_dump(mode="json")
+        for key in ("classname", "version"):
+            data.pop(key, None)
+        return data
+
+    parser_section = section.get("filename_parser") or {}
+    patterns = list(parser_section.get("patterns") or [])
+    if not patterns:
+        parser = instantiate_parser(f"flim.core.parser.{parser_section.get('parser', 'defaultparser')}")
+        patterns = parser.get_regexpatterns() if parser is not None else []
+    patterns = [p for p in patterns if p.get(PATTERN_USE, True)]
+    steps = [
+        {"tool": "Rename Columns", "processing": "allow_none", "config": settings("Rename Columns", RenameColumnsConfig)},
+        {"tool": "Drop Columns", "processing": "allow_none", "config": settings("Drop Columns", DropColumnsConfig)},
+        {"tool": "Concatenate", "config": settings("", ConcatConfig) | {"add_input": False}},
+    ]
+    if patterns:
+        separate = SeparateCategoriesConfig(
+            column="Source", mode="patterns",
+            patterns=[CategoryPattern(name=p[PATTERN_CATEGORY], regex=p[PATTERN_REGEX]) for p in patterns],
+        ).model_dump(mode="json")  # fmt: skip
+        separate.pop("classname", None)
+        separate.pop("version", None)
+        steps.append({"tool": "Separate Categories", "config": separate})
+    for pair in section.get("category_combinations") or []:
+        fuse = FuseCategoriesConfig(grouping=list(pair)).model_dump(mode="json")
+        fuse.pop("classname", None)
+        fuse.pop("version", None)
+        steps.append({"tool": "Fuse Categories", "config": fuse})
+    steps.append({"tool": "Calculate", "processing": "allow_partial", "save": True,
+                  "config": settings("Calculate", CalculateConfig)})  # fmt: skip
+    for number, step in enumerate(steps, 1):
+        step["id"] = str(number)
+    return {
+        "schema_version": WORKFLOW_SCHEMA_VERSION,
+        "name": name,
+        "description": "Imports as the import settings of a FLIMAnalyzer 0.6 settings file did.",
+        "read": {
+            "delimiter": section.get("delimiter", "\t,"),
+            "exclude": list(section.get("exclude_files") or []),
+        },
+        "steps": steps,
+    }

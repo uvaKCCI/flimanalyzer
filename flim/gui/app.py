@@ -182,6 +182,11 @@ class FLIMAnalyzerApp(wx.App):
                 "FLIMAnalyzer",
                 wx.OK | wx.ICON_WARNING,
             )
+        check = self.settings_manager.check  # the app settings file of this session
+        if getattr(check, "import_workflow", None):
+            from flim.gui.settingscheck import offer_import_workflow
+
+            wx.CallAfter(offer_import_workflow, check, self.frame, self.settings_manager)
         if self.runs:
             wx.CallAfter(self.run_at_start)
         elif self.files:
@@ -713,6 +718,9 @@ class AppFrame(wx.Frame):
             return
         self.settings_manager.apply(check)
         self.refresh_window_filters()
+        from flim.gui.settingscheck import offer_import_workflow
+
+        offer_import_workflow(check, self, self.settings_manager)
 
     def OnViewSettings(self, event):
         from flim.gui.settingsview import SettingsViewer

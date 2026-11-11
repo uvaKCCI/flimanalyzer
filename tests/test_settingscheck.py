@@ -335,3 +335,30 @@ def test_export_offers_the_folder_for_the_search_path(frame, tmp_path, monkeypat
     assert (path.parent.resolve() in folders) is added
     if added:  # not asked again for a folder already in the search path
         assert not frame.offer_search_path(path) and len(asked) == 1
+
+
+def test_old_import_settings_are_offered_as_a_workflow_file(wxapp, tmp_path, monkeypatch):
+    import json
+
+    from flim.core.registry import tools
+    from flim.core.settings import check_settings_file
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.settingscheck import offer_import_workflow
+
+    data = json.loads((Path(__file__).parent / "core" / "data" / "settings_v1.json").read_text())
+    path = tmp_path / "lab.json"
+    path.write_text(json.dumps(data))
+    check = check_settings_file(path)
+    manager = SettingsManager()
+    manager.update({"workflow_paths": [str(tmp_path / "workflows")]})
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)
+    assert offer_import_workflow(check, None, manager) is None  # Don't Save: nothing written
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "workflows" / "lab-import.json"))
+    try:
+        saved = offer_import_workflow(check, None, manager)
+        assert saved == tmp_path / "workflows" / "lab-import.json" and saved.exists()
+        assert "Import (lab)" in tools  # offered by File > Import... at once
+    finally:
+        tools.unregister("Import (lab)")
