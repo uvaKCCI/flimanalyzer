@@ -1,7 +1,7 @@
 """Draws the tool icons in flim/resources.
 
-All icons share one flat style: 32x32 RGBA on a transparent background, drawn at
-8x and downsampled, with the same axes, line weights and colour palette.
+All icons share one flat style: 32x32 RGBA on a transparent background, and 64x64
+as `name@2x.png` for high-resolution screens, drawn at 8x and downsampled, with the same axes, line weights and colour palette.
 
 The palette is colour-blind safe (based on Okabe & Ito): two groups are always
 green and magenta, never red and green; blue is used for single data series and
@@ -19,6 +19,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 S = 8  # supersampling factor
 SIZE = 32
+# the sizes written, as (scale, file name suffix): `name@2x.png` is the high-resolution
+# version that Qt (QIcon) and wxPython (wx.BitmapBundle.FromFiles) load on screens
+# with a device pixel ratio of 2
+SCALES = ((1, ""), (2, "@2x"))
 
 # palette
 BLUE = (40, 100, 210, 255)  # single data series
@@ -309,6 +313,22 @@ def sort_icon():
         y = 2 + rh * (j + 1)
         d.rectangle(s(12.5, y, 23, y + rh), fill=c + (255,), outline=DARK, width=px(1.1))
     arrow(d, 27.5, 3, 27.5, 29, DARK, w=2.2, head=4.5)
+    return im
+
+
+def split_icon():
+    im, d = canvas()
+    # the rows of one table go to a table per category value
+    rh = 17 / 5
+    table(d, 1, 7, 13, 24, 2, 5)
+    for j, c in ((1, LGREEN), (2, LGREEN), (3, LMAGENTA), (4, LMAGENTA)):
+        y = 7 + rh * j
+        d.rectangle(s(1, y, 13, y + rh), fill=c, outline=DARK, width=px(1.1))
+    d.line(s(7, 7, 7, 24), fill=DARK, width=px(0.8))
+    arrow(d, 14, 11, 20, 6, DARK, w=1.5, head=3)
+    arrow(d, 14, 20, 20, 25, DARK, w=1.5, head=3)
+    table(d, 21, 1, 30, 12, 2, 3, header=GREEN, fill=LGREEN)
+    table(d, 21, 19, 30, 30, 2, 3, header=MAGENTA, fill=LMAGENTA)
     return im
 
 
@@ -660,7 +680,7 @@ def heatmap_icon():
             x, y = 2 + i * 7, 2 + j * 7
             d.rectangle(s(x, y, x + 7, y + 7), fill=VIRIDIS[v] + (255,))
     d.rectangle(s(2, 2, 30, 30), outline=DARK, width=px(1.1))
-    return im
+    return im.transpose(Image.Transpose.ROTATE_270)  # rows of the table as columns
 
 
 def seriesanalysis_icon():
@@ -900,6 +920,7 @@ ICONS = {
     "scale.png": scale_icon,
     "separate.png": lambda: fuse_icon(reverse=True),
     "sort.png": sort_icon,
+    "split.png": split_icon,
     "source.png": source_icon,
     "unpivot.png": lambda: pivot_icon(reverse=True),
     # Analysis
@@ -940,7 +961,10 @@ def main(outdir):
     for name, draw in ICONS.items():
         im = draw()
         crisp = im.info.get("crisp")  # pixel-aligned drawing: average, don't sharpen
-        im.resize((SIZE, SIZE), Image.BOX if crisp else Image.LANCZOS).save(outdir / name)
+        for scale, suffix in SCALES:
+            size = SIZE * scale
+            path = outdir / name.replace(".png", f"{suffix}.png")
+            im.resize((size, size), Image.BOX if crisp else Image.LANCZOS).save(path)
     save_app_icon(outdir)
 
 

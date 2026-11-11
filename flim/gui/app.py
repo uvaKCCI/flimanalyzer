@@ -39,7 +39,7 @@ from flim.core.workflowfile import IMPORT_TAG, workflow_group
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
 from flim.core.runner import run_flow
 from flim.gui.configdialog import open_config_dialog
-from flim.gui.icons import tool_bitmap
+from flim.gui.icons import icon_bitmap, tool_bitmap
 from flim.gui.macos import set_bundle_name, set_display_name
 from flim.gui.plotframe import PlotFrame
 from flim.gui.progressdlg import RunProgressDialog, RunSummaryDialog
@@ -291,12 +291,12 @@ class AppFrame(wx.Frame):
         self._file_buttons = [
             (
                 "Open file",
-                wx.Bitmap(str(files(flim.resources).joinpath("fileopen.png"))),
+                icon_bitmap("fileopen.png"),
                 self.OnLoadData,
             ),
             (
                 "Import files",
-                wx.Bitmap(str(files(flim.resources).joinpath("import.png"))),
+                icon_bitmap("import.png"),
                 self.OnImportData,
             ),
         ]
