@@ -9,6 +9,7 @@ from flim.core.config import (
     BaseConfig,
     CategoryColumn,
     FeatureColumn,
+    LabelColumn,
     TaskConfig,
 )
 
@@ -525,7 +526,7 @@ class SeparateCategoriesConfig(DataTaskConfig):
 
     hidden_fields = frozenset({"features", "grouping"})
 
-    column: Optional[CategoryColumn] = Field(
+    column: Optional[LabelColumn] = Field(
         default=None, title="Column", description="The category column to separate."
     )
     mode: Literal["delimiters", "patterns"] = Field(

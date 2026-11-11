@@ -77,7 +77,8 @@ class BaseConfig(BaseModel):
 
 @dataclass(frozen=True)
 class ColumnRole:
-    """Marks a field as naming table columns of a kind: "category" or "feature"."""
+    """Marks a field as naming table columns of a kind: "category", "feature" or
+    "label" (a category or text column, e.g. Source)."""
 
     role: str
 
@@ -92,6 +93,7 @@ class ValueOf:
 
 CategoryColumn = Annotated[str, ColumnRole("category")]
 FeatureColumn = Annotated[str, ColumnRole("feature")]
+LabelColumn = Annotated[str, ColumnRole("label")]  # a category or text column
 AllFeatures = Literal["all"]
 Device = Literal["auto", "cpu", "cuda", "mps"]
 Probability = Annotated[float, Field(gt=0, lt=1)]

@@ -40,8 +40,10 @@ class TableSchema(BaseModel):
     def column(self, name: str) -> Optional[ColumnInfo]:
         return next((c for c in self.columns if c.name == name), None)
 
-    def by_role(self, role: ColumnKind) -> list[str]:
-        return [c.name for c in self.columns if c.role == role]
+    def by_role(self, role: str) -> list[str]:
+        """The names of the columns of a role; "label": category and text columns."""
+        roles = ("category", "other") if role == "label" else (role,)
+        return [c.name for c in self.columns if c.role in roles]
 
     @classmethod
     def unknown(cls) -> "TableSchema":

@@ -209,3 +209,67 @@ def test_registration_by_name(tmp_path):
         assert any("broken.json" in m for m in messages)
     finally:
         tools.unregister("Calc And Aggregate Test")
+
+
+# --- the built-in import workflow files ---
+
+
+@pytest.fixture
+def raw_dir(tmp_path):
+    """Raw result files with the channels' column names, named <x>_<FOV>_<Treatment>_<Cell>."""
+    import numpy as np
+
+    rng = np.random.default_rng(3)
+    folder = tmp_path / "data"
+    folder.mkdir()
+    for treatment in ("WT", "KO"):
+        for cell in ("1", "2"):
+            a1 = rng.uniform(60, 80, 3)
+            pd.DataFrame(
+                {
+                    "Exc1_-Ch2-_a1[%]": a1,
+                    "Exc1_-Ch2-_a2[%]": 100 - a1,
+                    "Exc1_-Ch2-_t1": rng.normal(400, 20, 3),
+                    "Exc1_-Ch2-_t2": rng.normal(2500, 100, 3),
+                    "Exc2_-Ch3-_a1[%]": rng.uniform(20, 40, 3),
+                    "Exc3_-Ch4-_x": rng.normal(0, 1, 3),
+                }
+            ).to_csv(folder / f"Results_FOV1_{treatment}_{cell}.txt", sep="\t", index=False)
+    return folder
+
+
+@pytest.mark.parametrize(
+    "file, parser",
+    [("import.json", "defaultparser"), ("import-fov-treatment-cell.json", "fov_treatment_cell_parser")],
+)
+def test_built_in_import_files_match_the_import_of_0_6(prefect_harness, raw_dir, file, parser):
+    from flim.core.reader import read_tables
+    from flim.core.settings import AppSettings
+    from flim.configs import ImportConfig
+    from flim.core.workflowfile import BUILT_IN
+    from flim.tools.data import Import, import_steps
+
+    check = check_workflow_file(BUILT_IN / file)
+    assert check.errors == []
+    run = workflow_class(check.definition)().run_flow(read_tables([raw_dir]).tables)
+    assert run.state == "completed", run.failed
+    (new,) = [v for r in run.results() if isinstance(r, dict) for k, v in r.items() if k == "Table: Calculated"]
+    settings = AppSettings.default()
+    settings.tools.set(Import, ImportConfig(parser=parser))
+    old = import_steps([raw_dir], settings)  # 0.6's import path (Import tool and steps)
+    assert set(new.columns) == set(old.columns)
+    columns = sorted(old.columns)
+    pd.testing.assert_frame_equal(
+        new.sort_values("Source").reset_index(drop=True)[columns],
+        old.sort_values("Source").reset_index(drop=True)[columns],
+        check_categorical=False,
+    )
+
+
+def test_every_built_in_file_is_valid():
+    from flim.core.workflowfile import BUILT_IN
+
+    files = sorted(BUILT_IN.glob("*.json"))
+    assert len(files) == 9
+    for path in files:
+        assert check_workflow_file(path).errors == [], path

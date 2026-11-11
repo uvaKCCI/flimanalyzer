@@ -99,12 +99,26 @@ def fuse(data: pd.DataFrame, columns, delimiter: str = DELIMITER, name: Optional
     return result
 
 
+def _decoded(value: str) -> str:
+    """A `file://` URI (e.g. a Source value) as its path, with `%20` etc. decoded;
+    other values as they are."""
+    if not value.startswith("file:"):
+        return value
+    from urllib.parse import unquote, urlparse
+
+    url = urlparse(value)
+    path = unquote(url.path)
+    if len(path) > 2 and path[0] == "/" and path[2] == ":":  # file:///D:/...
+        path = path[1:]
+    return f"//{url.netloc}{path}" if url.netloc else path
+
+
 def _part(values: pd.Series, part: str) -> pd.Series:
     """Return the part of each value to separate: the value, its file name, or its
     file name without the extension."""
     if part not in PARTS:
         raise ValueError(f"unknown part {part!r}: use {', '.join(PARTS)}")
-    texts = values.astype("string")
+    texts = values.astype("string").map(lambda v: v if pd.isna(v) else _decoded(v))
     if part == "value":
         return texts
     names = texts.map(lambda v: v if pd.isna(v) else os.path.basename(v.replace("\\", "/")))

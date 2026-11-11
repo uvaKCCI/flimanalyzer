@@ -401,6 +401,10 @@ class Tool(Generic[ConfigT]):
                 # e.g. a text column: some tools take it (min, max), others fail
                 message = f"'{name}' is a text column, not a feature"
                 issues.append(Issue(path, message, severity="warning"))
+            elif role == "label":
+                if column.role not in ("category", "other"):
+                    message = f"'{name}' is not a category or text column"
+                    issues.append(Issue(path, message))
             elif column.role != role:
                 issues.append(Issue(path, f"'{name}' is not a {role} column"))
         return issues

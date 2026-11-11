@@ -1,6 +1,6 @@
 # Separate Categories
 
-The `Separate Categories` tool separates one category column into several, for example `FOV:Cell` back into `FOV` and `Cell`, or a file name such as `Results-ko_01.txt` into `Treatment` `ko` and `Cell` `01`. It has two modes: at delimiters, or by patterns.
+The `Separate Categories` tool separates one category or text column into several category columns, for example `FOV:Cell` back into `FOV` and `Cell`, or a file name such as `Results-ko_01.txt` into `Treatment` `ko` and `Cell` `01`. It has two modes: at delimiters, or by patterns.
 
 **Menu Access:** `Data` > `Separate Categories`
 
@@ -8,7 +8,7 @@ The `Separate Categories` tool separates one category column into several, for e
 
 2. In the `Configuration: Separate Categories` dialog, set:
 
-    - `Column`: the category column to separate.
+    - `Column`: the category or text column to separate, for example `Source`. Values that are file URIs (`file:///...`, see [The Source column](load.md#the-source-column)) are separated as their paths, with special characters decoded (`%20` as a space).
     - `Separate`: `delimiters` or `patterns` (see below).
     - `Part`: which part of the values to separate: the whole `value`, or, for a path, its `file name`, with or without its extension.
     - `Keep the original column` (checked by default): unchecked, the separated column is removed.
