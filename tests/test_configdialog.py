@@ -149,13 +149,11 @@ def test_columns_follow_the_selected_input(dialog):
     assert grouping.items == ["Treatment"]
 
 
-def test_missing_features_are_noted_not_listed(dialog):
+def test_missing_features_are_not_listed(dialog):
     d = dialog("K-Means", KMeansConfig(features=["gone"]))
     features = d.fields.editors["features"]
     assert "gone" not in features.items  # only the input's features
-    assert features.get() == []
-    assert features.note.IsShown()
-    assert features.note.GetLabel() == "Not in this input (not used): gone"
+    assert features.get() == [] and not features.note.IsShown()  # ignored
 
 
 def test_mixed_and_optional_fields(dialog):
@@ -367,9 +365,7 @@ def test_missing_features_are_guessed(dialog):
     d = dialog("K-Means", KMeansConfig(features=["X", "gone"]))  # the input has "x"
     features = d.fields.editors["features"]
     assert features.get() == ["x"]
-    assert features.note.GetLabel() == (
-        "Guessed: X → x\nNot in this input (not used): gone"
-    )
+    assert features.note.GetLabel() == "Guessed: X → x"  # 'gone': ignored
 
 
 def test_tall_dialog_fits_a_small_screen(dialog, monkeypatch):

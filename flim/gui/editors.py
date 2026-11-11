@@ -391,12 +391,10 @@ class FeaturesEditor(_CheckList):
     def extra_controls(self, panel, sizer):
         self.all = None
         self.selection: list = []  # the selection before "All features" was checked
-        # the checked features, also those the input lacks (e.g. the settings of a run
-        # on another table): checked again with an input that has them
-        self.wanted: list = []
+        self.wanted: list = []  # the features to check
         self.features: list = []  # the input's features
         self.known = False  # all of the input's features are known
-        self.note = wx.StaticText(panel, label="")  # the wanted ones not shown
+        self.note = wx.StaticText(panel, label="")  # the features guessed
         self.note.SetForegroundColour(wx.Colour(120, 120, 120))
         self.note.Hide()
         sizer.Add(self.note, 0, wx.BOTTOM, 3)
@@ -426,8 +424,7 @@ class FeaturesEditor(_CheckList):
         self.changed(event)
 
     def _remember(self) -> None:
-        """The checked features, and the wanted ones the input lacks."""
-        self.wanted = self.checked() + [w for w in self.wanted if w not in self.items]
+        self.wanted = self.checked()
 
     def _on_check(self, event):
         self._remember()
@@ -449,28 +446,21 @@ class FeaturesEditor(_CheckList):
     def _shown(self) -> list:
         """The wanted features shown checked: those of the input if all are known
         (else all of them: they may be in the input). A wanted feature the input
-        lacks is replaced by the closest of its features (a guess), if there is one."""
+        lacks is replaced by the closest of its features (a guess, named in a note) if
+        there is one, else ignored."""
         if not self.known:
             self._show_note([])
             return list(self.wanted)
-        shown, notes, unused = [], [], []
+        shown, notes = [], []
         for f in self.wanted:
             if f in self.features:
                 shown.append(f)
                 continue
             guess, _ = guess_column(f, self.features)
-            if guess is None or guess in self.wanted:
-                unused.append(f)
-            else:
+            if guess is not None and guess not in self.wanted:
                 shown.append(guess)
                 notes.append(f"{_one_line(f)} \u2192 {_one_line(guess)}")
-        lines = []
-        if notes:
-            lines.append("Guessed: " + ", ".join(notes))
-        if unused:
-            names = ", ".join(_one_line(f) for f in unused)
-            lines.append(f"Not in this input (not used): {names}")
-        self._show_note(lines)
+        self._show_note(["Guessed: " + ", ".join(notes)] if notes else [])
         return list(dict.fromkeys(shown))
 
     def _show_note(self, lines: list) -> None:
@@ -497,7 +487,11 @@ class FeaturesEditor(_CheckList):
 
 
 class CategoriesEditor(Editor):
-    """Category columns in a chosen order (grouping): check them and move them."""
+    """Category columns in a chosen order (grouping): check them and move them.
+
+    The input's category columns are listed; those of the settings are checked if
+    the input has them, the others are ignored.
+    """
 
     expands = True
     grows = False  # as tall as its columns
@@ -510,9 +504,12 @@ class CategoriesEditor(Editor):
             self.automatic = wx.CheckBox(self.panel, label="Automatic")
             self.automatic.Bind(wx.EVT_CHECKBOX, self._on_automatic)
             sizer.Add(self.automatic, 0, wx.BOTTOM, 3)
-        self.items: list = []
+        self.items: list = []  # the columns listed
+        self.columns: list = []  # the input's category columns
+        self.known = False  # all of the input's columns are known
+        self.wanted: list = []  # the columns to check, in their order
         self.rearrange = wx.RearrangeCtrl(self.panel, order=[], items=[])
-        self.rearrange.GetList().Bind(wx.EVT_CHECKLISTBOX, self.changed)
+        self.rearrange.GetList().Bind(wx.EVT_CHECKLISTBOX, self._on_check)
         for button in self.rearrange.GetChildren():
             if isinstance(button, wx.Button):
                 button.Bind(wx.EVT_BUTTON, self._on_move)
@@ -520,21 +517,42 @@ class CategoriesEditor(Editor):
         self.panel.SetSizer(sizer)
         return self.panel
 
+    def _on_check(self, event):
+        self._remember()
+        self.changed(event)
+
     def _on_move(self, event):
         event.Skip()
-        wx.CallAfter(self.changed)
+        wx.CallAfter(self._moved)
+
+    def _moved(self):
+        self._remember()
+        self.changed()
 
     def _on_automatic(self, event):
         self.rearrange.Enable(not self.automatic.GetValue())
         self.changed(event)
 
-    def _show(self, items, checked):
-        self.items = list(items) + [c for c in checked if c not in items]
-        # checked ones first, in their order, then the others
-        order = [self.items.index(c) for c in checked] + [
-            ~i for i, item in enumerate(self.items) if item not in checked
+    def _remember(self) -> None:
+        self.wanted = self.checked()
+
+    def _show(self) -> None:
+        """List the input's columns, the wanted ones checked and first, in their order.
+
+        If the input's columns are not all known (e.g. a workflow step's input before
+        the run), the wanted ones are listed too.
+        """
+        if self.known:
+            items = list(self.columns)
+            checked = [w for w in self.wanted if w in items]
+        else:
+            items = list(self.columns) + [w for w in self.wanted if w not in self.columns]
+            checked = list(self.wanted)
+        self.items = items
+        order = [items.index(c) for c in checked] + [
+            ~i for i, item in enumerate(items) if item not in checked
         ]
-        labels = [self.items[i if i >= 0 else ~i] for i in order]
+        labels = [items[i if i >= 0 else ~i] for i in order]
         rearrange_list = self.rearrange.GetList()
         rearrange_list.Set(labels)
         for position, i in enumerate(order):
@@ -550,9 +568,10 @@ class CategoriesEditor(Editor):
         ]
 
     def set_schema(self, schema):
-        self._show(
-            [] if schema is None else schema.by_role(self.spec.role), self.checked()
-        )
+        self._remember()
+        self.known = schema is not None and schema.complete
+        self.columns = [] if schema is None else schema.by_role(self.spec.role)
+        self._show()
 
     def get(self):
         if self.automatic is not None and self.automatic.GetValue():
@@ -563,7 +582,8 @@ class CategoriesEditor(Editor):
         if self.automatic is not None:
             self.automatic.SetValue(value is None)
             self.rearrange.Enable(value is not None)
-        self._show(self.items, [] if value is None else list(value))
+        self.wanted = [] if value is None else list(value)
+        self._show()
 
 
 class PathEditor(Editor):
@@ -1403,9 +1423,10 @@ class FeatureSettingsEditor(_RowIssues, Editor):
     def _show(self, features, state) -> None:
         if self.grid.GetNumberRows():
             self.grid.DeleteRows(0, self.grid.GetNumberRows())
-        self.features = list(features) + [
-            f for f in state if f not in features and state[f][0]
-        ]
+        # used features the input lacks: listed only while the input's features are
+        # not all known, otherwise ignored
+        lacking = [f for f in state if f not in features and state[f][0]]
+        self.features = list(features) + ([] if getattr(self, "known", False) else lacking)
         self.grid.AppendRows(len(self.features))
         for row, feature in enumerate(self.features):
             used, texts = state.get(feature, (False, [""] * len(self.columns)))
@@ -1419,8 +1440,11 @@ class FeatureSettingsEditor(_RowIssues, Editor):
     # --- Editor ---
 
     def set_schema(self, schema):
+        state = {**getattr(self, "wanted", {}), **self._state()}
+        self.known = schema is not None and schema.complete
         features = [] if schema is None else schema.by_role("feature")
-        self._show(features, self._state())
+        self._show(features, state)
+        self.wanted = {}  # the settings applied: from now on the rows shown count
 
     def set_data(self, tables):
         self.ranges = {}
@@ -1448,6 +1472,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             for feature, settings in (value or {}).items():
                 data = settings if isinstance(settings, dict) else settings.model_dump()
                 state[feature] = (checked, [_cell_text(data.get(c.name)) for c in self.columns])
+        self.wanted = state
         self._show(self.features, state)
 
     def get(self):
@@ -1467,6 +1492,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
                 True,
                 [_cell_text(data.get(c.name)) for c in self.columns],
             )
+        self.wanted = state
         self._show(self.features, state)  # the input's features, checked as configured
 
 

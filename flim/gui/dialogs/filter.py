@@ -135,6 +135,7 @@ class FilterTreeEditor(Editor):
             sizer.Add(editor.control, 1 if editor is not self.categories else 0, wx.EXPAND)
         panel.SetSizer(sizer)
         self.unused: dict = {}  # column -> its unused top-level range leaf
+        self.used: dict = {}  # column -> its used top-level range leaf
         self.hidden: list = []  # range leaves not shown (column not in the input)
         self.views: list = []  # per filter of `get`: (view, key)
         return panel
@@ -149,6 +150,7 @@ class FilterTreeEditor(Editor):
                 (used if node.enabled else self.unused)[node.column] = node
             else:
                 others.append(node)
+        self.used = dict(used)  # kept also if the input doesn't have the column
         self.categories.set(categories)
         self.ranges.set_states(used, self.unused)
         self.others.set(others)
@@ -164,7 +166,7 @@ class FilterTreeEditor(Editor):
                 values = unused.model_dump(include={"low", "high", "dropna"}, exclude_none=True)
             nodes.append({"kind": "range", "column": column, "enabled": used, **values})
             self.views.append(("ranges", column))
-        for column, node in self.unused.items():
+        for column, node in {**self.used, **self.unused}.items():
             if column not in states:  # not in the input: kept as it was
                 nodes.append(node.model_dump(mode="json"))
                 self.views.append(("hidden", column))

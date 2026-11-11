@@ -541,7 +541,7 @@ def test_unpivot_offers_the_levels_of_the_headers(dialog, table):
 
 def test_features_of_another_table_are_not_listed(dialog, table):
     """Settings of a run on the raw data, opened on its summary: the summary's
-    features only; the raw ones are checked again on the raw data."""
+    features only; saved features the input lacks are ignored, not kept."""
     from flim.configs import SummaryConfig
     from flim.tools.statistics import Summarize
 
@@ -562,7 +562,7 @@ def test_features_of_another_table_are_not_listed(dialog, table):
     d.input_controls[0].SetSelection(1)  # the raw data
     d._update_inputs()
     assert features.items == ["t1", "t2"]
-    assert features.get() == ["t1", "t2"]
+    assert features.get() == []  # the summary's feature is not in the raw data
 
 
 # --- Scatter Plot ---
@@ -700,3 +700,67 @@ def test_source_dialog_proposes_the_new_name_of_a_source_column(dialog):
     editor.set([{"column": "Source", "new": "Origin"}])  # the user's choice
     d._fill_proposals([table])  # not filled again: the field is not empty
     assert d.result().config.renames() == {"Source": "Origin"}
+
+
+def test_saved_grouping_columns_the_table_lacks_are_not_offered(dialog, table):
+    from flim.configs import SummaryConfig
+
+    # e.g. a column fused in an earlier session, saved with the settings
+    config = SummaryConfig(grouping=["FOV:Cell", "Treatment"], features=["t1"], aggs=["mean"])
+    d = dialog("Summarize", config)
+    editor = d.fields.editors["grouping"]
+    listed = [editor.rearrange.GetList().GetString(i) for i in range(editor.rearrange.GetList().GetCount())]
+    assert "FOV:Cell" not in listed
+    assert editor.get() == ["Treatment"]  # only the table's columns are used
+    assert d.result().config.grouping == ["Treatment"]
+
+
+def test_calculate_dialog_starts_empty_and_adds_presets(dialog, table, monkeypatch):
+    from flim.configs import CalculateConfig
+    from flim.configs.data import ExpressionCalculation
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.dialogs import calculate
+    from flim.tools.data import Calculate
+
+    manager = SettingsManager()
+    calculate.bind(manager)
+    stored = CalculateConfig(calculations=[ExpressionCalculation(name="old", expression="t1 * 2")])
+    d = dialog("Calculate", Calculate.dialog_config(stored))
+    editor = d.fields.editors["calculations"]
+    assert editor.grid.GetNumberRows() == 0  # nothing from earlier runs
+    # a row set up here, typed without backticks, saved as a preset
+    editor._on_add(None)
+    col = {editor.grid.GetColLabelValue(c): c for c in range(editor.grid.GetNumberCols())}
+    editor.grid.SetCellValue(0, col["Column"], "ratio")
+    editor.grid.SetCellValue(0, col["Expression"], "t1 / t2")
+    editor.grid.SetGridCursor(0, 0)
+    monkeypatch.setattr(wx, "MessageBox", lambda *a, **k: wx.OK)
+    editor._on_save_presets(None)
+    assert [p.name for p in calculate.saved_presets()] == ["ratio"]
+    # on a fresh table, the saved preset is offered (it applies), built-in ones that
+    # don't apply are not
+    offered = []
+
+    class Choose:
+        def __init__(self, parent, message, title, labels):
+            offered.extend(labels)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def ShowModal(self):
+            return wx.ID_OK
+
+        def GetSelections(self):
+            return [0]
+
+    monkeypatch.setattr(wx, "MultiChoiceDialog", Choose)
+    editor._on_remove(None)  # the row set up above
+    editor._on_add_presets(None)
+    assert offered == ["ratio = t1 / t2  (saved)"]
+    assert d.result().config.calculations[0].name == "ratio"
+    editor._on_remove_presets(None)  # the first saved one: removed
+    assert calculate.saved_presets() == []

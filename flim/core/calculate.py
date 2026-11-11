@@ -163,11 +163,53 @@ def function_problem(name: str, args, params) -> Optional[str]:
     return None
 
 
-def needed_columns(calculation) -> list[str]:
-    """Return the columns a calculation uses (an expression's raise ValueError if it
-    is not valid)."""
+def quote_columns(expression: str, columns=()) -> str:
+    """Return an expression with the table's column names in backticks.
+
+    A column name that appears in the expression as a whole name (not as part of a
+    longer name, and not already in backticks) is put in backticks, so that names
+    such as `NAD(P)H tm` can be typed as they are. Longer names are matched first.
+
+    Args:
+        expression: The expression.
+        columns: The table's column names.
+
+    Returns:
+        The expression; unchanged if no column name is found.
+    """
+    names = sorted({str(c) for c in columns if str(c)}, key=len, reverse=True)
+    if not names or not expression:
+        return expression
+    parts = re.split(r"(`[^`]*`)", expression)  # odd parts: already in backticks
+    found: list[str] = []
+    for i in range(0, len(parts), 2):
+        text = parts[i]
+        for name in names:
+            pattern = rf"(?<![\w.]){re.escape(name)}(?![\w])"
+            if re.search(pattern, text):
+                found.append(name)
+                # a placeholder of private-use characters, which no name contains
+                mark = "\ue000" + chr(0xE100 + len(found) - 1) + "\ue001"
+                text = re.sub(pattern, lambda m, mark=mark: mark, text)
+        parts[i] = text
+    joined = "".join(parts)
+    return re.sub(
+        "\ue000(.)\ue001", lambda m: f"`{found[ord(m.group(1)) - 0xE100]}`", joined
+    )
+
+
+def needed_columns(calculation, columns=()) -> list[str]:
+    """Return the columns a calculation uses.
+
+    Args:
+        calculation: The calculation.
+        columns: The table's column names (they may be typed without backticks).
+
+    Raises:
+        ValueError: If an expression is not valid.
+    """
     if calculation.kind == "expression":
-        return expression_columns(calculation.expression)
+        return expression_columns(quote_columns(calculation.expression, columns))
     return [a for a in calculation.args if isinstance(a, str)]
 
 
@@ -201,6 +243,7 @@ def evaluate(data: pd.DataFrame, expression: str) -> pd.Series:
     Raises:
         ValueError: If the expression is not allowed.
     """
+    expression = quote_columns(expression, data.columns)
     expression_columns(expression)  # checked before pandas sees it
     result = data.eval(expression, engine="python", local_dict={}, global_dict={})
     if not isinstance(result, pd.Series):  # e.g. a number
@@ -247,7 +290,8 @@ def calculate(data: pd.DataFrame, calculations, missing: str = "skip") -> Outcom
             continue
         name = calculation.name
         try:
-            absent = [c for c in needed_columns(calculation) if c not in table.columns]
+            used = needed_columns(calculation, table.columns)
+            absent = [c for c in used if c not in table.columns]
         except ValueError as err:
             raise ValueError(f"{name}: {err}") from None
         if absent:
@@ -276,6 +320,25 @@ def calculate(data: pd.DataFrame, calculations, missing: str = "skip") -> Outcom
         if name not in data.columns and name in table.columns:
             table.drop(columns=name, inplace=True)
     return outcome
+
+
+def _closest(name: str, columns) -> str:
+    """A missing column's name, with the closest of the table's columns, if any."""
+    import difflib
+
+    close = difflib.get_close_matches(name, [str(c) for c in columns], n=1, cutoff=0.6)
+    return f"'{name}' (did you mean '{close[0]}'?)" if close else f"'{name}'"
+
+
+def _hint(message: str, expression: str, columns) -> str:
+    """An expression's error, with a hint if it names columns that are not in the
+    table: names with spaces or other characters must then be in backticks."""
+    if columns is None or "`" in expression:
+        return message
+    return (
+        f"{message}. Type column names as in the table; a name that is not in the"
+        " table yet (e.g. calculated in a row above) goes in backticks: `FAD tm`"
+    )
 
 
 def check(calculations, columns=None) -> list[tuple[int, str, str, str]]:
@@ -315,15 +378,16 @@ def check(calculations, columns=None) -> list[tuple[int, str, str, str]]:
             used, where = [a for a in calculation.args if isinstance(a, str)], "args"
         else:
             try:
-                used, where = expression_columns(calculation.expression), "expression"
+                expression = quote_columns(calculation.expression, available or ())
+                used, where = expression_columns(expression), "expression"
             except ValueError as err:
-                problems.append((i, "expression", "error", str(err)))
+                problems.append((i, "expression", "error", _hint(str(err), calculation.expression, available)))
                 continue
         if available is None:
             continue
         absent = [c for c in used if c not in available]
         if absent:
-            missing = ", ".join(repr(c) for c in absent)
+            missing = ", ".join(_closest(c, available) for c in absent)
             problems.append(
                 (i, where, "warning", f"skipped: {missing} not in the table or calculated before")
             )
@@ -332,3 +396,63 @@ def check(calculations, columns=None) -> list[tuple[int, str, str, str]]:
             problems.append((i, "name", "warning", f"replaces the column '{name}'"))
         available.add(name)
     return problems
+
+
+def applicable(presets, columns) -> list:
+    """Return the presets (calculations) that apply to a table, in their order.
+
+    A preset applies if the columns it uses are in the table, or are calculated by
+    other presets that apply, and if the table doesn't have its column yet.
+
+    Args:
+        presets: The calculations.
+        columns: The table's column names.
+
+    Returns:
+        The presets that apply.
+    """
+    columns = {str(c) for c in columns}
+    pool, offered, changed = set(columns), {}, True
+    while changed:
+        changed = False
+        for preset in presets:
+            if preset.name in offered or preset.name in columns:
+                continue
+            try:
+                used = needed_columns(preset, pool)
+            except ValueError:
+                continue
+            if all(c in pool for c in used):
+                offered[preset.name] = preset
+                pool.add(preset.name)
+                changed = True
+    return [p for p in presets if p.name in offered]
+
+
+def with_prerequisites(chosen, offered, columns) -> list:
+    """Return chosen presets with the presets they need first, in calculation order.
+
+    Args:
+        chosen: The presets chosen.
+        offered: The presets that apply (see `applicable`).
+        columns: The table's column names.
+
+    Returns:
+        The presets to add, each once.
+    """
+    by_name = {p.name: p for p in offered}
+    result, names = [], set()
+
+    def add(preset):
+        if preset.name in names:
+            return
+        pool = {str(c) for c in columns} | names
+        for column in needed_columns(preset, pool | set(by_name)):
+            if column not in columns and column in by_name:
+                add(by_name[column])
+        names.add(preset.name)
+        result.append(preset)
+
+    for preset in chosen:
+        add(preset)
+    return result

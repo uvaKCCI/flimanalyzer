@@ -64,6 +64,7 @@ import flim.tools  # noqa: F401  (registers the built-in tools)
 
 # field editors of the tools that need more than the generated dialog
 import flim.gui.dialogs.autoencoder  # noqa: F401
+import flim.gui.dialogs.calculate  # noqa: F401  (the calculations table and presets)
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.unpivot  # noqa: F401
@@ -245,6 +246,7 @@ class AppFrame(wx.Frame):
         # manager (report_filters)
         self.filters = WindowFilters()
         self.refresh_window_filters()
+        flim.gui.dialogs.calculate.bind(self.settings_manager)  # the saved presets
         # the items the windows show (tables, plots): the windows are views of them
         self.data_manager = DataManager()
         self.windowframes = {}  # item ID -> its window
@@ -812,7 +814,7 @@ class AppFrame(wx.Frame):
         if not data_choices:
             wx.MessageBox("Open or import data first.", tool.name, wx.OK)
             return
-        config = self.settings.tools.config(tool)
+        config = tool.dialog_config(self.settings.tools.config(tool))
         entry = self.settings.tools.entry(tool)
         saved = entry.autosave if entry else AutosaveConfig()
         folder = saved.results_dir or self.settings.resolved_results_dir()

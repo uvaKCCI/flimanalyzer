@@ -753,6 +753,12 @@ class Calculate(Tool[CalculateConfig]):
     outputs = (OutputSpec("Calculated", TableType),)
 
     @classmethod
+    def dialog_config(cls, config):
+        """Return the config the dialog opens with: no calculations, so that a run
+        makes only the calculations set up in it (earlier ones are presets)."""
+        return config.model_copy(update={"calculations": []})
+
+    @classmethod
     def _issues(cls, problems) -> list:
         return [
             Issue(f"calculations[{i}].{field}", message, severity)
@@ -764,9 +770,12 @@ class Calculate(Tool[CalculateConfig]):
         from flim.core.calculate import check
 
         issues = list(super().validate(config, schemas))
-        # columns are checked against the tables (validate_data): without them only
-        # what doesn't depend on the data
-        return issues + cls._issues(check(config.calculations))
+        # with the input's columns, names may be typed without backticks; the columns
+        # used are checked against the tables (validate_data)
+        schema = schemas[0] if schemas else None
+        columns = schema.names if schema is not None and schema.complete else None
+        problems = check(config.calculations, columns)
+        return issues + cls._issues([p for p in problems if p[2] == "error"])
 
     @classmethod
     def validate_data(cls, config, tables):

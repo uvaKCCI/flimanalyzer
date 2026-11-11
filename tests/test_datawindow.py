@@ -1,6 +1,9 @@
 """Data window and main window features, driven as a user would (file dialogs and
 group selections are answered by the test)."""
 
+import tempfile
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -69,6 +72,10 @@ def _answer_import(monkeypatch, frame, files, workflow="Import"):
         lambda title, start: start(CancelToken(), lambda *a: None, lambda run: None),
     )  # fmt: skip
     monkeypatch.setattr(frame, "show_run_summary", lambda title, run: None)
+    # results in a temporary folder, not the folder the tests start from
+    monkeypatch.setattr(
+        type(frame.settings), "resolved_results_dir", lambda self: Path(tempfile.mkdtemp())
+    )
 
 
 def _new_windows(frame, before):
@@ -263,6 +270,10 @@ def test_run_workflow_file_on_the_current_table(frame, monkeypatch, tmp_path, pr
         lambda title, start: start(CancelToken(), lambda *a: None, lambda run: None),
     )  # fmt: skip
     monkeypatch.setattr(frame, "show_run_summary", lambda title, run: None)
+    # results in a temporary folder, not the folder the tests start from
+    monkeypatch.setattr(
+        type(frame.settings), "resolved_results_dir", lambda self: Path(tempfile.mkdtemp())
+    )
     before = set(frame.windows_by_title())
     frame.run_workflow_file(str(path))
     new = _new_windows(frame, before)

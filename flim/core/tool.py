@@ -354,6 +354,18 @@ class Tool(Generic[ConfigT]):
         return None
 
     @classmethod
+    def dialog_config(cls, config: ConfigT) -> ConfigT:
+        """Return the config the tool's dialog opens with, from its stored settings.
+
+        Args:
+            config: The stored config.
+
+        Returns:
+            The config; by default the stored one.
+        """
+        return config
+
+    @classmethod
     def proposals(cls, config: ConfigT, tables: Sequence[Any]) -> dict[str, Any]:
         """Return values the dialog fills into empty fields once the input tables are
         known, e.g. the new names of columns in the way of the tool's.

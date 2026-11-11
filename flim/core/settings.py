@@ -262,6 +262,12 @@ class AppSettings(_Settings):
         description="The workflow File > Import... preselects: the one last used."
         " Written by the GUI to the user settings file.",
     )
+    calculation_presets: list[dict] = Field(
+        default=[],
+        title="Saved calculations",
+        description="Calculations saved in the Calculate dialog (Save as Presets), offered"
+        " by its Add Calculations button besides the built-in ones.",
+    )
     workflow_paths: list[Path] = Field(
         default=[],
         description="Folders searched for workflow files, in order. Empty defaults to"

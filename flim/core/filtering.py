@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
-from flim.core.calculate import evaluate, expression_columns
+from flim.core.calculate import evaluate, expression_columns, quote_columns
 
 
 @dataclass
@@ -79,7 +79,8 @@ def _keeps(data: pd.DataFrame, node, path: str, outcome: Outcome) -> np.ndarray:
 
 def _leaf(data: pd.DataFrame, node, path: str, outcome: Outcome) -> pd.Series:
     if node.kind == "expression":
-        absent = [c for c in expression_columns(node.expression) if c not in data.columns]
+        used = expression_columns(quote_columns(node.expression, data.columns))
+        absent = [c for c in used if c not in data.columns]
         if absent:
             outcome.notes[path] = f"no column {', '.join(repr(c) for c in absent)}"
             return _all_rows(data)
@@ -155,7 +156,7 @@ def check(
             continue
         if node.kind == "expression":
             try:
-                used = expression_columns(node.expression)
+                used = expression_columns(quote_columns(node.expression, columns or ()))
             except ValueError as err:
                 problems.append((f"{where}.expression", "error", str(err)))
                 continue

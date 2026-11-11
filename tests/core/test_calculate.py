@@ -185,3 +185,38 @@ def test_calculations_from_json():
     assert [type(c).__name__ for c in config.calculations] == [
         "ExpressionCalculation", "FunctionCalculation"
     ]
+
+
+def test_column_names_without_backticks(data):
+    from flim.core.calculate import quote_columns
+
+    assert quote_columns("NAD(P)H tm / FAD tm", data.columns) == "`NAD(P)H tm` / `FAD tm`"
+    assert quote_columns("`FAD tm` * 2", data.columns) == "`FAD tm` * 2"  # quoted already
+    table = calculate(data, [Expr(name="r", expression="FAD tm / NAD(P)H tm")]).data
+    assert list(table["r"])[:2] == [2.0, 0.0]
+    # a column calculated in a row above, typed without backticks too
+    calculations = [Expr(name="r x", expression="FAD tm * 2"), Expr(name="y", expression="r x + 1")]
+    assert list(calculate(data, calculations).data["y"]) == [4001.0, 1.0, 2001.0]
+    assert check(calculations, data.columns) == []
+
+
+def test_hints_for_missing_columns(data):
+    problems = check([Expr(name="x", expression="FAD tn * 2")], data.columns)
+    (_, _, severity, message) = problems[0]
+    assert severity == "error" and "backticks" in message  # 'FAD tn' is not a name
+    problems = check([Expr(name="x", expression="`FAD tn` * 2")], data.columns)
+    assert "did you mean 'FAD tm'?" in problems[0][3]
+
+
+def test_presets_that_apply():
+    from flim.core.calculate import applicable, with_prerequisites
+
+    presets = CalculateConfig().calculations  # the built-in ones
+    columns = ["NAD(P)H t2", "NAD(P)H a2[%]", "FAD a1[%]"]
+    offered = [p.name for p in applicable(presets, columns)]
+    assert offered == ["NADPH %", "NADH %", "NADPH/NADH", "FLIRR"]  # chains included
+    chosen = [p for p in applicable(presets, columns) if p.name == "NADPH/NADH"]
+    added = with_prerequisites(chosen, applicable(presets, columns), columns)
+    assert [p.name for p in added] == ["NADPH %", "NADH %", "NADPH/NADH"]
+    # a result the table has already is not offered
+    assert "FLIRR" not in [p.name for p in applicable(presets, columns + ["FLIRR"])]
