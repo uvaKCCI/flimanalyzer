@@ -41,6 +41,7 @@ class FieldSpec:
     bounds: dict = field(default_factory=dict)  # ge, gt, le, lt
     hidden: bool = False  # metadata, in hidden_fields, or only one value allowed
     section: str = "settings"  # the dialog section: "settings" or "output"
+    wide: bool = False  # a row of its own at full width (e.g. a formula)
 
 
 def title_of(name: str) -> str:
@@ -75,6 +76,7 @@ def describe(model: type[BaseModel]) -> list[FieldSpec]:
                 ),
                 hidden=hidden or spec.get("hidden", False),
                 section=extra.get("section", "settings"),
+                wide=bool(extra.get("wide", False)),
                 **{k: v for k, v in spec.items() if k != "hidden"},
             )
         )

@@ -1688,7 +1688,7 @@ class FieldsPanel(wx.Panel):
         small = []
         for spec in specs + [None]:  # None: the end
             if spec is not None and not large[spec.name]:
-                if spec.kind in WIDE_KINDS:  # a row of its own
+                if spec.kind in WIDE_KINDS or spec.wide:  # a row of its own
                     self._add_grid(sizer, small)
                     self._add_grid(sizer, [spec])
                     small = []

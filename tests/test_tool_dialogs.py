@@ -619,46 +619,6 @@ def test_no_statistics_disable_ok(dialog):
     assert not d.ok_button.IsEnabled()
 
 
-def test_calculate_table_of_two_kinds(dialog):
-    from flim.configs import CalculateConfig
-    from flim.configs.data import ExpressionCalculation, FunctionCalculation
-
-    config = CalculateConfig(
-        calculations=[
-            ExpressionCalculation(name="r", expression="`FAD tm` / 2", keep=False),
-            FunctionCalculation(name="E", function="trp_Eperc_1", args=["trp tm"], params={"const": 3100}),
-        ]
-    )
-    d = dialog("Calculate", config)
-    editor = d.fields.editors["calculations"]
-    titles = [editor.grid.GetColLabelValue(c) for c in range(editor.grid.GetNumberCols())]
-    assert titles == [
-        "Use", "Column", "Kind", "Expression", "Function", "Arguments", "Parameters",
-        "Keep", "Type", "Description",
-    ]
-    col = {t: i for i, t in enumerate(titles)}
-    grid = editor.grid
-    assert grid.GetCellValue(0, col["Keep"]) == "no"
-    assert grid.GetCellValue(1, col["Arguments"]) == "trp tm"
-    assert grid.GetCellValue(1, col["Parameters"]) == "const=3100.0"
-    # the cells of the other kind's fields are not editable
-    assert grid.IsReadOnly(0, col["Function"]) and not grid.IsReadOnly(0, col["Expression"])
-    assert grid.IsReadOnly(1, col["Expression"]) and not grid.IsReadOnly(1, col["Arguments"])
-    calculations = d.result().config.calculations
-    assert calculations == config.calculations
-    # a new row is an expression; changing its kind changes the editable cells
-    editor._on_add(None)
-    assert grid.GetCellValue(2, col["Kind"]) == "expression"
-    grid.SetCellValue(2, col["Kind"], "function")
-    editor._apply_kind(2)
-    assert grid.IsReadOnly(2, col["Expression"]) and not grid.IsReadOnly(2, col["Function"])
-    grid.SetCellValue(2, col["Column"], "x")
-    grid.SetCellValue(2, col["Function"], "nope")
-    d.validate()
-    # row 2: an unknown function; rows 0 and 1: skipped (columns not in the table)
-    assert editor.marks == {0: "warning", 1: "warning", 2: "error"}
-
-
 def test_filter_dialog_keeps_the_whole_tree(dialog, table):
     from flim.configs.data import (
         CategoryFilterNode as Category,
@@ -715,52 +675,101 @@ def test_saved_grouping_columns_the_table_lacks_are_not_offered(dialog, table):
     assert d.result().config.grouping == ["Treatment"]
 
 
-def test_calculate_dialog_starts_empty_and_adds_presets(dialog, table, monkeypatch):
+class _Choose:
+    """wx.MultiChoiceDialog answered with OK and the first item."""
+
+    offered: list = []
+
+    def __init__(self, parent, message, title, labels):
+        _Choose.offered = list(labels)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def ShowModal(self):
+        return wx.ID_OK
+
+    def GetSelections(self):
+        return [0]
+
+
+def test_calculation_editor_shows_only_the_kinds_fields(wxapp, table):
+    from flim.core.schema import TableSchema
+    from flim.gui.dialogs.calculate import CalculationDialog
+
+    schema = TableSchema.from_frame(table)
+    d = CalculationDialog(None, None, list(table.columns), schema, [table])
+    try:
+        assert set(d.fields.editors) == {"enabled", "name", "keep", "description", "expression"}
+        d.fields.editors["name"].control.SetValue("ratio")
+        d.fields.editors["expression"].control.SetValue("t1 / t2")  # no backticks needed
+        assert d.validate() and d.example.GetLabel().startswith("Example: ratio = ")
+        d.fields.editors["expression"].control.SetValue("t1 / t22")
+        assert not d.validate()  # OK disabled
+        assert "'t22' (did you mean 't2'?)" in d.message.GetLabel()
+        # a function: its own parameters only
+        d.kind.SetSelection(1)
+        d._on_kind(None)
+        assert {"function", "args", "params"} <= set(d.fields.editors) and "expression" not in d.fields.editors
+        d.fields.editors["function"].set("trp_Eperc_1")
+        d.fields.refresh()
+        params = d.fields.editors["params"]
+        assert params.fields is not None and set(params.fields.editors) == {"const"}
+        assert params.get() == {"const": 3100.0}
+        d.fields.editors["function"].set("ratio")
+        d.fields.refresh()
+        assert params.fields is None  # ratio has no parameters
+    finally:
+        d.Destroy()
+
+
+def test_calculate_dialog_is_a_read_only_table_with_presets(dialog, table, monkeypatch):
     from flim.configs import CalculateConfig
     from flim.configs.data import ExpressionCalculation
     from flim.core.settingsmgr import SettingsManager
     from flim.gui.dialogs import calculate
     from flim.tools.data import Calculate
 
-    manager = SettingsManager()
-    calculate.bind(manager)
+    calculate.bind(SettingsManager())
     stored = CalculateConfig(calculations=[ExpressionCalculation(name="old", expression="t1 * 2")])
     d = dialog("Calculate", Calculate.dialog_config(stored))
     editor = d.fields.editors["calculations"]
     assert editor.grid.GetNumberRows() == 0  # nothing from earlier runs
-    # a row set up here, typed without backticks, saved as a preset
-    editor._on_add(None)
-    col = {editor.grid.GetColLabelValue(c): c for c in range(editor.grid.GetNumberCols())}
-    editor.grid.SetCellValue(0, col["Column"], "ratio")
-    editor.grid.SetCellValue(0, col["Expression"], "t1 / t2")
-    editor.grid.SetGridCursor(0, 0)
+    assert not editor.grid.IsEditable()
+    new = ExpressionCalculation(name="ratio", expression="t1 / t2")
+    monkeypatch.setattr(calculate, "edit_calculation", lambda *a, **k: new)
+    editor._on_add(None)  # the calculation editor answers with `new`
+    assert editor.grid.GetCellValue(0, 0) == "ratio" and editor.grid.GetCellValue(0, 1) == "t1 / t2"
     monkeypatch.setattr(wx, "MessageBox", lambda *a, **k: wx.OK)
+    editor.grid.SetGridCursor(0, 0)
     editor._on_save_presets(None)
     assert [p.name for p in calculate.saved_presets()] == ["ratio"]
-    # on a fresh table, the saved preset is offered (it applies), built-in ones that
-    # don't apply are not
-    offered = []
-
-    class Choose:
-        def __init__(self, parent, message, title, labels):
-            offered.extend(labels)
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *a):
-            return False
-
-        def ShowModal(self):
-            return wx.ID_OK
-
-        def GetSelections(self):
-            return [0]
-
-    monkeypatch.setattr(wx, "MultiChoiceDialog", Choose)
-    editor._on_remove(None)  # the row set up above
-    editor._on_add_presets(None)
-    assert offered == ["ratio = t1 / t2  (saved)"]
+    editor._on_remove(None)
+    monkeypatch.setattr(wx, "MultiChoiceDialog", _Choose)
+    editor._on_load_presets(None)
+    assert _Choose.offered == ["ratio = t1 / t2  (saved)"]  # built-in ones don't apply
     assert d.result().config.calculations[0].name == "ratio"
-    editor._on_remove_presets(None)  # the first saved one: removed
+    editor._on_remove_presets(None)
     assert calculate.saved_presets() == []
+
+
+
+def test_calculation_editor_example_without_use_or_keep(wxapp, table):
+    from flim.core.schema import TableSchema
+    from flim.gui.dialogs.calculate import CalculationDialog
+
+    d = CalculationDialog(None, None, list(table.columns), TableSchema.from_frame(table), [table])
+    try:
+        d.fields.editors["expression"].control.SetValue("t1 * 2")
+        d.fields.editors["enabled"].set(False)  # Use unchecked, no name: no error
+        d.validate()
+        assert "Not used" in d.message.GetLabel()
+        d.fields.editors["enabled"].set(True)
+        d.fields.editors["name"].control.SetValue("helper")
+        d.fields.editors["keep"].set(False)  # a helper column: its example is shown
+        assert d.validate() and d.example.GetLabel().startswith("Example: helper = ")
+    finally:
+        d.Destroy()

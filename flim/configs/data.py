@@ -630,7 +630,7 @@ class Calculation(BaseConfig):
     """A new column calculated from others (base of the calculation kinds)."""
 
     enabled: bool = Field(default=True, title="Use", description="Unchecked: not calculated.")
-    name: str = Field(default="", title="Column", description="The new column's name.")
+    name: str = Field(default="", title="New Column", description="The new column's name.")
     kind: str = Field(
         default="expression",
         title="Kind",
@@ -642,10 +642,16 @@ class Calculation(BaseConfig):
         description="Unchecked: a helper column, used by later calculations but not"
         " in the result.",
     )
-    column_type: Literal["feature", "category"] = Field(
-        default="feature", title="Type", description="category: values become categories."
-    )
     description: str = Field(default="", title="Description")
+
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_column_type(cls, values):
+        """Files may still have `column_type`: the type now follows the values."""
+        if isinstance(values, dict) and "column_type" in values:
+            values = {k: v for k, v in values.items() if k != "column_type"}
+        return values
 
 
 class ExpressionCalculation(Calculation):
@@ -655,8 +661,9 @@ class ExpressionCalculation(Calculation):
     expression: str = Field(
         default="",
         title="Expression",
-        description="Arithmetic, comparisons and math functions (log, sqrt, ...);"
-        " column names with spaces or other characters in backticks: `FAD tm`.",
+        description="Arithmetic, comparisons and math functions (log, sqrt, ...), with"
+        " the column names as in the table, e.g. NAD(P)H tm / FAD tm.",
+        json_schema_extra={"wide": True},
     )
     engine: Literal["pandas"] = "pandas"
 

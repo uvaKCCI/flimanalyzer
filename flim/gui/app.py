@@ -98,6 +98,25 @@ def app_icons():
     return wx.IconBundle(str(files(flim.resources).joinpath("flimanalyzer.ico")), wx.BITMAP_TYPE_ICO)
 
 
+def install_error_logging() -> None:
+    """Write errors that GUI event handlers don't catch to the log, with their
+    traceback; they are still printed as before (wxPython reports them through
+    `sys.excepthook`)."""
+    import sys
+
+    previous = sys.excepthook
+    if getattr(previous, "_flim_logs", False):
+        return
+
+    def hook(kind, error, traceback):
+        if not issubclass(kind, KeyboardInterrupt):
+            logger.error("Error in the GUI", exc_info=(kind, error, traceback))
+        previous(kind, error, traceback)
+
+    hook._flim_logs = True
+    sys.excepthook = hook
+
+
 class FLIMAnalyzerApp(wx.App):
     def __init__(self, flimanalyzer=None, settings_manager=None, files=None, runs=(), exclude=()):
         """
@@ -124,6 +143,7 @@ class FLIMAnalyzerApp(wx.App):
         super().__init__()
 
     def OnInit(self):
+        install_error_logging()
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
         set_display_name("FLIMAnalyzer")
@@ -245,6 +265,7 @@ class AppFrame(wx.Frame):
         # filters and the windows' switches); changes are reported to the settings
         # manager (report_filters)
         self.filters = WindowFilters()
+        self._quit_confirmed = False  # the user chose to quit (confirm_quit)
         self.refresh_window_filters()
         flim.gui.dialogs.calculate.bind(self.settings_manager)  # the saved presets
         # the items the windows show (tables, plots): the windows are views of them
@@ -1213,8 +1234,17 @@ class AppFrame(wx.Frame):
         All quits without saving.
 
         Returns:
-            Whether to quit.
+            Whether to quit. Once the user chose to quit, it doesn't ask again: on
+            macOS, Quit both closes the main window and ends the session, and each
+            asks this.
         """
+        if self._quit_confirmed:
+            return True
+        quit_ = self._confirm_quit()
+        self._quit_confirmed = quit_
+        return quit_
+
+    def _confirm_quit(self) -> bool:
         from flim.gui.saveall import CANCEL, DISCARD, REVIEW, ask_quit, ask_review
 
         unsaved = self.unsaved_items()

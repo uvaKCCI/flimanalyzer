@@ -306,7 +306,8 @@ def calculate(data: pd.DataFrame, calculations, missing: str = "skip") -> Outcom
             raise ValueError(f"{name}: {err}") from None
         except Exception as err:  # e.g. text columns in arithmetic
             raise ValueError(f"{name}: {type(err).__name__}: {err}") from None
-        if calculation.column_type == "category":
+        # numbers: a feature; true/false or text: a category column (e.g. a condition)
+        if pd.api.types.is_bool_dtype(values) or not pd.api.types.is_numeric_dtype(values):
             values = values.astype("category")
         elif pd.api.types.is_numeric_dtype(values) and not pd.api.types.is_bool_dtype(values):
             values = values.replace([np.inf, -np.inf], np.nan)

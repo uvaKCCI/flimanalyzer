@@ -6,31 +6,27 @@ The `Calculate` tool adds new columns calculated from others, for example the me
 
 1. Select `Data` > `Calculate`.
 
-2. The `Configuration: Calculate` dialog opens with an empty `Calculations` table: a run makes only the calculations you set up in it, not those of earlier runs. Add rows in two ways:
+2. The `Configuration: Calculate` dialog opens with an empty `Calculations` list: a run makes only the calculations you set up in it, not those of earlier runs. The list shows each calculation's new column, what it computes and its options; it isn't edited directly. Use the buttons below it:
 
-    - `Add Calculations...` lists the calculations that apply to the table: the built-in ones (those of `Import`, such as `FLIRR` and `NAD(P)H tm`) and the ones you saved, marked `(saved)`. A calculation applies if the table has the columns it uses and doesn't have its result yet. Check the ones to add and click `OK`. A calculation that needs another one's result, for example `NADH %`, which needs `NADPH %`, is offered if that one applies too, and is added after it.
-    - `Add Row` adds an empty row, a new expression, to fill in (see below).
+    - `Add Calculation...` opens the calculation editor (see below); `OK` there adds the calculation to the list. `Edit...` (or a double click on a row) opens it for the selected calculation.
+    - `Remove` removes the selected calculations; `Up` and `Down` move the selected one. The calculations are made from top to bottom, so a calculation can use the columns of those above it.
+    - `Load Presets...` lists the calculations that apply to the table: the built-in ones (those of `Import`, such as `FLIRR` and `NAD(P)H tm`) and the ones you saved, marked `(saved)`. A calculation applies if the table has the columns it uses and doesn't have its result yet. Check the ones to add and click `OK`. A calculation that needs another one's result, for example `NADH %`, which needs `NADPH %`, is offered if that one applies too, and is added after it.
+    - `Save as Presets` saves the selected calculations, so that `Load Presets...` offers them in later sessions; `Remove Presets...` removes saved ones. The built-in calculations can't be removed.
 
-    `Save as Presets` saves the selected rows, so that `Add Calculations...` offers them in later sessions; `Remove Presets...` removes saved ones. The built-in calculations can't be removed.
+    **The calculation editor** first asks for the `Kind`, `expression` or `function`, and then shows only the fields of that kind:
 
-    Each row makes one new column:
-
-    - `Use` (default `yes`): `no` leaves the row out.
-    - `Column`: the new column's name. If the table already has a column with this name, the new one replaces it; the dialog warns about this.
-    - `Kind`: `expression` or `function` (see below). The cells that the row's kind doesn't use are greyed out.
-    - `Expression` (kind `expression`): the formula.
-    - `Function`, `Arguments` and `Parameters` (kind `function`): the function's name, its argument columns separated by commas, and its parameters as `name=value`, for example `const=3100`.
-    - `Keep` (default `yes`): `no` makes a helper column. Later rows can use it, but it is not in the result.
-    - `Type` (default `feature`): `category` makes the values categories, for example for a column that groups the rows.
+    - `New Column`: the new column's name. If the table already has a column with this name, the new one replaces it; the dialog warns about this.
+    - `Expression` (kind `expression`): the formula (see [Expressions](#expressions)).
+    - `Function` (kind `function`): one of the functions (see [Functions](#functions)); `Arguments`: the table's features it takes, checked and in the function's order (use the arrows to move them); `Parameters`: the function's own parameters, with their defaults, for example `const` = 3100 for `trp_Eperc_1`. A function without parameters shows `(none)`.
+    - `Use` (default checked): unchecked, the calculation is left out.
+    - `Keep` (default checked): unchecked makes a helper column. Later calculations can use it, but it is not in the result.
     - `Description`: a note for yourself.
 
-    `Remove Rows` removes the selected rows. The rows are calculated from top to bottom, so a row can use the columns calculated in the rows above it.
-
-    Below the settings, the dialog shows the first calculated value of the first row of the table, for example `Example: NAD(P)H tm = 1240 (and 5 more)`.
+    Below the fields, the editor shows the result for the table's first row, for example `Example: FLIRR = 0.42`, or what is wrong, for example `skipped: 'FAD tn' (did you mean 'FAD tm'?) not in the table or calculated before`. `OK` is enabled only when the calculation can be made on the table.
 
 3. Click `OK`.
 
-The result is `Table: Calculated`, with the new columns after the existing ones. A row that uses a column the table doesn't have, and that no row above calculates, is skipped. The dialog marks it with a warning, and the run summary lists it. Infinite results, for example from a division by 0, are stored as missing values.
+The result is `Table: Calculated`, with the new columns after the existing ones. A row that uses a column the table doesn't have, and that no row above calculates, is skipped. The dialog marks it with a warning, and the run summary lists it. Infinite results, for example from a division by 0, are stored as missing values. A calculation whose results are numbers makes a feature; one whose results are `True` or `False`, or text, makes a category column.
 
 ## Expressions
 
@@ -38,7 +34,7 @@ An expression is a formula of columns and numbers: `+`, `-`, `*`, `/`, `**` (pow
 
 - `NAD(P)H a2[%] / FAD a1[%]`: the FLIRR.
 - `log(NAD(P)H tm / FAD tm)`: the logarithm of a ratio.
-- `FAD tm > 1000`: `True` or `False` per row; with `Type` `category`, a column to group by.
+- `FAD tm > 1000`: `True` or `False` per row, a category column to group by.
 
 A name that is not in the table yet, for example a column that a row above calculates, must be in backticks if it has spaces or other characters than letters, digits and `_`: `` `my ratio` * 100 ``. If a name in an expression isn't a column, the dialog marks the row and names the closest column, for example `did you mean 'FAD tm'?`.
 

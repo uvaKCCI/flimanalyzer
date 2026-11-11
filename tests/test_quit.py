@@ -196,3 +196,79 @@ def test_save_all_opens_at_the_folder_last_used(app_frame, monkeypatch, tmp_path
     assert folders[1][0] == tmp_path / "chosen"  # the folder last used
     assert app_frame.settings.results_dir is None  # the results folder is unchanged
     assert len(list((tmp_path / "chosen").iterdir())) == 2  # two runs, two subfolders
+
+
+def test_quit_asks_once_when_the_session_ends_first(app_frame):
+    """On macOS, Quit asks through the end of the session, then closes the main
+    window: the question comes once (it came twice)."""
+    from flim.gui.app import FLIMAnalyzerApp
+
+    _open_table(app_frame)
+    app_frame.answer_with(saveall.DISCARD)
+
+    class Event:
+        vetoed = skipped = False
+
+        def CanVeto(self):
+            return True
+
+        def Veto(self):
+            self.vetoed = True
+
+        def Skip(self):
+            self.skipped = True
+
+    class App:
+        frame = app_frame
+
+    event = Event()
+    FLIMAnalyzerApp.OnQueryEndSession(App(), event)
+    assert event.skipped and app_frame.asked == [["Table: Summary"]]
+    assert app_frame.Close()  # closing the main window: no second question
+    assert len(app_frame.asked) == 1
+
+
+def test_quit_asks_once_when_the_window_closes_first(app_frame):
+    """The other order: the main window closes (File > Quit), then the session ends."""
+    from flim.gui.app import FLIMAnalyzerApp
+
+    _open_table(app_frame)
+    app_frame.answer_with(saveall.DISCARD)
+
+    class Event:
+        vetoed = skipped = False
+
+        def CanVeto(self):
+            return True
+
+        def Veto(self):
+            self.vetoed = True
+
+        def Skip(self):
+            self.skipped = True
+
+    class App:
+        frame = app_frame
+
+    assert app_frame.confirm_quit()  # what closing the main window asks
+    event = Event()
+    FLIMAnalyzerApp.OnQueryEndSession(App(), event)  # the session ends: no second question
+    assert event.skipped and not event.vetoed and len(app_frame.asked) == 1
+
+
+def test_errors_in_gui_handlers_are_logged(monkeypatch, caplog):
+    import logging
+    import sys
+
+    from flim.gui.app import install_error_logging
+
+    printed = []
+    monkeypatch.setattr(sys, "excepthook", lambda *a: printed.append(a))
+    install_error_logging()
+    try:
+        raise KeyError("x")
+    except KeyError:
+        with caplog.at_level(logging.ERROR):
+            sys.excepthook(*sys.exc_info())
+    assert "Error in the GUI" in caplog.text and "KeyError" in caplog.text
+    assert printed  # still printed as before

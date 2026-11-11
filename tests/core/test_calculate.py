@@ -75,7 +75,7 @@ def test_disabled_helpers_types_and_replaced(data):
         Expr(name="helper", expression="`FAD tm` + 1", keep=False),
         Expr(name="sum", expression="helper + 1"),
         Expr(name="off", expression="1 +", enabled=False),  # not checked either
-        Expr(name="high", expression="`FAD tm` > 500", column_type="category"),
+        Expr(name="high", expression="`FAD tm` > 500", column_type="category"),  # ignored
         Expr(name="FAD tm", expression="`FAD tm` / 1000"),
     ]
     outcome = calculate(data, calculations)
