@@ -338,7 +338,8 @@ class SettingsManager:
         that the file does not depend on the defaults of the version that reads it.
         Defaults that do not pass validation are not written: they could not be used
         when the file is read.
-        `appsettings_path` and `default_app_settings` are left out: they are read only
+        `appsettings_path`, `workflow_paths` and `default_app_settings` are left out:
+        they are read only
         from the user settings file.
 
         Args:
@@ -359,6 +360,7 @@ class SettingsManager:
                 settings.tools.set(tool, config)
         data = settings.to_json()
         data.pop("appsettings_path", None)
+        data.pop("workflow_paths", None)
         data.pop("default_app_settings", None)
         data["tools"] = dict(sorted(data["tools"].items()))
         with open(path, "w") as f:

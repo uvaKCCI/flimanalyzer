@@ -249,6 +249,11 @@ class AppSettings(_Settings):
         description="Folders searched for app settings files, in order. Empty defaults to"
         " the folder appsettings in the platform's settings folder.",
     )
+    workflow_paths: list[Path] = Field(
+        default=[],
+        description="Folders searched for workflow files, in order. Empty defaults to"
+        " the folder workflows in the platform's settings folder.",
+    )
     default_app_settings: Optional[Path] = Field(
         default=None,
         title="Default app settings file",
