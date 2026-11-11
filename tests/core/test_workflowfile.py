@@ -245,18 +245,22 @@ def raw_dir(tmp_path):
 def test_built_in_import_files_match_the_import_of_0_6(prefect_harness, raw_dir, file, parser):
     from flim.core.reader import read_tables
     from flim.core.settings import AppSettings
-    from flim.configs import ImportConfig
+    from flim.core.importer import dataimporter
+    from flim.core.parser import instantiate_parser
     from flim.core.workflowfile import BUILT_IN
-    from flim.tools.data import Import, import_steps
+    from flim.tools.data import import_preprocessor
 
     check = check_workflow_file(BUILT_IN / file)
     assert check.errors == []
     run = workflow_class(check.definition)().run_flow(read_tables([raw_dir]).tables)
     assert run.state == "completed", run.failed
     (new,) = [v for r in run.results() if isinstance(r, dict) for k, v in r.items() if k == "Table: Calculated"]
-    settings = AppSettings.default()
-    settings.tools.set(Import, ImportConfig(parser=parser))
-    old = import_steps([raw_dir], settings)  # 0.6's import path (Import tool and steps)
+    # 0.6's import: the importer with the filename parser and the preprocessor
+    importer = dataimporter()
+    importer.set_files([str(raw_dir)])
+    importer.set_parser(instantiate_parser(f"flim.core.parser.{parser}"))
+    importer.set_preprocessor(import_preprocessor(AppSettings.default()))
+    old, _, _ = importer.import_data()
     assert set(new.columns) == set(old.columns)
     columns = sorted(old.columns)
     pd.testing.assert_frame_equal(

@@ -701,40 +701,6 @@ class CalculateConfig(DataTaskConfig):
     )
 
 
-class ImportConfig(DataTaskConfig, ProtectedNamesConfig):
-    """How Import reads data files: the files themselves are its input, given per
-    run, so a workflow that starts with Import analyses any data set."""
-
-    hidden_fields = frozenset({"features", "grouping"})
-
-    delimiter: str = Field(
-        default="\t,",
-        title="Column delimiters",
-        description="Each of these characters separates columns (default: tab and comma).",
-    )
-    exclude_files: list[str] = Field(
-        default=[],
-        title="Leave out files",
-        description="File names (without folder) that are not imported.",
-    )
-    parser: str = Field(
-        default="defaultparser",
-        title="Filename parser",
-        description="Takes category values from the file names, e.g. fov_treatment_cell_parser.",
-    )
-    patterns: list[dict] = Field(
-        default=[],
-        title="Filename patterns",
-        description="The parser's patterns ({Use, Category, Regex}); empty: the parser's own.",
-    )
-    category_combinations: Optional[list[list[str]]] = Field(
-        default=None,
-        title="Column combos",
-        description="Pairs of category columns joined into one (Fuse Categories, ':');"
-        " empty list: all pairs; none: no combinations.",
-    )
-
-
 class SourceFromPathConfig(DataTaskConfig, ProtectedNamesConfig):
     """Builds the `Source` column (file URIs) from `Directory` and `File`."""
 

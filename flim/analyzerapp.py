@@ -41,8 +41,26 @@ def build_parser() -> argparse.ArgumentParser:
         "-i",
         "--input",
         nargs="+",
-        help="data files to open in the GUI, each in its own window",
+        help="data files or folders: opened, each in its own window, or read for\n"
+        "--run and --workflow",
     )
+    parser.add_argument(
+        "-x", "--exclude", nargs="+", default=[], help="files not to read (names)"
+    )
+    parser.add_argument(
+        "-r", "--run", action="append", default=[], metavar="NAME",
+        help="tool or workflow to run on the files, also a workflow file by its name;\n"
+        "its dialog (or, for a workflow file, its steps) is shown first",
+    )  # fmt: skip
+    parser.add_argument(
+        "-w", "--workflow", action="append", default=[], metavar="FILE",
+        help="workflow file to run on the files: a path, or a file name in the\n"
+        "workflow search path",
+    )  # fmt: skip
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="check the runs against the first rows of the files and exit (as flimbatch)",
+    )  # fmt: skip
     add_settings_options(parser)
     parser.add_argument(
         "-l",
@@ -66,7 +84,7 @@ def parse_arguments(argv=None):
     return build_parser().parse_args(argv)
 
 
-def interactive_run(fa, files=None, settings_manager=None):
+def interactive_run(fa, files=None, settings_manager=None, runs=(), exclude=()):
     try:
         import wx  # noqa: F401
     except ImportError:
@@ -80,9 +98,12 @@ def interactive_run(fa, files=None, settings_manager=None):
 
     app = wx.GetApp()
     if isinstance(app, FLIMAnalyzerApp):  # created for a dialog at startup
+        app.runs, app.exclude = list(runs), list(exclude)
         app.start(fa, settings_manager=settings_manager, files=files)
     else:
-        app = FLIMAnalyzerApp(fa, settings_manager=settings_manager, files=files)
+        app = FLIMAnalyzerApp(
+            fa, settings_manager=settings_manager, files=files, runs=runs, exclude=exclude
+        )
     app.MainLoop()
 
 
@@ -186,10 +207,11 @@ def open_log(memory, log=None) -> tuple:
 
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
-    if "--batch" in argv:  # the other arguments are passed to flim.batch.main
+    if "--batch" in argv or "--dry-run" in argv:  # flim.batch.main, without the GUI
         from flim import batch
 
-        argv.remove("--batch")
+        if "--batch" in argv:
+            argv.remove("--batch")
         sys.exit(batch.main(argv))
 
     parser = build_parser()
@@ -232,7 +254,10 @@ def main(argv=None):
     fa = FLIMAnalyzer(execution=execution)
     try:
         with use_prefect_server(start=manager.settings.prefect_server):
-            interactive_run(fa, files=args.input, settings_manager=manager)
+            runs = [("run", n) for n in args.run] + [("workflow", n) for n in args.workflow]
+            interactive_run(
+                fa, files=args.input, settings_manager=manager, runs=runs, exclude=args.exclude
+            )
     except PrefectServerError as err:
         logger.error(err)
         show_startup_error(str(err))

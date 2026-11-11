@@ -1,13 +1,12 @@
-"""The Import tool, the Source column and protected column names."""
+"""The Source column, protected and generated column names."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from flim.configs import ConcatConfig, ImportConfig, SourceFromPathConfig
+from flim.configs import ConcatConfig, SourceFromPathConfig
 from flim.core.columns import check_template, make_room
-from flim.core.settings import AppSettings
-from flim.tools.data import Concat, Import, SourceFromPath, import_steps
+from flim.tools.data import Concat, SourceFromPath
 
 PARSER = "fov_treatment_cell_parser"
 
@@ -33,71 +32,6 @@ def data_dir(tmp_path):
                 }
             ).to_csv(folder / f"Results_FOV1_{treatment}_{cell}.txt", sep="\t", index=False)
     return folder
-
-
-def _settings():
-    settings = AppSettings.default()
-    settings.tools.set(Import, ImportConfig(parser=PARSER))
-    return settings
-
-
-def test_import_writes_source_as_text(data_dir):
-    (table,) = Import()([data_dir], config=ImportConfig(parser=PARSER)).values()
-    assert len(table) == 12
-    first = sorted(data_dir.iterdir())[0]
-    assert first.resolve().as_uri() in set(table["Source"])
-    assert table["Source"].dtype == object  # text: not used by Merge, Pivot, ...
-    assert {"Directory", "File", "Treatment", "FOV", "Cell"} <= set(table.columns)
-    assert "NAD(P)H t1" not in table.columns  # renaming is a step of its own
-
-
-def test_import_steps_match_the_import_of_0_6(data_dir):
-    """Import, Rename Columns, Drop Columns and Calculate give the table that the
-    importer with the preprocessor (FLIMAnalyzer 0.6) gave, plus Source."""
-    from flim.core.importer import dataimporter
-    from flim.core.parser import instantiate_parser
-    from flim.tools.data import import_preprocessor
-
-    settings = _settings()
-    new = import_steps([data_dir], settings)
-    importer = dataimporter()
-    importer.set_files([str(data_dir)])
-    importer.set_parser(instantiate_parser(f"flim.core.parser.{PARSER}"))
-    importer.set_preprocessor(import_preprocessor(settings))
-    old, _, _ = importer.import_data()
-    assert set(new.columns) == set(old.columns)
-    assert "NAD(P)H tm" in new.columns and "Exc3_-Ch4-_x" not in new.columns
-    key = ["Source"]
-    pd.testing.assert_frame_equal(
-        new.sort_values(key).reset_index(drop=True)[sorted(new.columns)],
-        old.sort_values(key).reset_index(drop=True)[sorted(old.columns)],
-        check_categorical=False,
-    )
-
-
-def test_import_needs_readable_files(tmp_path):
-    with pytest.raises(ValueError, match="no data files found"):
-        Import()([tmp_path / "missing"], config=ImportConfig())
-    with pytest.raises(ValueError, match="unknown filename parser"):
-        Import()([tmp_path], config=ImportConfig(parser="nope"))
-
-
-def test_import_renames_protected_columns_of_the_files(tmp_path, prefect_harness):
-    from flim.core.runner import run_flow
-
-    path = tmp_path / "Results_FOV1_WT_1.txt"
-    pd.DataFrame({"Source": ["mine"], "FOV": ["x"], "t1": [1.0]}).to_csv(path, sep="\t", index=False)
-    (table,) = Import()([path], config=ImportConfig(parser=PARSER)).values()
-    assert list(table["Source (before Import)"]) == ["mine"]
-    assert table["Source"].iloc[0].startswith("file://")
-    assert list(table["FOV"]) == ["FOV1"]  # a category of the parser replaces it
-    config = ImportConfig(parser=PARSER, clash_renames={"Source": "Origin URI"})
-    (table,) = Import()([path], config=config).values()
-    assert "Origin URI" in table.columns
-    run = run_flow("import", lambda: Import()([path], config=ImportConfig(parser=PARSER)))
-    (message,) = [a.get("message") for _, a in run.graph.nodes(data=True) if "tool" in a]
-    assert "'Source' of 1 file(s) is renamed 'Source (before Import)'" in message
-    assert "'FOV' of 1 file(s) is replaced" in message
 
 
 def test_open_keeps_the_provenance_of_a_saved_table(tmp_path):
@@ -179,7 +113,7 @@ def test_short_names_are_checked_by_the_registry():
         with pytest.raises(ValueError, match=message):
             registry.register(cls)
     assert One.short() == "One" and Long.short() == "Much too long"
-    assert Concat.short() == "Concat" and Import.short() == "Import"
+    assert Concat.short() == "Concat" and SourceFromPath.short() == "Add Source"
 
 
 # --- generated names are numbered; names the user chose are replaced with a warning ---

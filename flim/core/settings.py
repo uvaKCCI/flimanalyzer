@@ -249,6 +249,19 @@ class AppSettings(_Settings):
         description="Folders searched for app settings files, in order. Empty defaults to"
         " the folder appsettings in the platform's settings folder.",
     )
+    max_windows: dict[str, int] = Field(
+        default={"table": 10, "plot": 10, "image": 4},
+        title="Most windows of a run",
+        description="Per kind of result (table, plot, image), the most windows a GUI"
+        " run opens; a run that would open more is refused. A kind not listed: no"
+        " limit.",
+    )
+    import_workflow: Optional[str] = Field(
+        default=None,
+        title="Import workflow",
+        description="The workflow File > Import... preselects: the one last used."
+        " Written by the GUI to the user settings file.",
+    )
     workflow_paths: list[Path] = Field(
         default=[],
         description="Folders searched for workflow files, in order. Empty defaults to"

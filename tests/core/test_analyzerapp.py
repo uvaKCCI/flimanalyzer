@@ -88,7 +88,7 @@ def test_settings_file_reaches_the_gui(monkeypatch, clean_logging):
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings_manager=None: started.update(
+        lambda fa, files=None, settings_manager=None, **_: started.update(
             files=files, manager=settings_manager
         ),
     )
@@ -108,7 +108,7 @@ def test_config_option_still_works_with_a_warning(monkeypatch, clean_logging, ca
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings_manager=None: started.update(manager=settings_manager),
+        lambda fa, files=None, settings_manager=None, **_: started.update(manager=settings_manager),
     )
     _no_server(monkeypatch)
     analyzerapp.main(["-c", str(path)])
@@ -121,7 +121,7 @@ def test_command_line_options_set_the_session_settings(monkeypatch, clean_loggin
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings_manager=None: started.update(
+        lambda fa, files=None, settings_manager=None, **_: started.update(
             fa=fa, manager=settings_manager
         ),
     )
@@ -143,7 +143,7 @@ def _start(monkeypatch, argv, choose=None):
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings_manager=None: started.update(manager=settings_manager),
+        lambda fa, files=None, settings_manager=None, **_: started.update(manager=settings_manager),
     )
     if choose is not None:
         monkeypatch.setattr(analyzerapp, "choose_settings", choose)
@@ -249,7 +249,7 @@ def test_gui_starts_with_files_and_settings(monkeypatch):
     created = {}
 
     class FakeApp:
-        def __init__(self, fa, settings_manager=None, files=None):
+        def __init__(self, fa, settings_manager=None, files=None, **_):
             created.update(fa=fa, manager=settings_manager, files=files)
 
         def MainLoop(self):

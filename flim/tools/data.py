@@ -1,7 +1,6 @@
 """Data tools: reorder, combine, filter and reshape tables."""
 
 import logging
-import os
 
 import numpy as np
 import pandas as pd
@@ -11,7 +10,6 @@ from flim.configs.data import (
     DropColumnsConfig,
     RenameColumnsConfig,
     FuseCategoriesConfig,
-    ImportConfig,
     SeparateCategoriesConfig,
     SourceFromPathConfig,
     ScaleConfig,
@@ -27,9 +25,9 @@ from flim.configs.data import (
 from flim.core import headers
 from flim.core.columns import free_names, make_room, unique_name  # noqa: F401  (tests)
 from flim.core.config import Issue
-from flim.core.registry import register_tool, tools
+from flim.core.registry import register_tool
 from flim.core.tool import Tool
-from flim.core.types import FileType, InputSpec, OutputSpec, TableType
+from flim.core.types import InputSpec, OutputSpec, TableType
 from flim.tools.common import (
     categories_first,
     category_columns,
@@ -827,100 +825,6 @@ def import_preprocessor(settings):
     preprocessor.set_replacementheaders({r.part: r.new for r in rename.replacements})
     preprocessor.set_dropcolumns([(r.text, r.match) for r in drop.drop])
     return preprocessor
-
-
-class Import(Tool[ImportConfig]):  # not registered: the GUI's Import dialog only
-    name = "Import"
-    category = "Data"
-    description = (
-        "Reads data files (files, or folders with their subfolders: .txt and .csv)"
-        " into one table, with category values from the file names and a Source"
-        " column with each row's file."
-    )
-    in_menus = False  # File > Import...
-    inputs = (InputSpec("files", FileType, description="Data files and folders."),)
-    outputs = (OutputSpec("Imported", TableType),)
-
-    def run(self, files, *, config):
-        from flim.core.importer import dataimporter
-        from flim.core.parser import instantiate_parser
-
-        parser = instantiate_parser(f"flim.core.parser.{config.parser}")
-        if parser is None:
-            raise ValueError(f"{self.name}: unknown filename parser {config.parser}")
-        if config.patterns:
-            parser.set_regexpatterns(config.patterns)
-        importer = dataimporter()
-        importer.set_delimiter(config.delimiter)
-        paths = [str(f) for f in ([files] if isinstance(files, (str, os.PathLike)) else files)]
-        importer.add_files(paths, exclude=list(config.exclude_files))
-        if not importer.get_files():
-            raise ValueError(f"{self.name}: no data files found")
-        importer.set_parser(parser)
-        importer.set_column_combos(config.category_combinations)
-        importer.set_preprocessor(None)
-        data, filenames, _ = importer.import_data(
-            clash_name=config.clash_name,
-            clash_renames=config.renames(),
-            tool=self.short(),
-        )
-        if data is None or not filenames:
-            raise ValueError(f"{self.name}: none of the files could be read")
-        for message in _clash_messages(importer):
-            self.warn(message)
-        logger.info(f"{self.name}: {len(filenames)} file(s), {len(data)} rows")
-        return {"Imported": data}
-
-
-def _clash_messages(importer) -> list[str]:
-    """Warnings on the columns of the files that Import renamed or replaced."""
-    messages = []
-    renamed: dict = {}
-    for renames in importer.renamed.values():
-        for old, new in renames.items():
-            renamed.setdefault((old, new), 0)
-            renamed[(old, new)] += 1
-    for (old, new), n in renamed.items():
-        messages.append(f"the column '{old}' of {n} file(s) is renamed '{new}'")
-    replaced: dict = {}
-    for columns in importer.replaced.values():
-        for column in columns:
-            replaced[column] = replaced.get(column, 0) + 1
-    for column, n in replaced.items():
-        messages.append(
-            f"the column '{column}' of {n} file(s) is replaced by the file names'"
-        )
-    return messages
-
-
-IMPORT_STEPS = ("Rename Columns", "Drop Columns", "Calculate")  # after Import
-
-
-def import_steps(files, settings, exclude=()) -> pd.DataFrame:
-    """Import data files as `File` > `Import...` and `flimbatch` do: Import, then
-    Rename Columns, Drop Columns and Calculate, each with its settings.
-
-    Args:
-        files: Data files and folders.
-        settings: The app settings (AppSettings).
-        exclude: Further file names to leave out.
-
-    Returns:
-        The table.
-
-    Raises:
-        ValueError: If no file is found or can be read, or a step fails.
-    """
-    config = settings.tools.config(Import)
-    if exclude:
-        config = config.model_copy(
-            update={"exclude_files": list(config.exclude_files) + list(exclude)}
-        )
-    (table,) = Import()(files, config=config).values()
-    for name in IMPORT_STEPS:
-        tool = tools.get(name)
-        (table,) = tool()(table, config=settings.tools.config(tool)).values()
-    return table
 
 
 @register_tool

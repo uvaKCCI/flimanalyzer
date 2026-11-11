@@ -378,6 +378,8 @@ def _file_workflow_base():
                 else:
                     outputs[step.id] = call(sources, [step.id])
                 previous = step.id
+            # the results to show: the outputs no later step uses
+            self.leaves = {step.id: outputs[step.id] for step in leaf_steps(self.definition)}
 
     FileWorkflow = _FileWorkflow
     return FileWorkflow
@@ -480,3 +482,83 @@ def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
         known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
         previous = step.id
     return errors
+
+
+def leaf_steps(definition: WorkflowDefinition) -> list[WorkflowStep]:
+    """The steps whose outputs no later step uses: the results a run shows."""
+    used, previous = set(), INPUT
+    for step in definition.steps:
+        for reference in step.inputs or [previous]:
+            used.add(parse_reference(reference)[0])
+        previous = step.id
+    return [s for s in definition.steps if s.id not in used]
+
+
+def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
+    """How many result windows a run would open, by kind (table, plot, image): the
+    leaf steps' outputs, once per table for steps that run per table. The outputs are
+    worked out from the tables' schemas (see check_steps); an output whose kind is not
+    known counts as a table.
+
+    Args:
+        definition: The workflow.
+        schemas: The run's tables' schemas by name.
+
+    Returns:
+        Kind -> number of windows.
+    """
+    from flim.core.registry import tools
+    from flim.core.schema import TableSchema
+
+    shapes, _ = _shapes(definition)
+    first = next(iter(schemas.values()), None)
+    known, previous = {INPUT: [(first, "table")]}, INPUT
+    for step in definition.steps:
+        tool = tools.get(step.tool)
+        config = tool.config_class.model_validate(step.config)
+        inputs = []
+        for reference in step.inputs or [previous]:
+            source, number = parse_reference(reference)
+            outputs = known.get(source) or []
+            inputs.append(outputs[number - 1][0] if number <= len(outputs) else None)
+        if tool.inputs and tool.inputs[0].many:
+            source = (step.inputs or [previous])[0]
+            many = schemas if source == INPUT else {"Input": inputs[0]}
+            inputs = [None if None in many.values() else many]
+        try:
+            specs = list(tool.output_schema(config, inputs).values())
+        except Exception:
+            specs = list(tool.outputs)
+        known[step.id] = [
+            (getattr(s, "schema", None) or TableSchema.unknown(), getattr(s.type, "kind", "table"))
+            for s in specs
+        ] or [(TableSchema.unknown(), "table")]
+        previous = step.id
+    counts: dict = {}
+    for step in leaf_steps(definition):
+        times = len(schemas) if shapes[step.id] == MAPPED else 1
+        for _, kind in known[step.id]:
+            counts[kind] = counts.get(kind, 0) + times
+    return counts
+
+
+def too_many_windows(counts: dict, limits: dict) -> list[str]:
+    """The kinds over their limit, as messages, e.g. `300 tables (most: 10)`."""
+    return [
+        f"{n} {kind}s (most: {limits[kind]})"
+        for kind, n in counts.items()
+        if kind in limits and n > limits[kind]
+    ]
+
+
+def describe_steps(definition: WorkflowDefinition) -> str:
+    """The steps of a workflow as text, one line each, e.g. `2. Drop Columns (may
+    apply nothing)`, for showing a workflow before it runs."""
+    notes = {"allow_partial": "may apply only some settings", "allow_none": "may apply nothing"}
+    lines = []
+    for number, step in enumerate(definition.steps, 1):
+        extra = [notes[step.processing]] if step.processing in notes else []
+        if step.save:
+            extra.append("saved")
+        lines.append(f"{number}. {step.tool}" + (f" ({', '.join(extra)})" if extra else ""))
+    return "\n".join(lines)

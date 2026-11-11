@@ -4,9 +4,9 @@ The tool panel, the main window of FLIMAnalyzer, has a group of icons for each m
 
 ## File
 
-* `Open...` and `Import...` load data files. See [Loading Data](/userguide/data/load).
+* `Open...` opens data files, each in a table window; `Import...` reads data files and runs a workflow on them. See [Loading Data](/userguide/data/load).
 * `Save All Windows...` saves all open tables and plots at once. See [Saving all windows](/userguide/data/save.md#saving-all-windows).
-* `Import Settings...` and `Export Settings...` load and save all settings: the range filters and the settings of each tool, including those of `Import...`. See [Settings](/userguide/settings).
+* `Import Settings...` and `Export Settings...` load and save all settings: the range filters and the settings of each tool. See [Settings](/userguide/settings).
 * `Settings...` shows the app settings of this session: the results folder, the executor, the Prefect server, the log folder and how workflows handle missing columns. For each, it shows where its value comes from and how to change it. On macOS it is in the `FLIMAnalyzer` menu. See [Viewing the app settings](/userguide/settings.md#viewing-the-app-settings).
 * `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q). If table or plot windows have unsaved results, FLIMAnalyzer lists them and asks first, also when you log out or shut down the computer (where the system lets it ask):
   * `Cancel` keeps everything open.

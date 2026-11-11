@@ -27,7 +27,6 @@ from flim.configs.data import (  # noqa: F401  (re-exported)
     CalculateConfig,
     DropColumnsConfig,
     FuseCategoriesConfig,
-    ImportConfig,
     RenameColumnsConfig,
     ScaleConfig,
     SeparateCategoriesConfig,

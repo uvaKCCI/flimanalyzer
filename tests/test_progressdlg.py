@@ -375,7 +375,7 @@ def test_open_data_files_opens_a_data_window(frame, tmp_path, flim_data):
 
     csv = tmp_path / "cells.csv"
     flim_data.to_csv(csv, index=False)
-    assert frame.open_data_files([str(csv)]) == "cells.csv"
+    assert frame.open_data_files([str(csv)]) == ["cells.csv"]
     window = frame.windows_by_title()["cells.csv"]
     assert isinstance(window, PandasFrame)
     assert len(window.GetViewData()) == len(flim_data)
@@ -422,7 +422,7 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings_manager=None: started.update(files=files),
+        lambda fa, files=None, settings_manager=None, **_: started.update(files=files),
     )
     analyzerapp.main()
     assert started["files"] == ["a.csv", "b.txt"]

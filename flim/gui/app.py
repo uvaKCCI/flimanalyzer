@@ -26,11 +26,12 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.datamgr import DataManager
 from flim.core.saving import AutosaveConfig
 from flim.core.filtering import WindowFilters, window_filters, with_window_ranges
-from flim.tools.data import DropColumns, Filter, Import, RenameColumns, import_steps
+from flim.tools.data import Filter
 from flim.core.types import TableType
 from flim.core.settings import AppSettings, tool_settings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
-from flim.core.importer import dataimporter
+from flim.core.reader import ReadSettings, read_tables
+from flim.core.schema import TableSchema
 from flim.core.paths import canonical_folder
 from flim.core.graph import WorkflowGraph
 from flim.core.workflow import Workflow
@@ -58,7 +59,6 @@ from flim.gui.events import (
     REQUEST_RENAME_DATA_WINDOW,
     RENAMED_DATA_WINDOW,
 )
-from flim.gui.importdlg import ImportDlg
 from flim.gui.listcontrol import EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
 import flim.tools  # noqa: F401  (registers the built-in tools)
 
@@ -98,7 +98,7 @@ def app_icons():
 
 
 class FLIMAnalyzerApp(wx.App):
-    def __init__(self, flimanalyzer=None, settings_manager=None, files=None):
+    def __init__(self, flimanalyzer=None, settings_manager=None, files=None, runs=(), exclude=()):
         """
         Args:
             flimanalyzer: The FLIMAnalyzer object that provides the task runner and
@@ -107,10 +107,15 @@ class FLIMAnalyzerApp(wx.App):
             settings_manager: The SettingsManager of this session. Defaults to one with
                 the built-in defaults and the user settings file.
             files: Data files to open at startup, each in its own data window.
+            runs: ("run", name) or ("workflow", file) to run on the files at startup
+                (`--run`, `--workflow`) instead of opening them.
+            exclude: File names not to read (`-x`).
         """
         self.flimanalyzer = flimanalyzer
         self.settings_manager = settings_manager
         self.files = list(files or [])
+        self.runs = list(runs)
+        self.exclude = list(exclude)
         # tools of other packages, and their dialogs (entry points)
         discover(TOOLS_GROUP)
         discover(GUI_GROUP)
@@ -157,6 +162,12 @@ class FLIMAnalyzerApp(wx.App):
             self.settings_manager = SettingsManager(
                 user_file=UserSettingsFile(user_settings_path())
             )
+        # the workflow files, registered by name like tools: in the Workflow menu
+        from flim.core.workflowfile import register_workflow_files, workflow_path
+
+        search_path = workflow_path(self.settings_manager.settings.workflow_paths)
+        for message in register_workflow_files(search_path):
+            self.settings_manager.notices.append(message)
         self.frame = AppFrame(self.flimanalyzer, self.settings_manager)
         self.dock_icon = None
         if wx.Platform == "__WXMAC__":
@@ -171,23 +182,38 @@ class FLIMAnalyzerApp(wx.App):
                 "FLIMAnalyzer",
                 wx.OK | wx.ICON_WARNING,
             )
-        if self.files:
+        if self.runs:
+            wx.CallAfter(self.run_at_start)
+        elif self.files:
             wx.CallAfter(self.open_files, self.files)
 
-    def open_files(self, files):
-        """Opens each file in a data window; reports files that cannot be read."""
-        failed = []
-        for f in files:
+    def run_at_start(self):
+        """Run the `--run` and `--workflow` given at startup on the `-i` files: a
+        workflow file after showing its steps; a tool or code-defined workflow after
+        opening the files, in its dialog."""
+        from flim.batch import BatchError, read_settings, resolve_run
+        from flim.core.workflowfile import workflow_path
+
+        search_path = workflow_path(self.settings_manager.settings.workflow_paths)
+        for kind, name in self.runs:
             try:
-                if not os.path.isfile(f) or self.frame.open_data_files([f]) is None:
-                    failed.append(f)
-            except Exception as e:
-                logger.exception(f"Could not open {f}")
-                failed.append(f"{f} ({e})")
-        if failed:
-            wx.MessageBox(
-                "Could not open:\n" + "\n".join(failed), "Open files", wx.OK | wx.ICON_WARNING
-            )
+                tool = resolve_run(name, kind, search_path)
+            except BatchError as err:
+                wx.MessageBox(str(err), "FLIMAnalyzer", wx.OK | wx.ICON_ERROR)
+                continue
+            settings = read_settings(tool, self.exclude)
+            if getattr(tool, "definition", None) is not None:
+                tables = self.frame.read_files(self.files, settings, title=tool.name)
+                if tables and self.frame.confirm_workflow(tool, f"{len(tables)} file(s)"):
+                    self.frame.run_workflow_on_tables(tool, tables)
+            else:
+                self.frame.open_data_files(self.files, settings)
+                self.frame.run_tool(tool)
+
+    def open_files(self, files):
+        """Opens each file in a data window (File > Open...); reports files that
+        cannot be read."""
+        self.frame.open_data_files(files)
 
     def OnExit(self):
         if self.dock_icon:
@@ -249,9 +275,11 @@ class AppFrame(wx.Frame):
 
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
-        loadmenuitem = filemenu.Append(wx.ID_ANY, "&Open...", "Open single data file")
+        loadmenuitem = filemenu.Append(
+            wx.ID_ANY, "&Open...", "Open data files, each in a window of its own"
+        )
         importmenuitem = filemenu.Append(
-            wx.ID_ANY, "Import...", "Import and concatenate mutliple data files"
+            wx.ID_ANY, "Import...", "Read data files and run a workflow on them"
         )
         saveallitem = filemenu.Append(
             wx.ID_ANY, "Save All Windows...", "Save all open tables and plots"
@@ -280,7 +308,14 @@ class AppFrame(wx.Frame):
 
         menubar.Append(filemenu, "&File")
         for category in tools.categories():
-            menubar.Append(self._create_tool_menu(category), f"&{category}")
+            menu = self._create_tool_menu(category)
+            if category == "Workflow":
+                menu.AppendSeparator()
+                item = menu.Append(
+                    wx.ID_ANY, "Run Workflow File...", "Run a workflow file on the current table"
+                )
+                self.Bind(wx.EVT_MENU, lambda e: self.run_workflow_file(), item)
+            menubar.Append(menu, f"&{category}")
         menubar.Append(self.windowmenu, "&Window")
         menubar.Append(helpmenu, "&Help")
 
@@ -444,93 +479,204 @@ class AppFrame(wx.Frame):
         )
 
     def OnLoadData(self, event):
-        dlg = ImportDlg(
-            self,
-            "Open File",
-            self.settings,
-            parsefname=False,
-            preprocess=False,
-            singlefile=True,
-        )
-        if dlg.ShowModal() == wx.ID_OK:
-            self.open_data_files(dlg.files, "\t,")
+        paths = self.ask_data_files("Open")
+        if paths:
+            self.open_data_files(paths)
 
-    def open_data_files(self, files, delimiter=None):
-        """Opens data files in a data window, as File > Open does.
+    def ask_data_files(self, title) -> list:
+        """Ask for data files (standard file dialog); [] if cancelled."""
+        with wx.FileDialog(
+            self,
+            title,
+            wildcard="Data files (*.txt;*.csv)|*.txt;*.csv|All files (*.*)|*.*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE,
+        ) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return []
+            return list(dialog.GetPaths())
+
+    def read_files(self, files, settings=None, title="Open") -> dict:
+        """Read data files into tables (flim.core.reader); report those that could
+        not be read. Returns the tables by name."""
+        reading = read_tables(files, settings or ReadSettings())
+        problems = [f"{path}: {reason}" for path, reason in reading.skipped.items()]
+        if problems or reading.warnings:
+            wx.MessageBox(
+                "\n".join((["Not read:"] + problems if problems else []) + reading.warnings),
+                title,
+                wx.OK | wx.ICON_WARNING,
+            )
+        return reading.tables
+
+    def open_data_files(self, files, settings=None) -> list:
+        """Opens each data file in a window of its own, as File > Open does.
 
         Args:
-            files: paths of the files; several files are combined in one table.
-            delimiter: column delimiter characters, default: from the settings
-                (tab and comma).
+            files: Paths of files or folders.
+            settings: How to read them (ReadSettings); default: tab or comma.
 
         Returns:
-            str: title of the new data window (the file name, or "Imported Data" for
-            several files, made unique), or None if no file could be read.
+            The titles of the new windows (the file names, made unique).
         """
-        importer = dataimporter()
-        importer.set_delimiter(delimiter or self.settings.tools.config(Import).delimiter)
-        importer.set_files(list(files))
-        importer.set_parser(None)
-        importer.set_preprocessor(None)
-        # the table as it is: columns it has (e.g. Source) are not added again
-        data, filenames, fheaders = importer.import_data(keep_existing=True)
-        if not filenames:
-            return None
-
-        windowtitle = os.path.basename(filenames[0])
-        if len(filenames) != 1:
-            windowtitle = "Imported Data"
-        # always a new window: a window of the same title (e.g. data.txt from another
-        # folder) keeps its data; the new one is named data.txt-1
-        windowtitle = self.unique_window_title(windowtitle)
-        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-        event.SetEventInfo(
-            data,
-            windowtitle,
-            "createnew",
-            config=None,
-            showcolindex=False,
-            analyzable=True,
-            savemodified=True,
-            enableclose=True,
-            modified=False,  # just read from the file
-        )
-        self.GetEventHandler().ProcessEvent(event)
-        return windowtitle
-
-    def OnImportData(self, event):
-        dlg = ImportDlg(self, "Import File(s)", self.settings)
-        if dlg.ShowModal() == wx.ID_OK:
-            settings = dlg.get_settings()
-            # the Import, Rename Columns and Drop Columns tools' settings, as for
-            # any tool dialog (no files: they are given per run)
-            changed = {
-                tool.name: settings.tools.entry(tool).model_dump(mode="json")
-                for tool in (Import, RenameColumns, DropColumns)
-                if settings.tools.entry(tool) is not None
-            }
-            self.settings_manager.update({"tools": changed})
-            try:
-                data = import_steps(dlg.files, self.settings)
-            except ValueError as err:
-                wx.MessageBox(str(err), "Import", wx.OK | wx.ICON_WARNING)
-                return
-            filenames = list(dlg.files)
-            windowtitle = os.path.basename(filenames[0])
-            if len(filenames) != 1:
-                windowtitle = "Imported Data"
+        titles = []
+        for name, table in self.read_files(files, settings).items():
+            # always a new window: a window of the same title (e.g. data.txt from
+            # another folder) keeps its data; the new one is named data.txt-1
+            title = self.unique_window_title(name)
             event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
             event.SetEventInfo(
-                data,
-                windowtitle,
-                "createnew",  # a new window, never into one of the same title
-                config=None,
-                showcolindex=False,
-                analyzable=True,
-                savemodified=True,
-                enableclose=True,
-            )
+                table, title, "createnew", config=None, showcolindex=False,
+                analyzable=True, savemodified=True, enableclose=True,
+                modified=False,  # just read from the file
+            )  # fmt: skip
             self.GetEventHandler().ProcessEvent(event)
+            titles.append(title)
+        return titles
+
+    def file_workflows(self) -> list:
+        """The registered workflow files' workflows, by name."""
+        return sorted(
+            (t for t in tools.by_category().get("Workflow", []) if getattr(t, "definition", None)),
+            key=lambda t: t.name,
+        )
+
+    def confirm_workflow(self, tool, what: str) -> bool:
+        """Show a workflow's steps (read-only) and ask whether to run it."""
+        from flim.core.workflowfile import describe_steps
+
+        text = (
+            f"{tool.definition.description}\n\n" if tool.definition.description else ""
+        ) + describe_steps(tool.definition)
+        with wx.MessageDialog(
+            self, text, f"Run {tool.name} on {what}?", style=wx.OK | wx.CANCEL
+        ) as dialog:
+            dialog.SetOKCancelLabels("Run", "Cancel")
+            return dialog.ShowModal() == wx.ID_OK
+
+    def OnImportData(self, event):
+        """File > Import...: choose data files, then a workflow, and run it on them."""
+        paths = self.ask_data_files("Import: choose the data files")
+        if not paths:
+            return
+        workflows = self.file_workflows()
+        if not workflows:
+            wx.MessageBox("No workflow files found.", "Import", wx.OK | wx.ICON_WARNING)
+            return
+        names = [t.name for t in workflows]
+        preselected = self.settings.import_workflow
+        preselected = preselected if preselected in names else ("Import" if "Import" in names else names[0])
+        with wx.SingleChoiceDialog(
+            self, "Workflow to run on the files:", "Import", names
+        ) as dialog:
+            dialog.SetSelection(names.index(preselected))
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            tool = workflows[dialog.GetSelection()]
+        if not self.confirm_workflow(tool, f"{len(paths)} file(s)"):
+            return
+        self.settings_manager.update({"import_workflow": tool.name})
+        tables = self.read_files(paths, tool.definition.read, title="Import")
+        if tables:
+            self.run_workflow_on_tables(tool, tables)
+
+    def run_workflow_file(self, path=None):
+        """Workflow > Run Workflow File...: run a workflow file on the current table."""
+        from flim.core.workflowfile import check_workflow_file, workflow_class
+
+        title, table = self.get_currentdata()
+        if table is None:
+            wx.MessageBox("Open or import data first.", "Run Workflow File", wx.OK)
+            return
+        if path is None:
+            with wx.FileDialog(
+                self, "Run Workflow File", wildcard="Workflow files (*.json)|*.json",
+                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+            ) as dialog:  # fmt: skip
+                if dialog.ShowModal() != wx.ID_OK:
+                    return
+                path = dialog.GetPath()
+        check = check_workflow_file(path)
+        if check.errors:
+            wx.MessageBox("\n".join(check.errors), "Run Workflow File", wx.OK | wx.ICON_ERROR)
+            return
+        tool = workflow_class(check.definition, Path(path))
+        if self.confirm_workflow(tool, title):
+            self.run_workflow_on_tables(tool, {title: TableType.snapshot(table)})
+
+    def run_workflow_on_tables(self, tool, tables: dict):
+        """Run a workflow file's workflow on tables: checked first (its steps against
+        the tables' columns, and the number of windows against `max_windows`); its
+        steps' `save` decides what is saved; windows open for the results no later
+        step uses (leaf outputs).
+
+        Returns:
+            The FlowRun, or None if the run did not start or did not end normally.
+        """
+        from flim.core.workflowfile import check_steps, too_many_windows, window_counts
+
+        schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
+        errors = check_steps(tool.definition, schemas)
+        if errors:
+            wx.MessageBox("\n".join(errors), tool.name, wx.OK | wx.ICON_ERROR)
+            return None
+        over = too_many_windows(window_counts(tool.definition, schemas), self.settings.max_windows)
+        if over:
+            wx.MessageBox(
+                f"{tool.name} would open {', '.join(over)}. Run it with flimbatch, or"
+                " add a step that joins the tables (e.g. Concatenate) to the workflow."
+                " The limits are the app setting max_windows.",
+                tool.name,
+                wx.OK | wx.ICON_WARNING,
+            )
+            return None
+        folder = canonical_folder(str(self.settings.resolved_results_dir()))
+        autosave_dir = os.path.join(folder, tool.name)
+        task_runner = self.flimanalyzer.get_task_runner()
+        workflow = tool()
+
+        def start_run(cancel_token, on_progress, on_start):
+            return workflow.run_flow(
+                tables,
+                task_runner=task_runner,
+                autosave_dir=autosave_dir,  # the steps' `save` decides what is written
+                on_progress=on_progress,
+                cancel_token=cancel_token,
+                on_start=on_start,
+                settings_record=self.settings_manager.record(),
+                save_formats=tool.definition.autosave.formats,
+            )
+
+        flow_run = self.run_with_progress(tool.name, start_run)
+        if flow_run is None:
+            return None
+        self.show_leaves(workflow, flow_run)
+        self.show_run_summary(tool.name, flow_run)
+        return flow_run
+
+    def show_leaves(self, workflow, flow_run):
+        """Open a window for each result of a workflow file's leaf steps; results its
+        steps saved open as saved."""
+        steps = {s.id: s for s in workflow.definition.steps}
+        for step_id, outputs in getattr(workflow, "leaves", {}).items():
+            save = steps[step_id].save
+            items = outputs.items() if isinstance(outputs, dict) else [(None, outputs)]
+            for entity, output in items:
+                results = output.value()
+                if not isinstance(results, dict):
+                    continue
+                for number, (name, value) in enumerate(results.items(), 1):
+                    saved = save is True or (
+                        isinstance(save, list) and f"{step_id}.{number}" in save
+                    )
+                    title = f"{name} - {entity}" if entity and len(items) > 1 else name
+                    if isinstance(value, pd.DataFrame):
+                        event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
+                        event.SetEventInfo(
+                            value, title, "createnew", showcolindex=False, modified=not saved
+                        )
+                        self.GetEventHandler().ProcessEvent(event)
+                    elif isinstance(value, matplotlib.figure.Figure):
+                        self.open_plot(value, title, modified=not saved)
 
     def OnLoadSettings(self, event):
         with wx.FileDialog(
@@ -682,6 +828,10 @@ class AppFrame(wx.Frame):
             on_make_default=self.make_default_folder,
         )
         if result is None:
+            return
+        if getattr(tool, "definition", None) is not None:  # a workflow file
+            tables = result.inputs[0]
+            self.run_workflow_on_tables(tool, tables if isinstance(tables, dict) else {"Input": tables})
             return
         # what the tool stores: no folder if it follows the default folder
         stored = result.stored_autosave or result.execution.autosave

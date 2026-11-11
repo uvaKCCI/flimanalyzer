@@ -97,7 +97,11 @@ Run `flimanalyzer --help` for all command-line options.
 
 | Option | |
 |---|---|
-| `-i`, `--input` | data files to open at startup, each in its own table window |
+| `-i`, `--input` | data files or folders to open at startup, each file in its own table window; with `--run` or `--workflow`, the files to run it on |
+| `-x`, `--exclude` | files not to read (names) |
+| `-r`, `--run` | tool or workflow to run on the `-i` files at startup, also a workflow file by its name: a workflow file's steps are shown, then it runs; a tool's dialog opens with the files' tables |
+| `-w`, `--workflow` | workflow file to run on the `-i` files at startup: a path, or a file name in the workflow search path (see [Workflow files](/userguide/workflows.md#workflow-files)) |
+| `--dry-run` | check the runs against the first rows of the `-i` files, report, and exit without opening the GUI, as `flimbatch --dry-run` does (see [Batch Mode](/userguide/batch.md#checking-a-run-first)) |
 | `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings search path, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
 | `-o`, `--output` | results folder: the folder under `Save results in` for tools that have no folder of their own |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4` (see [Concurrent and Distributed Execution](/userguide/execution)) |

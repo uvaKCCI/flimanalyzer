@@ -48,15 +48,27 @@ def _answer_file_dialog(monkeypatch, path):
     monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(path))
 
 
-def _answer_import(monkeypatch, files):
-    """The import dialog answers Import with ``files`` (chosen for this run only)."""
-    from flim.gui.importdlg import ImportDlg
+def _answer_import(monkeypatch, frame, files, workflow="Import"):
+    """File > Import... answers with ``files`` and the built-in workflow ``workflow``
+    (Run), and runs it in this thread, without the progress dialog."""
+    from flim.core.runner import CancelToken
+    from flim.core.workflowfile import BUILT_IN, check_workflow_file, workflow_class
 
-    def show(dlg):
-        dlg.files = list(files)
-        return wx.ID_OK
-
-    monkeypatch.setattr(ImportDlg, "ShowModal", show)
+    tools_ = []
+    for path in sorted(BUILT_IN.glob("*.json")):
+        definition = check_workflow_file(path).definition
+        tools_.append(workflow_class(definition, path))
+    monkeypatch.setattr(frame, "ask_data_files", lambda title: list(files))
+    monkeypatch.setattr(frame, "file_workflows", lambda: tools_)
+    names = [t.name for t in tools_]
+    monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+    monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: names.index(workflow))
+    monkeypatch.setattr(frame, "confirm_workflow", lambda tool, what: True)
+    monkeypatch.setattr(
+        frame, "run_with_progress",
+        lambda title, start: start(CancelToken(), lambda *a: None, lambda run: None),
+    )  # fmt: skip
+    monkeypatch.setattr(frame, "show_run_summary", lambda title, run: None)
 
 
 def _new_windows(frame, before):
@@ -161,24 +173,42 @@ def test_save_and_load_settings(frame, monkeypatch, tmp_path):
     assert frame.settings.tools.config(tools.get("K-Means")).n_clusters == 5
 
 
-def test_import_several_files(frame, monkeypatch, tmp_path, flim_data):
-
+def _results_files(tmp_path, flim_data):
     files = []
     for name, part in (("Results_FOV1_WT_1.txt", flim_data.iloc[:10]), ("Results_FOV2_KO_2.txt", flim_data.iloc[10:25])):
         path = tmp_path / name
         part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
         files.append(str(path))
-    _answer_import(monkeypatch, files)
+    return files
+
+
+def test_import_runs_a_workflow_on_the_files(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data), "Import: FOV, Treatment, Cell")
     before = set(frame.windows_by_title())
     frame.OnImportData(None)
+    # one window: the result no later step uses (the joined, calculated table)
     (title, window), = _new_windows(frame, before).items()
-    assert title == "Imported Data"
-    assert len(window.GetViewData()) == 25
+    assert title == "Table: Calculated"
+    table = window.GetViewData()
+    assert len(table) == 25 and set(table["Treatment"]) == {"WT", "KO"}
+    assert not window.modified  # saved: the step is marked to save
+    assert frame.settings.import_workflow == "Import: FOV, Treatment, Cell"  # remembered
+
+
+def test_import_refuses_runs_with_too_many_windows(frame, monkeypatch, tmp_path, flim_data):
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data))
+    frame.settings_manager.update({"max_windows": {"table": 0}})
+    messages = []
+    monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
+    before = set(frame.windows_by_title())
+    frame.OnImportData(None)
+    assert _new_windows(frame, before) == {}
+    assert "would open 1 tables (most: 0)" in messages[0] and "flimbatch" in messages[0]
 
 
 def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
 
-    _answer_import(monkeypatch, [str(tmp_path / "gone.txt")])
+    _answer_import(monkeypatch, frame, [str(tmp_path / "gone.txt")])
     messages = []
     monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
     before = set(frame.windows_by_title())
@@ -194,31 +224,51 @@ def test_open_file_of_an_open_windows_name_opens_a_new_window(frame, tmp_path):
     (tmp_path / "b").mkdir()
     pd.DataFrame({"x": [1.0, 2.0, 3.0]}).to_csv(tmp_path / "a" / "data.txt", sep="\t", index=False)
     pd.DataFrame({"x": [9.0]}).to_csv(tmp_path / "b" / "data.txt", sep="\t", index=False)
-    assert frame.open_data_files([str(tmp_path / "a" / "data.txt")]) == "data.txt"
+    assert frame.open_data_files([str(tmp_path / "a" / "data.txt")]) == ["data.txt"]
     first = frame.windows_by_title()["data.txt"]
     first.modified = True  # changed, not saved
 
-    assert frame.open_data_files([str(tmp_path / "b" / "data.txt")]) == "data.txt-1"
+    assert frame.open_data_files([str(tmp_path / "b" / "data.txt")]) == ["data.txt-1"]
     assert frame.windows_by_title()["data.txt"] is first
     assert len(first.GetViewData()) == 3 and first.is_modified()
     assert len(frame.windows_by_title()["data.txt-1"].GetViewData()) == 1
     first.modified = False
 
 
-def test_import_again_opens_a_new_window(frame, monkeypatch, tmp_path, flim_data):
-
-    files = []
-    for name, part in (("Results_FOV1_WT_1.txt", flim_data.iloc[:10]), ("Results_FOV2_KO_2.txt", flim_data.iloc[10:25])):
-        path = tmp_path / name
-        part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
-        files.append(str(path))
-    _answer_import(monkeypatch, files)
+def test_import_again_opens_a_new_window(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data))
     frame.OnImportData(None)
-    first = frame.windows_by_title()["Imported Data"]
+    first = frame.windows_by_title()["Table: Calculated"]
     first.modified = True  # changed, not saved
     frame.OnImportData(None)  # the same files again
-    assert frame.windows_by_title()["Imported Data"] is first and first.is_modified()
-    assert len(frame.windows_by_title()["Imported Data-1"].GetViewData()) == 25
+    assert frame.windows_by_title()["Table: Calculated"] is first and first.is_modified()
+    assert len(frame.windows_by_title()["Table: Calculated-1"].GetViewData()) == 25
+
+
+def test_run_workflow_file_on_the_current_table(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
+    import json
+
+    from flim.core.runner import CancelToken
+
+    path = tmp_path / "summary.json"
+    path.write_text(json.dumps({
+        "name": "mean FLIRR",
+        "steps": [{"id": "1", "tool": "Summarize",
+                   "config": {"grouping": ["Treatment"], "features": [FEATURE], "aggs": ["mean"]}}],
+    }))
+    _open(frame, flim_data)
+    monkeypatch.setattr(frame, "confirm_workflow", lambda tool, what: True)
+    monkeypatch.setattr(
+        frame, "run_with_progress",
+        lambda title, start: start(CancelToken(), lambda *a: None, lambda run: None),
+    )  # fmt: skip
+    monkeypatch.setattr(frame, "show_run_summary", lambda title, run: None)
+    before = set(frame.windows_by_title())
+    frame.run_workflow_file(str(path))
+    new = _new_windows(frame, before)
+    (title,) = [t for t in new if "Summary" in t]
+    assert set(new[title].GetViewData()["Treatment"]) == {"WT", "KO"}
+    assert new[title].modified  # not saved: the step doesn't save
 
 
 def test_filter_changes_reach_the_user_settings_file(wxapp, monkeypatch, tmp_path, flim_data):

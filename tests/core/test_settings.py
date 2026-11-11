@@ -113,19 +113,6 @@ def test_invalid_tool_settings_give_the_defaults(caplog):
     assert "not valid" in caplog.text
 
 
-def test_the_import_tool_reads_files_of_its_input(tmp_path):
-    from flim.configs import ImportConfig
-    from flim.tools.data import Import
-
-    # the Import tool reads the data files of its input with its config
-    data_file = tmp_path / "Results-ko_FOV2_3.txt"
-    data_file.write_text("x\n1\n")
-    config = ImportConfig(delimiter=";", parser="treatment_fov_cell_parser")
-    (table,) = Import()([str(tmp_path)], config=config).values()
-    assert table["Source"].iloc[0] == data_file.resolve().as_uri()
-    assert table["Source"].dtype == object  # text, not a category
-
-
 def test_settings_of_version_1():
     settings = load_settings(V1_FILE)
     entry = settings.tools.entry(tools.get("Summarize"))
