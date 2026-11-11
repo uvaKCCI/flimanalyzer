@@ -2,10 +2,7 @@
   "schema_version": 1,
   "name": "Import: Cell line, Compartment, FOV, Treatment, Cell",
   "description": "As Import, with Cell line, Compartment, FOV, Treatment, Cell taken from the file paths (celltype_compartment_fov_treatment_cell_parser of FLIMAnalyzer 0.6).",
-  "tags": ["file", "import"],
-  "read": {
-    "delimiter": "\t,"
-  },
+  "tags": ["import"],
   "steps": [
     {
       "id": "1",

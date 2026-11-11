@@ -52,30 +52,36 @@ def _answer_file_dialog(monkeypatch, path):
 
 
 def _answer_import(monkeypatch, frame, files, workflow="Import"):
-    """File > Import... answers with ``files`` and the built-in workflow ``workflow``
-    (Run), and runs it in this thread, without the progress dialog."""
-    from flim.core.runner import CancelToken
-    from flim.core.workflowfile import BUILT_IN, check_workflow_file, workflow_class
+    """File > Import Tables... answers with ``files`` and Import Tables' settings with
+    the workflow ``workflow`` (a name or a path; None: no workflow), Run, and runs it
+    in this thread, without the progress dialog. The built-in workflow files are
+    registered for the test."""
+    import types
 
-    tools_ = []
-    for path in sorted(BUILT_IN.glob("*.json")):
-        definition = check_workflow_file(path).definition
-        tools_.append(workflow_class(definition, path))
+    import flim.gui.app as app
+    from flim.configs import ImportTablesConfig
+    from flim.core.registry import tools
+    from flim.core.runner import CancelToken
+    from flim.core.saving import AutosaveConfig
+    from flim.core.workflowfile import register_workflow_files
+
+    monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # restored afterwards
+    register_workflow_files()
     monkeypatch.setattr(frame, "ask_data_files", lambda title: list(files))
-    monkeypatch.setattr(frame, "file_workflows", lambda: tools_)
-    names = [t.name for t in tools_]
-    monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
-    monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: names.index(workflow))
+    # results in a temporary folder, not the folder the tests start from
+    autosave = AutosaveConfig(enabled=True, results_dir=Path(tempfile.mkdtemp()))
+    result = types.SimpleNamespace(
+        config=ImportTablesConfig(workflow=workflow),
+        execution=types.SimpleNamespace(autosave=autosave),
+        stored_autosave=autosave,
+    )
+    monkeypatch.setattr(app, "open_config_dialog", lambda *a, **k: result)
     monkeypatch.setattr(frame, "confirm_workflow", lambda tool, what: True)
     monkeypatch.setattr(
         frame, "run_with_progress",
         lambda title, start: start(CancelToken(), lambda *a: None, lambda run: None),
     )  # fmt: skip
     monkeypatch.setattr(frame, "show_run_summary", lambda title, run: None)
-    # results in a temporary folder, not the folder the tests start from
-    monkeypatch.setattr(
-        type(frame.settings), "resolved_results_dir", lambda self: Path(tempfile.mkdtemp())
-    )
 
 
 def _new_windows(frame, before):
@@ -199,7 +205,10 @@ def test_import_runs_a_workflow_on_the_files(frame, monkeypatch, tmp_path, prefe
     table = window.GetViewData()
     assert len(table) == 25 and set(table["Treatment"]) == {"WT", "KO"}
     assert not window.modified  # saved: the step is marked to save
-    assert frame.settings.import_workflow == "Import: FOV, Treatment, Cell"  # remembered
+    from flim.tools.readers import ImportTables
+
+    # remembered as Import Tables' settings
+    assert frame.settings.tools.config(ImportTables).workflow == "Import: FOV, Treatment, Cell"
 
 
 def test_import_refuses_runs_with_too_many_windows(frame, monkeypatch, tmp_path, flim_data):
@@ -490,28 +499,39 @@ def _file_workflow(name, tags=()):
     return workflow_class(definition)
 
 
-def test_import_offers_the_import_tagged_workflows(frame, monkeypatch):
-    from flim.gui.app import OTHER_WORKFLOW_FILE
+def test_import_offers_the_import_tagged_workflows(wxapp, monkeypatch):
+    from flim.core.registry import tools
+    from flim.core.workflowfile import import_workflows
+    from flim.gui.dialogs.readers import NONE, OTHER, WorkflowEditor
 
-    workflows = [_file_workflow("A", ["import"]), _file_workflow("B"), _file_workflow("C", ["plots"])]
-    monkeypatch.setattr(frame, "file_workflows", lambda: workflows)
-    assert [t.name for t in frame.import_workflows()] == ["A"]
-    monkeypatch.setattr(frame, "file_workflows", lambda: workflows[1:])
-    assert [t.name for t in frame.import_workflows()] == ["B", "C"]  # none tagged: all
-    # the dialog: the workflows, then the entry for any other file
-    offered = []
-    monkeypatch.setattr(frame, "ask_data_files", lambda title: ["data.txt"])
+    monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # restored afterwards
+    for name in [n for n, t in tools._tools.items() if getattr(t, "definition", None)]:
+        tools.unregister(name)  # workflow files other tests registered
+    for tool in (_file_workflow("A", ["import"]), _file_workflow("B"), _file_workflow("C", ["plots"])):
+        tools.register(tool)
+    assert [t.name for t in import_workflows()] == ["A"]
+    tools.unregister("A")
+    assert [t.name for t in import_workflows()] == ["B", "C"]  # none tagged: all
+    # the dialog's choice: none, the workflows, any other file
+    frame = wx.Frame(None)
+    try:
+        editor = WorkflowEditor(frame, _spec("workflow"))
+        labels = [editor.control.GetString(i) for i in range(editor.control.GetCount())]
+        assert labels == [NONE, "B", "C", OTHER] and editor.get() is None
+        editor.set("C")
+        assert editor.get() == "C"
+        editor.set("/data/mine.json")  # a file chosen before: listed
+        assert editor.get() == "/data/mine.json"
+        assert editor.control.GetString(editor.control.GetCount() - 1) == OTHER
+    finally:
+        frame.Destroy()
 
-    init = wx.SingleChoiceDialog.__init__
 
-    def record(dlg, parent, message, caption, choices):
-        offered.extend(choices)
-        init(dlg, parent, message, caption, choices)
+def _spec(name):
+    from flim.configs import ImportTablesConfig
+    from flim.core.fields import describe
 
-    monkeypatch.setattr(wx.SingleChoiceDialog, "__init__", record)
-    monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_CANCEL)
-    frame.OnImportData(None)
-    assert offered == ["B", "C", OTHER_WORKFLOW_FILE]
+    return next(s for s in describe(ImportTablesConfig) if s.name == name)
 
 
 def test_import_with_another_workflow_file(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
@@ -523,15 +543,20 @@ def test_import_with_another_workflow_file(frame, monkeypatch, tmp_path, prefect
     data["name"], data["tags"] = "Mine", []
     path = tmp_path / "mine.json"
     path.write_text(json.dumps(data))
-    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data))
-    count = len(frame.import_workflows())
-    monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: count)  # the last
-    _answer_file_dialog(monkeypatch, path)
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data), str(path))
     before = set(frame.windows_by_title())
     frame.OnImportData(None)
     (window,) = _new_windows(frame, before).values()
     assert len(window.GetViewData()) == 25
-    assert frame.settings.import_workflow != "Mine"  # not a registered workflow
+
+
+def test_import_without_a_workflow_opens_the_tables(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data), None)
+    before = set(frame.windows_by_title())
+    frame.OnImportData(None)
+    windows = _new_windows(frame, before)
+    assert sorted(windows) == ["Results_FOV1_WT_1.txt", "Results_FOV2_KO_2.txt"]
+    assert not any(w.is_modified() for w in windows.values())  # as read from the files
 
 
 def test_workflow_menu_groups_workflow_files_by_tag(wxapp, monkeypatch):
@@ -578,12 +603,12 @@ def test_workflow_menu_groups_workflow_files_by_tag(wxapp, monkeypatch):
 
         assert "Reader" in submenu("File", "Import")
         file_labels = [i.GetItemLabelText() for i in menubar.GetMenu(0).GetMenuItems()]
-        assert file_labels.index("Import") == file_labels.index("Import...") + 1
+        assert file_labels.index("Import") == file_labels.index("Import Tables...") + 1
         assert submenu("Plot", "Plots") == ["Plotter"]
         # as favorites, in the group a tag names, else in Workflow
         frame.set_favorites(["Tagged", "Plotter", "Reader", "Sort"])
         groups = _panel_groups(frame)
-        assert groups["File"] == ["Open file", "Import files", "Reader"]
+        assert groups["File"] == ["Open Tables", "Import Tables", "Reader"]
         assert groups["Workflow"] == ["Tagged"] and groups["Plot"] == ["Plotter"]
         assert groups["Data"] == ["Sort"]
         frame.Destroy()
@@ -606,7 +631,7 @@ def test_favorites_choose_the_tool_panel(frame, monkeypatch):
     frame.set_favorites(["Box Plot", "not a tool", "Calculate"])
     # each in its menu's group; the groups in menu order, without empty ones
     groups = _panel_groups(frame)
-    assert groups == {"File": ["Open file", "Import files"], "Data": ["Calculate"], "Plot": ["Box Plot"]}
+    assert groups == {"File": ["Open Tables", "Import Tables"], "Data": ["Calculate"], "Plot": ["Box Plot"]}
     assert list(groups) == ["File", "Data", "Plot"]
     assert frame.settings.favorites == ["Box Plot", "not a tool", "Calculate"]
     # the dialog: the favorites first, checked; the order and the checks it returns

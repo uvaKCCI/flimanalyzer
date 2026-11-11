@@ -256,12 +256,6 @@ class AppSettings(_Settings):
         " run opens; a run that would open more is refused. A kind not listed: no"
         " limit.",
     )
-    import_workflow: Optional[str] = Field(
-        default=None,
-        title="Import workflow",
-        description="The workflow File > Import... preselects: the one last used."
-        " Written by the GUI to the user settings file.",
-    )
     calculation_presets: list[dict] = Field(
         default=[],
         title="Saved calculations",
@@ -704,6 +698,8 @@ class SettingsCheck:
     # a workflow file (its content) that imports as the file's 0.6 import settings
     # did; offered to be saved, never applied (see flim.core.workflowfile)
     import_workflow: Optional[dict] = None
+    # how that file read the data files (Import Tables' settings that differ)
+    import_read: dict = field(default_factory=dict)
 
     @property
     def problems(self) -> bool:
@@ -816,11 +812,12 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
         return check
     check.converted, check.dropped = changes.converted, changes.dropped
     if changes.import_section is not None:
-        from flim.core.workflowfile import import_workflow_data
+        from flim.core.workflowfile import import_read_settings, import_workflow_data
 
         check.import_workflow = import_workflow_data(
             changes.import_section, data.get("tools") or {}, f"Import ({path.stem})"
         )
+        check.import_read = import_read_settings(changes.import_section)
     data.pop("schema_version", None)
     if "tools" in data and not isinstance(data["tools"], dict):
         check.invalid.append("tools: not a mapping of tool names to settings")

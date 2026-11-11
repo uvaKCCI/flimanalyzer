@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import Field, field_validator, model_validator
 
+from flim.core.reader import ReadSettings
 from flim.core.config import (
     AllFeatures,
     BaseConfig,
@@ -717,4 +718,25 @@ class SourceFromPathConfig(DataTaskConfig, ProtectedNamesConfig):
         default=True,
         title="Keep Directory and File",
         description="Unchecked: the Directory and File columns are removed.",
+    )
+
+
+class TableReaderConfig(TaskConfig, ReadSettings):
+    """How Open Tables reads data files, one table per file."""
+
+    hidden_fields = frozenset({"grouping", "features", "prefix", "resources"})
+
+    def read_settings(self) -> ReadSettings:
+        """Return the read settings alone (for `flim.core.reader`)."""
+        return ReadSettings(**{name: getattr(self, name) for name in ReadSettings.model_fields})
+
+
+class ImportTablesConfig(TableReaderConfig):
+    """How Import Tables reads data files, and the workflow it runs on the tables."""
+
+    workflow: Optional[str] = Field(
+        default=None,
+        title="Workflow",
+        description="The workflow run on the tables: the name of a workflow, or the"
+        " path of a workflow file. None: the tables are opened as they are read.",
     )

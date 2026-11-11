@@ -44,7 +44,7 @@ Other elements, such as calling methods or functions other than the math functio
 
 ## Functions
 
-A function calculates a value from the values of its argument columns, row by row. These are the functions of `Import...`; plugins can add more:
+A function calculates a value from the values of its argument columns, row by row. These are the functions the built-in `Import` workflows use; plugins can add more:
 
 | Function | Arguments | Parameters | Result |
 |:--|:--|:--|:--|
@@ -57,4 +57,4 @@ A function calculates a value from the values of its argument columns, row by ro
 | `trp_Eperc_3` | trp t1 | `const` (default 3100) | (1 − t1 / const) × 100 |
 | `trp_r` | trp E% | | the distance, 2.1 × (100 / E% − 1)^(1/6); missing for E% outside 0 to 100 |
 
-The default rows are the calculations of `Import...`: `NAD(P)H tm`, `trp tm` and `FAD tm`, the a2/a1 and a1/a2 ratios, `NADPH %`, `NADH %`, `NADPH/NADH`, the tryptophan FRET efficiencies and distances, `FAD photons/NAD(P)H photons`, `NAD(P)H tm/FAD tm`, `FLIRR` and `NADPH a2/FAD a1`. Rows whose columns are not in the table, for example the tryptophan rows for data without a tryptophan channel, are skipped.
+The default rows are the calculations of the built-in `Import` workflows: `NAD(P)H tm`, `trp tm` and `FAD tm`, the a2/a1 and a1/a2 ratios, `NADPH %`, `NADH %`, `NADPH/NADH`, the tryptophan FRET efficiencies and distances, `FAD photons/NAD(P)H photons`, `NAD(P)H tm/FAD tm`, `FLIRR` and `NADPH a2/FAD a1`. Rows whose columns are not in the table, for example the tryptophan rows for data without a tryptophan channel, are skipped.

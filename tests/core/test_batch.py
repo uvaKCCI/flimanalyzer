@@ -134,6 +134,35 @@ def test_the_built_in_import_workflows_run_by_name(data_dir, tmp_path):
     assert len(table) == 40 and set(table["Treatment"]) == {"WT", "KO"}
 
 
+def test_import_tables_takes_reading_and_workflow_from_the_settings(data_dir, settings, tmp_path, capsys):
+    from flim.configs import ImportTablesConfig
+    from flim.tools.readers import ImportTables
+
+    settings.tools.set(ImportTables, ImportTablesConfig(workflow="Import: FOV, Treatment, Cell"))
+    path = _settings_file(settings, tmp_path)
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Import Tables",
+                 "--no-prefect-server"])  # fmt: skip
+    assert code == 0
+    (calculated,) = (out / "Import: FOV, Treatment, Cell").rglob("*Calculated*")
+    assert len(pd.read_csv(calculated, sep="\t")) == 40
+    # without a workflow in the settings: an error that says what to set
+    settings.tools.set(ImportTables, ImportTablesConfig())
+    path = _settings_file(settings, tmp_path)
+    assert main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Import Tables"]) == 1
+    assert "set `workflow`" in capsys.readouterr().err
+
+
+def test_files_are_read_with_open_tables_settings(data_dir, settings, tmp_path, capsys):
+    from flim.configs import TableReaderConfig
+    from flim.tools.readers import TableReader
+
+    settings.tools.set(TableReader, TableReaderConfig(exclude=["Results_FOV1_WT_1.txt"]))
+    path = _settings_file(settings, tmp_path)
+    assert main(["-i", str(data_dir), "--dry-run", "-s", str(path), "--run", "Import"]) == 0
+    assert "Import: OK (7 file(s))" in capsys.readouterr().out  # one file left out
+
+
 def test_a_run_is_required(data_dir, tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["-i", str(data_dir), "-o", str(tmp_path)])

@@ -33,6 +33,6 @@ For example, to separate file names like `Results-ko_01.txt`: `Part` `file name 
 
 ## By patterns
 
-Each pattern makes one new column: its name, and a regular expression whose first group, in parentheses, is the value. These are the same patterns as the filename parser of `Import...` uses (see [Loading Data](/userguide/data/load.md)). For example, the pattern `/data/(.*?)/` takes `ctrl` from `/data/ctrl/FOV1/cell3.txt`. Backslashes in Windows paths are matched as `/`.
+Each pattern makes one new column: its name, and a regular expression whose first group, in parentheses, is the value. These are the same patterns as the filename parsers of FLIMAnalyzer 0.6 used, and the built-in `Import: ...` workflows use (see [Import Tables](/userguide/data/load.md#import-tables)). For example, the pattern `/data/(.*?)/` takes `ctrl` from `/data/ctrl/FOV1/cell3.txt`. Backslashes in Windows paths are matched as `/`.
 
 A group that matches nothing gives `?`. A value that the pattern doesn't match gets a missing value. The run summary reports a pattern that matched no value at all.

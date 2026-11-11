@@ -108,7 +108,8 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
             rows.setdefault(box.GetPosition().y, []).append(box.GetLabel())
         assert len(rows) == 2
         labels = [label for y in sorted(rows) for label in rows[y]]
-        assert labels == ["File"] + tools.categories()  # menu order is kept
+        # menu order is kept; the File tools (readers) are the File group's buttons
+        assert labels == ["File"] + [c for c in tools.categories() if c != "File"]
         n_tools = sum(
             len([c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)])
             for box in boxes

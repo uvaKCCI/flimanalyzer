@@ -97,7 +97,7 @@ Run `flimanalyzer --help` for all command-line options.
 
 | Option | |
 |---|---|
-| `-i`, `--input` | data files or folders to open at startup, each file in its own table window; with `--run` or `--workflow`, the files to run it on |
+| `-i`, `--input` | data files or folders to open at startup, each file in its own table window, read with the settings of `Open Tables`; with `--run` or `--workflow`, the files to run it on (`--run "Import Tables"` shows its dialog for them) |
 | `-x`, `--exclude` | files not to read (names) |
 | `-r`, `--run` | tool or workflow to run on the `-i` files at startup, also a workflow file by its name: a workflow file's steps are shown, then it runs; a tool's dialog opens with the files' tables |
 | `-w`, `--workflow` | workflow file to run on the `-i` files at startup: a path, or a file name in the workflow search path (see [Workflow files](/userguide/workflows.md#workflow-files)) |

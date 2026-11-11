@@ -31,6 +31,8 @@ from flim.configs.data import (  # noqa: F401  (re-exported)
     ScaleConfig,
     SeparateCategoriesConfig,
     SourceFromPathConfig,
+    TableReaderConfig,
+    ImportTablesConfig,
     SplitConfig,
 )
 from flim.configs.plot import (

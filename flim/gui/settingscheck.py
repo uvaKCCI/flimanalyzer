@@ -324,7 +324,8 @@ def pick_app_settings(
 def offer_import_workflow(check, parent, settings_manager) -> Optional[Path]:
     """If a settings file has import settings of FLIMAnalyzer 0.6, ask whether to save
     them as a workflow file (`SettingsCheck.import_workflow`); nothing is applied
-    otherwise. The saved file is registered, so File > Import... offers it.
+    otherwise. The saved file is registered, and Import Tables' settings are set to
+    run it and to read the files as the 0.6 settings did (`SettingsCheck.import_read`).
 
     Args:
         check: The result of `check_settings_file`.
@@ -346,7 +347,7 @@ def offer_import_workflow(check, parent, settings_manager) -> Optional[Path]:
         f"{check.path.name} has import settings of FLIMAnalyzer 0.6 (delimiter,"
         " filename parser, renamed, dropped and calculated columns). FLIMAnalyzer now"
         " imports with workflow files, so these settings are not used.\n\nSave them as"
-        " a workflow file, to choose in File > Import...?"
+        " a workflow file, to run with File > Import Tables...?"
     )
     with wx.MessageDialog(parent, question, "Import settings", style=wx.YES_NO | wx.ICON_QUESTION) as dialog:
         dialog.SetYesNoLabels("Save as Workflow File...", "Don't Save")
@@ -366,4 +367,15 @@ def offer_import_workflow(check, parent, settings_manager) -> Optional[Path]:
     result = check_workflow_file(path)
     if result.definition is not None and result.definition.name not in tools:
         tools.register(workflow_class(result.definition, path))
+    if result.definition is not None:
+        from flim.tools.readers import ImportTables
+
+        settings = settings_manager.settings
+        current = settings.tools.config(ImportTables)
+        config = type(current).model_validate({
+            **current.model_dump(), **getattr(check, "import_read", {}),
+            "workflow": result.definition.name,
+        })  # fmt: skip
+        entry = settings.tools.entry(ImportTables)
+        settings_manager.set_tool(ImportTables, config, entry.autosave if entry else None)
     return path

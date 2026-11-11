@@ -24,7 +24,6 @@ def write(tmp_path, data, name="wf.json"):
 GOOD = {
     "schema_version": 1,
     "name": "calc and aggregate",
-    "read": {"delimiter": "\t,"},
     "steps": [
         {"id": 1, "tool": "Calculate", "processing": "allow_partial"},
         {"id": "2", "tool": "Summarize", "inputs": ["1.1"], "config": {"aggs": ["mean"]}, "save": True},
@@ -271,6 +270,15 @@ def test_built_in_import_files_match_the_import_of_0_6(prefect_harness, raw_dir,
     )
 
 
+def test_old_read_settings_that_differ():
+    from flim.core.workflowfile import import_read_settings
+
+    assert import_read_settings({"delimiter": "\t,", "exclude_files": []}) == {}
+    assert import_read_settings({"delimiter": ";", "exclude_files": ["x.txt"]}) == {
+        "delimiter": ";", "exclude": ["x.txt"]
+    }
+
+
 def test_every_built_in_file_is_valid():
     from flim.core.workflowfile import BUILT_IN
 
@@ -293,6 +301,8 @@ def test_old_import_settings_become_an_equivalent_workflow(prefect_harness, raw_
     settings_file = write(tmp_path, v1, "old.json")
     check = check_settings_file(settings_file)
     assert check.import_workflow["name"] == "Import (old)"
+    assert check.import_workflow["tags"] == ["import"] and "read" not in check.import_workflow
+    assert check.import_read == {}  # the default delimiter, no files left out
     path = write(tmp_path, check.import_workflow, "old-import.json")
     result = check_workflow_file(path)
     assert result.errors == []
@@ -355,5 +365,5 @@ def test_tags_and_menu_groups():
     assert panel_group(tagged, groups) == "File"
     assert panel_group(WorkflowDefinition(name="a", tags=["x"], steps=steps), groups) is None
     assert workflow_group(WorkflowDefinition(name="a", tags=["Plot"], steps=steps), groups) == "Workflow Files"
-    for path in BUILT_IN.glob("*.json"):  # all built-in files: import, File group
-        assert check_workflow_file(path).definition.tags == ["file", IMPORT_TAG], path.name
+    for path in BUILT_IN.glob("*.json"):  # all built-in files: data workflows for import
+        assert check_workflow_file(path).definition.tags == [IMPORT_TAG], path.name

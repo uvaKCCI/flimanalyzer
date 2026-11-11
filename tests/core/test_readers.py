@@ -1,0 +1,67 @@
+"""Open Tables (TableReader) and Import Tables (flim.tools.readers)."""
+
+import pandas as pd
+import pytest
+
+from flim.configs import ImportTablesConfig, TableReaderConfig
+from flim.tools.readers import READ_STEP, ImportTables, TableReader, data_files
+
+
+@pytest.fixture
+def files(tmp_path):
+    paths = []
+    for name, values in (("a.txt", [1.0, 3.0]), ("b.txt", [5.0, 7.0])):
+        path = tmp_path / "data" / name
+        path.parent.mkdir(exist_ok=True)
+        pd.DataFrame({"FOV": ["1", "2"], "t1": values}).to_csv(path, sep="\t", index=False)
+        paths.append(path)
+    (tmp_path / "data" / "notes.md").write_text("not data")
+    return paths
+
+
+def _completed(run):
+    return [a["label"] for _, a in run.graph.nodes(data=True) if "tool" in a and a["status"] == "completed"]
+
+
+def test_table_reader_reads_one_file(files):
+    (table,) = TableReader()(files[0], config=TableReaderConfig()).values()
+    assert list(table.columns) == ["Source", "Directory", "File", "FOV", "t1"]
+    assert table["Source"].iloc[0].startswith("file:///")
+
+
+def test_data_files_by_name(files, tmp_path):
+    found, skipped = data_files([tmp_path / "data"], TableReaderConfig())
+    assert list(found) == ["a.txt", "b.txt"] and not skipped  # .md is not a data file
+    found, _ = data_files([tmp_path / "data"], TableReaderConfig(exclude=["b.txt"]))
+    assert list(found) == ["a.txt"]
+
+
+def test_import_tables_without_a_workflow(prefect_harness, files):
+    workflow = ImportTables()
+    run = workflow.run_flow(files, config=ImportTablesConfig())
+    assert run.state == "completed", run.failed
+    assert sum(label.startswith("Open Tables") for label in _completed(run)) == 2  # one task per file
+    tables = {name: next(iter(out.value().values())) for name, out in workflow.leaves[READ_STEP].items()}
+    assert list(tables) == ["a.txt", "b.txt"] and list(tables["b.txt"]["t1"]) == [5.0, 7.0]
+
+
+def test_import_tables_runs_a_workflow_on_the_tables(prefect_harness, files, tmp_path):
+    import json
+
+    path = tmp_path / "join.json"
+    path.write_text(json.dumps({
+        "name": "join", "tags": ["import"],
+        "steps": [{"id": "1", "tool": "Concatenate", "config": {"add_input": False}}],
+    }))  # fmt: skip
+    workflow = ImportTables()
+    run = workflow.run_flow(files, config=ImportTablesConfig(workflow=str(path)))
+    assert run.state == "completed", run.failed
+    ((step, output),) = workflow.leaves.items()
+    (table,) = output.value().values()
+    assert step == "1" and len(table) == 4 and workflow.definition.name == "join"
+
+
+def test_import_tables_checks_the_workflow():
+    (issue,) = ImportTables.validate(ImportTablesConfig(workflow="no such workflow"), [])
+    assert issue.field == "workflow" and "No workflow named" in issue.message
+    assert ImportTables.validate(ImportTablesConfig(), []) == []

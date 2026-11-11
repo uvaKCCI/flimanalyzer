@@ -1,11 +1,8 @@
 {
   "schema_version": 1,
   "name": "Import",
-  "description": "Reads the files into one table, renames and drops the channels' columns and calculates the FLIM features (FLIMAnalyzer 0.6's import with the default filename parser).",
-  "tags": ["file", "import"],
-  "read": {
-    "delimiter": "\t,"
-  },
+  "description": "Renames and drops the channels' columns, joins the tables into one and calculates the FLIM features (as FLIMAnalyzer 0.6's import did with the default filename parser).",
+  "tags": ["import"],
   "steps": [
     {
       "id": "1",

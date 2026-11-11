@@ -54,14 +54,13 @@ After a tool run that was not cancelled, there is no run summary. If the tool re
 
 ## Workflow files
 
-A workflow file defines a workflow as data: a JSON file that lists its steps, each a tool with its own settings. The file alone decides what a run does, so the same file and the same data always give the same results, on any computer and in batch mode (`flimbatch --workflow FILE`, see [Batch Mode](/userguide/batch)).
+A workflow file defines a workflow as data: a JSON file that lists its steps, each a tool with its own settings. It works on tables: the tables read from data files ([Import Tables](/userguide/data/load.md#import-tables), or `flimbatch --workflow FILE`, see [Batch Mode](/userguide/batch)), or tables that are open. How the files are read is not part of the workflow file: these are the read settings of Import Tables, or of Open Tables in batch mode. The file and the read settings decide what a run does, so the same file, settings and data always give the same results, on any computer.
 
 ```
 {
   "schema_version": 1,
   "name": "calc and aggregate",
   "tags": ["summaries"],
-  "read": {"delimiter": "\t,"},
   "autosave": {"formats": [{"kind": "table", "format": "csv"}]},
   "steps": [
     {"id": "1", "tool": "Calculate", "processing": "allow_partial", "config": { ... }},
@@ -73,10 +72,9 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
 
 * `name`: the workflow's name. Workflow files are found by it, like tools: `flimbatch --run "calc and aggregate"`. It must differ from every tool's and workflow's name (case is ignored); a file whose name is taken is not loaded, and the log says why.
 * `tags` (optional): words that group the workflow, for example `["file", "import"]`.
-    * `File` > `Import...` lists the workflow files tagged `import`.
+    * `File` > `Import Tables...` lists the workflow files tagged `import` (see [Import Tables](/userguide/data/load.md#import-tables)).
     * A tag that names a menu (`file`, `data`, `analysis`, `plot` or `workflow`; case is ignored) puts the workflow in that menu, and its icon in that group of the tool panel when it is a favorite (see [Menus](/userguide/appmenu)). Without such a tag, it is in the `Workflow` menu and group.
-    * In its menu, the workflow is in a submenu named after its first other tag (for example `Import`, or `Summaries` for `"summaries"`); without one, in the submenu `Workflow Files`. The built-in ones are in `File` > `Import`, below `Import...`.
-* `read`: how the data files are read: `delimiter` (each character separates columns), `extensions` (the file types read from folders), `encoding`, `exclude` (file names not read), and `existing` (`keep`, the default, or `rename`: what happens to a file's own `Source`, `Directory` or `File` column, see [The Source column](/userguide/data/load.md#the-source-column)).
+    * In its menu, the workflow is in a submenu named after its first other tag (for example `Import`, or `Summaries` for `"summaries"`); without one, in the submenu `Workflow Files`. The built-in ones are in `Workflow` > `Import`.
 * `autosave`: the formats the results are saved in (`formats`, as in the settings, see [Settings](/userguide/settings)).
 * `steps`, each with:
     * `id`: an identifier that never changes, for example a number.
@@ -86,11 +84,11 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
     * `save` (default `false`): `true` saves the step's outputs, or a list such as `["3.1"]` saves some of them. Only these are saved.
     * `processing`: how much of its settings a step must apply to the data. `require_all` (the default): every part, or the step fails. `allow_partial`: what applies is done and the rest is skipped with a warning, but at least one part must apply. `allow_none`: the step may apply nothing, and the table passes on unchanged. Parts are, for example, Rename Columns' replacements, Drop Columns' rules, Calculate's calculations and Filter's filters. The run summary lists what each step skipped.
 
-A run starts from the tables read from the files, one per file. Each step runs once per table, in parallel, until a step that takes several tables, such as `Concatenate`, joins them into one; the steps after it run once. Without such a step, every table runs through all steps on its own. A step can't combine tables per file with a joined table; `Merge` gets two single tables.
+A run starts from its tables, for example the tables read from the files, one per file. Each step runs once per table, in parallel, until a step that takes several tables, such as `Concatenate`, joins them into one; the steps after it run once. Without such a step, every table runs through all steps on its own. A step can't combine tables per file with a joined table; `Merge` gets two single tables.
 
 Before a run, the file is checked: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid. Columns that a step's settings name and the data doesn't have are always errors in workflow files; they are not replaced by the closest match.
 
-**Built-in workflow files.** `Import` reads the files into one table as `File` > `Import...` did up to FLIMAnalyzer 0.6 with the default filename parser: it renames and drops the channels' columns, joins the files and calculates the FLIM features. `Import: FOV, Treatment, Cell` and the other `Import: ...` files do the same and then take these categories from the file paths, as the filename parsers did (a Separate Categories step on `Source`). They are tagged `["file", "import"]`: `File` > `Import...` lists them, and as favorites their icons are in the `File` group. To change one, copy it from FLIMAnalyzer's folder `flim/workflow/files` into your workflows folder, give it another `name` and edit it.
+**Built-in workflow files.** `Import` processes the tables as `File` > `Import...` did up to FLIMAnalyzer 0.6 with the default filename parser: it renames and drops the channels' columns, joins the tables and calculates the FLIM features. `Import: FOV, Treatment, Cell` and the other `Import: ...` files do the same and then take these categories from the file paths, as the filename parsers did (a Separate Categories step on `Source`). They are tagged `import`: `File` > `Import Tables...` lists them, and they are in `Workflow` > `Import`. To change one, copy it from FLIMAnalyzer's folder `flim/workflow/files` into your workflows folder, give it another `name` and edit it.
 
 **Where workflow files are found:** the built-in ones, and the files in the folders of `workflow_paths` in the user settings file (default: the folder `workflows` in the platform's settings folder, next to `usersettings.json`). The environment variable `FLIM_WORKFLOW_PATH` (folders separated by `:`, or `;` on Windows) takes precedence. `--workflow` takes a path, or the name of a file in these folders.
 

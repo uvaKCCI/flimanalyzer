@@ -70,12 +70,44 @@ def resolve_run(name: str, kind: str, search_path=()):
     return workflow_class(check.definition, path)
 
 
-def read_settings(tool, exclude=()) -> ReadSettings:
-    """How the files are read for a run: a workflow file's `read` section, else the
-    defaults; `exclude` (`-x`) is added."""
-    definition = getattr(tool, "definition", None)
-    settings = definition.read if definition is not None else ReadSettings()
-    return settings.model_copy(update={"exclude": list(settings.exclude) + list(exclude)})
+def file_run(tool, settings: AppSettings):
+    """Return what a run does with the files: the tool to run on their tables, and
+    how they are read.
+
+    Import Tables reads with its own settings and runs the workflow they name; every
+    other tool or workflow runs on the files read with Open Tables' settings.
+
+    Args:
+        tool: The tool or workflow of `--run` or `--workflow`.
+        settings: The session's settings (the `-s` file and the defaults).
+
+    Returns:
+        The tool or workflow, and the read settings (ReadSettings).
+
+    Raises:
+        BatchError: If Import Tables' settings name no workflow, or one that is not
+            found.
+    """
+    from flim.core.workflowfile import resolve_workflow
+    from flim.tools.readers import ImportTables, TableReader
+
+    if tool is not ImportTables:
+        return tool, settings.tools.config(TableReader).read_settings()
+    config = settings.tools.config(ImportTables)
+    if not config.workflow:
+        raise BatchError(
+            "Import Tables: the settings name no workflow; set `workflow` in its"
+            " section of the settings file, or use --workflow"
+        )
+    try:
+        return resolve_workflow(config.workflow), config.read_settings()
+    except ValueError as err:
+        raise BatchError(f"Import Tables: {err}") from None
+
+
+def read_settings(read: ReadSettings, exclude=()) -> ReadSettings:
+    """Return the read settings of a run with `-x` added to the files left out."""
+    return read.model_copy(update={"exclude": list(read.exclude) + list(exclude)})
 
 
 def check_run(tool, tables: dict, settings: AppSettings) -> list[str]:
@@ -309,6 +341,7 @@ def main(argv=None) -> int:
         runs = [resolve_run(n, "run", search_path) for n in args.run] + [
             resolve_run(n, "workflow", search_path) for n in args.workflow
         ]
+        runs = [file_run(tool, settings) for tool in runs]
         if args.dry_run:
             return _dry_run(runs, args, settings)
         execution = ExecutionOptions(execution=settings.execution)
@@ -326,8 +359,8 @@ def main(argv=None) -> int:
         strict = True if settings.strict is None else settings.strict
         failed = []
         with use_prefect_server(start=settings.prefect_server):
-            for tool in runs:
-                tables = _read(args.input, read_settings(tool, args.exclude))
+            for tool, read in runs:
+                tables = _read(args.input, read_settings(read, args.exclude))
                 with checked_prefect_server():
                     results = run_on_tables(
                         tool, tables, settings, output, execution, strict, manager.record()
@@ -361,8 +394,8 @@ def _read(paths, settings: ReadSettings, nrows=None) -> dict:
 def _dry_run(runs, args, settings) -> int:
     """Check every run against the first rows of the files; report; run nothing."""
     errors = 0
-    for tool in runs:
-        tables = _read(args.input, read_settings(tool, args.exclude), nrows=DRY_RUN_ROWS)
+    for tool, read in runs:
+        tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
         problems = check_run(tool, tables, settings)
         if problems:
             errors += len(problems)

@@ -2,10 +2,7 @@
   "schema_version": 1,
   "name": "Import: Treatment, FOV, Cell",
   "description": "As Import, with Treatment, FOV, Cell taken from the file paths (treatment_fov_cell_parser of FLIMAnalyzer 0.6).",
-  "tags": ["file", "import"],
-  "read": {
-    "delimiter": "\t,"
-  },
+  "tags": ["import"],
   "steps": [
     {
       "id": "1",

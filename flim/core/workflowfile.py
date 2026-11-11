@@ -33,7 +33,6 @@ from typing import Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from flim.core.reader import ReadSettings
 from flim.core.saving import AutosaveConfig
 
 logger = logging.getLogger(__name__)
@@ -90,7 +89,6 @@ class WorkflowDefinition(BaseModel):
         " workflows tagged 'import'; the Workflow menu groups workflow files by their"
         " first tag.",
     )
-    read: ReadSettings = Field(default_factory=ReadSettings)
     autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
     steps: list[WorkflowStep] = Field(min_length=1)
 
@@ -448,6 +446,45 @@ def workflow_class(definition: WorkflowDefinition, path: Optional[Path] = None):
     )
 
 
+def resolve_workflow(reference: str):
+    """Return the workflow a name or a workflow file's path refers to.
+
+    Args:
+        reference: The name of a registered workflow, or the path of a workflow file
+            (ending in `.json`).
+
+    Returns:
+        The workflow (a tool class).
+
+    Raises:
+        ValueError: If no workflow has the name, or the file has errors.
+    """
+    from flim.core.registry import tools
+    from flim.core.workflow import Workflow
+
+    if reference.lower().endswith(".json"):
+        check = check_workflow_file(reference)
+        if check.errors:
+            raise ValueError(f"{reference}: " + "; ".join(check.errors))
+        return workflow_class(check.definition, Path(reference))
+    if reference not in tools or not issubclass(tools.get(reference), Workflow):
+        raise ValueError(f"No workflow named '{reference}'")
+    return tools.get(reference)
+
+
+def import_workflows() -> list:
+    """Return the workflows Import Tables offers: the registered workflow files tagged
+    `import`, or all of them if none is tagged, by name."""
+    from flim.core.registry import tools
+
+    base = _file_workflow_base()
+    files = sorted(
+        (t for group in tools.by_category().values() for t in group if issubclass(t, base)),
+        key=lambda t: t.name,
+    )
+    return [t for t in files if IMPORT_TAG in t.definition.tags] or files
+
+
 def register_workflow_files(search_path=()) -> list[str]:
     """Register the built-in workflow files and those in the search path, by name.
 
@@ -605,11 +642,29 @@ def describe_steps(definition: WorkflowDefinition) -> str:
     return "\n".join(lines)
 
 
+def import_read_settings(section: dict) -> dict:
+    """Return how a FLIMAnalyzer 0.6 settings file's `import` section read the files.
+
+    Args:
+        section: The `import` section (version 1).
+
+    Returns:
+        The read settings that differ from the defaults (`delimiter`, `exclude`), in
+        the format of Import Tables' settings.
+    """
+    settings = {}
+    if section.get("delimiter", "\t,") != "\t,":
+        settings["delimiter"] = section["delimiter"]
+    if section.get("exclude_files"):
+        settings["exclude"] = list(section["exclude_files"])
+    return settings
+
+
 def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
-    """The content of a workflow file that imports as the `import` settings of a
-    FLIMAnalyzer 0.6 settings file did: read the files (its delimiter, its files left
-    out), rename and drop columns, join the files, take the categories of its filename
-    parser from the paths, fuse its column combinations, calculate.
+    """The content of a workflow file that processes tables as the `import` settings
+    of a FLIMAnalyzer 0.6 settings file did: rename and drop columns, join the files'
+    tables, take the categories of its filename parser from the paths, fuse its
+    column combinations, calculate. How the files are read is `import_read_settings`.
 
     Args:
         section: The file's `import` section (version 1).
@@ -670,9 +725,6 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         "schema_version": WORKFLOW_SCHEMA_VERSION,
         "name": name,
         "description": "Imports as the import settings of a FLIMAnalyzer 0.6 settings file did.",
-        "read": {
-            "delimiter": section.get("delimiter", "\t,"),
-            "exclude": list(section.get("exclude_files") or []),
-        },
+        "tags": [IMPORT_TAG],
         "steps": steps,
     }

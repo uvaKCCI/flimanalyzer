@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 API_VERSION = 1  # tools declaring another api_version are not registered
 
 # menu and tool panel order; categories not listed here follow, sorted by name
-CATEGORY_ORDER = ("Image", "Data", "Analysis", "Plot", "Workflow")
+CATEGORY_ORDER = ("File", "Image", "Data", "Analysis", "Plot", "Workflow")
 
 TOOLS_GROUP = "flimanalyzer.tools"
 GUI_GROUP = "flimanalyzer.gui"

@@ -79,7 +79,7 @@ def test_menus_and_tool_panel_from_the_registry(frame):
         i.GetItemLabelText() for i in file_menu.GetMenuItems()
         if not i.IsSeparator() and not i.GetSubMenu()
     ] == [
-        "Open...", "Import...", "Save All Windows...", "Import Settings...",
+        "Open Tables...", "Import Tables...", "Save All Windows...", "Import Settings...",
         "Export Settings...", "Favorites...", "Settings...",
         EXIT,
     ]

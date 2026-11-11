@@ -359,6 +359,10 @@ def test_old_import_settings_are_offered_as_a_workflow_file(wxapp, tmp_path, mon
     try:
         saved = offer_import_workflow(check, None, manager)
         assert saved == tmp_path / "workflows" / "lab-import.json" and saved.exists()
-        assert "Import (lab)" in tools  # offered by File > Import... at once
+        assert "Import (lab)" in tools  # offered by File > Import Tables... at once
+        from flim.tools.readers import ImportTables
+
+        # Import Tables runs it next
+        assert manager.settings.tools.config(ImportTables).workflow == "Import (lab)"
     finally:
         tools.unregister("Import (lab)")

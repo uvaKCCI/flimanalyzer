@@ -17,6 +17,9 @@ from flim.core.schema import TableSchema
 # plugin existed; every registered tool must be listed, so a new tool has to declare
 # its requirements
 EXPECTED = {
+    # file
+    "Open Tables": (0, 0),
+    "Import Tables": (0, 0),
     # data
     "Concatenate": (0, 0),
     "Calculate": (0, 0),
