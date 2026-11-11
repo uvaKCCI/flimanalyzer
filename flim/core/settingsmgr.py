@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 APP_NAME = "FLIMAnalyzer"
 LOCK_TIMEOUT = 10  # seconds to wait for another instance writing the user settings file
 APP_SETTINGS_PATH_VAR = "FLIM_APP_SETTINGS_PATH"
+# user choices that an app settings file only presets: the user settings file wins
+USER_CHOICES = ("favorites",)
 # the environment variables and command-line options of the app settings
 ENV_NAMES = {
     "results_dir": "FLIM_RESULTS_DIR",
@@ -656,6 +658,7 @@ def session_settings(
             chosen = strict_choice(check, complete=complete)
         if chosen is not None:
             manager.apply(chosen)
+            _keep_user_choices(manager, user_file)
     for changes, names, layer in (
         (environment_changes(), ENV_NAMES, "environment"),
         (command_line or {}, OPTION_NAMES, "command line"),
@@ -666,6 +669,23 @@ def session_settings(
                 {key: f"{layer} ({names.get(key, key)})" for key in _sections(changes)}
             )
     return manager
+
+
+def _keep_user_choices(manager: SettingsManager, user_file) -> None:
+    """Applies the user settings file's sections of `USER_CHOICES` again, over the
+    app settings file: an app settings file only presets them.
+
+    Args:
+        manager: The settings manager, after the app settings file was applied.
+        user_file: The user settings file, or None.
+    """
+    if user_file is None:
+        return
+    data = user_file.read()
+    kept = {key: data[key] for key in USER_CHOICES if key in data}
+    if kept:
+        manager.update(kept, keep=False)
+        manager.origins.update(dict.fromkeys(kept, "user settings file"))
 
 
 # settings file in the start folder that the GUI read before 0.7.0 when started

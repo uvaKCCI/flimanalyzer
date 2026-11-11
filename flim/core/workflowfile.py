@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 WORKFLOW_SCHEMA_VERSION = 1
 INPUT = "input"  # the reference to the run's tables
+IMPORT_TAG = "import"  # the tag of the workflows File > Import... offers
 BUILT_IN = Path(__file__).resolve().parent.parent / "workflow" / "files"
 WORKFLOW_PATH_VAR = "FLIM_WORKFLOW_PATH"
 
@@ -83,9 +84,24 @@ class WorkflowDefinition(BaseModel):
     schema_version: int = WORKFLOW_SCHEMA_VERSION
     name: str
     description: str = ""
+    tags: list[str] = Field(
+        default=[],
+        description="Words that group the workflow: the GUI's File > Import... lists the"
+        " workflows tagged 'import'; the Workflow menu groups workflow files by their"
+        " first tag.",
+    )
     read: ReadSettings = Field(default_factory=ReadSettings)
     autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
     steps: list[WorkflowStep] = Field(min_length=1)
+
+
+def workflow_group(definition: WorkflowDefinition) -> str:
+    """Return the label of a workflow file's group in menus: its first tag, with a
+    capital first letter, or `Workflow Files` if it has no tags."""
+    if not definition.tags:
+        return "Workflow Files"
+    tag = definition.tags[0]
+    return tag[:1].upper() + tag[1:]
 
 
 def parse_reference(reference: str) -> tuple[str, int]:

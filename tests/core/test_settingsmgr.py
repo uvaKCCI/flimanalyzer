@@ -371,3 +371,20 @@ def test_adding_has_no_effect_with_the_environment_variable(tmp_path, monkeypatc
     manager = SettingsManager(user_file=UserSettingsFile(tmp_path / "user.json"))
     assert manager.search_path_addition(tmp_path / "lab") is None
     assert not manager.add_to_search_path(tmp_path / "lab")
+
+
+def test_favorites_of_the_user_settings_file_win(tmp_path, monkeypatch):
+    """An app settings file presets the favorites; the user's own choice wins."""
+    folder = tmp_path / "appsettings"
+    folder.mkdir()
+    course = AppSettings.default()
+    course.favorites = ["Calculate", "Box Plot"]
+    save_settings(course, folder / "course.json")
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
+    user = UserSettingsFile(tmp_path / "u.json")
+    manager = session_settings("course", user_file=user)
+    assert manager.settings.favorites == ["Calculate", "Box Plot"]  # none of the user's
+    manager.update({"favorites": ["Sort"]})  # File > Favorites...
+    manager = session_settings("course", user_file=user)
+    assert manager.settings.favorites == ["Sort"]
+    assert manager.origins["favorites"] == "user settings file"

@@ -35,6 +35,7 @@ from flim.core.schema import TableSchema
 from flim.core.paths import canonical_folder
 from flim.core.graph import WorkflowGraph
 from flim.core.workflow import Workflow
+from flim.core.workflowfile import IMPORT_TAG, workflow_group
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
 from flim.core.runner import run_flow
 from flim.gui.configdialog import open_config_dialog
@@ -71,6 +72,7 @@ import flim.gui.dialogs.unpivot  # noqa: F401
 
 logger = logging.getLogger(__name__)
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
+OTHER_WORKFLOW_FILE = "Other Workflow File..."  # File > Import...'s last entry
 
 
 def docs_url(version: str = __version__) -> str:
@@ -285,21 +287,19 @@ class AppFrame(wx.Frame):
         # tool buttons, one labeled box per group, laid out in two rows
         self.toolpanel = wx.Panel(self)
         self.tool_groups = []
-        self._add_tool_group(
-            "File",
-            [
-                (
-                    "Open file",
-                    wx.Bitmap(str(files(flim.resources).joinpath("fileopen.png"))),
-                    self.OnLoadData,
-                ),
-                (
-                    "Import files",
-                    wx.Bitmap(str(files(flim.resources).joinpath("import.png"))),
-                    self.OnImportData,
-                ),
-            ],
-        )
+        self._tool_buttons = {}  # category -> its (name, bitmap, handler) tuples
+        self._file_buttons = [
+            (
+                "Open file",
+                wx.Bitmap(str(files(flim.resources).joinpath("fileopen.png"))),
+                self.OnLoadData,
+            ),
+            (
+                "Import files",
+                wx.Bitmap(str(files(flim.resources).joinpath("import.png"))),
+                self.OnImportData,
+            ),
+        ]
 
         menubar = wx.MenuBar()
         filemenu = wx.Menu()
@@ -318,6 +318,9 @@ class AppFrame(wx.Frame):
         )
         savesettingsitem = filemenu.Append(
             wx.ID_ANY, "Export Settings...", "Save the settings to a file"
+        )
+        favoritesitem = filemenu.Append(
+            wx.ID_ANY, "Favorites...", "Choose the tools and workflows the main window shows"
         )
         # standard ids: wx moves Settings and Exit (Quit) to the app menu on macOS
         viewsettingsitem = filemenu.Append(
@@ -356,12 +359,13 @@ class AppFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.OnCloseApp)
         self.Bind(wx.EVT_MENU, self.OnLoadSettings, loadsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnSaveSettings, savesettingsitem)
+        self.Bind(wx.EVT_MENU, self.OnFavorites, favoritesitem)
         self.Bind(wx.EVT_MENU, self.OnViewSettings, viewsettingsitem)
         self.Bind(wx.EVT_MENU, self.OnCloseAll, closeallitem)
         self.Bind(wx.EVT_MENU, self.OnDocumentation, docsitem)
         self.Bind(wx.EVT_MENU, self.OnAbout, aboutitem)
 
-        self._layout_tool_groups(rows=2)
+        self.build_tool_panel()
         frame_sizer = wx.BoxSizer(wx.VERTICAL)
         frame_sizer.Add(self.toolpanel, 1, wx.EXPAND)
         self.SetSizer(frame_sizer)
@@ -435,17 +439,88 @@ class AppFrame(wx.Frame):
         self.toolpanel.SetSizer(panel_sizer)
 
     def _create_tool_menu(self, category):
+        """Returns the menu of a tool category and keeps its tools' buttons.
+
+        Workflow files are placed in submenus, one per first tag (`Workflow Files`
+        for workflow files without tags), below the other items.
+
+        Args:
+            category (str): The tool category.
+
+        Returns:
+            wx.Menu: The menu.
+        """
         menu = wx.Menu()
+        submenus = {}
         buttons = []
         for tool in tools.by_category()[category]:
             if not tool.in_menus:
                 continue
-            item = menu.Append(wx.ID_ANY, tool.name)
+            definition = getattr(tool, "definition", None)
+            if definition is None:
+                parent = menu
+            else:
+                parent = submenus.setdefault(workflow_group(definition), wx.Menu())
+            item = parent.Append(wx.ID_ANY, tool.name)
             handler = lambda event, tool=tool: self.run_tool(tool)
             self.Bind(wx.EVT_MENU, handler, item)
             buttons.append((tool.name, tool_bitmap(tool), handler))
-        self._add_tool_group(category, buttons)
+        if submenus:
+            if menu.GetMenuItemCount():
+                menu.AppendSeparator()
+            for label in sorted(submenus, key=str.lower):
+                menu.AppendSubMenu(submenus[label], label)
+        self._tool_buttons[category] = buttons
         return menu
+
+    def build_tool_panel(self):
+        """Creates the tool panel's groups: File first, then the favorites
+        (`favorites` setting) in their order, or all tools by category if there are
+        none."""
+        self.tool_groups = []
+        self.toolpanel.SetSizer(None)
+        self.toolpanel.DestroyChildren()
+        self._add_tool_group("File", self._file_buttons)
+        favorites = self.favorite_buttons()
+        if favorites:
+            self._add_tool_group("Favorites", favorites)
+        else:
+            for category, buttons in self._tool_buttons.items():
+                self._add_tool_group(category, buttons)
+        self._layout_tool_groups(rows=2)
+
+    def favorite_buttons(self) -> list:
+        """The buttons of the `favorites` setting's tools and workflows, in its
+        order; names of tools that are not registered are ignored."""
+        buttons = {b[0]: b for group in self._tool_buttons.values() for b in group}
+        return [buttons[name] for name in self.settings.favorites if name in buttons]
+
+    def set_favorites(self, names: list) -> None:
+        """Writes `favorites` to the user settings file and rebuilds the tool panel."""
+        self.settings_manager.update({"favorites": list(names)})
+        self.build_tool_panel()
+        self.SetMinSize(wx.DefaultSize)
+        self.Layout()
+        self.Fit()
+        self.SetMinSize(self.GetSize())
+
+    def OnFavorites(self, event):
+        """File > Favorites...: choose the tools and workflows the tool panel shows,
+        and their order."""
+        names = [b[0] for group in self._tool_buttons.values() for b in group]
+        chosen = [b[0] for b in self.favorite_buttons()]
+        items = chosen + [n for n in names if n not in chosen]
+        order = [i if i < len(chosen) else ~i for i in range(len(items))]
+        with wx.RearrangeDialog(
+            self,
+            "Tools and workflows the main window shows, in this order."
+            " None checked: all tools.",
+            "Favorites", order, items,
+        ) as dialog:  # fmt: skip
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            order = dialog.GetOrder()
+        self.set_favorites([items[i] for i in order if i >= 0])
 
     def _get_window_frame(self, obj_id):
         for title, window in self.windowframes.items():
@@ -568,6 +643,38 @@ class AppFrame(wx.Frame):
             key=lambda t: t.name,
         )
 
+    def import_workflows(self) -> list:
+        """The workflows File > Import... offers: the workflow files tagged `import`,
+        or all workflow files if none is tagged."""
+        workflows = self.file_workflows()
+        tagged = [t for t in workflows if IMPORT_TAG in t.definition.tags]
+        return tagged or workflows
+
+    def ask_workflow_file(self, title: str):
+        """Asks for a workflow file and checks it.
+
+        Args:
+            title: The title of the file dialog and of the error message.
+
+        Returns:
+            The file's workflow (a tool class), or None if no file was chosen or the
+            file has errors (they are shown).
+        """
+        from flim.core.workflowfile import check_workflow_file, workflow_class
+
+        with wx.FileDialog(
+            self, title, wildcard="Workflow files (*.json)|*.json",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dialog:  # fmt: skip
+            if dialog.ShowModal() != wx.ID_OK:
+                return None
+            path = dialog.GetPath()
+        check = check_workflow_file(path)
+        if check.errors:
+            wx.MessageBox("\n".join(check.errors), title, wx.OK | wx.ICON_ERROR)
+            return None
+        return workflow_class(check.definition, Path(path))
+
     def confirm_workflow(self, tool, what: str) -> bool:
         """Show a workflow's steps (read-only) and ask whether to run it."""
         from flim.core.workflowfile import describe_steps
@@ -586,23 +693,28 @@ class AppFrame(wx.Frame):
         paths = self.ask_data_files("Import: choose the data files")
         if not paths:
             return
-        workflows = self.file_workflows()
-        if not workflows:
-            wx.MessageBox("No workflow files found.", "Import", wx.OK | wx.ICON_WARNING)
-            return
+        workflows = self.import_workflows()
         names = [t.name for t in workflows]
         preselected = self.settings.import_workflow
-        preselected = preselected if preselected in names else ("Import" if "Import" in names else names[0])
+        if preselected not in names:
+            preselected = "Import" if "Import" in names else None
         with wx.SingleChoiceDialog(
-            self, "Workflow to run on the files:", "Import", names
+            self, "Workflow to run on the files:", "Import", names + [OTHER_WORKFLOW_FILE]
         ) as dialog:
-            dialog.SetSelection(names.index(preselected))
+            dialog.SetSelection(names.index(preselected) if preselected else 0)
             if dialog.ShowModal() != wx.ID_OK:
                 return
-            tool = workflows[dialog.GetSelection()]
+            selection = dialog.GetSelection()
+        if selection < len(workflows):
+            tool = workflows[selection]
+        else:
+            tool = self.ask_workflow_file("Import: choose the workflow file")
+            if tool is None:
+                return
         if not self.confirm_workflow(tool, f"{len(paths)} file(s)"):
             return
-        self.settings_manager.update({"import_workflow": tool.name})
+        if selection < len(workflows):
+            self.settings_manager.update({"import_workflow": tool.name})
         tables = self.read_files(paths, tool.definition.read, title="Import")
         if tables:
             self.run_workflow_on_tables(tool, tables)
@@ -616,19 +728,14 @@ class AppFrame(wx.Frame):
             wx.MessageBox("Open or import data first.", "Run Workflow File", wx.OK)
             return
         if path is None:
-            with wx.FileDialog(
-                self, "Run Workflow File", wildcard="Workflow files (*.json)|*.json",
-                style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
-            ) as dialog:  # fmt: skip
-                if dialog.ShowModal() != wx.ID_OK:
-                    return
-                path = dialog.GetPath()
-        check = check_workflow_file(path)
-        if check.errors:
-            wx.MessageBox("\n".join(check.errors), "Run Workflow File", wx.OK | wx.ICON_ERROR)
-            return
-        tool = workflow_class(check.definition, Path(path))
-        if self.confirm_workflow(tool, title):
+            tool = self.ask_workflow_file("Run Workflow File")
+        else:
+            check = check_workflow_file(path)
+            if check.errors:
+                wx.MessageBox("\n".join(check.errors), "Run Workflow File", wx.OK | wx.ICON_ERROR)
+                return
+            tool = workflow_class(check.definition, Path(path))
+        if tool is not None and self.confirm_workflow(tool, title):
             self.run_workflow_on_tables(tool, {title: TableType.snapshot(table)})
 
     def run_workflow_on_tables(self, tool, tables: dict):

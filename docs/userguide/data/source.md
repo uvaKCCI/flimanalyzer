@@ -4,6 +4,8 @@ The `Directory/File to Source` tool adds the `Source` column (each row's file as
 
 **Menu Access:** `Data` > `Directory/File to Source`
 
+**Tool panel icon:** ![](/images/data/source.png)
+
 1. Select `Data` > `Directory/File to Source`.
 
 2. In the dialog, set:

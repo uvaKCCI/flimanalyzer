@@ -19,16 +19,17 @@ FLIMAnalyzer reads data from text files laid out like a spreadsheet: each line i
 
 1. Go to `File` > `Import...` or click the `Import files` icon.
 2. Choose one or more data files and click `Open`.
-3. Choose the workflow to run. The workflow you used last is preselected. The built-in ones:
+3. Choose the workflow to run. The list shows the workflow files tagged `import` (all workflow files if none is tagged, see [Workflow files](/userguide/workflows.md#workflow-files)); the workflow you used last is preselected. The built-in ones:
     - `Import`: renames the channels' columns (for example `Exc1_-Ch2-_t1` to `NAD(P)H t1`, see [Rename Columns](rename.md)), drops the other channels' columns ([Drop Columns](drop.md)), joins the files into one table and adds the calculated FLIM features ([Calculate](calculate.md)). This is what `Import...` did up to FLIMAnalyzer 0.6 with the default settings.
     - `Import: FOV, Treatment, Cell` and the other `Import: ...` workflows: the same, and then they take these categories from the file paths, as the filename parsers of FLIMAnalyzer 0.6 did (a [Separate Categories](separate.md) step on `Source`). For example, `Import: FOV, Treatment, Cell` reads `FOV` `a`, `Treatment` `ctrl` and `Cell` `1` from `Results-a-ctrl-1.txt`.
     - Your own workflow files, for example a copy of a built-in one with other patterns (see [Workflow files](/userguide/workflows.md#workflow-files)).
+    - `Other Workflow File...`, the last entry: choose any workflow file, also one without the tag `import` or outside the workflow search path.
 4. FLIMAnalyzer shows the workflow's steps. Click `Run`.
 5. The files are read (as a workflow file's `read` section says) and the workflow runs on them. A window opens for each result that no later step of the workflow uses, for example the joined table of `Import`. Results that the workflow saves open as saved; the run summary shows where.
 
 If a run would open more windows than the app setting `max_windows` allows (by default 10 tables, 10 plots and 4 images), for example a workflow without a step that joins the tables run on 300 files, it doesn't start, and a message suggests running it with `flimbatch` or adding a step that joins the tables, such as `Concatenate`.
 
-To run a workflow file on a table that is already open, for example after reshaping it with the table tools, use `Workflow` > `Run Workflow File...`. The workflow files found in the workflow search path are also listed in the `Workflow` menu; there they run on the tables you select in their dialog.
+To run a workflow file on a table that is already open, for example after reshaping it with the table tools, use `Workflow` > `Run Workflow File...`. The workflow files found in the workflow search path are also listed in the `Workflow` menu, in a submenu per first tag (`Workflow Files` for files without tags); there they run on the tables you select in their dialog.
 
 After [opening](#open-data-files) or [importing](#import-data-files) files, the data are shown in a table window. Some columns become category columns: columns with values taken from the file names by a workflow, and columns with one of the names FLIMAnalyzer knows as categories, such as `Treatment`, `FOV`, `Cell`, `Cell line`, `Well`, `Time` or `Compartment`. A category column has a small, usually fixed, set of possible values, such as treatment names. Category column headers have a light blue background. All other column headers have a gray background. Other text columns, such as `Source`, `Directory` and `File`, are not category columns: they can't be used to group or filter the data.
 

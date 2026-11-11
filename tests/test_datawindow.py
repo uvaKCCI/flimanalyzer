@@ -479,3 +479,119 @@ def test_focus_makes_a_window_the_current_one(frame, flim_data):
     pub.sendMessage(FOCUSED_DATA_WINDOW, data=first.dataview, frame=first)
     assert frame.get_currentdata()[0] == "first"
     assert frame.window_zorder == [second.item_id, first.item_id]
+
+
+def _file_workflow(name, tags=()):
+    from flim.core.workflowfile import WorkflowDefinition, workflow_class
+
+    definition = WorkflowDefinition(
+        name=name, tags=list(tags), steps=[{"id": "1", "tool": "Sort", "inputs": ["input"]}]
+    )
+    return workflow_class(definition)
+
+
+def test_import_offers_the_import_tagged_workflows(frame, monkeypatch):
+    from flim.gui.app import OTHER_WORKFLOW_FILE
+
+    workflows = [_file_workflow("A", ["import"]), _file_workflow("B"), _file_workflow("C", ["plots"])]
+    monkeypatch.setattr(frame, "file_workflows", lambda: workflows)
+    assert [t.name for t in frame.import_workflows()] == ["A"]
+    monkeypatch.setattr(frame, "file_workflows", lambda: workflows[1:])
+    assert [t.name for t in frame.import_workflows()] == ["B", "C"]  # none tagged: all
+    # the dialog: the workflows, then the entry for any other file
+    offered = []
+    monkeypatch.setattr(frame, "ask_data_files", lambda title: ["data.txt"])
+
+    init = wx.SingleChoiceDialog.__init__
+
+    def record(dlg, parent, message, caption, choices):
+        offered.extend(choices)
+        init(dlg, parent, message, caption, choices)
+
+    monkeypatch.setattr(wx.SingleChoiceDialog, "__init__", record)
+    monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_CANCEL)
+    frame.OnImportData(None)
+    assert offered == ["B", "C", OTHER_WORKFLOW_FILE]
+
+
+def test_import_with_another_workflow_file(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
+    import json
+
+    from flim.core.workflowfile import BUILT_IN
+
+    data = json.loads((BUILT_IN / "import-fov-treatment-cell.json").read_text())
+    data["name"], data["tags"] = "Mine", []
+    path = tmp_path / "mine.json"
+    path.write_text(json.dumps(data))
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data))
+    count = len(frame.import_workflows())
+    monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: count)  # the last
+    _answer_file_dialog(monkeypatch, path)
+    before = set(frame.windows_by_title())
+    frame.OnImportData(None)
+    (window,) = _new_windows(frame, before).values()
+    assert len(window.GetViewData()) == 25
+    assert frame.settings.import_workflow != "Mine"  # not a registered workflow
+
+
+def test_workflow_menu_groups_workflow_files_by_tag(wxapp, monkeypatch):
+    from flim.core.registry import tools
+    from flim.core.tools import FLIMAnalyzer
+    from flim.gui.app import AppFrame
+
+    saved = dict(tools._tools)
+    try:
+        for tool in (_file_workflow("Tagged", ["import"]), _file_workflow("Untagged")):
+            tools.register(tool)
+        frame = AppFrame(FLIMAnalyzer())
+        menubar = frame.GetMenuBar()
+        menu = menubar.GetMenu(menubar.FindMenu("Workflow"))
+        items = [i for i in menu.GetMenuItems() if not i.IsSeparator()]
+        labels = [i.GetItemLabelText() for i in items]
+        # the code-defined workflows first, then a submenu per first tag
+        assert labels[0] == "Basic FLIRR Analysis"
+        assert labels[-1] == "Run Workflow File..."
+        submenus = {i.GetItemLabelText(): i.GetSubMenu() for i in items if i.GetSubMenu()}
+        assert set(submenus) >= {"Import", "Workflow Files"}
+        assert all(i.GetSubMenu() for i in items[labels.index("Import"):-1])  # below the others
+        # other tests may have registered the built-in files (tagged import) too
+        assert "Tagged" in [i.GetItemLabelText() for i in submenus["Import"].GetMenuItems()]
+        untagged = [i.GetItemLabelText() for i in submenus["Workflow Files"].GetMenuItems()]
+        assert "Untagged" in untagged and "Tagged" not in untagged
+        frame.Destroy()
+    finally:
+        tools._tools.clear()
+        tools._tools.update(saved)
+
+
+def _panel_groups(frame):
+    boxes = [c for c in frame.toolpanel.GetChildren() if isinstance(c, wx.StaticBox)]
+    return {
+        box.GetLabel(): [c.GetName() for c in box.GetChildren() if isinstance(c, wx.BitmapButton)]
+        for box in boxes
+    }
+
+
+def test_favorites_choose_the_tool_panel(frame, monkeypatch):
+    all_groups = _panel_groups(frame)
+    assert "Data" in all_groups and "Plot" in all_groups
+    frame.set_favorites(["Box Plot", "not a tool", "Calculate"])
+    assert _panel_groups(frame) == {
+        "File": ["Open file", "Import files"], "Favorites": ["Box Plot", "Calculate"]
+    }
+    assert frame.settings.favorites == ["Box Plot", "not a tool", "Calculate"]
+    # the dialog: the favorites first, checked; the order and the checks it returns
+    shown = {}
+
+    def show(dlg):
+        shown["items"] = [dlg.GetList().GetString(i) for i in range(dlg.GetList().GetCount())]
+        shown["checked"] = [i for i in range(dlg.GetList().GetCount()) if dlg.GetList().IsChecked(i)]
+        return wx.ID_OK
+
+    monkeypatch.setattr(wx.RearrangeDialog, "ShowModal", show)
+    monkeypatch.setattr(wx.RearrangeDialog, "GetOrder", lambda dlg: [1, ~0, 2])
+    frame.OnFavorites(None)
+    assert shown["items"][:2] == ["Box Plot", "Calculate"] and shown["checked"] == [0, 1]
+    assert frame.settings.favorites == ["Calculate", shown["items"][2]]
+    frame.set_favorites([])
+    assert _panel_groups(frame) == all_groups  # none: all tools

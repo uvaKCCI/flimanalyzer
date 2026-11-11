@@ -459,6 +459,7 @@ def _scaler(method: str):
 @register_tool
 class Scale(Tool[ScaleConfig]):
     name = "Scale"
+    icon = "scale.png"
     category = "Data"
     description = (
         "Scales the selected features: standardize (mean 0, standard deviation 1),"
@@ -516,6 +517,7 @@ def _with_columns(data, new: dict, after: str, remove=()) -> pd.DataFrame:
 @register_tool
 class FuseCategories(Tool[FuseCategoriesConfig]):
     name = "Fuse Categories"
+    icon = "fuse.png"
     category = "Data"
     description = (
         "Joins category columns into one category column, e.g. FOV and Cell into"
@@ -569,6 +571,7 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
 @register_tool
 class SeparateCategories(Tool[SeparateCategoriesConfig]):
     name = "Separate Categories"
+    icon = "separate.png"
     category = "Data"
     description = (
         "Separates a category column into several: at delimiters (the reverse of"
@@ -656,6 +659,7 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
 @register_tool
 class RenameColumns(Tool[RenameColumnsConfig]):
     name = "Rename Columns"
+    icon = "renamecolumns.png"
     category = "Data"
     description = (
         "Replaces parts of the column names, in order, e.g. 'Exc1_-Ch1-_' with 'trp '."
@@ -706,6 +710,7 @@ class RenameColumns(Tool[RenameColumnsConfig]):
 @register_tool
 class DropColumns(Tool[DropColumnsConfig]):
     name = "Drop Columns"
+    icon = "dropcolumns.png"
     category = "Data"
     description = (
         "Drops the columns whose names contain, start with, end with or are a text;"
@@ -744,6 +749,7 @@ class DropColumns(Tool[DropColumnsConfig]):
 @register_tool
 class Calculate(Tool[CalculateConfig]):
     name = "Calculate"
+    icon = "calculate.png"
     category = "Data"
     description = (
         "Calculates new columns from others, in order: by expressions (arithmetic,"
@@ -839,6 +845,7 @@ def import_preprocessor(settings):
 @register_tool
 class SourceFromPath(Tool[SourceFromPathConfig]):
     name = "Directory/File to Source"
+    icon = "source.png"
     short_name = "Add Source"
     category = "Data"
     description = (

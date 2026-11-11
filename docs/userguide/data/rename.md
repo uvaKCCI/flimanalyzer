@@ -4,6 +4,8 @@ The `Rename Columns` tool replaces parts of the column names, for example `Exc1_
 
 **Menu Access:** `Data` > `Rename Columns`
 
+**Tool panel icon:** ![](/images/data/renamecolumns.png)
+
 1. Select `Data` > `Rename Columns`.
 
 2. In the `Configuration: Rename Columns` dialog, edit the `Replace` table. Each row has:

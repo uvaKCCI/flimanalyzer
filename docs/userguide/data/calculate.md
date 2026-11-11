@@ -4,6 +4,8 @@ The `Calculate` tool adds new columns calculated from others, for example the me
 
 **Menu Access:** `Data` > `Calculate`
 
+**Tool panel icon:** ![](/images/data/calculate.png)
+
 1. Select `Data` > `Calculate`.
 
 2. The `Configuration: Calculate` dialog opens with an empty `Calculations` list: a run makes only the calculations you set up in it, not those of earlier runs. The list shows each calculation's new column, what it computes and its options; it isn't edited directly. Use the buttons below it:

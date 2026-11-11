@@ -4,6 +4,8 @@ The `Drop Columns` tool removes columns by their names, for example all columns 
 
 **Menu Access:** `Data` > `Drop Columns`
 
+**Tool panel icon:** ![](/images/data/dropcolumns.png)
+
 1. Select `Data` > `Drop Columns`.
 
 2. In the `Configuration: Drop Columns` dialog, edit the `Drop` table. Each row has:

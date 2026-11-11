@@ -4,6 +4,8 @@ The `Separate Categories` tool separates one category or text column into severa
 
 **Menu Access:** `Data` > `Separate Categories`
 
+**Tool panel icon:** ![](/images/data/separate.png)
+
 1. Select `Data` > `Separate Categories`.
 
 2. In the `Configuration: Separate Categories` dialog, set:

@@ -4,6 +4,8 @@ The `Scale` tool scales the selected features, so that features with different u
 
 **Menu Access:** `Data` > `Scale`
 
+**Tool panel icon:** ![](/images/data/scale.png)
+
 1. Select `Data` > `Scale`.
 
 2. In the `Configuration: Scale` dialog, set:

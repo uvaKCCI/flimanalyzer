@@ -337,3 +337,16 @@ def test_each_task_records_its_settings_in_prefect(prefect_harness):
         )
     settings = [a for a in artifacts if (a.description or "").startswith("Summarize")]
     assert len(settings) == 1 and '"aggs"' in settings[0].data and '"max"' in settings[0].data
+
+
+def test_tags_and_menu_groups():
+    from flim.core.workflowfile import (
+        BUILT_IN, IMPORT_TAG, WorkflowDefinition, check_workflow_file, workflow_group,
+    )
+
+    steps = [{"id": "1", "tool": "Sort"}]
+    assert WorkflowDefinition(name="a", steps=steps).tags == []
+    assert workflow_group(WorkflowDefinition(name="a", steps=steps)) == "Workflow Files"
+    assert workflow_group(WorkflowDefinition(name="a", tags=["summaries", "x"], steps=steps)) == "Summaries"
+    for path in BUILT_IN.glob("*.json"):  # all built-in files are import workflows
+        assert check_workflow_file(path).definition.tags == [IMPORT_TAG], path.name

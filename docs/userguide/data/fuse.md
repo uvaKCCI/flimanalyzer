@@ -4,6 +4,8 @@ The `Fuse Categories` tool joins two or more category columns into one, for exam
 
 **Menu Access:** `Data` > `Fuse Categories`
 
+**Tool panel icon:** ![](/images/data/fuse.png)
+
 1. Select `Data` > `Fuse Categories`.
 
 2. In the `Configuration: Fuse Categories` dialog, set:

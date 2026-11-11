@@ -1,5 +1,6 @@
 /dask-worker-space/
 *.json
+!flim/workflow/files/*.json
 *.pyc
 *.log
 *.svg

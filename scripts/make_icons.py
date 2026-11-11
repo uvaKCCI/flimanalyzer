@@ -312,6 +312,109 @@ def sort_icon():
     return im
 
 
+def calculate_icon():
+    im, d = canvas()
+    # a new column calculated from the others
+    table(d, 2, 11, 30, 30, 3, 4)
+    x = 2 + 28 * 2 / 3
+    d.rectangle(s(x, 11, 30, 30), fill=LBLUE, outline=DARK, width=px(1.1))
+    d.rectangle(s(x, 11, 30, 15.75), fill=BLUE, outline=DARK, width=px(1.1))
+    for j in range(2, 4):
+        d.line(s(x, 11 + 4.75 * j, 30, 11 + 4.75 * j), fill=DARK, width=px(0.8))
+    label(d, 12, 5.5, "f(x)", 7.5, color=BLUE)
+    arrow(d, 19.5, 5, 25, 9.5, DARK, w=1.5, head=3)
+    return im
+
+
+def source_icon():
+    im, d = canvas()
+    # a folder and a file name become one column of file locations
+    d.polygon(s(1, 3, 6, 3, 7.5, 5, 13, 5, 13, 13, 1, 13), fill=LBLUE, outline=DARK, width=px(1.1))
+    document(d, 2.5, 17, 11.5, 29, fold=3)
+    for y in (22, 25):
+        d.line(s(4.5, y, 9.5, y), fill=GRAY, width=px(1.0))
+    arrow(d, 14, 8, 19, 12.5, DARK, w=1.5, head=3)
+    arrow(d, 14, 23, 19, 18.5, DARK, w=1.5, head=3)
+    table(d, 20.5, 2, 30, 30, 1, 5, header=BLUE)
+    return im
+
+
+def drop_icon():
+    im, d = canvas()
+    # a column is removed from the table
+    table(d, 2, 4, 30, 28, 3, 4)
+    x0, x1 = 2 + 28 / 3, 2 + 28 * 2 / 3
+    d.rectangle(s(x0, 4, x1, 28), fill=LGRAY, outline=DARK, width=px(1.1))
+    for color, w in ((WHITE, 5.2), (MAGENTA, 2.6)):
+        line(d, [(x0 - 2, 6), (x1 + 2, 26)], color, w)
+        line(d, [(x1 + 2, 6), (x0 - 2, 26)], color, w)
+    return im
+
+
+def rename_icon():
+    im, d = canvas()
+    # a pencil edits the column names in the header row
+    table(d, 2, 10, 30, 30, 3, 4)
+    d.rectangle(s(2, 10, 30, 15), fill=LBLUE, outline=DARK, width=px(1.1))
+    for i in (1, 2):
+        d.line(s(2 + 28 * i / 3, 10, 2 + 28 * i / 3, 15), fill=DARK, width=px(0.8))
+    # pencil from the upper right to its tip on the header
+    a = math.radians(135)
+    ux, uy = math.cos(a), math.sin(a)  # along the pencil, towards the tip
+    nx, ny = -uy, ux
+    tip = (13, 12.5)
+    body = 13
+    h = 2.3
+
+    def at(t, n):
+        return (tip[0] - ux * t + nx * n, tip[1] - uy * t + ny * n)
+
+    outline = [at(0, 0), at(4, h), at(body, h), at(body, -h), at(4, -h)]
+    d.polygon([v * S for p in [at(-1, 0), at(5, h + 1), at(body + 1, h + 1), at(body + 1, -h - 1), at(5, -h - 1)] for v in p], fill=WHITE)
+    d.polygon([v * S for p in outline for v in p], fill=BLUE, outline=DARK, width=px(1.0))
+    d.polygon([v * S for p in [at(0, 0), at(4, h), at(4, -h)] for v in p], fill=WHITE, outline=DARK, width=px(1.0))
+    circle(d, *at(0.8, 0), 0.9, DARK)
+    return im
+
+
+def fuse_icon(reverse=False):
+    im, d = canvas()
+    # two category columns become one (fuse), or one becomes two (separate)
+    left, right = (1, 13), (19, 31)
+    two, one = (right, left) if reverse else (left, right)
+    w = (two[1] - two[0]) / 2
+    table(d, two[0], 2, two[0] + w, 30, 1, 5, header=GREEN)
+    table(d, two[0] + w, 2, two[1], 30, 1, 5, header=MAGENTA)
+    table(d, one[0] + 1.5, 2, one[1] - 1.5, 30, 1, 5, header=None)
+    rh = 28 / 5
+    mid = (one[0] + one[1]) / 2
+    d.rectangle(s(one[0] + 1.5, 2, mid, 2 + rh), fill=GREEN, outline=DARK, width=px(1.1))
+    d.rectangle(s(mid, 2, one[1] - 1.5, 2 + rh), fill=MAGENTA, outline=DARK, width=px(1.1))
+    if reverse:
+        arrow(d, 13, 16, 18, 10, DARK, w=1.5, head=3)
+        arrow(d, 13, 16, 18, 22, DARK, w=1.5, head=3)
+    else:
+        arrow(d, 14, 10, 18.5, 16, DARK, w=1.5, head=3)
+        arrow(d, 14, 22, 18.5, 16, DARK, w=1.5, head=3)
+    return im
+
+
+def scale_icon():
+    im, d = canvas()
+    # values of different sizes brought to one range
+    axes(d, 2, 2, 30, 29)
+    heights = (24, 10, 17)
+    for i, h in enumerate(heights):
+        x = 4.5 + i * 3.6
+        d.rectangle(s(x, 29 - h, x + 2.8, 29), fill=LBLUE, outline=DARK, width=px(0.9))
+    arrow(d, 15.5, 18, 19.5, 18, DARK, w=1.5, head=2.8)
+    for i, h in enumerate(heights):
+        x = 20.5 + i * 3.4
+        d.rectangle(s(x, 29 - h / 2, x + 2.6, 29), fill=BLUE, outline=DARK, width=px(0.9))
+    dashed(d, 20, 31, 29 - max(heights) / 2, DARK, w=1.0)
+    return im
+
+
 # --- Analysis --------------------------------------------------------------
 
 
@@ -785,12 +888,19 @@ ICONS = {
     "fileopen.png": fileopen_icon,
     "import.png": import_icon,
     # Data
+    "calculate.png": calculate_icon,
     "concatenate.png": concatenate_icon,
+    "dropcolumns.png": drop_icon,
     "filter.png": filter_icon,
+    "fuse.png": fuse_icon,
     "merge.png": merge_icon,
     "order.png": order_icon,
     "pivot.png": pivot_icon,
+    "renamecolumns.png": rename_icon,
+    "scale.png": scale_icon,
+    "separate.png": lambda: fuse_icon(reverse=True),
     "sort.png": sort_icon,
+    "source.png": source_icon,
     "unpivot.png": lambda: pivot_icon(reverse=True),
     # Analysis
     "aeaugment.png": aeaugment_icon,

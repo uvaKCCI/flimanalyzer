@@ -268,6 +268,12 @@ class AppSettings(_Settings):
         description="Calculations saved in the Calculate dialog (Save as Presets), offered"
         " by its Add Calculations button besides the built-in ones.",
     )
+    favorites: list[str] = Field(
+        default=[],
+        title="Favorites",
+        description="Names of the tools and workflows the main window shows, in order,"
+        " after the File group. Empty shows all tools. Set with File > Favorites....",
+    )
     workflow_paths: list[Path] = Field(
         default=[],
         description="Folders searched for workflow files, in order. Empty defaults to"

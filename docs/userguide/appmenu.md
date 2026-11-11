@@ -1,12 +1,13 @@
 # Menus
 
-The tool panel, the main window of FLIMAnalyzer, has a group of icons for each menu: `File` (open and import data), `Data`, `Analysis`, `Plot` and `Workflow`. Hover the mouse over an icon to see the name of its tool. Each icon does the same as the menu entry of the same name.
+The tool panel, the main window of FLIMAnalyzer, has a group of icons for each menu: `File` (open and import data), `Data`, `Analysis`, `Plot` and `Workflow`. Hover the mouse over an icon to see the name of its tool. Each icon does the same as the menu entry of the same name. To show only the tools and workflows you use, choose them with `File` > `Favorites...`.
 
 ## File
 
 * `Open...` opens data files, each in a table window; `Import...` reads data files and runs a workflow on them. See [Loading Data](/userguide/data/load).
 * `Save All Windows...` saves all open tables and plots at once. See [Saving all windows](/userguide/data/save.md#saving-all-windows).
 * `Import Settings...` and `Export Settings...` load and save all settings: the range filters and the settings of each tool. See [Settings](/userguide/settings).
+* `Favorites...` chooses the tools and workflows the tool panel shows, and their order: check them and move them with `Up` and `Down`. The tool panel then shows the `File` group and a `Favorites` group with them. With none checked, it shows all tools, grouped by menu. The GUI writes your choice to the user settings file (`favorites`, see [Settings](/userguide/settings)); the menus always list all tools.
 * `Settings...` shows the app settings of this session: the results folder, the executor, the Prefect server, the log folder and how workflows handle missing columns. For each, it shows where its value comes from and how to change it. On macOS it is in the `FLIMAnalyzer` menu. See [Viewing the app settings](/userguide/settings.md#viewing-the-app-settings).
 * `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q). If table or plot windows have unsaved results, FLIMAnalyzer lists them and asks first, also when you log out or shut down the computer (where the system lets it ask):
   * `Cancel` keeps everything open.
