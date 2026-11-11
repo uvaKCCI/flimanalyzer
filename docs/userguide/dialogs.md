@@ -6,7 +6,7 @@ Every tool dialog has three sections, one under the other:
 
 * `Input`: the data the tool runs on (see [Choosing the data](#choosing-the-data)).
 * `Settings`: the tool's settings, with `Load Settings...` and `Save Settings...` (see [Loading and saving settings](#loading-and-saving-settings)).
-* `Output`: what names the results and how they are saved: `Result prefix` (see [Result prefix](#result-prefix)) and `Save results in` with the formats (see [Saving results](#saving-results)).
+* `Output`: what names the results and how they are saved: `Result prefix` (see [Result prefix](#result-prefix)) and `Save results` with the formats (see [Saving results](#saving-results)).
 
 A tool needs data: if no table window is open, the GUI says "Open or import data first." instead of opening the dialog.
 
@@ -28,11 +28,11 @@ When you choose another table, the dialog lists the columns of that table, for e
 
 ## Saving results
 
-In the `Output` section, `Save results in` and the folder next to it set whether and where the results are saved as files. Check `Save results in` to save them. The folder is created if it doesn't exist yet.
+In the `Output` section, check `Save results` to save the results as files. The folder and the formats below it can only be changed while it is checked; unchecking it keeps them for the next time. The folder is created if it doesn't exist yet.
 
-* `Use the default folder` (checked unless the tool has a folder of its own): the tool saves in the default results folder, shown greyed next to `Save results in`. This is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)). The tool keeps following the default when it changes.
-* Uncheck it to give the tool a folder of its own: type a folder, or click the button next to it to choose one. The tool keeps this folder until you check `Use the default folder` again.
-* `Make Default Folder` makes the folder the default results folder, saved in the user settings file. Every tool that uses the default folder saves there from then on; tools with a folder of their own keep it.
+* `Use the default folder` (checked unless the tool has a folder of its own): the tool saves in the default results folder, shown greyed in the `Folder` field. This is the results folder of the settings (`results_dir`, or `-o` on the command line); if that is not set, the folder FLIMAnalyzer was started from (see [Settings](/userguide/settings.md#layout-of-a-settings-file)). The tool keeps following the default when it changes.
+* Uncheck it to give the tool a folder of its own: type a folder, or click the button next to it to choose one. The field starts with the default folder if the tool has no folder of its own yet. Checking and unchecking `Use the default folder` switches the field between the default folder and the tool's own folder; the dialog remembers the tool's own folder only while it is open.
+* `Make Default Folder` (only for a folder of the tool's own that isn't the default yet) makes the folder the default results folder, saved in the user settings file. Every tool that uses the default folder saves there from then on; tools with a folder of their own keep it.
 
 Below the folder, the `Output` section has a column for each kind of result the tool makes, with the formats to save it in and their options. You can check several formats of one kind; each kind needs at least one:
 
@@ -49,9 +49,9 @@ The results are saved in a new folder for each run, named after the date and tim
 
 The file names are made from the result names; characters that can't be used in file names are replaced, for example `Table: Summary` becomes `Table_Summary.txt`. The folder of the run also gets a file `run_summary.txt`. It lists when the run started and finished, the settings files used (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)), and the status and message of each task. A task's message is also how a tool reports a warning: the task is completed, but something in the data needs attention (for example, `Concatenate` pairing rows that don't match). The GUI shows such warnings after the run.
 
-Results are also shown in their own windows, whether they are saved or not. Workflows always save their results, in a folder of their own; there, `Save results in` can't be unchecked (see [Workflows](/userguide/workflows)).
+Results are also shown in their own windows, whether they are saved or not. Workflows always save their results, in a folder of their own; there, `Save results` can't be unchecked (see [Workflows](/userguide/workflows)).
 
-While a tool runs with `Save results in` checked, the progress dialog shows the results folder. If you cancel a run while `Save results in` is unchecked, the run summary says "No results were saved because Autosave is off." (see [The run summary](/userguide/workflows.md#the-run-summary)).
+While a tool runs with `Save results` checked, the progress dialog shows the results folder. If you cancel a run while `Save results` is unchecked, the run summary says "No results were saved because Save results is off." (see [The run summary](/userguide/workflows.md#the-run-summary)).
 
 ## Loading and saving settings
 
@@ -89,7 +89,7 @@ The dialog checks the settings while you change them:
 
 * A field with an error is marked with an error sign. Hover the mouse over the sign to see the message. In lists and tables, the sign is in the row with the error.
 * A warning sign marks a setting that works but may not be what you want, for example a column that a workflow guessed (see [Workflows](/userguide/workflows.md#checking-the-settings)).
-* Messages that are not about a single field, for example about the folder under `Save results in`, are shown in red text above the `Output` section.
+* Messages that are not about a single field, for example about the folder under `Save results`, are shown in red text above the `Output` section.
 * Some tools also check the values of the table, not only its columns, for example `Separate Categories`: values that can't be separated as set are a warning at the field. These tools also show an example from the first row below the `Settings` section.
 
 `OK` stays disabled while there are errors. Fix them, and `OK` becomes available.
@@ -102,7 +102,7 @@ A field that allows only one value with the current settings is hidden. It appea
 
 ## Last settings used
 
-When you click `OK`, the GUI keeps the settings of the dialog. The next time you open the same tool, its dialog opens with these settings, including the result prefix and the folder under `Save results in`. Columns you selected that the table doesn't have are ignored. A feature with a close match in the table is replaced by it, and a note under the list shows the replacement, for example `Guessed: FAD a1% → FAD a1[%]`. The `Calculate` dialog always opens with an empty table of calculations (see [Calculate](/userguide/data/calculate.md)). `Cancel` keeps the settings that were there before.
+When you click `OK`, the GUI keeps the settings of the dialog. The next time you open the same tool, its dialog opens with these settings, including the result prefix and the folder under `Save results`. Columns you selected that the table doesn't have are ignored. A feature with a close match in the table is replaced by it, and a note under the list shows the replacement, for example `Guessed: FAD a1% → FAD a1[%]`. The `Calculate` dialog always opens with an empty table of calculations (see [Calculate](/userguide/data/calculate.md)). `Cancel` keeps the settings that were there before.
 
 The GUI also saves these settings to the user settings file, so they apply again the next time it starts (see [The user settings file](/userguide/settings.md#the-user-settings-file)). To keep them in a file of your own, use `File` > `Export Settings...` or `Save Settings...`.
 

@@ -74,7 +74,11 @@ def test_menus_and_tool_panel_from_the_registry(frame):
     ]
     file_menu = menubar.GetMenu(0)
     EXIT = "Quit" if wx.Platform == "__WXMAC__" else "Exit"  # wx.ID_EXIT's label
-    assert [i.GetItemLabelText() for i in file_menu.GetMenuItems() if not i.IsSeparator()] == [
+    # without the submenus of workflow files that other tests may have registered
+    assert [
+        i.GetItemLabelText() for i in file_menu.GetMenuItems()
+        if not i.IsSeparator() and not i.GetSubMenu()
+    ] == [
         "Open...", "Import...", "Save All Windows...", "Import Settings...",
         "Export Settings...", "Favorites...", "Settings...",
         EXIT,
@@ -181,6 +185,7 @@ def test_make_default_folder_in_the_dialog(frame, monkeypatch, prefect_harness, 
         dialog.use_default.SetValue(False)
         dialog._follow_default()
         dialog.folder.SetPath(str(own))
+        dialog.validate()  # as the folder field's change event does
         assert dialog.make_default.IsEnabled()
         dialog._make_default()
         assert dialog.use_default.GetValue() and not dialog.make_default.IsEnabled()

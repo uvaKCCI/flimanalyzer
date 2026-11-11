@@ -337,23 +337,33 @@ class ConfigDialog(wx.Dialog):
         return kinds or sorted(classes, key=lambda k: (k != "table", k))
 
     def _execution_controls(self):
+        """Builds the output controls: `Save results`, and below it, enabled only
+        while it is checked, the folder (with `Use the default folder` and `Make
+        Default Folder` if there is a default folder) and the formats."""
         outer = wx.BoxSizer(wx.VERTICAL)
-        row = wx.BoxSizer(wx.HORIZONTAL)
-        self.autosave = wx.CheckBox(self, label="Save results in")
+        self.autosave = wx.CheckBox(self, label="Save results")
         self.autosave.SetValue(self.execution.autosave.enabled or self.autosave_locked)
         if self.autosave_locked:
             self.autosave.Disable()
             self.autosave.SetToolTip("Workflows always save their results")
         self.autosave.Bind(wx.EVT_CHECKBOX, lambda e: self.validate())
+        outer.Add(self.autosave, 0)
+        indent = 20  # the controls that depend on `Save results`
         folder = self.execution.autosave.results_dir
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        self.folder_label = wx.StaticText(self, label="Folder:")
         self.folder = wx.DirPickerCtrl(
             self, path="" if folder is None else str(folder), style=wx.DIRP_USE_TEXTCTRL
         )
         self.folder.Bind(wx.EVT_DIRPICKER_CHANGED, lambda e: self.validate())
-        row.Add(self.autosave, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
+        row.Add(self.folder_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         row.Add(self.folder, 1, wx.EXPAND)
-        outer.Add(row, 0, wx.EXPAND)
+        outer.AddSpacer(4)
+        outer.Add(row, 0, wx.EXPAND | wx.LEFT, indent)
         self.use_default = self.make_default = None
+        # the tool's own folder while the field shows the default folder (kept only
+        # while the dialog is open: a tool that follows the default stores no folder)
+        self._own_folder = ""
         if self.default_folder is not None:
             # follow the app's default folder, or keep a folder of the tool's own
             row = wx.BoxSizer(wx.HORIZONTAL)
@@ -361,21 +371,26 @@ class ConfigDialog(wx.Dialog):
             self.use_default.SetToolTip(
                 "The tool saves in the app's default results folder, also when it changes"
             )
-            self.use_default.Bind(wx.EVT_CHECKBOX, lambda e: self._follow_default())
+            self.use_default.Bind(wx.EVT_CHECKBOX, lambda e: self._on_use_default())
             self.make_default = wx.Button(self, label="Make Default Folder")
             self.make_default.SetToolTip("Tools without a folder of their own save here")
             self.make_default.Bind(wx.EVT_BUTTON, lambda e: self._make_default())
             row.Add(self.use_default, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 12)
             row.Add(self.make_default, 0)
-            outer.Add(row, 0, wx.LEFT | wx.TOP, 4)
-            self.use_default.SetValue(self._is_default(folder))
+            outer.AddSpacer(4)
+            outer.Add(row, 0, wx.LEFT, indent + self.folder_label.GetBestSize().width + 6)
+            follows = self._is_default(folder)
+            self.use_default.SetValue(follows)
+            if not follows:
+                self._own_folder = str(folder)
             self._follow_default()
         # the formats in an "Output" box: a column per kind of output, its fields
         # (generated from the data type's save options) one under the other
         self.formats = FormatsBox(
             self, self.save_kinds(), self.execution.autosave.formats, on_change=self.validate
         )
-        outer.Add(self.formats, 0, wx.EXPAND | wx.TOP, 4)
+        outer.AddSpacer(4)
+        outer.Add(self.formats, 0, wx.EXPAND | wx.LEFT, indent)
         return outer
 
     def set_formats(self, formats) -> None:
@@ -389,16 +404,39 @@ class ConfigDialog(wx.Dialog):
             return True
         return canonical_folder(str(folder)) == canonical_folder(str(self.default_folder))
 
+    def _on_use_default(self) -> None:
+        """`Use the default folder` toggled: the field changes between the default
+        folder and the tool's own folder (the default, if it has none yet)."""
+        if self.use_default.GetValue():
+            self._own_folder = self.folder.GetPath()
+        else:
+            self.folder.SetPath(self._own_folder or str(self.default_folder))
+        self._follow_default()
+
     def _follow_default(self) -> None:
-        """Show the default folder, greyed, while the tool follows it."""
-        follows = bool(self.use_default and self.use_default.GetValue())
-        if follows:
+        """Shows the default folder while the tool follows it, and updates which
+        output controls can be used."""
+        if self.use_default is not None and self.use_default.GetValue():
             self.folder.SetPath(str(self.default_folder))
-        self.folder.Enable(not follows)
-        if self.make_default is not None:
-            self.make_default.Enable(not follows)
+        self._update_output_controls()
         if hasattr(self, "formats"):  # not while the dialog is being built
             self.validate()
+
+    def _update_output_controls(self) -> None:
+        """Enables the controls below `Save results` only while it is checked; the
+        folder only if the tool has its own; `Make Default Folder` only for a usable
+        folder that is not the default yet. The controls keep their values."""
+        saving = self.autosave.GetValue()
+        follows = bool(self.use_default and self.use_default.GetValue())
+        self.folder_label.Enable(saving)
+        self.folder.Enable(saving and not follows)
+        if self.use_default is not None:
+            self.use_default.Enable(saving)
+            path = self.folder.GetPath()
+            usable = bool(path) and not folder_problem(path) and not self._is_default(path)
+            self.make_default.Enable(saving and not follows and usable)
+        if hasattr(self, "formats"):
+            self.formats.Enable(saving)
 
     def _make_default(self) -> None:
         """Make the folder the app's default results folder; the tool then follows it."""
@@ -407,6 +445,7 @@ class ConfigDialog(wx.Dialog):
             return
         self.on_make_default(Path(folder))
         self.default_folder = Path(folder)
+        self._own_folder = folder
         self.use_default.SetValue(True)
         self._follow_default()
 
@@ -534,7 +573,7 @@ class ConfigDialog(wx.Dialog):
     def execution_issues(self) -> list[Issue]:
         issues = []
         enabled = self.autosave.GetValue()
-        self.formats.Enable(enabled)
+        self._update_output_controls()
         _, errors = self.save_formats()
         self.formats.show_errors(errors, enabled)
         if enabled and errors:
@@ -667,6 +706,7 @@ class ConfigDialog(wx.Dialog):
             self.use_default.SetValue(self._is_default(entry.autosave.results_dir))
         if entry.autosave.results_dir and not (self.use_default and self.use_default.GetValue()):
             self.folder.SetPath(str(entry.autosave.results_dir))
+            self._own_folder = str(entry.autosave.results_dir)
         self._follow_default()
         if entry.autosave.formats:
             self.set_formats(entry.autosave.formats)

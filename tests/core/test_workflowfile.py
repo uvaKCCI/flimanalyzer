@@ -341,12 +341,19 @@ def test_each_task_records_its_settings_in_prefect(prefect_harness):
 
 def test_tags_and_menu_groups():
     from flim.core.workflowfile import (
-        BUILT_IN, IMPORT_TAG, WorkflowDefinition, check_workflow_file, workflow_group,
+        BUILT_IN, IMPORT_TAG, WorkflowDefinition, check_workflow_file, panel_group,
+        workflow_group,
     )
 
     steps = [{"id": "1", "tool": "Sort"}]
     assert WorkflowDefinition(name="a", steps=steps).tags == []
     assert workflow_group(WorkflowDefinition(name="a", steps=steps)) == "Workflow Files"
     assert workflow_group(WorkflowDefinition(name="a", tags=["summaries", "x"], steps=steps)) == "Summaries"
-    for path in BUILT_IN.glob("*.json"):  # all built-in files are import workflows
-        assert check_workflow_file(path).definition.tags == [IMPORT_TAG], path.name
+    groups = ["File", "Data", "Plot", "Workflow"]
+    tagged = WorkflowDefinition(name="a", tags=["file", "import"], steps=steps)
+    assert workflow_group(tagged, groups) == "Import"  # group names are passed over
+    assert panel_group(tagged, groups) == "File"
+    assert panel_group(WorkflowDefinition(name="a", tags=["x"], steps=steps), groups) is None
+    assert workflow_group(WorkflowDefinition(name="a", tags=["Plot"], steps=steps), groups) == "Workflow Files"
+    for path in BUILT_IN.glob("*.json"):  # all built-in files: import, File group
+        assert check_workflow_file(path).definition.tags == ["file", IMPORT_TAG], path.name

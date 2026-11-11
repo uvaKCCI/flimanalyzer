@@ -541,7 +541,12 @@ def test_workflow_menu_groups_workflow_files_by_tag(wxapp, monkeypatch):
 
     saved = dict(tools._tools)
     try:
-        for tool in (_file_workflow("Tagged", ["import"]), _file_workflow("Untagged")):
+        for tool in (
+            _file_workflow("Tagged", ["import"]),
+            _file_workflow("Untagged"),
+            _file_workflow("Reader", ["File", "import"]),  # a tool panel group
+            _file_workflow("Plotter", ["plots", "plot"]),
+        ):
             tools.register(tool)
         frame = AppFrame(FLIMAnalyzer())
         menubar = frame.GetMenuBar()
@@ -558,6 +563,29 @@ def test_workflow_menu_groups_workflow_files_by_tag(wxapp, monkeypatch):
         assert "Tagged" in [i.GetItemLabelText() for i in submenus["Import"].GetMenuItems()]
         untagged = [i.GetItemLabelText() for i in submenus["Workflow Files"].GetMenuItems()]
         assert "Untagged" in untagged and "Tagged" not in untagged
+        # the tool panel shows workflow files only as favorites
+        buttons = [n for names in _panel_groups(frame).values() for n in names]
+        assert "Basic FLIRR Analysis" in buttons
+        assert "Tagged" not in buttons and "Untagged" not in buttons
+        # a tag naming a menu puts the file in that menu, the next tag names its submenu
+        assert "File" not in submenus and "Plots" not in submenus
+        assert "Reader" not in [i.GetItemLabelText() for i in submenus["Import"].GetMenuItems()]
+
+        def submenu(menu_name, label):
+            menu = menubar.GetMenu(menubar.FindMenu(menu_name))
+            (item,) = [i for i in menu.GetMenuItems() if i.GetItemLabelText() == label]
+            return [i.GetItemLabelText() for i in item.GetSubMenu().GetMenuItems()]
+
+        assert "Reader" in submenu("File", "Import")
+        file_labels = [i.GetItemLabelText() for i in menubar.GetMenu(0).GetMenuItems()]
+        assert file_labels.index("Import") == file_labels.index("Import...") + 1
+        assert submenu("Plot", "Plots") == ["Plotter"]
+        # as favorites, in the group a tag names, else in Workflow
+        frame.set_favorites(["Tagged", "Plotter", "Reader", "Sort"])
+        groups = _panel_groups(frame)
+        assert groups["File"] == ["Open file", "Import files", "Reader"]
+        assert groups["Workflow"] == ["Tagged"] and groups["Plot"] == ["Plotter"]
+        assert groups["Data"] == ["Sort"]
         frame.Destroy()
     finally:
         tools._tools.clear()
@@ -576,9 +604,10 @@ def test_favorites_choose_the_tool_panel(frame, monkeypatch):
     all_groups = _panel_groups(frame)
     assert "Data" in all_groups and "Plot" in all_groups
     frame.set_favorites(["Box Plot", "not a tool", "Calculate"])
-    assert _panel_groups(frame) == {
-        "File": ["Open file", "Import files"], "Favorites": ["Box Plot", "Calculate"]
-    }
+    # each in its menu's group; the groups in menu order, without empty ones
+    groups = _panel_groups(frame)
+    assert groups == {"File": ["Open file", "Import files"], "Data": ["Calculate"], "Plot": ["Box Plot"]}
+    assert list(groups) == ["File", "Data", "Plot"]
     assert frame.settings.favorites == ["Box Plot", "not a tool", "Calculate"]
     # the dialog: the favorites first, checked; the order and the checks it returns
     shown = {}

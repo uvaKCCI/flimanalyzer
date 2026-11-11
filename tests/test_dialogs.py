@@ -113,8 +113,11 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
             len([c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)])
             for box in boxes
         )
-        # Open and Import, and the tools of the menus (not Import: File > Import...)
-        in_menus = [t for group in tools.by_category().values() for t in group if t.in_menus]
+        # Open and Import, and the tools of the menus; workflow files only as favorites
+        in_menus = [
+            t for group in tools.by_category().values() for t in group
+            if t.in_menus and getattr(t, "definition", None) is None
+        ]
         assert n_tools == 2 + len(in_menus)
     finally:
         frame.Destroy()

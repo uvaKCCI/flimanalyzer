@@ -421,17 +421,19 @@ def fuse_icon(reverse=False):
 
 def scale_icon():
     im, d = canvas()
-    # values of different sizes brought to one range
-    axes(d, 2, 2, 30, 29)
-    heights = (24, 10, 17)
-    for i, h in enumerate(heights):
-        x = 4.5 + i * 3.6
-        d.rectangle(s(x, 29 - h, x + 2.8, 29), fill=LBLUE, outline=DARK, width=px(0.9))
-    arrow(d, 15.5, 18, 19.5, 18, DARK, w=1.5, head=2.8)
-    for i, h in enumerate(heights):
-        x = 20.5 + i * 3.4
-        d.rectangle(s(x, 29 - h / 2, x + 2.6, 29), fill=BLUE, outline=DARK, width=px(0.9))
-    dashed(d, 20, 31, 29 - max(heights) / 2, DARK, w=1.0)
+    # values on a long scale mapped onto a short one (e.g. 0 to 1)
+    top, (b0, b1) = (2, 30), (7.5, 24.5)
+    d.line(s(top[0], 6, top[1], 6), fill=DARK, width=px(1.3))
+    d.line(s(b0, 26, b1, 26), fill=DARK, width=px(1.3))
+    for x, y in ((top[0], 6), (top[1], 6), (b0, 26), (b1, 26)):
+        d.line(s(x, y - 2.5, x, y + 2.5), fill=DARK, width=px(1.2))
+    values = (4, 11, 19, 28)
+    mapped = [b0 + (x - top[0]) / (top[1] - top[0]) * (b1 - b0) for x in values]
+    for xt, xb in zip(values, mapped):
+        d.line(s(xt, 8, xb, 24), fill=LGRAY, width=px(0.9))
+    for xt, xb in zip(values, mapped):
+        circle(d, xt, 6, 1.8, GRAY)
+        circle(d, xb, 26, 1.6, BLUE)
     return im
 
 

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "Import: FOV, Time, Well",
   "description": "As Import, with FOV, Time, Well taken from the file paths (fov_time_well_parser of FLIMAnalyzer 0.6).",
-  "tags": ["import"],
+  "tags": ["file", "import"],
   "read": {
     "delimiter": "\t,"
   },

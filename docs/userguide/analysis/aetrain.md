@@ -31,7 +31,7 @@ The `Autoencoder: Train` tool trains autoencoder models on selected features and
 
     ![](/images/analysis/aetrain-config.png)
 
-4. Check `Save results in` and choose a folder (see [Saving results](/userguide/dialogs.md#saving-results)). The model files are saved in its subfolder `Autoencoder_Train`. If `Save results in` is unchecked, they are saved in a temporary folder, and only a warning in the log names it.
+4. Check `Save results` and choose a folder (see [Saving results](/userguide/dialogs.md#saving-results)). The model files are saved in its subfolder `Autoencoder_Train`. If `Save results` is unchecked, they are saved in a temporary folder, and only a warning in the log names it.
 
 5. Click `OK`.
 

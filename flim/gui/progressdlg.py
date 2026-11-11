@@ -298,7 +298,7 @@ class RunSummaryDialog(wx.Dialog):
             self.folder = FolderLink(self, self.results_dir)
             sizer.Add(self.folder, 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
         else:
-            text("No results were saved because Autosave is off.")
+            text("No results were saved because Save results is off.")
         self.link = None
         if run.ui_url:
             text("Flow run on the Prefect server:")

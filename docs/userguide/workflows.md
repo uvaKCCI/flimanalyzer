@@ -6,9 +6,9 @@ Steps that don't depend on each other run concurrently, without waiting for each
 
 ## Results
 
-Workflows always save their results; `Save results in` is always checked in their dialogs. The results are not opened in windows.
+Workflows always save their results; `Save results` is always checked in their dialogs. The results are not opened in windows.
 
-Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results in`. For example: `results/Basic FLIRR Analysis/2026-11-03_14-05-31/`. Steps that are run several times with different settings, for example the training of each model in the autoencoder workflows, save their results in subfolders of this folder, named after these settings. The other steps save their results directly in the folder. The files are saved as described in [Saving results](/userguide/dialogs.md#saving-results).
+Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results`. For example: `results/Basic FLIRR Analysis/2026-11-03_14-05-31/`. Steps that are run several times with different settings, for example the training of each model in the autoencoder workflows, save their results in subfolders of this folder, named after these settings. The other steps save their results directly in the folder. The files are saved as described in [Saving results](/userguide/dialogs.md#saving-results).
 
 The folder also gets a file `run_summary.txt`. It lists when the workflow ran, the settings files used (the user settings file and the app settings file, with the settings converted or not used when it was read), and, for each step, its status, the resources it used (for example GPU or CPU) and its message. A completed step has a message only if its tool reported a warning (see [The run summary](#the-run-summary)).
 
@@ -72,7 +72,10 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
 ```
 
 * `name`: the workflow's name. Workflow files are found by it, like tools: `flimbatch --run "calc and aggregate"`. It must differ from every tool's and workflow's name (case is ignored); a file whose name is taken is not loaded, and the log says why.
-* `tags` (optional): words that group the workflow. `File` > `Import...` lists the workflow files tagged `import`, and the `Workflow` menu groups the workflow files in submenus by their first tag (for example `Import`, or `Summaries` for `"summaries"`); files without tags are in the submenu `Workflow Files`.
+* `tags` (optional): words that group the workflow, for example `["file", "import"]`.
+    * `File` > `Import...` lists the workflow files tagged `import`.
+    * A tag that names a menu (`file`, `data`, `analysis`, `plot` or `workflow`; case is ignored) puts the workflow in that menu, and its icon in that group of the tool panel when it is a favorite (see [Menus](/userguide/appmenu)). Without such a tag, it is in the `Workflow` menu and group.
+    * In its menu, the workflow is in a submenu named after its first other tag (for example `Import`, or `Summaries` for `"summaries"`); without one, in the submenu `Workflow Files`. The built-in ones are in `File` > `Import`, below `Import...`.
 * `read`: how the data files are read: `delimiter` (each character separates columns), `extensions` (the file types read from folders), `encoding`, `exclude` (file names not read), and `existing` (`keep`, the default, or `rename`: what happens to a file's own `Source`, `Directory` or `File` column, see [The Source column](/userguide/data/load.md#the-source-column)).
 * `autosave`: the formats the results are saved in (`formats`, as in the settings, see [Settings](/userguide/settings)).
 * `steps`, each with:
@@ -87,7 +90,7 @@ A run starts from the tables read from the files, one per file. Each step runs o
 
 Before a run, the file is checked: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid. Columns that a step's settings name and the data doesn't have are always errors in workflow files; they are not replaced by the closest match.
 
-**Built-in workflow files.** `Import` reads the files into one table as `File` > `Import...` did up to FLIMAnalyzer 0.6 with the default filename parser: it renames and drops the channels' columns, joins the files and calculates the FLIM features. `Import: FOV, Treatment, Cell` and the other `Import: ...` files do the same and then take these categories from the file paths, as the filename parsers did (a Separate Categories step on `Source`). They are tagged `import`. To change one, copy it from FLIMAnalyzer's folder `flim/workflow/files` into your workflows folder, give it another `name` and edit it.
+**Built-in workflow files.** `Import` reads the files into one table as `File` > `Import...` did up to FLIMAnalyzer 0.6 with the default filename parser: it renames and drops the channels' columns, joins the files and calculates the FLIM features. `Import: FOV, Treatment, Cell` and the other `Import: ...` files do the same and then take these categories from the file paths, as the filename parsers did (a Separate Categories step on `Source`). They are tagged `["file", "import"]`: `File` > `Import...` lists them, and as favorites their icons are in the `File` group. To change one, copy it from FLIMAnalyzer's folder `flim/workflow/files` into your workflows folder, give it another `name` and edit it.
 
 **Where workflow files are found:** the built-in ones, and the files in the folders of `workflow_paths` in the user settings file (default: the folder `workflows` in the platform's settings folder, next to `usersettings.json`). The environment variable `FLIM_WORKFLOW_PATH` (folders separated by `:`, or `;` on Windows) takes precedence. `--workflow` takes a path, or the name of a file in these folders.
 

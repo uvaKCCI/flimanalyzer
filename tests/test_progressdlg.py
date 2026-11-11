@@ -219,7 +219,7 @@ def test_cancelled_run_without_autosave(frame, monkeypatch):
     start = _cancel_after_first_task(_starter(_first_task_then_waiting()))
     assert frame.run_with_progress("My Tool", start) is None
     assert shown["paths"] == []
-    assert "No results were saved because Autosave is off." in shown["texts"]
+    assert "No results were saved because Save results is off." in shown["texts"]
 
 
 def test_completed_run_is_returned(frame):

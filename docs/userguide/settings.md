@@ -28,11 +28,11 @@ The dialog lists the app settings of this session: the results folder, the execu
 
 Below the table, it names the user settings file, your default app settings file if you have set one, the app settings file of the session, and the log file. Pointing at a row shows the setting's full value and its description.
 
-The dialog only shows the settings. They apply when FLIMAnalyzer starts: to change them, start it with the command-line option, the environment variable, or an app settings file (`-s`) that sets them. The results folder can also be set for each run in a tool's dialog (`Save results in`).
+The dialog only shows the settings. They apply when FLIMAnalyzer starts: to change them, start it with the command-line option, the environment variable, or an app settings file (`-s`) that sets them. The results folder can also be set for each run in a tool's dialog (`Save results`).
 
 ## The user settings file
 
-The GUI saves the settings you change in it to the user settings file, automatically. These are the settings of the tool dialogs, including the folder under `Save results in`, and the range filters. They apply again the next time the GUI starts. This includes the settings of `File` > `Import...` (the Import tool's: delimiter, filename parser, files to leave out); the files you import are not saved.
+The GUI saves the settings you change in it to the user settings file, automatically. These are the settings of the tool dialogs, including the folder under `Save results`, and the range filters. They apply again the next time the GUI starts. `File` > `Import...` keeps only the workflow you used last (`import_workflow`); the files you import are not saved.
 
 The user settings file is `usersettings.json` in the platform's settings folder:
 
@@ -172,7 +172,7 @@ Some tools have a table with a row for each feature, for example the table of ra
 ```
 
 * `schema_version`: the version of the file format.
-* `results_dir`: the folder under `Save results in` for tools that have no folder of their own. If it is not set (`null`), the results go to the folder FLIMAnalyzer was started from.
+* `results_dir`: the folder under `Save results` for tools that have no folder of their own. If it is not set (`null`), the results go to the folder FLIMAnalyzer was started from.
 * `execution`: the executor and its options, as with `-e` (see [Concurrent and Distributed Execution](/userguide/execution)). For example, `{"executor": "dask-local", "workers": 8, "scheduler": "processes"}`, or `{"executor": "dask", "address": "tcp://host:8786"}`.
 * `prefect_server`: `false` does the same as `--no-prefect-server`.
 * `log`: the log folder (`dir`) and how many days the GUI keeps its log files (`max_age_days`). If the folder is not set (`null`), the GUI uses the platform's log folder and `flimbatch` its output folder (see [Log files](/install/index.md#log-files)).

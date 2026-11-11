@@ -95,12 +95,37 @@ class WorkflowDefinition(BaseModel):
     steps: list[WorkflowStep] = Field(min_length=1)
 
 
-def workflow_group(definition: WorkflowDefinition) -> str:
-    """Return the label of a workflow file's group in menus: its first tag, with a
-    capital first letter, or `Workflow Files` if it has no tags."""
-    if not definition.tags:
+def panel_group(definition: WorkflowDefinition, groups) -> Optional[str]:
+    """Return the tool panel group a workflow file's tags name, or None.
+
+    Args:
+        definition: The workflow.
+        groups: The group names, e.g. `File` and the tool categories.
+
+    Returns:
+        The first group named by a tag (case is ignored), or None if no tag names
+        one.
+    """
+    by_name = {g.lower(): g for g in groups}
+    return next((by_name[t.lower()] for t in definition.tags if t.lower() in by_name), None)
+
+
+def workflow_group(definition: WorkflowDefinition, groups=()) -> str:
+    """Return the label of a workflow file's submenu in the Workflow menu.
+
+    Args:
+        definition: The workflow.
+        groups: Tags to pass over because they name a tool panel group (see
+            `panel_group`).
+
+    Returns:
+        The first other tag, with a capital first letter, or `Workflow Files` if
+        there is none.
+    """
+    skip = {g.lower() for g in groups}
+    tag = next((t for t in definition.tags if t.lower() not in skip), None)
+    if tag is None:
         return "Workflow Files"
-    tag = definition.tags[0]
     return tag[:1].upper() + tag[1:]
 
 

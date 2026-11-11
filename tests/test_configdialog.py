@@ -507,3 +507,40 @@ def test_dialog_shows_the_example_and_the_data_checks(dialog):
 
 def test_no_example_line_for_other_tools(dialog):
     assert not dialog("K-Means").example.IsShown()
+
+
+def test_save_results_and_the_two_folders(dialog, tmp_path):
+    """`Use the default folder` switches the field between the default folder and
+    the tool's own one; without `Save results` the controls below are greyed."""
+    default, own = tmp_path / "default", tmp_path / "own"
+    execution = ExecutionOptions(autosave={"enabled": True, "results_dir": own})
+    d = dialog("K-Means", execution=execution, default_folder=default)
+    assert d.autosave.GetLabel() == "Save results"
+    assert not d.use_default.GetValue() and d.folder.GetPath() == str(own)
+    assert d.folder.IsEnabled() and d.make_default.IsEnabled()
+    d.use_default.SetValue(True)
+    d._on_use_default()
+    assert d.folder.GetPath() == str(default) and not d.folder.IsEnabled()
+    assert not d.make_default.IsEnabled()
+    d.use_default.SetValue(False)
+    d._on_use_default()
+    assert d.folder.GetPath() == str(own) and d.folder.IsEnabled()  # the own folder again
+    # not saving: everything below is greyed and keeps its values
+    d.autosave.SetValue(False)
+    d.validate()
+    assert not any(c.IsEnabled() for c in (d.folder, d.use_default, d.make_default))
+    assert not any(panel.IsEnabled() for panel in d.formats.panels)
+    assert d.folder.GetPath() == str(own)
+    d.autosave.SetValue(True)
+    d.validate()
+    assert d.folder.IsEnabled() and d.use_default.IsEnabled()
+
+
+def test_own_folder_starts_with_the_default(dialog, tmp_path):
+    default = tmp_path / "default"
+    d = dialog("K-Means", default_folder=default)
+    assert d.use_default.GetValue()
+    d.use_default.SetValue(False)
+    d._on_use_default()
+    assert d.folder.GetPath() == str(default)  # no folder of its own yet
+    assert not d.make_default.IsEnabled()  # it is the default already
