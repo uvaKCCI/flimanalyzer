@@ -164,7 +164,7 @@ The server found or started at startup is used for all runs until FLIMAnalyzer c
 
 With `--no-prefect-server`, step 3 is skipped: if no server is found, Prefect starts a temporary server for each run, which stops when the run ends.
 
-The Prefect UI shows the flow and task runs of a server in the web browser, for example at [http://127.0.0.1:4200](http://127.0.0.1:4200) for a local server. The progress dialog links to each run there (see [The progress dialog](/userguide/workflows.md#the-progress-dialog)). To keep a local server running between sessions, start it yourself in a separate terminal with `uv run prefect server start` (or `prefect server start` in an activated environment).
+The Prefect UI shows the flow and task runs of a server in the web browser, for example at [http://127.0.0.1:4200](http://127.0.0.1:4200) for a local server. The progress dialog links to each run there (see [The progress dialog](/userguide/workflows.md#the-progress-dialog)). Each task run shows the settings its tool ran with in its `Artifacts` tab, as JSON; no data values are sent there. To keep a local server running between sessions, start it yourself in a separate terminal with `uv run prefect server start` (or `prefect server start` in an activated environment).
 
 ### Using another Prefect server
 

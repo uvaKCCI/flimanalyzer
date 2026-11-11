@@ -270,6 +270,7 @@ def _retry_unless_cancelled(task, task_run, state) -> bool:
 )
 def run_tool(tool, label: str, kwargs: Dict[str, Any], autosave: Optional[dict]):
     """Prefect task that runs a single tool call."""
+    _record_settings(tool, kwargs.get("config"))
     results = _run_tool(tool, kwargs)
     if autosave:
         only = autosave.get("only")
@@ -284,6 +285,23 @@ def run_tool(tool, label: str, kwargs: Dict[str, Any], autosave: Optional[dict])
         # the results still go to the next tasks (checked with Prefect 3.8.8)
         return Completed(message="; ".join(warnings), data=results)
     return results
+
+
+def _record_settings(tool, config) -> None:
+    """Attach the settings a task runs with to its task run, as a Prefect artifact
+    (the run's Artifacts tab in the Prefect UI): the config as JSON, no data values.
+    A failure is logged, not raised: the run doesn't depend on it."""
+    if config is None or not hasattr(config, "model_dump_json"):
+        return
+    try:
+        from prefect.artifacts import create_markdown_artifact
+
+        create_markdown_artifact(
+            markdown=f"```json\n{config.model_dump_json(indent=2)}\n```",
+            description=f"{getattr(tool, 'name', 'Tool')}: settings",
+        )
+    except Exception as err:  # e.g. no Prefect API reachable
+        logger.debug(f"Settings artifact not created: {err}")
 
 
 class _StartNotifier:

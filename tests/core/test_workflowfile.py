@@ -319,3 +319,21 @@ def test_old_import_settings_become_an_equivalent_workflow(prefect_harness, raw_
         old.sort_values("Source").reset_index(drop=True)[columns],
         check_categorical=False,
     )
+
+
+def test_each_task_records_its_settings_in_prefect(prefect_harness):
+    from prefect.client.orchestration import get_client
+    from prefect.client.schemas.filters import ArtifactFilter, ArtifactFilterFlowRunId
+
+    definition = {
+        "name": "settings artifact",
+        "steps": [{"id": "1", "tool": "Summarize", "config": {"aggs": ["max"], "features": ["t1"]}}],
+    }
+    run = _run(definition, {"a.txt": _tables()["a.txt"]})
+    assert run.state == "completed"
+    with get_client(sync_client=True) as client:
+        artifacts = client.read_artifacts(
+            artifact_filter=ArtifactFilter(flow_run_id=ArtifactFilterFlowRunId(any_=[run.flow_run_id]))
+        )
+    settings = [a for a in artifacts if (a.description or "").startswith("Summarize")]
+    assert len(settings) == 1 and '"aggs"' in settings[0].data and '"max"' in settings[0].data
