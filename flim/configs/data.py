@@ -93,7 +93,9 @@ class CategoryOrderConfig(DataTaskConfig):
 
 
 class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
-    legacy_keys = {"mode": None, "clash_name": None, "clash_renames": None}
+    legacy_keys = {
+        "mode": None, "clash_name": None, "clash_renames": None, "add_input": None,
+    }  # fmt: skip
     legacy_dropped = frozenset({"source_suffix"})  # unused
     hidden_fields = frozenset({"grouping", "features"})
 
@@ -113,6 +115,11 @@ class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
         default=False,
         title="Numeric columns only",
         description="Columns: append only the numeric columns of the other tables.",
+    )
+    add_input: bool = Field(
+        default=True,
+        title="Add Input column",
+        description="Rows: a column with the name of each row's table.",
     )
     clash_name: str = Field(
         default="{name} ({table})",

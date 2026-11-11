@@ -103,7 +103,7 @@ class Concat(Tool[ConcatConfig]):
 
     @classmethod
     def validate_data(cls, config, tables):
-        if config.mode == "horizontal":
+        if config.mode == "horizontal" or not config.add_input:
             return []
         issues = []
         for i, table in enumerate(tables):
@@ -152,7 +152,7 @@ class Concat(Tool[ConcatConfig]):
             return {"Concatenated": pd.concat(frames, axis=1, copy=True)}
         # an Input column a table already has (e.g. from an earlier Concatenate) is
         # renamed, by default "Input (<table>)"
-        for i, (name, df) in enumerate(zip(tables, frames)):
+        for i, (name, df) in enumerate(zip(tables, frames) if config.add_input else ()):
             renames = make_room(
                 df.columns, [INPUT], config.clash_name, config.renames(),
                 tool=self.short(), table=name,
@@ -165,7 +165,8 @@ class Concat(Tool[ConcatConfig]):
         names = concat.index.get_level_values(0)  # the table of each row
         concat = concat.reset_index(drop=True)
         concat[catcols] = concat[catcols].astype("category")
-        concat.insert(0, INPUT, pd.Categorical(names))  # categories sorted, as in 0.6
+        if config.add_input:
+            concat.insert(0, INPUT, pd.Categorical(names))  # categories sorted, as in 0.6
         return {"Concatenated": concat}
 
 
