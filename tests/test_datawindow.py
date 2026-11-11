@@ -196,19 +196,19 @@ def _results_files(tmp_path, flim_data):
 
 
 def test_import_runs_a_workflow_on_the_files(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
-    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data), "Import: FOV, Treatment, Cell")
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data), "Import")
     before = set(frame.windows_by_title())
     frame.OnImportData(None)
     # one window: the result no later step uses (the joined, calculated table)
     (title, window), = _new_windows(frame, before).items()
     assert title == "Table: Calculated"
     table = window.GetViewData()
-    assert len(table) == 25 and set(table["Treatment"]) == {"WT", "KO"}
+    assert len(table) == 25 and "FLIRR" in table.columns
     assert not window.modified  # saved: the step is marked to save
     from flim.tools.readers import ImportTables
 
     # remembered as Import Tables' settings
-    assert frame.settings.tools.config(ImportTables).workflow == "Import: FOV, Treatment, Cell"
+    assert frame.settings.tools.config(ImportTables).workflow == "Import"
 
 
 def test_import_refuses_runs_with_too_many_windows(frame, monkeypatch, tmp_path, flim_data):
@@ -535,19 +535,16 @@ def _spec(name):
 
 
 def test_import_with_another_workflow_file(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
-    import json
+    from tests.workflows import import_with_preset, write_workflow
 
-    from flim.core.workflowfile import BUILT_IN
-
-    data = json.loads((BUILT_IN / "import-fov-treatment-cell.json").read_text())
-    data["name"], data["tags"] = "Mine", []
-    path = tmp_path / "mine.json"
-    path.write_text(json.dumps(data))
+    data = import_with_preset("FOV, Treatment, Cell", name="Mine")
+    path = write_workflow(tmp_path / "mine.json", data)
     _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data), str(path))
     before = set(frame.windows_by_title())
     frame.OnImportData(None)
     (window,) = _new_windows(frame, before).values()
-    assert len(window.GetViewData()) == 25
+    table = window.GetViewData()
+    assert len(table) == 25 and set(table["Treatment"]) == {"WT", "KO"}
 
 
 def test_import_without_a_workflow_opens_the_tables(frame, monkeypatch, tmp_path, prefect_harness, flim_data):

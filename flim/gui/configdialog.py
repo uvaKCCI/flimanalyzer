@@ -187,19 +187,7 @@ class ConfigDialog(wx.Dialog):
         self.scroll.SetupScrolling(scroll_x=False)
         settings_box.Add(self.scroll, 1, wx.EXPAND)
         buttons = wx.BoxSizer(wx.HORIZONTAL)
-        for label, tip, handler in (
-            (
-                "Load Settings...",
-                "This tool's settings from a settings file",
-                self._on_load_settings,
-            ),
-            (
-                "Save Settings...",
-                "Adds or updates this tool's settings in a settings file; its other"
-                " settings are kept",
-                self._on_save_settings,
-            ),
-        ):
+        for label, tip, handler in self.settings_buttons():
             button = wx.Button(self, label=label)
             button.SetToolTip(tip)
             button.Bind(wx.EVT_BUTTON, handler)
@@ -288,6 +276,23 @@ class ConfigDialog(wx.Dialog):
         """Return the FieldsPanels of the config: Settings, and Output if it has
         fields."""
         return [p for p in (self.fields, getattr(self, "output_fields", None)) if p]
+
+    def settings_buttons(self) -> list:
+        """Return the buttons below the Settings section, as (label, tooltip, handler)
+        tuples: Load Settings... and Save Settings...; dialogs of some tools add more."""
+        return [
+            (
+                "Load Settings...",
+                "This tool's settings from a settings file",
+                self._on_load_settings,
+            ),
+            (
+                "Save Settings...",
+                "Adds or updates this tool's settings in a settings file; its other"
+                " settings are kept",
+                self._on_save_settings,
+            ),
+        ]
 
     def set_values(self, config) -> None:
         """Show a config in the fields of both sections."""

@@ -21,14 +21,15 @@ The files are read with the settings of the `Open Tables` tool (see [Read settin
 
 1. Go to `File` > `Import Tables...` or click the `Import Tables` icon.
 2. Choose one or more data files and click `Open`.
-3. The `Import Tables` dialog shows how the files are read (see [Read settings](#read-settings)) and, under `Workflow`, the workflow to run on the tables. The dialog keeps your choices for the next time. The list shows the workflow files tagged `import` (all workflow files if none is tagged, see [Workflow files](/userguide/workflows.md#workflow-files)). The built-in ones:
+3. The `Import Tables` dialog shows how the files are read (see [Read settings](#read-settings)) and, under `Workflow`, the workflow to run on the tables. The dialog keeps your choices for the next time. The list shows the workflow files tagged `import` (all workflow files if none is tagged, see [Workflow files](/userguide/workflows.md#workflow-files)):
     - `Import`: renames the channels' columns (for example `Exc1_-Ch2-_t1` to `NAD(P)H t1`, see [Rename Columns](rename.md)), drops the other channels' columns ([Drop Columns](drop.md)), joins the tables into one and adds the calculated FLIM features ([Calculate](calculate.md)). This is what `Import...` did up to FLIMAnalyzer 0.6 with the default settings.
-    - `Import: FOV, Treatment, Cell` and the other `Import: ...` workflows: the same, and then they take these categories from the file paths, as the filename parsers of FLIMAnalyzer 0.6 did (a [Separate Categories](separate.md) step on `Source`). For example, `Import: FOV, Treatment, Cell` reads `FOV` `a`, `Treatment` `ctrl` and `Cell` `1` from `Results-a-ctrl-1.txt`.
-    - Your own workflow files, for example a copy of a built-in one with other patterns (see [Workflow files](/userguide/workflows.md#workflow-files)).
+    - Your own workflow files, for example a copy of `Import` with a Separate Categories step that takes categories from the file names (see [Workflow files](/userguide/workflows.md#workflow-files)).
     - `Other Workflow File...`, the last entry: choose any workflow file, also one without the tag `import` or outside the workflow search path.
     - `None (open the tables)`: no workflow; each table opens in a window, as with `Open Tables`.
 4. Click `OK`. With a workflow, FLIMAnalyzer shows its steps; click `Run`.
 5. The files are read, one task per file, and the workflow runs on the tables. A window opens for each result that no later step of the workflow uses, for example the joined table of `Import`. Results that the workflow saves open as saved; the run summary shows where.
+
+**Categories from the file names:** after importing with `Import`, use [Separate Categories](separate.md) with one of its presets, the filename parsers of FLIMAnalyzer 0.6 (for example `FOV, Treatment, Cell`), on the `Source` column. To have them in every import, add such a step to your own copy of `Import` (see [Presets](separate.md#presets)).
 
 Before the run, the workflow's steps are checked against the first 20 rows of each file. If a run would open more windows than the app setting `max_windows` allows (by default 10 tables, 10 plots and 4 images), for example a workflow without a step that joins the tables run on 300 files, it doesn't start, and a message suggests running it with `flimbatch` or choosing a workflow that joins the tables, for example with `Concatenate`.
 

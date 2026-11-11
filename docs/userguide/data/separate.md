@@ -33,6 +33,30 @@ For example, to separate file names like `Results-ko_01.txt`: `Part` `file name 
 
 ## By patterns
 
-Each pattern makes one new column: its name, and a regular expression whose first group, in parentheses, is the value. These are the same patterns as the filename parsers of FLIMAnalyzer 0.6 used, and the built-in `Import: ...` workflows use (see [Import Tables](/userguide/data/load.md#import-tables)). For example, the pattern `/data/(.*?)/` takes `ctrl` from `/data/ctrl/FOV1/cell3.txt`. Backslashes in Windows paths are matched as `/`.
+Each pattern makes one new column: its name, and a regular expression whose first group, in parentheses, is the value. The filename parsers of FLIMAnalyzer 0.6 are presets with such patterns (see [Presets](#presets)). For example, the pattern `/data/(.*?)/` takes `ctrl` from `/data/ctrl/FOV1/cell3.txt`. Backslashes in Windows paths are matched as `/`.
 
 A group that matches nothing gives `?`. A value that the pattern doesn't match gets a missing value. The run summary reports a pattern that matched no value at all.
+
+## Presets
+
+The buttons below the settings load and save presets: settings for how to separate, by name.
+
+* `Load Preset...` fills in the settings of a preset: the column, the mode, the part, the delimiters, the new columns' names and the patterns. The other settings stay as they are.
+* `Save as Preset...` saves these settings of the dialog as a preset of your own, in the user settings file (`separate_presets`). A preset with the same name is replaced; the names of the built-in presets can't be used.
+* `Remove Presets...` removes presets you saved. The built-in ones can't be removed.
+
+The built-in presets are the filename parsers of FLIMAnalyzer 0.6, as patterns on the `Source` column, named after the categories they take from the file paths: `FOV, Treatment, Cell`, `Treatment, FOV, Cell`, `Treatment, FOV, Time`, `Treatment, Time`, `FOV, Time, Well`, `Compartment, FOV, Treatment, Cell`, `Compartment, Treatment, FOV, Cell` and `Cell line, Compartment, FOV, Treatment, Cell`. For example, `FOV, Treatment, Cell` reads `FOV` `a`, `Treatment` `ctrl` and `Cell` `1` from `Results-a-ctrl-1.txt`, with these patterns:
+
+```
+{"name": "FOV", "regex": ".*/.*?[_-](.*?)[_-]"}
+{"name": "Treatment", "regex": ".*/.*?[_-].*?[_-](.*?)[_-]"}
+{"name": "Cell", "regex": ".*/.*?[_-].*?[_-].*?[_-](\\d*?)\\."}
+```
+
+To take categories from the file names in every import, also in [batch mode](/userguide/batch), copy the built-in `Import` workflow (see [Workflow files](/userguide/workflows.md#workflow-files)) and add a step before `Calculate`, for example:
+
+```
+{"id": "5", "tool": "Separate Categories", "config": {"column": "Source", "mode": "patterns", "patterns": [ ... ]}}
+```
+
+with the patterns of the preset; the ids of the steps after it change accordingly.

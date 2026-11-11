@@ -102,7 +102,7 @@ Which GPU can be used depends on the PyTorch build that was installed (see [Inst
 
 ## Run FLIMAnalyzer in batch mode
 
-`flimbatch` reads data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. A workflow file (`--workflow`, or a built-in one such as `--run "Import: FOV, Treatment, Cell"`) says exactly what is done with the files; tools take their settings from an app settings file, given with `-s` and saved in the GUI (File > Export Settings...). A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
+`flimbatch` reads data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. A workflow file (`--workflow`, or the built-in one, `--run Import`) says exactly what is done with the files; tools take their settings from an app settings file, given with `-s` and saved in the GUI (File > Export Settings...). A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
 
     uv run flimbatch -i data/ -o results/ -s settings.json \
         --run Summarize --run "Basic FLIRR Analysis"

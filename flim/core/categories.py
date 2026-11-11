@@ -217,3 +217,94 @@ def separate_by_patterns(data: pd.DataFrame, column: str, patterns, part: str = 
             result.warnings.append(f"{name}: the pattern '{regex}' matched no value")
         result.columns[name] = pd.Categorical(values)
     return result
+
+
+# the column, mode, part, delimiters, names and patterns of Separate Categories that a
+# preset sets (see `separate_presets`)
+PRESET_FIELDS = ("column", "mode", "part", "delimiters", "names", "patterns")
+
+
+def separate_presets() -> list[dict]:
+    """Return the built-in presets of Separate Categories: the filename parsers of
+    FLIMAnalyzer 0.6, as patterns on the `Source` column.
+
+    Returns:
+        One dict per preset: its `name` and its `settings` (fields of
+        `PRESET_FIELDS`).
+    """
+    return [
+        {"name": name, "settings": {"column": "Source", "mode": "patterns", "patterns": patterns}}
+        for name, patterns in _PARSER_PATTERNS
+    ]
+
+
+# (preset name, patterns) of the 0.6 filename parsers (flim.core.parser)
+_PARSER_PATTERNS = [
+    (
+        "Cell line, Compartment, FOV, Treatment, Cell",
+        [
+            {"name": "Cell line", "regex": r".*/(.*?)/.*/"},
+            {"name": "Compartment", "regex": r".*/(.*?)/"},
+            {"name": "FOV", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "Treatment", "regex": r".*/.*?[_-].*?[_-](.*?)[_-]"},
+            {"name": "Cell", "regex": r".*/.*?[_-].*?[_-].*?[_-](\d*?)\."},
+        ],
+    ),
+    (
+        "Compartment, FOV, Treatment, Cell",
+        [
+            {"name": "Compartment", "regex": r".*/(.*?)/"},
+            {"name": "FOV", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "Treatment", "regex": r".*/.*?[_-].*?[_-](.*?)[_-]"},
+            {"name": "Cell", "regex": r".*/.*?[_-].*?[_-].*?[_-](\d*?)\."},
+        ],
+    ),
+    (
+        "Compartment, Treatment, FOV, Cell",
+        [
+            {"name": "Compartment", "regex": r".*/(.*?)/"},
+            {"name": "Treatment", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "FOV", "regex": r".*/.*?[_-].*?[_-](.*?)[_-]"},
+            {"name": "Cell", "regex": r".*/.*?[_-].*?[_-].*?[_-](\d*?)\."},
+        ],
+    ),
+    (
+        "FOV, Time, Well",
+        [
+            {"name": "FOV", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "Time", "regex": r".*/.*?[_-].*?[_-](.*?)[_-]"},
+            {"name": "Well", "regex": r".*/.*?[_-].*?[_-].*?[_-](.*?)\."},
+        ],
+    ),
+    (
+        "FOV, Treatment, Cell",
+        [
+            {"name": "FOV", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "Treatment", "regex": r".*/.*?[_-].*?[_-](.*?)[_-]"},
+            {"name": "Cell", "regex": r".*/.*?[_-].*?[_-].*?[_-](\d*?)\."},
+        ],
+    ),
+    (
+        "Treatment, FOV, Cell",
+        [
+            {"name": "Treatment", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "FOV", "regex": r".*/.*?[_-].*?[_-](.*?)[_-]"},
+            {"name": "Cell", "regex": r".*/.*?[_-].*?[_-].*?[_-](\d*?)\."},
+        ],
+    ),
+    (
+        "Treatment, FOV, Time",
+        [
+            {"name": "Treatment", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "FOV", "regex": r".*/.*?[_-].*?[_-](.*?)[_-]"},
+            {"name": "Time", "regex": r".*/.*?[_-].*?[_-].*?[_-](\d*?)\."},
+        ],
+    ),
+    (
+        "Treatment, Time",
+        [
+            {"name": "Treatment", "regex": r".*/.*?[_-](.*?)[_-]"},
+            {"name": "Time", "regex": r".*/.*?[_-].*?[_-](\d*?)\."},
+        ],
+    ),
+]

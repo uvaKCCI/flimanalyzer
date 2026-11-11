@@ -69,6 +69,7 @@ import flim.gui.dialogs.calculate  # noqa: F401  (the calculations table and pre
 import flim.gui.dialogs.categoryorder  # noqa: F401
 import flim.gui.dialogs.filter  # noqa: F401
 import flim.gui.dialogs.readers  # noqa: F401  (Import Tables: the workflow choice)
+import flim.gui.dialogs.separate  # noqa: F401  (Separate Categories: presets)
 import flim.gui.dialogs.unpivot  # noqa: F401
 
 logger = logging.getLogger(__name__)
@@ -276,6 +277,7 @@ class AppFrame(wx.Frame):
         self._quit_confirmed = False  # the user chose to quit (confirm_quit)
         self.refresh_window_filters()
         flim.gui.dialogs.calculate.bind(self.settings_manager)  # the saved presets
+        flim.gui.dialogs.separate.bind(self.settings_manager)
         # the items the windows show (tables, plots): the windows are views of them
         self.data_manager = DataManager()
         self.windowframes = {}  # item ID -> its window

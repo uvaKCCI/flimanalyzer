@@ -239,10 +239,11 @@ def raw_dir(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "file, parser",
-    [("import.json", "defaultparser"), ("import-fov-treatment-cell.json", "fov_treatment_cell_parser")],
+    "preset, parser", [(None, "defaultparser"), ("FOV, Treatment, Cell", "fov_treatment_cell_parser")]
 )
-def test_built_in_import_files_match_the_import_of_0_6(prefect_harness, raw_dir, file, parser):
+def test_built_in_import_and_presets_match_the_import_of_0_6(prefect_harness, raw_dir, tmp_path, preset, parser):
+    """Import alone, and Import with the Separate Categories step of a preset, give
+    what 0.6's import gave with the default parser or that filename parser."""
     from flim.core.reader import read_tables
     from flim.core.settings import AppSettings
     from flim.core.importer import dataimporter
@@ -250,7 +251,12 @@ def test_built_in_import_files_match_the_import_of_0_6(prefect_harness, raw_dir,
     from flim.core.workflowfile import BUILT_IN
     from flim.tools.data import import_preprocessor
 
-    check = check_workflow_file(BUILT_IN / file)
+    from tests.workflows import import_with_preset, write_workflow
+
+    path = BUILT_IN / "import.json" if preset is None else write_workflow(
+        tmp_path / "preset.json", import_with_preset(preset)
+    )
+    check = check_workflow_file(path)
     assert check.errors == []
     run = workflow_class(check.definition)().run_flow(read_tables([raw_dir]).tables)
     assert run.state == "completed", run.failed
@@ -283,7 +289,7 @@ def test_every_built_in_file_is_valid():
     from flim.core.workflowfile import BUILT_IN
 
     files = sorted(BUILT_IN.glob("*.json"))
-    assert len(files) == 9
+    assert [p.name for p in files] == ["import.json"]
     for path in files:
         assert check_workflow_file(path).errors == [], path
 

@@ -262,6 +262,13 @@ class AppSettings(_Settings):
         description="Calculations saved in the Calculate dialog (Save as Presets), offered"
         " by its Add Calculations button besides the built-in ones.",
     )
+    separate_presets: list[dict] = Field(
+        default=[],
+        title="Saved Separate Categories presets",
+        description="Presets saved in the Separate Categories dialog (Save as Preset...),"
+        " offered by its Load Preset... button besides the built-in ones: a name and"
+        " the settings it sets (column, mode, part, delimiters, names, patterns).",
+    )
     favorites: list[str] = Field(
         default=[],
         title="Favorites",
@@ -431,7 +438,7 @@ def _v1_calculations(calculate: dict) -> list:
 def _v1_import(data: dict, changes: "Changes") -> None:
     """0.6's `import` section (delimiter, filename parser and patterns, files left
     out, column combinations) is dropped: what a run does with the files is a
-    workflow file's (e.g. the built-in `Import: FOV, Treatment, Cell`)."""
+    workflow file's (e.g. the built-in `Import`)."""
     section = data.pop("import", None)
     if not isinstance(section, dict):
         return

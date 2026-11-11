@@ -773,3 +773,50 @@ def test_calculation_editor_example_without_use_or_keep(wxapp, table):
         assert d.validate() and d.example.GetLabel().startswith("Example: helper = ")
     finally:
         d.Destroy()
+
+
+def test_separate_categories_presets(wxapp, monkeypatch):
+    """Load Preset... fills the settings of a built-in or saved preset; Save as
+    Preset... and Remove Presets... change only the saved ones."""
+    import flim.gui.dialogs.separate as separate
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results_a_ctrl_1.txt"], "t1": [1.0]})
+    manager = SettingsManager()
+    separate.bind(manager)
+    tool = tools.get("Separate Categories")
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        assert isinstance(d, separate.SeparateDialog)
+        # Load Preset...: the 0.6 parser FOV, Treatment, Cell
+        monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        built_in = [p["name"] for p in separate.separate_presets()]
+        index = built_in.index("FOV, Treatment, Cell")
+        monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: index)
+        d._on_load_preset(None)
+        config, _ = d.current_config()
+        assert config.mode == "patterns" and [p.name for p in config.patterns] == ["FOV", "Treatment", "Cell"]
+        # Save as Preset...: in the user settings, under its name; a built-in name is refused
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        (saved,) = manager.settings.separate_presets
+        assert saved["name"] == "Mine" and saved["settings"]["column"] == "Source"
+        assert set(saved["settings"]) == set(separate.PRESET_FIELDS)
+        messages = []
+        monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Treatment, Time")
+        d._on_save_preset(None)
+        assert "built-in" in messages[0] and len(manager.settings.separate_presets) == 1
+        # the saved one is offered after the built-in ones
+        assert [p["name"] for p in separate.saved_presets()] == ["Mine"]
+        # Remove Presets...
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0])
+        d._on_remove_presets(None)
+        assert manager.settings.separate_presets == []
+    finally:
+        d.Destroy()
+        separate.bind(None)

@@ -124,27 +124,38 @@ def test_a_workflow_file_joins_the_files(data_dir, settings, tmp_path):
     assert list(table.columns) == ["Treatment", "FLIRR mean"] and set(table["Treatment"]) == {"WT", "KO"}
 
 
-def test_the_built_in_import_workflows_run_by_name(data_dir, tmp_path):
+def test_the_built_in_import_workflow_runs_by_name(data_dir, tmp_path):
     out = tmp_path / "out"
-    code = main(["-i", str(data_dir), "-o", str(out), "--run", "Import: FOV, Treatment, Cell",
-                 "--no-prefect-server"])
+    code = main(["-i", str(data_dir), "-o", str(out), "--run", "Import", "--no-prefect-server"])
+    assert code == 0
+    (calculated,) = (out / "Import").rglob("*Calculated*")
+    table = pd.read_csv(calculated, sep="\t")
+    assert len(table) == 40 and "FLIRR" in table.columns
+
+
+def test_import_with_a_preset_step_takes_the_categories(data_dir, tmp_path):
+    from tests.workflows import import_with_preset, write_workflow
+
+    path = write_workflow(tmp_path / "fov.json", import_with_preset("FOV, Treatment, Cell"))
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "--workflow", str(path), "--no-prefect-server"])
     assert code == 0
     (calculated,) = (out / "Import: FOV, Treatment, Cell").rglob("*Calculated*")
     table = pd.read_csv(calculated, sep="\t")
-    assert len(table) == 40 and set(table["Treatment"]) == {"WT", "KO"}
+    assert set(table["Treatment"]) == {"WT", "KO"} and set(table["FOV"]) == {"FOV1", "FOV2"}
 
 
 def test_import_tables_takes_reading_and_workflow_from_the_settings(data_dir, settings, tmp_path, capsys):
     from flim.configs import ImportTablesConfig
     from flim.tools.readers import ImportTables
 
-    settings.tools.set(ImportTables, ImportTablesConfig(workflow="Import: FOV, Treatment, Cell"))
+    settings.tools.set(ImportTables, ImportTablesConfig(workflow="Import"))
     path = _settings_file(settings, tmp_path)
     out = tmp_path / "out"
     code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Import Tables",
                  "--no-prefect-server"])  # fmt: skip
     assert code == 0
-    (calculated,) = (out / "Import: FOV, Treatment, Cell").rglob("*Calculated*")
+    (calculated,) = (out / "Import").rglob("*Calculated*")
     assert len(pd.read_csv(calculated, sep="\t")) == 40
     # without a workflow in the settings: an error that says what to set
     settings.tools.set(ImportTables, ImportTablesConfig())
