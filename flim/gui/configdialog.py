@@ -1,10 +1,10 @@
 """Configuration dialogs of tools, generated from their config classes.
 
-``open_config_dialog(parent, Tool, config, data_choices)`` shows the dialog registered
-for the tool's config class (``register_dialog``) or the generic :class:`ConfigDialog`.
-The dialog lets the user pick the input tables, edit the config and choose whether
-results are saved; it checks the config against the inputs while it is edited and
-marks problems at their fields (errors keep OK disabled).
+`open_config_dialog(parent, tool, config, data_choices=...)` shows the dialog
+registered for the tool's config class (`register_dialog`) or the generic
+`ConfigDialog`. The dialog lets the user pick the input tables, edit the config and
+choose whether results are saved; it checks the config against the inputs while it
+is edited and marks problems at their fields (errors keep OK disabled).
 """
 
 import logging
@@ -13,7 +13,8 @@ import os
 from pathlib import Path
 import re
 from dataclasses import dataclass
-from typing import Any, Callable, Optional
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 import pandas as pd
 import wx
@@ -30,6 +31,11 @@ from flim.core.settings import read_tool_settings, tool_settings, write_tool_set
 from flim.gui.editors import FieldErrors, FieldsPanel
 from flim.gui.formats import FormatsBox
 
+if TYPE_CHECKING:
+    from flim.core.saving import AutosaveConfig, SaveOptions
+    from flim.core.settings import ToolSettings
+    from flim.core.tool import Tool
+
 logger = logging.getLogger(__name__)
 
 SEVERITY_ORDER = ("error", "guessed", "warning")  # first: most severe
@@ -37,6 +43,20 @@ SEVERITY_ORDER = ("error", "guessed", "warning")  # first: most severe
 
 @dataclass
 class DialogResult:
+    """What a configuration dialog returns when it is closed with OK.
+
+    Attributes:
+        config: The edited config.
+        inputs: Per input of the tool: the selected table, or for an input with
+            `many=True` a dict of the selected tables by name.
+        input_names: Per input of the tool: the selected table's name, or for an
+            input with `many=True` a list of names.
+        execution: The execution options of the run; its results folder is
+            resolved (the default folder if the tool follows it).
+        stored_autosave: The autosave settings to store in the tool's settings: no
+            results folder if the tool follows the default folder.
+    """
+
     config: TaskConfig
     inputs: list  # per InputSpec: a DataFrame, or a dict of them (many=True)
     input_names: list  # per InputSpec: a table name, or a list of names
@@ -48,10 +68,22 @@ class DialogResult:
 _DIALOGS: dict = {}
 
 
-def register_dialog(*config_classes):
-    """Class decorator: the dialog for these config classes (and their subclasses)."""
+def register_dialog(
+    *config_classes: type,
+) -> Callable[[type["ConfigDialog"]], type["ConfigDialog"]]:
+    """Return a class decorator that registers a dialog for config classes.
 
-    def register(dialog):
+    The dialog is used for these config classes and their subclasses (see
+    `dialog_class`).
+
+    Args:
+        *config_classes: The config classes.
+
+    Returns:
+        The decorator; it returns the dialog class unchanged.
+    """
+
+    def register(dialog: type["ConfigDialog"]) -> type["ConfigDialog"]:
         for config_class in config_classes:
             _DIALOGS[config_class] = dialog
         return dialog
@@ -60,14 +92,38 @@ def register_dialog(*config_classes):
 
 
 def dialog_class(config_class: type) -> type["ConfigDialog"]:
+    """Return the dialog class for a config class.
+
+    Args:
+        config_class: The config class of a tool.
+
+    Returns:
+        The dialog registered for the class or its nearest base class
+        (`register_dialog`), or `ConfigDialog` if none is registered.
+    """
     for base in config_class.__mro__:
         if base in _DIALOGS:
             return _DIALOGS[base]
     return ConfigDialog
 
 
-def open_config_dialog(parent, tool, config=None, **kwargs) -> Optional[DialogResult]:
-    """Shows the configuration dialog of ``tool`` (a Tool class); None if cancelled."""
+def open_config_dialog(
+    parent: Optional[wx.Window],
+    tool: type["Tool"],
+    config: Optional[TaskConfig] = None,
+    **kwargs: Any,
+) -> Optional[DialogResult]:
+    """Show the configuration dialog of a tool as a modal dialog.
+
+    Args:
+        parent: The parent window.
+        tool: The tool class.
+        config: The config to edit. Defaults to None: the config class's defaults.
+        **kwargs: Further arguments of the dialog (see `ConfigDialog`).
+
+    Returns:
+        The result, or None if the dialog was cancelled.
+    """
     dialog = dialog_class(tool.config_class)(parent, tool, config, **kwargs)
     try:
         if dialog.ShowModal() != wx.ID_OK:
@@ -78,11 +134,29 @@ def open_config_dialog(parent, tool, config=None, **kwargs) -> Optional[DialogRe
 
 
 def top_field(path: Optional[str]) -> Optional[str]:
-    """``"range_filters[0].column"`` → ``"range_filters"``."""
+    """Return the top-level field of a field path.
+
+    Args:
+        path: The path of a field, e.g. `range_filters[0].column`.
+
+    Returns:
+        The first name of the path, e.g. `range_filters`; None if `path` is None or
+        empty.
+    """
     return None if not path else re.split(r"[.\[]", path, maxsplit=1)[0]
 
 
 def validation_issues(error: ValidationError) -> list[Issue]:
+    """Return the errors of a pydantic validation as issues.
+
+    Args:
+        error: The validation error.
+
+    Returns:
+        One issue per error, at the field path of the error, or None for the config
+        as a whole (for example `range_filters[0].column`), with the message without
+        the prefix `Value error,`.
+    """
     issues = []
     for e in error.errors():
         path = ""
@@ -97,8 +171,20 @@ def validation_issues(error: ValidationError) -> list[Issue]:
     return issues
 
 
-def combined_schema(schemas) -> Optional[TableSchema]:
-    """The columns of all selected inputs (None if there are none)."""
+def combined_schema(
+    schemas: list[Union[TableSchema, dict[str, TableSchema], None]],
+) -> Optional[TableSchema]:
+    """Return a schema with the columns of all selected inputs.
+
+    Args:
+        schemas: Per input: its schema, a dict of schemas by table name (an input
+            with `many=True`), or None if no table is selected.
+
+    Returns:
+        The columns of all schemas (a column name that occurs more than once: its
+        first occurrence); complete if all schemas are; the header level names of
+        the first schema that has them. None if there are no schemas.
+    """
     flat = []
     for s in schemas:
         flat.extend(s.values() if isinstance(s, dict) else [s])
@@ -120,29 +206,50 @@ def combined_schema(schemas) -> Optional[TableSchema]:
 class ConfigDialog(wx.Dialog):
     """Generic configuration dialog of a tool, built from its config class.
 
-    Args:
-        tool: the Tool class.
-        config: the config to edit (default: the config class's defaults).
-        data_choices: open tables by name; the first is the current one.
-        selected: preselected table names per input (default: the i-th table for
-            the i-th input, all tables for an input with many=True).
-        execution: execution options; the dialog edits autosave and the folder.
-        autosave_locked: "Save results" is checked and cannot be unchecked.
+    The dialog has three sections: Input (the input tables, shown only if there are
+    `data_choices`), Settings (the editors of the config's fields) and Output (the
+    fields of the `output` section, whether and where the results are saved, and
+    the formats). Each change is checked (`validate`); OK is enabled only while
+    there are no errors.
     """
 
     def __init__(
         self,
-        parent,
-        tool,
-        config=None,
-        data_choices: Optional[dict] = None,
-        selected: Optional[list] = None,
+        parent: Optional[wx.Window],
+        tool: type["Tool"],
+        config: Optional[TaskConfig] = None,
+        data_choices: Optional[dict[str, Any]] = None,
+        selected: Optional[list[Union[str, list[str], None]]] = None,
         execution: Optional[ExecutionOptions] = None,
         autosave_locked: bool = False,
         strict: Optional[bool] = None,
-        default_folder=None,
-        on_make_default: Optional[Callable] = None,
-    ):
+        default_folder: Union[str, os.PathLike, None] = None,
+        on_make_default: Optional[Callable[[Path], Any]] = None,
+    ) -> None:
+        """Build the dialog and show the config, its inputs and output options.
+
+        Args:
+            parent: The parent window.
+            tool: The tool class.
+            config: The config to edit. Defaults to None: the config class's
+                defaults.
+            data_choices: The open tables by name; the first is the current one.
+                Defaults to None: no Input section.
+            selected: Per input: the preselected table name, or for an input with
+                `many=True` a list of names. Defaults to None: the i-th table for
+                the i-th input, all tables for an input with `many=True`.
+            execution: The execution options; the dialog edits their autosave
+                settings (whether to save, the folder and the formats). Defaults to
+                None: the default options.
+            autosave_locked: Whether `Save results` is checked and cannot be
+                unchecked (workflows). Defaults to False.
+            strict: For workflows: the `strict` of the checks of a config whose
+                `strict` is None. Defaults to None.
+            default_folder: The GUI's default results folder. Defaults to None: no
+                `Use the default folder` and `Make Default Folder`.
+            on_make_default: Called with the folder when the user makes it the
+                default results folder. Defaults to None.
+        """
         super().__init__(
             parent,
             title=f"Configuration: {tool.name}",
@@ -154,7 +261,7 @@ class ConfigDialog(wx.Dialog):
         self.execution = execution or ExecutionOptions()
         self.autosave_locked = autosave_locked
         self.strict = strict  # workflows: the default of a config whose strict is None
-        # the app's default results folder (None: no "Use the default folder"), and
+        # the GUI's default results folder (None: no "Use the default folder"), and
         # what makes a folder the default (SettingsManager)
         self.default_folder = Path(default_folder) if default_folder else None
         self.on_make_default = on_make_default
@@ -230,18 +337,29 @@ class ConfigDialog(wx.Dialog):
 
     # --- building ---
 
-    def selected_tables(self) -> list:
-        """Return the selected input tables (DataFrames), also those of an input
-        with several tables."""
+    def selected_tables(self) -> list[pd.DataFrame]:
+        """Return the selected input tables that are DataFrames.
+
+        The tables of an input with `many=True` are included.
+        """
         tables = []
         for value in self.selected_inputs():
             tables.extend(value.values() if isinstance(value, dict) else [value])
         return [t for t in tables if isinstance(t, pd.DataFrame)]
 
-    def data_issues(self, config) -> list[Issue]:
-        """Show the tool's example line, and return its checks against the input
-        tables' values (Tool.example, Tool.validate_data); none if the config is
-        not valid. A tool whose checks fail is logged, not shown."""
+    def data_issues(self, config: Optional[TaskConfig]) -> list[Issue]:
+        """Show the tool's example line and check the config against the input data.
+
+        The example line comes from `Tool.example`, the checks from
+        `Tool.validate_data`, both with the selected tables. An exception in them is
+        logged, not shown; the example line is then hidden.
+
+        Args:
+            config: The edited config; None if it is not valid.
+
+        Returns:
+            The issues; empty if `config` is None or the checks raised an exception.
+        """
         if config is None:
             self._show_example(None)
             return []
@@ -254,32 +372,52 @@ class ConfigDialog(wx.Dialog):
             self._show_example(None)
             return []
 
-    def _show_example(self, line) -> None:
+    def _show_example(self, line: Optional[str]) -> None:
+        """Show the example line below the settings; hide it if `line` is empty."""
         if not hasattr(self, "example"):
             return
         self.example.SetLabel(f"Example: {line}" if line else "")
         self.example.Show(bool(line))
 
     def output_field_names(self) -> list[str]:
-        """Return the config's fields shown in the Output section (e.g. the result
-        prefix), from their `section`."""
+        """Return the names of the config's fields shown in the Output section.
+
+        These are the fields whose `section` is `output`, e.g. the prefix of the
+        results' names.
+        """
         from flim.core.fields import describe
 
         return [s.name for s in describe(type(self.config)) if s.section == "output"]
 
-    def create_fields(self, parent) -> FieldsPanel:
-        """The editors of the Settings section; custom dialogs may add to or replace
-        them. The Output section's fields (`output_field_names`) are not among them."""
+    def create_fields(self, parent: wx.Window) -> FieldsPanel:
+        """Return the editors of the Settings section.
+
+        Subclasses can override this to add editors or replace them. The fields of
+        the Output section (`output_field_names`) are left out.
+
+        Args:
+            parent: The window of the editors (the scrolled panel of the section).
+
+        Returns:
+            The panel of the editors.
+        """
         return FieldsPanel(parent, type(self.config), exclude=self.output_field_names())
 
-    def panels(self) -> list:
-        """Return the FieldsPanels of the config: Settings, and Output if it has
-        fields."""
+    def panels(self) -> list[FieldsPanel]:
+        """Return the editor panels: Settings, and Output if it has fields."""
         return [p for p in (self.fields, getattr(self, "output_fields", None)) if p]
 
-    def settings_buttons(self) -> list:
-        """Return the buttons below the Settings section, as (label, tooltip, handler)
-        tuples: Load Settings... and Save Settings...; dialogs of some tools add more."""
+    def settings_buttons(
+        self,
+    ) -> list[tuple[str, str, Callable[[wx.CommandEvent], None]]]:
+        """Return the buttons below the Settings section.
+
+        Subclasses can override this to add buttons.
+
+        Returns:
+            One `(label, tooltip, handler)` tuple per button: `Load Settings...` and
+            `Save Settings...`. Each handler is bound to the button's click.
+        """
         return [
             (
                 "Load Settings...",
@@ -294,12 +432,17 @@ class ConfigDialog(wx.Dialog):
             ),
         ]
 
-    def set_values(self, config) -> None:
-        """Show a config in the fields of both sections."""
+    def set_values(self, config: TaskConfig) -> None:
+        """Show a config in the fields of the Settings and Output sections."""
         for panel in self.panels():
             panel.set_values(config)
 
-    def _input_controls(self, sizer, selected) -> list:
+    def _input_controls(
+        self,
+        sizer: wx.Sizer,
+        selected: Optional[list[Union[str, list[str], None]]],
+    ) -> list[Union[wx.Choice, wx.CheckListBox]]:
+        """Add a table choice per input to `sizer`; return the controls."""
         controls = []
         if not self.data_choices:
             return controls
@@ -328,9 +471,14 @@ class ConfigDialog(wx.Dialog):
         return controls
 
     def save_kinds(self) -> list[str]:
-        """Return the kinds of output (e.g. `table`, `plot`) the dialog offers formats
-        for: those the tool declares, or all kinds with save options if it declares
-        none (e.g. workflows, whose outputs are known only when they run)."""
+        """Return the kinds of output the dialog offers formats for, e.g. `table`.
+
+        Returns:
+            The kinds of the tool's declared outputs that have save options, in the
+            order of the outputs. If there are none (e.g. workflows, whose outputs
+            are known only when they run): all kinds with save options, `table`
+            first, the others sorted.
+        """
         from flim.core.saving import save_options_classes
 
         classes = save_options_classes()
@@ -341,10 +489,12 @@ class ConfigDialog(wx.Dialog):
                 kinds.append(kind)
         return kinds or sorted(classes, key=lambda k: (k != "table", k))
 
-    def _execution_controls(self):
-        """Builds the output controls: `Save results`, and below it, enabled only
-        while it is checked, the folder (with `Use the default folder` and `Make
-        Default Folder` if there is a default folder) and the formats."""
+    def _execution_controls(self) -> wx.BoxSizer:
+        """Build `Save results` and, below it, the folder and the formats controls.
+
+        `Use the default folder` and `Make Default Folder` are added only if there
+        is a default folder.
+        """
         outer = wx.BoxSizer(wx.VERTICAL)
         self.autosave = wx.CheckBox(self, label="Save results")
         self.autosave.SetValue(self.execution.autosave.enabled or self.autosave_locked)
@@ -370,7 +520,7 @@ class ConfigDialog(wx.Dialog):
         # while the dialog is open: a tool that follows the default stores no folder)
         self._own_folder = ""
         if self.default_folder is not None:
-            # follow the app's default folder, or keep a folder of the tool's own
+            # follow the GUI's default folder, or keep a folder of the tool's own
             row = wx.BoxSizer(wx.HORIZONTAL)
             self.use_default = wx.CheckBox(self, label="Use the default folder")
             self.use_default.SetToolTip(
@@ -398,20 +548,18 @@ class ConfigDialog(wx.Dialog):
         outer.Add(self.formats, 0, wx.EXPAND | wx.LEFT, indent)
         return outer
 
-    def set_formats(self, formats) -> None:
-        """Show formats (AutosaveConfig.formats) in the Output box."""
+    def set_formats(self, formats: Sequence["SaveOptions"]) -> None:
+        """Show formats (`AutosaveConfig.formats`) in the Output section."""
         self.formats.set(formats)
 
-    def _is_default(self, folder) -> bool:
-        """Whether a tool's stored folder means the default: none, or the default
-        folder itself (settings from before a tool could follow the default)."""
+    def _is_default(self, folder: Union[str, os.PathLike, None]) -> bool:
+        """Return whether a stored folder means the default folder (None, or it)."""
         if folder is None or self.default_folder is None:
             return True
         return canonical_folder(str(folder)) == canonical_folder(str(self.default_folder))
 
     def _on_use_default(self) -> None:
-        """`Use the default folder` toggled: the field changes between the default
-        folder and the tool's own folder (the default, if it has none yet)."""
+        """Switch the folder field between the default and the tool's own folder."""
         if self.use_default.GetValue():
             self._own_folder = self.folder.GetPath()
         else:
@@ -419,8 +567,7 @@ class ConfigDialog(wx.Dialog):
         self._follow_default()
 
     def _follow_default(self) -> None:
-        """Shows the default folder while the tool follows it, and updates which
-        output controls can be used."""
+        """Show the default folder while the tool follows it; update the controls."""
         if self.use_default is not None and self.use_default.GetValue():
             self.folder.SetPath(str(self.default_folder))
         self._update_output_controls()
@@ -428,9 +575,7 @@ class ConfigDialog(wx.Dialog):
             self.validate()
 
     def _update_output_controls(self) -> None:
-        """Enables the controls below `Save results` only while it is checked; the
-        folder only if the tool has its own; `Make Default Folder` only for a usable
-        folder that is not the default yet. The controls keep their values."""
+        """Enable the output controls that apply to `Save results` and the folder."""
         saving = self.autosave.GetValue()
         follows = bool(self.use_default and self.use_default.GetValue())
         self.folder_label.Enable(saving)
@@ -444,7 +589,7 @@ class ConfigDialog(wx.Dialog):
             self.formats.Enable(saving)
 
     def _make_default(self) -> None:
-        """Make the folder the app's default results folder; the tool then follows it."""
+        """Make the folder the GUI's default results folder; the tool follows it."""
         folder = canonical_folder(self.folder.GetPath())
         if not folder or folder_problem(folder) or self.on_make_default is None:
             return
@@ -454,17 +599,27 @@ class ConfigDialog(wx.Dialog):
         self.use_default.SetValue(True)
         self._follow_default()
 
-    def save_formats(self) -> tuple[list, dict]:
-        """Return the formats chosen in the dialog, and an error per format field."""
+    def save_formats(self) -> tuple[list["SaveOptions"], dict[str, str]]:
+        """Return the formats chosen in the dialog and the errors of the fields.
+
+        Returns:
+            The formats and an empty dict; or, if a format field is not valid or a
+            kind of output has no format, an empty list and an error message per
+            field name.
+        """
         return self.formats.formats()
 
     def fit_contents(self) -> None:
-        """Fits the dialog to fields that appeared or disappeared (up to most of the
-        screen; it scrolls beyond)."""
+        """Fit the dialog to fields that were shown or hidden.
+
+        The dialog grows up to most of the screen's height; the Settings section
+        scrolls beyond that.
+        """
         self.fields.Layout()
         self._fit()
 
-    def _fit(self):
+    def _fit(self) -> None:
+        """Size the dialog to the fields, within the usable part of the screen."""
         # a scrolled panel does not ask for its content's size: show all fields, up to
         # most of the screen, and scroll beyond that
         index = wx.Display.GetFromWindow(self)
@@ -485,12 +640,13 @@ class ConfigDialog(wx.Dialog):
 
     # --- inputs ---
 
-    def _on_input(self, event):
+    def _on_input(self, event: wx.CommandEvent) -> None:
+        """Handle a change of the selected input tables."""
         self._update_inputs()
         self.validate()
 
-    def _update_inputs(self):
-        """Tells the editors the columns and tables of the selected inputs."""
+    def _update_inputs(self) -> None:
+        """Pass the columns and tables of the selected inputs to the editors."""
         for panel in self.panels():
             panel.set_schema(combined_schema(self.input_schemas()))
         tables = []
@@ -502,8 +658,8 @@ class ConfigDialog(wx.Dialog):
             panel.set_data(frames)
         self._fill_proposals(frames)
 
-    def _fill_proposals(self, tables) -> None:
-        """Fill the tool's proposals (Tool.proposals) into fields that are empty."""
+    def _fill_proposals(self, tables: list[pd.DataFrame]) -> None:
+        """Fill the tool's proposals (`Tool.proposals`) into fields that are empty."""
         config, _ = self.current_config()
         if config is None or not tables:
             return
@@ -518,7 +674,13 @@ class ConfigDialog(wx.Dialog):
                 if editor is not None and not getattr(config, name, None):
                     editor.set(value)
 
-    def selected_names(self) -> list:
+    def selected_names(self) -> list[Union[str, list[str], None]]:
+        """Return the names of the selected tables.
+
+        Returns:
+            Per input: the selected table's name (None if none is selected), or for
+            an input with `many=True` the list of checked names.
+        """
         names = []
         for spec, control in zip(self.tool.inputs, self.input_controls):
             if spec.many:
@@ -527,7 +689,13 @@ class ConfigDialog(wx.Dialog):
                 names.append(control.GetStringSelection() or None)
         return names
 
-    def selected_inputs(self) -> list:
+    def selected_inputs(self) -> list[Any]:
+        """Return the selected tables.
+
+        Returns:
+            Per input: the selected table (None if none is selected), or for an
+            input with `many=True` a dict of the checked tables by name.
+        """
         values = []
         for names in self.selected_names():
             if isinstance(names, list):
@@ -536,7 +704,8 @@ class ConfigDialog(wx.Dialog):
                 values.append(self.data_choices.get(names))
         return values
 
-    def _schema(self, name) -> TableSchema:
+    def _schema(self, name: str) -> TableSchema:
+        """Return the schema of an open table (cached); unknown if not a DataFrame."""
         if name not in self._schema_cache:
             data = self.data_choices[name]
             if isinstance(data, pd.DataFrame):
@@ -545,9 +714,13 @@ class ConfigDialog(wx.Dialog):
                 self._schema_cache[name] = TableSchema.unknown()
         return self._schema_cache[name]
 
-    def input_schemas(self) -> list:
-        """Per input: the TableSchema of the selected table (a dict of them by name
-        for an input with many=True); None if no table is selected."""
+    def input_schemas(self) -> list[Union[TableSchema, dict[str, TableSchema], None]]:
+        """Return the schemas of the selected tables.
+
+        Returns:
+            Per input: the schema of the selected table (None if none is selected),
+            or for an input with `many=True` a dict of schemas by table name.
+        """
         schemas = []
         for names in self.selected_names():
             if isinstance(names, list):
@@ -559,7 +732,16 @@ class ConfigDialog(wx.Dialog):
     # --- checking ---
 
     def current_config(self) -> tuple[Optional[TaskConfig], list[Issue]]:
-        """The edited config (None if invalid) and its issues."""
+        """Return the edited config and its issues.
+
+        The values of the editors are validated by the config class, then checked
+        by the tool against the input schemas (`Tool.validate`; for workflows with
+        the dialog's `strict`).
+
+        Returns:
+            The config and the tool's issues; or None and the issues of the editors
+            or the validation if the values are not valid.
+        """
         try:
             values = self.fields.values(self.config)
             if self.output_fields is not None:
@@ -578,6 +760,15 @@ class ConfigDialog(wx.Dialog):
         return config, list(issues)
 
     def execution_issues(self) -> list[Issue]:
+        """Check the output controls and the inputs; mark the format fields.
+
+        The output controls are enabled as `Save results` and the folder allow.
+
+        Returns:
+            The issues: while results are saved, a kind of output without a valid
+            format and a missing or unusable folder; and each required input
+            without a selected table.
+        """
         issues = []
         enabled = self.autosave.GetValue()
         self._update_output_controls()
@@ -596,9 +787,15 @@ class ConfigDialog(wx.Dialog):
         return issues
 
     def validate(self) -> list[Issue]:
-        """Checks the edited config and the execution options, marks the fields with
-        issues, shows the other issues below the fields, enables OK only if there
-        are no errors, and returns all issues."""
+        """Check the edited config, the input data and the execution options.
+
+        Fields that do not apply to the input tables are hidden. The issues of a
+        field are marked at it, the other issues are shown below the settings. OK is
+        enabled only if the config is valid and there are no errors.
+
+        Returns:
+            All issues; they are also stored in `issues`.
+        """
         config, issues = self.current_config()
         if config is not None:
             hidden = self.tool.inapplicable_fields(config, getattr(self, "_tables", []))
@@ -640,7 +837,8 @@ class ConfigDialog(wx.Dialog):
 
     # --- settings files ---
 
-    def _on_load_settings(self, event):
+    def _on_load_settings(self, event: wx.CommandEvent) -> None:
+        """Ask for a settings file and load the tool's settings from it."""
         with wx.FileDialog(
             self,
             f"Load Settings: {self.tool.name}",
@@ -650,7 +848,8 @@ class ConfigDialog(wx.Dialog):
             if dialog.ShowModal() == wx.ID_OK:
                 self.load_settings(dialog.GetPath())
 
-    def _on_save_settings(self, event):
+    def _on_save_settings(self, event: wx.CommandEvent) -> None:
+        """Ask for a settings file and save the tool's settings in it."""
         # no overwrite prompt: an existing file is updated, not replaced
         with wx.FileDialog(
             self,
@@ -661,11 +860,15 @@ class ConfigDialog(wx.Dialog):
             if dialog.ShowModal() == wx.ID_OK:
                 self.save_settings(dialog.GetPath())
 
-    def _tool_entry(self, path):
-        """Return the tool's settings in a file: a config alone, or the tool's section
-        of a settings file. If some of the tool's settings in a settings file cannot be
-        used, the user chooses what to do (flim.gui.settingscheck.choose_settings),
-        possibly another file; `_loaded_from` is set to the file used.
+    def _tool_entry(
+        self, path: Union[str, os.PathLike]
+    ) -> Union["ToolSettings", None, Literal[False]]:
+        """Return the tool's settings in a file.
+
+        The file is a config alone or a settings file with a section of the tool.
+        If some of the tool's settings in a settings file cannot be used, the user
+        chooses what to do (`flim.gui.settingscheck.choose_settings`), possibly
+        another file; `_loaded_from` is set to the file used.
 
         Returns:
             The ToolSettings, None if the file has none for the tool, or False if the
@@ -687,11 +890,21 @@ class ConfigDialog(wx.Dialog):
         self._loaded_from = check.path
         return ToolSettingsMap.model_validate(check.sections.get("tools", {})).entry(self.tool)
 
-    def load_settings(self, path) -> bool:
-        """Uses the tool's settings in a settings file (see
-        flim.core.settings.read_tool_settings): config, autosave (unless locked)
-        and results folder. False, with a message, if the file has no settings for
-        the tool or cannot be read."""
+    def load_settings(self, path: Union[str, os.PathLike]) -> bool:
+        """Show the tool's settings from a file in the dialog.
+
+        The file is a config alone or a settings file (see `_tool_entry`). The
+        dialog shows the config, whether results are saved (unless locked), the
+        folder and the formats. A message next to the buttons tells the result.
+
+        Args:
+            path: The file.
+
+        Returns:
+            True if the settings were loaded; False if the user chose not to use the
+            file, the file has no settings for the tool, or it cannot be read (with
+            a message).
+        """
         name = os.path.basename(path)
         try:
             entry = self._tool_entry(path)
@@ -726,13 +939,23 @@ class ConfigDialog(wx.Dialog):
         self.settings_message.SetLabel(f"Loaded from {name}")
         return True
 
-    def save_settings(self, path) -> bool:
-        """Puts the edited settings into the tool's section of a settings file (see
-        flim.core.settings.write_tool_settings). If the file is of an older version or
-        has settings that cannot be used, the user is asked first: update the file (it
-        is rewritten in the current version without those settings), save to another
-        file, or cancel. False, with a message, if the settings are not valid, the
-        user cancels or the file cannot be written."""
+    def save_settings(self, path: Union[str, os.PathLike]) -> bool:
+        """Save the edited settings in the tool's section of a settings file.
+
+        The other settings in the file are kept (see
+        `flim.core.settings.write_tool_settings`). If the file is of an older
+        version or has settings that cannot be used, the user is asked first:
+        update the file (it is rewritten in the current version without those
+        settings), save to another file, or cancel. A message next to the buttons
+        tells the result.
+
+        Args:
+            path: The settings file.
+
+        Returns:
+            True if the settings were saved; False if they are not valid, the user
+            cancelled or the file cannot be written (with a message).
+        """
         from flim.core.settings import check_settings_file, save_sections
         from flim.gui.settingscheck import REWRITE, confirm_rewrite, needs_rewrite
 
@@ -763,7 +986,7 @@ class ConfigDialog(wx.Dialog):
             path = answer
         return self._saved(path, lambda: write_tool_settings(path, self.tool, entry))
 
-    def _saved(self, path, write) -> bool:
+    def _saved(self, path: Union[str, os.PathLike], write: Callable[[], Any]) -> bool:
         """Call `write` and show the result; False, with a message, if it fails."""
         name = os.path.basename(path)
         try:
@@ -777,7 +1000,8 @@ class ConfigDialog(wx.Dialog):
 
     # --- result ---
 
-    def _on_ok(self, event):
+    def _on_ok(self, event: wx.CommandEvent) -> None:
+        """Close the dialog if the config, with pending cell edits, has no errors."""
         # a table cell still being edited keeps its text in the cell editor (clicking
         # OK does not end the edit on all platforms): take it, then check again
         if self.commit_edits():
@@ -786,7 +1010,11 @@ class ConfigDialog(wx.Dialog):
             event.Skip()  # closes the dialog
 
     def commit_edits(self) -> bool:
-        """Ends the edits of table cells, keeping the edited values; True if any."""
+        """End the edits of table cells in the dialog, keeping the edited values.
+
+        Returns:
+            True if a cell was being edited.
+        """
         committed = False
         windows = [self]
         while windows:
@@ -797,12 +1025,12 @@ class ConfigDialog(wx.Dialog):
             windows.extend(window.GetChildren())
         return committed
 
-    def _autosave(self, stored: bool = False):
+    def _autosave(self, stored: bool = False) -> "AutosaveConfig":
         """Return the dialog's autosave settings: whether, where, in which formats.
 
         Args:
-            stored: For the tool's settings: no folder if the tool follows the
-                default folder. Otherwise the folder the run saves in.
+            stored: True for the tool's settings: no folder if the tool follows the
+                default folder. False: the folder the run saves in.
         """
         from flim.core.saving import AutosaveConfig
 
@@ -814,6 +1042,14 @@ class ConfigDialog(wx.Dialog):
         )
 
     def result(self) -> DialogResult:
+        """Return the edited config, the selected inputs and the execution options.
+
+        Returns:
+            The result.
+
+        Raises:
+            ValueError: If the edited config is not valid.
+        """
         config, issues = self.current_config()
         if config is None:
             raise ValueError(f"The configuration is not valid: {issues}")

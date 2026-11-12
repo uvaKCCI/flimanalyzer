@@ -1,11 +1,14 @@
 """File > Save All Windows... and the question when quitting with unsaved windows."""
 
+import os
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import wx
 
 from flim.core.paths import canonical_folder, folder_problem
+from flim.core.saving import SaveOptions
 from flim.gui.formats import FormatsBox
 
 CANCEL, REVIEW, SAVE_ALL, DISCARD = "cancel", "review", "save all", "discard"
@@ -13,17 +16,23 @@ LISTED = 10  # unsaved windows listed in the quit dialog
 
 
 class SaveAllDialog(wx.Dialog):
-    """Asks for the folder and the formats to save all open windows in.
+    """A dialog that asks for the folder and the formats to save all open windows in.
 
-    The windows are saved into a new subfolder of the folder, named after the date and
-    time (flim.core.saving.save_all).
+    The windows are saved into a new subfolder of the folder, named after the date
+    and time (`flim.core.saving.save_all`).
     """
 
-    def __init__(self, parent, folder, kinds):
-        """
+    def __init__(
+        self,
+        parent: wx.Window,
+        folder: Optional[Union[str, os.PathLike]],
+        kinds: Iterable[str],
+    ) -> None:
+        """Create the dialog.
+
         Args:
             parent: The main window.
-            folder: The folder shown first.
+            folder: The folder shown first; None for an empty field.
             kinds: The kinds of the open windows' values, e.g. `["table", "plot"]`.
         """
         super().__init__(parent, title="Save All Windows")
@@ -52,7 +61,14 @@ class SaveAllDialog(wx.Dialog):
         self.validate()
 
     def validate(self) -> list[str]:
-        """Check the folder and the formats; OK is enabled only without problems."""
+        """Check the folder and the formats, and show the first problem.
+
+        The formats' fields with errors are marked, and OK is enabled only without
+        problems.
+
+        Returns:
+            The problems, as messages; empty if there are none.
+        """
         problems = []
         folder = self.folder.GetPath()
         if not folder:
@@ -69,14 +85,28 @@ class SaveAllDialog(wx.Dialog):
             ok.Enable(not problems)
         return problems
 
-    def result(self) -> tuple[Path, list]:
-        """Return the folder and the formats chosen."""
+    def result(self) -> tuple[Path, list[SaveOptions]]:
+        """Return the chosen folder (canonical path) and the chosen formats."""
         formats, _ = self.formats.formats()
         return Path(canonical_folder(self.folder.GetPath())), formats
 
 
-def ask_save_all(parent, folder, kinds) -> Optional[tuple[Path, list]]:
-    """Show the SaveAllDialog; return the folder and formats, or None if cancelled."""
+def ask_save_all(
+    parent: wx.Window,
+    folder: Optional[Union[str, os.PathLike]],
+    kinds: Iterable[str],
+) -> Optional[tuple[Path, list[SaveOptions]]]:
+    """Ask for the folder and the formats to save all open windows in.
+
+    Args:
+        parent: The main window.
+        folder: The folder shown first; None for an empty field.
+        kinds: The kinds of the open windows' values, e.g. `["table", "plot"]`.
+
+    Returns:
+        The folder and the formats (see `SaveAllDialog.result`), or None if the
+        dialog is cancelled.
+    """
     with SaveAllDialog(parent, folder, kinds) as dialog:
         if dialog.ShowModal() != wx.ID_OK:
             return None
@@ -84,10 +114,23 @@ def ask_save_all(parent, folder, kinds) -> Optional[tuple[Path, list]]:
 
 
 class QuitDialog(wx.Dialog):
-    """Asks what to do with unsaved windows before quitting: Cancel (don't quit),
-    Review... (window by window), Save All Windows... or Discard All."""
+    """A dialog that asks what to do with unsaved windows before quitting.
 
-    def __init__(self, parent, titles):
+    The choices are Cancel (do not quit), Review... (window by window), Save All
+    Windows... and Discard All. The dialog lists the first `LISTED` window titles.
+
+    Attributes:
+        choice: The choice: `CANCEL`, `REVIEW`, `SAVE_ALL` or `DISCARD`; `CANCEL`
+            until a button is clicked.
+    """
+
+    def __init__(self, parent: wx.Window, titles: Sequence[str]) -> None:
+        """Create the dialog.
+
+        Args:
+            parent: The main window.
+            titles: The titles of the unsaved windows.
+        """
         super().__init__(parent, title="Quit FLIMAnalyzer")
         shown = "\n".join(titles[:LISTED]) + ("\n..." if len(titles) > LISTED else "")
         plural = "s have" if len(titles) > 1 else " has"
@@ -110,21 +153,38 @@ class QuitDialog(wx.Dialog):
         sizer.Add(buttons, 0, wx.ALIGN_RIGHT | wx.ALL, 8)
         self.SetSizerAndFit(sizer)
 
-    def _choose(self, choice) -> None:
+    def _choose(self, choice: str) -> None:
+        """Keep the choice and close the dialog."""
         self.choice = choice
         self.EndModal(wx.ID_CANCEL if choice == CANCEL else wx.ID_OK)
 
 
-def ask_quit(parent, titles) -> str:
-    """Ask what to do with unsaved windows; return CANCEL, REVIEW, SAVE_ALL or DISCARD
-    (CANCEL also when the dialog is closed)."""
+def ask_quit(parent: wx.Window, titles: Sequence[str]) -> str:
+    """Ask what to do with unsaved windows before quitting.
+
+    Args:
+        parent: The main window.
+        titles: The titles of the unsaved windows.
+
+    Returns:
+        `CANCEL`, `REVIEW`, `SAVE_ALL` or `DISCARD`; `CANCEL` also when the dialog is
+        closed.
+    """
     with QuitDialog(parent, titles) as dialog:
         dialog.ShowModal()
         return dialog.choice
 
 
-def ask_review(parent, title) -> str:
-    """Ask whether to save one window: return `save`, `skip` or CANCEL."""
+def ask_review(parent: wx.Window, title: str) -> str:
+    """Ask whether to save one window.
+
+    Args:
+        parent: The main window.
+        title: The window's title.
+
+    Returns:
+        `save`, `skip` (Don't Save), or `CANCEL` (Cancel, or the dialog closed).
+    """
     with wx.MessageDialog(
         parent,
         f"Save {title}?",

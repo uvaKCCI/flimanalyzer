@@ -1,19 +1,27 @@
 """Order Categories: the order of the values of category columns."""
 
+from typing import Any, Optional
+
 import wx
 
 from flim.configs.data import CategoryOrderConfig
+from flim.core.schema import TableSchema
 from flim.gui.editors import Editor, fit_rows, register_editor
 
 
 @register_editor(CategoryOrderConfig, "categories")
 class CategoryOrderEditor(Editor):
-    """Checked columns get the order of values shown when they are selected; values
-    can be moved up and down, sorted, or reset to the order in the data."""
+    """Editor of the order of the values of category columns.
+
+    The list on the left has the category columns; checked columns get the order of
+    values shown on the right when they are selected. Values can be moved up and
+    down, sorted, or reset to the order in the data.
+    """
 
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the panel of the columns, their values and the buttons."""
         self.levels: dict = {}  # column -> values in the data
         self.orders: dict = {}  # column -> configured order
         panel = wx.Panel(parent)
@@ -41,21 +49,31 @@ class CategoryOrderEditor(Editor):
 
     # --- state ---
 
-    def order(self, column) -> list:
-        """The configured values first, then the others of the data."""
+    def order(self, column: str) -> list[Any]:
+        """Return the order of a column's values.
+
+        Args:
+            column: The column.
+
+        Returns:
+            The configured values first, then the other values in the data.
+        """
         configured = list(self.orders.get(column, []))
         return configured + [
             v for v in self.levels.get(column, []) if v not in configured
         ]
 
-    def column_names(self) -> list:
+    def column_names(self) -> list[str]:
+        """Return the category columns of the data, then other configured columns."""
         return list(self.levels) + [c for c in self.orders if c not in self.levels]
 
-    def selected_column(self):
+    def selected_column(self) -> Optional[str]:
+        """Return the column selected in the list; None if none is selected."""
         index = self.columns.GetSelection()
         return None if index == wx.NOT_FOUND else self.columns.GetString(index)
 
-    def _show_columns(self, checked):
+    def _show_columns(self, checked: list[str]) -> None:
+        """List the columns, check those in `checked`, and show the values."""
         names = self.column_names()
         selected = self.selected_column()
         self.columns.Set(names)
@@ -65,7 +83,8 @@ class CategoryOrderEditor(Editor):
         fit_rows(self.columns, len(names), most=8)
         self._show_values()
 
-    def _show_values(self, select=None):
+    def _show_values(self, select: Optional[int] = None) -> None:
+        """Show the selected column's values; select the one at `select`."""
         column = self.selected_column()
         values = self.order(column) if column else []
         self.values.Set([str(v) for v in values])
@@ -75,16 +94,19 @@ class CategoryOrderEditor(Editor):
 
     # --- events ---
 
-    def _on_column(self, event):
+    def _on_column(self, event: wx.CommandEvent) -> None:
+        """Show the values of the selected column."""
         self._show_values()
 
-    def _set_order(self, column, values):
+    def _set_order(self, column: str, values: list[Any]) -> None:
+        """Store a column's order and check the column."""
         self.orders[column] = list(values)
         index = self.column_names().index(column)
         self.columns.Check(index, True)  # changing the order uses it
         self.changed()
 
-    def _move(self, step):
+    def _move(self, step: int) -> None:
+        """Move the selected value by `step` positions, within the list."""
         column, index = self.selected_column(), self.values.GetSelection()
         if column is None or index == wx.NOT_FOUND:
             return
@@ -96,13 +118,15 @@ class CategoryOrderEditor(Editor):
         self._set_order(column, values)
         self._show_values(select=target)
 
-    def _on_sort(self, event):
+    def _on_sort(self, event: wx.CommandEvent) -> None:
+        """Sort the selected column's values by their text."""
         column = self.selected_column()
         if column is not None:
             self._set_order(column, sorted(self.order(column), key=str))
             self._show_values()
 
-    def _on_reset(self, event):
+    def _on_reset(self, event: wx.CommandEvent) -> None:
+        """Set the selected column's order to the order in the data."""
         column = self.selected_column()
         if column is not None:
             self._set_order(column, self.levels.get(column, []))
@@ -110,10 +134,12 @@ class CategoryOrderEditor(Editor):
 
     # --- Editor ---
 
-    def checked_columns(self) -> list:
+    def checked_columns(self) -> list[str]:
+        """Return the checked columns."""
         return [self.columns.GetString(i) for i in self.columns.GetCheckedItems()]
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """List the category columns with known values; keep the checked ones."""
         checked = self.checked_columns()
         self.levels = {}
         if schema is not None:
@@ -122,9 +148,11 @@ class CategoryOrderEditor(Editor):
                     self.levels[column.name] = list(column.levels)
         self._show_columns(checked)
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the order of the values of each checked column."""
         return {column: self.order(column) for column in self.checked_columns()}
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show orders (a dict of value lists by column; None for none); check them."""
         self.orders = {column: list(values) for column, values in (value or {}).items()}
         self._show_columns(list(self.orders))

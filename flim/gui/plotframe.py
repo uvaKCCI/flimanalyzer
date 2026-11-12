@@ -5,23 +5,42 @@ the GUI shows each result figure in a PlotFrame on the main thread.
 """
 
 import math
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import wx
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg
+from matplotlib.figure import Figure
 
 
-def _screen_area(window=None):
-    """Usable area of the screen that shows ``window`` (or the main screen)."""
+def _screen_area(window: Optional[wx.Window] = None) -> wx.Rect:
+    """Return the usable area of the screen that shows `window` (or the main one)."""
     index = wx.Display.GetFromWindow(window) if window else wx.NOT_FOUND
     return wx.Display(index if index != wx.NOT_FOUND else 0).GetClientArea()
 
 
-def fit_to_screen(width, height, extra_height=0, window=None, fraction=0.9):
-    """Scales (width, height) down, keeping the aspect ratio, so that it fits into
-    ``fraction`` of the screen (of ``window``) together with ``extra_height``;
-    returns the size as integers, never larger than the given size."""
+def fit_to_screen(
+    width: float,
+    height: float,
+    extra_height: float = 0,
+    window: Optional[wx.Window] = None,
+    fraction: float = 0.9,
+) -> tuple[int, int]:
+    """Scale a size down, keeping the aspect ratio, so that it fits on the screen.
+
+    Args:
+        width: The width, in pixels.
+        height: The height, in pixels.
+        extra_height: Height in pixels that is added below the size, e.g. a toolbar;
+            it must fit as well. Defaults to 0.
+        window: The window whose screen is used; None for the main screen.
+        fraction: The part of the screen's usable width and height to fit into, from
+            0 to 1. Defaults to 0.9.
+
+    Returns:
+        The width and height in whole pixels, never larger than the given size.
+    """
     area = _screen_area(window)
     max_width = area.width * fraction
     max_height = area.height * fraction - extra_height
@@ -30,10 +49,23 @@ def fit_to_screen(width, height, extra_height=0, window=None, fraction=0.9):
 
 
 class PlotToolbar(NavigationToolbar2WxAgg):
-    """matplotlib's toolbar; its save button offers FLIMAnalyzer's plot formats
-    (flim.gui.dialogs.save_figure) instead of all of matplotlib's."""
+    """Matplotlib's navigation toolbar with FLIMAnalyzer's plot formats for saving.
 
-    def save_figure(self, *args):
+    Its save button offers the plot formats of `flim.gui.dialogs.save_figure`
+    instead of all of Matplotlib's.
+    """
+
+    def save_figure(self, *args: Any) -> Optional[str]:
+        """Ask for a file and save the figure in it.
+
+        A plot window that is saved is no longer marked as modified.
+
+        Args:
+            *args: Ignored; Matplotlib passes the button event.
+
+        Returns:
+            The path of the saved file, or None if no file was saved.
+        """
         from flim.gui.dialogs import save_figure
 
         window = self.canvas.GetTopLevelParent()
@@ -44,28 +76,38 @@ class PlotToolbar(NavigationToolbar2WxAgg):
 
 
 class PlotFrame(wx.Frame):
+    """Top-level window with a figure canvas and the Matplotlib navigation toolbar.
+
+    The window opens at the figure's size, scaled down to fit 90% of the screen;
+    the figure then follows the window size.
+    """
+
     @property
     def modified(self) -> bool:
-        """Whether the plot has changes not saved to a file; reported to the window's
-        `on_modified` callback (set when the window is registered) when set."""
+        """Whether the plot has changes not saved to a file.
+
+        Setting it calls the window's `on_modified` callback (set when the window is
+        registered) with the new value. True until it is set.
+        """
         return getattr(self, "_modified", True)
 
     @modified.setter
-    def modified(self, value) -> None:
+    def modified(self, value: bool) -> None:
         self._modified = bool(value)
         callback = getattr(self, "on_modified", None)
         if callback is not None:
             callback(self._modified)
 
-    """Top-level window with a figure canvas and the matplotlib navigation toolbar.
+    def __init__(self, parent: Optional[wx.Window], figure: Figure, title: str) -> None:
+        """Create the window for a figure.
 
-    Args:
-        parent: parent window.
-        figure (matplotlib.figure.Figure): figure to show.
-        title (str): window title.
-    """
+        Pyplot's reference to the figure is closed; the window owns the figure.
 
-    def __init__(self, parent, figure, title):
+        Args:
+            parent: The parent window; its screen is used to fit the window.
+            figure: The figure to show.
+            title: The window title.
+        """
         super().__init__(parent, wx.ID_ANY, title=title)
         # pyplot keeps a reference to every figure it created; the window owns it now
         plt.close(figure)

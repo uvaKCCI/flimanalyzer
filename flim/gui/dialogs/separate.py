@@ -1,9 +1,13 @@
-"""The Separate Categories dialog with presets: the built-in ones (the filename parsers
-of FLIMAnalyzer 0.6, see `flim.core.categories.separate_presets`) and those saved in
-the user settings file (`separate_presets`). `Remove Presets...` removes saved ones;
-the built-in ones can't be removed."""
+"""The Separate Categories dialog, with presets of its settings.
+
+The presets are the built-in ones (the filename parsers of FLIMAnalyzer 0.6, see
+`flim.core.categories.separate_presets`) and those saved in the user settings file
+(`separate_presets`). `Remove Presets...` removes saved ones; the built-in ones
+can't be removed.
+"""
 
 import logging
+from typing import TYPE_CHECKING, Callable, Optional
 
 import wx
 
@@ -11,12 +15,15 @@ from flim.configs.data import SeparateCategoriesConfig
 from flim.core.categories import PRESET_FIELDS, separate_presets
 from flim.gui.configdialog import ConfigDialog, register_dialog
 
+if TYPE_CHECKING:
+    from flim.core.settingsmgr import SettingsManager
+
 logger = logging.getLogger(__name__)
 
-_settings_manager = None  # the session's SettingsManager (see bind)
+_settings_manager: Optional["SettingsManager"] = None  # the session's (see bind)
 
 
-def bind(settings_manager) -> None:
+def bind(settings_manager: "SettingsManager") -> None:
     """Use a session's settings for the saved presets.
 
     Args:
@@ -27,8 +34,14 @@ def bind(settings_manager) -> None:
 
 
 def saved_presets() -> list[dict]:
-    """Return the presets saved in the user settings file; those that are not valid
-    are left out."""
+    """Return the presets saved in the user settings file.
+
+    Presets that are not valid are left out, with a warning in the log.
+
+    Returns:
+        One dict per preset: its `name` and its `settings`; empty if no settings
+        manager is bound.
+    """
     if _settings_manager is None:
         return []
     presets = []
@@ -42,17 +55,28 @@ def saved_presets() -> list[dict]:
 
 
 def save_presets(presets: list[dict]) -> None:
-    """Replace the saved presets (written to the user settings file)."""
+    """Replace the saved presets in the user settings file.
+
+    Nothing is saved if no settings manager is bound (`bind`).
+
+    Args:
+        presets: One dict per preset: its `name` and its `settings`.
+    """
     if _settings_manager is not None:
         _settings_manager.update({"separate_presets": presets})
 
 
 @register_dialog(SeparateCategoriesConfig)
 class SeparateDialog(ConfigDialog):
-    """The Separate Categories dialog, with Load Preset..., Save as Preset... and
-    Remove Presets... below the settings."""
+    """The Separate Categories dialog, with buttons for presets below the settings.
 
-    def settings_buttons(self) -> list:
+    The buttons are `Load Preset...`, `Save as Preset...` and `Remove Presets...`.
+    """
+
+    def settings_buttons(
+        self,
+    ) -> list[tuple[str, str, Callable[[wx.CommandEvent], None]]]:
+        """Return the buttons of the base class and the buttons for presets."""
         return super().settings_buttons() + [
             ("Load Preset...", "Settings of a built-in or saved preset", self._on_load_preset),
             ("Save as Preset...", "Save how to separate, to load later", self._on_save_preset),
@@ -60,6 +84,7 @@ class SeparateDialog(ConfigDialog):
         ]
 
     def _current(self) -> SeparateCategoriesConfig:
+        """Return the edited config, or the dialog's config if it is not valid."""
         config, _ = self.current_config()
         return config if config is not None else self.config
 
@@ -70,7 +95,8 @@ class SeparateDialog(ConfigDialog):
         self.validate()
         self.settings_message.SetLabel(f"Preset {preset['name']}")
 
-    def _on_load_preset(self, event):
+    def _on_load_preset(self, event: wx.CommandEvent) -> None:
+        """Ask for a built-in or saved preset and show its settings."""
         presets = separate_presets() + saved_presets()
         labels = [p["name"] for p in separate_presets()] + [
             f"{p['name']} (saved)" for p in saved_presets()
@@ -81,7 +107,12 @@ class SeparateDialog(ConfigDialog):
             preset = presets[dialog.GetSelection()]
         self.apply_preset(preset)
 
-    def _on_save_preset(self, event):
+    def _on_save_preset(self, event: wx.CommandEvent) -> None:
+        """Ask for a name and save the values of `PRESET_FIELDS` as a preset.
+
+        A saved preset of the same name is replaced; a built-in preset's name is
+        refused with a message.
+        """
         with wx.TextEntryDialog(self, "Name of the preset:", "Save as Preset") as dialog:
             if dialog.ShowModal() != wx.ID_OK:
                 return
@@ -97,7 +128,8 @@ class SeparateDialog(ConfigDialog):
         save_presets(presets + [{"name": name, "settings": settings}])
         self.settings_message.SetLabel(f"Saved as preset {name}")
 
-    def _on_remove_presets(self, event):
+    def _on_remove_presets(self, event: wx.CommandEvent) -> None:
+        """Ask for saved presets and remove them."""
         saved = saved_presets()
         if not saved:
             wx.MessageBox("No saved presets.", "Remove Presets")

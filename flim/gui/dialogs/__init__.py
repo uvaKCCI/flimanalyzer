@@ -1,28 +1,59 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Dialogs of the data and plot windows, and functions that save a table or a
-figure to a file chosen in a file dialog."""
+"""Dialogs of the data and plot windows, and functions that save tables and figures.
+
+The save functions ask for the file and its format in a file dialog.
+"""
 
 import logging
 import os
 import re
+from typing import TYPE_CHECKING, Any, Optional, Union
 import wx.grid
 from pubsub import pub
 from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
 
+if TYPE_CHECKING:
+    import pandas as pd
+    from matplotlib.artist import Artist
+    from matplotlib.figure import Figure
+
+    from flim.core.saving import SaveOptions
+    from flim.core.settings import FilterSettings
+
 logger = logging.getLogger(__name__)
 
 
-def check_data_msg(data):
+def check_data_msg(data: Optional["pd.DataFrame"]) -> bool:
+    """Return whether there is data; if not, show a warning message box.
+
+    Args:
+        data: The table; None if no data is loaded.
+
+    Returns:
+        True if `data` has rows; otherwise False, after the warning is closed.
+    """
     ok = data is not None and len(data) > 0
     if not ok:
         wx.MessageBox("No data loaded. Import data first.", "Warning", wx.OK)
     return ok
 
 
-def fix_filename(fname):
+def fix_filename(fname: Optional[str]) -> Optional[str]:
+    """Return a file name without the characters that cause problems in paths.
+
+    Spaces and `[`, `]`, `(`, `)` are removed; commas, backslashes and `/` become
+    `_`, `:` becomes `-`, `%` becomes `perc`, and `--` becomes `-` (in one pass:
+    `---` becomes `--`).
+
+    Args:
+        fname: The file name; None is returned unchanged.
+
+    Returns:
+        The file name, or None.
+    """
     if fname is None:
         return None
     else:
@@ -49,9 +80,11 @@ FORMAT_NAMES = {
 }
 
 
-def _wildcard(options_class) -> tuple[str, list[str]]:
-    """Return a file dialog's wildcard for the formats of some save options, default
-    first, and the formats in that order."""
+def _wildcard(options_class: type["SaveOptions"]) -> tuple[str, list[str]]:
+    """Return a file dialog's wildcard for save options' formats, and the formats.
+
+    The default format comes first, in the wildcard and in the list.
+    """
     import typing
 
     formats = list(typing.get_args(options_class.model_fields["format"].annotation))
@@ -64,8 +97,13 @@ def _wildcard(options_class) -> tuple[str, list[str]]:
     return "|".join(parts), formats
 
 
-def _ask_path(parent, title, filename, options_class):
-    """Ask where to save, and in which of the formats; None if cancelled."""
+def _ask_path(
+    parent: Optional[wx.Window],
+    title: str,
+    filename: str,
+    options_class: type["SaveOptions"],
+) -> Optional[tuple[str, "SaveOptions"]]:
+    """Ask where to save, and in which format; return path and options, or None."""
     wildcard, formats = _wildcard(options_class)
     with wx.FileDialog(
         parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
@@ -81,14 +119,30 @@ def _ask_path(parent, title, filename, options_class):
     return path, options
 
 
-def save_dataframe(parent, title, data, filename, saveindex=True):
+def save_dataframe(
+    parent: Optional[wx.Window],
+    title: str,
+    data: "pd.DataFrame",
+    filename: str,
+    saveindex: bool = True,
+) -> Optional[str]:
     """Ask where and how to save a table, and save it.
 
-    The dialog offers the table formats (tab- or comma-separated); it warns if the
-    column names would not survive the format.
+    The file dialog offers the table formats (tab- or comma-separated text). If
+    column names change when saved in the chosen format, the user is asked whether
+    to save anyway. A message box shows an error in writing the file.
+
+    Args:
+        parent: The parent window of the dialogs.
+        title: The title of the dialogs.
+        data: The table.
+        filename: The proposed file name; its extension is replaced, and characters
+            that cause problems in paths are removed (`fix_filename`).
+        saveindex: Whether the index is written. Defaults to True.
 
     Returns:
-        The file saved, or None (cancelled, or saving failed).
+        The path of the saved file, with the format's extension; None if the user
+        cancelled or writing failed.
     """
     from flim.core.saving import TableSaveOptions, header_problems, write_table
 
@@ -116,13 +170,30 @@ def save_dataframe(parent, title, data, filename, saveindex=True):
     return fname
 
 
-def save_figure(parent, title, fig, filename, legend=None):
+def save_figure(
+    parent: Optional[wx.Window],
+    title: str,
+    fig: "Figure",
+    filename: str,
+    legend: Optional["Artist"] = None,
+) -> Optional[str]:
     """Ask where and how to save a figure, and save it, cropped to its content.
 
-    The dialog offers the plot formats (PNG at the default resolution, SVG, PDF).
+    The file dialog offers the plot formats (PNG at the default resolution, SVG,
+    PDF). An error in writing the file is logged and shown in a message box.
+
+    Args:
+        parent: The parent window of the dialogs.
+        title: The title of the file dialog.
+        fig: The figure.
+        filename: The proposed file name; its extension is replaced, and characters
+            that cause problems in paths are removed (`fix_filename`).
+        legend: A legend outside the axes that the cropped figure includes.
+            Defaults to None.
 
     Returns:
-        The file saved, or None (cancelled, or saving failed).
+        The path of the saved file, with the format's extension; None if the user
+        cancelled or writing failed.
     """
     from flim.core.saving import PlotSaveOptions
 
@@ -144,7 +215,28 @@ def save_figure(parent, title, fig, filename, legend=None):
 
 
 class SelectGroupsDlg(wx.Dialog):
-    def __init__(self, parent, title, groups=[], selected="All"):
+    """Dialog with a check box per value of a category column.
+
+    `Select All` and `Deselect All` check or uncheck all boxes. OK requires at least
+    one checked value; `get_selected` returns the checked values.
+    """
+
+    def __init__(
+        self,
+        parent: Optional[wx.Window],
+        title: str,
+        groups: Optional[list[Any]] = [],
+        selected: Union[str, list[Any]] = "All",
+    ) -> None:
+        """Build the dialog and show it.
+
+        Args:
+            parent: The parent window.
+            title: The dialog's title.
+            groups: The values, one check box each. Defaults to none.
+            selected: The values that are checked, or `All` to check all. Defaults
+                to `All`.
+        """
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title)
         # 5 col gridsizer
         mainsizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -191,24 +283,30 @@ class SelectGroupsDlg(wx.Dialog):
             self.DoLayoutAdaptation()
         self.Show()
 
-    def OnSelectAll(self, event):
+    def OnSelectAll(self, event: wx.CommandEvent) -> None:
+        """Check all values."""
         for key in self.cboxes:
             self.cboxes[key].SetValue(True)
 
-    def OnDeselectAll(self, event):
+    def OnDeselectAll(self, event: wx.CommandEvent) -> None:
+        """Uncheck all values."""
         for key in self.cboxes:
             self.cboxes[key].SetValue(False)
 
-    def OnQuit(self, event):
+    def OnQuit(self, event: wx.Event) -> None:
+        """Close the dialog with Cancel."""
         self.EndModal(wx.ID_CANCEL)
 
-    def _get_selected(self):
+    def _get_selected(self) -> list[Any]:
+        """Return the checked values."""
         return [key for key in self.cboxes if self.cboxes[key].GetValue()]
 
-    def get_selected(self):
+    def get_selected(self) -> list[Any]:
+        """Return the checked values, in the order of the check boxes."""
         return self._get_selected()
 
-    def OnOK(self, event):
+    def OnOK(self, event: wx.CommandEvent) -> None:
+        """Close the dialog with OK if a value is checked, else show a warning."""
         if len(self._get_selected()) == 0:
             wx.MessageBox("Select at least one.", self.GetTitle(), wx.OK | wx.ICON_WARNING, self)
         else:
@@ -216,12 +314,32 @@ class SelectGroupsDlg(wx.Dialog):
 
 
 class ConfigureFiltersDlg(wx.Dialog):
+    """Dialog that edits the range filters of a table.
+
+    The list shows each filter's column, range and the number of rows it drops from
+    the view; the labels above it show the rows dropped and remaining. With OK,
+    `GetData` returns an edited copy of the filter settings.
+    """
+
     def __init__(
-        self, parent, filters=None, dataframe=None, dropped={}, showusefilter=True
-    ):
-        """
+        self,
+        parent: Optional[wx.Window],
+        filters: Optional["FilterSettings"] = None,
+        dataframe: Optional["pd.DataFrame"] = None,
+        dropped: dict[Any, Any] = {},
+        showusefilter: bool = True,
+    ) -> None:
+        """Build the dialog and show it.
+
         Args:
-            filters: FilterSettings to edit (a copy is returned by GetData).
+            parent: The parent window.
+            filters: The filter settings to edit; required (None is not handled).
+            dataframe: The table the filters apply to; required (None is not
+                handled).
+            dropped: The row positions dropped from the view, by filter name or
+                other key. Defaults to none.
+            showusefilter: Whether the dialog shows `Use Filters` and
+                `Show Dropped`, whose values `GetData` returns. Defaults to True.
         """
         wx.Dialog.__init__(
             self, parent, wx.ID_ANY, "Filter Settings", size=(650, 400)
@@ -301,7 +419,21 @@ class ConfigureFiltersDlg(wx.Dialog):
 
         self.Show()
 
-    def OnFiltersUpdated(self, updateditems, totaldropped, viewdropped, viewlength):
+    def OnFiltersUpdated(
+        self,
+        updateditems: dict[str, Any],
+        totaldropped: int,
+        viewdropped: int,
+        viewlength: int,
+    ) -> None:
+        """Show the numbers of dropped and remaining rows (`FILTERS_UPDATED`).
+
+        Args:
+            updateditems: The changed filters by name.
+            totaldropped: The number of rows dropped by all filters.
+            viewdropped: The number of rows dropped from the view.
+            viewlength: The number of rows of the view before the filters.
+        """
         remaining = viewlength - viewdropped
         self.dropped_label.SetLabel(
             f"Dropped from view: {viewdropped:,} (of {viewlength:,})"
@@ -314,17 +446,19 @@ class ConfigureFiltersDlg(wx.Dialog):
             f" {remaining:,} ({100.0 * remaining/viewlength:.2f}%)"
         )
 
-    def GetData(self):
-        """The edited FilterSettings (None if cancelled)."""
+    def GetData(self) -> Optional["FilterSettings"]:
+        """Return the edited filter settings; None if the dialog was cancelled."""
         return self.result
 
-    def OnUseFilters(self, event):
+    def OnUseFilters(self, event: wx.CommandEvent) -> None:
+        """Enable the labels and the list while `Use Filters` is checked."""
         enable = event.GetEventObject().GetValue()
         self.dropped_label.Enable(enable)
         self.remaining_label.Enable(enable)
         self.filterlist.Enable(enable)
 
-    def OnOK(self, event):
+    def OnOK(self, event: wx.CommandEvent) -> None:
+        """Store the edited filter settings and close the dialog with OK."""
         cfgs = self.filterlist.GetData()
         changes = {"range_filters": [cfgs[key].get_params() for key in cfgs]}
         if self.showusefilter:
@@ -333,13 +467,31 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.result = self.filters.model_copy(update=changes)
         self.EndModal(wx.ID_OK)
 
-    def OnQuit(self, event):
+    def OnQuit(self, event: wx.Event) -> None:
+        """Close the dialog with Cancel; `GetData` returns None."""
         self.result = None
         self.EndModal(wx.ID_CANCEL)
 
 
 class ConfigureCategoriesDlg(wx.Dialog):
-    def __init__(self, parent, title="", bins=[], labels=[]):
+    """Dialog that edits the bins and labels of a category, as comma-separated text."""
+
+    def __init__(
+        self,
+        parent: Optional[wx.Window],
+        title: str = "",
+        bins: list[float] = [],
+        labels: list[str] = [],
+    ) -> None:
+        """Build the dialog and show it.
+
+        Args:
+            parent: The parent window.
+            title: Appended to the dialog's title `Category Configuration: `.
+                Defaults to "".
+            bins: The bin edges. Defaults to none.
+            labels: The category labels. Defaults to none.
+        """
         wx.Dialog.__init__(
             self,
             parent,
@@ -367,25 +519,43 @@ class ConfigureCategoriesDlg(wx.Dialog):
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
         self.Show()
 
-    def OnQuit(self, event):
+    def OnQuit(self, event: wx.Event) -> None:
+        """Close the dialog with Cancel; `get_config` returns None."""
         self.bins = None
         self.labels = None
         self.EndModal(wx.ID_CANCEL)
 
-    def get_config(self):
+    def get_config(self) -> Optional[tuple[list[float], list[str]]]:
+        """Return the edited bins and labels; None if cancelled or there are no bins."""
         if self.bins:
             return self.bins, self.labels
         else:
             return None
 
-    def OnSave(self, event):
+    def OnSave(self, event: wx.CommandEvent) -> None:
+        """Store the bins and labels and close the dialog with OK.
+
+        Raises:
+            ValueError: If a bin is not a number.
+        """
         self.bins = [float(f) for f in self.bin_field.GetValue().split(",")]
         self.labels = self.label_field.GetValue().split(",")
         self.EndModal(wx.ID_OK)
 
 
 class ConfigureAxisDlg(wx.Dialog):
-    def __init__(self, parent, title, settings):
+    """Dialog that edits the label and the range of a plot axis."""
+
+    def __init__(
+        self, parent: Optional[wx.Window], title: str, settings: dict[str, Any]
+    ) -> None:
+        """Build the dialog and show it.
+
+        Args:
+            parent: The parent window.
+            title: The dialog's title.
+            settings: The axis label (`label`) and the range (`min`, `max`).
+        """
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size=(650, 220))
         self.panel = wx.Panel(self, wx.ID_ANY)
 
@@ -410,14 +580,17 @@ class ConfigureAxisDlg(wx.Dialog):
         self.settings = dict(settings)
         self.Show()
 
-    def OnQuit(self, event):
+    def OnQuit(self, event: wx.Event) -> None:
+        """Close the dialog with Cancel; `get_settings` returns None."""
         self.settings = None
         self.EndModal(wx.ID_CANCEL)
 
-    def get_settings(self):
+    def get_settings(self) -> Optional[dict[str, Any]]:
+        """Return the edited `label`, `min` and `max`; None if cancelled."""
         return self.settings
 
-    def SaveConnString(self, event):
+    def SaveConnString(self, event: wx.CommandEvent) -> None:
+        """Store the edited label and range and close the dialog with OK."""
         self.settings["label"] = self.labelinput.GetValue()
         self.settings["min"] = self.mininput.GetValue()
         self.settings["max"] = self.maxinput.GetValue()
@@ -425,7 +598,13 @@ class ConfigureAxisDlg(wx.Dialog):
 
 
 class RenameGroupsDlg(wx.Dialog):
-    def __init__(self, parent, title):
+    """Dialog that asks for a pattern (regular expression) and its replacement.
+
+    The caller reads the texts from `patterntxt` and `replacetxt`.
+    """
+
+    def __init__(self, parent: Optional[wx.Window], title: str) -> None:
+        """Build the dialog and show it; the pattern is `^0+` (leading zeros)."""
         wx.Dialog.__init__(self, parent, wx.ID_ANY, title, size=(450, 120))
         mainsizer = wx.BoxSizer(wx.VERTICAL)
 
@@ -453,7 +632,8 @@ class RenameGroupsDlg(wx.Dialog):
 
         self.Show()
 
-    def OnOK(self, event):
+    def OnOK(self, event: wx.CommandEvent) -> None:
+        """Close the dialog with OK if the pattern is valid, else show a warning."""
         try:
             re.compile(self.patterntxt.GetLineText(0))
         except re.error:
@@ -464,13 +644,34 @@ class RenameGroupsDlg(wx.Dialog):
         else:
             self.EndModal(wx.ID_OK)
 
-    def OnQuit(self, event):
+    def OnQuit(self, event: wx.Event) -> None:
+        """Close the dialog with Cancel."""
         self.EndModal(wx.ID_CANCEL)
 
 
 # Feature-level analysis customization
 class ConfigureFeatureDlg(wx.Dialog):
-    def __init__(self, parent, title, feature, settings, defaults):
+    """Dialog with an input control per option of a feature's analysis."""
+
+    def __init__(
+        self,
+        parent: Optional[wx.Window],
+        title: str,
+        feature: str,
+        settings: dict[str, list[Any]],
+        defaults: Optional[dict[str, Any]],
+    ) -> None:
+        """Build the dialog; it is not shown.
+
+        Args:
+            parent: The parent window.
+            title: The dialog's title.
+            feature: Not used.
+            settings: Per option name: the class of its input control and a dict of
+                the control's keyword arguments.
+            defaults: The value of each option to show; None: the controls'
+                initial values.
+        """
         wx.Dialog.__init__(
             self, parent, wx.ID_ANY, title, size=(200 * min(len(settings), 3), 120)
         )
@@ -507,14 +708,17 @@ class ConfigureFeatureDlg(wx.Dialog):
         mainsizer.Add(optsizer, 0, wx.ALIGN_LEFT, 10)
         mainsizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 10)
 
-    def OnOK(self, event):
+    def OnOK(self, event: wx.CommandEvent) -> None:
+        """Store the options' values and close the dialog with OK."""
         self.insettings = {
             setting: self.inputs[setting].GetValue() for setting in self.settings
         }
         self.EndModal(wx.ID_OK)
 
-    def OnQuit(self, event):
+    def OnQuit(self, event: wx.Event) -> None:
+        """Close the dialog with Cancel."""
         self.EndModal(wx.ID_CANCEL)
 
-    def get_settings(self):
+    def get_settings(self) -> dict[str, Any]:
+        """Return the options' values with OK; after Cancel, the `settings` given."""
         return self.insettings  # dict of option name -> option value

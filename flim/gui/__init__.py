@@ -1,3 +1,5 @@
+"""The wxPython GUI; importing it sets the Matplotlib backend and wx options."""
+
 import matplotlib
 
 # plugins draw figures off-screen, possibly in worker threads; the GUI shows

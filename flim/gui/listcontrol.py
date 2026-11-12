@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""List controls with check boxes for analysis bins (AnalysisListCtrl) and range
-filters (FilterListCtrl); changes are published with pubsub."""
+"""List controls with check boxes for analysis bins and range filters.
+
+`AnalysisListCtrl` lists analysis bins, `FilterListCtrl` lists range filters; changes
+are published with pubsub.
+"""
 
 import logging
+from typing import Any, Optional, Union
+
 import numpy as np
+import pandas as pd
 import wx
 import wx.lib.mixins.listctrl as listmix
 from pubsub import pub
 
+from flim.core.filter import RangeFilter
 from flim.gui.events import FILTERS_UPDATED, ANALYSIS_BINS_UPDATED
 
 logger = logging.getLogger(__name__)
@@ -21,14 +28,24 @@ EVT_ANALYSISUPDATED = wx.PyEventBinder(EVT_AU_TYPE, 1)
 
 
 class ListCtrlUpdatedEvent(wx.PyCommandEvent):
-    def __init__(self, evtType, id):
+    """A command event that carries the items of a list control that changed."""
+
+    def __init__(self, evtType: int, id: int) -> None:
+        """Create the event.
+
+        Args:
+            evtType: The event type, `EVT_FU_TYPE` or `EVT_AU_TYPE`.
+            id: The id of the window that sends the event.
+        """
         wx.PyCommandEvent.__init__(self, evtType, id)
         self.items = None
 
-    def SetUpdatedItems(self, items):
+    def SetUpdatedItems(self, items: Any) -> None:
+        """Set the items that changed."""
         self.items = items
 
-    def GetUpdatedItems(self):
+    def GetUpdatedItems(self) -> Any:
+        """Return the items that changed; None if none were set."""
         return self.items
 
 
@@ -37,14 +54,16 @@ class AnalysisListCtrl(
     listmix.ListCtrlAutoWidthMixin,
     listmix.TextEditMixin,
 ):
-    """Report list with a native checkbox in the first column; cells of the columns
-    marked editable (SetEditable) can be edited.
+    """Report list with a native checkbox in the first column.
 
-    Checking an item, by the user or with CheckItem(), calls OnCheckItem(index,
-    flag) once per state change.
+    Cells of the columns marked editable (`SetEditable`) can be edited; column 1
+    holds the row's key. Checking an item, by the user or with `CheckItem()`, calls
+    `OnCheckItem(index, flag)` once per state change. The data map each key to a list
+    of the values of columns 2 and following.
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Create the list; the arguments are passed to `wx.ListCtrl`."""
         wx.ListCtrl.__init__(self, *args, **kwargs)
         listmix.TextEditMixin.__init__(self)
         listmix.ListCtrlAutoWidthMixin.__init__(self)
@@ -61,10 +80,19 @@ class AnalysisListCtrl(
         self.Bind(wx.EVT_LIST_ITEM_CHECKED, self._on_item_checked)
         self.Bind(wx.EVT_LIST_ITEM_UNCHECKED, self._on_item_checked)
 
-    def IsChecked(self, index):
+    def IsChecked(self, index: int) -> bool:
+        """Return whether the item at `index` is checked."""
         return self.IsItemChecked(index)
 
-    def CheckItem(self, index, check=True):
+    def CheckItem(self, index: int, check: bool = True) -> None:
+        """Check or uncheck the item at `index`.
+
+        Calls `OnCheckItem` once if the state changes; nothing happens otherwise.
+
+        Args:
+            index: The item's index.
+            check: True to check, False to uncheck. Defaults to True.
+        """
         if self.IsItemChecked(index) == check:
             return
         # the native CheckItem() sends EVT_LIST_ITEM_(UN)CHECKED synchronously;
@@ -76,22 +104,42 @@ class AnalysisListCtrl(
             self._checking = False
         self.OnCheckItem(index, check)
 
-    def ToggleItem(self, index):
+    def ToggleItem(self, index: int) -> None:
+        """Invert the check state of the item at `index`."""
         self.CheckItem(index, not self.IsItemChecked(index))
 
-    def _on_item_checked(self, event):
+    def _on_item_checked(self, event: wx.ListEvent) -> None:
+        """Call `OnCheckItem` when the user clicks a checkbox."""
         if not self._checking:
             # checkbox clicked by the user
             self.OnCheckItem(event.GetIndex(), self.IsItemChecked(event.GetIndex()))
         event.Skip()
 
-    def fire_rowsupdated_event(self, items):
+    def fire_rowsupdated_event(self, items: dict[str, Any]) -> None:
+        """Publish `ANALYSIS_BINS_UPDATED` with the changed rows, by key."""
         pub.sendMessage(ANALYSIS_BINS_UPDATED, updateditems=items)
 
-    def GetData(self):
+    def GetData(self) -> dict[str, Any]:
+        """Return the data: the rows' values by key."""
         return self.data
 
-    def SetData(self, data, headers=[], types=[], keep_selection=True):
+    def SetData(
+        self,
+        data: Optional[dict[str, Any]],
+        headers: Optional[list[str]] = [],
+        types: Optional[list[Any]] = [],
+        keep_selection: bool = True,
+    ) -> None:
+        """Replace the rows with `data`, sorted by key.
+
+        Args:
+            data: The values of each row by key. Each row shows the key and as many
+                values as `headers` has columns after the first two.
+            headers: The column headers, including the checkbox and key columns.
+            types: Not used.
+            keep_selection: Whether the rows that were checked and whose keys are
+                still in the list are checked again. Defaults to True.
+        """
         current_sel = self.get_checked_items()
         if data is None:
             self.data = {}
@@ -110,14 +158,19 @@ class AnalysisListCtrl(
         if keep_selection:
             self.check_items(current_sel, True)
 
-    def get_index_by_key(self, key):
+    def get_index_by_key(self, key: str) -> Optional[int]:
+        """Return the index of the row whose key column shows `key`; None if none."""
         keycol = self.get_key_col()
         for idx in range(self.GetItemCount()):
             if self.GetItem(idx, keycol).GetText() == key:
                 return idx
         return None
 
-    def SetRow(self, key, rowdata):
+    def SetRow(self, key: str, rowdata: list[Any]) -> None:
+        """Show the first two values of `rowdata` in columns 2 and 3 of row `key`.
+
+        A key not in the list is ignored. The data are not changed.
+        """
         logger.debug("AnalysisListCtrl.SetRow")
         idx = self.get_index_by_key(key)
         if idx is not None:
@@ -126,20 +179,33 @@ class AnalysisListCtrl(
             self.SetItem(idx, 3, str(rowdata[1]))
             self.Update()
 
-    def SetEditable(self, editable):
+    def SetEditable(self, editable: Optional[list[bool]]) -> None:
+        """Set which columns can be edited, one flag per column.
+
+        The flags are kept unless the current flags are None; then they are reset
+        to an empty list and `editable` is not used.
+        """
         if self.editable is None:
             self.editable = []
         else:
             self.editable = editable
 
-    def get_checked_indices(self):
+    def get_checked_indices(self) -> list[int]:
+        """Return the indices of the checked rows."""
         checked = []
         for idx in range(self.GetItemCount()):
             if self.IsChecked(idx):
                 checked.append(idx)
         return checked
 
-    def check_items(self, items, enable):
+    def check_items(self, items: Optional[Any], enable: bool) -> None:
+        """Check or uncheck the rows with the keys `items`, then publish the changes.
+
+        Args:
+            items: The keys (an iterable, e.g. a dict); keys not in the list are
+                ignored. None does nothing.
+            enable: True to check, False to uncheck.
+        """
         if items is None:
             return
         self.enableevents = False
@@ -154,7 +220,8 @@ class AnalysisListCtrl(
         self.enableevents = True
         self.fire_rowsupdated_event(changed)
 
-    def get_checked_items(self):
+    def get_checked_items(self) -> dict[str, Any]:
+        """Return the data of the checked rows, by key."""
         checked = {}
         for idx in range(self.GetItemCount()):
             if self.IsChecked(idx):
@@ -166,7 +233,8 @@ class AnalysisListCtrl(
                 checked[key] = self.data[key]
         return checked
 
-    def BeginLabelEdit(self, event):
+    def BeginLabelEdit(self, event: wx.ListEvent) -> None:
+        """Allow editing a cell only in the columns marked editable."""
         col = event.GetColumn()
         if col == 0:
             # column 0 holds the checkbox, which toggles itself when clicked
@@ -176,10 +244,15 @@ class AnalysisListCtrl(
         else:
             event.Veto()
 
-    def get_key_col(self):
+    def get_key_col(self) -> int:
+        """Return the index of the column that holds the rows' keys."""
         return 1
 
-    def EndLabelEdit(self, event):
+    def EndLabelEdit(self, event: wx.ListEvent) -> None:
+        """Store an edited value in the data and publish the changed row.
+
+        Values of columns 2 and 3 are stored as float, of column 4 as int.
+        """
         idx = event.GetIndex()
         col = event.GetColumn()
         rowkey = self.GetItem(idx, self.get_key_col()).GetText()
@@ -194,7 +267,13 @@ class AnalysisListCtrl(
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey: self.data[rowkey]})
 
-    def OnCheckItem(self, index, flag):
+    def OnCheckItem(self, index: int, flag: bool) -> None:
+        """Publish the row whose check state changed.
+
+        Args:
+            index: The row's index.
+            flag: The new state: True if checked.
+        """
         rowkey = self.GetItem(index, self.get_key_col()).GetText()
         logger.debug(f"OnCheckItem {rowkey}")
         if self.enableevents:
@@ -204,15 +283,35 @@ class AnalysisListCtrl(
 
 
 class FilterListCtrl(AnalysisListCtrl):
+    """List of range filters with a checkbox to use each filter.
+
+    The columns are the checkbox, the column the filter applies to, the low and high
+    end of the range, and (with `showdropped`) the number of rows the filter drops
+    from the view. The data map each column name to its `RangeFilter`. Changes are
+    published with `FILTERS_UPDATED`.
+    """
+
     def __init__(
         self,
-        *args,
-        dataframe=None,
-        dropped=None,
-        showdropped=True,
-        fireevents=True,
-        **kwargs,
-    ):
+        *args: Any,
+        dataframe: Optional[pd.DataFrame] = None,
+        dropped: Optional[dict[str, Any]] = None,
+        showdropped: bool = True,
+        fireevents: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Create the list.
+
+        Args:
+            *args: Passed to `wx.ListCtrl`.
+            dataframe: The table the filters apply to.
+            dropped: The row positions each filter drops, by name; filters not in
+                the list count as dropped by other filters.
+            showdropped: Whether the list shows the number of dropped rows in
+                column 4. Defaults to True.
+            fireevents: Whether changes are published. Defaults to True.
+            **kwargs: Passed to `wx.ListCtrl`.
+        """
         AnalysisListCtrl.__init__(self, *args, **kwargs)
         self.dataframe = dataframe
         self.showdropped = showdropped
@@ -221,7 +320,12 @@ class FilterListCtrl(AnalysisListCtrl):
         self.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.EndLabelEdit)
         self.Bind(EVT_FILTERUPDATED, self.OnFilterUpdated)
 
-    def setdrop(self, dropped):
+    def setdrop(self, dropped: Optional[dict[str, Any]]) -> None:
+        """Set the dropped rows by filter name, and those of filters not listed.
+
+        The rows of filters not in the list are kept as `otherdropped` only if there
+        are two or more such filters.
+        """
         if dropped is None:
             dropped = {}
         self.dropped = dropped
@@ -234,7 +338,11 @@ class FilterListCtrl(AnalysisListCtrl):
         else:
             self.otherdropped = []
 
-    def fire_rowsupdated_event(self, updated):
+    def fire_rowsupdated_event(self, updated: dict[str, Any]) -> None:
+        """Publish `FILTERS_UPDATED` with the changed filters and the dropped counts.
+
+        Nothing is published unless `fireevents` is set.
+        """
         if self.fireevents:
             pub.sendMessage(
                 FILTERS_UPDATED,
@@ -244,7 +352,25 @@ class FilterListCtrl(AnalysisListCtrl):
                 viewlength=len(self.dataframe) - len(self.otherdropped),
             )
 
-    def SetData(self, data, dataframe=None, dropped=None, headers=[], types=[]):
+    def SetData(
+        self,
+        data: Optional[dict[str, RangeFilter]],
+        dataframe: Optional[pd.DataFrame] = None,
+        dropped: Optional[dict[str, Any]] = None,
+        headers: Optional[list[str]] = [],
+        types: Optional[list[Any]] = [],
+    ) -> None:
+        """Replace the filters, sorted by name, and publish them all.
+
+        Each row is checked if its filter is selected.
+
+        Args:
+            data: The filters by name.
+            dataframe: The table the filters apply to.
+            dropped: The row positions each filter drops, by name.
+            headers: Not used.
+            types: Not used.
+        """
         if data is None:
             self.data = {}
         else:
@@ -275,7 +401,14 @@ class FilterListCtrl(AnalysisListCtrl):
         self.fire_rowsupdated_event(self.data)
         self.enableevents = True
 
-    def check_items(self, items, enable):
+    def check_items(self, items: Optional[Any], enable: bool) -> None:
+        """Check or uncheck the filters `items`, select them, and publish them.
+
+        Args:
+            items: The filter names; names not in the list are ignored. None does
+                nothing.
+            enable: True to check and select, False to uncheck and deselect.
+        """
         if items is None:
             return
         self.enableevents = False
@@ -291,16 +424,22 @@ class FilterListCtrl(AnalysisListCtrl):
         self.enableevents = True
         self.fire_rowsupdated_event(changed)
 
-    def OnFilterUpdated(self, event):
+    def OnFilterUpdated(self, event: ListCtrlUpdatedEvent) -> None:
+        """Log the updated filters."""
         logger.debug(f"{len(event.GetUpdatedItems())} updated")
         for i in event.GetUpdatedItems():
             logger.debug(i)
         event.Skip()
 
-    def GetDroppedRows(self, rowkey):
+    def GetDroppedRows(self, rowkey: str) -> Any:
+        """Return the row positions the filter `rowkey` drops; None if not known."""
         return self.dropped.get(rowkey)
 
-    def SetDroppedRows(self, droppedrows):
+    def SetDroppedRows(self, droppedrows: Optional[dict[str, Any]]) -> None:
+        """Replace the dropped rows by filter name and show their counts.
+
+        Rows of filters without dropped rows show `---`.
+        """
         if droppedrows is None:
             droppedrows = {}
         self.dropped = droppedrows
@@ -322,7 +461,11 @@ class FilterListCtrl(AnalysisListCtrl):
                 )
         self.Update()
 
-    def UpdateDroppedRows(self, droppedrows):
+    def UpdateDroppedRows(self, droppedrows: dict[str, Any]) -> None:
+        """Store the dropped rows of the filters in `droppedrows` and show the counts.
+
+        Rows of other filters show `---`. Does nothing unless `showdropped` is set.
+        """
         if not self.showdropped:
             return
         logger.debug(f"FilterListCtrl.UpdateDroppedRows, {len(droppedrows)} filters")
@@ -345,13 +488,19 @@ class FilterListCtrl(AnalysisListCtrl):
                 )
         self.Update()
 
-    def get_dropped_str(self, key):
+    def get_dropped_str(self, key: str) -> str:
+        """Return the number of rows filter `key` drops from the view, or `---`."""
         if key in self.dropped:
             return f"{len(self.get_view_dropped(key)):,}"
         else:
             return "---"
 
-    def get_view_dropped(self, key=None):
+    def get_view_dropped(self, key: Optional[str] = None) -> np.ndarray:
+        """Return the row positions dropped from the view.
+
+        These are the rows that filter `key` drops, or all checked filters when
+        `key` is None, minus those that filters not in this list drop already.
+        """
         if not key:
             rangedropped = self.get_total_dropped_rows()
         else:
@@ -364,7 +513,11 @@ class FilterListCtrl(AnalysisListCtrl):
         viewdropped = np.setdiff1d(rangedropped, self.otherdropped, assume_unique=True)
         return viewdropped
 
-    def get_total_dropped_rows(self):
+    def get_total_dropped_rows(self) -> Union[np.ndarray, list]:
+        """Return the unique row positions that the checked filters drop.
+
+        An empty list if none drop rows.
+        """
         alldroppedrows = [
             self.dropped.get(selitem)
             for selitem in self.get_checked_items()
@@ -376,7 +529,12 @@ class FilterListCtrl(AnalysisListCtrl):
         logger.debug(f"total dropped rows: {len(alldroppedrows)}")
         return alldroppedrows
 
-    def EndLabelEdit(self, event):
+    def EndLabelEdit(self, event: wx.ListEvent) -> None:
+        """Set the edited low (column 2) or high (column 3) end of a filter's range.
+
+        The filter's dropped rows are computed again if it is selected, and the
+        changed filter is published. An unchanged value does nothing.
+        """
         idx = event.GetIndex()
         col = event.GetColumn()
         rowkey = self.GetItem(idx, self.get_key_col()).GetText()
@@ -403,7 +561,13 @@ class FilterListCtrl(AnalysisListCtrl):
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey: self.data[rowkey]})
 
-    def OnCheckItem(self, index, flag):
+    def OnCheckItem(self, index: int, flag: bool) -> None:
+        """Select or deselect the row's filter, then update and publish its rows.
+
+        Args:
+            index: The row's index.
+            flag: The new state: True if checked.
+        """
         logger.debug("OnCheckItem")
         rowkey = self.GetItem(index, self.get_key_col()).GetText()
         filter = self.data[rowkey]

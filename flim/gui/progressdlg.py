@@ -7,19 +7,30 @@ import os
 import subprocess
 import sys
 import threading
+from collections.abc import Callable
+from typing import Optional
 
 import wx
 import wx.adv
 
 from flim.core.paths import shorten_path
-from flim.core.runner import FINAL_STATUSES, CancelToken
+from flim.core.runner import FINAL_STATUSES, CancelToken, FlowRun
 
 logger = logging.getLogger(__name__)
 
+# called as `on_progress(done, total, label, complete)`
+ProgressCallback = Callable[[int, int, str, bool], None]
 
-def open_in_file_browser(path):
-    """Shows a folder in Finder (macOS), Explorer (Windows) or, elsewhere, with
-    xdg-open; creates the folder if it does not exist."""
+
+def open_in_file_browser(path: str | os.PathLike) -> None:
+    """Show a folder in the file browser; create the folder if it does not exist.
+
+    The folder opens in Finder (macOS), Explorer (Windows) or, elsewhere, with
+    `xdg-open`.
+
+    Args:
+        path: The folder.
+    """
     os.makedirs(path, exist_ok=True)
     if sys.platform == "darwin":
         subprocess.Popen(["open", path])
@@ -32,18 +43,25 @@ def open_in_file_browser(path):
 class FolderLink(wx.adv.HyperlinkCtrl):
     """Shows a folder path; clicking it opens the folder in the file browser."""
 
-    def __init__(self, parent, path=""):
+    def __init__(self, parent: wx.Window, path: str | os.PathLike = "") -> None:
+        """Create the link.
+
+        Args:
+            parent: The parent window.
+            path: The folder; an empty string shows no path. Defaults to "".
+        """
         super().__init__(parent, wx.ID_ANY, " ", "")
         self.Bind(wx.adv.EVT_HYPERLINK, self.OnClick)
         self.SetPath(path)
 
-    def SetPath(self, path):
-        """Shows ``path`` (long paths shortened); the tooltip has the whole path."""
+    def SetPath(self, path: str | os.PathLike) -> None:
+        """Show `path` (long paths shortened); the tooltip has the whole path."""
         self.path = path
         self.SetLabel(shorten_path(path) if path else " ")
         self.SetToolTip(f"{path}\nOpen in the file browser" if path else "")
 
-    def OnClick(self, event):
+    def OnClick(self, event: wx.adv.HyperlinkEvent) -> None:
+        """Open the folder in the file browser."""
         # instead of opening a URL in the web browser
         if self.path:
             open_in_file_browser(self.path)
@@ -56,19 +74,27 @@ class RunProgressDialog(wx.Dialog):
     loop keeps running. Cancel (or closing the window) cancels the run; the dialog
     closes itself when the run has ended.
 
-    Args:
-        parent: parent window.
-        title: name of the tool or workflow.
-        start_run: callable ``start_run(cancel_token, on_progress, on_start)`` that
-            runs the flow (in the worker thread), passing the three on to
-            :func:`~flim.core.runner.run_flow`, and returns the
-            :class:`~flim.core.runner.FlowRun`.
-
-    After :meth:`ShowModal` (``wx.ID_OK`` or ``wx.ID_CANCEL`` if cancelled),
-    :attr:`run` holds the FlowRun, or :attr:`error` the exception that stopped it.
+    After `ShowModal` (`wx.ID_OK`, or `wx.ID_CANCEL` if cancelled), `run` holds the
+    `FlowRun`, or `error` the exception that stopped it.
     """
 
-    def __init__(self, parent, title, start_run):
+    def __init__(
+        self,
+        parent: Optional[wx.Window],
+        title: str,
+        start_run: Callable[
+            [CancelToken, ProgressCallback, Callable[[FlowRun], None]], FlowRun
+        ],
+    ) -> None:
+        """Create the dialog; the run starts once the modal loop is running.
+
+        Args:
+            parent: The parent window.
+            title: The name of the tool or workflow.
+            start_run: Called as `start_run(cancel_token, on_progress, on_start)` in
+                the worker thread; runs the flow, passing the three on to
+                `flim.core.runner.run_flow`, and returns the `FlowRun`.
+        """
         super().__init__(parent, wx.ID_ANY, title=title)
         self.start_run = start_run
         self.cancel_token = CancelToken()
@@ -124,7 +150,8 @@ class RunProgressDialog(wx.Dialog):
         # start once the modal loop is running, so that a quick run can end it
         wx.CallAfter(self._start)
 
-    def _start(self):
+    def _start(self) -> None:
+        """Start the run in a worker thread, with garbage collection on this thread."""
         # Python's cyclic garbage collector runs in whichever thread allocates when
         # it triggers; if it frees wx objects in a worker thread, the process can
         # crash.
@@ -142,7 +169,8 @@ class RunProgressDialog(wx.Dialog):
             target=context.run, args=(self._work,), name="flow-run", daemon=True
         ).start()
 
-    def _restore_gc(self):
+    def _restore_gc(self) -> None:
+        """Stop the collection timer and restore automatic garbage collection."""
         timer = getattr(self, "_gc_timer", None)
         if timer is not None:
             timer.Stop()
@@ -151,7 +179,8 @@ class RunProgressDialog(wx.Dialog):
                 gc.enable()
             gc.collect()
 
-    def _work(self):
+    def _work(self) -> None:
+        """Run the flow in the worker thread and store its run or error."""
         from flim.core.prefect_server import checked_prefect_server
 
         try:
@@ -164,10 +193,12 @@ class RunProgressDialog(wx.Dialog):
             self.error = e
         wx.CallAfter(self._finished)
 
-    def _on_start(self, run):
+    def _on_start(self, run: FlowRun) -> None:
+        """Pass the started run to the main thread."""
         wx.CallAfter(self._started, run)
 
-    def _started(self, run):
+    def _started(self, run: FlowRun) -> None:
+        """Show the links to the run on the Prefect server and to its results."""
         if not self:  # destroyed before the update arrived
             return
         self._flow_run = run
@@ -183,16 +214,18 @@ class RunProgressDialog(wx.Dialog):
             self.folder.Show()
         self.Fit()
 
-    def _on_progress(self, done, total, label, complete):
+    def _on_progress(self, done: int, total: int, label: str, complete: bool) -> None:
+        """Refresh the dialog on the main thread."""
         wx.CallAfter(self._refresh)
 
     @staticmethod
-    def _names(labels, shown=3):
+    def _names(labels: list[str], shown: int = 3) -> str:
+        """Return the first `shown` labels and the number of the others."""
         names = ", ".join(labels[:shown])
         return names + (f" and {len(labels) - shown} more" if len(labels) > shown else "")
 
-    def _refresh(self):
-        """Shows the current task statuses: status line, count, bar and list."""
+    def _refresh(self) -> None:
+        """Show the current task statuses: status line, count, bar and list."""
         if not self:  # destroyed before the update arrived
             return
         if self._flow_run is None:
@@ -227,14 +260,16 @@ class RunProgressDialog(wx.Dialog):
             self.count_text.SetLabel(f"{done} of {len(tasks)} tasks completed so far")
         self.Layout()
 
-    def OnCancel(self, event):
+    def OnCancel(self, event: wx.Event) -> None:
+        """Cancel the run; the dialog closes when the run has ended."""
         if self.cancel_token.is_set():
             return
         self.cancel_token.set()
         self.cancel_button.Disable()
         self._refresh()
 
-    def _finished(self):
+    def _finished(self) -> None:
+        """Restore the garbage collection, show the final statuses and close."""
         if not self:
             return
         self._restore_gc()
@@ -242,7 +277,8 @@ class RunProgressDialog(wx.Dialog):
         self._refresh()
         self._end_modal()
 
-    def _end_modal(self):
+    def _end_modal(self) -> None:
+        """End the modal loop, and check again later until it has ended."""
         if not self or not self.IsModal():
             return
         self.EndModal(wx.ID_CANCEL if self.cancel_token.is_set() else wx.ID_OK)
@@ -252,23 +288,28 @@ class RunProgressDialog(wx.Dialog):
 
 
 class RunSummaryDialog(wx.Dialog):
-    """Shows how a run ended (completed and failed tasks, warnings) and links to its
-    results folder and to its flow run on the Prefect server, if there are any.
+    """Shows how a run ended, with links to its results and its Prefect flow run.
 
-    Args:
-        parent: parent window.
-        title: name of the tool or workflow.
-        run (flim.core.runner.FlowRun): the finished run.
+    The dialog lists the numbers of completed and failed tasks, the names of up to
+    five failed tasks and up to five warnings, and links to the results folder and
+    to the flow run on the Prefect server, if there are any.
     """
 
-    def __init__(self, parent, title, run):
+    def __init__(self, parent: Optional[wx.Window], title: str, run: FlowRun) -> None:
+        """Create the dialog.
+
+        Args:
+            parent: The parent window.
+            title: The name of the tool or workflow.
+            run: The finished run.
+        """
         super().__init__(parent, wx.ID_ANY, title=title)
         counts = run.task_counts()
         total = sum(counts.values())
         completed = counts.get("completed", 0)
         sizer = wx.BoxSizer(wx.VERTICAL)
 
-        def text(label):
+        def text(label: str) -> None:
             sizer.Add(wx.StaticText(self, label=label), 0, wx.LEFT | wx.RIGHT | wx.TOP, 10)
 
         if run.state == "cancelled":

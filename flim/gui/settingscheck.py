@@ -6,7 +6,7 @@ from typing import Callable, Optional
 
 import wx
 
-from flim.core.settingsmgr import Pick
+from flim.core.settingsmgr import Pick, SettingsManager
 from flim.core.settings import (
     SETTINGS_VERSION,
     SettingsCheck,
@@ -26,12 +26,12 @@ SAVE_OTHER = "Save to another file..."
 
 
 def _options(check: SettingsCheck) -> list[str]:
-    """Return the options for a checked file; a file that cannot be read offers no
-    settings to use or keep."""
+    """Return the options for a checked file; an unreadable file offers fewer."""
     return [IGNORE, OTHER] if check.error else [USE, IGNORE, UPDATE, OTHER]
 
 
-def _confirm_update(check: SettingsCheck, parent) -> bool:
+def _confirm_update(check: SettingsCheck, parent: Optional[wx.Window]) -> bool:
+    """Ask whether to replace the file with its usable settings; True for Yes."""
     message = (
         f"Replace {check.path} with the settings that can be used, in the current"
         " version?\n\nThe settings listed as unknown or invalid are removed from the"
@@ -43,7 +43,8 @@ def _confirm_update(check: SettingsCheck, parent) -> bool:
         return dialog.ShowModal() == wx.ID_YES
 
 
-def _other_file(parent) -> Optional[str]:
+def _other_file(parent: Optional[wx.Window]) -> Optional[str]:
+    """Ask for another settings file to open; None if cancelled."""
     with wx.FileDialog(
         parent,
         "Choose a Settings File",
@@ -55,7 +56,7 @@ def _other_file(parent) -> Optional[str]:
 
 def choose_settings(
     check: SettingsCheck,
-    parent=None,
+    parent: Optional[wx.Window] = None,
     problems: Optional[Callable[[SettingsCheck], bool]] = None,
 ) -> Optional[SettingsCheck]:
     """Ask the user how to use a settings file some of whose settings cannot be used.
@@ -68,9 +69,9 @@ def choose_settings(
 
     Args:
         check: The result of `check_settings_file`.
-        parent: The parent window.
-        problems: Whether a check has problems that need the user's choice; defaults
-            to `SettingsCheck.problems`.
+        parent: The parent window; None for none.
+        problems: A function of a check that returns whether it has problems that
+            need the user's choice. Defaults to `SettingsCheck.problems`.
 
     Returns:
         The check whose sections to use (of this or another file), or None to use
@@ -115,22 +116,27 @@ def choose_settings(
 
 
 def needs_rewrite(check: SettingsCheck) -> bool:
-    """Return whether adding settings to a checked file rewrites more than they: the
-    file is of an older version or has settings that cannot be used."""
+    """Return whether adding settings to a checked file rewrites more than they.
+
+    That is the case if the file can be read and is of an older version or has
+    settings that cannot be used.
+    """
     return check.error is None and (
         check.version < SETTINGS_VERSION or bool(check.unknown or check.invalid)
     )
 
 
-def confirm_rewrite(check: SettingsCheck, parent=None) -> Optional[str]:
+def confirm_rewrite(
+    check: SettingsCheck, parent: Optional[wx.Window] = None
+) -> Optional[str]:
     """Ask before settings are added to a file that would be rewritten.
 
     Args:
         check: The result of `check_settings_file` for the file.
-        parent: The parent window.
+        parent: The parent window; None for none.
 
     Returns:
-        REWRITE to update the file, the path of another file to save to, or None
+        `REWRITE` to update the file, the path of another file to save to, or None
         (Cancel, or no other file chosen).
     """
     message = (
@@ -146,7 +152,8 @@ def confirm_rewrite(check: SettingsCheck, parent=None) -> Optional[str]:
     return REWRITE if choice == REWRITE else _save_file(parent)
 
 
-def _save_file(parent) -> Optional[str]:
+def _save_file(parent: Optional[wx.Window]) -> Optional[str]:
+    """Ask for a file to save the settings to; None if cancelled."""
     with wx.FileDialog(
         parent,
         "Save Settings",
@@ -164,16 +171,32 @@ CLEAR_DEFAULT = "Clear Default"
 
 
 class StartupSettingsDialog(wx.Dialog):
-    """Asks which app settings file to start with.
+    """Dialog that asks which app settings file to start with.
 
     The table lists the files (default, file, folder). With a default set, its row is
     selected and Enter starts with it; without one, no row is selected and Enter
     starts without a file (`Skip App Settings`, also Esc). `Make Default` makes the
     selected file the default, `Clear Default` clears it; the check mark in the
     Default column shows the default at once, and the change applies with either
-    button."""
+    button.
+    """
 
-    def __init__(self, parent, files: list[Path], default: Optional[Path], warning=None):
+    def __init__(
+        self,
+        parent: Optional[wx.Window],
+        files: list[Path],
+        default: Optional[Path],
+        warning: Optional[str] = None,
+    ) -> None:
+        """Create the dialog.
+
+        Args:
+            parent: The parent window; None for none.
+            files: The files to list.
+            default: The default app settings file, selected, and listed first if not
+                in `files`; None if none is set.
+            warning: A message shown in red above the list; None for none.
+        """
         super().__init__(parent, title="App Settings File")
         self.files = list(files)
         if default is not None and default not in self.files:
@@ -230,8 +253,10 @@ class StartupSettingsDialog(wx.Dialog):
             self._update()
 
     def rows(self) -> list[tuple[str, str, str]]:
-        """Return the table's rows: default mark, file name, folder (`~` for the home
-        folder)."""
+        """Return the table's rows: default mark, file name, folder.
+
+        A folder in the home folder starts with `~`.
+        """
         home = Path.home()
         rows = []
         for f in self.files:
@@ -242,6 +267,7 @@ class StartupSettingsDialog(wx.Dialog):
         return rows
 
     def _fill(self) -> None:
+        """Fill the table with `rows()` and fit the column widths."""
         self.table.DeleteAllItems()
         for row in self.rows():
             index = self.table.InsertItem(self.table.GetItemCount(), row[0])
@@ -263,6 +289,7 @@ class StartupSettingsDialog(wx.Dialog):
         return self.files[index] if index >= 0 else None
 
     def _update(self) -> None:
+        """Enable the buttons that apply to the selection and the default."""
         chosen = self.selected()
         self.make_default.Enable(chosen is not None and chosen != self.default)
         self.clear.Enable(self.default is not None)
@@ -275,10 +302,12 @@ class StartupSettingsDialog(wx.Dialog):
             self.table.SetItem(index, 0, row[0])
         self._update()
 
-    def _on_make_default(self, event) -> None:
+    def _on_make_default(self, event: wx.CommandEvent) -> None:
+        """Make the selected file the default."""
         self._set_default(self.selected())
 
-    def _on_clear(self, event) -> None:
+    def _on_clear(self, event: wx.CommandEvent) -> None:
+        """Clear the default."""
         self._set_default(None)
 
     def result(self, answer: int) -> Pick:
@@ -297,16 +326,19 @@ class StartupSettingsDialog(wx.Dialog):
 
 
 def pick_app_settings(
-    files: list[Path], default: Optional[Path] = None, warning: Optional[str] = None,
-    parent=None,
+    files: list[Path],
+    default: Optional[Path] = None,
+    warning: Optional[str] = None,
+    parent: Optional[wx.Window] = None,
 ) -> Pick:
     """Ask which app settings file to start with (`StartupSettingsDialog`).
 
     Args:
         files: The files in the app settings search path (`list_app_settings`).
         default: The default app settings file, preselected; None if none is set.
-        warning: A message to show above the list, e.g. that a default was cleared.
-        parent: The parent window.
+        warning: A message to show above the list, e.g. that a default was cleared;
+            None for none.
+        parent: The parent window; None for none.
 
     Returns:
         The file to start with (None for `Skip App Settings`) and the default from
@@ -321,19 +353,28 @@ def pick_app_settings(
     return picked
 
 
-def offer_import_workflow(check, parent, settings_manager) -> Optional[Path]:
-    """If a settings file has import settings of FLIMAnalyzer 0.6, ask whether to save
-    them as a workflow file (`SettingsCheck.import_workflow`); nothing is applied
-    otherwise. The saved file is registered, and Import Tables' settings are set to
-    run it and to read the files as the 0.6 settings did (`SettingsCheck.import_read`).
+def offer_import_workflow(
+    check: SettingsCheck,
+    parent: Optional[wx.Window],
+    settings_manager: SettingsManager,
+) -> Optional[Path]:
+    """Offer to save the import settings of a FLIMAnalyzer 0.6 file as a workflow file.
+
+    If the file has such settings (`SettingsCheck.import_workflow`), the user is asked
+    whether to save them as a workflow file, and where; the dialog opens in the first
+    folder of the workflow search path, which is created if needed. Nothing is
+    applied otherwise. The saved file is registered as a tool if no tool of its name
+    is registered, and Import Tables' settings are set to run it and to read the
+    files as the 0.6 settings did (`SettingsCheck.import_read`).
 
     Args:
         check: The result of `check_settings_file`.
-        parent: The parent window.
-        settings_manager: The session's SettingsManager (the workflow search path).
+        parent: The parent window; None for none.
+        settings_manager: The session's settings manager, for the workflow search
+            path and Import Tables' settings.
 
     Returns:
-        The saved file, or None.
+        The saved file; None if the file has no such settings or the user saved none.
     """
     import json
 

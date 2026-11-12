@@ -1,17 +1,20 @@
-"""Editors for config fields: one wx control per field kind (flim.core.fields).
+"""Editors for config fields: one wx control per field kind (`flim.core.fields`).
 
-An editor shows a value (``set``), reads it back (``get``, raising ValueError for text
-that is not a valid value) and calls ``on_change`` when the user edits it. Column
-editors offer the columns of the input tables (``set_schema``).
+An editor shows a value (`set`), reads it back (`get`, raising `ValueError` for text
+that is not a valid value) and calls `on_change` when the user edits it. Column
+editors offer the columns of the input tables (`set_schema`).
 """
 
 import json
+import os
 import typing
+from collections.abc import Collection, Iterable, Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 import wx
 import wx.grid
+from pydantic import BaseModel
 
 from flim.core.fields import FieldSpec, describe, field_order, title_of, visible
 from flim.core.schema import TableSchema
@@ -21,44 +24,99 @@ NONE_LABEL = "(none)"
 
 
 class Editor:
-    """Base of the field editors."""
+    """Base class of the field editors: one wx control that edits one config field.
+
+    Subclasses implement `create`, `get` and `set`; the other methods do nothing
+    unless a subclass overrides them.
+    """
 
     expands = False  # takes the full width of the dialog (lists, tables)
     grows = True  # if it expands: also gets taller when the dialog does
 
-    def __init__(self, parent: wx.Window, spec: FieldSpec):
+    def __init__(self, parent: wx.Window, spec: FieldSpec) -> None:
+        """Create the editor's control in `parent`.
+
+        The field's description becomes the control's tooltip.
+
+        Args:
+            parent: The window that holds the control.
+            spec: The field that the editor edits.
+        """
         self.spec = spec
         self.on_change: Optional[Callable[["Editor"], None]] = None
         self.control = self.create(parent)
         if spec.description:
             self.control.SetToolTip(spec.description)
 
-    def create(self, parent) -> wx.Window:
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create and return the editor's control; implemented by subclasses.
+
+        Args:
+            parent: The window that holds the control.
+
+        Returns:
+            The control, stored as `control`.
+        """
         raise NotImplementedError
 
     def get(self) -> Any:
+        """Return the edited value; implemented by subclasses.
+
+        Raises:
+            ValueError: If the edited text is not a valid value.
+        """
         raise NotImplementedError
 
-    def set(self, value) -> None:
+    def set(self, value: Any) -> None:
+        """Show `value` in the control, without calling `on_change`.
+
+        Implemented by subclasses.
+        """
         raise NotImplementedError
 
     def set_schema(self, schema: Optional[TableSchema]) -> None:
-        """The input's columns (None: unknown)."""
+        """Take the schema of the input tables, e.g. to offer their columns.
+
+        Args:
+            schema: The input's columns; None if they are unknown.
+        """
 
     def set_data(self, tables: list) -> None:
-        """The selected input tables (DataFrames), e.g. for ranges of values."""
+        """Take the selected input tables, e.g. for the ranges of their values.
+
+        Args:
+            tables: The selected input tables (DataFrames).
+        """
 
     def show_issues(self, issues: list) -> None:
-        """The issues of this field (paths like ``"features['FLIRR']"``), e.g. to mark
-        the rows of a table they are about; the dialog marks the field itself."""
+        """Show the issues of this field, e.g. by marking the table rows they are about.
+
+        The dialog marks the field itself.
+
+        Args:
+            issues: The field's issues (`flim.core.config.Issue`), with paths into
+                the field such as `features['FLIRR']`.
+        """
 
     def refresh(self, panel: "FieldsPanel") -> None:
-        """Called when any field of the panel changed (fields that depend on others)."""
+        """Update the editor after any field of the panel changed.
+
+        For fields that depend on other fields, e.g. the values of a column named by
+        another field.
+
+        Args:
+            panel: The panel that holds the editor.
+        """
 
     def set_allowed(self, allowed: Optional[tuple]) -> None:
-        """The values allowed now (None: all), see BaseConfig.allowed_values."""
+        """Offer only the values allowed now (see `BaseConfig.allowed_values`).
 
-    def changed(self, event=None):
+        Args:
+            allowed: The allowed values; None if all values are allowed.
+        """
+
+    def changed(self, event: Optional[wx.Event] = None) -> None:
+        """Call `on_change` after an edit; the event, if any, is skipped."""
         if self.on_change is not None:
             self.on_change(self)
         if event is not None:
@@ -66,22 +124,31 @@ class Editor:
 
 
 class BoolEditor(Editor):
-    def create(self, parent):
+    """A bool that is not optional: a check box."""
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the check box."""
         control = wx.CheckBox(parent, label="")
         control.Bind(wx.EVT_CHECKBOX, self.changed)
         return control
 
-    def get(self):
+    def get(self) -> Any:
+        """Return whether the box is checked."""
         return self.control.GetValue()
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Check the box if `value` is true."""
         self.control.SetValue(bool(value))
 
 
 class ChoiceEditor(Editor):
-    """A Literal (or an optional bool: automatic, yes, no)."""
+    """A choice of one value: a `Literal`, or an optional bool (Automatic, Yes, No).
 
-    def create(self, parent):
+    An optional `Literal` also offers None, shown as `(none)`.
+    """
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create a drop-down list of the field's values."""
         if self.spec.kind == "bool":  # optional bool
             self.values = [None, True, False]
             labels = ["Automatic", "Yes", "No"]
@@ -95,22 +162,34 @@ class ChoiceEditor(Editor):
         control.Bind(wx.EVT_CHOICE, self.changed)
         return control
 
-    def _label(self, value) -> str:
+    def _label(self, value: Any) -> str:
+        """Return the label shown for a value."""
         if value is None:
             return NONE_LABEL
         return str(self.spec.labels.get(value, value))
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the selected value.
+
+        Raises:
+            ValueError: If no value is selected.
+        """
         index = self.control.GetSelection()
         if index == wx.NOT_FOUND:
             raise ValueError("Select a value")
         return self.values[index]
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Select `value`; a value that is not offered is ignored."""
         if value in self.values:
             self.control.SetSelection(self.values.index(value))
 
-    def set_allowed(self, allowed):
+    def set_allowed(self, allowed: Optional[tuple]) -> None:
+        """Offer only the allowed values (None: all of the field's values).
+
+        The selected value stays selected if it is allowed; otherwise the first
+        allowed value is selected.
+        """
         values = [v for v in self.all_values if allowed is None or v in allowed]
         if values == self.values:
             return
@@ -122,9 +201,15 @@ class ChoiceEditor(Editor):
 
 
 class TextEditor(Editor):
-    """Text, and numbers typed as text (int, float, number, mixed, numbers)."""
+    """Text, numbers typed as text, and lists typed as one line of text.
 
-    def create(self, parent):
+    Used for the kinds text, int (optional), float, number, mixed (a combo box of
+    the choices, or a number) and numbers, and for fields with `words`, `escapes` or
+    `chars`.
+    """
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create a text field; for the kind mixed, a combo box of the choices."""
         if self.spec.kind == "mixed":
             control = wx.ComboBox(parent, choices=[str(c) for c in self.spec.choices])
         else:
@@ -132,7 +217,24 @@ class TextEditor(Editor):
         control.Bind(wx.EVT_TEXT, self.changed)
         return control
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the value of the text.
+
+        - `chars`: the distinct characters of the text (after `unescape`); a text
+          that starts with `[` is read as a JSON list.
+        - `escapes`: the text after `unescape`; spaces are kept.
+        - Otherwise the text is stripped. `words`: the entries separated by commas,
+          each stripped; empty entries are kept, an empty text gives an empty list.
+        - An empty text of an optional field is None.
+        - text: the text. numbers: the numbers separated by commas or semicolons,
+          of the field's item type. mixed: the choice with this text, else a number.
+          int, float: a number of that type. Other kinds: an int if the text is
+          written as an int, else a float.
+
+        Raises:
+            ValueError: If a `chars` text that starts with `[` is not a JSON list, or
+                a text is not a number.
+        """
         if self.spec.chars:  # each character one entry; JSON for longer entries
             text = self.control.GetValue()
             if text.strip().startswith("["):
@@ -159,7 +261,8 @@ class TextEditor(Editor):
         return self._number(text, {"int": int, "float": float}.get(kind))
 
     @staticmethod
-    def _number(text, kind=None):
+    def _number(text: str, kind: Optional[type] = None) -> float:
+        """Return `text` as an int or float (`kind`; None: as written); else raise."""
         try:
             if kind is int:
                 return int(text)
@@ -174,7 +277,13 @@ class TextEditor(Editor):
         except ValueError:
             raise ValueError(f"'{text}' is not a number") from None
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show `value` as text.
+
+        None is an empty text. `chars`: the characters as one text (with `escape`),
+        or a JSON list if an entry is longer than one character. Other lists: the
+        entries separated by commas. `escapes`: the text with `escape`.
+        """
         if value is None:
             text = ""
         elif self.spec.chars:
@@ -190,13 +299,28 @@ class TextEditor(Editor):
 
 
 def escape(text: str) -> str:
-    r"""Return text with its backslashes as `\\` and its tabs as `\t`."""
+    r"""Return `text` with its backslashes as `\\` and its tabs as `\t`.
+
+    Args:
+        text: The text.
+
+    Returns:
+        The text as it is typed in an editor.
+    """
     return text.replace("\\", "\\\\").replace("\t", "\\t")
 
 
 def unescape(text: str) -> str:
-    r"""Return text with `\t` as a tab and `\\` as a backslash (the reverse of
-    `escape`)."""
+    r"""Return `text` with `\t` as a tab and `\\` as a backslash.
+
+    The reverse of `escape`. Other backslashes are kept.
+
+    Args:
+        text: The text as typed in an editor.
+
+    Returns:
+        The text.
+    """
     out, i = [], 0
     while i < len(text):
         if text[i] == "\\" and i + 1 < len(text) and text[i + 1] in "t\\":
@@ -209,9 +333,13 @@ def unescape(text: str) -> str:
 
 
 class IntEditor(Editor):
-    """An int with bounds: a spin control."""
+    """An int that is not optional: a spin control within the field's bounds.
 
-    def create(self, parent):
+    Without bounds, the limits are -10**9 and 10**9.
+    """
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the spin control, limited to the field's bounds."""
         bounds = self.spec.bounds
         low = bounds.get("ge", bounds["gt"] + 1 if "gt" in bounds else -(10**9))
         high = bounds.get("le", bounds["lt"] - 1 if "lt" in bounds else 10**9)
@@ -220,16 +348,25 @@ class IntEditor(Editor):
         control.Bind(wx.EVT_TEXT, self.changed)
         return control
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the number."""
         return self.control.GetValue()
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show the number `value`."""
         self.control.SetValue(int(value))
 
 
 def set_combo_items(combo: wx.ComboBox, items: list) -> None:
-    """Replaces the items of a combo box (``Set`` appends to them on macOS, and
-    ``Clear`` only clears the text)."""
+    """Replace the items of a combo box.
+
+    The items are deleted one by one: `Set` appends to them on macOS, and `Clear`
+    only clears the text.
+
+    Args:
+        combo: The combo box.
+        items: The new items (texts).
+    """
     for index in reversed(range(combo.GetCount())):
         combo.Delete(index)
     if items:
@@ -237,10 +374,21 @@ def set_combo_items(combo: wx.ComboBox, items: list) -> None:
 
 
 def fit_rows(
-    control: wx.Window, rows: int, fewest: int = 3, most: int = 10, fixed=False
+    control: wx.Window, rows: int, fewest: int = 3, most: int = 10, fixed: bool = False
 ) -> None:
-    """Makes a list control tall enough for ``rows`` items (within fewest..most);
-    ``fixed``: exactly that tall (lists that should not grow with the dialog)."""
+    """Make a list control tall enough for `rows` items.
+
+    The number of rows is limited to `fewest` .. `most`. The control's parent is laid
+    out again.
+
+    Args:
+        control: The list control.
+        rows: The number of items.
+        fewest: The smallest number of rows. Defaults to 3.
+        most: The largest number of rows. Defaults to 10.
+        fixed: Whether the height is also the maximum height, for lists that do not
+            grow with the dialog. Defaults to False.
+    """
     height = control.GetCharHeight() + 6  # about one row of a list
     size = (-1, max(fewest, min(rows, most)) * height + 6)
     control.SetMinSize(size)
@@ -251,22 +399,34 @@ def fit_rows(
 
 
 class ColumnEditor(Editor):
-    """One column of the input: lists the input's columns of the field's role; any
-    name can be typed."""
+    """One column of the input: a combo box of the input's columns of the field's role.
 
-    def create(self, parent):
+    Any name can be typed.
+    """
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the combo box; `set_schema` offers the columns."""
         control = wx.ComboBox(parent, choices=[])
         control.Bind(wx.EVT_COMBOBOX, self.changed)
         control.Bind(wx.EVT_TEXT, self.changed)
         return control
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """Offer the input's columns of the field's role; the text is kept.
+
+        An optional field also offers an empty entry, first.
+        """
         value = self.control.GetValue()
         names = [] if schema is None else schema.by_role(self.spec.role)
         set_combo_items(self.control, ([""] if self.spec.optional else []) + names)
         self.control.ChangeValue(value)
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the column name, stripped; None if empty and the field is optional.
+
+        Raises:
+            ValueError: If the text is empty and the field is not optional.
+        """
         value = self.control.GetValue().strip()
         if value == "":
             if self.spec.optional:
@@ -274,12 +434,17 @@ class ColumnEditor(Editor):
             raise ValueError("Select a column")
         return value
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show the column name; None as an empty text."""
         self.control.ChangeValue("" if value is None else str(value))
 
-    def set_allowed(self, allowed):
-        # lists only the allowed columns (e.g. the selected features); with fewer
-        # than two allowed, the list stays as it is
+    def set_allowed(self, allowed: Optional[tuple]) -> None:
+        """Offer only the allowed columns, e.g. the selected features.
+
+        With None or fewer than two allowed values, the offered columns stay as they
+        are. The text is kept if it is allowed, else the first allowed column is
+        shown.
+        """
         if allowed is None or len(allowed) < 2:
             return
         names = [str(a) for a in allowed if a is not None]
@@ -291,26 +456,39 @@ class ColumnEditor(Editor):
 
 
 class ValueEditor(Editor):
-    """A value of the category column named by another field (``column_field``)."""
+    """A value of the category column named by another field (`column_field`)."""
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the combo box; `refresh` offers the column's values."""
         control = wx.ComboBox(parent, choices=[])
         control.Bind(wx.EVT_COMBOBOX, self.changed)
         control.Bind(wx.EVT_TEXT, self.changed)
         self.schema = None
         return control
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """Keep the input's schema, which lists the values of category columns."""
         self.schema = schema
 
-    def refresh(self, panel):
+    def refresh(self, panel: "FieldsPanel") -> None:
+        """Offer the values of the column named by the `column_field` field.
+
+        If that field is a list of columns (e.g. grouping), its first column is used.
+        """
         column = panel.value_of(self.spec.column_field)
         if isinstance(column, list):  # e.g. grouping: its first column
             column = column[0] if column else None
         self.update_choices(column)
 
     def update_choices(self, column: Optional[str]) -> None:
-        """Offers the values of ``column`` (if the input's schema knows them)."""
+        """Offer the values (levels) of `column` that the input's schema lists.
+
+        Without a schema, a column, or listed values, no values are offered. The text
+        is kept.
+
+        Args:
+            column: The column name; None for none.
+        """
         info = None if self.schema is None or not column else self.schema.column(column)
         levels = (
             [] if info is None or info.levels is None else [str(v) for v in info.levels]
@@ -320,22 +498,25 @@ class ValueEditor(Editor):
             set_combo_items(self.control, levels)
             self.control.ChangeValue(value)
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the text, stripped; None if empty and the field is optional."""
         value = self.control.GetValue().strip()
         if value == "" and self.spec.optional:
             return None
         return value
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show the value; None as an empty text."""
         self.control.ChangeValue("" if value is None else str(value))
 
 
 class _CheckList(Editor):
-    """Checked items of a list, in list order."""
+    """Checked items of a list, in list order, with Select All and Deselect All."""
 
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the check list, its buttons, and the `extra_controls` above it."""
         self.panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.extra_controls(self.panel, sizer)
@@ -354,41 +535,70 @@ class _CheckList(Editor):
         self.items: list = []
         return self.panel
 
-    def extra_controls(self, panel, sizer):
+    def extra_controls(self, panel: wx.Panel, sizer: wx.BoxSizer) -> None:
+        """Add controls above the list; none in this class.
+
+        Args:
+            panel: The editor's panel, the parent of the controls.
+            sizer: The panel's sizer, to add the controls to.
+        """
         pass
 
-    def set_items(self, items, checked):
+    def set_items(self, items: Sequence[Any], checked: Sequence[Any]) -> None:
+        """List `items` and check the items in `checked`.
+
+        Checked items that are not in `items` are listed after them. Line breaks in
+        items are shown as spaces. The list is made tall enough for up to 10 items.
+
+        Args:
+            items: The items to list.
+            checked: The items to check.
+        """
         self.items = list(items) + [c for c in checked if c not in items]
         self.list.Set([str(i).replace("\n", " ") for i in self.items])
         self.list.SetCheckedItems([self.items.index(c) for c in checked])
         fit_rows(self.list, len(self.items), most=10)
 
     def checked(self) -> list:
+        """Return the checked items, in list order."""
         return [self.items[i] for i in self.list.GetCheckedItems()]
 
-    def check_all(self, checked: bool):
+    def check_all(self, checked: bool) -> None:
+        """Check all items, or uncheck all, and call `on_change`.
+
+        Args:
+            checked: Whether to check the items.
+        """
         self.list.SetCheckedItems(list(range(len(self.items))) if checked else [])
         self.changed()
 
 
 class MultiChoiceEditor(_CheckList):
-    def create(self, parent):
+    """Several of the field's choices: a check list of them."""
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the check list of the field's choices."""
         panel = super().create(parent)
         self.set_items(self.spec.choices, [])
         return panel
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the checked choices, in the order of the choices."""
         return self.checked()
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Check the choices that are in `value`."""
         self.set_items(self.spec.choices, [v for v in self.spec.choices if v in value])
 
 
 class FewChoicesEditor(Editor):
-    """A few choices (up to `FEW_CHOICES`) to check: one checkbox each, one under the
-    other, without a list box."""
+    """A few choices to check (up to `FEW_CHOICES`): one check box each.
 
-    def create(self, parent):
+    The check boxes are shown one under the other, without a list box.
+    """
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create a check box for each of the field's choices."""
         self.panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.boxes = {}
@@ -400,10 +610,12 @@ class FewChoicesEditor(Editor):
         self.panel.SetSizer(sizer)
         return self.panel
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the checked choices, in the order of the choices."""
         return [c for c in self.spec.choices if self.boxes[c].GetValue()]
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Check the choices that are in `value` (None: none)."""
         for choice, box in self.boxes.items():
             box.SetValue(choice in (value or []))
 
@@ -411,20 +623,32 @@ class FewChoicesEditor(Editor):
 FEW_CHOICES = 4  # multi-choice fields with up to this many choices: FewChoicesEditor
 
 
-def _one_line(name) -> str:
+def _one_line(name: Any) -> str:
+    """Return `name` as text, with line breaks as spaces."""
     return str(name).replace("\n", " ")
 
 
 class FeaturesEditor(_CheckList):
-    """Feature columns, or "all" (if allowed)."""
+    """Feature columns, or `all` (if the field allows it): a check list.
 
-    def create(self, parent):
+    The input's features are listed. The features of the settings (the wanted ones)
+    are checked as `_shown` describes.
+    """
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the check list; checking an item calls `_on_check`."""
         panel = super().create(parent)
         self.list.Unbind(wx.EVT_CHECKLISTBOX)
         self.list.Bind(wx.EVT_CHECKLISTBOX, self._on_check)
         return panel
 
-    def extra_controls(self, panel, sizer):
+    def extra_controls(self, panel: wx.Panel, sizer: wx.BoxSizer) -> None:
+        """Add the note of guessed features and, if allowed, the All features box.
+
+        Args:
+            panel: The editor's panel, the parent of the controls.
+            sizer: The panel's sizer, to add the controls to.
+        """
         self.all = None
         self.selection: list = []  # the selection before "All features" was checked
         self.wanted: list = []  # the features to check
@@ -440,6 +664,7 @@ class FeaturesEditor(_CheckList):
             sizer.Add(self.all, 0, wx.BOTTOM, 3)
 
     def is_all(self) -> bool:
+        """Return whether All features is checked."""
         return self.all is not None and self.all.GetValue()
 
     def _show_all(self, is_all: bool) -> None:
@@ -449,7 +674,8 @@ class FeaturesEditor(_CheckList):
         for control in [self.list] + self.buttons:
             control.Enable(not is_all)
 
-    def _on_all(self, event):
+    def _on_all(self, event: wx.CommandEvent) -> None:
+        """Check or uncheck All features; unchecking restores the earlier checks."""
         if self.is_all():
             self.selection = self.checked()
         elif self.selection:  # back to the selection made before; else all stay checked
@@ -460,18 +686,26 @@ class FeaturesEditor(_CheckList):
         self.changed(event)
 
     def _remember(self) -> None:
+        """Keep the checked features as the wanted ones."""
         self.wanted = self.checked()
 
-    def _on_check(self, event):
+    def _on_check(self, event: wx.CommandEvent) -> None:
+        """Keep the checked features and call `on_change`."""
         self._remember()
         self.changed(event)
 
-    def check_all(self, checked: bool):
+    def check_all(self, checked: bool) -> None:
+        """Check all features, or uncheck all, keep them and call `on_change`.
+
+        Args:
+            checked: Whether to check the features.
+        """
         self.list.SetCheckedItems(list(range(len(self.items))) if checked else [])
         self._remember()
         self.changed()
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """List the input's features of the field's role, the wanted ones checked."""
         if not self.is_all():
             self._remember()
         self.known = schema is not None and schema.complete
@@ -480,10 +714,13 @@ class FeaturesEditor(_CheckList):
         self._show_all(self.is_all())
 
     def _shown(self) -> list:
-        """The wanted features shown checked: those of the input if all are known
-        (else all of them: they may be in the input). A wanted feature the input
-        lacks is replaced by the closest of its features (a guess, named in a note) if
-        there is one, else ignored."""
+        """Return the wanted features to show checked.
+
+        If all of the input's features are known: those the input has; a wanted
+        feature the input lacks is replaced by the closest of its features (a guess,
+        named in a note) if there is one, else ignored. Otherwise all wanted features
+        (they may be in the input).
+        """
         if not self.known:
             self._show_note([])
             return list(self.wanted)
@@ -495,11 +732,12 @@ class FeaturesEditor(_CheckList):
             guess, _ = guess_column(f, self.features)
             if guess is not None and guess not in self.wanted:
                 shown.append(guess)
-                notes.append(f"{_one_line(f)} \u2192 {_one_line(guess)}")
+                notes.append(f"{_one_line(f)} → {_one_line(guess)}")
         self._show_note(["Guessed: " + ", ".join(notes)] if notes else [])
         return list(dict.fromkeys(shown))
 
-    def _show_note(self, lines: list) -> None:
+    def _show_note(self, lines: list[str]) -> None:
+        """Show the note with these lines; hide it if there are none."""
         if lines:
             self.note.SetLabel("\n".join(lines))
             self.note.SetToolTip(self.note.GetLabel())
@@ -507,12 +745,14 @@ class FeaturesEditor(_CheckList):
             self.note.Show(bool(lines))
             self.panel.Layout()
 
-    def get(self):
+    def get(self) -> Any:
+        """Return `all` if All features is checked, else the checked features."""
         if self.is_all():
             return "all"
         return self.checked()
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Check the features in `value`, or All features for `all` (see `_shown`)."""
         is_all = value == "all"
         if self.all is not None:
             self.all.SetValue(is_all)
@@ -532,7 +772,11 @@ class CategoriesEditor(Editor):
     expands = True
     grows = False  # as tall as its columns
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the list of columns with its move buttons.
+
+        An optional field also gets an Automatic check box (None: the tool chooses).
+        """
         self.panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.automatic = None
@@ -553,23 +797,28 @@ class CategoriesEditor(Editor):
         self.panel.SetSizer(sizer)
         return self.panel
 
-    def _on_check(self, event):
+    def _on_check(self, event: wx.CommandEvent) -> None:
+        """Keep the checked columns and call `on_change`."""
         self._remember()
         self.changed(event)
 
-    def _on_move(self, event):
+    def _on_move(self, event: wx.CommandEvent) -> None:
+        """After a move button, keep the new order once the list has moved the item."""
         event.Skip()
         wx.CallAfter(self._moved)
 
-    def _moved(self):
+    def _moved(self) -> None:
+        """Keep the checked columns in their new order and call `on_change`."""
         self._remember()
         self.changed()
 
-    def _on_automatic(self, event):
+    def _on_automatic(self, event: wx.CommandEvent) -> None:
+        """Disable the list while Automatic is checked, and call `on_change`."""
         self.rearrange.Enable(not self.automatic.GetValue())
         self.changed(event)
 
     def _remember(self) -> None:
+        """Keep the checked columns, in their order, as the wanted ones."""
         self.wanted = self.checked()
 
     def _show(self) -> None:
@@ -596,6 +845,7 @@ class CategoriesEditor(Editor):
         fit_rows(rearrange_list, len(labels), fewest=2, most=8, fixed=True)
 
     def checked(self) -> list:
+        """Return the checked columns, in their order in the list."""
         rearrange_list = self.rearrange.GetList()
         return [
             rearrange_list.GetString(i)
@@ -603,18 +853,21 @@ class CategoriesEditor(Editor):
             if rearrange_list.IsChecked(i)
         ]
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """List the input's columns of the field's role, the wanted ones checked."""
         self._remember()
         self.known = schema is not None and schema.complete
         self.columns = [] if schema is None else schema.by_role(self.spec.role)
         self._show()
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the checked columns in their order; None if Automatic is checked."""
         if self.automatic is not None and self.automatic.GetValue():
             return None
         return self.checked()
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Check the columns in `value`, in its order; None checks Automatic."""
         if self.automatic is not None:
             self.automatic.SetValue(value is None)
             self.rearrange.Enable(value is not None)
@@ -623,25 +876,33 @@ class CategoriesEditor(Editor):
 
 
 class PathEditor(Editor):
-    def create(self, parent):
+    """A path: a file picker with a text field."""
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the file picker."""
         control = wx.FilePickerCtrl(parent, style=wx.FLP_USE_TEXTCTRL | wx.FLP_OPEN)
         control.Bind(wx.EVT_FILEPICKER_CHANGED, self.changed)
         return control
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the path; None if it is empty and the field is optional."""
         path = self.control.GetPath()
         if not path and self.spec.optional:
             return None
         return Path(path)
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show the path; None as an empty text."""
         self.control.SetPath("" if value is None else str(value))
 
 
 class PathsEditor(Editor):
+    """A list of paths: a list box with Add... and Remove buttons."""
+
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the list box and its buttons."""
         panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.list = wx.ListBox(panel, style=wx.LB_EXTENDED)
@@ -656,7 +917,8 @@ class PathsEditor(Editor):
         panel.SetSizer(sizer)
         return panel
 
-    def _on_add(self, event):
+    def _on_add(self, event: wx.CommandEvent) -> None:
+        """Add the files selected in a file dialog."""
         with wx.FileDialog(
             self.control, "Select files", style=wx.FD_OPEN | wx.FD_MULTIPLE
         ) as dialog:
@@ -664,20 +926,29 @@ class PathsEditor(Editor):
                 self.set(self.get() + [Path(p) for p in dialog.GetPaths()])
                 self.changed()
 
-    def _on_remove(self, event):
+    def _on_remove(self, event: wx.CommandEvent) -> None:
+        """Remove the selected paths."""
         for index in sorted(self.list.GetSelections(), reverse=True):
             self.list.Delete(index)
         self.changed()
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the listed paths."""
         return [Path(p) for p in self.list.GetItems()]
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """List the paths in `value` (None: none)."""
         self.list.Set([str(p) for p in value or []])
 
 
-def relayout(window) -> None:
-    """Fits the dialog of ``window`` to fields that appeared or disappeared."""
+def relayout(window: wx.Window) -> None:
+    """Fit the dialog of `window` to fields that appeared or disappeared.
+
+    Calls the top-level window's `fit_contents` if it has one, else its `Layout`.
+
+    Args:
+        window: A window in the dialog.
+    """
     top = wx.GetTopLevelParent(window)
     if hasattr(top, "fit_contents"):
         top.fit_contents()
@@ -686,13 +957,17 @@ def relayout(window) -> None:
 
 
 class ModelEditor(Editor):
-    """A nested config: its fields in a titled group, or in a collapsed section if
-    it is advanced (``Field(json_schema_extra={"advanced": True})``, or a class with
-    ``advanced = True``, such as Resources)."""
+    """A nested config: its fields in a titled group, or in a collapsed section.
+
+    The collapsed section is for an advanced field
+    (`Field(json_schema_extra={"advanced": True})`, or a class with `advanced = True`,
+    such as `Resources`).
+    """
 
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create a `FieldsPanel` of the nested config in a group or a section."""
         self.value = None
         sizer = wx.BoxSizer(wx.VERTICAL)
         if self.spec.advanced:
@@ -713,7 +988,13 @@ class ModelEditor(Editor):
         self.fields.on_change = lambda: self.changed()
         return control
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the values of the config last set, with the edited ones, as a dict.
+
+        Raises:
+            ValueError: If text in the nested fields is not valid; the message names
+                each such field.
+        """
         try:
             return self.fields.values(self.value)
         except FieldErrors as err:
@@ -721,29 +1002,43 @@ class ModelEditor(Editor):
                 "; ".join(f"{k}: {v}" for k, v in err.errors.items())
             ) from None
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show the fields of the nested config `value`."""
         self.value = value
         self.fields.set_values(value)
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """Pass the input's schema to the nested fields."""
         self.fields.set_schema(schema)
 
-    def set_data(self, tables):
+    def set_data(self, tables: list) -> None:
+        """Pass the input tables to the nested fields."""
         self.fields.set_data(tables)
 
 
 class _RowIssues:
-    """Marks the rows of a grid editor that issues are about (``_row_of``): a marker
-    drawn by _MarkedTextRenderer, and the messages as the row's tooltip."""
+    """Marks the rows of a grid editor that issues are about (`_row_of`).
+
+    A row with issues gets a marker, drawn by `_MarkedTextRenderer`, and the issues'
+    messages as its tooltip.
+    """
 
     def _init_row_issues(self) -> wx.grid.GridCellAttr:
+        """Set up the marks; return a cell attribute that draws them."""
         self.marks: dict = {}  # row -> severity of its issues
         self.row_messages: dict = {}  # row -> its issues' messages
         attr = wx.grid.GridCellAttr()
         attr.SetRenderer(_MarkedTextRenderer(self.marks))
         return attr
 
-    def show_issues(self, issues):
+    def show_issues(self, issues: list) -> None:
+        """Mark the rows that the issues are about with their most severe issue.
+
+        Issues about no row are ignored.
+
+        Args:
+            issues: The field's issues (`flim.core.config.Issue`).
+        """
         self.marks.clear()
         self.row_messages.clear()
         for issue in issues:
@@ -758,7 +1053,8 @@ class _RowIssues:
             self.row_messages.setdefault(row, []).append(issue.message)
         self.grid.ForceRefresh()
 
-    def _on_motion(self, event):
+    def _on_motion(self, event: wx.MouseEvent) -> None:
+        """Show the issues' messages of the row under the mouse as the tooltip."""
         x, y = self.grid.CalcUnscrolledPosition(event.GetPosition())
         messages = self.row_messages.get(self.grid.YToRow(y))
         window = self.grid.GetGridWindow()
@@ -774,15 +1070,15 @@ SEVERITIES = ("error", "guessed", "warning")  # first: most severe
 class ModelsEditor(_RowIssues, Editor):
     """A list of nested configs (with simple fields) as an editable table.
 
-    Subclasses may add buttons (``extra_buttons``) and a first column for dict keys
-    (``key_title``: the value is then a dict key -> config).
+    Subclasses may add buttons (`extra_buttons`) and a first column for dict keys
+    (`key_title`: the value is then a dict key -> config).
     """
 
     expands = True
     key_title = None
 
     def extra_buttons(self) -> list:
-        """(label, handler) of further buttons below the table."""
+        """Return (label, handler) of further buttons below the table; none here."""
         return []
 
     def _columns(self) -> list:
@@ -799,7 +1095,7 @@ class ModelsEditor(_RowIssues, Editor):
         choices.update({c.name: ("yes", "no") for c in self.columns if c.kind == "bool"})
         return choices
 
-    def _cell_text(self, column, value) -> str:
+    def _cell_text(self, column: FieldSpec, value: Any) -> str:
         """The text of a cell: lists comma separated, dicts as `key=value`."""
         if value is None:
             return ""
@@ -813,7 +1109,7 @@ class ModelsEditor(_RowIssues, Editor):
             return escape(str(value))
         return str(value)
 
-    def _cell_value(self, column, text: str):
+    def _cell_value(self, column: FieldSpec, text: str) -> Any:
         """The value of a cell's text, as the config's validation takes it."""
         container = self.containers.get(column.name)
         if container is list:
@@ -836,7 +1132,12 @@ class ModelsEditor(_RowIssues, Editor):
                     containers[name] = origin
         return containers
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the table and its Add, Remove and further buttons.
+
+        The table has a column per field (`_columns`), after the key column if there
+        is one.
+        """
         self.columns = self._columns()
         self.containers = self._containers()
         self.offset = 1 if self.key_title else 0
@@ -870,14 +1171,16 @@ class ModelsEditor(_RowIssues, Editor):
         return panel
 
     def item_name(self) -> str:
-        """What a row is, for the buttons: "Rules" → "Rule"."""
+        """Return what a row is, for the buttons: "Rules" → "Rule"; else "Row"."""
         title = self.spec.title
         return title[:-1] if title.endswith("s") and len(title) > 1 else "Row"
 
     def _set_choices(self, choices: dict) -> None:
-        """Cells of the columns in ``choices`` (name -> values) are edited with a
-        drop-down of the values (none: text); the first column marks rows with
-        issues."""
+        """Edit the cells of the columns in `choices` with a drop-down of the values.
+
+        `choices` maps a field name to its values; other columns are edited as text.
+        The first column marks rows with issues.
+        """
         for col, column in enumerate(self.columns):
             col += self.offset
             values = choices.get(column.name)
@@ -894,7 +1197,11 @@ class ModelsEditor(_RowIssues, Editor):
             attr.SetRenderer(_MarkedTextRenderer(self.marks))
             self.grid.SetColAttr(0, attr)
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """Offer the input's columns of the role in the cells of column fields.
+
+        Without a schema, the cells stay as they are.
+        """
         # column cells: a drop-down of the input's columns of the role (unknown: text)
         if schema is None:
             return
@@ -904,9 +1211,12 @@ class ModelsEditor(_RowIssues, Editor):
                 choices[column.name] = schema.by_role(column.role)
         self._set_choices(choices)
 
-    def _row_of(self, path) -> Optional[int]:
-        """The row of a path into this field: "rules[1].min" (a list) or
-        "ranges['FLIRR']" (a dict with keys in the first column)."""
+    def _row_of(self, path: Optional[str]) -> Optional[int]:
+        """Return the row a path into this field is about; None if none.
+
+        Paths are like `rules[1].min` (a list) or `ranges['FLIRR']` (a dict with its
+        keys in the first column).
+        """
         rest = (path or "")[len(self.spec.name) :].lstrip(".")
         if self.key_title:
             rest = rest.removeprefix("['")
@@ -916,11 +1226,13 @@ class ModelsEditor(_RowIssues, Editor):
         number = rest.removeprefix("[").split("]")[0].split(".")[0]
         return int(number) if number.isdigit() else None
 
-    def _on_add(self, event):
+    def _on_add(self, event: wx.CommandEvent) -> None:
+        """Add an empty row."""
         self.grid.AppendRows(1)
         self.changed()
 
-    def _on_remove(self, event):
+    def _on_remove(self, event: wx.CommandEvent) -> None:
+        """Remove the selected rows and the row of the cursor."""
         rows = sorted(
             set(self.grid.GetSelectedRows()) | {self.grid.GetGridCursorRow()},
             reverse=True,
@@ -931,7 +1243,16 @@ class ModelsEditor(_RowIssues, Editor):
         self.changed()
 
     def rows(self) -> list[tuple[str, dict]]:
-        """(key, values) of each row; text is converted by the config's validation."""
+        """Return (key, values) of each row.
+
+        Empty cells are left out. The texts of `escapes` fields are unescaped and keep
+        their spaces; other texts are stripped, and those of list and dict fields
+        converted; the config's validation converts the rest. The key is empty
+        without a key column.
+
+        Raises:
+            ValueError: If the text of a dict field is not written as `key=value`.
+        """
         rows = []
         for row in range(self.grid.GetNumberRows()):
             values = {}
@@ -949,6 +1270,12 @@ class ModelsEditor(_RowIssues, Editor):
         return rows
 
     def add_row(self, values: dict, key: str = "") -> None:
+        """Add a row with the values of a config.
+
+        Args:
+            values: The config's values by field name; fields not shown are ignored.
+            key: The text of the key column, if there is one. Defaults to "".
+        """
         row = self.grid.GetNumberRows()
         self.grid.AppendRows(1)
         if self.key_title:
@@ -958,12 +1285,22 @@ class ModelsEditor(_RowIssues, Editor):
                 row, col + self.offset, self._cell_text(column, values.get(column.name))
             )
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the values of the rows as dicts.
+
+        Returns:
+            A list of the rows' values; with a key column, a dict key -> values,
+            without the rows that have no key.
+
+        Raises:
+            ValueError: If the text of a dict field is not written as `key=value`.
+        """
         if self.key_title:
             return {key: values for key, values in self.rows() if key}
         return [values for _, values in self.rows()]
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show a row per config of `value`, a list or a dict by key (None: none)."""
         if self.grid.GetNumberRows():
             self.grid.DeleteRows(0, self.grid.GetNumberRows())
         items = (
@@ -977,9 +1314,11 @@ class ModelsEditor(_RowIssues, Editor):
 
 
 class VariantsEditor(ModelsEditor):
-    """A list of configs of several kinds (e.g. Calculate's expressions and
-    functions) as one table: a column for the kind, then the fields of all kinds.
-    Cells of fields that a row's kind doesn't have are greyed out and not editable.
+    """A list of configs of several kinds as one table.
+
+    For example Calculate's expressions and functions: a column for the kind, then
+    the fields of all kinds. Cells of fields that a row's kind doesn't have are
+    greyed out and not editable.
 
     Kinds with nested lists (e.g. filter groups) are shown, with their simple fields
     editable, but can't be chosen for a row; their nested values are kept as they are.
@@ -987,7 +1326,8 @@ class VariantsEditor(ModelsEditor):
 
     INACTIVE = wx.Colour(225, 225, 225)
 
-    def _columns(self):
+    def _columns(self) -> list:
+        """Return the kind and the simple fields of all kinds; set the kinds' fields."""
         disc = self.spec.discriminator
         per_kind, self.nested = {}, set()
         for variant in self.spec.variants:
@@ -1024,17 +1364,21 @@ class VariantsEditor(ModelsEditor):
         )
         return before + [kind] + own + after
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the table; `originals` keeps the values each row was set with."""
         self.originals: list[dict] = []  # per row: the values it was set with
         return super().create(parent)
 
     def _kind_column(self) -> int:
+        """Return the grid column of the kind."""
         names = [c.name for c in self.columns]
         return names.index(self.spec.discriminator) + self.offset
 
     def _apply_kind(self, row: int) -> None:
-        """Grey out and clear the cells of fields the row's kind doesn't have; the
-        kind of a row with nested values can't be changed."""
+        """Grey out and clear the cells of fields the row's kind doesn't have.
+
+        The kind of a row with nested values can't be changed.
+        """
         kind = self.grid.GetCellValue(row, self._kind_column()).strip()
         fields = self.kind_fields.get(kind)
         for col, column in enumerate(self.columns):
@@ -1049,13 +1393,15 @@ class VariantsEditor(ModelsEditor):
                     self.grid.SetCellValue(row, col, "")
                 self.grid.SetCellBackgroundColour(row, col, self.INACTIVE)
 
-    def changed(self, event=None):
+    def changed(self, event: Optional[wx.Event] = None) -> None:
+        """Apply the kind of an edited row, then call `on_change`."""
         if isinstance(event, wx.grid.GridEvent) and event.GetRow() >= 0:
             self._apply_kind(event.GetRow())
             self.grid.ForceRefresh()
         super().changed(event)
 
-    def _on_add(self, event):
+    def _on_add(self, event: wx.CommandEvent) -> None:
+        """Add a row of the first kind that can be chosen, with its defaults."""
         kind = self.columns[self._kind_column() - self.offset].choices[0]
         variant = next(
             v
@@ -1065,7 +1411,8 @@ class VariantsEditor(ModelsEditor):
         self.add_row(variant(**{self.spec.discriminator: kind}).model_dump())
         self.changed()
 
-    def _on_remove(self, event):
+    def _on_remove(self, event: wx.CommandEvent) -> None:
+        """Remove the selected rows and the row of the cursor, with their originals."""
         rows = sorted(
             set(self.grid.GetSelectedRows()) | {self.grid.GetGridCursorRow()},
             reverse=True,
@@ -1077,15 +1424,33 @@ class VariantsEditor(ModelsEditor):
         self.changed()
 
     def add_row(self, values: dict, key: str = "") -> None:
+        """Add a row with the values of a config, and keep the values.
+
+        The kept values supply the values the table doesn't show (see `rows`).
+
+        Args:
+            values: The config's values by field name.
+            key: The text of the key column, if there is one. Defaults to "".
+        """
         super().add_row(values, key)
         self.originals.append(dict(values))
         self._apply_kind(self.grid.GetNumberRows() - 1)
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show a row per config of `value`."""
         self.originals = []
         super().set(value)
 
-    def rows(self):
+    def rows(self) -> list[tuple[str, dict]]:
+        """Return (key, values) of each row.
+
+        Fields that the row's kind doesn't have are left out. While a row keeps the
+        kind it was set with, its values that the table doesn't show (e.g. a group's
+        filters) are taken from the values it was set with.
+
+        Raises:
+            ValueError: If the text of a dict field is not written as `key=value`.
+        """
         rows = []
         shown = {c.name for c in self.columns}
         disc = self.spec.discriminator
@@ -1107,18 +1472,34 @@ class ModelMapEditor(ModelsEditor):
     """A dict of nested configs by key (e.g. per feature): the key is the first column."""
 
     @property
-    def key_title(self):
+    def key_title(self) -> str:
+        """Return the key column's title by role: Feature, Column or Key."""
         return {"feature": "Feature", "category": "Column"}.get(self.spec.role, "Key")
 
 
 class _MarkedTextRenderer(wx.grid.GridCellStringRenderer):
     """Draws a cell's text and, in rows with issues, the issue marker at its right."""
 
-    def __init__(self, marks: dict):
+    def __init__(self, marks: dict) -> None:
+        """Create the renderer.
+
+        Args:
+            marks: The severity of the issues by row, shared with the editor.
+        """
         super().__init__()
         self.marks = marks  # row -> severity
 
-    def Draw(self, grid, attr, dc, rect, row, col, isSelected):
+    def Draw(
+        self,
+        grid: wx.grid.Grid,
+        attr: wx.grid.GridCellAttr,
+        dc: wx.DC,
+        rect: wx.Rect,
+        row: int,
+        col: int,
+        isSelected: bool,
+    ) -> None:
+        """Draw the cell's text and the marker of the row's issues, if any."""
         super().Draw(grid, attr, dc, rect, row, col, isSelected)
         severity = self.marks.get(row)
         if severity:
@@ -1127,25 +1508,38 @@ class _MarkedTextRenderer(wx.grid.GridCellStringRenderer):
             y = rect.y + (rect.height - bitmap.GetHeight()) // 2
             dc.DrawBitmap(bitmap, x, y, True)
 
-    def GetBestSize(self, grid, attr, dc, row, col):
+    def GetBestSize(
+        self,
+        grid: wx.grid.Grid,
+        attr: wx.grid.GridCellAttr,
+        dc: wx.DC,
+        row: int,
+        col: int,
+    ) -> wx.Size:
+        """Return the size of the text, 20 pixels wider for the marker."""
         size = super().GetBestSize(grid, attr, dc, row, col)
         return wx.Size(size.width + 20, size.height)  # room for the marker
 
-    def Clone(self):
+    def Clone(self) -> "_MarkedTextRenderer":
+        """Return a renderer that shares the marks."""
         return _MarkedTextRenderer(self.marks)
 
 
 class FeatureSettingsEditor(_RowIssues, Editor):
-    """Features with settings (a dict of configs by feature, e.g. ranges): one row
-    for each feature of the input, and for each checked feature the input lacks;
-    "Use" selects it, and its settings are edited in the same row. Checking a
-    feature fills empty settings that have a default with the default, and an empty
-    min and max (or low and high) with the feature's range in the first input table;
-    not for a constant column or while those settings are disabled."""
+    """Features with settings (a dict of configs by feature, e.g. ranges) as a table.
+
+    One row for each feature of the input and, while the input's features are not
+    all known, for each checked feature the input lacks; "Use" selects it, and its
+    settings are edited in the same row. Checking a feature fills empty settings that
+    have a default with the default, and an empty min and max (or low and high) with
+    the feature's range in the first input table; not for a constant column or while
+    those settings are disabled.
+    """
 
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the table (Use, Feature, the settings), its buttons and a message."""
         self.columns = [
             s
             for s in visible(describe(self.spec.model))
@@ -1200,7 +1594,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
 
     # --- settings files ---
 
-    def _on_load(self, event):
+    def _on_load(self, event: wx.CommandEvent) -> None:
+        """Load the settings of a JSON file chosen in a file dialog."""
         with wx.FileDialog(
             self.control,
             "Load feature settings",
@@ -1210,7 +1605,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             if dialog.ShowModal() == wx.ID_OK:
                 self.load_settings(dialog.GetPath())
 
-    def _on_save(self, event):
+    def _on_save(self, event: wx.CommandEvent) -> None:
+        """Save the settings to a JSON file chosen in a file dialog."""
         with wx.FileDialog(
             self.control,
             "Save feature settings",
@@ -1220,12 +1616,20 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             if dialog.ShowModal() == wx.ID_OK:
                 self.save_settings(dialog.GetPath())
 
-    def load_settings(self, path) -> tuple[list, list]:
-        """Applies the settings in a file to the matching features (which stay
-        checked or unchecked), and turns off the config flags that keep settings the
-        same in all rows or disable them. Returns the applied and the skipped
-        features; ([], []), with a message, if the file cannot be read or has no
-        feature settings."""
+    def load_settings(self, path: str | os.PathLike) -> tuple[list, list]:
+        """Apply the settings in a file to the matching features.
+
+        The features stay checked or unchecked. The config flags that keep settings
+        the same in all rows or disable them are turned off, since the loaded
+        settings are per feature. The message below the table reports the result.
+
+        Args:
+            path: The file, in one of the forms that `find_feature_settings` reads.
+
+        Returns:
+            The applied features and the skipped ones (not in the table); `([], [])`,
+            with a message, if the file cannot be read or has no feature settings.
+        """
         names = [c.name for c in self.columns]
         try:
             with open(path) as f:
@@ -1260,10 +1664,18 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         self.changed()
         return applied, skipped
 
-    def save_settings(self, path) -> None:
-        """Writes the settings of the checked features, {feature: {name: value}};
-        features whose settings are not valid are left out. Raises OSError if the
-        file cannot be written."""
+    def save_settings(self, path: str | os.PathLike) -> None:
+        """Write the settings of the checked features to a JSON file.
+
+        The file holds {feature: {setting: value}}; features whose settings are not
+        valid are left out. The message below the table reports the result.
+
+        Args:
+            path: The file.
+
+        Raises:
+            OSError: If the file cannot be written.
+        """
         settings = {}
         for feature, values in self.get().items():
             try:
@@ -1277,10 +1689,22 @@ class FeatureSettingsEditor(_RowIssues, Editor):
 
     # --- rows ---
 
-    def is_used(self, row) -> bool:
+    def is_used(self, row: int) -> bool:
+        """Return whether the row's feature is checked (Use)."""
         return self.grid.GetCellValue(row, 0) == "1"
 
-    def use(self, row, used=True) -> None:
+    def use(self, row: int, used: bool = True) -> None:
+        """Check or uncheck the row's feature.
+
+        Checking it fills in: the settings kept the same in all rows, from another
+        checked row; empty settings that have a default, with the default; empty
+        limits (min and max, or low and high), with the feature's range in the data,
+        unless the feature has one value or a limit is disabled.
+
+        Args:
+            row: The row.
+            used: Whether to check the feature. Defaults to True.
+        """
         self.grid.SetCellValue(row, 0, "1" if used else "")
         if used:
             self._take_synced(row)
@@ -1308,8 +1732,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         self._style_row(row)
         self.grid.ForceRefresh()
 
-    def _take_synced(self, row) -> None:
-        """A newly checked row gets the settings that are the same in all rows."""
+    def _take_synced(self, row: int) -> None:
+        """Give a newly checked row the settings kept the same in all rows."""
         for name in self.synced:
             col = self._column(name)
             others = [
@@ -1319,6 +1743,11 @@ class FeatureSettingsEditor(_RowIssues, Editor):
                 self.grid.SetCellValue(row, col, self.grid.GetCellValue(others[0], col))
 
     def use_all(self, used: bool) -> None:
+        """Check or uncheck all features (see `use`) and call `on_change`.
+
+        Args:
+            used: Whether to check the features.
+        """
         for row in range(len(self.features)):
             self.use(row, used)
         self._fit_columns()
@@ -1332,17 +1761,28 @@ class FeatureSettingsEditor(_RowIssues, Editor):
     # --- settings that are the same in all rows (e.g. bins, config.synced_settings) ---
 
     def synced_settings(self) -> dict:
-        """settings field -> config field that keeps it the same in all rows."""
+        """Return the settings that a config flag keeps the same in all rows.
+
+        Returns:
+            Setting name -> name of the flag field, from the config class's
+            `synced_settings`; empty while the editor has no panel.
+        """
         model = getattr(self.panel, "model", None)
         return dict(getattr(model, "synced_settings", {}))
 
-    def _column(self, name):
+    def _column(self, name: str) -> Optional[int]:
+        """Return the grid column of a setting; None if it is not shown."""
         names = [c.name for c in self.columns]
         return names.index(name) + 2 if name in names else None
 
-    def sync_column(self, name, value=None) -> None:
-        """Sets setting ``name`` of all rows to ``value`` (default: the value of the
-        row edited last; else of the first checked row, or the first row)."""
+    def sync_column(self, name: str, value: Optional[str] = None) -> None:
+        """Set the setting `name` of all rows to the same text.
+
+        Args:
+            name: The setting.
+            value: The text. Defaults to None: the text of the row edited last, else
+                of the first checked row, or of the first row.
+        """
         col = self._column(name)
         if col is None or not self.features:
             return
@@ -1359,28 +1799,31 @@ class FeatureSettingsEditor(_RowIssues, Editor):
 
     # --- issues in rows ---
 
-    def _row_of(self, path) -> Optional[int]:
+    def _row_of(self, path: Optional[str]) -> Optional[int]:
         """The row a path into this field is about, e.g. "features['FAD t1'].min"."""
         rest = (path or "")[len(self.spec.name) :].lstrip(".").removeprefix("['")
         matches = [i for i, f in enumerate(self.features) if rest.startswith(f)]
         return max(matches, key=lambda i: len(self.features[i])) if matches else None
 
     def disabled_settings(self) -> dict:
-        """settings field -> config field that makes it unused (greyed out)."""
+        """Return the settings that a config flag makes unused (greyed out).
+
+        Returns:
+            Setting name -> name of the flag field, from the config class's
+            `disabled_settings`; empty while the editor has no panel.
+        """
         model = getattr(self.panel, "model", None)
         return dict(getattr(model, "disabled_settings", {}))
 
     def _set_disabled(self, disabled: set) -> None:
-        """Greys out (and makes read-only) the columns of settings that are not used;
-        their values are kept."""
+        """Grey out the columns of unused settings (read-only); values are kept."""
         if disabled == self.disabled:
             return
         self.disabled = disabled
         self._style_rows()
 
-    def _style_row(self, row) -> None:
-        """Unchecked rows are grey, and their settings read-only; so are the settings
-        not used now (disabled), also in checked rows."""
+    def _style_row(self, row: int) -> None:
+        """Grey out (read-only) an unchecked row, and the disabled settings of a row."""
         grey = wx.SystemSettings.GetColour(wx.SYS_COLOUR_GRAYTEXT)
         normal = self.grid.GetDefaultCellTextColour()
         used = self.is_used(row)
@@ -1392,11 +1835,17 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             self.grid.SetCellTextColour(row, col, normal if editable else grey)
 
     def _style_rows(self) -> None:
+        """Style all rows (see `_style_row`)."""
         for row in range(len(self.features)):
             self._style_row(row)
         self.grid.ForceRefresh()
 
-    def refresh(self, panel):
+    def refresh(self, panel: "FieldsPanel") -> None:
+        """Apply the panel's flags that keep settings the same or disable them.
+
+        Settings whose flag is turned on are set to the same text in all rows (see
+        `sync_column`); settings whose disabling flag is on are greyed out.
+        """
         self.panel = panel
         for setting, flag in self.synced_settings().items():
             on = bool(panel.value_of(flag))
@@ -1409,7 +1858,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             {s for s, flag in self.disabled_settings().items() if panel.value_of(flag)}
         )
 
-    def _on_cell_changed(self, event):
+    def _on_cell_changed(self, event: wx.grid.GridEvent) -> None:
+        """Remember the edited row; copy a synced setting to all rows."""
         col = event.GetCol()
         name = self.columns[col - 2].name if col >= 2 else None
         if name is not None:
@@ -1418,11 +1868,13 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             self.sync_column(name, self.grid.GetCellValue(event.GetRow(), col))
         self.changed(event)
 
-    def _on_tab(self, event):
-        """Tab moves to the next editable cell (Shift+Tab: the previous one), on to
-        the next row; focus stays in the table. Otherwise Tab moves the focus to the
-        check boxes above the table (e.g. Same bins for all), where a key toggles
-        them."""
+    def _on_tab(self, event: wx.grid.GridEvent) -> None:
+        """Move to the next editable cell on Tab (Shift+Tab: the previous one).
+
+        The move continues in the next row and wraps around; the focus stays in the
+        table. Without this handler, Tab moves the focus to the check boxes above the
+        table (e.g. Same bins for all), where a key toggles them.
+        """
         cells = [
             (row, col)
             for row in range(self.grid.GetNumberRows())
@@ -1441,7 +1893,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         self.grid.SetGridCursor(row, col)
         self.grid.MakeCellVisible(row, col)
 
-    def _on_click(self, event):
+    def _on_click(self, event: wx.grid.GridEvent) -> None:
+        """Toggle Use on a click in its column; other clicks are handled as usual."""
         if event.GetCol() == 0:
             row = event.GetRow()
             self.use(row, not self.is_used(row))
@@ -1451,7 +1904,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             event.Skip()
 
     def _state(self) -> dict:
-        """feature -> (used, cell texts)."""
+        """Return feature -> (used, cell texts of the settings) of the rows shown."""
         return {
             feature: (
                 self.is_used(row),
@@ -1463,7 +1916,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             for row, feature in enumerate(self.features)
         }
 
-    def _show(self, features, state) -> None:
+    def _show(self, features: list[str], state: dict) -> None:
+        """Show a row per feature, checked and filled in as in `state`."""
         if self.grid.GetNumberRows():
             self.grid.DeleteRows(0, self.grid.GetNumberRows())
         # used features the input lacks: listed only while the input's features are
@@ -1482,14 +1936,19 @@ class FeatureSettingsEditor(_RowIssues, Editor):
 
     # --- Editor ---
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """List the input's features; the checks and settings shown or set are kept."""
         state = {**getattr(self, "wanted", {}), **self._state()}
         self.known = schema is not None and schema.complete
         features = [] if schema is None else schema.by_role("feature")
         self._show(features, state)
         self.wanted = {}  # the settings applied: from now on the rows shown count
 
-    def set_data(self, tables):
+    def set_data(self, tables: list) -> None:
+        """Keep the range (min, max) of each numeric column of the first table.
+
+        Infinite values are ignored; columns without finite values have no range.
+        """
         self.ranges = {}
         if tables:
             data = tables[0]
@@ -1501,15 +1960,25 @@ class FeatureSettingsEditor(_RowIssues, Editor):
                     self.ranges[column] = (float(values.min()), float(values.max()))
 
     def states(self) -> dict:
-        """feature -> (used, {setting: text}) of the rows shown, used or not."""
+        """Return feature -> (used, {setting: text}) of the rows shown, used or not.
+
+        Empty texts are left out.
+        """
         return {
             feature: (used, {c.name: t.strip() for c, t in zip(self.columns, texts) if t.strip()})
             for feature, (used, texts) in self._state().items()
         }
 
     def set_states(self, used: dict, unused: dict) -> None:
-        """Show settings of used features (checked) and of unused ones (unchecked,
-        shown if the input has the feature)."""
+        """Show the settings of used features (checked) and of unused ones (unchecked).
+
+        A feature that is in both is checked. Unused features are shown only if the
+        input has them.
+
+        Args:
+            used: Configs or dicts of settings by feature, checked; None for none.
+            unused: Configs or dicts of settings by feature, unchecked; None for none.
+        """
         state = {}
         for checked, value in ((False, unused), (True, used)):
             for feature, settings in (value or {}).items():
@@ -1518,7 +1987,11 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         self.wanted = state
         self._show(self.features, state)
 
-    def get(self):
+    def get(self) -> Any:
+        """Return {feature: {setting: text}} of the checked features.
+
+        Empty settings are left out; the config's validation converts the texts.
+        """
         result = {}
         for feature, (used, texts) in self._state().items():
             if used:
@@ -1527,7 +2000,8 @@ class FeatureSettingsEditor(_RowIssues, Editor):
                 }
         return result
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Check the features of `value` (settings by feature), with settings."""
         state = {}
         for feature, settings in (value or {}).items():
             data = settings if isinstance(settings, dict) else settings.model_dump()
@@ -1539,18 +2013,26 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         self._show(self.features, state)  # the input's features, checked as configured
 
 
-def find_feature_settings(data, names: list) -> Optional[dict]:
-    """Per-feature settings in a loaded settings file: {feature: {name: value}}.
+def find_feature_settings(data: Any, names: list[str]) -> Optional[dict]:
+    """Return the per-feature settings in a loaded settings file.
 
-    ``names`` are the settings' names (e.g. min, max, bins). Reads the files written by
-    "Save Feature Settings...", configs ({"features": {...}}) and FLIMAnalyzer settings
-    files (searched for such entries). Also reads two older forms: histogram
-    "featuresettings" lists [min, max, bins, ...], and range filter lists of
-    {"name", "rangelow", "rangehigh", "dropna"}. Returns None if none is found.
+    Reads the files written by "Save Feature Settings...", configs
+    (`{"features": {...}}`) and FLIMAnalyzer settings files (searched for such
+    entries). Also reads two older forms: histogram `featuresettings` lists
+    `[min, max, bins, ...]`, and range filter lists of
+    `{"name", "rangelow", "rangehigh", "dropna"}`.
+
+    Args:
+        data: The file's content, as read by `json.load`.
+        names: The settings' names, e.g. min, max, bins.
+
+    Returns:
+        {feature: {name: value}} with only the settings in `names`; None if no such
+        settings are found.
     """
     allowed = set(names) | {"classname", "version"}
 
-    def dict_settings(value) -> Optional[dict]:
+    def dict_settings(value: Any) -> Optional[dict]:
         """{feature: {name: value}} with only these names."""
         if not isinstance(value, dict) or not value:
             return None
@@ -1560,7 +2042,7 @@ def find_feature_settings(data, names: list) -> Optional[dict]:
             return None
         return {f: {k: v for k, v in e.items() if k in names} for f, e in value.items()}
 
-    def histogram_lists(value) -> Optional[dict]:
+    def histogram_lists(value: Any) -> Optional[dict]:
         if names[:3] != ["min", "max", "bins"] or not isinstance(value, dict):
             return None
         rows = {}
@@ -1569,7 +2051,7 @@ def find_feature_settings(data, names: list) -> Optional[dict]:
                 rows[feature] = dict(zip(names, entry[:3]))
         return rows or None
 
-    def range_filter_list(value) -> Optional[dict]:
+    def range_filter_list(value: Any) -> Optional[dict]:
         if not ({"low", "high"} <= set(names)) or not isinstance(value, list):
             return None
         from flim.configs.data import range_of_legacy
@@ -1583,7 +2065,7 @@ def find_feature_settings(data, names: list) -> Optional[dict]:
         }
         return rows or None
 
-    def search(value) -> Optional[dict]:
+    def search(value: Any) -> Optional[dict]:
         if isinstance(value, list):
             return range_filter_list(value)
         if not isinstance(value, dict):
@@ -1606,7 +2088,8 @@ def find_feature_settings(data, names: list) -> Optional[dict]:
     return search(data)
 
 
-def _cell_text(value) -> str:
+def _cell_text(value: Any) -> str:
+    """Return a setting's cell text: floats in `g` format, None as empty."""
     if value is None:
         return ""
     return f"{value:g}" if isinstance(value, float) else str(value)
@@ -1617,23 +2100,31 @@ class JsonEditor(Editor):
 
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create a multi-line text field."""
         control = wx.TextCtrl(parent, style=wx.TE_MULTILINE)
         control.SetMinSize((-1, 60))
         control.Bind(wx.EVT_TEXT, self.changed)
         return control
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the value of the JSON text; an empty text is None.
+
+        Raises:
+            ValueError: If the text is not valid JSON.
+        """
         try:
             return json.loads(self.control.GetValue() or "null")
         except json.JSONDecodeError as err:
             raise ValueError(f"Not valid JSON: {err.msg}") from None
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show `value` as JSON text."""
         self.control.ChangeValue(json.dumps(_jsonable(value)))
 
 
-def _jsonable(value):
+def _jsonable(value: Any) -> Any:
+    """Return `value` with configs, paths, tuples, sets and dict keys as JSON types."""
     if isinstance(value, dict):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple, set)):
@@ -1646,7 +2137,14 @@ def _jsonable(value):
 
 
 def editor_class(spec: FieldSpec) -> type[Editor]:
-    """The editor for a field kind."""
+    """Return the editor class for a field, by its kind and options.
+
+    Args:
+        spec: The field.
+
+    Returns:
+        The editor class; `TextEditor` for kinds without an editor of their own.
+    """
     if spec.words or spec.escapes or spec.chars:
         return TextEditor
     if spec.kind == "bool":
@@ -1678,17 +2176,41 @@ def editor_class(spec: FieldSpec) -> type[Editor]:
 _FIELD_EDITORS: dict = {}
 
 
-def register_editor(config_class, field_name: str):
-    """Class decorator: the editor of one field of a config class (and subclasses)."""
+def register_editor(
+    config_class: type[BaseModel], field_name: str
+) -> Callable[[type[Editor]], type[Editor]]:
+    """Return a class decorator that registers the editor of one field.
 
-    def register(editor):
+    The editor is used for the field of the config class and of its subclasses (see
+    `editor_for`).
+
+    Args:
+        config_class: The config class.
+        field_name: The field's name.
+
+    Returns:
+        The decorator; it returns the editor class unchanged.
+    """
+
+    def register(editor: type[Editor]) -> type[Editor]:
         _FIELD_EDITORS[(config_class, field_name)] = editor
         return editor
 
     return register
 
 
-def editor_for(model: type, spec: FieldSpec) -> type[Editor]:
+def editor_for(model: type[BaseModel], spec: FieldSpec) -> type[Editor]:
+    """Return the editor class for a field of a config class.
+
+    Args:
+        model: The config class.
+        spec: The field.
+
+    Returns:
+        The editor registered for the field of the class or of its nearest base
+        class (`register_editor`), else the editor of the field's kind
+        (`editor_class`).
+    """
     for base in model.__mro__:
         if (base, spec.name) in _FIELD_EDITORS:
             return _FIELD_EDITORS[(base, spec.name)]
@@ -1702,15 +2224,30 @@ WIDE_KINDS = ("path",)
 class FieldsPanel(wx.Panel):
     """Editors for the visible fields of a config class, with issue markers.
 
-    Fields are shown in their order (flim.core.fields.field_order): small fields that
-    follow each other share a grid of 1 to 3 fields per row (label, editor, marker);
-    path fields take a row of their own; lists and tables take the full width; nested
-    configs are titled groups, or collapsible sections if advanced. With `stacked`,
-    the fields are shown one under the other, each label above its editor, in the
-    model's order (e.g. a column of a few fields).
+    Fields are shown in their order (`flim.core.fields.field_order`): small fields
+    that follow each other share a grid of 1 to 3 fields per row (label, editor,
+    marker); path fields take a row of their own; lists and tables take the full
+    width; nested configs are titled groups, or collapsible sections if advanced.
+    With `stacked`, the fields are shown one under the other, each label above its
+    editor, in the model's order (e.g. a column of a few fields).
     """
 
-    def __init__(self, parent, model: type, exclude=(), stacked=False):
+    def __init__(
+        self,
+        parent: wx.Window,
+        model: type[BaseModel],
+        exclude: Collection[str] = (),
+        stacked: bool = False,
+    ) -> None:
+        """Create the editors of the config class's visible fields.
+
+        Args:
+            parent: The parent window.
+            model: The config class.
+            exclude: The names of fields not to show. Defaults to none.
+            stacked: Whether to show the fields one under the other, in the model's
+                order. Defaults to False.
+        """
         super().__init__(parent)
         self.model = model
         self.on_change: Optional[Callable[[], None]] = None
@@ -1760,7 +2297,7 @@ class FieldsPanel(wx.Panel):
             sizer.Add(editor.control, 1 if editor.grows else 0, wx.EXPAND | wx.ALL, 4)
         self.SetSizer(sizer)
 
-    def _stack(self, specs) -> None:
+    def _stack(self, specs: list[FieldSpec]) -> None:
         """Each field under the previous one: its label and marker, then its editor."""
         sizer = wx.BoxSizer(wx.VERTICAL)
         for spec in specs:
@@ -1771,7 +2308,7 @@ class FieldsPanel(wx.Panel):
             sizer.Add(self._editor(spec).control, 0, wx.EXPAND | wx.TOP, 2)
         self.SetSizer(sizer)
 
-    def _add_grid(self, sizer, specs) -> None:
+    def _add_grid(self, sizer: wx.BoxSizer, specs: list[FieldSpec]) -> None:
         """Small fields in a grid: 2 or 3 per row (one alone takes the row)."""
         if not specs:
             return
@@ -1786,33 +2323,52 @@ class FieldsPanel(wx.Panel):
             grid.Add(self._marker(spec), 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         sizer.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
 
-    def _label(self, spec):
+    def _label(self, spec: FieldSpec) -> wx.StaticText:
+        """Create the field's label, with its description as the tooltip."""
         label = wx.StaticText(self, label=spec.title)
         if spec.description:
             label.SetToolTip(spec.description)
         self.widgets.setdefault(spec.name, []).append(label)
         return label
 
-    def _editor(self, spec):
+    def _editor(self, spec: FieldSpec) -> Editor:
+        """Create the field's editor."""
         editor = editor_for(self.model, spec)(self, spec)
         editor.on_change = self._on_editor_change
         self.editors[spec.name] = editor
         self.widgets.setdefault(spec.name, []).append(editor.control)
         return editor
 
-    def _marker(self, spec):
+    def _marker(self, spec: FieldSpec) -> wx.StaticBitmap:
+        """Create the field's issue marker, hidden."""
         marker = wx.StaticBitmap(self, bitmap=_marker_bitmap("error"))
         marker.Hide()
         self.markers[spec.name] = marker
         return marker
 
-    def set_values(self, config) -> None:
+    def set_values(self, config: BaseModel) -> None:
+        """Show the values of `config` in the editors, then `refresh`.
+
+        Args:
+            config: A config of the panel's config class.
+        """
         for name, editor in self.editors.items():
             editor.set(getattr(config, name))
         self.refresh()
 
-    def values(self, config) -> dict:
-        """The config's values with the edited ones; raises FieldErrors."""
+    def values(self, config: BaseModel) -> dict[str, Any]:
+        """Return the values of `config`, with the edited ones.
+
+        Args:
+            config: The config whose values the fields without an editor keep.
+
+        Returns:
+            The values of all of the config's fields, by name.
+
+        Raises:
+            FieldErrors: If text in editors is not a valid value; it holds the
+                message of each such field.
+        """
         values = {name: getattr(config, name) for name in type(config).model_fields}
         errors = {}
         for name, editor in self.editors.items():
@@ -1824,14 +2380,22 @@ class FieldsPanel(wx.Panel):
             raise FieldErrors(errors)
         return values
 
-    def _on_editor_change(self, editor):
+    def _on_editor_change(self, editor: Editor) -> None:
+        """Refresh the fields and call `on_change` after an edit."""
         self.refresh()
         if self.on_change:
             self.on_change()
 
-    def value_of(self, name: str):
-        """The edited value of a field; None if the panel has no editor for it or
-        its text is not valid."""
+    def value_of(self, name: str) -> Any:
+        """Return the edited value of a field.
+
+        Args:
+            name: The field's name.
+
+        Returns:
+            The value; None if the panel has no editor for the field or its text is
+            not valid.
+        """
         editor = self.editors.get(name)
         try:
             return editor.get() if editor else None
@@ -1839,9 +2403,13 @@ class FieldsPanel(wx.Panel):
             return None
 
     def refresh(self) -> None:
-        """Lets editors that depend on other fields update (e.g. value choices), and
-        hides the fields that allow only one value given the others, and those whose
-        `shown_when` is not met (e.g. the settings of another mode)."""
+        """Update the editors that depend on other fields, and hide fields.
+
+        Lets each editor update (e.g. value choices) and offer only the values the
+        config class allows given the other fields (`allowed_values`). Hides the
+        fields that allow only one value, those that don't apply to the input tables,
+        and those whose `shown_when` is not met (e.g. the settings of another mode).
+        """
         for editor in self.editors.values():
             editor.refresh(self)
         allowed_values = getattr(self.model, "allowed_values", None)
@@ -1865,15 +2433,18 @@ class FieldsPanel(wx.Panel):
         self.Layout()
         relayout(self)
 
-    def set_inapplicable(self, names) -> None:
-        """Hide the fields that don't apply to the input tables (see
-        `Tool.inapplicable_fields`)."""
+    def set_inapplicable(self, names: Iterable[str]) -> None:
+        """Hide the fields that don't apply to the input tables.
+
+        Args:
+            names: The fields' names (see `Tool.inapplicable_fields`).
+        """
         names = set(names)
         if names != self.inapplicable:
             self.inapplicable = names
             self.refresh()
 
-    def _shown(self, spec) -> bool:
+    def _shown(self, spec: FieldSpec) -> bool:
         """Whether the other fields have the values a field's `shown_when` asks for."""
         for other, wanted in spec.shown_when.items():
             wanted = wanted if isinstance(wanted, (list, tuple)) else [wanted]
@@ -1881,16 +2452,35 @@ class FieldsPanel(wx.Panel):
                 return False
         return True
 
-    def set_schema(self, schema) -> None:
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """Pass the input's schema to the editors, then `refresh`.
+
+        Args:
+            schema: The input's columns; None if they are unknown.
+        """
         for editor in self.editors.values():
             editor.set_schema(schema)
         self.refresh()
 
     def set_data(self, tables: list) -> None:
+        """Pass the selected input tables to the editors.
+
+        Args:
+            tables: The selected input tables (DataFrames).
+        """
         for editor in self.editors.values():
             editor.set_data(tables)
 
     def show_issue(self, name: str, severity: Optional[str], message: str = "") -> None:
+        """Show or hide the issue marker of a field.
+
+        The marker of a hidden field stays hidden.
+
+        Args:
+            name: The field's name; a field without a marker is ignored.
+            severity: `error`, `warning` or `guessed`; None hides the marker.
+            message: The marker's tooltip. Defaults to "".
+        """
         marker = self.markers.get(name)
         if marker is None:
             return
@@ -1906,7 +2496,12 @@ class FieldsPanel(wx.Panel):
 class FieldErrors(Exception):
     """Text in editors that is not a valid value: field name -> message."""
 
-    def __init__(self, errors: dict):
+    def __init__(self, errors: dict) -> None:
+        """Create the exception.
+
+        Args:
+            errors: The message of each field whose text is not valid, by name.
+        """
         super().__init__(errors)
         self.errors = errors
 
@@ -1915,4 +2510,5 @@ _ART = {"error": wx.ART_ERROR, "warning": wx.ART_WARNING, "guessed": wx.ART_WARN
 
 
 def _marker_bitmap(severity: str) -> wx.Bitmap:
+    """Return the 16-pixel marker icon of a severity."""
     return wx.ArtProvider.GetBitmap(_ART[severity], wx.ART_MENU, (16, 16))

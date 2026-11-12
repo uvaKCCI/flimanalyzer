@@ -1,15 +1,22 @@
-"""Filter: the filter tree in three views: the category values to keep, the range
-filters (the top-level leaves, one per column), and the other filters."""
+"""Filter: the editor of the filter tree, in three views.
+
+The views are the category values to keep, the range filters (the top-level
+leaves, one per column), and the other filters.
+"""
+
+from typing import Any, Optional
 
 import wx
 from pydantic import BaseModel
 
 from flim.configs.data import FilterConfig, FilterEntry, RangeSettings
-from flim.core.config import FeatureColumn
+from flim.core.config import FeatureColumn, Issue
+from flim.core.schema import TableSchema
 from flim.core.fields import FieldSpec, describe_annotation
 from flim.gui.editors import (
     Editor,
     FeatureSettingsEditor,
+    FieldsPanel,
     VariantsEditor,
     fit_rows,
     register_editor,
@@ -17,11 +24,15 @@ from flim.gui.editors import (
 
 
 class CategoryFiltersEditor(Editor):
-    """Per category column, the values whose rows are kept (all are, by default)."""
+    """Per category column, the values whose rows are kept (all are, by default).
+
+    A column with unchecked values filters; it is marked with `*` in the list.
+    """
 
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the panel of the columns and their values."""
         self.levels: dict = {}  # column -> values in the data
         self.kept: dict = {}  # column -> values kept (only columns that filter)
         panel = wx.Panel(parent)
@@ -36,20 +47,24 @@ class CategoryFiltersEditor(Editor):
         panel.SetSizer(sizer)
         return panel
 
-    def column_names(self) -> list:
+    def column_names(self) -> list[str]:
+        """Return the category columns of the data, then other filtering columns."""
         return list(self.levels) + [c for c in self.kept if c not in self.levels]
 
-    def selected_column(self):
+    def selected_column(self) -> Optional[str]:
+        """Return the column selected in the list; None if none is selected."""
         index = self.columns.GetSelection()
         if index == wx.NOT_FOUND:
             return None
         return self.columns.GetString(index).removesuffix(" *")  # " *": filters
 
-    def values_of(self, column) -> list:
+    def values_of(self, column: str) -> list[Any]:
+        """Return a column's values in the data, then its kept values not in it."""
         levels = self.levels.get(column, [])
         return levels + [v for v in self.kept.get(column, []) if v not in levels]
 
-    def _show_columns(self):
+    def _show_columns(self) -> None:
+        """List the columns, keep the selected one, and show its values."""
         names = self.column_names()
         selected = self.selected_column()
         labels = [f"{c} *" if c in self.kept else c for c in names]
@@ -59,7 +74,8 @@ class CategoryFiltersEditor(Editor):
         fit_rows(self.columns, len(names), most=8)
         self._show_values()
 
-    def _show_values(self):
+    def _show_values(self) -> None:
+        """Show the selected column's values; the kept ones are checked."""
         column = self.selected_column()
         values = self.values_of(column) if column else []
         kept = self.kept.get(column, values)
@@ -67,7 +83,8 @@ class CategoryFiltersEditor(Editor):
         self.values.SetCheckedItems([i for i, v in enumerate(values) if v in kept])
         fit_rows(self.values, len(values), most=8)
 
-    def _on_check(self, event):
+    def _on_check(self, event: wx.CommandEvent) -> None:
+        """Store the checked values; a column with all values checked keeps all."""
         column = self.selected_column()
         values = self.values_of(column)
         kept = [values[i] for i in self.values.GetCheckedItems()]
@@ -79,7 +96,8 @@ class CategoryFiltersEditor(Editor):
         self.columns.SetString(index, f"{column} *" if column in self.kept else column)
         self.changed(event)
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """List the category columns with known values."""
         self.levels = {}
         if schema is not None:
             for column in schema.columns:
@@ -87,28 +105,37 @@ class CategoryFiltersEditor(Editor):
                     self.levels[column.name] = list(column.levels)
         self._show_columns()
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the kept values of each column that filters."""
         return {column: list(values) for column, values in self.kept.items()}
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show the kept values (a dict of value lists by column; None for none)."""
         self.kept = {column: list(values) for column, values in (value or {}).items()}
         self._show_columns()
 
 
-def _spec(name, title, annotation, description=""):
+def _spec(name: str, title: str, annotation: Any, description: str = "") -> FieldSpec:
+    """Return the field spec of a sub-editor, described from its annotation."""
     return FieldSpec(name=name, title=title, description=description, **describe_annotation(annotation))
 
 
 @register_editor(FilterConfig, "filters")
 class FilterTreeEditor(Editor):
-    """The filter list (a tree) in three views: per category column the values to
-    keep, per feature a range (the first top-level range or category leaf of each
-    column), and the other filters (expressions, groups, further leaves) as a table.
-    On `get` the views are joined again: ranges, categories, then the others."""
+    """Editor of the filter list (a tree) in three views.
+
+    The views are: per category column the values to keep (the first enabled
+    top-level category leaf of the column), per feature a range (the first
+    top-level range leaf of the column, used or not), and the other filters
+    (expressions, groups, further leaves) as a table. On `get` the views are joined
+    again: ranges, categories, then the others. Range leaves of columns that are
+    not in the input are kept unchanged.
+    """
 
     expands = True
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the panel of the three views."""
         panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.categories = CategoryFiltersEditor(
@@ -140,7 +167,8 @@ class FilterTreeEditor(Editor):
         self.views: list = []  # per filter of `get`: (view, key)
         return panel
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show filters (nodes or dicts; None for none) in the three views."""
         nodes = [n if isinstance(n, BaseModel) else _node(n) for n in value or []]
         categories, used, self.unused, others = {}, {}, {}, []
         for node in nodes:
@@ -155,7 +183,12 @@ class FilterTreeEditor(Editor):
         self.ranges.set_states(used, self.unused)
         self.others.set(others)
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the filters of the three views as dicts, in the order of `views`.
+
+        A range of a column without a filter is left out; an unused range without
+        values keeps the values it had.
+        """
         nodes, self.views = [], []
         states = self.ranges.states()
         for column, (used, values) in states.items():
@@ -178,22 +211,29 @@ class FilterTreeEditor(Editor):
             self.views.append(("others", j))
         return nodes
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """Pass the schema to the views; the ranges keep their states."""
         unused_states = {c: n for c, n in self.unused.items()}
         used = {c: v for c, (u, v) in self.ranges.states().items() if u}
         for editor in (self.categories, self.ranges, self.others):
             editor.set_schema(schema)
         self.ranges.set_states(used, unused_states)
 
-    def set_data(self, tables):
+    def set_data(self, tables: list) -> None:
+        """Pass the input tables to the views."""
         for editor in (self.categories, self.ranges, self.others):
             editor.set_data(tables)
 
-    def refresh(self, panel):
+    def refresh(self, panel: FieldsPanel) -> None:
+        """Refresh the views."""
         for editor in (self.categories, self.ranges, self.others):
             editor.refresh(panel)
 
-    def show_issues(self, issues):
+    def show_issues(self, issues: list) -> None:
+        """Show issues at `filters[i]` in the view that shows filter `i`.
+
+        Issues of the category view and of hidden ranges are not shown here.
+        """
         ranges, others = [], []
         for issue in issues:
             rest = (issue.field or "").removeprefix("filters[")
@@ -209,11 +249,13 @@ class FilterTreeEditor(Editor):
         self.others.show_issues(others)
 
 
-def _node(values: dict):
+def _node(values: dict) -> FilterEntry:
+    """Return the filter node of a dict."""
     return FilterConfig.model_validate({"filters": [values]}).filters[0]
 
 
-def _moved(issue, field):
+def _moved(issue: Issue, field: str) -> Issue:
+    """Return a copy of an issue at another field path."""
     from dataclasses import replace
 
     return replace(issue, field=field)

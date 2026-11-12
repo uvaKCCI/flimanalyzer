@@ -1,9 +1,13 @@
+"""Table windows: a grid that shows a table, with view filters and save buttons."""
+
 import logging
 import pandas as pd
 import numpy as np
 import os
 import re
 import collections.abc
+from collections.abc import Callable
+from typing import Any, Optional, Union
 
 import wx
 import wx.grid
@@ -11,7 +15,7 @@ import wx.lib.mixins.gridlabelrenderer as glr
 from pubsub import pub
 
 from flim.core.filter import RangeFilter
-from flim.core.filtering import new_range, window_filters
+from flim.core.filtering import WindowFilters, new_range, window_filters
 from flim.core.settings import AppSettings
 from flim.gui.events import (
     EVT_DATA_TYPE,
@@ -36,10 +40,18 @@ GRID_LINE_COLOUR = "#ccc"
 
 
 class FilterColLabelRenderer(glr.GridLabelRenderer):
-    def __init__(self, bgcolor):
+    """Column label renderer with a background colour, for category columns."""
+
+    def __init__(self, bgcolor: str) -> None:
+        """Create the renderer.
+
+        Args:
+            bgcolor: The background colour, e.g. `#d0d0ff`.
+        """
         self._bgcolor = bgcolor
 
-    def Draw(self, grid, dc, rect, col):
+    def Draw(self, grid: wx.grid.Grid, dc: wx.DC, rect: wx.Rect, col: int) -> None:
+        """Draw the label of column `col` on the background colour, with a border."""
         dc.SetBrush(wx.Brush(self._bgcolor))
         dc.SetPen(wx.TRANSPARENT_PEN)
         dc.DrawRectangle(rect)
@@ -50,17 +62,47 @@ class FilterColLabelRenderer(glr.GridLabelRenderer):
 
 
 class PandasGrid(wx.grid.Grid, glr.GridWithLabelRenderersMixin):
-    def __init__(self, *args, **kw):
+    """Grid whose column labels can have their own renderers."""
+
+    def __init__(self, *args: Any, **kw: Any) -> None:
+        """Create the grid; the arguments are passed to `wx.grid.Grid`."""
         wx.grid.Grid.__init__(self, *args, **kw)
         glr.GridWithLabelRenderersMixin.__init__(self)
 
 
 class PandasTable(wx.grid.GridTableBase):
-    def __init__(self, data=None, showcolindex=False, categories_first=False):
+    """Grid table that shows a `pd.DataFrame`.
+
+    The headers of columns with several levels show one level per line. Float
+    columns are shown as floats, integer columns as right-aligned integers, the
+    others as strings.
+    """
+
+    def __init__(
+        self,
+        data: Optional[pd.DataFrame] = None,
+        showcolindex: bool = False,
+        categories_first: bool = False,
+    ) -> None:
+        """Create the table; see `SetData` for the arguments."""
         wx.grid.GridTableBase.__init__(self)
         self.SetData(data, showcolindex, categories_first)
 
-    def SetData(self, data, showcolindex=False, categories_first=False):
+    def SetData(
+        self,
+        data: Optional[pd.DataFrame],
+        showcolindex: bool = False,
+        categories_first: bool = False,
+    ) -> None:
+        """Set the table to show.
+
+        Args:
+            data: The table; None for an empty table.
+            showcolindex: Whether the first column shows the row index. Defaults to
+                False.
+            categories_first: Whether the category columns are shown first, sorted
+                by name, then the other columns. Defaults to False.
+        """
         self.headerRows = 1
         if data is None:
             data = pd.DataFrame()
@@ -88,36 +130,49 @@ class PandasTable(wx.grid.GridTableBase):
             if col in self.data.select_dtypes(include=[np.integer]).columns.values
         ]
 
-    def GetData(self):
+    def GetData(self) -> pd.DataFrame:
+        """Return the table shown."""
         return self.data
 
-    def GetFloatCols(self):
+    def GetFloatCols(self) -> list[str]:
+        """Return the headers of the float columns."""
         return self.floatcols
 
-    def GetFloatColIdx(self):
+    def GetFloatColIdx(self) -> list[int]:
+        """Return the positions of the float columns among the table's columns.
+
+        The positions do not count the index column.
+        """
         return [
             colindex
             for colindex in range(len(self.colheaders))
             if self.colheaders[colindex] in self.floatcols
         ]
 
-    def GetLongColIdx(self):
+    def GetLongColIdx(self) -> list[int]:
+        """Return the positions of the integer columns among the table's columns.
+
+        The positions do not count the index column.
+        """
         return [
             colindex
             for colindex in range(len(self.colheaders))
             if self.colheaders[colindex] in self.intcols
         ]
 
-    def GetNumberRows(self):
+    def GetNumberRows(self) -> int:
+        """Return the number of rows."""
         return len(self.data)
 
-    def GetNumberCols(self):
+    def GetNumberCols(self) -> int:
+        """Return the number of columns, including the index column if shown."""
         if self.showcolindex:
             return len(self.data.columns) + 1
         else:
             return len(self.data.columns)
 
-    def GetTypeName(self, row, col):
+    def GetTypeName(self, row: int, col: int) -> str:
+        """Return the grid's type of the cell: float, long or string."""
         if self.GetColLabelValue(col) in self.floatcols:
             return wx.grid.GRID_VALUE_FLOAT
         elif self.GetColLabelValue(col) in self.intcols:
@@ -125,7 +180,8 @@ class PandasTable(wx.grid.GridTableBase):
         else:
             return wx.grid.GRID_VALUE_STRING
 
-    def GetValue(self, row, col):
+    def GetValue(self, row: int, col: int) -> Any:
+        """Return the value of a cell; in the index column, the row's index."""
         if self.showcolindex:
             if col == 0:
                 return self.data.index[row]
@@ -133,13 +189,19 @@ class PandasTable(wx.grid.GridTableBase):
         else:
             return self.data.iloc[row, col]
 
-    def SetValue(self, row, col, value):
+    def SetValue(self, row: int, col: int, value: Any) -> None:
+        """Set the value of a cell in the table."""
         if self.showcolindex:
             self.data.iloc[row, col - 1] = value
         else:
             self.data.iloc[row, col] = value
 
-    def GetColLabelValue(self, col):
+    def GetColLabelValue(self, col: int) -> str:
+        """Return the header of column `col`.
+
+        The index column's header is the index's names, one per line, or `Index` if
+        the index has no name.
+        """
         if self.showcolindex:
             if col == 0:
                 if self.data.index.name is None:
@@ -150,7 +212,10 @@ class PandasTable(wx.grid.GridTableBase):
         else:
             return self.colheaders[col]
 
-    def GetAttr(self, row, col, prop):
+    def GetAttr(
+        self, row: int, col: int, prop: wx.grid.GridCellAttr.AttrKind
+    ) -> Optional[wx.grid.GridCellAttr]:
+        """Return the attributes of a cell; integer cells are right-aligned."""
         if self.GetColLabelValue(col) in self.intcols:
             attr = wx.grid.GridCellAttr()
             attr.SetAlignment(wx.ALIGN_RIGHT, wx.ALIGN_CENTRE)
@@ -159,9 +224,12 @@ class PandasTable(wx.grid.GridTableBase):
             return wx.grid.GridTableBase.GetAttr(self, row, col, prop)
 
 
-def category_values(column: pd.Series) -> list:
-    """The values in a column: of a category column in its category order (see
-    Order Categories), else in the order they occur."""
+def category_values(column: pd.Series) -> list[Any]:
+    """Return the values that occur in a column.
+
+    The values of a category column are in its category order (see Order
+    Categories), those of other columns in the order they occur.
+    """
     present = column.unique()
     if isinstance(column.dtype, pd.CategoricalDtype):
         observed = set(present)
@@ -170,30 +238,56 @@ def category_values(column: pd.Series) -> list:
 
 
 class PandasFrame(wx.Frame):
+    """Table window: a grid with the table and buttons for its view.
+
+    The buttons set the precision of floats, fit the column widths, turn the range
+    filters on and off and edit them, run the Pivot and Unpivot tools on the table,
+    and save all rows or the rows shown. Right-clicking a category column's header
+    selects the values shown; double-clicking it renames values with a pattern.
+    Right-clicking a numeric column's header, with filters on, edits the column's
+    range filter.
+
+    Pubsub: sends `FOCUSED_DATA_WINDOW` when activated, `CLOSING_DATA_WINDOW` when
+    closed and `REQUEST_RENAME_DATA_WINDOW` after a save; receives
+    `RENAMED_DATA_WINDOW`.
+    """
+
     def __init__(
         self,
-        parent,
-        title,
-        filters=None,
-        data=None,
-        showcolindex=False,
-        groups=None,
-        analyzable=True,
-        savemodified=True,
-        precision=3,
-        enableclose=True,
-        on_filters_changed=None,
-        on_run_tool=None,
-    ):
-        """
+        parent: Optional[wx.Window],
+        title: str,
+        filters: Optional[WindowFilters] = None,
+        data: Optional[pd.DataFrame] = None,
+        showcolindex: bool = False,
+        groups: Optional[Union[list[str], np.ndarray]] = None,
+        analyzable: bool = True,
+        savemodified: bool = True,
+        precision: int = 3,
+        enableclose: bool = True,
+        on_filters_changed: Optional[Callable[[WindowFilters], None]] = None,
+        on_run_tool: Optional[Callable[[str, str], None]] = None,
+    ) -> None:
+        """Create the window.
+
         Args:
-            filters: WindowFilters (flim.core.filtering), shared by the GUI's data
-                windows (default: the built-in defaults, not shared).
-            on_filters_changed: called with ``filters`` after the user changes them
+            parent: The parent window; None for none.
+            title: The window title.
+            filters: The view filters, shared by the GUI's table windows. Defaults to
+                the built-in defaults, not shared.
+            data: The table; None for an empty table.
+            showcolindex: Whether the first column shows the row index.
+            groups: The category columns, which have view filters. Defaults to the
+                columns of category type.
+            analyzable: Whether the table can be analyzed (`is_analyzable`).
+            savemodified: Whether closing the window asks to save a modified table.
+            precision: The number of decimals of floats.
+            enableclose: Whether the window can be closed; if not, closing it shows
+                a message.
+            on_filters_changed: Called with `filters` after the user changes them
                 (filter checkbox, Filter Settings dialog).
-            on_run_tool: called with a tool's name and this window's title to run
+            on_run_tool: Called with a tool's name and this window's title to run
                 the tool on this window's table in its dialog (Pivot, Unpivot); None:
-                the window has no such buttons.
+                the window does not show these buttons.
         """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
         self.filters = filters if filters is not None else window_filters(AppSettings.default())
@@ -209,20 +303,26 @@ class PandasFrame(wx.Frame):
         self.Bind(wx.EVT_ACTIVATE, self.activate)
         pub.subscribe(self.OnDataWindowRenamed, RENAMED_DATA_WINDOW)
 
-    def activate(self, event):
+    def activate(self, event: wx.ActivateEvent) -> None:
+        """Send `FOCUSED_DATA_WINDOW` when the window is activated."""
         if event.GetActive():
             pub.sendMessage(FOCUSED_DATA_WINDOW, data=self.dataview, frame=self)
         event.Skip()
 
     def SetData(
         self,
-        data=None,
-        showcolindex=False,
-        groups=None,
-        analyzable=True,
-        savemodified=True,
-        precision=3,
-    ):
+        data: Optional[pd.DataFrame] = None,
+        showcolindex: bool = False,
+        groups: Optional[Union[list[str], np.ndarray]] = None,
+        analyzable: bool = True,
+        savemodified: bool = True,
+        precision: int = 3,
+    ) -> None:
+        """Set the table and its view settings, and clear the view filters' rows.
+
+        The table is marked modified. If the grid exists, the view is updated. See
+        `__init__` for the arguments.
+        """
         self.analyzable = analyzable
         self.savemodied = savemodified
         self.modified = True
@@ -253,7 +353,8 @@ class PandasFrame(wx.Frame):
                 f"datapanel.PandasFrame.SetData - NOT REFRESHING {self.GetTitle()}"
             )
 
-    def set_header_renderer(self):
+    def set_header_renderer(self) -> None:
+        """Give the headers of category columns a coloured background."""
         if self.grid is not None:
             categorycols = list(self.data.select_dtypes(["category"]).columns.values)
             for i in range(self.grid.GetNumberCols()):
@@ -263,13 +364,16 @@ class PandasFrame(wx.Frame):
                 else:
                     self.grid.SetColLabelRenderer(i, glr.GridDefaultColLabelRenderer())
 
-    def GetViewData(self):
+    def GetViewData(self) -> pd.DataFrame:
+        """Return the rows shown, those not dropped by the view filters."""
         return self.dataview
 
-    def GetData(self):
+    def GetData(self) -> pd.DataFrame:
+        """Return the table with all rows."""
         return self.data
 
-    def _init_gui(self):
+    def _init_gui(self) -> None:
+        """Create the grid and the buttons."""
         table = PandasTable(self.dataview, showcolindex=self.showcolindex)
 
         self.grid = PandasGrid(self, wx.ID_ANY)
@@ -343,7 +447,8 @@ class PandasFrame(wx.Frame):
         self.SetSizer(sizer)
 
 
-    def update_precision(self, precision):
+    def update_precision(self, precision: int) -> None:
+        """Show floats with `precision` decimals; 0 keeps the current precision."""
         if precision:
             self.precision = precision
             for colindex in self.grid.GetTable().GetFloatColIdx():
@@ -351,29 +456,48 @@ class PandasFrame(wx.Frame):
                     colindex, width=-1, precision=self.precision
                 )
 
-    def is_analyzable(self):
+    def is_analyzable(self) -> bool:
+        """Return whether the table can be analyzed."""
         return self.analyzable
 
     @property
     def modified(self) -> bool:
-        """Whether the table has changes not saved to a file; reported to the window's
-        `on_modified` callback (set when the window is registered) when set."""
+        """Whether the table has changes not saved to a file.
+
+        Setting it calls the window's `on_modified` callback, if set (when the
+        window is registered), with the new value.
+        """
         return getattr(self, "_modified", True)
 
     @modified.setter
-    def modified(self, value) -> None:
+    def modified(self, value: bool) -> None:
         self._modified = bool(value)
         callback = getattr(self, "on_modified", None)
         if callback is not None:
             callback(self._modified)
 
-    def is_modified(self):
+    def is_modified(self) -> bool:
+        """Return whether the table has changes not saved to a file."""
         return self.modified
 
-    def set_modified(self, modified=True):
+    def set_modified(self, modified: bool = True) -> None:
+        """Set whether the table has changes not saved to a file."""
         self.modified = modified
 
-    def apply_filters(self, filtercfg, showdiscarded=False):
+    def apply_filters(
+        self, filtercfg: dict[str, dict], showdiscarded: bool = False
+    ) -> None:
+        """Apply range filters to the view; the table is marked modified.
+
+        Each selected filter's dropped rows are computed again; the rows of filters
+        not selected are cleared. An empty `filtercfg` clears the rows of all range
+        filters of `filters`.
+
+        Args:
+            filtercfg: The `RangeFilter` parameters by column name.
+            showdiscarded: Whether a new table window shows the rows the range
+                filters drop. Defaults to False.
+        """
         if len(filtercfg) == 0:
             filternames = [f["name"] for f in self.filters.range_filters]
             for fname in filternames:
@@ -389,15 +513,25 @@ class PandasFrame(wx.Frame):
         self.update_view(showdiscarded=showdiscarded)
 
 
-    def OnDataWindowRenamed(self, original, new, frame):
+    def OnDataWindowRenamed(self, original: str, new: str, frame: wx.Frame) -> None:
+        """Pubsub `RENAMED_DATA_WINDOW`: set the title if `frame` is this window."""
         if frame is self:  # by identity: another window may have had the same title
             self.SetTitle(new)
 
-    def OnPrecisionChange(self, event):
+    def OnPrecisionChange(self, event: wx.SpinEvent) -> None:
+        """Show floats with the precision set in the spinner."""
         self.update_precision(event.GetEventObject().GetValue())
         self.grid.Refresh()
 
-    def updateusefilter(self, enabled, showdiscarded=False):
+    def updateusefilter(self, enabled: bool, showdiscarded: bool = False) -> None:
+        """Turn the range filters on or off and update the view.
+
+        Args:
+            enabled: True to apply the range filters of `filters`, False to clear
+                them.
+            showdiscarded: Whether a new table window shows the rows the range
+                filters drop (only when `enabled`). Defaults to False.
+        """
         self.filters.use = enabled
         self.filterbutton.Enable(enabled)
         filtercfg = self.filters.range_filters
@@ -410,16 +544,21 @@ class PandasFrame(wx.Frame):
             # clear
             self.apply_filters({})
 
-    def OnFilterData(self, event):
+    def OnFilterData(self, event: wx.CommandEvent) -> None:
+        """Turn the range filters on or off with the Filter Data checkbox."""
         cb = event.GetEventObject()
         self.updateusefilter(cb.GetValue())
         self._filters_changed()
 
-    def _filters_changed(self):
+    def _filters_changed(self) -> None:
+        """Call `on_filters_changed`, if set, with the filters."""
         if self.on_filters_changed is not None:
             self.on_filters_changed(self.filters)
 
-    def _existing_rangefilters(self, filterlist, columns=None):
+    def _existing_rangefilters(
+        self, filterlist: list[dict], columns: Optional[Union[list[str], str]] = None
+    ) -> list[dict]:
+        """Return the range filters of `columns` (default: the numeric columns)."""
         existingfilters = {rfilter["name"]: rfilter for rfilter in filterlist}
         if columns is None:
             columns = self.data.select_dtypes(include=["number"], exclude=["category"])
@@ -431,7 +570,8 @@ class PandasFrame(wx.Frame):
         ]
         return rangefilters
 
-    def OnFilterSettings(self, event):
+    def OnFilterSettings(self, event: wx.CommandEvent) -> None:
+        """Edit the view filters in the filter dialog and apply them on OK."""
         rfilterlist = self.filters.range_filters
         shown = self.filters.model_copy(
             update={"range_filters": self._existing_rangefilters(rfilterlist)}
@@ -448,13 +588,17 @@ class PandasFrame(wx.Frame):
             self.updateusefilter(edited.use, showdiscarded=edited.show_dropped)
             self._filters_changed()
 
-    def _merged_filters(self, edited) -> list:
-        """The range filters with the edited ones replaced (by column name)."""
+    def _merged_filters(self, edited: list[dict]) -> list[dict]:
+        """Return the range filters with the edited ones replaced, by column name."""
         filters = {f["name"]: f for f in self.filters.range_filters}
         filters.update({f["name"]: f for f in edited})
         return list(filters.values())
 
-    def OnPopupItemSelected(self, event):
+    def OnPopupItemSelected(self, event: wx.CommandEvent) -> None:
+        """Show or hide the rows of a category value chosen in `currentpopup`.
+
+        `All` shows and `None` hides the rows of all values of the menu's column.
+        """
         item = self.currentpopup.FindItemById(event.GetId())
         value = item.GetText()
         group = item.GetMenu().GetTitle()
@@ -488,13 +632,20 @@ class PandasFrame(wx.Frame):
                 self.modified = True
         self.update_view()
 
-    def _flatten_array(self, arraylist):
+    def _flatten_array(self, arraylist: list[Any]) -> np.ndarray:
+        """Return the unique values of the arrays in `arraylist`, sorted."""
         arraylist = [a for a in arraylist if len(a) > 0]
         if len(arraylist) > 0:
             arraylist = np.concatenate(arraylist)
         return np.unique(arraylist)
 
-    def update_view(self, showdiscarded=False):
+    def update_view(self, showdiscarded: bool = False) -> None:
+        """Show the rows that no view filter drops.
+
+        Args:
+            showdiscarded: Whether a new table window shows the rows that the range
+                filters drop and the category filters do not. Defaults to False.
+        """
         # get RangeFilter names and rows dropped by them
         rfilters = self._existing_rangefilters(self.filters.range_filters)
         rfilter_names = [rfilter["name"] for rfilter in rfilters]
@@ -547,7 +698,12 @@ class PandasFrame(wx.Frame):
             )
             self.GetEventHandler().ProcessEvent(event)
 
-    def create_popupmenu(self, colheader):
+    def create_popupmenu(self, colheader: str) -> wx.Menu:
+        """Return a menu with `All`, `None` and a checked item per value of a column.
+
+        Args:
+            colheader: The category column; it is the menu's title.
+        """
         menu = wx.Menu()
         menu.SetTitle(colheader)
         for item in ["All", "None"]:
@@ -561,7 +717,8 @@ class PandasFrame(wx.Frame):
         menu.InsertSeparator(2)
         return menu
 
-    def OnLabelDClick(self, event):
+    def OnLabelDClick(self, event: wx.grid.GridEvent) -> None:
+        """Rename the values of a category column with a pattern and a replacement."""
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
             dlg = RenameGroupsDlg(self, title=f"{group}: Pattern Rename")
@@ -578,7 +735,11 @@ class PandasFrame(wx.Frame):
             self.modified = True
             self.update_view()
 
-    def OnLabelClick(self, event):
+    def OnLabelClick(self, event: wx.grid.GridEvent) -> None:
+        """Select the values shown of a category column, or edit a range filter.
+
+        A numeric column's range filter is edited only when the filters are on.
+        """
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
             items = category_values(self.data[group])
@@ -626,7 +787,8 @@ class PandasFrame(wx.Frame):
                 self.apply_filters({f["name"]: f for f in edited})
                 self._filters_changed()
 
-    def OnAutosize(self, event):
+    def OnAutosize(self, event: wx.CommandEvent) -> None:
+        """Fit the column widths to the headers and the widest values shown."""
         font = self.grid.GetFont()
         dc = wx.ClientDC(self)
         dc.SetFont(font)
@@ -673,18 +835,18 @@ class PandasFrame(wx.Frame):
             self.grid.SetColSize(colindex, width + 20)
             colindex += 1
 
-    def OnUnpivot(self, event):
+    def OnUnpivot(self, event: wx.CommandEvent) -> None:
         """Run the Unpivot tool on this window's table, in the tool's dialog."""
         if self.on_run_tool is not None:
             self.on_run_tool("Unpivot", self.GetTitle())
 
-    def OnPivotView(self, event):
-        """Run the Pivot tool on this window's table (the rows it shows), in the
-        tool's dialog."""
+    def OnPivotView(self, event: wx.CommandEvent) -> None:
+        """Run the Pivot tool on this window's table, in the tool's dialog."""
         if self.on_run_tool is not None:
             self.on_run_tool("Pivot", self.GetTitle())
 
-    def OnViewAll(self, event):
+    def OnViewAll(self, event: wx.CommandEvent) -> None:
+        """Show all rows: clear the view filters' rows and check all menu items."""
         if len(self.droppedrows) > 0:
             for colheader in self.popupmenus:
                 for item in self.popupmenus[colheader].GetMenuItems():
@@ -694,7 +856,12 @@ class PandasFrame(wx.Frame):
             self.modified = True
             self.update_view()
 
-    def OnSave(self, event):
+    def OnSave(self, event: wx.CommandEvent) -> None:
+        """Save all rows or the rows shown, by the button's label.
+
+        After a save, the table is marked not modified and
+        `REQUEST_RENAME_DATA_WINDOW` is sent with the file name.
+        """
         original = self.GetTitle()
         buttonlabel = event.GetEventObject().GetLabel()
         if buttonlabel == SAVE_ALL_ROWS:
@@ -724,7 +891,8 @@ class PandasFrame(wx.Frame):
                 frame=self,
             )
 
-    def OnSaveView(self, event):
+    def OnSaveView(self, event: wx.CommandEvent) -> None:
+        """Save the rows shown and send `REQUEST_RENAME_DATA_WINDOW` with the path."""
         original = self.GetTitle()
         fname = flim.gui.dialogs.save_dataframe(
             self,
@@ -739,7 +907,13 @@ class PandasFrame(wx.Frame):
                 REQUEST_RENAME_DATA_WINDOW, original=original, new=fname, frame=self
             )
 
-    def close_and_destroy(self, event):
+    def close_and_destroy(self, event: wx.CloseEvent) -> None:
+        """Close the window, after asking to save a modified table.
+
+        A window that cannot be closed shows a message instead. Cancel, or a save
+        that is cancelled or fails, keeps the window open. Sends
+        `CLOSING_DATA_WINDOW` before the window is destroyed.
+        """
         if not self.enableclose:
             wx.MessageBox("This window needs to stay open. It can be minimized.")
             return
@@ -771,11 +945,15 @@ class PandasFrame(wx.Frame):
 
 
 class TestApp(wx.App):
-    def __init__(self, data):
+    """App that shows a table in a table window, for manual tests."""
+
+    def __init__(self, data: pd.DataFrame) -> None:
+        """Create the app for the table `data`."""
         self.data = data
         super(TestApp, self).__init__()
 
-    def OnInit(self):
+    def OnInit(self) -> bool:
+        """Show the table window."""
         self.frame = PandasFrame(None, "Test", None, self.data)
         self.frame.Show(True)
         return True

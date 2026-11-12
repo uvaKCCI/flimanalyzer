@@ -1,6 +1,6 @@
 """Calculate: the calculations as a read-only table, edited one at a time.
 
-The table starts empty (Calculate.dialog_config). `Add Calculation...` and `Edit...`
+The table starts empty (`Calculate.dialog_config`). `Add Calculation...` and `Edit...`
 open the calculation editor: a kind (expression or function), then only that kind's
 fields, generated from its config; the function's parameters are generated from its
 signature. `Load Presets...` adds presets that apply to the input table: the
@@ -11,14 +11,17 @@ can't be removed.
 
 import inspect
 import logging
-from typing import Optional
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any, Optional
 
 import pandas as pd
 import wx
 import wx.grid
-from pydantic import ValidationError, create_model
+from pydantic import BaseModel, ValidationError, create_model
 
 from flim.configs.data import CalculateConfig, ExpressionCalculation, FunctionCalculation
+from flim.configs.data import Calculation
+from flim.core.schema import TableSchema
 from flim.gui.editors import (
     CategoriesEditor,
     Editor,
@@ -28,13 +31,16 @@ from flim.gui.editors import (
     register_editor,
 )
 
+if TYPE_CHECKING:
+    from flim.core.settingsmgr import SettingsManager
+
 logger = logging.getLogger(__name__)
 
 KINDS = {"expression": ExpressionCalculation, "function": FunctionCalculation}
-_settings_manager = None  # the session's SettingsManager (see bind)
+_settings_manager: Optional["SettingsManager"] = None  # the session's (see bind)
 
 
-def bind(settings_manager) -> None:
+def bind(settings_manager: "SettingsManager") -> None:
     """Use a session's settings for the saved presets.
 
     Args:
@@ -44,13 +50,19 @@ def bind(settings_manager) -> None:
     _settings_manager = settings_manager
 
 
-def built_in_presets() -> list:
-    """The built-in calculations: those of the import (FLIRR, NAD(P)H tm, ...)."""
+def built_in_presets() -> list[Calculation]:
+    """Return the built-in calculations: those of the import (FLIRR, NAD(P)H tm)."""
     return list(CalculateConfig().calculations)
 
 
-def saved_presets() -> list:
-    """The calculations saved as presets; those that are not valid are left out."""
+def saved_presets() -> list[Calculation]:
+    """Return the calculations saved as presets in the user settings file.
+
+    Presets that are not valid are left out, with a warning in the log.
+
+    Returns:
+        The calculations; empty if no settings manager is bound (`bind`).
+    """
     if _settings_manager is None:
         return []
     presets = []
@@ -62,16 +74,30 @@ def saved_presets() -> list:
     return presets
 
 
-def save_presets(presets) -> None:
-    """Replace the saved presets (written to the user settings file)."""
+def save_presets(presets: Iterable[Calculation]) -> None:
+    """Replace the saved presets in the user settings file.
+
+    Nothing is saved if no settings manager is bound (`bind`).
+
+    Args:
+        presets: The calculations.
+    """
     if _settings_manager is not None:
         _settings_manager.update(
             {"calculation_presets": [p.model_dump(mode="json") for p in presets]}
         )
 
 
-def describe(calculation) -> str:
-    """What a calculation computes, e.g. `ratio(NAD(P)H a2[%], FAD a1[%])`."""
+def describe(calculation: Calculation) -> str:
+    """Return what a calculation computes, as text.
+
+    Args:
+        calculation: The calculation.
+
+    Returns:
+        An expression's text; or a function call with the argument columns and,
+        after `;`, the parameters, e.g. `ratio(NAD(P)H a2[%], FAD a1[%])`.
+    """
     if calculation.kind == "expression":
         return calculation.expression
     params = ", ".join(f"{k}={v:g}" for k, v in calculation.params.items())
@@ -82,7 +108,8 @@ def describe(calculation) -> str:
 # --- the editors of a function's fields ---
 
 
-def _functions() -> list:
+def _functions() -> list[str]:
+    """Return the names of the registered functions, sorted."""
     from flim.core.calculate import FUNCTIONS, _register_builtins
 
     _register_builtins()
@@ -91,21 +118,28 @@ def _functions() -> list:
 
 @register_editor(FunctionCalculation, "function")
 class FunctionEditor(Editor):
-    """The registered functions to choose from."""
+    """Choice of the registered functions."""
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the drop-down of the function names; none is selected."""
         self.names = _functions()
         control = wx.Choice(parent, choices=self.names)
         control.Bind(wx.EVT_CHOICE, self.changed)
         return control
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the selected function's name.
+
+        Raises:
+            ValueError: If no function is selected.
+        """
         index = self.control.GetSelection()
         if index == wx.NOT_FOUND:
             raise ValueError("Choose a function")
         return self.names[index]
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Select a function by name; a name not registered is ignored."""
         if value in self.names:
             self.control.SetSelection(self.names.index(value))
 
@@ -114,16 +148,25 @@ class FunctionEditor(Editor):
 class ArgumentsEditor(CategoriesEditor):
     """The function's argument columns: the input's features, checked and in order."""
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """List the input's feature columns; the checked ones stay checked."""
         self._remember()
         self.known = schema is not None and schema.complete
         self.columns = [] if schema is None else schema.by_role("feature")
         self._show()
 
 
-def parameters_model(function: Optional[str]):
-    """A config class with a field per keyword parameter of a registered function
-    (those with defaults), e.g. `const` of `trp_Eperc_1`; None if it has none."""
+def parameters_model(function: Optional[str]) -> Optional[type[BaseModel]]:
+    """Return a model with a field per parameter with a default of a function.
+
+    Args:
+        function: The name of a registered function; None for none.
+
+    Returns:
+        A model class with a float field per parameter of the function that has a
+        default (e.g. `const` of `trp_Eperc_1`), with that default; None if the
+        function is not registered or has no such parameters.
+    """
     from flim.core.calculate import FUNCTIONS, _register_builtins
 
     _register_builtins()
@@ -140,9 +183,14 @@ def parameters_model(function: Optional[str]):
 
 @register_editor(FunctionCalculation, "params")
 class ParametersEditor(Editor):
-    """The chosen function's parameters, one field each, with their defaults."""
+    """The chosen function's parameters, one field each, with their defaults.
 
-    def create(self, parent):
+    The fields are rebuilt when the function changes; values of parameters that
+    the new function also has are kept.
+    """
+
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the panel; it shows `(none)` until a function has parameters."""
         self.panel = wx.Panel(parent)
         self.panel.SetSizer(wx.BoxSizer(wx.VERTICAL))
         self.function = None
@@ -152,7 +200,8 @@ class ParametersEditor(Editor):
         self.panel.GetSizer().Add(self.none)
         return self.panel
 
-    def _rebuild(self, function) -> None:
+    def _rebuild(self, function: Optional[str]) -> None:
+        """Replace the fields with those of a function's parameters."""
         if self.fields is not None:
             self.values.update(self.get())
             self.fields.Destroy()
@@ -168,20 +217,23 @@ class ParametersEditor(Editor):
             self.panel.GetSizer().Add(self.fields, 0, wx.EXPAND)
         self.panel.Layout()
 
-    def refresh(self, panel):
+    def refresh(self, panel: FieldsPanel) -> None:
+        """Rebuild the fields if the `function` field changed."""
         function = panel.value_of("function")
         if function != self.function:
             self._rebuild(function)
             panel.Layout()
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the parameters' values by name; empty if there are no fields."""
         if self.fields is None:
             return {}
         model = self.fields.model
         values = self.fields.values(model())
         return {k: v for k, v in values.items() if k in model.model_fields}
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show parameter values (a dict by name; None for none)."""
         self.values = dict(value or {})
         self._rebuild(self.function)
 
@@ -190,17 +242,31 @@ class ParametersEditor(Editor):
 
 
 class CalculationDialog(wx.Dialog):
-    """Edits one calculation: its kind, then only the fields of that kind."""
+    """Dialog that edits one calculation: its kind, then only the fields of that kind.
 
-    def __init__(self, parent, calculation=None, columns=(), schema=None, tables=()):
-        """
+    Below the fields, the dialog shows the problems of the calculation and an
+    example from the first row of the input table; OK is enabled only without
+    errors.
+    """
+
+    def __init__(
+        self,
+        parent: Optional[wx.Window],
+        calculation: Optional[Calculation] = None,
+        columns: Iterable[Any] = (),
+        schema: Optional[TableSchema] = None,
+        tables: Iterable[Any] = (),
+    ) -> None:
+        """Build the dialog.
+
         Args:
             parent: The parent window.
-            calculation: The calculation to edit; None: a new expression.
+            calculation: The calculation to edit. Defaults to None: a new
+                expression.
             columns: The columns the calculation can use: the input's and those of
-                the calculations before it.
-            schema: The input's schema (column choices).
-            tables: The input tables (the example line).
+                the calculations before it. Defaults to none.
+            schema: The input's schema (for the column choices). Defaults to None.
+            tables: The input tables (for the example line). Defaults to none.
         """
         super().__init__(parent, title="Calculation", style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         self.columns, self.schema, self.tables = list(columns), schema, list(tables)
@@ -225,7 +291,8 @@ class CalculationDialog(wx.Dialog):
         self.fields = None
         self._build(calculation)
 
-    def _build(self, calculation) -> None:
+    def _build(self, calculation: Calculation) -> None:
+        """Replace the fields with those of the calculation's kind, and check it."""
         if self.fields is not None:
             self.fields.Destroy()
         self.fields = FieldsPanel(self, type(calculation), exclude={"kind", "engine"})
@@ -236,23 +303,32 @@ class CalculationDialog(wx.Dialog):
         self.body.Add(self.fields, 1, wx.EXPAND)
         self.validate()  # fills the example and message lines, then fits
 
-    def _on_kind(self, event):
+    def _on_kind(self, event: wx.CommandEvent) -> None:
+        """Show the fields of the chosen kind; the name is kept."""
         model = KINDS[self.kind.GetStringSelection()]
         name = self.fields.value_of("name") or ""
         self._build(model(name=name))
 
-    def calculation(self):
+    def calculation(self) -> Calculation:
         """Return the calculation as edited.
 
         Raises:
-            ValueError: If a field is not valid (FieldErrors or a validation error).
+            ValueError: If a field is not valid (`FieldErrors` or a pydantic
+                `ValidationError`, both subclasses of `ValueError`).
         """
         model = KINDS[self.kind.GetStringSelection()]
         return model.model_validate(self.fields.values(model()))
 
     def validate(self) -> bool:
-        """Check the calculation; show the problems and an example from the table's
-        first row; enable OK only without errors."""
+        """Check the calculation and show the result.
+
+        The problems are shown below the fields. A used, named calculation without
+        problems shows its value for the first row of the first non-empty input
+        table. OK is enabled only without errors.
+
+        Returns:
+            True if there are no errors.
+        """
         from flim.core.calculate import calculate, check
 
         ok = self.FindWindowById(wx.ID_OK)
@@ -286,7 +362,10 @@ class CalculationDialog(wx.Dialog):
         self._show(example, "\n".join(errors + warnings), ok, not errors)
         return not errors
 
-    def _show(self, example, message, ok, enabled) -> None:
+    def _show(
+        self, example: str, message: str, ok: Optional[wx.Window], enabled: bool
+    ) -> None:
+        """Show the example and message lines; enable or disable OK."""
         self.example.SetLabel(example)
         self.message.SetLabel(message)
         self.message.Wrap(460)
@@ -295,8 +374,7 @@ class CalculationDialog(wx.Dialog):
         self._fit()
 
     def _fit(self) -> None:
-        """Grow the dialog to its content (e.g. a longer message), never shrink it,
-        so that no field is cut off."""
+        """Grow the dialog to its content (e.g. a longer message); never shrink it."""
         self.Layout()
         needed = self.GetSizer().GetMinSize()
         client = self.GetClientSize()
@@ -305,8 +383,25 @@ class CalculationDialog(wx.Dialog):
             self.Layout()
 
 
-def edit_calculation(parent, calculation=None, columns=(), schema=None, tables=()):
-    """Show the calculation editor; return the calculation, or None if cancelled."""
+def edit_calculation(
+    parent: Optional[wx.Window],
+    calculation: Optional[Calculation] = None,
+    columns: Iterable[Any] = (),
+    schema: Optional[TableSchema] = None,
+    tables: Iterable[Any] = (),
+) -> Optional[Calculation]:
+    """Show the calculation editor as a modal dialog.
+
+    Args:
+        parent: The parent window.
+        calculation: The calculation to edit. Defaults to None: a new expression.
+        columns: The columns the calculation can use. Defaults to none.
+        schema: The input's schema. Defaults to None.
+        tables: The input tables. Defaults to none.
+
+    Returns:
+        The edited calculation, or None if the dialog was cancelled.
+    """
     with CalculationDialog(parent, calculation, columns, schema, tables) as dialog:
         if dialog.ShowModal() != wx.ID_OK:
             return None
@@ -318,14 +413,17 @@ def edit_calculation(parent, calculation=None, columns=(), schema=None, tables=(
 
 @register_editor(CalculateConfig, "calculations")
 class CalculationsEditor(_RowIssues, Editor):
-    """The calculations as a read-only table; each is edited in the calculation
-    editor. The buttons add, edit, remove and move calculations, and load, save and
-    remove presets."""
+    """The calculations as a read-only table; each is edited in the calculation editor.
+
+    The buttons add, edit, remove and move calculations, and load, save and remove
+    presets. A double click on a row edits it.
+    """
 
     expands = True
     HEADERS = ("New Column", "Calculation", "Options")
 
-    def create(self, parent):
+    def create(self, parent: wx.Window) -> wx.Window:
+        """Create the table and its buttons."""
         self.items: list = []
         self.schema = None
         self.tables: list = []
@@ -362,6 +460,7 @@ class CalculationsEditor(_RowIssues, Editor):
     # --- the table ---
 
     def _show(self, select: Optional[int] = None) -> None:
+        """Show the calculations in the table; select the row `select`."""
         if self.grid.GetNumberRows():
             self.grid.DeleteRows(0, self.grid.GetNumberRows())
         self.grid.AppendRows(len(self.items))
@@ -374,17 +473,18 @@ class CalculationsEditor(_RowIssues, Editor):
             self.grid.SelectRow(select)
             self.grid.SetGridCursor(select, 0)
 
-    def _selected(self) -> list:
+    def _selected(self) -> list[int]:
+        """Return the selected rows and the cursor's row, sorted."""
         rows = set(self.grid.GetSelectedRows()) | {self.grid.GetGridCursorRow()}
         return sorted(r for r in rows if 0 <= r < len(self.items))
 
-    def _columns_before(self, row: int) -> list:
-        """The columns a calculation at `row` can use: the input's and those of the
-        calculations above it."""
+    def _columns_before(self, row: int) -> list[Any]:
+        """Return the input's columns and those of the calculations above `row`."""
         names = [] if self.schema is None else self.schema.names
         return names + [c.name for c in self.items[:row]]
 
-    def _on_add(self, event):
+    def _on_add(self, event: wx.CommandEvent) -> None:
+        """Add a calculation edited in the calculation editor."""
         new = edit_calculation(
             self.control, None, self._columns_before(len(self.items)), self.schema, self.tables
         )
@@ -393,7 +493,8 @@ class CalculationsEditor(_RowIssues, Editor):
             self._show(len(self.items) - 1)
             self.changed()
 
-    def _on_edit(self, event):
+    def _on_edit(self, event: wx.Event) -> None:
+        """Edit the first selected calculation in the calculation editor."""
         rows = self._selected()
         if not rows:
             return
@@ -406,13 +507,15 @@ class CalculationsEditor(_RowIssues, Editor):
             self._show(row)
             self.changed()
 
-    def _on_remove(self, event):
+    def _on_remove(self, event: wx.CommandEvent) -> None:
+        """Remove the selected calculations."""
         for row in reversed(self._selected()):
             del self.items[row]
         self._show()
         self.changed()
 
     def _move(self, step: int) -> None:
+        """Move the selected calculation by `step` rows, if one row is selected."""
         rows = self._selected()
         if len(rows) != 1:
             return
@@ -424,7 +527,8 @@ class CalculationsEditor(_RowIssues, Editor):
 
     # --- presets ---
 
-    def _on_load_presets(self, event):
+    def _on_load_presets(self, event: wx.CommandEvent) -> None:
+        """Add chosen presets that apply to the table, with their prerequisites."""
         from flim.core.calculate import applicable, with_prerequisites
 
         columns = self._columns_before(len(self.items))
@@ -453,7 +557,8 @@ class CalculationsEditor(_RowIssues, Editor):
         self._show()
         self.changed()
 
-    def _on_save_presets(self, event):
+    def _on_save_presets(self, event: wx.CommandEvent) -> None:
+        """Save the selected calculations as presets; same names are replaced."""
         new = [self.items[r] for r in self._selected()]
         if not new:
             wx.MessageBox("Select the calculations to save.", "Save as Presets", wx.OK)
@@ -466,7 +571,8 @@ class CalculationsEditor(_RowIssues, Editor):
             wx.OK,
         )
 
-    def _on_remove_presets(self, event):
+    def _on_remove_presets(self, event: wx.CommandEvent) -> None:
+        """Ask for saved presets and remove them."""
         saved = saved_presets()
         if not saved:
             wx.MessageBox(
@@ -486,21 +592,26 @@ class CalculationsEditor(_RowIssues, Editor):
 
     # --- Editor ---
 
-    def _row_of(self, path) -> Optional[int]:
+    def _row_of(self, path: Optional[str]) -> Optional[int]:
+        """Return the row of an issue's path, e.g. `calculations[2].name`; else None."""
         rest = (path or "")[len(self.spec.name):].lstrip(".")
         number = rest.removeprefix("[").split("]")[0]
         return int(number) if number.isdigit() else None
 
-    def set_schema(self, schema):
+    def set_schema(self, schema: Optional[TableSchema]) -> None:
+        """Store the input's schema for the calculation editor."""
         self.schema = schema
 
-    def set_data(self, tables):
+    def set_data(self, tables: list) -> None:
+        """Store the input tables for the calculation editor's example."""
         self.tables = list(tables)
 
-    def get(self):
+    def get(self) -> Any:
+        """Return the calculations as dicts."""
         return [c.model_dump(mode="json") for c in self.items]
 
-    def set(self, value):
+    def set(self, value: Any) -> None:
+        """Show calculations (configs or dicts; None for none) in the table."""
         self.items = list(CalculateConfig(calculations=list(value or [])).calculations)
         self._show()
 

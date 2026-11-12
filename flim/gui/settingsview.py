@@ -10,11 +10,21 @@ MAX_COLUMN_WIDTH = 320  # pixels; longer values (e.g. paths) are in the tooltip
 
 
 class SettingsViewer(wx.Dialog):
-    """Shows each app setting with its value, the layer that set it (built-in
-    default, user settings file, app settings file, environment, command line) and
-    how to change it; below, the settings files and log files of the session."""
+    """A dialog that shows the app settings of the session, read-only.
 
-    def __init__(self, parent, manager: SettingsManager):
+    A table shows each app setting with its value, the layer that set it (built-in
+    default, user settings file, app settings file, environment, command line) and
+    how to change it; below it, the settings files and log files of the session.
+    The tooltip of a row shows the setting's full value and its description.
+    """
+
+    def __init__(self, parent: wx.Window, manager: SettingsManager) -> None:
+        """Create the dialog.
+
+        Args:
+            parent: The parent window.
+            manager: The settings manager of the session.
+        """
         super().__init__(
             parent, title="Settings", style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER
         )
@@ -52,8 +62,8 @@ class SettingsViewer(wx.Dialog):
         width = sum(self.table.GetColumnWidth(i) for i in range(len(COLUMNS))) + 40
         self.SetSize(max(width, self.GetSize().width), self.GetSize().height)
 
-    def _on_motion(self, event):
-        # the setting under the mouse: its full value and its description
+    def _on_motion(self, event: wx.MouseEvent) -> None:
+        """Set the table's tooltip to the setting under the mouse."""
         index, _ = self.table.HitTest(event.GetPosition())
         if 0 <= index < len(self.rows):
             row = self.rows[index]

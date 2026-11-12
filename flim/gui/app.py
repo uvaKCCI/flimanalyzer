@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The wxPython GUI: its wx.App (FLIMAnalyzerApp), the main window (AppFrame) and the
-settings of a GUI session."""
+"""The wxPython GUI: its `wx.App`, the main window and the settings of a GUI session.
+
+`FLIMAnalyzerApp` is the `wx.App`; `AppFrame` is the main window, with the tool panel
+and the menus, and opens the table and plot windows.
+"""
 
 import matplotlib
 
 import logging
 import os
+from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 import re
+from types import TracebackType
+from typing import Any, Optional
 import pandas as pd
 import wx
 import wx.adv
@@ -17,13 +23,16 @@ from pubsub import pub
 from flim._version import __version__
 from wx.lib.newevent import NewEvent
 from importlib.resources import files
+from matplotlib.backend_bases import PickEvent
+from matplotlib.figure import Figure
 
 import flim.core.parser
 import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
-from flim.core.datamgr import DataManager
+from flim.configs.data import ImportTablesConfig
+from flim.core.datamgr import DataManager, Item, ItemId
 from flim.core.saving import AutosaveConfig
 from flim.core.filtering import WindowFilters, window_filters, with_window_ranges
 from flim.tools.data import Filter
@@ -34,10 +43,12 @@ from flim.core.reader import LEFT_OUT, ReadSettings, read_tables
 from flim.core.schema import TableSchema
 from flim.core.paths import canonical_folder
 from flim.core.graph import WorkflowGraph
+from flim.core.tool import Tool
+from flim.core.tools import FLIMAnalyzer
 from flim.core.workflow import Workflow
 from flim.core.workflowfile import panel_group, workflow_group
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
-from flim.core.runner import run_flow
+from flim.core.runner import CancelToken, FlowRun, run_flow
 from flim.gui.configdialog import open_config_dialog
 from flim.gui.icons import icon_bitmap, tool_bitmap
 from flim.gui.macos import set_bundle_name, set_display_name
@@ -47,6 +58,7 @@ from flim.gui.datapanel import PandasFrame
 from flim.gui.dialogs import ConfigureAxisDlg
 from flim.gui.events import (
     EVT_DATAUPDATED,
+    DataUpdatedEvent,
     DataWindowEvent,
     EVT_DATA,
     EVT_DATA_TYPE,
@@ -60,7 +72,11 @@ from flim.gui.events import (
     REQUEST_RENAME_DATA_WINDOW,
     RENAMED_DATA_WINDOW,
 )
-from flim.gui.listcontrol import EVT_FILTERUPDATED, EVT_ANALYSISUPDATED
+from flim.gui.listcontrol import (
+    EVT_FILTERUPDATED,
+    EVT_ANALYSISUPDATED,
+    ListCtrlUpdatedEvent,
+)
 import flim.tools  # noqa: F401  (registers the built-in tools)
 
 # field editors of the tools that need more than the generated dialog
@@ -81,8 +97,15 @@ NATIVE_WINDOW_LIST = wx.Platform == "__WXMAC__"
 
 
 def docs_url(version: str = __version__) -> str:
-    """URL of the documentation of ``version``: a release version (X.Y.Z) has its
-    own; any other version (a development build) gets the latest documentation."""
+    """Return the URL of the documentation of a version.
+
+    Args:
+        version: The FLIMAnalyzer version. Defaults to the installed version.
+
+    Returns:
+        The URL of the version's own documentation for a release version (`X.Y.Z`),
+        else (a development build) the URL of the latest documentation.
+    """
     if re.fullmatch(r"\d+\.\d+\.\d+", version):
         return f"{DOCS_URL}/en/v{version}/"
     return f"{DOCS_URL}/en/latest/"
@@ -94,28 +117,37 @@ DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
 
 
-def app_icon():
-    """The FLIMAnalyzer icon."""
+def app_icon() -> wx.Icon:
+    """Return the FLIMAnalyzer icon, read from `flimanalyzer.png`."""
     return wx.Icon(str(files(flim.resources).joinpath("flimanalyzer.png")), wx.BITMAP_TYPE_PNG)
 
 
-def app_icons():
-    """The FLIMAnalyzer icon in all sizes of its ICO file, so that each window can
-    use a sharp one."""
+def app_icons() -> wx.IconBundle:
+    """Return the FLIMAnalyzer icon in all sizes of `flimanalyzer.ico`.
+
+    Each window then uses the size that is sharpest at its resolution.
+    """
     return wx.IconBundle(str(files(flim.resources).joinpath("flimanalyzer.ico")), wx.BITMAP_TYPE_ICO)
 
 
 def install_error_logging() -> None:
-    """Write errors that GUI event handlers don't catch to the log, with their
-    traceback; they are still printed as before (wxPython reports them through
-    `sys.excepthook`)."""
+    """Write the errors that GUI event handlers don't catch to the log.
+
+    wxPython reports these errors through `sys.excepthook`. The installed hook logs
+    each error with its traceback (except `KeyboardInterrupt`) and then calls the
+    previous hook, which still prints it. Installing it again has no effect.
+    """
     import sys
 
     previous = sys.excepthook
     if getattr(previous, "_flim_logs", False):
         return
 
-    def hook(kind, error, traceback):
+    def hook(
+        kind: type[BaseException],
+        error: BaseException,
+        traceback: Optional[TracebackType],
+    ) -> None:
         if not issubclass(kind, KeyboardInterrupt):
             logger.error("Error in the GUI", exc_info=(kind, error, traceback))
         previous(kind, error, traceback)
@@ -125,8 +157,18 @@ def install_error_logging() -> None:
 
 
 class FLIMAnalyzerApp(wx.App):
-    def __init__(self, flimanalyzer=None, settings_manager=None, files=None, runs=(), exclude=()):
-        """
+    """The `wx.App` of the GUI: opens the main window and runs the startup options."""
+
+    def __init__(
+        self,
+        flimanalyzer: Optional[FLIMAnalyzer] = None,
+        settings_manager: Optional[SettingsManager] = None,
+        files: Optional[Iterable[str | os.PathLike]] = None,
+        runs: Iterable[tuple[str, str]] = (),
+        exclude: Iterable[str] = (),
+    ) -> None:
+        """Create the app; also discovers the tools and dialogs of other packages.
+
         Args:
             flimanalyzer: The FLIMAnalyzer object that provides the task runner and
                 execution settings. None: the main window is opened later with
@@ -149,7 +191,8 @@ class FLIMAnalyzerApp(wx.App):
         set_bundle_name("FLIMAnalyzer")  # before wx.App registers with macOS
         super().__init__()
 
-    def OnInit(self):
+    def OnInit(self) -> bool:
+        """Set up the app and open the main window if `flimanalyzer` was given."""
         install_error_logging()
         self.SetAppName("FLIMAnalyzer")
         self.SetAppDisplayName("FLIMAnalyzer")
@@ -161,17 +204,26 @@ class FLIMAnalyzerApp(wx.App):
             self.start()
         return True
 
-    def OnQueryEndSession(self, event):
-        """Ask about unsaved windows before the session ends (AppFrame.confirm_quit);
-        veto the end if the user cancels and the system allows it."""
+    def OnQueryEndSession(self, event: wx.CloseEvent) -> None:
+        """Ask about unsaved windows before the session ends; veto if cancelled."""
         frame = getattr(self, "frame", None)
         if frame and event.CanVeto() and not frame.confirm_quit():
             event.Veto()
             return
         event.Skip()
 
-    def start(self, flimanalyzer=None, settings_manager=None, files=None):
-        """Open the main window, and the data files given at startup.
+    def start(
+        self,
+        flimanalyzer: Optional[FLIMAnalyzer] = None,
+        settings_manager: Optional[SettingsManager] = None,
+        files: Optional[Iterable[str | os.PathLike]] = None,
+    ) -> None:
+        """Open the main window, then run or open the data files given at startup.
+
+        Registers the workflow files of the search path first. Without a settings
+        manager, one with the user settings file is created. Notices of the settings
+        manager and an offer to import the workflow of the app settings file are shown
+        after the window opens.
 
         Args:
             flimanalyzer: Replaces the FLIMAnalyzer object given when the app was
@@ -220,11 +272,15 @@ class FLIMAnalyzerApp(wx.App):
         elif self.files:
             wx.CallAfter(self.open_files, self.files)
 
-    def run_at_start(self):
-        """Run the `--run` and `--workflow` given at startup on the `-i` files: a
-        workflow file after showing its steps; Import Tables in its dialog; a tool or
-        code-defined workflow after opening the files, in its dialog. The files are
-        read with Open Tables' settings, Import Tables' with its own."""
+    def run_at_start(self) -> None:
+        """Run the `--run` and `--workflow` given at startup on the `-i` files.
+
+        A workflow file runs after its steps are shown and confirmed; Import Tables
+        opens its dialog; a tool or code-defined workflow opens its dialog after the
+        files are opened. The files are read with Open Tables' settings, without the
+        `-x` files; Import Tables reads them with its own settings. A name that does
+        not resolve is reported and skipped.
+        """
         from flim.batch import BatchError, read_settings, resolve_run
         from flim.core.workflowfile import workflow_path
         from flim.tools.readers import ImportTables
@@ -248,14 +304,20 @@ class FLIMAnalyzerApp(wx.App):
                 self.frame.open_data_files(self.files, settings)
                 self.frame.run_tool(tool)
 
-    def open_files(self, files):
-        """Opens each file in a data window (File > Open Tables...), leaving out the
-        `-x` files; reports files that cannot be read."""
+    def open_files(self, files: Iterable[str | os.PathLike]) -> None:
+        """Open each file in a table window, as File > Open Tables... does.
+
+        The `-x` files are left out; files that cannot be read are reported.
+
+        Args:
+            files: Paths of files or folders.
+        """
         from flim.batch import read_settings
 
         self.frame.open_data_files(files, read_settings(self.frame.reader_settings(), self.exclude))
 
-    def OnExit(self):
+    def OnExit(self) -> int:
+        """Remove the macOS Dock icon, then exit as `wx.App.OnExit` does."""
         if self.dock_icon:
             self.dock_icon.Destroy()
             self.dock_icon = None
@@ -263,13 +325,24 @@ class FLIMAnalyzerApp(wx.App):
 
 
 class AppFrame(wx.Frame):
-    def __init__(self, flimanalyzer, settings_manager=None):
-        """
+    """The main window: the tool panel and the menus.
+
+    It opens the table and plot windows and keeps their tables and figures as items
+    of a `DataManager`.
+    """
+
+    def __init__(
+        self,
+        flimanalyzer: FLIMAnalyzer,
+        settings_manager: Optional[SettingsManager] = None,
+    ) -> None:
+        """Create the main window with its menus and tool panel, and show it.
+
         Args:
-            flimanalyzer: the FLIMAnalyzer object that provides the task runner and
+            flimanalyzer: The FLIMAnalyzer object that provides the task runner and
                 execution settings.
-            settings_manager: the SettingsManager of this session (default: one with the
-                built-in defaults that keeps changes in memory only).
+            settings_manager: The SettingsManager of this session. Defaults to one
+                with the built-in defaults that keeps changes in memory only.
         """
         self.flimanalyzer = flimanalyzer
         self.settings_manager = (
@@ -412,16 +485,12 @@ class AppFrame(wx.Frame):
         pub.subscribe(self.OnClosingDataWindow, CLOSING_DATA_WINDOW)
         pub.subscribe(self.OnRequestRenameDataWindow, REQUEST_RENAME_DATA_WINDOW)
 
-    def _add_tool_group(self, label, tools):
-        """Adds a labeled box with a single row of icon buttons.
-
-        The boxes are placed by _layout_tool_groups().
-
-        Args:
-            label (str): group label shown on the box.
-            tools (list): (name, bitmap, handler) tuples; name is used as tooltip
-                and as the button name.
-        """
+    def _add_tool_group(
+        self,
+        label: str,
+        tools: Sequence[tuple[str, wx.Bitmap, Callable[[wx.CommandEvent], None]]],
+    ) -> None:
+        """Add a labeled box with one row of icon buttons, one per tool."""
         group = wx.StaticBoxSizer(wx.HORIZONTAL, self.toolpanel, label)
         box = group.GetStaticBox()
         for name, bitmap, handler in tools:
@@ -431,16 +500,12 @@ class AppFrame(wx.Frame):
             group.Add(button, 0, wx.ALL, 2)
         self.tool_groups.append(group)
 
-    def _layout_tool_groups(self, rows=2):
-        """Places the tool groups in rows, keeping each group on one line.
-
-        Groups keep their order; the row breaks are chosen so that the widest
-        row is as narrow as possible.
-        """
+    def _layout_tool_groups(self, rows: int = 2) -> None:
+        """Place the tool groups in rows, in order, so the widest row is narrowest."""
         widths = [g.GetMinSize().width for g in self.tool_groups]
         rows = max(1, min(rows, len(widths)))
 
-        def split(start, n_rows):
+        def split(start: int, n_rows: int) -> tuple[int, list[int]]:
             # (widest row, [end index of each row]) for groups[start:] in n_rows rows
             if n_rows == 1:
                 return sum(widths[start:]), [len(widths)]
@@ -463,19 +528,8 @@ class AppFrame(wx.Frame):
             start = end
         self.toolpanel.SetSizer(panel_sizer)
 
-    def _create_tool_menu(self, category):
-        """Returns the menu of a tool category with its tools, and keeps their
-        buttons.
-
-        Workflow files are not added: they go to the menu and submenu their tags name
-        (`_add_workflow_submenus`), and to the tool panel group of that menu.
-
-        Args:
-            category (str): The tool category.
-
-        Returns:
-            wx.Menu: The menu.
-        """
+    def _create_tool_menu(self, category: str) -> wx.Menu:
+        """Return the menu of a tool category and keep its tools' buttons."""
         menu = wx.Menu()
         buttons = []
         groups = self.panel_group_names()
@@ -500,16 +554,10 @@ class AppFrame(wx.Frame):
         self._tool_buttons[category] = buttons
         return menu
 
-    def _add_workflow_submenus(self, menu, label: str, position=None) -> None:
-        """Adds the workflow files of a menu, one submenu per tag (see
-        `workflow_group`), in alphabetical order.
-
-        Args:
-            menu (wx.Menu): The menu.
-            label: Its name, e.g. `File` or a tool category.
-            position: Where to insert the submenus; None: at the end, after a
-                separator.
-        """
+    def _add_workflow_submenus(
+        self, menu: wx.Menu, label: str, position: Optional[int] = None
+    ) -> None:
+        """Add a menu's workflow files, one submenu per tag, in alphabetical order."""
         submenus = self._menu_workflows.get(label, {})
         if not submenus:
             return
@@ -526,18 +574,18 @@ class AppFrame(wx.Frame):
                 menu.Insert(position + i, wx.MenuItem(menu, wx.ID_ANY, name, subMenu=submenu))
 
     @staticmethod
-    def panel_group_names() -> list:
-        """The tool panel's groups: `File` and the tool categories, in order."""
+    def panel_group_names() -> list[str]:
+        """Return the tool panel's groups: `File`, then the other tool categories."""
         return ["File"] + [c for c in tools.categories() if c != "File"]
 
-    def build_tool_panel(self):
-        """Creates the tool panel's groups, File first, then one per tool category.
+    def build_tool_panel(self) -> None:
+        """Create the tool panel's groups: File first, then one per tool category.
 
         With favorites (`favorites` setting), the groups hold only them, in their
         order: a tool in its category's group, a workflow file in the group its tags
-        name (see `panel_group`), else in Workflow; groups without favorites are left
-        out (File always shown). Without favorites, all tools, without the workflow
-        files (they are in the Workflow menu).
+        name (see `panel_group`), else in its category's group; groups without
+        favorites are left out (File is always shown). Without favorites, the groups
+        hold all tools without the workflow files (they are in the menus).
         """
         self.tool_groups = []
         self.toolpanel.SetSizer(None)
@@ -555,14 +603,25 @@ class AppFrame(wx.Frame):
                 self._add_tool_group(label, buttons)
         self._layout_tool_groups(rows=2)
 
-    def favorite_buttons(self) -> list:
-        """The buttons of the `favorites` setting's tools and workflows, in its
-        order; names of tools that are not registered are ignored."""
+    def favorite_buttons(
+        self,
+    ) -> list[tuple[str, wx.Bitmap, Callable[[wx.CommandEvent], None]]]:
+        """Return the buttons of the `favorites` setting's tools and workflows.
+
+        Returns:
+            The (name, bitmap, handler) tuples, in the setting's order; names of
+            tools that are not registered are left out.
+        """
         buttons = {b[0]: b for group in self._tool_buttons.values() for b in group}
         return [buttons[name] for name in self.settings.favorites if name in buttons]
 
-    def set_favorites(self, names: list) -> None:
-        """Writes `favorites` to the user settings file and rebuilds the tool panel."""
+    def set_favorites(self, names: Iterable[str]) -> None:
+        """Write `favorites` to the user settings file and rebuild the tool panel.
+
+        Args:
+            names: The names of the tools and workflows, in the order shown; empty
+                for all tools.
+        """
         self.settings_manager.update({"favorites": list(names)})
         self.build_tool_panel()
         self.SetMinSize(wx.DefaultSize)
@@ -570,9 +629,8 @@ class AppFrame(wx.Frame):
         self.Fit()
         self.SetMinSize(self.GetSize())
 
-    def OnFavorites(self, event):
-        """File > Favorites...: choose the tools and workflows the tool panel shows,
-        and their order."""
+    def OnFavorites(self, event: wx.CommandEvent) -> None:
+        """File > Favorites...: choose the tool panel's tools and workflows."""
         names = [b[0] for group in self._tool_buttons.values() for b in group]
         chosen = [b[0] for b in self.favorite_buttons()]
         items = chosen + [n for n in names if n not in chosen]
@@ -588,7 +646,8 @@ class AppFrame(wx.Frame):
             order = dialog.GetOrder()
         self.set_favorites([items[i] for i in order if i >= 0])
 
-    def _get_window_frame(self, obj_id):
+    def _get_window_frame(self, obj_id: int) -> Optional[tuple[ItemId, wx.Frame]]:
+        """Return the (item ID, window) whose table or figure has `id` `obj_id`."""
         for title, window in self.windowframes.items():
             if isinstance(window, PandasFrame) and id(window.GetData()) == obj_id:
                 logger.debug(
@@ -603,13 +662,13 @@ class AppFrame(wx.Frame):
                 return title, window
         return
 
-    def _own_item(self, frame):
-        """Return the item ID of one of this frame's windows, or None (pubsub also
-        delivers the messages of other frames' windows)."""
+    def _own_item(self, frame: wx.Frame) -> Optional[ItemId]:
+        """Return the item ID of a window of this frame, else None."""
         item_id = getattr(frame, "item_id", None)
         return item_id if self.windowframes.get(item_id) is frame else None
 
-    def OnDataWindowFocused(self, data, frame):
+    def OnDataWindowFocused(self, data: pd.DataFrame, frame: wx.Frame) -> None:
+        """Pubsub `FOCUSED_DATA_WINDOW`: make the table window the current one."""
         item_id = self._own_item(frame)
         if item_id is not None:
             self.window_zorder = [i for i in self.window_zorder if i != item_id]
@@ -617,22 +676,29 @@ class AppFrame(wx.Frame):
 
     @property
     def settings(self) -> AppSettings:
-        """A copy of the current settings; changes are applied through
-        settings_manager."""
+        """A copy of the current settings; changes go through `settings_manager`."""
         return self.settings_manager.settings
 
     def refresh_window_filters(self) -> None:
-        """Update the windows' shared filters (in place) from the settings: the
-        switches, and the Filter tool's top-level range filters."""
+        """Update the windows' shared filters in place from the settings.
+
+        These are the switches (`use`, `show_dropped`) and the Filter tool's
+        top-level range filters.
+        """
         current = window_filters(self.settings)
         self.filters.use = current.use
         self.filters.show_dropped = current.show_dropped
         self.filters.range_filters = current.range_filters
 
-    def report_filters(self, filters) -> None:
-        """Applies the windows' filters ``filters`` (WindowFilters) and writes them to
-        the user settings file: the switches to `filters`, the range filters to the
-        Filter tool's filters (its other filters are kept)."""
+    def report_filters(self, filters: WindowFilters) -> None:
+        """Write the windows' filters to the user settings file.
+
+        The switches go to the `filters` setting, the range filters to the Filter
+        tool's filters; its other filters are kept.
+
+        Args:
+            filters: The filters of the data windows.
+        """
         settings = self.settings
         config = settings.tools.config(Filter)
         config = config.model_copy(
@@ -647,9 +713,8 @@ class AppFrame(wx.Frame):
             }
         )
 
-    def OnLoadData(self, event):
-        """File > Open Tables...: opens data files, each in a window of its own, read
-        with Open Tables' settings."""
+    def OnLoadData(self, event: wx.CommandEvent) -> None:
+        """File > Open Tables...: open data files, each in a window of its own."""
         paths = self.ask_data_files("Open Tables")
         if paths:
             self.open_data_files(paths, self.reader_settings())
@@ -660,8 +725,15 @@ class AppFrame(wx.Frame):
 
         return self.settings.tools.config(TableReader).read_settings()
 
-    def ask_data_files(self, title) -> list:
-        """Ask for data files (standard file dialog); [] if cancelled."""
+    def ask_data_files(self, title: str) -> list[str]:
+        """Ask for data files in a file dialog.
+
+        Args:
+            title: The title of the file dialog.
+
+        Returns:
+            The paths of the chosen files; an empty list if cancelled.
+        """
         with wx.FileDialog(
             self,
             title,
@@ -672,9 +744,27 @@ class AppFrame(wx.Frame):
                 return []
             return list(dialog.GetPaths())
 
-    def read_files(self, files, settings=None, title="Open Tables", nrows=None) -> dict:
-        """Read data files into tables (flim.core.reader); report those that could
-        not be read. Returns the tables by name (`nrows`: only their first rows)."""
+    def read_files(
+        self,
+        files: Iterable[str | os.PathLike],
+        settings: Optional[ReadSettings] = None,
+        title: str = "Open Tables",
+        nrows: Optional[int] = None,
+    ) -> dict[str, pd.DataFrame]:
+        """Read data files into tables and report those that could not be read.
+
+        Files left out by the settings or by `-x` are not reported. The reader's
+        warnings are shown in the same message.
+
+        Args:
+            files: Paths of files or folders.
+            settings: How to read them. Defaults to `ReadSettings()`.
+            title: The title of the message.
+            nrows: Read only this many first rows of each file; None for all rows.
+
+        Returns:
+            The tables by name.
+        """
         reading = read_tables(files, settings or ReadSettings(), nrows=nrows)
         problems = [  # files left out on purpose (settings, -x) are not problems
             f"{path}: {reason}" for path, reason in reading.skipped.items() if reason != LEFT_OUT
@@ -687,12 +777,16 @@ class AppFrame(wx.Frame):
             )
         return reading.tables
 
-    def open_data_files(self, files, settings=None) -> list:
-        """Opens each data file in a window of its own, as File > Open does.
+    def open_data_files(
+        self,
+        files: Iterable[str | os.PathLike],
+        settings: Optional[ReadSettings] = None,
+    ) -> list[str]:
+        """Open each data file in a window of its own, as File > Open Tables... does.
 
         Args:
             files: Paths of files or folders.
-            settings: How to read them (ReadSettings); default: tab or comma.
+            settings: How to read them. Defaults to `ReadSettings()`.
 
         Returns:
             The titles of the new windows (the file names, made unique).
@@ -706,8 +800,13 @@ class AppFrame(wx.Frame):
             titles.append(title)
         return titles
 
-    def open_table(self, table, title: str) -> None:
-        """Opens a table just read from a file in a new window (not modified)."""
+    def open_table(self, table: pd.DataFrame, title: str) -> None:
+        """Open a table just read from a file in a new window, marked not modified.
+
+        Args:
+            table: The table.
+            title: The window's title.
+        """
         event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
         event.SetEventInfo(
             table, title, "createnew", config=None, showcolindex=False,
@@ -716,15 +815,15 @@ class AppFrame(wx.Frame):
         )  # fmt: skip
         self.GetEventHandler().ProcessEvent(event)
 
-    def file_workflows(self) -> list:
-        """The registered workflow files' workflows, by name."""
+    def file_workflows(self) -> list[type[Workflow]]:
+        """Return the workflows of the registered workflow files, sorted by name."""
         return sorted(
             (t for t in tools.by_category().get("Workflow", []) if getattr(t, "definition", None)),
             key=lambda t: t.name,
         )
 
-    def ask_workflow_file(self, title: str):
-        """Asks for a workflow file and checks it.
+    def ask_workflow_file(self, title: str) -> Optional[type[Workflow]]:
+        """Ask for a workflow file and check it.
 
         Args:
             title: The title of the file dialog and of the error message.
@@ -748,8 +847,16 @@ class AppFrame(wx.Frame):
             return None
         return workflow_class(check.definition, Path(path))
 
-    def confirm_workflow(self, tool, what: str) -> bool:
-        """Show a workflow's steps (read-only) and ask whether to run it."""
+    def confirm_workflow(self, tool: type[Workflow], what: str) -> bool:
+        """Show a workflow file's description and steps and ask whether to run it.
+
+        Args:
+            tool: The workflow file's workflow.
+            what: What it runs on, for the title, e.g. a table's title.
+
+        Returns:
+            Whether the user chose Run.
+        """
         from flim.core.workflowfile import describe_steps
 
         text = (
@@ -761,15 +868,22 @@ class AppFrame(wx.Frame):
             dialog.SetOKCancelLabels("Run", "Cancel")
             return dialog.ShowModal() == wx.ID_OK
 
-    def OnImportData(self, event):
-        """File > Import Tables...: choose data files, then Import Tables' settings (how
-        they are read, the workflow run on the tables), and run it."""
+    def OnImportData(self, event: wx.CommandEvent) -> None:
+        """File > Import Tables...: choose data files and run Import Tables."""
         paths = self.ask_data_files("Import Tables: choose the data files")
         if paths:
             self.import_tables(paths)
 
-    def import_tables(self, paths, config=None, exclude=()):
-        """Runs Import Tables on data files.
+    def import_tables(
+        self,
+        paths: Sequence[str | os.PathLike],
+        config: Optional[ImportTablesConfig] = None,
+        exclude: Iterable[str] = (),
+    ) -> Optional[FlowRun]:
+        """Run Import Tables on data files.
+
+        A workflow chosen in the settings runs after its steps are shown and
+        confirmed.
 
         Args:
             paths: Files and folders.
@@ -812,10 +926,27 @@ class AppFrame(wx.Frame):
             return None
         return self.run_import(importer, paths, config, folder)
 
-    def run_import(self, importer, paths, config, folder):
-        """Checks an Import Tables run against the files' first rows (the workflow's
-        steps, the number of windows against `max_windows`), runs it, and opens a
-        window for each result no later step uses, or for each table read.
+    def run_import(
+        self,
+        importer: Tool,
+        paths: Sequence[str | os.PathLike],
+        config: ImportTablesConfig,
+        folder: str | os.PathLike,
+    ) -> Optional[FlowRun]:
+        """Check an Import Tables run, run it, and open windows for its results.
+
+        The run is checked against the files' first rows (`CHECK_ROWS`): the
+        workflow's steps against the columns, and the number of windows against
+        `max_windows`. Problems are shown and the run does not start. Afterwards a
+        window opens for each result no later step uses, or, without a workflow, for
+        each table read, and the run summary is shown.
+
+        Args:
+            importer: The Import Tables tool.
+            paths: Files and folders.
+            config: Import Tables' settings.
+            folder: The results folder; the run saves into its subfolder named after
+                the workflow, or after Import Tables without a workflow.
 
         Returns:
             The FlowRun, or None if the run did not start or did not end normally.
@@ -852,7 +983,11 @@ class AppFrame(wx.Frame):
         task_runner = self.flimanalyzer.get_task_runner()
         formats = workflow.definition.autosave.formats if workflow is not None else []
 
-        def start_run(cancel_token, on_progress, on_start):
+        def start_run(
+            cancel_token: CancelToken,
+            on_progress: Callable[[int, int, str, bool], None],
+            on_start: Callable[[FlowRun], None],
+        ) -> FlowRun:
             return importer.run_flow(
                 paths,
                 config=config,
@@ -872,8 +1007,15 @@ class AppFrame(wx.Frame):
         self.show_run_summary(importer.name, flow_run)
         return flow_run
 
-    def run_workflow_file(self, path=None):
-        """Workflow > Run Workflow File...: run a workflow file on the current table."""
+    def run_workflow_file(self, path: Optional[str | os.PathLike] = None) -> None:
+        """Workflow > Run Workflow File...: run a workflow file on the current table.
+
+        The file's steps are shown and confirmed first; a file with errors is
+        reported.
+
+        Args:
+            path: The workflow file; None to choose it in a file dialog.
+        """
         from flim.core.workflowfile import check_workflow_file, workflow_class
 
         title, table = self.get_currentdata()
@@ -891,17 +1033,24 @@ class AppFrame(wx.Frame):
         if tool is not None and self.confirm_workflow(tool, title):
             self.run_workflow_on_tables(tool, {title: TableType.snapshot(table)})
 
-    def run_workflow_on_tables(self, tool, tables: dict, autosave=None):
-        """Run a workflow file's workflow on tables: checked first (its steps against
-        the tables' columns, and the number of windows against `max_windows`); its
-        steps' `save` decides what is saved; windows open for the results no later
-        step uses (leaf outputs).
+    def run_workflow_on_tables(
+        self,
+        tool: type[Workflow],
+        tables: dict[str, pd.DataFrame],
+        autosave: Optional[AutosaveConfig] = None,
+    ) -> Optional[FlowRun]:
+        """Run a workflow file's workflow on tables and open windows for its results.
+
+        The run is checked first: its steps against the tables' columns, and the
+        number of windows against `max_windows`; problems are shown and the run does
+        not start. The steps' `save` decides what is saved. Windows open for the
+        results no later step uses (leaf outputs), and the run summary is shown.
 
         Args:
             tool: The workflow file's workflow (a tool class).
             tables: The tables by name.
-            autosave: The folder and formats chosen in its dialog (AutosaveConfig);
-                None: the default results folder and the file's formats.
+            autosave: The folder and formats chosen in its dialog; None for the
+                default results folder and the file's formats.
 
         Returns:
             The FlowRun, or None if the run did not start or did not end normally.
@@ -931,7 +1080,11 @@ class AppFrame(wx.Frame):
         task_runner = self.flimanalyzer.get_task_runner()
         workflow = tool()
 
-        def start_run(cancel_token, on_progress, on_start):
+        def start_run(
+            cancel_token: CancelToken,
+            on_progress: Callable[[int, int, str, bool], None],
+            on_start: Callable[[FlowRun], None],
+        ) -> FlowRun:
             return workflow.run_flow(
                 tables,
                 task_runner=task_runner,
@@ -950,9 +1103,16 @@ class AppFrame(wx.Frame):
         self.show_run_summary(tool.name, flow_run)
         return flow_run
 
-    def show_leaves(self, workflow, flow_run):
-        """Open a window for each result of a workflow file's leaf steps; results its
-        steps saved open as saved."""
+    def show_leaves(self, workflow: Tool, flow_run: FlowRun) -> None:
+        """Open a window for each table and figure of a workflow's leaf steps.
+
+        Results that their step saved (`save`) open as saved, the others as modified.
+        For Import Tables without a workflow, each table read opens as read.
+
+        Args:
+            workflow: The workflow (or Import Tables) instance that ran.
+            flow_run: Its run.
+        """
         from flim.tools.readers import READ_STEP
 
         definition = getattr(workflow, "definition", None)
@@ -983,7 +1143,8 @@ class AppFrame(wx.Frame):
                     elif isinstance(value, matplotlib.figure.Figure):
                         self.open_plot(value, title, modified=not saved)
 
-    def OnLoadSettings(self, event):
+    def OnLoadSettings(self, event: wx.CommandEvent) -> None:
+        """File > Import Settings...: apply the settings of a chosen settings file."""
         with wx.FileDialog(
             self,
             "Import Settings",
@@ -1003,11 +1164,17 @@ class AppFrame(wx.Frame):
                 wx.OK | wx.ICON_ERROR,
             )
 
-    def load_settings(self, path) -> None:
-        """Applies the sections of a settings file (any version) for this session; the
-        sections it does not have (e.g. other tools') stay as they are. New data windows
-        use its filter settings. If some settings cannot be used, the user chooses what
-        to do (flim.gui.settingscheck.choose_settings)."""
+    def load_settings(self, path: str | os.PathLike) -> None:
+        """Apply the sections of a settings file of any version for this session.
+
+        The sections it does not have (e.g. other tools') stay as they are; the
+        windows' shared filters are updated from it. If some settings cannot be used,
+        the user chooses what to do (`flim.gui.settingscheck.choose_settings`).
+        Afterwards the GUI offers to import the workflow the file names, if any.
+
+        Args:
+            path: The settings file.
+        """
         from flim.core.settings import check_settings_file
         from flim.gui.settingscheck import choose_settings
 
@@ -1022,13 +1189,15 @@ class AppFrame(wx.Frame):
 
         offer_import_workflow(check, self, self.settings_manager)
 
-    def OnViewSettings(self, event):
+    def OnViewSettings(self, event: wx.CommandEvent) -> None:
+        """File > Settings...: show the settings and where they come from."""
         from flim.gui.settingsview import SettingsViewer
 
         with SettingsViewer(self, self.settings_manager) as dialog:
             dialog.ShowModal()
 
-    def OnSaveSettings(self, event):
+    def OnSaveSettings(self, event: wx.CommandEvent) -> None:
+        """File > Export Settings...: write the settings to a chosen file."""
         with wx.FileDialog(
             self,
             "Export Settings",
@@ -1041,13 +1210,19 @@ class AppFrame(wx.Frame):
         self.save_settings(path)
         self.offer_search_path(path)
 
-    def save_settings(self, path) -> None:
-        """Writes all current settings, in the current version, to a file."""
+    def save_settings(self, path: str | os.PathLike) -> None:
+        """Write all current settings, in the current version, to a file.
+
+        Args:
+            path: The file.
+        """
         self.settings_manager.export(path)
 
-    def offer_search_path(self, path) -> bool:
-        """Ask whether to add the folder of an exported file to the app settings search
-        path, if adding it has an effect (SettingsManager.search_path_addition).
+    def offer_search_path(self, path: str | os.PathLike) -> bool:
+        """Ask whether to add an exported file's folder to the settings search path.
+
+        The question is asked only if adding the folder has an effect
+        (`SettingsManager.search_path_addition`).
 
         Args:
             path: The exported file.
@@ -1069,15 +1244,15 @@ class AppFrame(wx.Frame):
                 return False
         return self.settings_manager.add_to_search_path(folder)
 
-    def get_currentdata(self):
-        """Return the title and the shown table of the current table window, or
-        (None, None)."""
+    def get_currentdata(self) -> tuple[Optional[str], Optional[pd.DataFrame]]:
+        """Return the title and shown table of the current table window (None, None
+        if there is none)."""
         if len(self.window_zorder) == 0:
             return None, None
         item_id = self.window_zorder[-1]
         return self.data_manager.get(item_id).title, self.windowframes[item_id].GetViewData()
 
-    def get_alldata(self):
+    def get_alldata(self) -> dict[str, pd.DataFrame]:
         """Return the shown tables of the table windows, by title."""
         return {
             self.data_manager.get(item_id).title: frame.GetViewData()
@@ -1085,33 +1260,38 @@ class AppFrame(wx.Frame):
             if isinstance(frame, PandasFrame)
         }
 
-    def OnSetFilters(self, event):
+    def OnSetFilters(self, event: wx.Event) -> None:
+        """Not bound to an event; shows a message if there is no data, else nothing."""
         data = self.get_currentdata()
         if data is None:
             wx.MessageBox("No data available")
             return
         pass
 
-    def tool_data_choices(self):
-        """The tables of the open data windows by window title, the current one
-        first. Each is a copy (TableType.snapshot): a run in its worker thread reads
-        tables that later edits in the windows don't change."""
+    def tool_data_choices(self) -> dict[str, pd.DataFrame]:
+        """Return the shown tables of the table windows by title, the current first.
+
+        Each is a copy (`TableType.snapshot`): a run in its worker thread reads
+        tables that later edits in the windows don't change.
+        """
         title, currentdata = self.get_currentdata()
         data_choices = {title: currentdata} if title else {}
         data_choices.update(self.get_alldata())
         return {name: TableType.snapshot(table) for name, table in data_choices.items()}
 
-    def run_tool(self, tool, current=None):
-        """Configures a tool in its dialog and runs it on the selected tables.
+    def run_tool(self, tool: type[Tool], current: Optional[str] = None) -> None:
+        """Configure a tool in its dialog and run it on the selected tables.
 
-        The dialog's config and run settings are stored for the tool. The run shows a
-        progress dialog; afterwards a window opens for each result table and figure, or,
-        for a workflow, the graph of its tasks and a run summary.
+        The dialog's config and run settings are stored for the tool (a workflow
+        file's are not). The run shows a progress dialog; afterwards a window opens
+        for each result table and figure, with its warnings and failed tasks reported,
+        or, for a workflow, the graph of its tasks and a run summary. A workflow
+        file's workflow runs with `run_workflow_on_tables`.
 
         Args:
-            tool: The tool (class).
+            tool: The tool.
             current: The title of the window whose table the dialog selects first;
-                None: the current window's.
+                None for the current window's.
         """
         data_choices = self.tool_data_choices()
         if current in data_choices:  # first: the dialog selects it
@@ -1166,7 +1346,11 @@ class AppFrame(wx.Frame):
             )
             autosave_dir = os.path.join(folder, tool.name)
 
-            def start_run(cancel_token, on_progress, on_start):
+            def start_run(
+                cancel_token: CancelToken,
+                on_progress: Callable[[int, int, str, bool], None],
+                on_start: Callable[[FlowRun], None],
+            ) -> FlowRun:
                 return tool().run_flow(
                     *result.inputs,
                     config=result.config,
@@ -1187,11 +1371,15 @@ class AppFrame(wx.Frame):
                 canonical_folder(str(autosave.results_dir)) if autosave.enabled else None
             )
 
-            def interactive_analysis():
+            def interactive_analysis() -> None:
                 for config in configs:
                     tool()(*result.inputs, config=config, task_tags=tool.name)
 
-            def start_run(cancel_token, on_progress, on_start):
+            def start_run(
+                cancel_token: CancelToken,
+                on_progress: Callable[[int, int, str, bool], None],
+                on_start: Callable[[FlowRun], None],
+            ) -> FlowRun:
                 return run_flow(
                     "Interactive Analysis",
                     interactive_analysis,
@@ -1227,16 +1415,19 @@ class AppFrame(wx.Frame):
                 wx.OK | wx.ICON_WARNING,
             )
 
-    def show_workflow_graph(self, flow_run):
-        """Opens a window with the graph of a workflow's tasks."""
+    def show_workflow_graph(self, flow_run: FlowRun) -> None:
+        """Open a plot window with the graph of a workflow run's tasks."""
         fig, _ = WorkflowGraph(flow_run).get_plot(pick_event=self.OnPick)
         event = PlotEvent(EVT_PLOT_TYPE, self.GetId())
         event.SetEventInfo(fig, f"{flow_run.name} Graph", "createnew")
         self.GetEventHandler().ProcessEvent(event)
 
-    def show_results(self, flow_run):
-        """Opens a window for each table and figure the run produced. Results the run
-        saved (autosave) open as saved, the others as modified."""
+    def show_results(self, flow_run: FlowRun) -> None:
+        """Open a window for each table and figure a run produced.
+
+        If the run saved its results (it had an autosave folder), they open as
+        saved, else as modified.
+        """
         saved = flow_run.autosave_dir is not None
         for results in flow_run.results():
             if not isinstance(results, dict):
@@ -1251,17 +1442,20 @@ class AppFrame(wx.Frame):
                 elif isinstance(result, matplotlib.figure.Figure):
                     self.open_plot(result, title, modified=not saved)
 
-    def run_with_progress(self, title, start_run):
-        """Runs a flow behind a modal progress dialog with a Cancel button.
+    def run_with_progress(
+        self, title: str, start_run: Callable[..., FlowRun]
+    ) -> Optional[FlowRun]:
+        """Run a flow behind a modal progress dialog with a Cancel button.
 
         Args:
-            title: name of the tool or workflow.
-            start_run: ``start_run(cancel_token, on_progress, on_start)`` runs the
+            title: The name of the tool or workflow.
+            start_run: `start_run(cancel_token, on_progress, on_start)` runs the
                 flow and returns its FlowRun; it is called in a worker thread.
 
         Returns:
             The FlowRun of a run that ended normally, or None if it was cancelled
-            (the user is told where its results are) or stopped by an error.
+            (the run summary shows where its results are) or stopped by an error
+            (shown in a message).
         """
         dlg = RunProgressDialog(self, title, start_run)
         dlg.ShowModal()
@@ -1279,18 +1473,28 @@ class AppFrame(wx.Frame):
             return None
         return flow_run
 
-    def show_run_summary(self, title, flow_run):
-        """Shows how a run ended, with links to its results and Prefect flow run."""
+    def show_run_summary(self, title: str, flow_run: FlowRun) -> None:
+        """Show how a run ended, with links to its results and Prefect flow run."""
         dlg = RunSummaryDialog(self, title, flow_run)
         dlg.ShowModal()
         dlg.Destroy()
 
-    def _on_hover(self, event):
+    def _on_hover(self, event: Any) -> None:
+        """Print an event; not bound to an event."""
         print(event)
 
-    def register_window(self, window, value, title, modified=False, source=None):
-        """Add a window's value as an item of the DataManager and list the window in
-        the Window menu (on macOS, the system lists it, see `NATIVE_WINDOW_LIST`).
+    def register_window(
+        self,
+        window: wx.Frame,
+        value: pd.DataFrame | Figure,
+        title: str,
+        modified: bool = False,
+        source: Optional[str] = None,
+    ) -> Item:
+        """Add a window's value as an item of the DataManager and list the window.
+
+        The window is listed in the Window menu; on macOS, the system lists it (see
+        `NATIVE_WINDOW_LIST`). A table window becomes the current one.
 
         The window's title becomes the item's (unique) title; the window reports its
         modified state through its `on_modified` callback.
@@ -1318,8 +1522,15 @@ class AppFrame(wx.Frame):
             self.window_zorder.append(item.id)
         return item
 
-    def remove_window(self, item_id) -> bool:
-        """Remove a closing window from the Window menu and close its item."""
+    def remove_window(self, item_id: Optional[ItemId]) -> bool:
+        """Remove a closing window from the Window menu and close its item.
+
+        Args:
+            item_id: The window's item; None or an item without window is ignored.
+
+        Returns:
+            Whether the item had a window of this frame.
+        """
         if item_id not in self.windowframes:
             return False
         del self.windowframes[item_id]
@@ -1330,7 +1541,8 @@ class AppFrame(wx.Frame):
         self.data_manager.close(item_id)
         return True
 
-    def OnDataWindowRequest(self, event):
+    def OnDataWindowRequest(self, event: DataWindowEvent) -> None:
+        """`EVT_DATA` with action `createnew`: open the table in a new table window."""
         data = event.GetData()
         action = event.GetAction()
         title = event.GetTitle()
@@ -1354,7 +1566,14 @@ class AppFrame(wx.Frame):
             frame.Show(True)
             self.register_window(frame, data, title, modified=event.IsModified())
 
-    def OnRequestRenameDataWindow(self, original, new, frame):
+    def OnRequestRenameDataWindow(
+        self, original: str, new: str, frame: wx.Frame
+    ) -> None:
+        """Pubsub `REQUEST_RENAME_DATA_WINDOW`: rename the window's item.
+
+        The new title is made unique; the Window menu entry is renamed and
+        `RENAMED_DATA_WINDOW` is sent with it.
+        """
         item_id = self._own_item(frame)
         if item_id is None:
             return
@@ -1364,13 +1583,19 @@ class AppFrame(wx.Frame):
             self.windowmenu.FindItemById(menu_id).SetItemLabel(item.title)
         pub.sendMessage(RENAMED_DATA_WINDOW, original=original, new=item.title, frame=frame)
 
-    def OnClosingDataWindow(self, data, frame):
+    def OnClosingDataWindow(self, data: pd.DataFrame, frame: wx.Frame) -> None:
+        """Pubsub `CLOSING_DATA_WINDOW`: remove the window and close its item."""
         logger.debug(f"{frame.GetLabel()}")
         item_id = self._own_item(frame)
         if item_id is not None:
             self.remove_window(item_id)
 
-    def OnPick(self, event):
+    def OnPick(self, event: PickEvent) -> None:
+        """Matplotlib pick event: on a double click, edit what was picked in a dialog.
+
+        A y or x axis: its label and limits; a text: the text; a line: its color and
+        transparency. The plot window is then marked modified.
+        """
         if not event.mouseevent.dblclick:
             return  # only double clicks open the axis and label dialogs
         else:
@@ -1432,17 +1657,20 @@ class AppFrame(wx.Frame):
                     self._plot_edited(fig)
                 dlg.Destroy()
 
-    def _plot_edited(self, figure) -> None:
+    def _plot_edited(self, figure: Figure) -> None:
         """Mark the plot window of a figure as modified after an edit in it."""
         for window in self.windowframes.values():
             if isinstance(window, PlotFrame) and window.figure is figure:
                 window.modified = True
 
-    def OnPlotWindowRequest(self, event):
+    def OnPlotWindowRequest(self, event: PlotEvent) -> None:
+        """`EVT_PLOT` with action `createnew`: open the figure in a plot window."""
         if event.GetAction() == "createnew":
             self.open_plot(event.GetFigure(), event.GetTitle(), modified=True)
 
-    def open_plot(self, figure, title, modified=True):
+    def open_plot(
+        self, figure: Figure, title: str, modified: bool = True
+    ) -> PlotFrame:
         """Open a figure in a plot window, as an item of the DataManager.
 
         Args:
@@ -1461,31 +1689,34 @@ class AppFrame(wx.Frame):
         frame.Show()
         return frame
 
-    def OnClosingPlotWindow(self, event):
+    def OnClosingPlotWindow(self, event: wx.CloseEvent) -> None:
+        """Remove a closing plot window and close its item."""
         logger.debug("appframe.OnClosingPlotWindow")
         self.remove_window(getattr(event.GetEventObject(), "item_id", None))
         event.Skip()
 
-    def _raise_window(self, item_id, window):
+    def _raise_window(self, item_id: ItemId, window: wx.Frame) -> None:
+        """Raise a window; a table window becomes the current one."""
         if isinstance(window, wx.Frame):
             window.Raise()
             if isinstance(window, PandasFrame) and self.window_zorder[-1] != item_id:
                 self.window_zorder = [i for i in self.window_zorder if i != item_id]
                 self.window_zorder.append(item_id)
 
-    def OnWindowSelectedInMenu(self, event):
+    def OnWindowSelectedInMenu(self, event: wx.CommandEvent) -> None:
+        """Window menu entry: raise its window."""
         menu_id = event.GetId()
         item_id = next((i for i, m in self._menu_items.items() if m == menu_id), None)
         if item_id in self.windowframes:
             self._raise_window(item_id, self.windowframes[item_id])
         logger.debug(f"select window {self.window_zorder}")
 
-    def OnExit(self, event):
+    def OnExit(self, event: wx.CommandEvent) -> None:
+        """File > Exit: close the main window, which quits the GUI."""
         self.Close()
 
     def unsaved_windows(self) -> list[str]:
-        """Titles of the data windows with unsaved changes that ask to be saved when
-        closed."""
+        """Return the titles of unsaved table windows that ask to be saved on close."""
         return [
             self.data_manager.get(item_id).title
             for item_id, window in self.windowframes.items()
@@ -1495,18 +1726,24 @@ class AppFrame(wx.Frame):
             and window.modified
         ]
 
-    def OnCloseApp(self, event):
-        """Asks before quitting with unsaved windows (if the close event can be
-        vetoed), because closing the main window destroys them without their own save
-        question. Vetoes the close unless the user chooses how to quit."""
+    def OnCloseApp(self, event: wx.CloseEvent) -> None:
+        """Ask about unsaved windows before the main window closes; veto if cancelled.
+
+        Closing the main window destroys the other windows without their own save
+        question. The question is asked only if the close event can be vetoed.
+        """
         if event.CanVeto() and not self.confirm_quit():
             event.Veto()
             return
         event.Skip()
 
-    def unsaved_items(self) -> list:
-        """Return the open windows with unsaved changes that ask to be saved, as
-        (window, title) pairs: tables that ask when closed, and plots."""
+    def unsaved_items(self) -> list[tuple[wx.Frame, str]]:
+        """Return the open windows with unsaved changes that ask to be saved.
+
+        Returns:
+            (window, title) pairs: the table windows that ask when closed, and the
+            plot windows.
+        """
         unsaved = []
         for item_id, window in self.windowframes.items():
             if not window or not window.modified:
@@ -1535,6 +1772,7 @@ class AppFrame(wx.Frame):
         return quit_
 
     def _confirm_quit(self) -> bool:
+        """Ask what to do with the unsaved windows; return whether to quit."""
         from flim.gui.saveall import CANCEL, DISCARD, REVIEW, ask_quit, ask_review
 
         unsaved = self.unsaved_items()
@@ -1556,9 +1794,18 @@ class AppFrame(wx.Frame):
             return True
         return self.save_all_windows(quitting=True)
 
-    def save_window(self, window, title) -> bool:
-        """Save one window as its own save button does (a table with all its rows);
-        mark it saved. Returns whether it was saved."""
+    def save_window(self, window: wx.Frame, title: str) -> bool:
+        """Save one window as its own save button does, and mark it saved.
+
+        A table window saves its table with all rows; a plot window its figure.
+
+        Args:
+            window: The table or plot window.
+            title: Its title, for the file dialog.
+
+        Returns:
+            Whether it was saved.
+        """
         from flim.gui.dialogs import save_dataframe, save_figure
 
         if isinstance(window, PandasFrame):
@@ -1572,14 +1819,18 @@ class AppFrame(wx.Frame):
         return bool(path)
 
     def save_all_windows(self, quitting: bool = False) -> bool:
-        """File > Save All Windows...: save every open table (all rows) and plot into
-        a new subfolder of a folder, in the formats chosen; mark them saved.
+        """File > Save All Windows...: save every open table and plot, mark them saved.
 
-        The folder is the one last used for this in the session, else the app's
-        results folder; choosing it does not change the results folder.
+        Tables are saved with all their rows, into a new subfolder of a folder, in the
+        formats chosen.
+
+        The folder is the one last used for this in the session, else the default
+        results folder; choosing it does not change the results folder. A message
+        lists what was saved and what was not.
 
         Args:
             quitting: Called when quitting: no message if there are no windows.
+                Defaults to False.
 
         Returns:
             Whether every window was saved (True if there are none).
@@ -1624,10 +1875,12 @@ class AppFrame(wx.Frame):
         )
         return not failed
 
-    def OnDocumentation(self, event):
+    def OnDocumentation(self, event: wx.CommandEvent) -> None:
+        """Help > Documentation: open this version's documentation in the browser."""
         wx.LaunchDefaultBrowser(docs_url())
 
-    def OnAbout(self, event):
+    def OnAbout(self, event: wx.CommandEvent) -> None:
+        """Help > About FLIMAnalyzer: show the name, version and website."""
         info = wx.adv.AboutDialogInfo()
         info.SetName("FLIMAnalyzer")
         info.SetVersion(__version__)
@@ -1637,58 +1890,71 @@ class AppFrame(wx.Frame):
         info.SetWebSite(DOCS_URL)
         wx.adv.AboutBox(info, self)
 
-    def get_window_frames(self):
+    def get_window_frames(self) -> list[wx.Frame]:
+        """Return the child windows of this frame that are frames."""
         return [
             x
             for x in self.GetChildren()
             if isinstance(x, wx.Frame)
         ]
 
-    def make_default_folder(self, folder) -> None:
-        """Make a folder the app's default results folder (results_dir), in the user
-        settings file: tools without a folder of their own save there."""
+    def make_default_folder(self, folder: str | os.PathLike) -> None:
+        """Make a folder the default results folder (`results_dir`).
+
+        The setting is written to the user settings file; tools without a folder of
+        their own save there.
+
+        Args:
+            folder: The folder.
+        """
         self.settings_manager.update({"results_dir": str(folder)})
 
-    def unique_window_title(self, title):
-        """Return a title no open window has (DataManager.unique_title)."""
+    def unique_window_title(self, title: str) -> str:
+        """Return a title no open window has (`DataManager.unique_title`)."""
         return self.data_manager.unique_title(title)
 
-    def windows_by_title(self) -> dict:
+    def windows_by_title(self) -> dict[str, wx.Frame]:
         """Return the open windows by their items' titles."""
         return {self.data_manager.get(i).title: w for i, w in self.windowframes.items()}
 
-    def window_titled(self, title):
+    def window_titled(self, title: str) -> Optional[wx.Frame]:
         """Return the open window with a title, or None."""
         item = self.data_manager.find(title)
         return self.windowframes.get(item.id) if item else None
 
-    def OnCloseAll(self, event):
+    def OnCloseAll(self, event: wx.CommandEvent) -> None:
+        """Window > Close all windows: close every table and plot window."""
         logger.debug("appframe.OnCloseAll")
         # a copy: closing a window removes it from self.windowframes
         for window in list(self.windowframes.values()):
             if window:
                 window.Close()
 
-    def OnImport(self, event):
+    def OnImport(self, event: wx.PyEvent) -> None:
+        """`EVT_IMPORT`: log the column types of `self.rawdata`."""
         logger.debug(f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")
 
-    def OnDataUpdated(self, event):
+    def OnDataUpdated(self, event: DataUpdatedEvent) -> None:
+        """`EVT_DATAUPDATED`: log the type of the updated data."""
         data, datatype = event.GetUpdatedData()
         logger.debug(f"###############  OLD appframe.OnDataUpdated - {datatype}")
 
-    def OnRangeFilterUpdated(self, event):
+    def OnRangeFilterUpdated(self, event: ListCtrlUpdatedEvent) -> None:
+        """`EVT_FILTERUPDATED`: log the number of updated filters."""
         rfilters = event.GetUpdatedItems()
         logger.debug(
             "###############  OLD appframe.OnRangeFilterUpdated -"
             f" {len(rfilters)} Filters updated:"
         )
 
-    def OnApplyFilter(self, event):
+    def OnApplyFilter(self, event: wx.PyEvent) -> None:
+        """`EVT_APPLYFILTER`: pass the event's data to `self.analysistab`."""
         logger.debug("###############  OLD AppFrame.OnApplyFilter")
         self.data = event.data
         self.analysistab.update_data(event.data)
 
-    def OnAnalysisUpdated(self, event):
+    def OnAnalysisUpdated(self, event: ListCtrlUpdatedEvent) -> None:
+        """`EVT_ANALYSISUPDATED`: log the updated analysis items."""
         updated = event.GetUpdatedItems()
         logger.debug(f"appframe.OnAnalysisUpdated - {len(updated)} Analysis updated:")
         for key in updated:

@@ -10,18 +10,27 @@ import ctypes
 import ctypes.util
 import logging
 import sys
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
 _UTF8 = 0x08000100  # kCFStringEncodingUTF8
 
 
-def _lib(name):
+def _lib(name: str) -> ctypes.CDLL:
+    """Load a system library by its short name, e.g. `objc`."""
     return ctypes.cdll.LoadLibrary(ctypes.util.find_library(name))
 
 
-def set_bundle_name(name):
-    """Sets the menu bar application name; call before the wx.App is created."""
+def set_bundle_name(name: str) -> None:
+    """Set the name that the macOS menu bar shows for the GUI.
+
+    Call it before the `wx.App` is created. It sets `CFBundleName` in the main
+    bundle's info dictionary.
+
+    Args:
+        name: The name to show.
+    """
     if sys.platform != "darwin":
         return
     try:
@@ -37,10 +46,10 @@ def set_bundle_name(name):
         msg_str = ctypes.CFUNCTYPE(p, p, p, ctypes.c_char_p)(send)
         msg_set = ctypes.CFUNCTYPE(None, p, p, p, p)(send)
 
-        def sel(n):
+        def sel(n: str) -> Optional[int]:
             return objc.sel_registerName(n.encode())
 
-        def nsstring(s):
+        def nsstring(s: str) -> Optional[int]:
             return msg_str(objc.objc_getClass(b"NSString"), sel("stringWithUTF8String:"), s.encode())
 
         bundle = msg(objc.objc_getClass(b"NSBundle"), sel("mainBundle"))
@@ -51,10 +60,14 @@ def set_bundle_name(name):
         logger.debug(f"Could not set the macOS bundle name: {e!r}")
 
 
-def set_display_name(name):
-    """Sets the name the Dock shows; call after the wx.App is created.
+def set_display_name(name: str) -> None:
+    """Set the name that the macOS Dock shows for the GUI.
 
-    Uses the LaunchServices call that Chromium uses for the same purpose.
+    Call it after the `wx.App` is created. It uses the private LaunchServices call
+    that Chromium uses for the same purpose.
+
+    Args:
+        name: The name to show.
     """
     if sys.platform != "darwin":
         return
