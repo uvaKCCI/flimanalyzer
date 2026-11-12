@@ -180,7 +180,7 @@ class Concat(Tool[ConcatConfig]):
         warning.
 
         Columns (`mode` `horizontal`): the columns of the tables side by side; rows
-        are paired by their index. A warning names a table whose number of rows or
+        are paired by position (first with first, and so on). A warning names a table whose number of rows or
         shared category values differ from the first table's. With `numbers_only`,
         only the numeric columns of the other tables are added. A column name that an
         earlier table uses gets the table's name appended: `<column> (<table>)`.
@@ -198,8 +198,7 @@ class Concat(Tool[ConcatConfig]):
             logger.info(f"{self.name}: one table, passed on unchanged")
             return {"Concatenated": frames[0].copy()}
         if horizontal:
-            # side by side, rows are paired by index (for tables numbered from 0, by
-            # position): warn if the tables' shared
+            # side by side, rows are paired by position: warn if the tables' shared
             # category columns don't match row by row (e.g. one was reordered)
             names = list(tables)
             for name, df in zip(names[1:], frames[1:]):
@@ -225,6 +224,9 @@ class Concat(Tool[ConcatConfig]):
                     columns={c: f"{c} ({name})" for c in df.columns if c in taken}
                 )
                 taken.update(frames[i].columns)
+            # rows are paired by position: the tables' own row labels (e.g. of rows
+            # left after filtering) would pair rows by label and add empty rows
+            frames = [df.reset_index(drop=True) for df in frames]
             return {"Concatenated": pd.concat(frames, axis=1, copy=True)}
         # an Input column a table already has (e.g. from an earlier Concatenate) is
         # renamed, by default "Input (<table>)"

@@ -650,3 +650,17 @@ def test_concat_of_one_table_passes_it_on_unchanged(data, mode):
     (table,) = Concat()({"only": data}, config=ConcatConfig(mode=mode, add_input=True)).values()
     pd.testing.assert_frame_equal(table, data)  # no Input column
     assert table is not data
+
+
+def test_concat_side_by_side_pairs_rows_by_position():
+    """Tables whose row labels aren't 0, 1, 2, ... (rows left after filtering) are
+    paired by position; they were paired by label, giving empty rows."""
+    from flim.configs import ConcatConfig
+    from flim.tools.data import Concat
+
+    a = pd.DataFrame({"FOV": pd.Categorical(list("abcdef")), "x": [1.0, 2, 3, 4, 5, 6]})
+    b = pd.DataFrame({"y": [10.0, 20, 30, 40, 50, 60]})
+    config = ConcatConfig(mode="horizontal", numbers_only=False)
+    (table,) = Concat()({"A": a.iloc[[0, 2, 4]], "B": b.iloc[[1, 3, 5]]}, config=config).values()
+    assert len(table) == 3 and list(table.index) == [0, 1, 2]
+    assert list(table["x"]) == [1.0, 3.0, 5.0] and list(table["y"]) == [20.0, 40.0, 60.0]
