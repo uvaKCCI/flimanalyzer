@@ -428,8 +428,10 @@ def test_a_renamed_window_keeps_its_item(frame, monkeypatch, tmp_path, flim_data
     item = frame.data_manager.get(window.item_id)
     assert item.title == "saved.txt" and not item.modified
     assert frame.windows_by_title()["saved.txt"] is window
+    from flim.gui.app import NATIVE_WINDOW_LIST
+
     menu = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
-    assert "saved.txt" in menu and "cells" not in menu
+    assert "cells" not in menu and (NATIVE_WINDOW_LIST or "saved.txt" in menu)
 
 
 def test_runs_get_copies_of_the_tables(frame, flim_data):
@@ -646,3 +648,16 @@ def test_favorites_choose_the_tool_panel(frame, monkeypatch):
     assert frame.settings.favorites == ["Calculate", shown["items"][2]]
     frame.set_favorites([])
     assert _panel_groups(frame) == all_groups  # none: all tools
+
+
+def test_window_menu_lists_each_window_once(frame, flim_data):
+    """On macOS the system lists the open windows in the Window menu; the GUI adds
+    entries only on the other platforms, so no window is listed twice."""
+    from flim.gui.app import NATIVE_WINDOW_LIST
+
+    _open(frame, flim_data, "cells")
+    menu = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems() if not m.IsSeparator()]
+    if NATIVE_WINDOW_LIST:
+        assert menu == ["Close all windows"]
+    else:
+        assert menu == ["Close all windows", "cells"]

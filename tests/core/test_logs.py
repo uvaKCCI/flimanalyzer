@@ -89,3 +89,26 @@ def test_old_logs_are_removed(tmp_path):
     assert sorted(logs.remove_old_logs(tmp_path)) == [old, old_part]
     assert new.exists() and other.exists()
     assert logs.session_logs(tmp_path / "missing") == []
+
+
+def test_the_chosen_level_survives_prefects_logging_setup(tmp_path):
+    """Prefect sets the root logger to WARNING when it loads (after the GUI started its
+    log); FLIMAnalyzer's own records keep the chosen level. A fresh process: in pytest,
+    Prefect is loaded before the log starts."""
+    import subprocess
+    import sys
+
+    script = f"""
+import logging
+from pathlib import Path
+from flim.core import logs
+memory = logs.begin("DEBUG")
+from prefect import flow  # noqa: F401  (configures Prefect's logging)
+path, _ = logs.open_log_file("probe", Path({str(tmp_path)!r}), memory)
+logging.getLogger("flim.gui.app").debug("a debug record")
+for handler in logging.getLogger().handlers:
+    handler.flush()
+print("debug record written:", "a debug record" in path.read_text())
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120)
+    assert "debug record written: True" in result.stdout, result.stderr[-2000:]

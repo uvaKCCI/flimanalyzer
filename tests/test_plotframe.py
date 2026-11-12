@@ -82,8 +82,10 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
         ):
             wx.Yield()
             time.sleep(0.05)
+        from flim.gui.app import NATIVE_WINDOW_LIST
+
         menu = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
-        assert set(plots) <= set(menu)
+        assert NATIVE_WINDOW_LIST or set(plots) <= set(menu)  # macOS lists them itself
         for title, window in plots.items():
             # opens at the figure's size, scaled down to fit the screen if needed
             fig_w, fig_h = sizes[title]

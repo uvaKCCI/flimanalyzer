@@ -65,6 +65,9 @@ def begin(level: str) -> logging.handlers.MemoryHandler:
         root.removeHandler(handler)
         handler.close()
     root.setLevel(level)
+    # also on FLIMAnalyzer's own logger: Prefect sets the root logger's level when it
+    # configures its logging (WARNING by default), which would drop these records
+    logging.getLogger("flim").setLevel(level)
     memory = logging.handlers.MemoryHandler(capacity=100_000, flushLevel=logging.CRITICAL + 1)
     root.addHandler(memory)
     return memory

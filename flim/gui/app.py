@@ -75,6 +75,9 @@ import flim.gui.dialogs.unpivot  # noqa: F401
 logger = logging.getLogger(__name__)
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
 CHECK_ROWS = 20  # the rows of each file Import Tables checks its run against
+# macOS lists the open windows in the Window menu itself (wxWidgets makes the menu
+# titled Window the system's window menu), so the GUI adds entries elsewhere only
+NATIVE_WINDOW_LIST = wx.Platform == "__WXMAC__"
 
 
 def docs_url(version: str = __version__) -> str:
@@ -1259,7 +1262,7 @@ class AppFrame(wx.Frame):
 
     def register_window(self, window, value, title, modified=False, source=None):
         """Add a window's value as an item of the DataManager and list the window in
-        the Window menu.
+        the Window menu (on macOS, the system lists it, see `NATIVE_WINDOW_LIST`).
 
         The window's title becomes the item's (unique) title; the window reports its
         modified state through its `on_modified` callback.
@@ -1279,11 +1282,12 @@ class AppFrame(wx.Frame):
         window.SetTitle(item.title)
         window.on_modified = lambda m, i=item.id: self.data_manager.set_modified(i, m)
         self.windowframes[item.id] = window
-        mitem = self.windowmenu.Append(wx.Window.NewControlId(), item.title)
-        self._menu_items[item.id] = mitem.GetId()
+        if not NATIVE_WINDOW_LIST:
+            mitem = self.windowmenu.Append(wx.Window.NewControlId(), item.title)
+            self._menu_items[item.id] = mitem.GetId()
+            self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
         if isinstance(window, PandasFrame):
             self.window_zorder.append(item.id)
-        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
         return item
 
     def remove_window(self, item_id) -> bool:
