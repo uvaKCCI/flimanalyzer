@@ -2,11 +2,11 @@
 
 The `Scale` tool scales the selected features, so that features with different units or ranges can be compared, or used by later tools. The scaled features are added to the table as new columns, named after the feature and the method, for example `NAD(P)H t1 standardized`.
 
-**Menu Access:** `Data` > `Scale`
+**Menu Access:** `Analysis` > `Scale`
 
-**Tool panel icon:** ![](/images/data/scale.png)
+**Tool panel icon:** ![](/images/analysis/scale.png)
 
-1. Select `Data` > `Scale`.
+1. Select `Analysis` > `Scale`.
 
 2. In the `Configuration: Scale` dialog, set:
 

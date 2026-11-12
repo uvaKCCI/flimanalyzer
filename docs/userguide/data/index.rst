@@ -30,8 +30,6 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Stacks two or more data tables, or places them side by side.
    * - :doc:`Sort <sort>`
      - Reorders the rows by the values of one or more columns.
-   * - :doc:`Scale <scale>`
-     - Scales features: standardized, from 0 to 1, or robust to outliers.
    * - :doc:`Fuse Categories <fuse>`
      - Joins category columns into one, for example FOV and Cell into FOV:Cell.
    * - :doc:`Separate Categories <separate>`
@@ -40,8 +38,6 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Replaces parts of the column names, as Import does.
    * - :doc:`Drop Columns <drop>`
      - Removes columns by their names, as Import does.
-   * - :doc:`Calculate <calculate>`
-     - Adds columns calculated from others, by expressions or functions, as Import does.
    * - :doc:`Directory/File to Source <source>`
      - Adds the Source column to tables imported with FLIMAnalyzer 0.6 or earlier.
    * - :doc:`Saving Data <save>`
@@ -63,11 +59,9 @@ After you load data, you can change the tables to show trends more clearly, chan
     order
     concat
     sort
-    scale
     fuse
     separate
     rename
     drop
-    calculate
     source
     save

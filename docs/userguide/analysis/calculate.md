@@ -2,11 +2,11 @@
 
 The `Calculate` tool adds new columns calculated from others, for example the mean lifetime `NAD(P)H tm` from the amplitudes and lifetimes, or a ratio such as `FLIRR`. The built-in `Import` workflow makes the standard FLIM calculations on the tables read from the files (see [Import Tables](/userguide/data/load.md#import-tables)).
 
-**Menu Access:** `Data` > `Calculate`
+**Menu Access:** `Analysis` > `Calculate`
 
-**Tool panel icon:** ![](/images/data/calculate.png)
+**Tool panel icon:** ![](/images/analysis/calculate.png)
 
-1. Select `Data` > `Calculate`.
+1. Select `Analysis` > `Calculate`.
 
 2. The `Configuration: Calculate` dialog opens with an empty `Calculations` list: a run makes only the calculations you set up in it, not those of earlier runs. The list shows each calculation's new column, what it computes and its options; it isn't edited directly. Use the buttons below it:
 

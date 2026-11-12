@@ -102,7 +102,7 @@ A field that allows only one value with the current settings is hidden. It appea
 
 ## Last settings used
 
-When you click `OK`, the GUI keeps the settings of the dialog. The next time you open the same tool, its dialog opens with these settings, including the result prefix and the folder under `Save results`. Columns you selected that the table doesn't have are ignored. A feature with a close match in the table is replaced by it, and a note under the list shows the replacement, for example `Guessed: FAD a1% → FAD a1[%]`. The `Calculate` dialog always opens with an empty table of calculations (see [Calculate](/userguide/data/calculate.md)). `Cancel` keeps the settings that were there before.
+When you click `OK`, the GUI keeps the settings of the dialog. The next time you open the same tool, its dialog opens with these settings, including the result prefix and the folder under `Save results`. Columns you selected that the table doesn't have are ignored. A feature with a close match in the table is replaced by it, and a note under the list shows the replacement, for example `Guessed: FAD a1% → FAD a1[%]`. The `Calculate` dialog always opens with an empty table of calculations (see [Calculate](/userguide/analysis/calculate.md)). `Cancel` keeps the settings that were there before.
 
 The GUI also saves these settings to the user settings file, so they apply again the next time it starts (see [The user settings file](/userguide/settings.md#the-user-settings-file)). To keep them in a file of your own, use `File` > `Export Settings...` or `Save Settings...`.
 

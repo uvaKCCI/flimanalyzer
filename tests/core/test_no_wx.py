@@ -57,7 +57,7 @@ def test_core_imports_without_wx_and_torch():
         "            importlib.import_module(f'{package}.{m.name}')\n"
         "from flim.core.registry import tools\n"
         "counts = {c: len(t) for c, t in tools.by_category().items()}\n"
-        "assert counts == {'File': 2, 'Data': 15, 'Analysis': 12, 'Plot': 11, 'Workflow': 3}, counts\n"
+        "assert counts == {'File': 2, 'Data': 13, 'Analysis': 14, 'Plot': 11, 'Workflow': 3}, counts\n"
     )
 
 

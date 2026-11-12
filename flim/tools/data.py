@@ -497,7 +497,7 @@ def _scaler(method: str):
 class Scale(Tool[ScaleConfig]):
     name = "Scale"
     icon = "scale.png"
-    category = "Data"
+    category = "Analysis"
     description = (
         "Scales the selected features: standardize (mean 0, standard deviation 1),"
         " min-max (0 to 1) or robust (median 0, interquartile range 1), over the whole"
@@ -795,7 +795,7 @@ class DropColumns(Tool[DropColumnsConfig]):
 class Calculate(Tool[CalculateConfig]):
     name = "Calculate"
     icon = "calculate.png"
-    category = "Data"
+    category = "Analysis"
     description = (
         "Calculates new columns from others, in order: by expressions (arithmetic,"
         " comparisons, math functions) or by registered functions such as tm and"

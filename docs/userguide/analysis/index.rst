@@ -17,6 +17,12 @@ The example table has these category columns that you can use for grouping: `Cel
    * - Icon
      - Analysis Tool
      - Description
+   * - .. image:: /images/analysis/calculate.png
+     - `Calculate <calculate.html>`_
+     - Adds columns calculated from others, by expressions or functions, for example the FLIM features of the built-in Import workflow.
+   * - .. image:: /images/analysis/scale.png
+     - `Scale <scale.html>`_
+     - Scales features: standardized, from 0 to 1, or robust to outliers.
    * - .. image:: /images/analysis/summary.png 
      - `Summarize <summary.html>`_
      - Calculates the count, minimum, maximum, mean, median, standard deviation, standard error of the mean, 25th and 75th percentiles, and sum of grouped data.
@@ -59,6 +65,8 @@ The example table has these category columns that you can use for grouping: `Cel
     :hidden:
     :glob:
     
+    calculate
+    scale
     summary
     relchange
     seriesanalysis
