@@ -72,6 +72,7 @@ class DataWindowEvent(wx.PyCommandEvent):
         self.savemodified = True
         self.enableclose = True
         self.modified = True
+        self.filtered = True
 
     def SetEventInfo(
         self,
@@ -85,6 +86,7 @@ class DataWindowEvent(wx.PyCommandEvent):
         savemodified: bool = True,
         enableclose: bool = True,
         modified: bool = True,
+        filtered: bool = True,
     ) -> None:
         """Set the table and the options of the data window.
 
@@ -102,6 +104,8 @@ class DataWindowEvent(wx.PyCommandEvent):
             enableclose: Whether the window can be closed.
             modified: Whether the data differs from what is saved, e.g. False for
                 data just read from a file; closing a modified window asks to save.
+            filtered: Whether the window applies the range filters when `Filter
+                Data` is on; False for a window of the rows they hide.
         """
         self.data = data
         self.config = config
@@ -113,6 +117,7 @@ class DataWindowEvent(wx.PyCommandEvent):
         self.savemodified = savemodified
         self.enableclose = enableclose
         self.modified = modified
+        self.filtered = filtered
 
     def GetData(self) -> pd.DataFrame:
         """Return the table."""
@@ -149,6 +154,10 @@ class DataWindowEvent(wx.PyCommandEvent):
     def IsModified(self) -> bool:
         """Return whether the data differs from what is saved."""
         return self.modified
+
+    def IsFiltered(self) -> bool:
+        """Return whether the window applies the range filters when they are on."""
+        return self.filtered
 
     def GetAction(self) -> str:
         """Return the action, e.g. `createnew`."""

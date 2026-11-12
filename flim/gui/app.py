@@ -1559,6 +1559,7 @@ class AppFrame(wx.Frame):
                 enableclose=event.IsEnableClose(),
                 on_filters_changed=self.report_filters,
                 on_run_tool=lambda name, window: self.run_tool(tools.get(name), current=window),
+                filtered=event.IsFiltered(),
             )
             frame.set_modified(event.IsModified())
             frame.Show(True)

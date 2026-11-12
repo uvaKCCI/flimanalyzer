@@ -117,6 +117,26 @@ def test_range_filter_and_view_all(frame, flim_data):
     assert len(window.GetViewData()) == len(flim_data)
 
 
+def test_a_new_window_applies_the_range_filters_that_are_on(frame, flim_data):
+    from flim.core.filtering import new_range
+
+    low, high = flim_data[FEATURE].quantile([0.25, 0.75])
+    frame.filters.range_filters = [new_range(FEATURE) | {"rangelow": low, "rangehigh": high, "selected": True}]
+    frame.filters.use = True
+    expected = flim_data[FEATURE].between(low, high).sum()
+    window = _open(frame, flim_data, "New")
+    assert window.filtercb.GetValue() and window.filterbutton.IsEnabled()
+    assert len(window.GetViewData()) == expected < len(flim_data)
+    assert not window.is_modified()  # read from a file: the filters change only the view
+    # Show Dropped: the window of the hidden rows shows them all, its filters off
+    window.updateusefilter(True, showdiscarded=True)
+    discarded = frame.windows_by_title()["New - Discarded"]
+    assert len(discarded.GetViewData()) == len(flim_data) - expected
+    assert not discarded.filtercb.GetValue()
+    frame.filters.use = False
+    assert len(_open(frame, flim_data, "Unfiltered").GetViewData()) == len(flim_data)
+
+
 @pytest.mark.parametrize("button", ["Save Shown Rows...", "Save All Rows..."])
 def test_save_renames_the_window(frame, monkeypatch, tmp_path, flim_data, button):
     window = _open(frame, flim_data.copy())

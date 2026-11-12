@@ -266,6 +266,7 @@ class PandasFrame(wx.Frame):
         enableclose: bool = True,
         on_filters_changed: Optional[Callable[[WindowFilters], None]] = None,
         on_run_tool: Optional[Callable[[str, str], None]] = None,
+        filtered: bool = True,
     ) -> None:
         """Create the window.
 
@@ -288,15 +289,22 @@ class PandasFrame(wx.Frame):
             on_run_tool: Called with a tool's name and this window's title to run
                 the tool on this window's table in its dialog (Pivot, Unpivot); None:
                 the window does not show these buttons.
+            filtered: Whether the window applies the range filters of `filters`
+                when they are on (`filters.use`), also when it opens; False for a
+                window of the rows they hide (`Show Dropped`), whose `Filter Data`
+                box is then unchecked.
         """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
         self.filters = filters if filters is not None else window_filters(AppSettings.default())
         self.on_filters_changed = on_filters_changed
         self.on_run_tool = on_run_tool
         self.enableclose = enableclose
+        self.filtered = filtered
         self.grid = None
         self.SetData(data, showcolindex, groups, analyzable, savemodified, precision)
         self._init_gui()
+        if self.filtered and self.filters.use:
+            self.updateusefilter(True)  # the shared range filters, as in the other windows
         self.Layout()
 
         self.Bind(wx.EVT_CLOSE, self.close_and_destroy)
@@ -402,7 +410,7 @@ class PandasFrame(wx.Frame):
         autosizebutton.Bind(wx.EVT_BUTTON, self.OnAutosize)
 
         self.filtercb = wx.CheckBox(self, wx.ID_ANY, label="Filter Data")
-        self.filtercb.SetValue(self.filters.use)
+        self.filtercb.SetValue(self.filtered and self.filters.use)
         self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnFilterData)
 
         self.filterbutton = wx.Button(self, wx.ID_ANY, "Filter Settings...")
@@ -695,6 +703,7 @@ class PandasFrame(wx.Frame):
                 "createnew",
                 showcolindex=False,
                 analyzable=True,
+                filtered=False,
             )
             self.GetEventHandler().ProcessEvent(event)
 

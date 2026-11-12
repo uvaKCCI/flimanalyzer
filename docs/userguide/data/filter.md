@@ -34,9 +34,9 @@ Follow these steps to view and change the range filters:
 
 5. Click `OK`. The dialog closes, and the table shows only the rows whose values are inside the ranges of the filters switched on in step 4. While the dialog is open, it shows how many rows these filters hide (`Dropped from view`) and how many remain.
 
-**Note:** The `Use Filters` checkbox in the `Filter Settings` dialog and the `Filter Data` checkbox in the table window switch all the checked filters on or off at once. This is a quick way to switch between the filtered table and the full data.
+**Note:** The `Use Filters` checkbox in the `Filter Settings` dialog and the `Filter Data` checkbox in the table window switch all the checked filters on or off at once. This is a quick way to switch between the filtered table and the full data. A table window that opens while `Filter Data` is on shows only the rows inside the ranges too.
 
-**Note:** Check `Show Dropped` in the `Filter Settings` dialog to see the rows that the range filters hide. When you click `OK`, a new window, `<title> - Discarded`, opens with these rows. Rows hidden only by the values selected in category columns are not in it.
+**Note:** Check `Show Dropped` in the `Filter Settings` dialog to see the rows that the range filters hide. When you click `OK`, a new window, `<title> - Discarded`, opens with these rows. Rows hidden only by the values selected in category columns are not in it. In this window, `Filter Data` is off, so that all its rows are shown.
 
 ![](/images/data/filter-settings.png)
 
