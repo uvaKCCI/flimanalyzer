@@ -279,3 +279,19 @@ def test_split_without_grouping_keeps_duplicate_rows(needs_torch, data):
     config = train_config(grouping=[], train_size=0.75)
     train_loader, val_loader, *_ = AETraining()._datasets(doubled, config, 32)
     assert len(train_loader.dataset) + len(val_loader.dataset) == len(doubled)
+
+
+def test_saved_model_handles_missing_values_as_training_did(needs_torch, data, tmp_path):
+    """Training scales, then sets missing values to 0; the saved model does the same
+    (it set them to 0 before scaling, so the model got other values)."""
+    import joblib
+
+    data = data.copy()
+    data.loc[data.index[:5], FEATURES[0]] = np.nan
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    files = training(data, config=train_config(timeseries="Treatment", model_name="M"))["Model File"]
+    pipeline = joblib.load(files[-1])
+    assert [name for name, _ in pipeline.steps][:2] == ["minmaxscaler", "simpleimputer"]
+    row = data[FEATURES].iloc[[0]].to_numpy(dtype=np.float32)  # its first feature missing
+    assert pipeline[:-1].transform(row)[0, 0] == 0.0

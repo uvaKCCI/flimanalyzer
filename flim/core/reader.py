@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 SOURCE, DIRECTORY, FILE = "Source", "Directory", "File"
 ADDED = (SOURCE, DIRECTORY, FILE)  # the columns the reader adds, first
+LEFT_OUT = "left out"  # why a file in `exclude` was skipped
 READER = "Read"  # the reader's name in renamed columns, e.g. "Source (before Read)"
 
 # column names read as categories (the category columns of FLIMAnalyzer's tables)
@@ -122,7 +123,7 @@ def find_files(paths, settings: Optional[ReadSettings] = None) -> tuple[list[Pat
             continue
         for file in candidates:
             if file.name in settings.exclude:
-                skipped[str(file)] = "left out"
+                skipped[str(file)] = LEFT_OUT
             else:
                 found.append(file)
     return sorted(dict.fromkeys(found)), skipped

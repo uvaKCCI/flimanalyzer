@@ -304,8 +304,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     if not args.run and not args.workflow:
         parser.error(
-            "give --run NAME or --workflow FILE (e.g. --run Import to read the files"
-            " into one table)"
+            "give --run NAME or --workflow FILE (e.g. --run Import to join the files"
+            " into one table with the FLIM features)"
         )
     if not args.output and not args.dry_run:
         parser.error("the following arguments are required: -o/--output")

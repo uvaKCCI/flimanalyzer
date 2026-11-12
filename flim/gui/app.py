@@ -30,7 +30,7 @@ from flim.tools.data import Filter
 from flim.core.types import TableType
 from flim.core.settings import AppSettings, tool_settings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
-from flim.core.reader import ReadSettings, read_tables
+from flim.core.reader import LEFT_OUT, ReadSettings, read_tables
 from flim.core.schema import TableSchema
 from flim.core.paths import canonical_folder
 from flim.core.graph import WorkflowGraph
@@ -237,7 +237,7 @@ class FLIMAnalyzerApp(wx.App):
                 wx.MessageBox(str(err), "FLIMAnalyzer", wx.OK | wx.ICON_ERROR)
                 continue
             if tool is ImportTables:
-                self.frame.import_tables(self.files)
+                self.frame.import_tables(self.files, exclude=self.exclude)
                 continue
             settings = read_settings(self.frame.reader_settings(), self.exclude)
             if getattr(tool, "definition", None) is not None:
@@ -249,9 +249,11 @@ class FLIMAnalyzerApp(wx.App):
                 self.frame.run_tool(tool)
 
     def open_files(self, files):
-        """Opens each file in a data window (File > Open Tables...); reports files
-        that cannot be read."""
-        self.frame.open_data_files(files, self.frame.reader_settings())
+        """Opens each file in a data window (File > Open Tables...), leaving out the
+        `-x` files; reports files that cannot be read."""
+        from flim.batch import read_settings
+
+        self.frame.open_data_files(files, read_settings(self.frame.reader_settings(), self.exclude))
 
     def OnExit(self):
         if self.dock_icon:
@@ -342,7 +344,7 @@ class AppFrame(wx.Frame):
             wx.ID_PREFERENCES, "Settings...", "Show the app settings and where they come from"
         )
         filemenu.AppendSeparator()
-        exitmenuitem = filemenu.Append(wx.ID_EXIT, "E&xit", "Exit the application")
+        exitmenuitem = filemenu.Append(wx.ID_EXIT, "E&xit", "Quit FLIMAnalyzer")
 
         self.windowmenu = wx.Menu()
         closeallitem = self.windowmenu.Append(wx.ID_ANY, "Close all windows")
@@ -674,7 +676,9 @@ class AppFrame(wx.Frame):
         """Read data files into tables (flim.core.reader); report those that could
         not be read. Returns the tables by name (`nrows`: only their first rows)."""
         reading = read_tables(files, settings or ReadSettings(), nrows=nrows)
-        problems = [f"{path}: {reason}" for path, reason in reading.skipped.items()]
+        problems = [  # files left out on purpose (settings, -x) are not problems
+            f"{path}: {reason}" for path, reason in reading.skipped.items() if reason != LEFT_OUT
+        ]
         if problems or reading.warnings:
             wx.MessageBox(
                 "\n".join((["Not read:"] + problems if problems else []) + reading.warnings),
@@ -764,13 +768,15 @@ class AppFrame(wx.Frame):
         if paths:
             self.import_tables(paths)
 
-    def import_tables(self, paths, config=None):
+    def import_tables(self, paths, config=None, exclude=()):
         """Runs Import Tables on data files.
 
         Args:
             paths: Files and folders.
             config: Import Tables' settings; None: chosen in its dialog, and kept as
                 its settings.
+            exclude: File names left out of this run besides the settings' own (`-x`);
+                not kept in the settings.
 
         Returns:
             The FlowRun, or None if the run did not start or did not end normally.
@@ -798,6 +804,8 @@ class AppFrame(wx.Frame):
             )
             config = result.config
             folder = result.execution.autosave.results_dir or self.settings.resolved_results_dir()
+        if exclude:
+            config = config.model_copy(update={"exclude": list(config.exclude) + list(exclude)})
         importer = tool()
         workflow = importer.chosen_workflow(config)
         if workflow is not None and not self.confirm_workflow(workflow, f"{len(paths)} file(s)"):
@@ -883,11 +891,17 @@ class AppFrame(wx.Frame):
         if tool is not None and self.confirm_workflow(tool, title):
             self.run_workflow_on_tables(tool, {title: TableType.snapshot(table)})
 
-    def run_workflow_on_tables(self, tool, tables: dict):
+    def run_workflow_on_tables(self, tool, tables: dict, autosave=None):
         """Run a workflow file's workflow on tables: checked first (its steps against
         the tables' columns, and the number of windows against `max_windows`); its
         steps' `save` decides what is saved; windows open for the results no later
         step uses (leaf outputs).
+
+        Args:
+            tool: The workflow file's workflow (a tool class).
+            tables: The tables by name.
+            autosave: The folder and formats chosen in its dialog (AutosaveConfig);
+                None: the default results folder and the file's formats.
 
         Returns:
             The FlowRun, or None if the run did not start or did not end normally.
@@ -909,8 +923,11 @@ class AppFrame(wx.Frame):
                 wx.OK | wx.ICON_WARNING,
             )
             return None
-        folder = canonical_folder(str(self.settings.resolved_results_dir()))
-        autosave_dir = os.path.join(folder, tool.name)
+        folder = (autosave.results_dir if autosave is not None else None) or (
+            self.settings.resolved_results_dir()
+        )
+        autosave_dir = os.path.join(canonical_folder(str(folder)), tool.name)
+        formats = autosave.formats if autosave is not None else tool.definition.autosave.formats
         task_runner = self.flimanalyzer.get_task_runner()
         workflow = tool()
 
@@ -923,7 +940,7 @@ class AppFrame(wx.Frame):
                 cancel_token=cancel_token,
                 on_start=on_start,
                 settings_record=self.settings_manager.record(),
-                save_formats=tool.definition.autosave.formats,
+                save_formats=formats,
             )
 
         flow_run = self.run_with_progress(tool.name, start_run)
@@ -1105,6 +1122,9 @@ class AppFrame(wx.Frame):
         config = tool.dialog_config(self.settings.tools.config(tool))
         entry = self.settings.tools.entry(tool)
         saved = entry.autosave if entry else AutosaveConfig()
+        definition = getattr(tool, "definition", None)
+        if definition is not None and definition.autosave.formats:
+            saved = saved.model_copy(update={"formats": definition.autosave.formats})
         folder = saved.results_dir or self.settings.resolved_results_dir()
         execution = self.flimanalyzer.execution.model_copy(
             update={
@@ -1129,7 +1149,8 @@ class AppFrame(wx.Frame):
             return
         if getattr(tool, "definition", None) is not None:  # a workflow file
             tables = result.inputs[0]
-            self.run_workflow_on_tables(tool, tables if isinstance(tables, dict) else {"Input": tables})
+            tables = tables if isinstance(tables, dict) else {"Input": tables}
+            self.run_workflow_on_tables(tool, tables, autosave=result.execution.autosave)
             return
         # what the tool stores: no folder if it follows the default folder
         stored = result.stored_autosave or result.execution.autosave

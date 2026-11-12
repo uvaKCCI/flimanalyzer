@@ -1,6 +1,7 @@
 """Renaming and dropping columns by parts of their names, as Import and the Rename
 Columns and Drop Columns tools do."""
 
+import re
 from typing import Iterable
 
 MATCHES = ("contains", "starts with", "ends with", "is")
@@ -40,6 +41,15 @@ def matches(name: str, text: str, match: str) -> bool:
     raise ValueError(f"unknown match {match!r}: use {', '.join(MATCHES)}")
 
 
+# the name pandas gives a column whose header is empty in the file, e.g. `Unnamed: 0`
+_UNNAMED = re.compile(r"Unnamed: \d+")
+
+
+def is_empty_header(name: str) -> bool:
+    """Return whether a column name stands for an empty header in the file."""
+    return name.strip() == "" or _UNNAMED.fullmatch(name) is not None
+
+
 def columns_to_drop(names: Iterable[str], rules, drop_empty: bool = True) -> list[str]:
     """Return the columns that drop rules select.
 
@@ -47,7 +57,9 @@ def columns_to_drop(names: Iterable[str], rules, drop_empty: bool = True) -> lis
         names: The column names.
         rules: (text, match) pairs; a plain text means `contains`, as Import's drop
             list did. Rules with an empty text select nothing.
-        drop_empty: Also select a column with an empty header (" " or "").
+        drop_empty: Also select a column with an empty header: " ", "", or
+            `Unnamed: <n>`, the name pandas gives a column whose header is empty in the
+            file.
 
     Returns:
         The selected names, in table order.
@@ -55,7 +67,7 @@ def columns_to_drop(names: Iterable[str], rules, drop_empty: bool = True) -> lis
     rules = [(r, "contains") if isinstance(r, str) else tuple(r) for r in rules or []]
     selected = []
     for name in (str(n) for n in names):
-        if (drop_empty and name.strip() == "") or any(
+        if (drop_empty and is_empty_header(name)) or any(
             text and matches(name, text, match) for text, match in rules
         ):
             selected.append(name)

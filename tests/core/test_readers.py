@@ -86,3 +86,17 @@ def test_import_joins_files_without_flim_channels(prefect_harness, tmp_path, mon
     ((_, output),) = workflow.leaves.items()
     (table,) = output.value().values()
     assert len(table) == 4 and "_t1" in table.columns
+
+
+def test_an_empty_header_in_a_file_is_dropped(tmp_path):
+    """pandas names a column whose header is empty `Unnamed: 0`; Drop Columns' empty
+    header rule now selects it (it matched only blank names)."""
+    from flim.configs import DropColumnsConfig
+    from flim.tools.data import DropColumns
+
+    path = tmp_path / "a.txt"
+    path.write_text("x\t\tt1\n1\t5\t2.0\n")  # the second header is empty
+    (table,) = TableReader()(path, config=TableReaderConfig()).values()
+    assert "Unnamed: 1" in table.columns
+    (dropped,) = DropColumns()(table, config=DropColumnsConfig(drop=[])).values()
+    assert "Unnamed: 1" not in dropped.columns and {"x", "t1"} <= set(dropped.columns)

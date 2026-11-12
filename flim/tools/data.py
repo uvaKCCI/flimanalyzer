@@ -708,7 +708,6 @@ class RenameColumns(Tool[RenameColumnsConfig]):
     category = "Data"
     description = (
         "Replaces parts of the column names, in order, e.g. 'Exc1_-Ch1-_' with 'trp '."
-        " Import applies the same replacements to the files it reads."
     )
     outputs = (OutputSpec("Renamed", TableType),)
 
@@ -759,7 +758,7 @@ class DropColumns(Tool[DropColumnsConfig]):
     category = "Data"
     description = (
         "Drops the columns whose names contain, start with, end with or are a text;"
-        " also a column with an empty header. Import drops the same columns."
+        " also a column with an empty header."
     )
     outputs = (OutputSpec("Columns Dropped", TableType),)
 
@@ -799,7 +798,7 @@ class Calculate(Tool[CalculateConfig]):
     description = (
         "Calculates new columns from others, in order: by expressions (arithmetic,"
         " comparisons, math functions) or by registered functions such as tm and"
-        " ratio. Import makes the same calculations."
+        " ratio."
     )
     outputs = (OutputSpec("Calculated", TableType),)
 
@@ -870,8 +869,8 @@ class Calculate(Tool[CalculateConfig]):
 
 
 def import_preprocessor(settings):
-    """Return the preprocessor that Import applies, with the Rename Columns, Drop
-    Columns and Calculate tools' settings.
+    """Return the preprocessor of FLIMAnalyzer 0.6's import (`flim.core.importer`), with
+    the Rename Columns, Drop Columns and Calculate tools' settings.
 
     Args:
         settings: The app settings (AppSettings).

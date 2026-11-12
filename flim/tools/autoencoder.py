@@ -329,7 +329,9 @@ class AETraining(Tool[AETrainConfig]):
         )
         for epoch, model in checkpoints:
             path = f"{base}_epoch{epoch:04d}.model"
-            pipeline = make_pipeline(imputer, scaler, model)
+            # as in training: scale (missing values pass through), then set missing
+            # values to 0
+            pipeline = make_pipeline(scaler, imputer, model)
             dump(pipeline, filename=path)
             results[os.path.basename(path)] = pipeline
             model_files[epoch] = path

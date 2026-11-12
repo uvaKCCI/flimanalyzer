@@ -757,7 +757,7 @@ class PandasFrame(wx.Frame):
                     self,
                     "Save current data view",
                     self.dataview,
-                    self.GetName() + ".txt",
+                    self.GetTitle() + ".txt",
                     saveindex=self.showcolindex,
                 ):
                     self.modified = False

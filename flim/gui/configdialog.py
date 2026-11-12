@@ -127,7 +127,7 @@ class ConfigDialog(wx.Dialog):
         selected: preselected table names per input (default: the i-th table for
             the i-th input, all tables for an input with many=True).
         execution: execution options; the dialog edits autosave and the folder.
-        autosave_locked: "Save results in" is checked and cannot be unchecked.
+        autosave_locked: "Save results" is checked and cannot be unchecked.
     """
 
     def __init__(

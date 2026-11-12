@@ -404,6 +404,7 @@ def test_files_given_with_input_are_opened_at_startup(frame, monkeypatch, tmp_pa
 
     app = App()
     app.frame = frame
+    app.exclude = []  # no -x
     FLIMAnalyzerApp.open_files(app, [str(csv), str(tmp_path / "missing.csv")])
     assert "cells.csv" in frame.windows_by_title()
     assert len(messages) == 1 and "missing.csv" in messages[0]

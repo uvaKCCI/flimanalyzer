@@ -685,3 +685,79 @@ def test_unpivot_button_runs_the_tool_on_this_table(frame, monkeypatch, flim_dat
     assert first.unpivotbutton.IsShown()
     first.OnUnpivot(None)
     assert seen == {"tool": "Unpivot", "selected": ["first"]}
+
+
+def test_workflow_file_from_its_menu_saves_where_the_dialog_says(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
+    """The folder and formats chosen in a workflow file's dialog are used (they were
+    ignored: always the default folder and the file's formats)."""
+    from flim.core.runner import CancelToken
+    from flim.core.saving import AutosaveConfig
+    from flim.core.workflowfile import WorkflowDefinition, workflow_class
+    from flim.gui import configdialog
+
+    definition = WorkflowDefinition(name="summary", steps=[{
+        "id": "1", "tool": "Summarize", "save": True,
+        "config": {"features": [FEATURE], "aggs": ["mean"]},
+    }])  # fmt: skip
+    tool = workflow_class(definition)
+    _open(frame, flim_data, "cells")
+    own = tmp_path / "own"
+
+    def show(dialog):
+        dialog.use_default.SetValue(False)
+        dialog._on_use_default()
+        dialog.folder.SetPath(str(own))
+        dialog.set_formats(AutosaveConfig(formats=[{"kind": "table", "format": "csv"}]).formats)
+        dialog.validate()
+        return wx.ID_OK
+
+    monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", show)
+    monkeypatch.setattr(
+        frame, "run_with_progress",
+        lambda title, start: start(CancelToken(), lambda *a: None, lambda run: None),
+    )  # fmt: skip
+    monkeypatch.setattr(frame, "show_run_summary", lambda *a: None)
+    frame.run_tool(tool)
+    tables = [p for p in own.rglob("*.*") if p.is_file() and "pickled" not in p.parts and p.name != "run_summary.txt"]
+    assert tables and all(p.suffix == ".csv" for p in tables), tables
+
+
+def test_exclude_option_applies_when_opening_and_importing(frame, monkeypatch, tmp_path, prefect_harness):
+    """`-x` leaves files out when the GUI opens `-i` files and in Import Tables (it was
+    used only with --run of other tools)."""
+    import types
+
+    from flim.configs import ImportTablesConfig
+    from flim.gui.app import FLIMAnalyzerApp
+
+    folder = tmp_path / "data"
+    folder.mkdir()
+    for name in ("a.txt", "b.txt"):
+        pd.DataFrame({"x": [1.0]}).to_csv(folder / name, sep="\t", index=False)
+    app = types.SimpleNamespace(frame=frame, exclude=["b.txt"])
+    before = set(frame.windows_by_title())
+    FLIMAnalyzerApp.open_files(app, [str(folder)])
+    assert sorted(_new_windows(frame, before)) == ["a.txt"]
+    _answer_import(monkeypatch, frame, [str(folder)], None)
+    # results in a temporary folder, not the folder the tests start from
+    monkeypatch.setattr(type(frame.settings), "resolved_results_dir", lambda self: tmp_path / "results")
+    before = set(frame.windows_by_title())
+    frame.import_tables([str(folder)], config=ImportTablesConfig(), exclude=["b.txt"])
+    assert [t for t in _new_windows(frame, before)] == ["a.txt-1"]
+
+
+def test_save_on_close_suggests_the_window_title(frame, monkeypatch, flim_data):
+    """It suggested `frame.txt` (the wx window name)."""
+    import flim.gui.dialogs
+
+    window = _open(frame, flim_data, "cells")
+    window.modified = True
+    suggested = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
+    monkeypatch.setattr(
+        flim.gui.dialogs, "save_dataframe",
+        lambda parent, title, data, name, **k: suggested.append(name) or False,
+    )  # fmt: skip
+    window.close_and_destroy(None)
+    assert suggested == ["cells.txt"]
+    window.modified = False

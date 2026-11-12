@@ -3,18 +3,18 @@
 A workflow file names its steps; each step is a tool with its own settings, so the
 file alone decides what a run does::
 
-    {"schema_version": 1, "name": "calc and aggregate",
-     "read": {"delimiter": "\\t,"},
-     "autosave": {"enabled": true, "formats": []},
+    {"schema_version": 1, "name": "calc and aggregate", "tags": ["summaries"],
+     "autosave": {"formats": []},
      "steps": [
        {"id": "1", "tool": "Calculate", "config": {...}, "processing": "allow_partial"},
        {"id": "2", "tool": "Summarize", "inputs": ["1"], "config": {...}, "save": true}
      ]}
 
 A step's `inputs` refer to earlier steps' outputs: `"4.1"` (output 1 of step 4), `"4"`
-(the same), or `"input"` (the tables the run starts from: the files read, or an open
-table). A step without `inputs` takes output 1 of the step before it; the first step
-takes the run's tables. The outputs of a step are numbered from 1 in the order its
+(the same), or `"input"` (the tables the run starts from, e.g. those Import Tables
+read from files, or open tables). A step without `inputs` takes output 1 of the step
+before it; the first step takes the run's tables. The outputs of a step are numbered
+from 1 in the order its
 tool returns them. `outputs` optionally names them, as a check. `save` saves a step's
 outputs (`true`) or some of them (`["2.1"]`). `processing` says how much of its
 settings a step must apply to the data: `require_all` (default), `allow_partial` (at
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 WORKFLOW_SCHEMA_VERSION = 1
 INPUT = "input"  # the reference to the run's tables
-IMPORT_TAG = "import"  # the tag of the workflows File > Import... offers
+IMPORT_TAG = "import"  # the tag of the workflows File > Import Tables... offers
 BUILT_IN = Path(__file__).resolve().parent.parent / "workflow" / "files"
 WORKFLOW_PATH_VAR = "FLIM_WORKFLOW_PATH"
 
@@ -85,9 +85,10 @@ class WorkflowDefinition(BaseModel):
     description: str = ""
     tags: list[str] = Field(
         default=[],
-        description="Words that group the workflow: the GUI's File > Import... lists the"
-        " workflows tagged 'import'; the Workflow menu groups workflow files by their"
-        " first tag.",
+        description="Words that group the workflow. File > Import Tables... lists the"
+        " workflows tagged 'import'; a tag naming a menu (file, data, analysis, plot,"
+        " workflow) puts the workflow in that menu, else in Workflow; the next tag names"
+        " its submenu.",
     )
     autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
     steps: list[WorkflowStep] = Field(min_length=1)
@@ -313,7 +314,7 @@ def _shapes(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
         sources = {shapes.get(parse_reference(r)[0], MAPPED) for r in references}
         tool = tools.get(step.tool) if step.tool in tools else None
         if tool is not None and issubclass(tool, Workflow):
-            errors.append(f"step {step.id}: workflows as steps are not supported yet")
+            errors.append(f"step {step.id}: a step can't be a workflow")
         if tool is not None and tool.inputs and tool.inputs[0].many:
             if len(references) != 1:
                 errors.append(f"step {step.id}: {step.tool} takes one input, the tables")
