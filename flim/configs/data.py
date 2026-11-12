@@ -19,13 +19,6 @@ class DataTaskConfig(TaskConfig):
     pass
 
 
-class ColumnRename(BaseConfig):
-    """A column of the table and its new name."""
-
-    column: str = Field(default="", title="Column")
-    new: str = Field(default="", title="New name")
-
-
 class ProtectedNamesConfig(BaseConfig):
     """Fields of tools that write columns of protected names (Source, Input, ...):
     how they rename a column of the table that already has such a name."""
@@ -36,23 +29,14 @@ class ProtectedNamesConfig(BaseConfig):
         description="A column the table already has under a name this tool writes"
         " (e.g. Source): {name} is its name, {tool} the tool's short name.",
     )
-    clash_renames: list[ColumnRename] = Field(
-        default=[],
-        title="Renamed columns",
-        description="Per column, its new name (instead of the template above).",
-    )
 
-    def renames(self) -> dict:
-        """The renamed columns as old name -> new name."""
-        return {r.column: r.new for r in self.clash_renames if r.column and r.new}
-
-    @field_validator("clash_renames", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _renames_from_dict(cls, renames):
-        """A dict old -> new name is taken too."""
-        if isinstance(renames, dict):
-            return [{"column": k, "new": v} for k, v in renames.items()]
-        return renames
+    def _no_renames(cls, data):
+        """Drop `clash_renames` (a name per column, in earlier builds of 0.7.0)."""
+        if isinstance(data, dict) and "clash_renames" in data:
+            data = {k: v for k, v in data.items() if k != "clash_renames"}
+        return data
 
     @field_validator("clash_name")
     @classmethod
@@ -96,7 +80,7 @@ class CategoryOrderConfig(DataTaskConfig):
 
 class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
     legacy_keys = {
-        "mode": None, "clash_name": None, "clash_renames": None, "add_input": None,
+        "mode": None, "clash_name": None, "add_input": None,
     }  # fmt: skip
     legacy_dropped = frozenset({"source_suffix"})  # unused
     hidden_fields = frozenset({"grouping", "features"})

@@ -380,6 +380,20 @@ class Tool(Generic[ConfigT]):
         return {}
 
     @classmethod
+    def inapplicable_fields(cls, config: ConfigT, tables: Sequence[Any]) -> set[str]:
+        """Return the fields that don't apply to the input tables, which the dialog
+        hides, e.g. how to rename a column the tables don't have.
+
+        Args:
+            config: The config.
+            tables: The selected input tables (DataFrames); empty if not known.
+
+        Returns:
+            The field names; none by default.
+        """
+        return set()
+
+    @classmethod
     def validate_data(cls, config: ConfigT, tables: Sequence[Any]) -> list[Issue]:
         """Check the config against the input tables' values (`validate` checks it
         against their columns), for the dialog; the run makes the same checks.

@@ -100,13 +100,22 @@ class Concat(Tool[ConcatConfig]):
     outputs = (OutputSpec("Concatenated", TableType),)
 
     @classmethod
+    def inapplicable_fields(cls, config, tables) -> set:
+        frames = [t for t in tables if isinstance(t, pd.DataFrame)]
+        if config.mode == "horizontal" or not config.add_input:
+            return {"clash_name"}  # no Input column is added
+        if frames and not any(INPUT in t.columns for t in frames):
+            return {"clash_name"}  # no table has an Input column to rename
+        return set()
+
+    @classmethod
     def validate_data(cls, config, tables):
         if config.mode == "horizontal" or not config.add_input:
             return []
         issues = []
         for i, table in enumerate(tables):
             renames = make_room(
-                table.columns, [INPUT], config.clash_name, config.renames(),
+                table.columns, [INPUT], config.clash_name,
                 tool=cls.short(), table=f"table {i + 1}",
             )  # fmt: skip
             if renames:
@@ -155,7 +164,7 @@ class Concat(Tool[ConcatConfig]):
         # renamed, by default "Input (<table>)"
         for i, (name, df) in enumerate(zip(tables, frames) if config.add_input else ()):
             renames = make_room(
-                df.columns, [INPUT], config.clash_name, config.renames(),
+                df.columns, [INPUT], config.clash_name,
                 tool=self.short(), table=name,
             )  # fmt: skip
             if renames:
@@ -853,6 +862,20 @@ def import_preprocessor(settings):
     return preprocessor
 
 
+def shortened(text: str, most: int = 40) -> str:
+    """Return a text of at most `most` characters for display: a longer one keeps its
+    start and end with `…` between, e.g. `/data/KCCI/…/9SR/Results-a.txt`.
+
+    Args:
+        text: The text, e.g. a path.
+        most: The most characters shown.
+    """
+    if len(text) <= most:
+        return text
+    head = (most - 1) // 2
+    return text[:head] + "\u2026" + text[len(text) - (most - 1 - head):]
+
+
 @register_tool
 class SourceFromPath(Tool[SourceFromPathConfig]):
     name = "Directory/File to Source"
@@ -860,8 +883,9 @@ class SourceFromPath(Tool[SourceFromPathConfig]):
     short_name = "Add Source"
     category = "Data"
     description = (
-        "Builds the Source column (each row's file as a URI) from the Directory and"
-        " File columns of tables imported by FLIMAnalyzer 0.6 or earlier."
+        "Adds the Source column, each row's file as a URI (file:///...), built from"
+        " the Directory and File columns. For tables imported with FLIMAnalyzer 0.6 or"
+        " earlier, which have no Source column."
     )
     outputs = (OutputSpec("With Source", TableType),)
 
@@ -876,25 +900,38 @@ class SourceFromPath(Tool[SourceFromPathConfig]):
         return issues
 
     @classmethod
-    def proposals(cls, config, tables):
+    def _renames(cls, config, tables) -> dict:
+        """The table's own Source column and its new name; {} if it has none."""
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if table is None:
             return {}
-        renames = make_room(
-            table.columns, [SOURCE], config.clash_name, config.renames(),
-            tool=cls.short(),
-        )  # fmt: skip
-        if not renames:
-            return {}
-        return {"clash_renames": [{"column": k, "new": v} for k, v in renames.items()]}
+        return make_room(table.columns, [SOURCE], config.clash_name, tool=cls.short())
+
+    @classmethod
+    def inapplicable_fields(cls, config, tables) -> set:
+        if not any(isinstance(t, pd.DataFrame) for t in tables):
+            return set()  # the tables are not known
+        return set() if cls._renames(config, tables) else {"clash_name"}
 
     @classmethod
     def validate_data(cls, config, tables):
-        renames = cls.proposals(config, tables).get("clash_renames") or []
         return [
-            Issue("clash_renames", f"'{r['column']}' is taken: renamed '{r['new']}'", "warning")
-            for r in renames
+            Issue("clash_name", f"the table has a '{old}' column: it is renamed '{new}'", "warning")
+            for old, new in cls._renames(config, tables).items()
         ]
+
+    @classmethod
+    def example(cls, config, tables):
+        from flim.core.paths import path_uri
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None or not {"Directory", "File"} <= set(table.columns) or table.empty:
+            return None
+        directory, file = table["Directory"].iloc[0], table["File"].iloc[0]
+        if pd.isna(directory) or pd.isna(file):
+            return None
+        uri = path_uri(str(directory), str(file))
+        return f"{shortened(str(directory))} + {shortened(str(file))} \u2192 {shortened(uri)}"
 
     def run(self, data, *, config):
         from flim.core.paths import path_uri
@@ -907,7 +944,7 @@ class SourceFromPath(Tool[SourceFromPathConfig]):
             for d, f in zip(data["Directory"], data["File"])
         ]
         renames = make_room(
-            data.columns, [SOURCE], config.clash_name, config.renames(),
+            data.columns, [SOURCE], config.clash_name,
             tool=self.short(),
         )  # fmt: skip
         table = data.rename(columns=renames)

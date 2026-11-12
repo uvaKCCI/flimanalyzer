@@ -65,7 +65,6 @@
       "tool": "Concatenate",
       "config": {
         "clash_name": "{name} ({table})",
-        "clash_renames": [],
         "grouping": [],
         "features": [],
         "prefix": null,

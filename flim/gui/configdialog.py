@@ -496,9 +496,11 @@ class ConfigDialog(wx.Dialog):
         tables = []
         for value in self.selected_inputs():
             tables.extend(value.values() if isinstance(value, dict) else [value])
+        frames = [t for t in tables if isinstance(t, pd.DataFrame)]
+        self._tables = frames
         for panel in self.panels():
-            panel.set_data([t for t in tables if isinstance(t, pd.DataFrame)])
-        self._fill_proposals([t for t in tables if isinstance(t, pd.DataFrame)])
+            panel.set_data(frames)
+        self._fill_proposals(frames)
 
     def _fill_proposals(self, tables) -> None:
         """Fill the tool's proposals (Tool.proposals) into fields that are empty."""
@@ -598,6 +600,10 @@ class ConfigDialog(wx.Dialog):
         issues, shows the other issues below the fields, enables OK only if there
         are no errors, and returns all issues."""
         config, issues = self.current_config()
+        if config is not None:
+            hidden = self.tool.inapplicable_fields(config, getattr(self, "_tables", []))
+            for panel in self.panels():
+                panel.set_inapplicable(hidden)
         issues = issues + self.data_issues(config) + self.execution_issues()
         self.issues = issues
         by_field: dict[str, list[Issue]] = {}

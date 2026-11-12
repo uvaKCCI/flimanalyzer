@@ -70,9 +70,10 @@ def test_source_from_directory_and_file():
     assert list(table.columns) == ["t1", "Source"]
     with_source = data.assign(Source=["x", "y"])
     config = SourceFromPathConfig()
-    assert SourceFromPath.proposals(config, [with_source]) == {
-        "clash_renames": [{"column": "Source", "new": "Source (before Add Source)"}]
-    }
+    (issue,) = SourceFromPath.validate_data(config, [with_source])
+    assert issue.field == "clash_name" and "'Source (before Add Source)'" in issue.message
+    # saved settings of earlier builds with names per column are read
+    assert SourceFromPathConfig(clash_renames=[{"column": "Source", "new": "x"}]) == config
     (table,) = SourceFromPath()(with_source, config=config).values()
     assert list(table["Source (before Add Source)"]) == ["x", "y"]
 
@@ -191,3 +192,12 @@ def test_autoencoder_names_are_numbered_if_taken():
     label, recon, encoded = _train_names(["Autoencoder", "AE Recon t1"], ["t1", "t2"], 2)
     assert label == "Autoencoder_1"
     assert recon == ["AE Recon t1_1", "AE Recon t2"] and encoded == ["AE Encoded 0", "AE Encoded 1"]
+
+
+def test_source_example_shortens_long_paths():
+    long = "/data/" + "very long folder name/" * 5 + "9SR"
+    table = pd.DataFrame({"Directory": [long], "File": ["Results-a.txt"]})
+    example = SourceFromPath.example(SourceFromPathConfig(), [table])
+    directory, rest = example.split(" + ")
+    assert len(directory) == 40 and directory.startswith("/data/") and directory.endswith("9SR")
+    assert "…" in directory and rest.startswith("Results-a.txt → file:///data/")

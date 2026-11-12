@@ -1712,6 +1712,7 @@ class FieldsPanel(wx.Panel):
         self.widgets: dict[str, list] = {}  # field -> its label and editor
         self.fixed: set = set()  # fields that allow only one value now (not shown)
         self.hidden: set = set()  # fields not shown now: fixed, or `shown_when` not met
+        self.inapplicable: set = set()  # fields that don't apply to the input tables
         specs = [s for s in visible(describe(model)) if s.name not in exclude]
         if stacked:
             self._stack(specs)
@@ -1843,7 +1844,7 @@ class FieldsPanel(wx.Panel):
             for name, editor in self.editors.items():
                 editor.set_allowed(allowed.get(name))
             self.fixed = {n for n, a in allowed.items() if len(a) == 1} & set(self.editors)
-        hidden = self.fixed | {
+        hidden = self.fixed | (self.inapplicable & set(self.editors)) | {
             name for name, editor in self.editors.items() if not self._shown(editor.spec)
         }
         if hidden == self.hidden:
@@ -1856,6 +1857,14 @@ class FieldsPanel(wx.Panel):
                 self.markers[name].Hide()
         self.Layout()
         relayout(self)
+
+    def set_inapplicable(self, names) -> None:
+        """Hide the fields that don't apply to the input tables (see
+        `Tool.inapplicable_fields`)."""
+        names = set(names)
+        if names != self.inapplicable:
+            self.inapplicable = names
+            self.refresh()
 
     def _shown(self, spec) -> bool:
         """Whether the other fields have the values a field's `shown_when` asks for."""

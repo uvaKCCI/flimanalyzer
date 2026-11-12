@@ -651,15 +651,28 @@ def test_filter_dialog_keeps_the_whole_tree(dialog, table):
     assert sorted(map(repr, result)) == sorted(map(repr, config.filters))
 
 
-def test_source_dialog_proposes_the_new_name_of_a_source_column(dialog):
-    d = dialog("Directory/File to Source")
-    table = pd.DataFrame({"Directory": ["/d"], "File": ["a.txt"], "Source": ["mine"]})
-    d._fill_proposals([table])
-    editor = d.fields.editors["clash_renames"]
-    assert editor.get() == [{"column": "Source", "new": "Source (before Add Source)"}]
-    editor.set([{"column": "Source", "new": "Origin"}])  # the user's choice
-    d._fill_proposals([table])  # not filled again: the field is not empty
-    assert d.result().config.renames() == {"Source": "Origin"}
+def test_source_dialog_shows_the_rename_only_for_a_source_column(dialog):
+    from flim.tools.data import SourceFromPath
+
+    plain = pd.DataFrame({"Directory": ["/d"], "File": ["a.txt"], "t1": [1.0]})
+    d = dialog("Directory/File to Source", data_choices={"Table: plain": plain})
+    d.validate()
+    assert not d.fields.editors["clash_name"].control.IsShown()  # nothing to rename
+    assert SourceFromPath.example(d.current_config()[0], [plain]) == "/d + a.txt \u2192 file:///d/a.txt"
+    taken = plain.assign(Source=["mine"])
+    d = dialog("Directory/File to Source", data_choices={"Table: taken": taken})
+    d.validate()
+    assert d.fields.editors["clash_name"].control.IsShown()
+
+
+def test_concatenate_shows_the_rename_only_for_an_input_column(dialog):
+    a = pd.DataFrame({"t1": [1.0]})
+    d = dialog("Concatenate", data_choices={"Table: a": a, "Table: b": a.copy()})
+    d.validate()
+    assert not d.fields.editors["clash_name"].control.IsShown()
+    d = dialog("Concatenate", data_choices={"Table: a": a.assign(Input=["x"]), "Table: b": a})
+    d.validate()
+    assert d.fields.editors["clash_name"].control.IsShown()
 
 
 def test_saved_grouping_columns_the_table_lacks_are_not_offered(dialog, table):
