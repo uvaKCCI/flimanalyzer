@@ -17,7 +17,7 @@ The `KDE` tool creates kernel density estimate (KDE) plots of grouped data. A KD
 
     Each plot has one curve for each combination of the values of the grouping columns. With 2 grouping columns, the color shows the value of the 1st column and the line style the value of the 2nd (if the 2nd has at most 4 values). Otherwise each curve has its own color. Without grouping, each plot has one curve of all rows. The curves and the x axis cover only the range of the feature's values in the data.
 
-    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (0: about as many rows as columns). Without `Single figure`, each feature gets its own figure.
+    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (default 5; 0: about as many rows as columns). Without `Single figure`, each feature gets its own figure.
 
     `Legend` sets where the legend is shown: `right`, `top`, `bottom` or `left` of the plots, `inside` a plot, or `none`. With `Single figure`, the tiles share one legend outside the plots. `Legend` appears with 1 or more grouping columns. See [Hidden settings](/userguide/dialogs.md#hidden-settings).
 

@@ -22,7 +22,7 @@ The `Autoencoder: Train` tool trains autoencoder models on selected features and
     - `Training fraction`: the fraction of the groups used for training, more than 0 and less than 1 (default 0.7). The other groups are used for validation.
     - `Checkpoint every`: save the model every n epochs, and after the last epoch (default 20).
     - `Random seed`: with a number, every run uses the same split into training and validation sets and the same starting weights. Leave it empty (default) for a random split and random starting weights.
-    - `Architecture`: the design of the network. The dialog shows the description and the layers of the selected architecture for the number of selected features.
+    - `Architecture`: the design of the network (default `AE Dimensionality Reduction 2-10`). `AE Simulator 1-6` and `AE Simulator 1-3` are made to simulate new data from a data set, for [Autoencoder: Augment Data](/userguide/analysis/aeaugment); `AE Dimensionality Reduction 2-10` and `AE Dimensionality Reduction 2-5` reduce the features to fewer values. The dialog shows the description and the layers of the selected architecture for the number of selected features.
     - `Grouping`: the data is split into training and validation sets by these groups (default `FOV`, `Cell`), so that all rows of a cell are in the same set. The `Time series` column is left out of this grouping. Without grouping, the rows are split at random.
     - `Features`: the features to train on. The default is the amplitudes, lifetimes and photon counts of FAD and NAD(P)H (`FAD a1` to `NAD(P)H photons`). This dialog has no `All features` option. [Autoencoder: Run](/userguide/analysis/aerun) and [Autoencoder: Augment Data](/userguide/analysis/aeaugment) need the same features.
     - `Device` and `Threads`, in the `Resources` section: see [Resources](/userguide/dialogs.md#resources).
@@ -36,7 +36,7 @@ The `Autoencoder: Train` tool trains autoencoder models on selected features and
 5. Click `OK`.
 
 6. Each model is labeled with its batch size, learning rate and weight decay, e.g. `128-0.0001-1e-08`. The results of each model are:
-    - `Table: AE Loss-<label>`: for each epoch, the `Training Loss` and the `Validation Loss` (the mean squared error between the input and its reconstruction), and the `Model File` saved after that epoch (`---` if none).
+    - `Table: AE Loss-<label>`: for each epoch (`Epoch`), the model's `Batch Size`, `Learning Rate` and `Weight Decay`, the `Training Loss` and the `Validation Loss` (the mean squared error between the input and its reconstruction), and the `Model File` saved after that epoch (`---` if none).
     - `Plot: AE Loss-<label> Plot` (if `Loss plots` is checked): the training and validation loss of each epoch.
     - `Table: AE Decoded-<label>`: the reconstructed features of the last epoch, named `AE Recon <feature>`, with the category columns and a category column `Autoencoder` that tells whether the row was in the `training` or the `validation` set.
     - `Table: AE Encoded-<label>`: the encoded values of the last epoch, `AE Encoded 0`, `AE Encoded 1`, ..., with the same category columns.

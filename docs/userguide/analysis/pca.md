@@ -28,7 +28,7 @@ The `PCA` tool (principal component analysis) summarizes many features in a few 
 5. Click `OK`.
 
 6. The results are shown in three new table windows:
-    - `Table: PCA Components`: one row per data point, with the category columns, the original features (if included), the standardized features (if included, named `<feature> standardized`) and the principal components `PC 1`, `PC 2`, ... A new column whose name the table already has, for example `PC 1` from an earlier PCA selected as a feature, gets a number: `PC 1_1`.
+    - `Table: PCA Components`: one row per data point, with the category columns, the original features (if included), the standardized features (if included, named `<feature>` / `standardized`, a header of two lines) and the principal components `PC 1`, `PC 2`, ... A new column whose name the table already has, for example `PC 1` from an earlier PCA selected as a feature, gets a number: `PC 1_1`.
     - `Table: PCA Explained`: for each component (`PC`), the fraction of the variance it explains (`explained var ratio`).
     - `Table: PCA Eigen`: one row per component, with the weight of each feature in that component.
 

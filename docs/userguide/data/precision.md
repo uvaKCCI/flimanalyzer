@@ -1,6 +1,6 @@
 # Adjusting Precision
 
-The `Precision` field in each table window sets the number of decimal places shown for numbers that are not whole numbers. It can be set from 1 to 10; the default is `3`, which shows these numbers with three decimal places.
+The `Precision` field in each table window sets the number of decimal places shown in columns of decimal numbers, also for the whole numbers in them (`2` shows as `2.000`). Columns of integers are not changed. It can be set from 1 to 10; the default is `3`, which shows three decimal places.
 
 ![](/images/data/precision.png)
 

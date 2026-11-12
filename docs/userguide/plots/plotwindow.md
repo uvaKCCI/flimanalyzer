@@ -35,7 +35,7 @@ Double-click parts of a plot to change them:
 - **A line,** such as a curve of a KDE plot or a line of a line plot: a color dialog opens. Choose the new color of the line.
 
 ```{note}
-Double-click editing is not available in plots of the `Heatmap` and `Pair Plot` tools. The navigation toolbar and saving work in all plot windows.
+Double-click editing is not available in plots of the `Heatmap` and `Pair Plot` tools, in the `Importance Score Plot` of `Random Forest` and in the `PCA Explained Plot` of `PCA`. The navigation toolbar and saving work in all plot windows.
 ```
 
 The changes apply only to the plot window. They are not kept when you run the tool again.

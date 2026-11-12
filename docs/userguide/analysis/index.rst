@@ -1,7 +1,7 @@
 Analysis
 ========
 
-`Summarize`, `Relative Change` and `KS-Statistics` can group the data by the values of category columns and analyze each group separately. You can group by one category column or by a combination of several. `Autoencoder: Train` uses the grouping to split the data into training and validation sets, and `Autoencoder: Augment Data` to number the copies' cells. `Series Analysis` and `Random Forest` show a `Grouping` setting, but it has no effect. The other analysis tools have no grouping. Category column headers have a light blue background. All other column headers are gray.
+`Summarize`, `Relative Change` and `KS-Statistics` can group the data by the values of category columns and analyze each group separately. You can group by one category column or by a combination of several. `Autoencoder: Train` uses the grouping to split the data into training and validation sets, and `Autoencoder: Augment Data` to number the copies' cells. `Scale` scales each group on its own. The other analysis tools, among them `Series Analysis` and `Random Forest`, have no `Grouping` setting. Category column headers have a light blue background. All other column headers are gray.
 
 .. image:: /images/data/dataframe.png
 

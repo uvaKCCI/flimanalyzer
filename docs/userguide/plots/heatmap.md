@@ -15,7 +15,7 @@ The `Heatmap` tool creates a heatmap of the correlations between the selected fe
 
 3. In the `Configuration: Heatmap` dialog, select the correlation method and the features. In the `Correlation` menu, choose `pearson`, `spearman` or `kendall`, whichever suits your data. The features are the columns with numbers, such as `FAD a1`. Check `Show values` to write each correlation value in its cell of the heatmap. Otherwise the heatmap shows the values only as colors.
 
-    The heatmap always uses all rows of the table, and its title is `Correlation`. (Until 0.6, the dialog showed `Grouping`, which had no effect on the correlations and only changed the title.)
+    The heatmap always uses all rows of the table, and its title is `Correlation`.
 
     In the example, the amplitudes and lifetimes of FAD and NAD(P)H, and FLIRR, are used, with `pearson` correlation and `Show values` checked.
 

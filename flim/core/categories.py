@@ -298,14 +298,14 @@ PRESET_FIELDS = ("column", "mode", "part", "delimiters", "names", "patterns", "t
 
 def separate_presets() -> list[dict]:
     """Return the built-in presets of Separate Categories: the filename parsers of
-    FLIMAnalyzer 0.6, as patterns on the `Source` column.
+    FLIMAnalyzer 0.6, as patterns on the whole value of the `Source` column.
 
     Returns:
         One dict per preset: its `name` and its `settings` (fields of
         `PRESET_FIELDS`).
     """
     return [
-        {"name": name, "settings": {"column": "Source", "mode": "pattern", "patterns": patterns}}
+        {"name": name, "settings": {"column": "Source", "mode": "pattern", "part": "value", "patterns": patterns}}
         for name, patterns in _PARSER_PATTERNS
     ]
 

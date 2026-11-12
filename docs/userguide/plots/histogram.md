@@ -27,7 +27,7 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data. By
     - `Density`: scales each histogram so that its area is 1 (with `Stacked`: the area of the whole stack), instead of showing percentages. The y axis is then labelled `density`.
     - `Binned data table`: also creates a table of the values of each bin, for each feature.
 
-    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (0: about as many rows as columns). Without `Single figure`, each feature gets its own figure.
+    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (default 5; 0: about as many rows as columns). Without `Single figure`, each feature gets its own figure.
 
     `Legend` sets where the legend is shown: `right`, `top`, `bottom` or `left` of the plots, `inside` a plot, or `none`. With `Single figure`, the tiles share one legend outside the plots. `Legend` appears with 1 or more grouping columns. See [Hidden settings](/userguide/dialogs.md#hidden-settings).
 

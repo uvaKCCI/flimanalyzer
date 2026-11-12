@@ -10,7 +10,7 @@ The *executor* decides where the tasks run. It is set with the option `-e`, in t
 | Dask on one computer | `-e dask-local[:workers=N,scheduler=threads\|processes,KEY=VALUE...]` | in a Dask cluster started on this computer, as processes or threads | the `dask` extra |
 | Dask cluster | `-e dask:address=URL[,KEY=VALUE...]` | on the workers of an existing Dask cluster, also on other computers | the `dask` extra |
 
-The executor's options follow its name after a colon, as `KEY=VALUE` pairs separated by commas. An unknown executor name, an option the executor doesn't have, or an invalid value is an error, and FLIMAnalyzer doesn't start. The executor can also be set with environment variables or in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
+The executor's options follow its name after a colon, as `KEY=VALUE` pairs separated by commas. An unknown executor name or an invalid value is an error, and FLIMAnalyzer doesn't start. For `local`, an option it doesn't have is an error too. The Dask executors pass options they don't have on to Dask (`KEY=VALUE` in the table above). The executor can also be set with environment variables or in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
 
 **Deprecated options.** The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`, and the option `-a`, `--execargs`, still work, but print a warning that shows the new form. `num_workers` is now `workers`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does. For example:
 

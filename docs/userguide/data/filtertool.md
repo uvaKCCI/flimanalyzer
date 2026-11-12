@@ -8,7 +8,7 @@ The `Filter` tool creates a new table with only the rows you want to keep: rows 
 
 The filters of the table window (see [Filtering Data](filter.md)) only hide rows in that window. The `Filter` tool instead creates a new table, `Table: Filtered`, and leaves the original table unchanged. Use it when the filtered rows should be saved, or used as the input of other tools and workflows.
 
-The range filters are the same as those of the table windows: a range you change in a table window's `Filter Settings` shows in the `Filter` dialog, and the other way round. The table windows' `Filter Data` switch does not affect the `Filter` tool, which always applies the filters checked in its dialog.
+The range filters are the same as those of the table windows: a range you change in a table window's `Filter Settings` shows in the `Filter` dialog, and the other way round. The `Filter` tool applies the filters checked in its dialog to the rows the table window shows. If the window's `Filter Data` is checked, or category values are hidden in the window, the rows it hides are not in the tool's input. This is the same for every tool started for that window.
 
 ## Filtering the Data
 
@@ -16,17 +16,19 @@ The range filters are the same as those of the table windows: a range you change
 
 2. Under `Category values to keep`, select a category column in the list on the left. Its values appear on the right, all checked. Uncheck the values whose rows should be dropped. Columns that filter rows are marked with `*`; columns you don't change keep all their rows.
 
-3. Under `Range filters`, check `Use` for the columns to filter and set their limits:
+3. Under `Range filters`, each row is a column with numeric values (`Feature`). Check `Use` for the columns to filter and set their limits:
     - `Low` and `High`: rows with a value below `Low` or above `High` are dropped. Rows with a value equal to a limit are kept. Leave a limit empty for no limit on that side.
     - `Drop missing` (checked by default): also drops rows that have no value in the column.
 
     `Low` can't be larger than `High`; the dialog marks such a row.
 
+    `Select All` and `Deselect All` check or uncheck `Use` for all columns. `Load Feature Settings...` and `Save Feature Settings...` load and save the limits of each column (see [Settings](/userguide/settings)).
+
     ![](/images/data/filtertool-config.png)
 
-4. Under `Other filters`, add conditions and further filters, one per row (`Add Row`, `Remove Rows`):
+4. Under `Other filters`, add conditions and further filters, one per row (`Add Other filter`, `Remove Other filters`):
     - `Use`: `no` switches the filter off.
-    - `Kind`: `expression` (the default for a new row), `range` or `category`. The cells the row's kind doesn't use are greyed out.
+    - `Kind`: `range` (the default for a new row), `category` or `expression`. The cells the row's kind doesn't use are greyed out.
     - `Expression`: a condition, written as in the [Calculate](/userguide/analysis/calculate.md#expressions) tool, for example `` `FAD tm` > 1000 & `FAD a1[%]` < 90 ``. Use `&` for and, `|` for or, and `~` for not. Rows with a missing value in a column of the condition are dropped.
     - `Column`, `Low`, `High`, `Drop missing` and `Values to keep`: a further range or category filter, for example a second range on a column that has one under `Range filters`. Separate the values to keep with commas.
 

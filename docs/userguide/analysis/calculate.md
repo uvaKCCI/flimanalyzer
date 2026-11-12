@@ -12,8 +12,8 @@ The `Calculate` tool adds new columns calculated from others, for example the me
 
     - `Add Calculation...` opens the calculation editor (see below); `OK` there adds the calculation to the list. `Edit...` (or a double click on a row) opens it for the selected calculation.
     - `Remove` removes the selected calculations; `Up` and `Down` move the selected one. The calculations are made from top to bottom, so a calculation can use the columns of those above it.
-    - `Load Presets...` lists the calculations that apply to the table: the built-in ones (those of `Import`, such as `FLIRR` and `NAD(P)H tm`) and the ones you saved, marked `(saved)`. A calculation applies if the table has the columns it uses and doesn't have its result yet. Check the ones to add and click `OK`. A calculation that needs another one's result, for example `NADH %`, which needs `NADPH %`, is offered if that one applies too, and is added after it.
-    - `Save as Presets` saves the selected calculations, so that `Load Presets...` offers them in later sessions; `Remove Presets...` removes saved ones. The built-in calculations can't be removed.
+    - `Load Presets...` lists the calculations that apply to the table: the built-in ones (those of `Import`, such as `FLIRR` and `NAD(P)H tm`) and the ones you saved, marked `(saved)`. A calculation applies if the table has the columns it uses and doesn't have its result yet. Check the ones to add and click `OK`. A calculation that needs another one's result, for example `NADH %`, which needs `NADPH %`, is offered if that one applies too, and is added after it. If you check only `NADH %`, `Load Presets...` adds `NADPH %` too, before it.
+    - `Save as Presets` saves the selected calculations, so that `Load Presets...` offers them in later sessions. A saved calculation with the same new column name is replaced; `Remove Presets...` removes saved ones. The built-in calculations can't be removed.
 
     **The calculation editor** first asks for the `Kind`, `expression` or `function`, and then shows only the fields of that kind:
 
@@ -32,7 +32,7 @@ The result is `Table: Calculated`, with the new columns after the existing ones.
 
 ## Expressions
 
-An expression is a formula of columns and numbers: `+`, `-`, `*`, `/`, `**` (power), comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`), `&` (and), `|` (or), `~` (not), parentheses, and the math functions `abs`, `sqrt`, `exp`, `expm1`, `log` (natural logarithm), `log1p`, `log10`, `sin`, `cos`, `tan`, `arcsin`, `arccos`, `arctan`, `arctan2`, `sinh`, `cosh`, `tanh`, `arcsinh`, `arccosh` and `arctanh`. Type the column names as they are in the table, also with spaces or brackets. For example:
+An expression is a formula of columns and numbers: `+`, `-`, `*`, `/`, `//` (division rounded down), `%` (remainder), `**` (power), comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`), `&` (and), `|` (or), `~` (not), also written `and`, `or` and `not`, parentheses, and the math functions `abs`, `sqrt`, `exp`, `expm1`, `log` (natural logarithm), `log1p`, `log10`, `sin`, `cos`, `tan`, `arcsin`, `arccos`, `arctan`, `arctan2`, `sinh`, `cosh`, `tanh`, `arcsinh`, `arccosh` and `arctanh`. Type the column names as they are in the table, also with spaces or brackets. For example:
 
 - `NAD(P)H a2[%] / FAD a1[%]`: the FLIRR.
 - `log(NAD(P)H tm / FAD tm)`: the logarithm of a ratio.
@@ -57,4 +57,4 @@ A function calculates a value from the values of its argument columns, row by ro
 | `trp_Eperc_3` | trp t1 | `const` (default 3100) | (1 − t1 / const) × 100 |
 | `trp_r` | trp E% | | the distance, 2.1 × (100 / E% − 1)^(1/6); missing for E% outside 0 to 100 |
 
-The default rows are the calculations of the built-in `Import` workflow: `NAD(P)H tm`, `trp tm` and `FAD tm`, the a2/a1 and a1/a2 ratios, `NADPH %`, `NADH %`, `NADPH/NADH`, the tryptophan FRET efficiencies and distances, `FAD photons/NAD(P)H photons`, `NAD(P)H tm/FAD tm`, `FLIRR` and `NADPH a2/FAD a1`. Rows whose columns are not in the table, for example the tryptophan rows for data without a tryptophan channel, are skipped.
+The built-in presets of `Load Presets...` are the calculations of the built-in `Import` workflow: `NAD(P)H tm`, `trp tm` and `FAD tm`, the a2/a1 and a1/a2 ratios, `NADPH %`, `NADH %`, `NADPH/NADH`, the tryptophan FRET efficiencies and distances, `FAD photons/NAD(P)H photons`, `NAD(P)H tm/FAD tm`, `FLIRR` and `NADPH a2/FAD a1`. The dialog opens with an empty `Calculations` list; `Load Presets...` adds these calculations. It offers only those whose columns are in the table, so for data without a tryptophan channel, for example, the tryptophan calculations are not offered.

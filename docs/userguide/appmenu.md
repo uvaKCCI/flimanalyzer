@@ -5,6 +5,7 @@ The tool panel, the main window of FLIMAnalyzer, has a group of icons for each m
 ## File
 
 * `Open Tables...` opens data files, each in a table window; `Import Tables...` reads data files and runs a workflow on the tables. See [Loading Data](/userguide/data/load).
+* Below `Import Tables...`: the workflow files tagged `file`, in submenus named after their other tags (see [Workflow files](/userguide/workflows.md#workflow-files)).
 * `Save All Windows...` saves all open tables and plots at once. See [Saving all windows](/userguide/data/save.md#saving-all-windows).
 * `Import Settings...` and `Export Settings...` load and save all settings: the range filters and the settings of each tool. See [Settings](/userguide/settings).
 * `Favorites...` chooses the tools and workflows the tool panel shows, and their order: check them and move them with `Up` and `Down`. The tool panel then shows only them, each in the group of its menu, in the order you chose; groups without favorites are left out, and `File` always shows `Open Tables` and `Import Tables`. A workflow file's icon goes to the group one of its tags names, for example `file` for the File group, otherwise to `Workflow` (see [Workflow files](/userguide/workflows.md#workflow-files)). With none checked, it shows all tools, grouped by menu, without the workflow files (built-in or your own): they are in the `Workflow` menu, and in the tool panel only as favorites. The GUI writes your choice to the user settings file (`favorites`, see [Settings](/userguide/settings)); the menus always list all tools.
@@ -32,6 +33,10 @@ The `Plot` menu has the plots. See [Plots](/userguide/plots/index).
 ## Workflow
 
 The `Workflow` menu runs several tools in one go. See [Workflows](/userguide/workflows).
+
+* The workflows made in code, such as `Basic FLIRR Analysis`.
+* The workflow files, in submenus named after their tags, for example `Import` for the built-in `Import` workflow; files without tags are in `Workflow Files`. Workflow files tagged `data`, `analysis` or `plot` are in submenus of that menu instead (see [Workflow files](/userguide/workflows.md#workflow-files)).
+* `Run Workflow File...`, the last entry: runs a workflow file you choose on the table of the current window (see [Running a workflow file in the GUI](/userguide/workflows.md#running-a-workflow-file-in-the-gui)).
 
 The tools of the `Data`, `Analysis`, `Plot` and `Workflow` menus are always available. They open their dialog (see [Tool dialogs](/userguide/dialogs)) once a table window is open; without one, a message asks you to open or import data first.
 

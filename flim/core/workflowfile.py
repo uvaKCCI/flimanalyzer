@@ -15,7 +15,7 @@ A step's `inputs` refer to earlier steps' outputs: `"4.1"` (output 1 of step 4),
 read from files, or open tables). A step without `inputs` takes output 1 of the step
 before it; the first step takes the run's tables. The outputs of a step are numbered
 from 1 in the order its
-tool returns them. `outputs` optionally names them, as a check. `save` saves a step's
+tool returns them. `outputs` optionally names them (for readers; not checked). `save` saves a step's
 outputs (`true`) or some of them (`["2.1"]`). `processing` says how much of its
 settings a step must apply to the data: `require_all` (default), `allow_partial` (at
 least one part) or `allow_none`.
@@ -58,7 +58,7 @@ class WorkflowStep(BaseModel):
     )
     config: dict = Field(default={}, description="The tool's settings; {}: its defaults.")
     outputs: dict[str, str] = Field(
-        default={}, description="The names of the outputs by number, as a check."
+        default={}, description="Names of the outputs by number, for readers; not checked."
     )
     save: Union[bool, list[str]] = Field(
         default=False, description="Save the step's outputs, or those listed."

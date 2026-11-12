@@ -24,7 +24,7 @@ The `Series Analysis` tool analyzes a series of values that is spread across sev
     * `delta_cum`: the running total of the differences, starting from the first column.
     * `delta_norm`: each difference divided by the total change from the first to the last column.
 
-    Under `Features`, select the columns of the series (e.g. `FAD a1[%]` of `ctrl` through `Dox60`). You must select at least one. The series follows the order of the columns in the table, not the order in which you check them.
+    Under `Features`, select the columns of the series (e.g. `FAD a1[%]` of `ctrl` through `Dox60`). You must select at least two. The series follows the order of the columns in the table, not the order in which you check them.
 
     `Include the input` (unchecked by default) also copies the series' columns into the result.
 

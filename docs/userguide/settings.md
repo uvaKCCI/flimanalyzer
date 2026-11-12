@@ -60,6 +60,8 @@ The app settings search path is, in this order:
 2. Otherwise, the folders listed in `appsettings_path` in the user settings file.
 3. Otherwise, the folder `appsettings` in the platform's settings folder, for example `~/Library/Application Support/FLIMAnalyzer/appsettings` on macOS.
 
+`flimbatch` reads no user settings file, so it never uses `appsettings_path`: it searches the folders of `FLIM_APP_SETTINGS_PATH`, or else the default folder.
+
 ### Choosing an app settings file at startup
 
 If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI asks which app settings file to start with. The table lists the `.json` files in the folders of the app settings search path, and your default app settings file if you have set one, with their folders; the default has a check mark. `OK` starts with the selected file, and `Skip App Settings` (or Esc) starts without one. With a default, its row is selected, so pressing Enter starts with it; without one, no row is selected and Enter skips. If there are no files and no default, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`.
@@ -92,6 +94,7 @@ These environment variables set the same settings as the command-line options. T
 | `FLIM_CACHE_DIR` | cache folder setting, as `--cache-dir` |
 | `FLIM_STRICT` | `true` or `false`, as `--strict` or `--no-strict` |
 | `FLIM_APP_SETTINGS_PATH` | the app settings search path (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder |
+| `FLIM_WORKFLOW_PATH` | the folders searched for workflow files (see [Workflow files](/userguide/workflows.md#workflow-files)), instead of `workflow_paths` and the default folder |
 | `FLIM_USER_SETTINGS` | path of the user settings file (GUI) |
 
 For example, on macOS and Linux:
@@ -106,7 +109,7 @@ flimbatch -i data/ -o results/ -s settings.json --run Summarize
 
 **Menu Access:** `File` > `Export Settings...` and `File` > `Import Settings...`
 
-`Export Settings...` saves all current settings to a file. If the file's folder isn't in the app settings search path yet, it then asks whether to add it to `appsettings_path` in your user settings file, so that the GUI lists the file at startup and `-s` finds it by name. While `appsettings_path` is empty, the default folder is kept in the search path when a folder is added. The question doesn't appear while `FLIM_APP_SETTINGS_PATH` is set, because it replaces `appsettings_path`. It includes the settings of every installed tool, with the tool's defaults if you haven't changed them, so that the file gives the same settings in a later FLIMAnalyzer version, even if the defaults change there. `appsettings_path` is not saved: it only has an effect in the user settings file. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
+`Export Settings...` saves all current settings to a file. If the file's folder isn't in the app settings search path yet, it then asks whether to add it to `appsettings_path` in your user settings file, so that the GUI lists the file at startup and `-s` finds it by name. While `appsettings_path` is empty, the default folder is kept in the search path when a folder is added. The question doesn't appear while `FLIM_APP_SETTINGS_PATH` is set, because it replaces `appsettings_path`. The saved file includes the settings of every installed tool, with the tool's defaults if you haven't changed them, so that the file gives the same settings in a later FLIMAnalyzer version, even if the defaults change there. `appsettings_path` is not saved: it only has an effect in the user settings file. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
 
 You can import settings files from this and older FLIMAnalyzer versions, including FLIMAnalyzer 0.5 (see [Settings files from older versions](#settings-files-from-older-versions)). Settings are always saved in the current format.
 
@@ -180,11 +183,11 @@ Some tools have a table with a row for each feature, for example the table of ra
 * `strict`: workflows: `true` makes columns that are not in the data errors; `false` replaces them by the closest matching column. A workflow's own `Strict` setting takes precedence. If it is not set (`null`), missing columns are guessed in the GUI, where the guesses are shown before the run, and are errors in `flimbatch`.
 * `appsettings_path`: the folders searched for app settings files. It is read from the user settings file (see [App settings files](#app-settings-files)).
 * `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it, `appsettings_path` and `workflow_paths` out.
-* `workflow_paths`: the folders searched for workflow files (see [Workflow files](/userguide/workflows.md#workflow-files)). It is read from the user settings file.
+* `workflow_paths`: the folders searched for workflow files (see [Workflow files](/userguide/workflows.md#workflow-files)). It is read from the user settings file, and from an app settings file, which takes precedence. `flimbatch` reads no user settings file, so it uses only that of the `-s` file.
 * `favorites`: the names of the tools and workflows the tool panel shows, in order (see [Menus](/userguide/appmenu)). Empty: all tools. The GUI writes it to the user settings file with `File` > `Favorites...`; an app settings file can set it, for example for a course, and the user settings file takes precedence.
 * `calculation_presets`: the calculations saved in the `Calculate` dialog with `Save as Presets` (see [Calculate](/userguide/analysis/calculate.md)); the GUI writes them to the user settings file.
 * `separate_presets`: the presets saved in the `Separate Categories` dialog with `Save as Preset...` (see [Separate Categories](/userguide/data/separate.md#presets)); the GUI writes them to the user settings file.
-* `max_windows`: per kind of result, the most windows a run in the GUI may open, by default `{"table": 10, "plot": 10, "image": 4}`; a run that would open more doesn't start (see [Import Data Files](/userguide/data/load.md#import-tables)). The GUI doesn't change it; set it in an app settings file.
+* `max_windows`: per kind of result, the most windows that a run of `Import Tables` or of a workflow file in the GUI may open, by default `{"table": 10, "plot": 10, "image": 4}`; such a run that would open more doesn't start (see [Import Tables](/userguide/data/load.md#import-tables)). Other tools and workflows are not limited. The GUI doesn't change it; set it in an app settings file.
 * `filters`: whether the table windows filter their rows (`use`, also used by `flimbatch` after the import) and show the dropped rows (`show_dropped`). The filters themselves are the settings of the `Filter` tool, in `tools` (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
 * `tools`: each tool has its own section, named after the tool, with its settings (`config`) and its `autosave` section: whether its results are saved (`enabled`), in which folder (`results_dir`), and in which formats (`formats`, one entry per format with its `kind` and `format`, for example `{"kind": "table", "format": "csv"}`; a kind not listed is saved in its default format).
 

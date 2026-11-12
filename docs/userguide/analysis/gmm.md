@@ -17,11 +17,11 @@ Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters
     - `Method`: `EM` (expectation maximization, default) fits a model with exactly the number of components (clusters) you set. `Variational Bayesian` treats that number as a maximum. It can leave some components empty or nearly empty, so it may find fewer clusters.
     - `Components`: the number of clusters (for `Variational Bayesian`: the maximum number). The default is 2.
     - `Covariance`: the shape of the clusters (default `full`).
-    - `Standardize input` (unchecked by default): scale each feature to a mean of 0 and a standard deviation of 1 over the table before fitting, as `PCA` and `K-Means` do by default. Standardizing matters when features have very different ranges, especially for the `spherical` covariance. The covariance tables then say `(standardized)` in their names, because their values are in standardized units.
         - `full`: each cluster has its own shape and orientation.
         - `tied`: all clusters share the same shape.
         - `diag`: each cluster has its own shape, aligned with the feature axes.
         - `spherical`: round clusters, each with its own size.
+    - `Standardize input` (unchecked by default): scale each feature to a mean of 0 and a standard deviation of 1 over the table before fitting, as `PCA` and `K-Means` do by default. Standardizing matters when features have very different ranges, especially for the `spherical` covariance. The covariance tables then say `(standardized)` in their names, because their values are in standardized units.
     - `Random seed`: with a number (default 0), every run gives the same results. Leave it empty for different results on every run.
 
     ![](/images/analysis/gmm-config.png)

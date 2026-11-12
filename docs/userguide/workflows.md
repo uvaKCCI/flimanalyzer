@@ -2,11 +2,11 @@
 
 A workflow runs several tools in one go, for example to make summaries, relative changes and plots of the same features. Each tool is a step of the workflow. The workflow's dialog has the settings that the steps share, such as the grouping and the features, and passes them on to the steps. The controls that all dialogs have are described in [Tool dialogs](/userguide/dialogs).
 
-Steps that don't depend on each other run concurrently, without waiting for each other. A [progress dialog](#the-progress-dialog) lists the steps while they run, and `Cancel` stops the workflow. When the workflow finishes, a window `<workflow name> Graph`, for example `Basic FLIRR Analysis Graph`, shows the steps in blue and the data and results passed between them in red. Failed steps have a dark red outline, and skipped steps are faded. Then the [run summary](#the-run-summary) says how the run ended.
+Steps that don't depend on each other run concurrently, without waiting for each other. A [progress dialog](#the-progress-dialog) lists the steps while they run, and `Cancel` stops the workflow. When a workflow made in code finishes, a window `<workflow name> Graph`, for example `Basic FLIRR Analysis Graph`, shows the steps in blue and the data and results passed between them in red. Failed steps have a dark red outline, and skipped steps are faded. A [workflow file](#workflow-files) opens no graph window. Then the [run summary](#the-run-summary) says how the run ended.
 
 ## Results
 
-Workflows always save their results; `Save results` is always checked in their dialogs. The results are not opened in windows.
+Workflows always save their results; `Save results` is always checked in their dialogs. The workflows made in code, such as `Basic FLIRR Analysis`, open no windows for their results. A workflow file saves only the results of the steps marked `save`, and opens windows for the results of its last steps (see [Results of a workflow file](#results-of-a-workflow-file)).
 
 Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results`. For example: `results/Basic FLIRR Analysis/2026-11-03_14-05-31/`. Steps that are run several times with different settings, for example the training of each model in the autoencoder workflows, save their results in subfolders of this folder, named after these settings. The other steps save their results directly in the folder. The files are saved as described in [Saving results](/userguide/dialogs.md#saving-results).
 
@@ -71,16 +71,18 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
 ```
 
 * `name`: the workflow's name. Workflow files are found by it, like tools: `flimbatch --run "calc and aggregate"`. It must differ from every tool's and workflow's name (case is ignored); a file whose name is taken is not loaded, and the log says why.
+* `description` (optional): what the workflow does. It is shown with the steps before a run, and as the text at the top of its dialog.
 * `tags` (optional): words that group the workflow, for example `["file", "import"]`.
     * `File` > `Import Tables...` lists the workflow files tagged `import` (see [Import Tables](/userguide/data/load.md#import-tables)).
     * A tag that names a menu (`file`, `data`, `analysis`, `plot` or `workflow`; case is ignored) puts the workflow in that menu, and its icon in that group of the tool panel when it is a favorite (see [Menus](/userguide/appmenu)). Without such a tag, it is in the `Workflow` menu and group.
-    * In its menu, the workflow is in a submenu named after its first other tag (for example `Import`, or `Summaries` for `"summaries"`); without one, in the submenu `Workflow Files`. The built-in ones are in `Workflow` > `Import`.
+    * In its menu, the workflow is in a submenu named after its first other tag (for example `Import`, or `Summaries` for `"summaries"`); without one, in the submenu `Workflow Files`. The built-in workflow file is in `Workflow` > `Import`.
 * `autosave`: the formats the results are saved in (`formats`, as in the settings, see [Settings](/userguide/settings)).
 * `steps`, each with:
     * `id`: an identifier that never changes, for example a number.
-    * `tool`: the tool's name, as in the menus.
+    * `tool`: the tool's name, as in the menus. A step can't be a workflow.
     * `inputs` (optional): which tables the step gets: `"4.1"` is output 1 of step 4 (`"4"` the same), `"input"` the tables the run starts from. Without `inputs`, a step gets output 1 of the step before it; the first step gets the run's tables. A step may only use the outputs of steps listed before it. The outputs of a step are numbered from 1 in the order its tool makes them.
-    * `config`: the tool's settings, as in a settings file's `tools` section (see [Settings](/userguide/settings)); `{}` uses the tool's defaults.
+    * `config`: the tool's settings: the `config` part of the tool's section in a settings file's `tools` section, without `autosave` (see [Settings](/userguide/settings)); `{}` uses the tool's defaults.
+    * `outputs` (optional): names for the step's outputs, by number, for example `{"1": "Table: Summary"}`. FLIMAnalyzer reads them but doesn't use them.
     * `save` (default `false`): `true` saves the step's outputs, or a list such as `["3.1"]` saves some of them. Only these are saved.
     * `processing`: how much of its settings a step must apply to the data. `require_all` (the default): every part, or the step fails. `allow_partial`: what applies is done and the rest is skipped with a warning, but at least one part must apply. `allow_none`: the step may apply nothing, and the table passes on unchanged. Parts are, for example, Rename Columns' replacements, Drop Columns' rules, Calculate's calculations and Filter's filters. The run summary lists what each step skipped.
 
@@ -90,7 +92,29 @@ Before a run, the file is checked: the ids, that every step only uses earlier st
 
 **The built-in workflow file.** `Import` processes the tables as `File` > `Import...` did up to FLIMAnalyzer 0.6 with the default filename parser: it renames and drops the channels' columns, joins the tables and calculates the FLIM features. It is tagged `import`: `File` > `Import Tables...` lists it, and it is in `Workflow` > `Import`. To take categories from the file names in the same run, copy it from FLIMAnalyzer's folder `flim/workflow/files` into your workflows folder, give it another `name` and add a Separate Categories step with the patterns of a preset (see [Separate Categories](/userguide/data/separate.md#presets)).
 
-**Where workflow files are found:** the built-in ones, and the files in the folders of `workflow_paths` in the user settings file (default: the folder `workflows` in the platform's settings folder, next to `usersettings.json`). The environment variable `FLIM_WORKFLOW_PATH` (folders separated by `:`, or `;` on Windows) takes precedence. `--workflow` takes a path, or the name of a file in these folders.
+**Where workflow files are found:** the built-in one, and the files in the folders of the workflow search path. This is, in this order:
+
+1. The folders in the environment variable `FLIM_WORKFLOW_PATH`, if it is set (separated by `:`, or `;` on Windows). They replace the other folders.
+2. Otherwise, the folders of `workflow_paths` in the settings: in the GUI, from the user settings file or the app settings file; in `flimbatch`, which reads no user settings file, only from the `-s` file.
+3. Otherwise, the folder `workflows` in the platform's settings folder, next to `usersettings.json`.
+
+`--workflow` takes a path, or the name of a file in these folders.
+
+## Running a workflow file in the GUI
+
+There are three ways to run a workflow file in the GUI:
+
+* `File` > `Import Tables...` reads data files and runs the workflow chosen under `Workflow` on their tables (see [Import Tables](/userguide/data/load.md#import-tables)). `None (open the tables)`, the default, runs no workflow. `Other Workflow File...` runs a workflow file you choose, also one that is not in the workflow search path.
+* The workflow's own entry in the menus, in the submenu its tags name (see `tags` above). Its dialog lists the open tables under `Tables`: check the tables to run it on. `Save results` is checked and can't be unchecked. The folder and the formats start with the default results folder and the formats of the file's `autosave` section; the run saves in the folder and the formats you choose there. The dialog doesn't keep them for the next time.
+* `Workflow` > `Run Workflow File...`: choose a workflow file. It runs on the table of the current window, with the rows that window shows. FLIMAnalyzer first shows the workflow's description and steps; click `Run`. The results are saved in the default results folder, in the formats of the file's `autosave` section.
+
+Before the run, every step is checked against the columns of the tables. If a step names a column that the tables don't have, the run doesn't start, and a message lists the problems. If the run would open more windows than the app setting `max_windows` allows (see [Settings](/userguide/settings.md#layout-of-a-settings-file)), it doesn't start either; the message suggests running it with `flimbatch`, or adding a step that joins the tables, for example `Concatenate`.
+
+## Results of a workflow file
+
+A workflow file's run saves its results in `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results`. Only the results of the steps marked `save` are saved, in the formats of the file's `autosave` section or those chosen in its dialog.
+
+When the run ends, a window opens for each result that no later step uses, for example the joined table of `Import`. Results that a step saved open as saved. The run summary shows how the run ended and where the results are. A workflow file opens no graph window.
 
 ## Basic FLIRR Analysis
 

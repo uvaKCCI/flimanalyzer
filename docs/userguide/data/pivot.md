@@ -16,9 +16,9 @@ Say you want to see how `FAD a1[%]` and `NAD(P)H a2[%]` change for each cell ove
 
 1. In the table window, click `Pivot...`, or select `Data` > `Pivot`. The dialog uses only the rows that the table window shows; rows hidden by filters are left out. From the table window, the dialog opens with that window's table selected.
 
-2. Under `Columns to pivot`, select `Treatment`. The list shows the table's category columns.
+2. Under `Columns to pivot`, select `Treatment` (the default). The list shows the table's category columns.
 
-3. Under `Features`, select the numeric columns of interest, for example `FAD a1[%]` and `NAD(P)H a2[%]`.
+3. Under `Features`, select the numeric columns of interest, for example `FAD a1[%]` and `NAD(P)H a2[%]`. By default, all numeric columns are used. Text columns that are not category columns, such as `Source`, are left out of the result.
 
 4. Click `OK`.
 

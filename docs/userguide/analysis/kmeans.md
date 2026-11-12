@@ -21,7 +21,7 @@ The `K-Means` tool finds groups of similar data points (clusters). By default it
     - `Algorithm`: `lloyd` (default, the classic algorithm) or `elkan` (faster when the clusters are well separated, but uses more memory).
     - `Runs`: how many times the clustering is run, each time with different starting centers (default 4). The best result is kept.
     - `Max iterations`: the maximum number of steps in each run (default 300).
-    - `Tolerance`: a run stops when the cluster centers of the standardized features change by less than this amount from one step to the next (default 0.0001).
+    - `Tolerance`: a run stops when the cluster centers change by less than this amount from one step to the next (default 0.0001). With `Standardize input` checked, this is in standardized units; unchecked, in the units of the features.
     - `Random seed`: with a number (default 0), every run gives the same clusters. Leave it empty for different clusters on every run.
     - `Threads`, in the `Resources` section: see [Resources](/userguide/dialogs.md#resources).
 

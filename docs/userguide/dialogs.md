@@ -49,7 +49,7 @@ The results are saved in a new folder for each run, named after the date and tim
 
 The file names are made from the result names; characters that can't be used in file names are replaced, for example `Table: Summary` becomes `Table_Summary.txt`. The folder of the run also gets a file `run_summary.txt`. It lists when the run started and finished, the settings files used (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)), and the status and message of each task. A task's message is also how a tool reports a warning: the task is completed, but something in the data needs attention (for example, `Concatenate` pairing rows that don't match). The GUI shows such warnings after the run.
 
-Results are also shown in their own windows, whether they are saved or not. Workflows always save their results, in a folder of their own; there, `Save results` can't be unchecked (see [Workflows](/userguide/workflows)).
+Results of tools are also shown in their own windows, whether they are saved or not. Workflows always save their results, in a folder of their own; there, `Save results` can't be unchecked (see [Workflows](/userguide/workflows)). A workflow file saves only the results of the steps marked `save` (see [Results of a workflow file](/userguide/workflows.md#results-of-a-workflow-file)).
 
 While a tool runs with `Save results` checked, the progress dialog shows the results folder. If you cancel a run while `Save results` is unchecked, the run summary says "No results were saved because Save results is off." (see [The run summary](/userguide/workflows.md#the-run-summary)).
 
@@ -110,6 +110,6 @@ The GUI also saves these settings to the user settings file, so they apply again
 
 Each table and plot that a tool makes opens in its own window. The window title is the type of the result and its name, for example `Table: Summary`, or `Plot: <name>` for a plot. If a window with that title is already open, a number is added, for example `Table: Summary-1`. The [`Window` menu](/userguide/appmenu.md#window) lists all windows.
 
-Workflows don't open windows for their results. Their results are saved in the results folder (see [Workflows](/userguide/workflows)).
+The workflows made in code, such as `Basic FLIRR Analysis`, don't open windows for their results. Their results are saved in the results folder (see [Workflows](/userguide/workflows)). A workflow file opens a window for each result of its last steps (see [Results of a workflow file](/userguide/workflows.md#results-of-a-workflow-file)).
 
 While a tool runs, a progress dialog shows its tasks (see [The progress dialog](/userguide/workflows.md#the-progress-dialog)).
