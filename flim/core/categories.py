@@ -10,7 +10,8 @@ survive the round trip, e.g. a delimiter inside a value.
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Optional
+from collections.abc import Iterable
+from typing import Any, Optional
 
 import pandas as pd
 
@@ -33,13 +34,19 @@ class Result:
     warnings: list = field(default_factory=list)
 
 
-def _listed(values) -> str:
+def _listed(values: Iterable[Any]) -> str:
+    """Return the first `SHOWN` values as text, and how many more there are."""
     values = list(values)
     shown = ", ".join(repr(v) for v in values[:SHOWN])
     return shown + (f" and {len(values) - SHOWN} more" if len(values) > SHOWN else "")
 
 
-def fuse(data: pd.DataFrame, columns, delimiter: str = DELIMITER, name: Optional[str] = None) -> Result:
+def fuse(
+    data: pd.DataFrame,
+    columns: Iterable[str],
+    delimiter: str = DELIMITER,
+    name: Optional[str] = None,
+) -> Result:
     """Join category columns into one category column.
 
     A row with a missing value in one of the columns gets a missing value. The new
@@ -49,8 +56,9 @@ def fuse(data: pd.DataFrame, columns, delimiter: str = DELIMITER, name: Optional
     Args:
         data: The table.
         columns: The category columns, in order.
-        delimiter: Joins the column names and the values.
-        name: The new column's name; default: the column names joined by the delimiter.
+        delimiter: Joins the column names and the values. Defaults to `:`.
+        name: The new column's name; None or empty for the column names joined by
+            the delimiter.
 
     Returns:
         The new column, and warnings where the delimiter occurs in a column name or a
@@ -100,8 +108,10 @@ def fuse(data: pd.DataFrame, columns, delimiter: str = DELIMITER, name: Optional
 
 
 def _decoded(value: str) -> str:
-    """A `file://` URI (e.g. a Source value) as its path, with `%20` etc. decoded;
-    other values as they are."""
+    """Return a `file://` URI (e.g. a Source value) as its path, other values as is.
+
+    Escapes such as `%20` in the URI are decoded.
+    """
     if not value.startswith("file:"):
         return value
     from urllib.parse import unquote, urlparse
@@ -114,8 +124,14 @@ def _decoded(value: str) -> str:
 
 
 def _part(values: pd.Series, part: str) -> pd.Series:
-    """Return the part of each value to separate: the value, its file name, or its
-    file name without the extension."""
+    """Return the part of each value to separate.
+
+    The part is the value, its file name, or its file name without the extension;
+    `file://` URIs are taken as their paths.
+
+    Raises:
+        ValueError: If `part` is not one of `PARTS`.
+    """
     if part not in PARTS:
         raise ValueError(f"unknown part {part!r}: use {', '.join(PARTS)}")
     texts = values.astype("string").map(lambda v: v if pd.isna(v) else _decoded(v))
@@ -130,15 +146,15 @@ def _part(values: pd.Series, part: str) -> pd.Series:
 def separate(
     data: pd.DataFrame,
     column: str,
-    delimiters=(DELIMITER,),
-    names=(),
+    delimiters: Iterable[str] = (DELIMITER,),
+    names: Iterable[str] = (),
     part: str = "value",
 ) -> Result:
     """Separate a category column into several, at delimiters.
 
-    Any of the delimiters separates. A value with more or fewer parts than names is
-    not separated (missing values in its row) and is named in a warning, so no part
-    lands in the wrong column.
+    Any of the delimiters separates; empty delimiters are ignored. A value with more
+    or fewer parts than names is not separated (missing values in its row) and is
+    named in a warning, so no part lands in the wrong column.
 
     Args:
         data: The table.
@@ -147,10 +163,13 @@ def separate(
         names: The new columns' names by position; an empty name skips that part.
             Empty: the column name separated the same way (e.g. `FOV:Cell`).
         part: Which part of the values: `value`, `file name` or `file name without
-            extension`.
+            extension`. Defaults to `value`.
 
     Returns:
         The new columns, and warnings.
+
+    Raises:
+        ValueError: If no delimiter is given, or `part` is not known.
     """
     delimiters = [d for d in delimiters if d]
     if not delimiters:
@@ -174,9 +193,15 @@ def separate(
     return result
 
 
-def separate_by_patterns(data: pd.DataFrame, column: str, patterns, part: str = "value") -> Result:
-    """Take parts of a category column's values by patterns, as the filename parser
-    does: per pattern, the first group of its regular expression's first match.
+def separate_by_patterns(
+    data: pd.DataFrame,
+    column: str,
+    patterns: Iterable[tuple[str, str]],
+    part: str = "value",
+) -> Result:
+    """Take parts of a category column's values by patterns, as the filename parser.
+
+    Per pattern, the part is the first group of its regular expression's first match.
 
     A group that matches nothing gives `?`; a value the pattern does not match gives a
     missing value. Backslashes in the values are matched as `/`, so path patterns work
@@ -186,13 +211,14 @@ def separate_by_patterns(data: pd.DataFrame, column: str, patterns, part: str = 
         data: The table.
         column: The category column.
         patterns: (new column name, regular expression) pairs, in order.
-        part: Which part of the values (see `separate`).
+        part: Which part of the values (see `separate`). Defaults to `value`.
 
     Returns:
         The new columns, and a warning per pattern that matched no value.
 
     Raises:
-        ValueError: If a pattern is not a valid regular expression, or has no group.
+        ValueError: If a pattern is not a valid regular expression, or has no group,
+            or `part` is not known.
     """
     result = Result()
     texts = _part(data[column], part).map(lambda v: v if pd.isna(v) else v.replace("\\", "/"))
@@ -204,7 +230,7 @@ def separate_by_patterns(data: pd.DataFrame, column: str, patterns, part: str = 
         if compiled.groups < 1:
             raise ValueError(f"{name}: '{regex}' has no group (...) to take")
 
-        def take(value):
+        def take(value: Any) -> Optional[str]:
             if pd.isna(value):
                 return None
             match = compiled.search(value)
@@ -257,9 +283,12 @@ def template_regex(template: str) -> tuple[re.Pattern, list[str]]:
     return re.compile(f"^{regex}$"), names
 
 
-def separate_by_template(data: pd.DataFrame, column: str, template: str, part: str = "value") -> Result:
-    """Separate a category column into several by a template of its values (see
-    `template_regex`).
+def separate_by_template(
+    data: pd.DataFrame, column: str, template: str, part: str = "value"
+) -> Result:
+    """Separate a category column into several by a template of its values.
+
+    The template is turned into a regular expression by `template_regex`.
 
     A value that doesn't fit the template is not separated (missing values in its
     row) and is named in a warning.
@@ -268,13 +297,14 @@ def separate_by_template(data: pd.DataFrame, column: str, template: str, part: s
         data: The table.
         column: The category column.
         template: The layout of the values, e.g. `Results-{FOV}-{Treatment}_{Cell}`.
-        part: Which part of the values (see `separate`).
+        part: Which part of the values (see `separate`). Defaults to `value`.
 
     Returns:
         The new columns, and warnings.
 
     Raises:
-        ValueError: If the template is not valid (see `template_regex`).
+        ValueError: If the template is not valid (see `template_regex`), or `part`
+            is not known.
     """
     regex, names = template_regex(template)
     result = Result()
@@ -297,8 +327,10 @@ PRESET_FIELDS = ("column", "mode", "part", "delimiters", "names", "patterns", "t
 
 
 def separate_presets() -> list[dict]:
-    """Return the built-in presets of Separate Categories: the filename parsers of
-    FLIMAnalyzer 0.6, as patterns on the whole value of the `Source` column.
+    """Return the built-in presets of Separate Categories.
+
+    The presets are the filename parsers of FLIMAnalyzer 0.6, as patterns on the
+    whole value of the `Source` column.
 
     Returns:
         One dict per preset: its `name` and its `settings` (fields of

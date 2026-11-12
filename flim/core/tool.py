@@ -4,9 +4,9 @@ A tool is called with its inputs and a config::
 
     results = Summarize()(table, config=SummaryConfig(grouping=["Treatment"]))
 
-Inside :func:`flim.core.runner.run_flow` the call becomes a Prefect task and returns a
-:class:`~flim.core.runner.TaskOutput` handle; outside a flow it returns the results.
-Results are keyed by display name (``"Table: Summary"``), with the config's prefix.
+Inside `flim.core.runner.run_flow` the call becomes a Prefect task and returns a
+`flim.core.runner.TaskOutput` handle; outside a flow it returns the results.
+Results are keyed by display name (`Table: Summary`), with the config's prefix.
 """
 
 import contextlib
@@ -17,12 +17,15 @@ import sys
 import threading
 import typing
 from dataclasses import dataclass, field, replace
-from typing import Any, ClassVar, Generic, Optional, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Sequence, TypeVar
 
 from flim.core.config import Issue, TaskConfig, column_references, requirement_issues
 from flim.core.registry import API_VERSION
 from flim.core.schema import TableSchema
 from flim.core.types import DataType, InputSpec, OutputSpec, TableType
+
+if TYPE_CHECKING:
+    from flim.core.runner import TaskOutput
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +36,16 @@ ConfigT = TypeVar("ConfigT", bound=TaskConfig)
 pyplot_lock = threading.RLock()
 
 
-def release_figures(results):
-    """Removes result figures from pyplot's registry, which keeps every figure it
-    created until it is closed. The figures stay usable (saving, showing)."""
+def release_figures(results: Any) -> None:
+    """Remove the result figures from pyplot's registry.
+
+    pyplot keeps every figure it created until the figure is closed. The figures
+    stay usable (saving, showing). Does nothing if pyplot is not imported.
+
+    Args:
+        results: The results of a task, keyed by name; values that are not
+            matplotlib figures, and results that are not a dict, are ignored.
+    """
     if not isinstance(results, dict) or "matplotlib.pyplot" not in sys.modules:
         return
     import matplotlib.figure
@@ -48,7 +58,7 @@ def release_figures(results):
 
 
 class TaskCancelled(Exception):
-    """Raised by :meth:`Tool.cancel` to stop the running task.
+    """Raised by `Tool.cancel` to stop the running task.
 
     Prefect handles it like any other exception (the task run ends Failed and tasks
     that depend on it are not run); the runner records the task as cancelled.
@@ -56,10 +66,17 @@ class TaskCancelled(Exception):
 
 
 def resolve_device(preferred: str) -> tuple[str, Optional[str]]:
-    """The device to use for ``preferred`` on this machine, and why it differs (if so).
+    """Return the device to use for `preferred` on this machine.
 
-    "auto" picks a CUDA GPU, then the Apple GPU (mps), then the CPU. torch is only
-    imported for devices other than the CPU.
+    `auto` picks a CUDA GPU, then the Apple GPU (`mps`), then the CPU. torch is
+    imported only for devices other than the CPU.
+
+    Args:
+        preferred: The preferred device: `cpu`, `cuda`, `mps` or `auto`.
+
+    Returns:
+        The device, and a note why it differs from the preferred one; the note is
+        None if the preferred device is used or `auto` was preferred.
     """
     if preferred == "cpu":
         return "cpu", None
@@ -81,16 +98,25 @@ def resolve_device(preferred: str) -> tuple[str, Optional[str]]:
 
 
 def resolve_threads(preferred: int) -> int:
-    """Threads for ``preferred`` (-1: all cores), at least 1 and at most the number
-    of cores."""
+    """Return the number of threads to use for `preferred`.
+
+    Args:
+        preferred: The preferred number of threads; -1 for all cores.
+
+    Returns:
+        The number of cores for -1; otherwise `preferred`, at least 1 and at most
+        the number of cores.
+    """
     cores = os.cpu_count() or 1
     return cores if preferred == -1 else max(1, min(preferred, cores))
 
 
 @dataclass
 class RunContext:
-    """The device and threads a task runs with (from its config's resources and this
-    machine), the run's cancel signal, the folder for its files and its warnings."""
+    """The device and threads a task runs with, its cancel signal, folder and warnings.
+
+    The device and threads come from the config's resources and this machine.
+    """
 
     device: str = "cpu"
     threads: int = 1
@@ -107,8 +133,25 @@ class RunContext:
 
     @classmethod
     def for_config(
-        cls, config: TaskConfig, cancel_token=None, output_dir=None
+        cls,
+        config: TaskConfig,
+        cancel_token: Any = None,
+        output_dir: Optional[Path] = None,
     ) -> "RunContext":
+        """Return the context for a config's resources on this machine.
+
+        A note why the preferred device is not used is logged.
+
+        Args:
+            config: The task's config; its `resources` give the preferred device
+                and threads.
+            cancel_token: The run's cancel signal (`flim.core.runner.CancelToken`);
+                None outside a flow.
+            output_dir: The folder for files the tool writes; None if not set.
+
+        Returns:
+            The context.
+        """
         device, note = resolve_device(config.resources.preferred_device)
         if note:
             logger.info(note)
@@ -125,7 +168,7 @@ class Tool(Generic[ConfigT]):
     """Base of all tools.
 
     Subclasses set the class attributes, name their config class as the generic
-    parameter (``class Sort(Tool[SortConfig])``) and implement :meth:`run`.
+    parameter (`class Sort(Tool[SortConfig])`) and implement `run`.
     """
 
     name: ClassVar[str] = ""
@@ -150,7 +193,8 @@ class Tool(Generic[ConfigT]):
     outputs: ClassVar[tuple[OutputSpec, ...]] = ()
     config_class: ClassVar[type[TaskConfig]]
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Set `config_class` from the generic parameter of the class's base."""
         super().__init_subclass__(**kwargs)
         for base in getattr(cls, "__orig_bases__", ()):
             origin = typing.get_origin(base)  # Tool, or a generic subclass of it
@@ -159,49 +203,102 @@ class Tool(Generic[ConfigT]):
                 if isinstance(config_class, type):
                     cls.config_class = config_class
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Create the tool with a default run context."""
         self.context = RunContext()
 
     @classmethod
     def short(cls) -> str:
-        """The short name, or the name if the tool has none."""
+        """Return the short name, or the name if the tool has none."""
         return cls.short_name or cls.name
 
-    def __repr__(self):
+    def __repr__(self) -> str:
+        """Return the class name and the tool's name."""
         return f"<{type(self).__name__}>: {self.name}"
 
     # --- the computation ---
 
-    def run(self, *inputs, config: ConfigT) -> dict[str, Any]:
-        """Computes the results, keyed by output name (e.g. ``"Summary"``)."""
+    def run(self, *inputs: Any, config: ConfigT) -> dict[str, Any]:
+        """Compute the results; subclasses implement it.
+
+        Args:
+            *inputs: The inputs, one per entry of `inputs` (e.g. DataFrames; a dict
+                of them for an input with `many=True`).
+            config: The config.
+
+        Returns:
+            The results, keyed by output name (e.g. `Summary`).
+
+        Raises:
+            NotImplementedError: Always, in the base class.
+        """
         raise NotImplementedError
 
     def map_configs(self, config: ConfigT) -> list[ConfigT]:
-        """Configs of the smallest independent calls, e.g. one per feature."""
+        """Return the configs of the smallest independent calls, e.g. one per feature.
+
+        Args:
+            config: The config.
+
+        Returns:
+            The configs; by default `config` alone.
+        """
         return [config]
 
     # --- calling ---
 
     def __call__(
-        self, *inputs, config: Optional[ConfigT] = None, task_tags=None, after=()
-    ):
+        self,
+        *inputs: Any,
+        config: Optional[ConfigT] = None,
+        task_tags: Optional[str | Sequence[str]] = None,
+        after: Sequence["TaskOutput"] = (),
+    ) -> Any:
+        """Call the tool: run it directly, submit it as a task, or trace it.
+
+        See `flim.core.runner.call_tool`.
+
+        Args:
+            *inputs: The inputs (values, or `TaskOutput` handles inside a flow).
+            config: The config; None for the default config.
+            task_tags: The tags of the task, one or several; None for none.
+            after: Handles of tasks this one waits for although they are not its
+                inputs, e.g. those whose results (model files) its config names.
+
+        Returns:
+            Outside a flow, the results by display name (see `run_task`); inside a
+            flow, a `TaskOutput` handle; during a dry run, a
+            `flim.core.validation.TraceOutput`.
+        """
         from flim.core.runner import call_tool
 
         return call_tool(self, inputs, config, task_tags=task_tags, after=after)
 
-    def run_task(self, inputs: Sequence, config: Optional[ConfigT] = None) -> dict:
-        """Runs the tool as one task and returns the results by display name, with
-        the config's prefix.
+    def run_task(
+        self, inputs: Sequence[Any], config: Optional[ConfigT] = None
+    ) -> dict[str, Any]:
+        """Run the tool as one task.
 
-        Uses the default config if ``config`` is None, checks the config's type and
+        Uses the default config if `config` is None, checks the config's type and
         the number of features and grouping columns it selects, and resolves the
-        resources. Tools that draw figures hold ``pyplot_lock`` while they run; result
-        figures are then removed from pyplot's registry.
+        resources. Tools that draw figures hold `pyplot_lock` while they run; result
+        figures are then removed from pyplot's registry. Afterwards the parts of the
+        settings that were skipped are checked against the step's `processing` (see
+        `check_processing`).
+
+        Args:
+            inputs: The inputs, passed to `run` in this order.
+            config: The config; None for the default config.
+
+        Returns:
+            The results by display name, each prefixed with the config's `prefix`,
+            for example `Table: Summary`.
 
         Raises:
-            TypeError: ``config`` is not an instance of the tool's config class.
-            ValueError: the config selects fewer features or grouping columns than
-                the tool needs.
+            TypeError: If `config` is not an instance of the tool's config class.
+            ValueError: If the config selects fewer features or grouping columns than
+                the tool needs, or if the step's `processing` does not allow the
+                skipped parts.
         """
         config = self.config_class() if config is None else config
         if not isinstance(config, self.config_class):
@@ -224,18 +321,31 @@ class Tool(Generic[ConfigT]):
         return results
 
     def applied(self, count: int = 1) -> None:
-        """Reports parts of the settings that were applied to the data (e.g. a
-        calculation that was made), for a workflow file step's `processing`."""
+        """Report parts of the settings that were applied to the data.
+
+        For example a calculation that was made; counted for a workflow file step's
+        `processing`.
+
+        Args:
+            count: The number of parts. Defaults to 1.
+        """
         context = getattr(self, "context", None)
         if context is not None:
             context.applied += count
 
     def skip(self, message: str, warn: bool = False) -> None:
-        """Reports a part of the settings that does not apply to the data (e.g. a
-        calculation whose columns are missing). In a workflow file step it is a
-        skipped part for the step's `processing`, and a warning in the run summary;
-        otherwise it is logged only (e.g. the default filters on channels many data
-        sets don't have), unless `warn`."""
+        """Report a part of the settings that does not apply to the data.
+
+        For example a calculation whose columns are missing. The part is recorded as
+        skipped for a workflow file step's `processing`. In a workflow file step, or
+        with `warn`, it is a warning in the run summary; otherwise it is only logged
+        (e.g. the default filters on channels many data sets don't have).
+
+        Args:
+            message: What was skipped and why.
+            warn: Whether to report it as a warning outside a workflow file step too.
+                Defaults to False.
+        """
         if warn or getattr(self, "_processing", None) is not None:
             self.warn(message)
         else:
@@ -245,12 +355,14 @@ class Tool(Generic[ConfigT]):
             context.skipped.append(message)
 
     def check_processing(self) -> None:
-        """Fails the run if a workflow file step's `processing` doesn't allow what
-        was skipped: `require_all` no skipped part, `allow_partial` at least one
-        applied part (if any were skipped), `allow_none` anything.
+        """Fail the run if a workflow file step's `processing` doesn't allow the skips.
+
+        `require_all` allows no skipped part, `allow_partial` needs at least one
+        applied part (if any were skipped), `allow_none` allows anything. Does nothing
+        outside a workflow file step or if nothing was skipped.
 
         Raises:
-            ValueError: If the step's processing doesn't allow it.
+            ValueError: If the step's processing doesn't allow what was skipped.
         """
         processing = getattr(self, "_processing", None)
         context = getattr(self, "context", None)
@@ -268,8 +380,14 @@ class Tool(Generic[ConfigT]):
             )
 
     def warn(self, message: str) -> None:
-        """Reports a warning of this run: logged now, and listed with the task in the
-        run summary (and as its message in the Prefect UI)."""
+        """Report a warning of this run.
+
+        The warning is logged now and listed with the task in the run summary (and
+        as its message in the Prefect UI).
+
+        Args:
+            message: The warning.
+        """
         logger.warning(f"{self.name}: {message}")
         context = getattr(self, "context", None)
         if context is not None:
@@ -277,7 +395,14 @@ class Tool(Generic[ConfigT]):
 
     @staticmethod
     def display_names(results: dict[str, Any]) -> dict[str, Any]:
-        """Results keyed by display name, e.g. ``"Summary"`` → ``"Table: Summary"``."""
+        """Return the results keyed by display name, e.g. `Summary` → `Table: Summary`.
+
+        Args:
+            results: The results, keyed by output name.
+
+        Returns:
+            The same values; names of values of an unknown data type are kept.
+        """
         named = {}
         for name, value in results.items():
             data_type = DataType.of(value)
@@ -286,18 +411,30 @@ class Tool(Generic[ConfigT]):
 
     # --- cancellation ---
 
-    def cancel(self, message: str = "Cancelled"):
-        """Stops this task (call it only from :meth:`run`).
+    def cancel(self, message: str = "Cancelled") -> typing.NoReturn:
+        """Stop this task; call it only from `run`.
 
         Inside a flow, the task is recorded as cancelled and tasks that use its results
         are not run; other tasks continue. Outside a flow, the exception reaches the
         caller.
+
+        Args:
+            message: The reason. Defaults to `Cancelled`.
+
+        Raises:
+            TaskCancelled: Always.
         """
         raise TaskCancelled(message)
 
-    def check_cancelled(self):
-        """Stops this task if the user cancelled the run; call it regularly from long
-        running :meth:`run` methods. Does nothing outside a flow."""
+    def check_cancelled(self) -> None:
+        """Stop this task if the user cancelled the run.
+
+        Call it regularly from long-running `run` methods. Does nothing outside a
+        flow.
+
+        Raises:
+            TaskCancelled: If the run was cancelled.
+        """
         # the runner sets _cancel_token before the task starts, the context once it runs
         token = self.context.cancel_token or getattr(self, "_cancel_token", None)
         if token is not None and token.is_set():
@@ -309,14 +446,20 @@ class Tool(Generic[ConfigT]):
     def output_schema(
         cls, config: ConfigT, inputs: Sequence[Any]
     ) -> dict[str, OutputSpec]:
-        """The outputs for ``config`` and the input schemas, keyed by output name.
+        """Return the outputs for `config` and the input schemas, keyed by output name.
 
-        ``inputs`` holds one TableSchema per input (a dict of them for an input with
-        ``many=True``), or None if unknown. The default runs the tool on a few sample
-        rows built from the input schemas; tools for which that is expensive or wrong
-        override it. If an input schema is unknown, the tool draws figures, or the run
-        on the samples fails, the result holds only the declared ``outputs``, with
-        their table schemas marked unknown.
+        The default runs the tool on a few sample rows built from the input schemas;
+        tools for which that is expensive or wrong override it. If an input schema is
+        unknown, the tool draws figures, or the run on the samples fails, the result
+        holds only the declared `outputs`, with their table schemas marked unknown.
+
+        Args:
+            config: The config.
+            inputs: One `TableSchema` per input (a dict of them for an input with
+                `many=True`), or None if unknown.
+
+        Returns:
+            The output specs, with the table schema of each table output.
         """
         schemas = _flat_schemas(inputs)
         if cls.draws_figures or None in schemas:
@@ -341,8 +484,9 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def example(cls, config: ConfigT, tables: Sequence[Any]) -> Optional[str]:
-        """Return one line that shows what the tool does with the first row of the
-        input, for its dialog, e.g. `FOV 1, Cell 2 -> FOV:Cell 1:2`.
+        """Return one line that shows what the tool does with the input's first row.
+
+        The dialog shows it, e.g. `FOV 1, Cell 2 -> FOV:Cell 1:2`.
 
         Args:
             config: The config.
@@ -367,8 +511,9 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def proposals(cls, config: ConfigT, tables: Sequence[Any]) -> dict[str, Any]:
-        """Return values the dialog fills into empty fields once the input tables are
-        known, e.g. the new names of columns in the way of the tool's.
+        """Return values the dialog fills into empty fields once the tables are known.
+
+        For example the new names of columns in the way of the tool's.
 
         Args:
             config: The config.
@@ -381,8 +526,9 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def inapplicable_fields(cls, config: ConfigT, tables: Sequence[Any]) -> set[str]:
-        """Return the fields that don't apply to the input tables, which the dialog
-        hides, e.g. how to rename a column the tables don't have.
+        """Return the fields that don't apply to the input tables.
+
+        The dialog hides them, e.g. how to rename a column the tables don't have.
 
         Args:
             config: The config.
@@ -395,8 +541,9 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def validate_data(cls, config: ConfigT, tables: Sequence[Any]) -> list[Issue]:
-        """Check the config against the input tables' values (`validate` checks it
-        against their columns), for the dialog; the run makes the same checks.
+        """Check the config against the input tables' values, for the dialog.
+
+        `validate` checks it against their columns; the run makes the same checks.
 
         Args:
             config: The config.
@@ -409,10 +556,21 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def validate(cls, config: ConfigT, inputs: Sequence[Any]) -> list[Issue]:
-        """Checks the config against the input schemas: the number of features and
-        grouping columns it selects, and that the columns it names exist and have the
-        right role. The columns are not checked if an input schema is unknown or
-        incomplete. A text column named as a feature is a warning."""
+        """Check the config against the input schemas.
+
+        Checks the number of features and grouping columns it selects, and that the
+        columns it names exist and have the right role. The columns are not checked
+        if an input schema is unknown or incomplete. A text column named as a feature
+        is a warning.
+
+        Args:
+            config: The config.
+            inputs: One `TableSchema` per input (a dict of them for an input with
+                `many=True`), or None if unknown.
+
+        Returns:
+            The issues; empty if the config is valid.
+        """
         schemas = _flat_schemas(inputs)
         # the number of features and grouping columns the tool needs
         issues = requirement_issues(config, schemas)
@@ -437,8 +595,18 @@ class Tool(Generic[ConfigT]):
 
 
 def check_requirements(name: str, config: TaskConfig, inputs: Sequence[Any]) -> None:
-    """Raises ValueError if the config selects fewer features or grouping columns than
-    the tool needs for ``inputs`` (DataFrames or TableSchemas)."""
+    """Check that the config selects enough features and grouping columns.
+
+    Args:
+        name: The tool's name, for the message.
+        config: The config.
+        inputs: The inputs: DataFrames or `TableSchema`s (a dict of them for an
+            input with `many=True`).
+
+    Raises:
+        ValueError: If the config selects fewer features or grouping columns than
+            the tool needs for `inputs`.
+    """
     import pandas as pd
 
     schemas = [
@@ -450,7 +618,8 @@ def check_requirements(name: str, config: TaskConfig, inputs: Sequence[Any]) -> 
         raise ValueError(f"{name}: " + "; ".join(i.message.lower() for i in issues))
 
 
-def _flat_schemas(inputs: Sequence[Any]) -> list:
+def _flat_schemas(inputs: Sequence[Any]) -> list[Any]:
+    """Return the inputs with the values of dict inputs in their place."""
     flat = []
     for i in inputs:
         flat.extend(i.values() if isinstance(i, dict) else [i])
@@ -458,6 +627,7 @@ def _flat_schemas(inputs: Sequence[Any]) -> list:
 
 
 def _unknown(output: OutputSpec) -> OutputSpec:
+    """Return the output spec with its table schema marked unknown."""
     if output.type is TableType:
         return replace(output, schema=TableSchema.unknown())
     return output

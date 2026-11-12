@@ -1,6 +1,10 @@
-"""Settings management: the SettingsManager service, which manages the settings of a
-running FLIMAnalyzer (GUI or flimbatch), and the user settings file it writes changes
-to."""
+"""Settings management: the `SettingsManager` service and the user settings file.
+
+The `SettingsManager` manages the settings of a running FLIMAnalyzer (GUI or
+flimbatch) and writes changes to the user settings file. The module also finds app
+settings files on their search path, reads settings from environment variables, and
+combines all settings layers into the settings of a session (`session_settings`).
+"""
 
 import json
 import logging
@@ -9,7 +13,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 from filelock import FileLock
 from pydantic import ValidationError
@@ -17,6 +21,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from flim.core.config import TaskConfig
 from flim.core.execution import ExecutorSettings
+from flim.core.saving import AutosaveConfig
 from flim.core.settings import (
     SETTINGS_VERSION,
     AppSettings,
@@ -27,6 +32,9 @@ from flim.core.settings import (
     tool_settings,
     update_settings,
 )
+
+if TYPE_CHECKING:
+    from flim.core.tool import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +63,15 @@ OPTION_NAMES = {
 
 
 def user_settings_path() -> Path:
-    """Path of the user settings file: the value of FLIM_USER_SETTINGS if set, else
-    usersettings.json in the platform's settings folder (macOS: ~/Library/Application
-    Support/FLIMAnalyzer; Linux: $XDG_CONFIG_HOME/FLIMAnalyzer, by default
-    ~/.config/FLIMAnalyzer; Windows: %LOCALAPPDATA%\\FLIMAnalyzer)."""
+    r"""Return the path of the user settings file.
+
+    Returns:
+        The value of `FLIM_USER_SETTINGS` with `~` expanded, if set; otherwise
+        `usersettings.json` in the platform's settings folder (macOS:
+        `~/Library/Application Support/FLIMAnalyzer`; Linux:
+        `$XDG_CONFIG_HOME/FLIMAnalyzer`, by default `~/.config/FLIMAnalyzer`;
+        Windows: `%LOCALAPPDATA%\FLIMAnalyzer`).
+    """
     if os.environ.get("FLIM_USER_SETTINGS"):
         return Path(os.environ["FLIM_USER_SETTINGS"]).expanduser()
     from platformdirs import user_config_dir
@@ -67,14 +80,29 @@ def user_settings_path() -> Path:
 
 
 class UserSettingsFile:
-    """The settings the user changed, in the settings file format (read in any
-    version, written in the current one). Several instances may write the file. Each
-    change is merged into the file's current content and written atomically, under a
-    lock file, so an instance overwrites only the sections it changes; changes by other
-    instances to other sections are preserved. If two instances change the same section
-    (e.g. the same tool), the instance that saves last takes precedence."""
+    """The settings the user changed, in the settings file format.
 
-    def __init__(self, path):
+    The file is read in any version and written in the current one. Several
+    instances may write the file. Each change is merged into the file's current
+    content and written atomically, under a lock file, so an instance overwrites only
+    the sections it changes; changes by other instances to other sections are
+    preserved. If two instances change the same section (e.g. the same tool), the
+    instance that saves last takes precedence.
+
+    Attributes:
+        path: The user settings file.
+        lock: The lock file, `<path>.lock`.
+        set_aside: Set by `read` if the file could not be read: the path it was
+            renamed to (None if it could not be renamed) and the reason; None
+            otherwise.
+    """
+
+    def __init__(self, path: str | os.PathLike) -> None:
+        """Create the user settings file object; the file is not read.
+
+        Args:
+            path: The user settings file.
+        """
         self.path = Path(path)
         self.lock = FileLock(f"{self.path}.lock", timeout=LOCK_TIMEOUT)
         # an unreadable file renamed by `read`: (new path or None, the reason)
@@ -83,7 +111,7 @@ class UserSettingsFile:
     def read(self) -> dict:
         """Return the file's sections, migrated to the current version.
 
-        A file that cannot be read (not JSON, not a settings file, or of a newer
+        A file that cannot be read (e.g. not JSON, not a settings file, or of a newer
         version) is renamed to `<name>.unreadable.json` (`-2`, `-3`, ... if that
         exists), so that writing the next change does not replace it; `set_aside`
         records this and a warning is logged. If it cannot be renamed, changes are
@@ -124,12 +152,24 @@ class UserSettingsFile:
         self.set_aside = (target, reason)
 
     def merge(self, changes: dict) -> None:
-        """Writes ``changes`` (sections in the settings file format, any version) to
-        the file: under the lock file, reads the file's current content, replaces only
-        these sections (tools: each tool's section), writes the result to a temporary
-        file in the same folder and replaces the file with it. Creates the folder if it
-        does not exist. If writing fails, the file is left unchanged and the exception
-        is raised (filelock.Timeout if the lock is not acquired within LOCK_TIMEOUT)."""
+        """Write settings sections to the file, replacing only these sections.
+
+        Under the lock file, the file's current content is read, the sections of
+        `changes` replace its sections (in `tools`, each tool's section; see
+        `merge_sections`), and the result is written to a temporary file in the same
+        folder that then replaces the file. The folder is created if it does not
+        exist. If writing fails, the file is left unchanged.
+
+        Args:
+            changes: Sections in the settings file format, of any version.
+
+        Raises:
+            filelock.Timeout: If the lock is not acquired within `LOCK_TIMEOUT`
+                seconds.
+            OSError: If the file cannot be read and cannot be renamed (see `read`),
+                or if writing fails.
+            ValueError: If `changes` is of a newer version than `SETTINGS_VERSION`.
+        """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.lock:
             current = self.read()
@@ -155,22 +195,38 @@ def _sections(data: dict) -> list[str]:
 
 
 class SettingsManager:
-    """Manages the settings of this instance (GUI or flimbatch). All
-    changes are applied through it, one at a time: it validates and applies them,
+    """Manages the settings of this instance (GUI or flimbatch).
+
+    All changes are applied through it, one at a time: it validates and applies them,
     writes the changed sections to the user settings file and counts versions.
-    ``settings`` returns a copy, so the settings cannot be modified except through the
-    manager, and a run uses the settings in effect when it started."""
+    `settings` returns a copy, so the settings cannot be modified except through the
+    manager, and a run uses the settings in effect when it started.
+
+    Attributes:
+        origins: The layer that set each setting, e.g. `user settings file`;
+            settings not listed have their built-in defaults.
+        source: The app settings file of this session; None if there is none.
+        check: The check of that file; None if there is none.
+        notices: Messages for the user about the settings files, e.g. a renamed
+            user settings file.
+    """
 
     def __init__(
         self,
         base: Optional[AppSettings] = None,
         user_file: Optional[UserSettingsFile] = None,
-    ):
-        """Args:
-            base: the settings the user settings file is applied to (default: the
-                built-in defaults).
-            user_file: the UserSettingsFile changes are written to; None: changes are
-                kept in memory only.
+    ) -> None:
+        """Create the manager and apply the user settings file, if given.
+
+        Args:
+            base: The settings the user settings file is applied to; None for the
+                built-in defaults (`AppSettings.default`). Defaults to None.
+            user_file: The user settings file changes are written to; None to keep
+                changes in memory only. Defaults to None.
+
+        Raises:
+            pydantic.ValidationError: If a value in the user settings file is not
+                valid.
         """
         self._lock = threading.RLock()
         self._user_file = user_file
@@ -216,13 +272,27 @@ class SettingsManager:
         return self._version
 
     def update(self, changes: dict, *, keep: bool = True) -> AppSettings:
-        """Applies ``changes``: sections in the settings file format, in the current
-        version unless they contain ``schema_version``; each replaces the current
-        section, tools each tool's section. They are validated as when a file is
-        loaded: unknown keys are logged and ignored; invalid values raise a validation
-        error and leave the settings unchanged. ``keep``: also write them to the user
-        settings file; if writing fails, a warning is logged and the change remains in
-        effect. Returns a copy of the new settings."""
+        """Apply settings sections; each replaces the current section.
+
+        In `tools`, each tool's section is replaced separately. The sections are
+        validated as when a file is loaded: unknown keys are logged and ignored.
+
+        Args:
+            changes: Sections in the settings file format, in the current version
+                unless they contain `schema_version`.
+            keep: Whether the sections are also written to the user settings file
+                and recorded as set by it in `origins`. If writing fails, a warning
+                is logged and the change remains in effect. Defaults to True.
+
+        Returns:
+            A copy of the new settings.
+
+        Raises:
+            pydantic.ValidationError: If a value is not valid; the settings are then
+                unchanged.
+            ValueError: If `changes` is of a newer version than `SETTINGS_VERSION`;
+                the settings are then unchanged.
+        """
         changes = {"schema_version": SETTINGS_VERSION, **changes}
         with self._lock:
             self._settings = update_settings(self._settings, changes)
@@ -236,24 +306,51 @@ class SettingsManager:
                     logger.warning(f"Settings not saved to {self._user_file.path}: {err}")
             return self._settings.model_copy(deep=True)
 
-    def set_tool(self, tool, config: TaskConfig, autosave=None) -> AppSettings:
-        """Sets a tool's config and its autosave settings (AutosaveConfig: whether,
-        where, formats) under the tool's name and writes them to the user settings file.
-        Settings stored under the tool's former names are removed. Returns a copy of the
-        new settings."""
+    def set_tool(
+        self,
+        tool: "type[Tool]",
+        config: TaskConfig,
+        autosave: Optional[AutosaveConfig] = None,
+    ) -> AppSettings:
+        """Set a tool's settings and write them to the user settings file.
+
+        The settings are stored under the tool's name; those stored under the former
+        names of a registered tool are removed.
+
+        Args:
+            tool: The tool class.
+            config: The tool's config.
+            autosave: Whether, where and in which formats the tool saves its results;
+                None for not saving. Defaults to None.
+
+        Returns:
+            A copy of the new settings.
+        """
         entry = tool_settings(config, autosave)
         return self.update({"tools": {tool.name: entry.model_dump(mode="json")}})
 
-    def load(self, path) -> AppSettings:
-        """Applies the sections of a settings file (any version) for this session; they
-        are not written to the user settings file. Returns a copy of the new settings.
-        Raises ValueError if the file cannot be used or has invalid values (see
-        `strict_choice`); the settings are then unchanged."""
+    def load(self, path: str | os.PathLike) -> AppSettings:
+        """Apply the sections of a settings file of any version for this session.
+
+        The sections are not written to the user settings file.
+
+        Args:
+            path: The settings file.
+
+        Returns:
+            A copy of the new settings.
+
+        Raises:
+            ValueError: If the file cannot be used or has invalid values (see
+                `strict_choice`); the settings are then unchanged.
+        """
         return self.apply(strict_choice(check_settings_file(path)))
 
     def apply(self, check: SettingsCheck) -> AppSettings:
-        """Applies the usable sections of a checked settings file for this session;
-        they are not written to the user settings file. The check is logged.
+        """Apply the usable sections of a checked settings file for this session.
+
+        The sections are not written to the user settings file. The check is logged,
+        and the file becomes the manager's `source`.
 
         Args:
             check: The result of `check_settings_file`.
@@ -269,19 +366,18 @@ class SettingsManager:
         return settings
 
     def search_path_addition(self, folder: str | os.PathLike) -> Optional[list[Path]]:
-        """Return the `appsettings_path` that adds a folder to the app settings search
-        path, or None if adding it has no effect.
+        """Return the `appsettings_path` that adds a folder to the search path.
 
-        While `appsettings_path` is empty, the search path is the default folder,
-        which the new list keeps. Adding has no effect if the folder is already in
-        the search path, or if `FLIM_APP_SETTINGS_PATH` is set (it replaces
-        `appsettings_path`).
+        The search path is that of app settings files (`app_settings_path`). While
+        `appsettings_path` is empty, the search path is the default folder, which the
+        new list keeps. Adding has no effect if the folder is already in the search
+        path, or if `FLIM_APP_SETTINGS_PATH` is set (it replaces `appsettings_path`).
 
         Args:
             folder: The folder to add.
 
         Returns:
-            The new `appsettings_path`, or None.
+            The new `appsettings_path`, or None if adding the folder has no effect.
         """
         folder = Path(folder).expanduser().resolve()
         if os.environ.get(APP_SETTINGS_PATH_VAR):
@@ -311,8 +407,8 @@ class SettingsManager:
 
         Returns:
             Lines naming the user settings file and the app settings file, with the
-            app settings file's schema version and the keys its check converted,
-            removed and did not use.
+            app settings file's schema version, the keys its check converted, removed
+            and did not use, and the tools it did not check.
         """
         user = self._user_file.path if self._user_file is not None else "not read"
         lines = [f"User settings file: {user}"]
@@ -333,16 +429,15 @@ class SettingsManager:
                 lines.append(f"  {label}: {'; '.join(items)}")
         return lines
 
-    def export(self, path) -> None:
+    def export(self, path: str | os.PathLike) -> None:
         """Write all current settings, in the current version, to an app settings file.
 
         Every installed tool's settings are written, its defaults if none are set, so
         that the file does not depend on the defaults of the version that reads it.
         Defaults that do not pass validation are not written: they could not be used
-        when the file is read.
-        `appsettings_path`, `workflow_paths` and `default_app_settings` are left out:
-        they are read only
-        from the user settings file.
+        when the file is read. `appsettings_path`, `workflow_paths` and
+        `default_app_settings` are left out: they are read only from the user
+        settings file.
 
         Args:
             path: The file; it is replaced if it exists.
@@ -502,8 +597,7 @@ def environment_changes() -> dict:
 
 
 def _completed(changes: dict, current: AppSettings) -> dict:
-    """Return `changes` with partial `log` and `cache` sections completed from
-    `current`."""
+    """Return `changes` with partial `log` and `cache` sections completed."""
     completed = dict(changes)
     for section in ("log", "cache"):
         if section in changes:
@@ -524,7 +618,7 @@ def strict_choice(check: SettingsCheck, *, complete: bool = False) -> SettingsCh
         check: The result of `check_settings_file`.
         complete: Also refuse unknown keys and settings of tools that are not
             installed (flimbatch: the run must not depend on settings that are
-            ignored or on which tools are installed).
+            ignored or on which tools are installed). Defaults to False.
 
     Returns:
         `check`.
@@ -570,6 +664,9 @@ def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[
     A default that does not exist or cannot be read (see `check_settings_file`) is
     cleared in the user settings file.
 
+    Args:
+        manager: The settings manager of the session.
+
     Returns:
         The default, or None; and the warning if it was cleared.
     """
@@ -593,7 +690,7 @@ def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[
 
 
 def session_settings(
-    settings_file: Optional[str] = None,
+    settings_file: Optional[str | os.PathLike] = None,
     command_line: Optional[dict] = None,
     *,
     user_file: Optional[UserSettingsFile] = None,
@@ -611,8 +708,8 @@ def session_settings(
     Args:
         settings_file: The argument of `-s`: a path, or a name in the app settings
             folders (see `find_app_settings`). None: no app settings file.
-        command_line: The sections set on the command line (`flim.core.cli`); a
-            `cache` section may be partial.
+        command_line: The sections set on the command line (`flim.core.cli`); `log`
+            and `cache` sections may be partial.
         user_file: The user settings file; None in flimbatch, whose runs do not depend
             on settings changed in the GUI.
         base: The lowest layer. Defaults to the built-in defaults.
@@ -671,9 +768,12 @@ def session_settings(
     return manager
 
 
-def _keep_user_choices(manager: SettingsManager, user_file) -> None:
-    """Applies the user settings file's sections of `USER_CHOICES` again, over the
-    app settings file: an app settings file only presets them.
+def _keep_user_choices(
+    manager: SettingsManager, user_file: Optional[UserSettingsFile]
+) -> None:
+    """Apply the user settings file's sections of `USER_CHOICES` again.
+
+    They are applied over the app settings file, which only presets them.
 
     Args:
         manager: The settings manager, after the app settings file was applied.
@@ -688,8 +788,8 @@ def _keep_user_choices(manager: SettingsManager, user_file) -> None:
         manager.origins.update(dict.fromkeys(kept, "user settings file"))
 
 
-# settings file in the start folder that the GUI read before 0.7.0 when started
-# without -c (deprecated: an app settings file given with -s replaces it)
+# settings file in the start folder that the GUI reads when started without -s
+# (deprecated: an app settings file given with -s replaces it)
 DEFAULTS_FILE = "defaults.json"
 
 

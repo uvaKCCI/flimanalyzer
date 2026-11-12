@@ -13,7 +13,8 @@ class Observable:
     A subscriber that raises is logged and does not stop the others.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Create an observable without subscribers."""
         self._subscribers: list[Callable[[Any], None]] = []
         self._subscribers_lock = threading.Lock()
 
@@ -22,14 +23,15 @@ class Observable:
 
         Args:
             callback: Called with each message, in the thread that made the change.
+                The same callable subscribed twice is called twice.
 
         Returns:
-            A function that ends the subscription.
+            A function that ends the subscription; calling it again has no effect.
         """
         with self._subscribers_lock:
             self._subscribers.append(callback)
 
-        def unsubscribe():
+        def unsubscribe() -> None:
             with self._subscribers_lock:
                 if callback in self._subscribers:
                     self._subscribers.remove(callback)
@@ -38,6 +40,9 @@ class Observable:
 
     def notify(self, message: Any) -> None:
         """Send a message to every subscriber.
+
+        The subscribers are called in the order they subscribed. An exception raised
+        by a subscriber is logged and the remaining subscribers are still called.
 
         Args:
             message: The change message.

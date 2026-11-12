@@ -7,8 +7,10 @@ which formats.
 """
 
 import logging
+import os
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Optional
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Optional
 
 from pydantic import (
     BaseModel,
@@ -18,6 +20,9 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +42,12 @@ class SaveOptions(BaseModel):
 
     @property
     def extension(self) -> str:
-        """The file ending of the format, e.g. `.txt`."""
+        """Return the file ending of the format, e.g. `.txt`."""
         return self.extensions[self.format]
 
 
 class TableSaveOptions(SaveOptions):
-    """Tables: tab-separated (`tsv`, saved as `.txt`, the default) or comma-separated
-    (`csv`)."""
+    """Tables: tab-separated (`tsv`, saved as `.txt`, the default) or `csv`."""
 
     kind: Literal["table"] = "table"
     format: Literal["tsv", "csv"] = Field(default="tsv", title="Format")
@@ -51,7 +55,7 @@ class TableSaveOptions(SaveOptions):
 
     @property
     def separator(self) -> str:
-        """The column separator of the format."""
+        """Return the column separator of the format: a tab or a comma."""
         return "\t" if self.format == "tsv" else ","
 
 
@@ -65,7 +69,8 @@ class PlotSaveOptions(SaveOptions):
 
     @model_validator(mode="before")
     @classmethod
-    def _dpi_for_raster_only(cls, data):
+    def _dpi_for_raster_only(cls, data: Any) -> Any:
+        """Set `dpi` to None for the vector formats."""
         # vector formats have no resolution
         if isinstance(data, dict) and data.get("format", "png") != "png":
             return {**data, "dpi": None}
@@ -112,7 +117,8 @@ class AutosaveConfig(BaseModel):
 
     @field_validator("formats", mode="before")
     @classmethod
-    def _each_by_kind(cls, value):
+    def _each_by_kind(cls, value: Any) -> list[SaveOptions]:
+        """Validate each entry by its kind and drop duplicates."""
         if not isinstance(value, (list, tuple)):
             raise ValueError("formats must be a list")
         unique: dict[tuple[str, str], SaveOptions] = {}
@@ -143,7 +149,9 @@ class AutosaveConfig(BaseModel):
         return [options()] if options is not None else []
 
 
-def save_value(value: Any, base: str | Path, formats: list[SaveOptions] = ()) -> list[Path]:
+def save_value(
+    value: Any, base: str | Path, formats: Sequence[SaveOptions] = ()
+) -> list[Path]:
     """Save a value with its data type's writer, in the formats for its kind.
 
     Args:
@@ -168,7 +176,12 @@ def save_value(value: Any, base: str | Path, formats: list[SaveOptions] = ()) ->
     return [data_type.save(value, base, options) for options in config.formats_for(data_type.kind)]
 
 
-def write_table(table, path, options: Optional["TableSaveOptions"] = None, index=False) -> None:
+def write_table(
+    table: "pd.DataFrame | pd.Series",
+    path: str | os.PathLike,
+    options: Optional["TableSaveOptions"] = None,
+    index: bool = False,
+) -> None:
     """Write a table as text in a format.
 
     The row index is left out unless `index`: row numbers carry no meaning in
@@ -178,8 +191,8 @@ def write_table(table, path, options: Optional["TableSaveOptions"] = None, index
     Args:
         table: A DataFrame or Series.
         path: The file, with its ending.
-        options: The format; tab-separated by default.
-        index: Whether to write the row index.
+        options: The format; None for tab-separated.
+        index: Whether to write the row index. Defaults to False.
     """
     import pandas as pd
 
@@ -189,7 +202,7 @@ def write_table(table, path, options: Optional["TableSaveOptions"] = None, index
     table.to_csv(path, sep=options.separator, index=index)
 
 
-def header_problems(columns, options: TableSaveOptions) -> list[str]:
+def header_problems(columns: Iterable[Any], options: TableSaveOptions) -> list[str]:
     """Return why column names would not survive saving a table in a format.
 
     Args:
@@ -215,13 +228,14 @@ def header_problems(columns, options: TableSaveOptions) -> list[str]:
 KIND_TITLES = {"table": "Tables", "plot": "Plots", "image": "Images"}
 
 
-def _choices(options: type[SaveOptions]) -> tuple:
+def _choices(options: type[SaveOptions]) -> tuple[str, ...]:
+    """Return the formats a save options class allows."""
     import typing
 
     return typing.get_args(options.model_fields["format"].annotation)
 
 
-def formats_model(kinds) -> type[BaseModel]:
+def formats_model(kinds: Iterable[str]) -> type[BaseModel]:
     """Return a model with the format fields of some kinds, for a dialog.
 
     Per kind: `<kind>_formats`, the formats to save in (several allowed), and the
@@ -232,6 +246,9 @@ def formats_model(kinds) -> type[BaseModel]:
 
     Returns:
         The model; its defaults are the kinds' default formats and options.
+
+    Raises:
+        KeyError: If a kind has no save options.
     """
     from pydantic import create_model
 
@@ -252,11 +269,21 @@ def formats_model(kinds) -> type[BaseModel]:
     return create_model("SaveFormats", **fields)
 
 
-def formats_values(model: type[BaseModel], formats: list[SaveOptions], kinds) -> BaseModel:
+def formats_values(
+    model: type[BaseModel], formats: Sequence[SaveOptions], kinds: Iterable[str]
+) -> BaseModel:
     """Return the values of a `formats_model` for a list of formats.
 
-    Kinds not in `formats` get their default format; a kind's other options are taken
-    from its first listed format.
+    Kinds not in `formats` get their default format. Each of a kind's other options
+    is taken from the first listed format of the kind that sets it (not None).
+
+    Args:
+        model: The model made by `formats_model`.
+        formats: The formats, e.g. `AutosaveConfig.formats`.
+        kinds: The kinds of the model.
+
+    Returns:
+        An instance of the model.
     """
     values = {}
     for kind in kinds:
@@ -272,7 +299,9 @@ def formats_values(model: type[BaseModel], formats: list[SaveOptions], kinds) ->
     return model(**values)
 
 
-def formats_from_values(values: dict, kinds) -> tuple[list[SaveOptions], dict[str, str]]:
+def formats_from_values(
+    values: dict[str, Any], kinds: Iterable[str]
+) -> tuple[list[SaveOptions], dict[str, str]]:
     """Return the formats chosen in the fields of a `formats_model`.
 
     Args:
@@ -280,7 +309,8 @@ def formats_from_values(values: dict, kinds) -> tuple[list[SaveOptions], dict[st
         kinds: The kinds of the model.
 
     Returns:
-        The formats; and an error per field, e.g. a kind without a format.
+        The formats; and an error message per field name, e.g. for a kind without a
+        format or with an option that is not valid.
     """
     classes = save_options_classes()
     formats, errors = [], {}
@@ -305,7 +335,7 @@ def formats_from_values(values: dict, kinds) -> tuple[list[SaveOptions], dict[st
 # --- saving several values at once (File > Save All Windows...) ---
 
 
-def unique_file_names(titles) -> list[str]:
+def unique_file_names(titles: Iterable[str]) -> list[str]:
     """Return file names (without endings) for titles, unique within the list.
 
     Titles are cleaned for file names (flim.results.clean_path_component) and
@@ -314,6 +344,10 @@ def unique_file_names(titles) -> list[str]:
 
     Args:
         titles: The titles, e.g. of the open windows.
+
+    Returns:
+        One file name per title, in order; `untitled` for a title that is empty
+        once cleaned.
     """
     from flim.results import clean_path_component
 
@@ -329,7 +363,11 @@ def unique_file_names(titles) -> list[str]:
     return names
 
 
-def save_all(entries, folder, formats=()) -> tuple[Path, list, list]:
+def save_all(
+    entries: Iterable[tuple[str, Any]],
+    folder: str | os.PathLike,
+    formats: Iterable[SaveOptions] = (),
+) -> tuple[Path, list[tuple[str, list[Path]]], list[tuple[str, str]]]:
     """Save several values into a new subfolder, never overwriting a file.
 
     The subfolder is named after the date and time, made unique as run folders are

@@ -1,10 +1,10 @@
 """Validation of workflows before they run.
 
-The default validator (:class:`DefaultWorkflowValidator`) does a dry run of the
-workflow's ``build``: on
+The default validator (`DefaultWorkflowValidator`) does a dry run of the
+workflow's `build`: on
 sample tables made from the input schemas, with every tool call traced instead of run.
-Each step's config is checked against the schemas of its inputs (``Tool.validate``),
-and its output schemas (``Tool.output_schema``) are passed to the steps that use them.
+Each step's config is checked against the schemas of its inputs (`Tool.validate`),
+and its output schemas (`Tool.output_schema`) are passed to the steps that use them.
 
 Columns the workflow config names that are not in the input are replaced by a guess
 (the closest column of the same role) unless the validation is strict; the run then
@@ -18,7 +18,8 @@ import dataclasses
 import difflib
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional, Protocol
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Optional, Protocol, Union
 
 import pandas as pd
 
@@ -26,11 +27,27 @@ from flim.core.config import Issue, TaskConfig, column_references
 from flim.core.runner import TaskOutput
 from flim.core.schema import TableSchema
 
+if TYPE_CHECKING:
+    from flim.core.tool import Tool
+    from flim.core.workflow import Workflow
+
 _TRACER: contextvars.ContextVar = contextvars.ContextVar("flim_tracer", default=None)
 
 
 @dataclass
 class StepReport:
+    """The check of one step (tool call) of a workflow in a dry run.
+
+    Attributes:
+        name: The tool's name, with the step's tags.
+        tool: The tool class.
+        config: The step's config.
+        inputs: The schemas of the step's inputs; None for an unknown one.
+        outputs: The step's outputs: output name (with the config's prefix) ->
+            `OutputSpec`.
+        issues: The problems of the step's config.
+    """
+
     name: str  # the tool's name, with the step's tags
     tool: type
     config: Optional[TaskConfig]
@@ -41,38 +58,81 @@ class StepReport:
 
 @dataclass
 class ValidationReport:
+    """The result of validating a workflow.
+
+    Attributes:
+        config: The workflow config, with the guesses applied.
+        issues: The issues of the workflow and its steps.
+        steps: The checked steps; empty if an input is unknown.
+    """
+
     config: TaskConfig  # the workflow config, with the guesses applied
     issues: list[Issue] = field(default_factory=list)  # of the workflow and its steps
     steps: list[StepReport] = field(default_factory=list)
 
     @property
     def errors(self) -> list[Issue]:
+        """Return the issues of severity `error`."""
         return [i for i in self.issues if i.severity == "error"]
 
     @property
     def guesses(self) -> list[Issue]:
+        """Return the issues of severity `guessed`: replaced columns."""
         return [i for i in self.issues if i.severity == "guessed"]
 
 
 class WorkflowValidator(Protocol):
+    """The interface of a workflow's validator (`Workflow.validator`)."""
+
     def validate(
-        self, workflow: type, config: TaskConfig, inputs: list, strict: bool
-    ) -> ValidationReport: ...
+        self,
+        workflow: type["Workflow"],
+        config: TaskConfig,
+        inputs: list[Optional[TableSchema]],
+        strict: bool,
+    ) -> ValidationReport:
+        """Check a workflow config against the schemas of the input tables.
+
+        Args:
+            workflow: The workflow class.
+            config: The workflow's config.
+            inputs: The schemas of the input tables; None for an unknown one.
+            strict: Report columns missing from the inputs as errors instead of
+                replacing them by guesses.
+
+        Returns:
+            The report, with the config the run uses.
+        """
+        ...
 
 
 # --- guesses ---
 
 
 def _key(name: str) -> str:
-    """For comparing column names: lower case, without spaces, brackets, "_" and "-"
-    ("FAD a1[%]" and "fad a1%" are the same, "FAD a1" is not)."""
+    """Return a column name in lower case without spaces, brackets, `_` and `-`.
+
+    Names with the same key are the same column apart from case and punctuation:
+    `FAD a1[%]` and `fad a1%` are the same, `FAD a1` is not.
+    """
     return re.sub(r"[\s\[\](){}_\-]", "", str(name).lower())
 
 
 def guess_column(name: str, candidates: list[str]) -> tuple[Optional[str], str]:
-    """The column of ``candidates`` that ``name`` most likely means, and why not if
-    there is none: the same name apart from case, spaces and punctuation ("FAD a1%",
-    "FAD a1[%]"), else the single closest name."""
+    """Return the column of `candidates` that `name` most likely means.
+
+    The guess is the one candidate that is the same name apart from case, spaces and
+    punctuation (`FAD a1%`, `FAD a1[%]`), else the closest name with a similarity
+    ratio of at least 0.75, unless the second closest is about as similar (a
+    difference of the ratios below 0.02).
+
+    Args:
+        name: The column name that is not in the input.
+        candidates: The input's column names of the same role.
+
+    Returns:
+        The guess and an empty text; or None and why there is no guess.
+    """
     same = [c for c in candidates if _key(c) == _key(name)]
     if len(same) == 1:
         return same[0], ""
@@ -91,9 +151,21 @@ def guess_column(name: str, candidates: list[str]) -> tuple[Optional[str], str]:
 _PATH = re.compile(r"\.?([A-Za-z_]\w*)|\[(\d+)\]|\[('(?:[^']|\\')*'|\"[^\"]*\")\]")
 
 
-def replace_at(config, path: str, value):
-    """A copy of ``config`` with the column named at ``path`` (e.g. ``features[2]``,
-    ``training.grouping[0]``, ``ranges['FLIRR']``: a dict key) replaced by ``value``."""
+def replace_at(config: TaskConfig, path: str, value: str) -> TaskConfig:
+    """Return a copy of a config with the column named at a path replaced.
+
+    The new name is set without validation. A dict key is replaced in place of the
+    old key, so the order of the dict is kept.
+
+    Args:
+        config: The config (not changed).
+        path: The path of the column name, as `column_references` gives it, e.g.
+            `features[2]`, `training.grouping[0]` or `ranges['FLIRR']` (a dict key).
+        value: The new column name.
+
+    Returns:
+        The changed copy.
+    """
     config = config.model_copy(deep=True)
     parts = [m.groups() for m in _PATH.finditer(path)]
     target = config
@@ -123,32 +195,57 @@ def replace_at(config, path: str, value):
 class TraceOutput(TaskOutput):
     """The outputs of a traced tool call: their schemas, not their values."""
 
-    def __init__(self, outputs: dict, node: str, keys: tuple = ()):
+    def __init__(self, outputs: dict, node: str, keys: tuple = ()) -> None:
+        """Create the handle of a traced call's outputs.
+
+        Args:
+            outputs: Output name -> `OutputSpec`.
+            node: The step's name.
+            keys: The keys selected so far, e.g. `("Summary",)`.
+        """
         super().__init__(outputs, node, keys)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> "TraceOutput":
+        """Return the handle of an item of the outputs."""
         return TraceOutput(self.ref, self.node, self.keys + (key,))
 
     def value(self) -> Any:
+        """Return the output names, each with the value None, or None for an item."""
         # the names of the outputs are known (for select), their values are not
         if not self.keys:
             return {name: None for name in self.ref}
         return None
 
     def schema(self) -> Optional[TableSchema]:
+        """Return the schema of a selected output; None if it is not known."""
         if len(self.keys) != 1 or self.keys[0] not in self.ref:
             return None
         return self.ref[self.keys[0]].schema
 
 
 class Tracer:
-    """Records the tool calls of a dry run (see :func:`flim.core.runner.call_tool`)."""
+    """Records the tool calls of a dry run (see `flim.core.runner.call_tool`)."""
 
-    def __init__(self, samples: dict):
+    def __init__(self, samples: dict[int, TableSchema]) -> None:
+        """Create a tracer.
+
+        Args:
+            samples: `id()` of a sample input table -> its schema.
+        """
         self.samples = samples  # id(sample table) -> its schema
         self.steps: list[StepReport] = []
 
-    def schema_of(self, value) -> Any:
+    def schema_of(self, value: Any) -> Any:
+        """Return the schema of a step's input.
+
+        Args:
+            value: A traced output, a table, or a dict of them.
+
+        Returns:
+            The schema (of a table that is not a sample: from its columns, not
+            complete); for a dict, its keys -> the schemas of its values; None for
+            other values.
+        """
         if isinstance(value, TraceOutput):
             return value.schema()
         if isinstance(value, pd.DataFrame):
@@ -158,7 +255,29 @@ class Tracer:
             return {k: self.schema_of(v) for k, v in value.items()}
         return None
 
-    def call(self, tool, inputs, config, task_tags=None):
+    def call(
+        self,
+        tool: "Tool",
+        inputs: list[Any],
+        config: Optional[TaskConfig],
+        task_tags: Optional[Union[str, Sequence[str]]] = None,
+    ) -> Any:
+        """Check a tool call and record it as a step, instead of running it.
+
+        The config is checked against the input schemas (`Tool.validate`); the
+        output schemas (`Tool.output_schema`) are empty if they can't be derived
+        before the run.
+
+        Args:
+            tool: The tool.
+            inputs: The call's inputs.
+            config: The call's config; None: the tool's default config.
+            task_tags: The step's tags, added to its name.
+
+        Returns:
+            The input table itself for the workflow's input step; else a
+            `TraceOutput` with the output schemas.
+        """
         from flim.core.workflow import _Input
 
         if isinstance(tool, _Input):  # the workflow's input table itself
@@ -184,14 +303,42 @@ class Tracer:
 
 
 def current_tracer() -> Optional[Tracer]:
+    """Return the tracer of the current dry run; None outside a dry run."""
     return _TRACER.get()
 
 
 class DefaultWorkflowValidator:
-    """Guesses missing columns of the workflow config (unless strict), then checks
-    every step in a dry run of the workflow."""
+    """Guesses missing columns of the workflow config, then checks each step.
 
-    def validate(self, workflow, config, inputs, strict) -> ValidationReport:
+    Missing columns are guessed unless the validation is strict; the steps are
+    checked in a dry run of the workflow.
+    """
+
+    def validate(
+        self,
+        workflow: type["Workflow"],
+        config: TaskConfig,
+        inputs: list[Optional[TableSchema]],
+        strict: bool,
+    ) -> ValidationReport:
+        """Check a workflow config against the schemas of the input tables.
+
+        Columns are resolved only if all known input schemas are complete; the
+        steps are checked only if every input is known and complete. An error while
+        the workflow is built is reported as an issue. A step's issue about a
+        column that is already reported for the workflow config, or the same issue
+        again (steps that run per feature), is left out.
+
+        Args:
+            workflow: The workflow class.
+            config: The workflow's config.
+            inputs: The schemas of the input tables; None for an unknown one.
+            strict: Report columns missing from the inputs as errors instead of
+                replacing them by guesses.
+
+        Returns:
+            The report, with the config the run uses.
+        """
         schemas = list(inputs)
         known = [s for s in schemas if s is not None]
         issues: list[Issue] = []
@@ -232,9 +379,24 @@ class DefaultWorkflowValidator:
         return report
 
     @staticmethod
-    def resolve_columns(config, schemas, strict) -> tuple[TaskConfig, list[Issue]]:
-        """The config with the columns it names that the inputs lack replaced by
-        guesses (unless strict), and the issues: guesses and errors."""
+    def resolve_columns(
+        config: TaskConfig, schemas: list[TableSchema], strict: bool
+    ) -> tuple[TaskConfig, list[Issue]]:
+        """Replace the columns a config names that the inputs lack by guesses.
+
+        Fields that the workflow copies into its steps (`bound_fields`) are checked
+        at the workflow's level only. A column that is in the input with another
+        role is an error. If there are issues, the config's `_share_fields` (if
+        any) is called, which copies the guesses into the steps' bound fields.
+
+        Args:
+            config: The workflow's config; a guess replaces it with a copy.
+            schemas: The schemas of the input tables.
+            strict: Report missing columns as errors, without guesses.
+
+        Returns:
+            The config with the guesses applied, and the issues: guesses and errors.
+        """
         columns = {c.name: c.role for s in schemas for c in s.columns}
         # fields the workflow copies into its steps are checked once, at the top
         bound = {

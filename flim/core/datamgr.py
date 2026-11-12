@@ -67,7 +67,8 @@ class DataManager(Observable):
     subscribers. Readers get items (`Item`), which do not change.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Create an empty manager; item IDs start at 1."""
         super().__init__()
         self._lock = threading.RLock()
         self._items: dict[ItemId, Item] = {}
@@ -76,7 +77,13 @@ class DataManager(Observable):
     # --- reading ---
 
     def get(self, item_id: ItemId) -> Item:
-        """Return an item.
+        """Return an item, open or closed.
+
+        Args:
+            item_id: The item's ID.
+
+        Returns:
+            The item as of now.
 
         Raises:
             KeyError: If there is no item with this ID.
@@ -88,7 +95,11 @@ class DataManager(Observable):
         """Return the items, in the order they were added.
 
         Args:
-            open_only: Only the open items.
+            open_only: Whether to return only the open items; else closed items too.
+                Defaults to True.
+
+        Returns:
+            The items.
         """
         with self._lock:
             return [i for i in self._items.values() if i.open or not open_only]
@@ -103,7 +114,11 @@ class DataManager(Observable):
 
         Args:
             title: The wanted title.
-            exclude: An item whose own title does not count (when renaming it).
+            exclude: The ID of an item whose own title does not count (when renaming
+                it).
+
+        Returns:
+            The unique title.
         """
         with self._lock:
             taken = {i.title for i in self.items() if i.id != exclude}
@@ -114,8 +129,20 @@ class DataManager(Observable):
         return candidate
 
     def snapshot(self, item_id: ItemId) -> Any:
-        """Return a copy of an item's value for a run, which the item's later edits
-        do not change (see `DataType.snapshot`)."""
+        """Return a copy of an item's value for a run.
+
+        The item's later edits do not change the copy (see `DataType.snapshot`).
+        Values without a data type are returned as they are, not copied.
+
+        Args:
+            item_id: The item's ID.
+
+        Returns:
+            The copy of the value.
+
+        Raises:
+            KeyError: If there is no item with this ID.
+        """
         item = self.get(item_id)
         if item.data_type is None:
             return item.value
@@ -132,6 +159,9 @@ class DataManager(Observable):
         source: Optional[str] = None,
     ) -> Item:
         """Add an item; its title is made unique among the open items.
+
+        The item's data type is the one that accepts the value (`DataType.of`).
+        Subscribers receive an `added` change.
 
         Args:
             value: The value, e.g. a DataFrame.
@@ -157,7 +187,13 @@ class DataManager(Observable):
         self.notify(Change("added", item))
         return item
 
-    def _change(self, item_id: ItemId, kind, **changes) -> Item:
+    def _change(
+        self,
+        item_id: ItemId,
+        kind: Literal["added", "renamed", "modified", "value", "closed"],
+        **changes: Any,
+    ) -> Item:
+        """Replace an item with the given fields changed, and notify the subscribers."""
         with self._lock:
             item = replace(self._items[item_id], **changes)
             self._items[item_id] = item
@@ -165,21 +201,74 @@ class DataManager(Observable):
         return item
 
     def rename(self, item_id: ItemId, title: str) -> Item:
-        """Give an item a new title, made unique among the other open items."""
+        """Give an item a new title, made unique among the other open items.
+
+        Subscribers receive a `renamed` change.
+
+        Args:
+            item_id: The item's ID.
+            title: The wanted title.
+
+        Returns:
+            The changed item.
+
+        Raises:
+            KeyError: If there is no item with this ID.
+        """
         return self._change(item_id, "renamed", title=self.unique_title(title, item_id))
 
     def set_modified(self, item_id: ItemId, modified: bool = True) -> Item:
-        """Mark an item as modified (changed since saved) or not (saved)."""
+        """Mark an item as modified (changed since saved) or not (saved).
+
+        Subscribers receive a `modified` change, only if the state changes.
+
+        Args:
+            item_id: The item's ID.
+            modified: The new state. Defaults to True.
+
+        Returns:
+            The item, changed or not.
+
+        Raises:
+            KeyError: If there is no item with this ID.
+        """
         if self.get(item_id).modified == modified:
             return self.get(item_id)
         return self._change(item_id, "modified", modified=modified)
 
     def set_value(self, item_id: ItemId, value: Any, *, modified: bool = True) -> Item:
-        """Replace an item's value, e.g. after an edit in its window."""
+        """Replace an item's value, e.g. after an edit in its window.
+
+        The data type is set again from the new value. Subscribers receive a `value`
+        change.
+
+        Args:
+            item_id: The item's ID.
+            value: The new value.
+            modified: The item's new modified state. Defaults to True.
+
+        Returns:
+            The changed item.
+
+        Raises:
+            KeyError: If there is no item with this ID.
+        """
         return self._change(
             item_id, "value", value=value, data_type=DataType.of(value), modified=modified
         )
 
     def close(self, item_id: ItemId) -> Item:
-        """Close an item: it is no longer open, and its value is released."""
+        """Close an item: it is no longer open, and its value is released.
+
+        Subscribers receive a `closed` change.
+
+        Args:
+            item_id: The item's ID.
+
+        Returns:
+            The closed item, whose value is None.
+
+        Raises:
+            KeyError: If there is no item with this ID.
+        """
         return self._change(item_id, "closed", open=False, value=None)

@@ -33,6 +33,7 @@ class SettingRow:
 
 
 def _executor(settings: AppSettings) -> str:
+    """Return the execution settings as text, e.g. `local, workers: automatic`."""
     execution = settings.execution.model_dump(mode="json")
     parts = [execution.pop("executor")]
     workers = execution.pop("workers", None)
@@ -57,6 +58,7 @@ def _prefect_profile() -> Optional[str]:
 
 
 def _value(name: str, settings: AppSettings) -> str:
+    """Return the value of the app setting `name` as the viewer shows it."""
     value = getattr(settings, name)
     if name == "results_dir":
         return str(value) if value else f"start folder ({START_DIR})"
@@ -80,6 +82,7 @@ def _value(name: str, settings: AppSettings) -> str:
 
 
 def _change(name: str) -> str:
+    """Return the command-line option and environment variable of a setting."""
     env = ENV_NAMES[name]
     if name == "execution":
         env = f"{env}__*"  # FLIM_EXECUTION__EXECUTOR, ...; or FLIM_EXECUTION as JSON

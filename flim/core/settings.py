@@ -1,9 +1,9 @@
 """FLIMAnalyzer settings: versioned, typed, and upgraded from older settings files.
 
-A settings file stores ``schema_version``. Files of older versions are upgraded step by
-step (``MIGRATIONS``: version n -> n+1) and then validated with :class:`AppSettings`;
-settings are always saved in the newest version. Version 0 is the dict ``Config`` of
-FLIMAnalyzer up to 0.5 (``{"root": {"import": ..., "plugins": ...}}``); version 1 is
+A settings file stores `schema_version`. Files of older versions are upgraded step by
+step (`MIGRATIONS`: version n -> n+1) and then validated with `AppSettings`;
+settings are always saved in the newest version. Version 0 is the dict `Config` of
+FLIMAnalyzer up to 0.5 (`{"root": {"import": ..., "plugins": ...}}`); version 1 is
 the format of 0.6; version 2 the format of 0.7.
 
 A settings file has a section per settings area, and one per tool::
@@ -15,11 +15,11 @@ A settings file has a section per settings area, and one per tool::
      "tools": {"Summarize": {"config": {...}, "autosave": {...}}, ...}}
 
 A file may have only some of the sections (e.g. only one tool's, saved from its
-dialog): loading it changes only those (:func:`update_settings`).
+dialog): loading it changes only those (`update_settings`).
 
-- :class:`ToolSettingsMap`: the settings of each tool (its config, autosave and results
+- `ToolSettingsMap`: the settings of each tool (its config, autosave and results
   folder), by tool name.
-- :class:`AppSettings`: the results folder, the executor, the Prefect server, the log and
+- `AppSettings`: the results folder, the executor, the Prefect server, the log and
   cache folders, import, filters and the tool settings (Import's renaming, dropping
   and calculating: the Rename Columns, Drop Columns and Calculate tools' settings).
 """
@@ -30,13 +30,14 @@ import logging
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     RootModel,
+    SerializerFunctionWrapHandler,
     ValidationError,
     model_serializer,
 )
@@ -44,6 +45,10 @@ from pydantic import (
 from flim.core.config import TaskConfig
 from flim.core.saving import AutosaveConfig
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
+
+if TYPE_CHECKING:
+    from flim.core.filter import RangeFilter
+    from flim.core.tool import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -55,29 +60,41 @@ START_DIR = Path.cwd()
 
 
 class _Settings(BaseModel):
+    """The base of the settings models: unknown keys are kept, not refused."""
+
     # keys of newer versions (or typos) are logged, not fatal: see _validated
     model_config = ConfigDict(extra="allow")
 
 
 class FilterSettings(_Settings):
-    """The table windows' filter switches; the filters are the Filter tool's settings
-    (version 2). `use` also decides whether `flimbatch` filters after Import."""
+    """The table windows' filter switches; the filters are the Filter tool's settings.
+
+    Attributes:
+        use: Whether the table windows filter their tables.
+        show_dropped: Whether the table windows show the rows the filters dropped.
+    """
 
     use: bool = False
     show_dropped: bool = True
 
 
 class ToolSettings(_Settings):
-    """A tool's settings: its config (JSON, with ``classname``), whether, where and in
-    which formats it saves its results (``autosave``), and the plugin parameters
-    (``legacy``) that no config class was found for."""
+    """A tool's settings: its config, autosave settings and legacy plugin parameters.
+
+    Attributes:
+        config: The tool's config as JSON, with `classname`; None if none is saved.
+        autosave: Whether, where and in which formats the tool saves its results.
+        legacy: The plugin parameters of a FLIMAnalyzer 0.5 settings file that no
+            config class was found for; None otherwise. It is written only if set.
+    """
 
     config: Optional[dict] = None
     autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
 
     @model_serializer(mode="wrap")
-    def _serialize(self, handler):
+    def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Serialize the settings, leaving out `legacy` if it is not set."""
         # `legacy` is written only if set: it is used only for 0.5 settings of tools
         # of other packages
         data = handler(self)
@@ -96,16 +113,34 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
         """The tools' settings by tool name."""
         return self.root
 
-    def entry(self, tool) -> Optional[ToolSettings]:
-        """The tool's settings, also those saved under one of its former names."""
+    def entry(self, tool: "type[Tool]") -> Optional[ToolSettings]:
+        """Return the tool's settings, also those saved under one of its former names.
+
+        Args:
+            tool: The tool class; its `name` is looked up first, then its
+                `former_names` in order.
+
+        Returns:
+            The settings, or None if none are saved for the tool.
+        """
         for name in (tool.name, *getattr(tool, "former_names", ())):
             if name in self.entries:
                 return self.entries[name]
         return None
 
-    def config(self, tool) -> TaskConfig:
-        """The tool's saved config; its defaults if none is saved or it is not valid
-        (a warning is logged)."""
+    def config(self, tool: "type[Tool]") -> TaskConfig:
+        """Return the tool's saved config.
+
+        A saved config is validated with the tool's config class; legacy plugin
+        parameters are converted with its `from_legacy_params`.
+
+        Args:
+            tool: The tool class.
+
+        Returns:
+            The saved config; the tool's default config if none is saved, or if the
+            saved one is not valid (a warning is logged).
+        """
         entry = self.entry(tool)
         try:
             if entry is not None and entry.config is not None:
@@ -116,27 +151,45 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
             logger.warning(f"{tool.name}: settings not valid, using the defaults ({err})")
         return tool.config_class()
 
-    def set(self, tool, config: TaskConfig, autosave: Optional[AutosaveConfig] = None) -> None:
+    def set(
+        self,
+        tool: "type[Tool]",
+        config: TaskConfig,
+        autosave: Optional[AutosaveConfig] = None,
+    ) -> None:
+        """Save the tool's settings under its name, removing those under former names.
+
+        Args:
+            tool: The tool class.
+            config: The tool's config.
+            autosave: Whether, where and in which formats the tool saves its results;
+                None for not saving. Defaults to None.
+        """
         for name in getattr(tool, "former_names", ()):
             self.entries.pop(name, None)
         self.entries[tool.name] = tool_settings(config, autosave)
 
 
-def tool_settings(config: TaskConfig, autosave: Optional[AutosaveConfig] = None) -> ToolSettings:
+def tool_settings(
+    config: TaskConfig, autosave: Optional[AutosaveConfig] = None
+) -> ToolSettings:
     """Return a tool's settings.
 
     Args:
         config: The tool's config.
-        autosave: Whether, where and in which formats it saves its results; defaults
-            to not saving.
+        autosave: Whether, where and in which formats it saves its results; None for
+            not saving. Defaults to None.
+
+    Returns:
+        The settings, with the config as JSON.
     """
     return ToolSettings(
         config=config.model_dump(mode="json"), autosave=autosave or AutosaveConfig()
     )
 
 
-def default_range_filters() -> list:
-    """The range filters of new settings (flim.core.filter.RangeFilter)."""
+def default_range_filters() -> list["RangeFilter"]:
+    """Return the default range filters of new settings."""
     from flim.core.filter import RangeFilter
 
     return [
@@ -213,6 +266,12 @@ class LogSettings(_Settings):
 
 
 class AppSettings(_Settings):
+    """The app settings: folders, execution, log, cache, filters and tool settings.
+
+    Each field's `title` and `description` describe the setting; keys the model
+    does not have are kept as extra and logged when a file is loaded.
+    """
+
     schema_version: int = SETTINGS_VERSION
     results_dir: Optional[Path] = Field(
         default=None,
@@ -293,8 +352,12 @@ class AppSettings(_Settings):
 
     @classmethod
     def default(cls) -> "AppSettings":
-        """The default settings: the Filter tool's default range filters (those of
-        the table windows up to 0.6); the other tools' defaults are their configs'."""
+        """Return the default settings.
+
+        The Filter tool's settings hold the default range filters (those of the table
+        windows of FLIMAnalyzer 0.6); the other tools have no saved settings, so their
+        configs' defaults apply.
+        """
         from flim.configs import FilterConfig
         from flim.core.filtering import default_ranges
 
@@ -305,11 +368,16 @@ class AppSettings(_Settings):
         return settings
 
     def to_json(self) -> dict:
+        """Return the settings as JSON-compatible data, with field aliases as keys."""
         return self.model_dump(mode="json", by_alias=True)
 
     def resolved_results_dir(self) -> Path:
-        """The results folder: `results_dir` with `~` expanded, or the folder
-        FLIMAnalyzer was started from if it is not set."""
+        """Return the results folder.
+
+        Returns:
+            `results_dir` with `~` expanded, or the folder FLIMAnalyzer was started
+            from (`START_DIR`) if it is not set.
+        """
         return self.results_dir.expanduser() if self.results_dir else START_DIR
 
 
@@ -348,13 +416,18 @@ _V0_TOOL_KEYS = {"_config", "autosave", "working_dir"}
 
 
 def _renamed(values: dict, names: dict) -> dict:
-    """``values`` with the keys in ``names`` renamed; other keys kept."""
+    """Return `values` with the keys in `names` renamed; other keys kept."""
     return {names.get(k, k): v for k, v in values.items()}
 
 
-def _v0_to_v1(data: dict, convert: bool = True, changes: Optional["Changes"] = None) -> dict:
-    """Version 0 (the dict ``Config``) to 1. ``convert``: also the plugin settings.
-    ``changes``: records the conversion."""
+def _v0_to_v1(
+    data: dict, convert: bool = True, changes: Optional["Changes"] = None
+) -> dict:
+    """Upgrade version 0 (the dict `Config`) to 1.
+
+    `convert` also converts the plugin parameters to tool settings; `changes`
+    records the conversion.
+    """
     changes = changes if changes is not None else Changes()
     changes.converted.append("FLIMAnalyzer 0.5 keys to the names of 0.6")
     root = copy.deepcopy(data.get("root", data))
@@ -381,7 +454,7 @@ def _v0_to_v1(data: dict, convert: bool = True, changes: Optional["Changes"] = N
 
 
 def _v0_tools(plugins: dict) -> dict:
-    """The plugin parameters of version 0 as tool settings."""
+    """Return the plugin parameters of version 0 as tool settings."""
     from flim.configs import LEGACY_TOOL_CONFIGS
     from flim.core.registry import tools as registry
 
@@ -411,7 +484,8 @@ def _v0_tools(plugins: dict) -> dict:
     return entries
 
 
-def _renamed_key(values: dict, old: str, new: str) -> bool:
+def _renamed_key(values: Any, old: str, new: str) -> bool:
+    """Rename the key `old` of a dict to `new` in place; return whether it was there."""
     if isinstance(values, dict) and old in values:
         values[new] = values.pop(old)
         return True
@@ -419,8 +493,11 @@ def _renamed_key(values: dict, old: str, new: str) -> bool:
 
 
 def _v1_calculations(calculate: dict) -> list:
-    """0.6's `{column: [function, [argument columns]]}` as Calculate's calculations:
-    in the order Import makes the default ones, then the others in file order."""
+    """Return 0.6's `{column: [function, [argument columns]]}` as calculations.
+
+    The calculations are in the order Import makes the default ones, then the others
+    in file order.
+    """
     from flim.core.preprocessor import DEFAULT_CALCULATIONS
 
     order = {name: i for i, (name, _, _) in enumerate(DEFAULT_CALCULATIONS)}
@@ -436,9 +513,12 @@ def _v1_calculations(calculate: dict) -> list:
 
 
 def _v1_import(data: dict, changes: "Changes") -> None:
-    """0.6's `import` section (delimiter, filename parser and patterns, files left
-    out, column combinations) is dropped: what a run does with the files is a
-    workflow file's (e.g. the built-in `Import`)."""
+    """Drop 0.6's `import` section, keeping it in `changes.import_section`.
+
+    The section (delimiter, filename parser and patterns, files left out, column
+    combinations) has no place in version 2: what a run does with the files is set
+    in a workflow file (e.g. the built-in `Import`).
+    """
     section = data.pop("import", None)
     if not isinstance(section, dict):
         return
@@ -451,8 +531,11 @@ def _v1_import(data: dict, changes: "Changes") -> None:
 
 
 def _v1_filters(data: dict, changes: "Changes") -> None:
-    """0.6's windows' range filters become the Filter tool's filters (`enabled` =
-    `selected`); the Filter tool's own 0.6 filters are added switched off."""
+    """Move 0.6's range filters into the Filter tool's config, in place.
+
+    The table windows' range filters become the Filter tool's filters (`enabled` =
+    `selected`); the Filter tool's own 0.6 filters are added switched off.
+    """
     from flim.configs.data import _filters_of_v1, range_of_legacy
 
     filters = data.get("filters")
@@ -507,7 +590,7 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
 
     Args:
         data: Settings of version 1.
-        changes: Records the renamed and dropped keys.
+        changes: Records the renamed and dropped keys; None for no record.
 
     Returns:
         A new dict with the settings of version 2.
@@ -571,13 +654,21 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
 MIGRATIONS: dict[int, Callable[[dict], dict]] = {0: _v0_to_v1, 1: _v1_to_v2}
 
 
-def version_of(data: dict) -> int:
+def version_of(data: Any) -> int:
+    """Return the schema version of settings data; 0 if it has none or is not a dict."""
     return int(data.get("schema_version", 0)) if isinstance(data, dict) else 0
 
 
 @dataclass
 class Changes:
-    """The keys a migration converted (renamed or restructured) and dropped."""
+    """The keys a migration converted (renamed or restructured) and dropped.
+
+    Attributes:
+        converted: Descriptions of the converted keys.
+        dropped: Descriptions of the dropped keys.
+        import_section: The dropped `import` section of a version 1 file; None if
+            there was none.
+    """
 
     converted: list[str] = field(default_factory=list)
     dropped: list[str] = field(default_factory=list)
@@ -587,9 +678,18 @@ class Changes:
 
 
 def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
-    """``data`` of any version, upgraded to the current one. Raises ValueError if
-    ``data`` is of a newer version than SETTINGS_VERSION. ``changes``: records the
-    converted and dropped keys."""
+    """Upgrade settings data of any version to the current one.
+
+    Args:
+        data: The settings data; data of the current version is returned unchanged.
+        changes: Records the converted and dropped keys; None for no record.
+
+    Returns:
+        The settings data of version `SETTINGS_VERSION`.
+
+    Raises:
+        ValueError: If `data` is of a newer version than `SETTINGS_VERSION`.
+    """
     version = version_of(data)
     if version > SETTINGS_VERSION:
         raise ValueError(
@@ -604,6 +704,7 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
 
 
 def _unknown_keys(model: BaseModel, path: str = "") -> list[str]:
+    """Return the extra keys of a model and its nested models, with their paths."""
     keys = [f"{path}{k}" for k in (model.model_extra or {})]
     for name in type(model).model_fields:
         value = getattr(model, name)
@@ -613,6 +714,7 @@ def _unknown_keys(model: BaseModel, path: str = "") -> list[str]:
 
 
 def _validated(data: dict) -> AppSettings:
+    """Validate settings data of the current version and log its unknown keys."""
     settings = AppSettings.model_validate(data)
     unknown = _unknown_keys(settings)
     if unknown:
@@ -621,14 +723,37 @@ def _validated(data: dict) -> AppSettings:
 
 
 def settings_from_data(data: dict) -> AppSettings:
-    """Settings from loaded JSON of any version; unknown keys are logged."""
+    """Return the settings of loaded JSON of any version.
+
+    Args:
+        data: The settings data.
+
+    Returns:
+        The validated settings; unknown keys are logged.
+
+    Raises:
+        ValueError: If `data` is of a newer version than `SETTINGS_VERSION`.
+        pydantic.ValidationError: If a value is not valid.
+    """
     return _validated(migrate(data))
 
 
 def merge_sections(base: dict, changes: dict) -> dict:
-    """A copy of ``base`` (sections in the current version) with the sections of
-    ``changes`` (any version): each replaces the section in ``base``; tools each tool's
-    section, which also removes that tool's sections under its former names."""
+    """Return a copy of `base` with the sections of `changes` replacing its sections.
+
+    In `tools`, each tool's section is replaced separately, and the sections under
+    the former names of a registered tool are removed.
+
+    Args:
+        base: Settings sections in the current version.
+        changes: Settings sections of any version; upgraded before merging.
+
+    Returns:
+        The merged sections, without `schema_version` from `changes`.
+
+    Raises:
+        ValueError: If `changes` is of a newer version than `SETTINGS_VERSION`.
+    """
     merged = copy.deepcopy(base)
     for key, value in migrate(changes).items():
         if key == "tools" and isinstance(value, dict):
@@ -644,24 +769,52 @@ def merge_sections(base: dict, changes: dict) -> dict:
 
 
 def update_settings(settings: AppSettings, data: dict) -> AppSettings:
-    """``settings`` with the sections in ``data`` (JSON of any version): each section
-    replaces the one in ``settings``; tools each tool's section. Unknown keys are
-    logged; invalid values raise pydantic.ValidationError."""
+    """Return `settings` with the sections in `data` replacing its sections.
+
+    In `tools`, each tool's section is replaced separately (see `merge_sections`).
+
+    Args:
+        settings: The current settings; not changed.
+        data: Settings JSON of any version.
+
+    Returns:
+        New settings; unknown keys are logged.
+
+    Raises:
+        ValueError: If `data` is of a newer version than `SETTINGS_VERSION`.
+        pydantic.ValidationError: If a value is not valid.
+    """
     merged = merge_sections(settings.to_json(), data)
     merged["schema_version"] = SETTINGS_VERSION
     return _validated(merged)
 
 
-def _registered(name):
+def _registered(name: str) -> "Optional[type[Tool]]":
+    """Return the registered tool named `name`, or None."""
     from flim.core.registry import tools
 
     return tools.get(name) if name in tools else None
 
 
-def load_settings(path, settings: Optional[AppSettings] = None) -> AppSettings:
-    """Reads a settings file of any version. Sections the file does not have are
-    those of ``settings`` (default: the defaults). Raises ValueError if the file does
-    not hold a JSON object, and the errors of reading and validating it."""
+def load_settings(
+    path: str | os.PathLike, settings: Optional[AppSettings] = None
+) -> AppSettings:
+    """Read a settings file of any version.
+
+    Args:
+        path: The settings file.
+        settings: The sections the file does not have; None for the default settings
+            (`AppSettings.default`). Defaults to None.
+
+    Returns:
+        The settings; unknown keys are logged.
+
+    Raises:
+        OSError: If the file cannot be read.
+        ValueError: If the file is not JSON (`json.JSONDecodeError`), does not hold a
+            JSON object, or is of a newer version than `SETTINGS_VERSION`.
+        pydantic.ValidationError: If a value is not valid.
+    """
     with open(path) as f:
         data = json.load(f)
     if not isinstance(data, dict):
@@ -674,8 +827,10 @@ def load_settings(path, settings: Optional[AppSettings] = None) -> AppSettings:
 
 @dataclass
 class SettingsCheck:
-    """The result of checking a settings file: what its migration converted and
-    dropped, which keys cannot be used, and the sections that can.
+    """The result of checking a settings file.
+
+    It lists what the file's migration converted and dropped, which keys cannot be
+    used, and the sections that can.
 
     Attributes:
         path: The settings file.
@@ -691,6 +846,11 @@ class SettingsCheck:
             installed; their settings are kept.
         sections: The sections that can be used, in the current version, without
             the unknown keys and the sections with invalid values.
+        import_workflow: The content of a workflow file that imports data as the
+            file's 0.6 `import` section did; None if the file has no such section.
+            It is offered to be saved, never applied.
+        import_read: How that `import` section read the data files: the Import
+            Tables settings that differ from the defaults.
     """
 
     path: Path
@@ -713,9 +873,16 @@ class SettingsCheck:
         """Whether some of the file's settings cannot be used."""
         return bool(self.error or self.unknown or self.invalid)
 
-    def tool_problems(self, tool) -> bool:
-        """Whether some of the settings of `tool` (also under a former name) cannot
-        be used, or the file cannot be used at all."""
+    def tool_problems(self, tool: "type[Tool]") -> bool:
+        """Return whether some of a tool's settings, or the file, cannot be used.
+
+        Args:
+            tool: The tool class; its settings under former names are included.
+
+        Returns:
+            True if the file cannot be used at all, or if a key under the tool's
+            settings is unknown or has an invalid value.
+        """
         if self.error:
             return True
         names = (tool.name, *getattr(tool, "former_names", ()))
@@ -726,7 +893,12 @@ class SettingsCheck:
         """Return the result as text, one heading per kind of finding.
 
         Args:
-            limit: The number of items listed per heading; None lists all.
+            limit: The number of items listed per heading; None lists all. Defaults to
+                None.
+
+        Returns:
+            The path and schema version, then each heading with its items; or one
+            line with the error if the file cannot be used.
         """
         if self.error:
             return f"{self.path} cannot be used: {self.error}"
@@ -769,8 +941,10 @@ def _drop_extra_keys(model: BaseModel, data: dict) -> None:
 
 
 def _remove_invalid(data: dict, invalid: list[str]) -> AppSettings:
-    """Validate `data`, removing each section (or tool's settings) with an invalid
-    value until the rest is valid.
+    """Validate `data`, removing the sections with invalid values until it is valid.
+
+    A tool's settings with an invalid value are removed, not the whole `tools`
+    section.
 
     Args:
         data: Sections in the current version; changed in place.
@@ -796,7 +970,8 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
     """Check a settings file of any version before it is used; the file is only read.
 
     The file is migrated to the current version and validated. Each tool's settings
-    are validated with the tool's config class if the tool is installed.
+    are validated with the tool's config class if the tool is installed. Errors of
+    reading and upgrading the file are recorded in `error`, not raised.
 
     Args:
         path: The settings file.
@@ -871,8 +1046,13 @@ def save_sections(sections: dict, path: str | os.PathLike) -> None:
         json.dump({"schema_version": SETTINGS_VERSION, **sections}, f, indent=2, default=str)
 
 
-def save_settings(settings: AppSettings, path) -> None:
-    """Writes settings in the current version."""
+def save_settings(settings: AppSettings, path: str | os.PathLike) -> None:
+    """Write settings, in the current version, to a file.
+
+    Args:
+        settings: The settings.
+        path: The file; it is replaced if it exists.
+    """
     with open(path, "w") as f:
         json.dump(settings.to_json(), f, indent=2, default=str)
 
@@ -880,11 +1060,28 @@ def save_settings(settings: AppSettings, path) -> None:
 # --- the settings of one tool (in a FLIMAnalyzer settings file, or alone) ---
 
 
-def read_tool_settings(path, tool) -> Optional[ToolSettings]:
-    """The tool's section of a settings file (also of an older version, or under one
-    of its former names); a file with only a config (with ``classname``) is the
-    config. None if the file has no settings of the tool. Raises ValueError if the
-    file does not hold a JSON object."""
+def read_tool_settings(
+    path: str | os.PathLike, tool: "type[Tool]"
+) -> Optional[ToolSettings]:
+    """Read a tool's section of a settings file.
+
+    The file may be of an older version, and the section may be under one of the
+    tool's former names. A file with only a config (with `classname`) is returned
+    as the config, without checking that it is a config of `tool`.
+
+    Args:
+        path: The settings file, or a config file.
+        tool: The tool class.
+
+    Returns:
+        The tool's settings, or None if the file has no settings of the tool.
+
+    Raises:
+        OSError: If the file cannot be read.
+        ValueError: If the file is not JSON (`json.JSONDecodeError`), does not hold a
+            JSON object, or is of a newer version than `SETTINGS_VERSION`.
+        pydantic.ValidationError: If the file's tool settings are not valid.
+    """
     with open(path) as f:
         data = json.load(f)
     if not isinstance(data, dict):
@@ -897,10 +1094,24 @@ def read_tool_settings(path, tool) -> Optional[ToolSettings]:
     return ToolSettingsMap.model_validate(tools).entry(tool)
 
 
-def write_tool_settings(path, tool, entry: ToolSettings) -> None:
-    """Puts the tool's section into a settings file: the other sections of an
-    existing file are kept (the file is saved in the current version). Raises
-    ValueError if an existing file is not a settings file (or holds a config alone)."""
+def write_tool_settings(
+    path: str | os.PathLike, tool: "type[Tool]", entry: ToolSettings
+) -> None:
+    """Write a tool's section into a settings file.
+
+    The other sections of an existing file are kept, and the file is saved in the
+    current version. The tool's sections under its former names are removed.
+
+    Args:
+        path: The settings file; created if it does not exist.
+        tool: The tool class.
+        entry: The tool's settings.
+
+    Raises:
+        OSError: If the file cannot be read or written.
+        ValueError: If an existing file is not JSON, is not a settings file (or holds
+            a config alone), or is of a newer version than `SETTINGS_VERSION`.
+    """
     data = {"schema_version": SETTINGS_VERSION}
     if os.path.exists(path):
         with open(path) as f:

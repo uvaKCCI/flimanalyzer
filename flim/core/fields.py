@@ -1,12 +1,13 @@
 """What the fields of a config hold, for building editors (dialogs) from them.
 
-``describe(config_class)`` turns each Pydantic field into a :class:`FieldSpec`: its
+`describe(config_class)` turns each Pydantic field into a `FieldSpec`: its
 kind (checkbox, choice, column list, ...), choices, bounds, title and help. It does
 not import wx, so other front ends can use it too.
 """
 
 import types
 import typing
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, Literal, Optional, Union
@@ -22,6 +23,12 @@ METADATA_FIELDS = ("classname", "version")
 
 @dataclass(frozen=True)
 class FieldSpec:
+    """The description of one config field, from which an editor builds its control.
+
+    `name` is the field's name, `title` the label shown, `kind` the kind of control
+    (see `describe_annotation`); the comments describe the other attributes.
+    """
+
     name: str
     title: str
     kind: str  # see describe_annotation
@@ -51,14 +58,27 @@ class FieldSpec:
 
 
 def title_of(name: str) -> str:
-    """``"n_components"`` → ``"N components"``."""
+    """Return the title of a field name, e.g. `N components` for `n_components`."""
     text = name.replace("_", " ")
     return text[:1].upper() + text[1:]
 
 
 def describe(model: type[BaseModel]) -> list[FieldSpec]:
-    """The fields of a config class, in definition order. Fields not to be edited
-    (metadata, ``hidden_fields``, fields with one allowed value) are marked hidden."""
+    """Return the descriptions of the fields of a config class, in definition order.
+
+    The kind and its details come from `describe_annotation`; title, description and
+    the editor options (`order`, `labels`, `advanced`, `section`, `wide`, `words`,
+    `escapes`, `chars`, `shown_when`) from the field's `Field(...)` arguments and
+    `json_schema_extra`. A nested model's section is collapsed (`advanced`) if the
+    field says so, otherwise if the model class has `advanced` set.
+
+    Args:
+        model: The config class.
+
+    Returns:
+        One `FieldSpec` per field. Fields not to be edited (metadata,
+        `hidden_fields`, fields with one allowed value) are marked hidden.
+    """
     specs = []
     for name, info in model.model_fields.items():
         hidden = (
@@ -98,13 +118,21 @@ GENERAL_ORDER = {"prefix": 200, "random_seed": 210, "grouping": 400, "features":
 
 
 def field_order(spec: FieldSpec, index: int, large: bool) -> float:
-    """Position of a field in dialogs (increasing).
+    """Return the position of a field in dialogs; fields are shown in increasing order.
 
-    A field's ``order`` (``Field(..., json_schema_extra={"order": 409})``) sets it; as
+    A field's `order` (`Field(..., json_schema_extra={"order": 409})`) sets it; as
     a float, subclasses can place fields between inherited ones. Without one: a
     tool's own settings ~100, result prefix 200, random seed 210, a tool's own lists
-    and tables ~300, grouping 400, features 410, nested sections ~900; ``index`` (the
+    and tables ~300, grouping 400, features 410, nested sections ~900; `index` (the
     definition order) orders fields within these.
+
+    Args:
+        spec: The field.
+        index: The field's position in the definition order.
+        large: Whether the field is a list or table (placed at ~300 instead of ~100).
+
+    Returns:
+        The position.
     """
     if spec.order is not None:
         return spec.order
@@ -115,7 +143,11 @@ def field_order(spec: FieldSpec, index: int, large: bool) -> float:
 
 
 def visible(specs: list[FieldSpec]) -> list[FieldSpec]:
-    """Fields shown in a dialog: not hidden, and nested models with something to edit."""
+    """Return the fields shown in a dialog.
+
+    These are the fields that are not hidden, without nested models that have no
+    visible field.
+    """
     return [
         s
         for s in specs
@@ -123,19 +155,21 @@ def visible(specs: list[FieldSpec]) -> list[FieldSpec]:
     ]
 
 
-def _unwrap(annotation, metadata):
-    """(annotation without Annotated, metadata list)."""
+def _unwrap(annotation: Any, metadata: list[Any]) -> tuple[Any, list[Any]]:
+    """Return the annotation without `Annotated`, and the metadata with its extras."""
     while typing.get_origin(annotation) is Annotated:
         args = typing.get_args(annotation)
         annotation, metadata = args[0], metadata + list(args[1:])
     return annotation, metadata
 
 
-def _role(metadata) -> Optional[str]:
+def _role(metadata: Iterable[Any]) -> Optional[str]:
+    """Return the role of the first `ColumnRole` in the metadata, or None."""
     return next((m.role for m in metadata if isinstance(m, ColumnRole)), None)
 
 
-def _bounds(metadata) -> dict:
+def _bounds(metadata: Iterable[Any]) -> dict[str, Any]:
+    """Return the bounds (`ge`, `gt`, `le`, `lt`) set in the metadata."""
     bounds = {}
     for m in metadata:
         for key, cls in (
@@ -152,22 +186,36 @@ def _bounds(metadata) -> dict:
     return bounds
 
 
-def _is_union(annotation) -> bool:
+def _is_union(annotation: Any) -> bool:
+    """Return whether the annotation is a union (`Union[...]` or `X | Y`)."""
     return typing.get_origin(annotation) in (Union, types.UnionType)
 
 
-def _is_model(annotation) -> bool:
+def _is_model(annotation: Any) -> bool:
+    """Return whether the annotation is a Pydantic model class."""
     return isinstance(annotation, type) and issubclass(annotation, BaseModel)
 
 
-def describe_annotation(annotation, metadata=()) -> dict:
-    """Kind and details of a field type.
+def describe_annotation(
+    annotation: Any, metadata: Iterable[Any] = ()
+) -> dict[str, Any]:
+    """Return the kind and details of a field type.
 
     Kinds: bool, choice, multichoice, int, float, number (int or float), mixed (a
-    number or one of ``choices``), text, value (a value of the column another field
+    number or one of `choices`), text, value (a value of the column another field
     names), column, columns, path, paths, numbers, model, models, modelmap (a dict of
     configs, e.g. per feature), variants (a list of configs of several kinds, told
     apart by a discriminator field), json (anything else).
+
+    Args:
+        annotation: The field's type, possibly `Annotated`, optional or a union.
+        metadata: The field's metadata (e.g. `ColumnRole`, `ValueOf`, bounds).
+
+    Returns:
+        The keyword arguments of `FieldSpec` that follow from the type: always
+        `kind`, and depending on the kind `optional`, `choices`, `role`,
+        `allow_all`, `bounds`, `item_type`, `model`, `variants`, `discriminator` or
+        `column_field`.
     """
     annotation, metadata = _unwrap(annotation, list(metadata))
     optional = False

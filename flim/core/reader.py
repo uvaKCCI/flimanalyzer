@@ -12,9 +12,10 @@ text tables don't keep their column types.
 import logging
 import os
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional, Union
 
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator
@@ -43,8 +44,10 @@ _URI = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]+:\S+$")  # a scheme of 2+ characters
 
 
 class ReadSettings(BaseModel):
-    """How data files are read (the settings of the readers, Open Tables and Import
-    Tables)."""
+    """How data files are read.
+
+    The settings of the readers, of Open Tables and of Import Tables.
+    """
 
     delimiter: str = Field(
         default="\t,",
@@ -88,26 +91,51 @@ class ReadSettings(BaseModel):
         return ["." + e.strip().lstrip(".").lower() for e in extensions if e.strip().lstrip(".")]
 
 
-def source_uri(path) -> str:
-    """The URI of a data file, e.g. ``file:///data/9SR/Results-a-Dox15_01.txt``."""
+def source_uri(path: Union[str, os.PathLike]) -> str:
+    """Return the URI of a data file, e.g. `file:///data/9SR/Results-a-Dox15_01.txt`.
+
+    Args:
+        path: The file; a relative path is resolved against the working directory.
+
+    Returns:
+        The `file` URI of the absolute path, with symbolic links resolved.
+    """
     return Path(path).resolve().as_uri()
 
 
-def is_uri(value) -> bool:
-    """Whether a value is a well-formed URI: a scheme of two or more characters (not
-    a Windows drive letter), a colon, and no spaces, e.g. ``file:///data/a.txt``."""
+def is_uri(value: Any) -> bool:
+    """Return whether a value is a well-formed URI, e.g. `file:///data/a.txt`.
+
+    A well-formed URI is a text with a scheme of two or more characters (so that a
+    Windows drive letter is not a scheme), a colon, and no white space.
+
+    Args:
+        value: The value; values other than texts are not URIs.
+
+    Returns:
+        True if the value is a well-formed URI.
+    """
     return isinstance(value, str) and bool(_URI.match(value))
 
 
-def find_files(paths, settings: Optional[ReadSettings] = None) -> tuple[list[Path], dict]:
+def find_files(
+    paths: Iterable[Union[str, os.PathLike]], settings: Optional[ReadSettings] = None
+) -> tuple[list[Path], dict[str, str]]:
     """Return the data files among files and folders (with their subfolders).
 
+    A file given directly is taken whatever its ending; in folders, only the files
+    with one of `settings.extensions` (in any letter case) are taken. Files named in
+    `settings.exclude` are left out.
+
     Args:
-        paths: Files and folders.
-        settings: The file types and the file names to leave out.
+        paths: Files and folders; relative paths are resolved against the working
+            directory.
+        settings: The file endings and the file names to leave out. Defaults to
+            `ReadSettings()`.
 
     Returns:
-        The files, sorted, each once; and why a path was skipped, by path.
+        The absolute paths of the files, sorted, each once; and why a path was
+        skipped (`not found`, or `LEFT_OUT`), by path.
     """
     settings = settings or ReadSettings()
     extensions = tuple(e.lower() for e in settings.extensions)
@@ -145,19 +173,31 @@ class Reading:
     warnings: list = field(default_factory=list)
 
 
-def read_file(path, settings: Optional[ReadSettings] = None, nrows=None) -> tuple:
+def read_file(
+    path: Union[str, os.PathLike],
+    settings: Optional[ReadSettings] = None,
+    nrows: Optional[int] = None,
+) -> tuple[pd.DataFrame, list[str]]:
     """Read one data file into a table.
+
+    The table gets the columns `Source`, `Directory` and `File`, first. With
+    `settings.existing` `keep`, a file's own `Directory` and `File` columns are kept,
+    and its own `Source` column if all its values are URIs; other columns of these
+    names are renamed with `settings.clash_name`. Columns of `KNOWN_CATEGORIES` are
+    read as text and become categories.
 
     Args:
         path: The file.
-        settings: How to read it.
-        nrows: Read only this many rows (e.g. 0: the header only).
+        settings: How to read it. Defaults to `ReadSettings()`.
+        nrows: Read only this many rows (e.g. 0: the header only); None reads all
+            rows.
 
     Returns:
         The table, and warnings (e.g. a renamed column).
 
     Raises:
-        ValueError: If the file can't be read as a table.
+        ValueError: If the file can't be read as a table, or not with the encoding.
+        OSError: If the file can't be opened.
     """
     settings = settings or ReadSettings()
     path = Path(path)
@@ -197,15 +237,20 @@ def read_file(path, settings: Optional[ReadSettings] = None, nrows=None) -> tupl
     return table[first + [c for c in table.columns if c not in first]], warnings
 
 
-def read_tables(paths, settings: Optional[ReadSettings] = None, nrows=None) -> Reading:
+def read_tables(
+    paths: Iterable[Union[str, os.PathLike]],
+    settings: Optional[ReadSettings] = None,
+    nrows: Optional[int] = None,
+) -> Reading:
     """Read data files and folders, one table per file.
 
     A file that can't be read is skipped and named in `skipped`; the others are read.
 
     Args:
-        paths: Files and folders (with their subfolders).
-        settings: How to read them.
-        nrows: Read only this many rows of each file (0: the headers only).
+        paths: Files and folders (with their subfolders; see `find_files`).
+        settings: How to read them. Defaults to `ReadSettings()`.
+        nrows: Read only this many rows of each file (0: the headers only); None
+            reads all rows.
 
     Returns:
         The tables by name, the skipped paths and the warnings.

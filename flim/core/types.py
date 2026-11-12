@@ -1,7 +1,7 @@
 """Types of tool inputs and outputs.
 
-Each type knows the Python classes it accepts (``pytypes``) and a ``pretty_name`` used
-to display results, so tools never hardcode names such as ``"Table: ..."``. The classes
+Each type knows the Python classes it accepts (`pytypes`) and a `pretty_name` used
+to display results, so tools never hardcode names such as `"Table: ..."`. The classes
 are given as import paths and resolved only when needed, so checking a value never
 imports heavy libraries such as torch or dask.
 """
@@ -38,6 +38,10 @@ class DataType:
 
         Returns:
             The file written.
+
+        Raises:
+            NotImplementedError: If values of this type cannot be saved as files (the
+                default).
         """
         raise NotImplementedError(f"{cls.pretty_name} values cannot be saved as files")
 
@@ -46,16 +50,22 @@ class DataType:
         """Return a value for a run that later edits of `value` do not change.
 
         The default returns `value` itself, for values that are not edited in place.
+
+        Args:
+            value: A value of this type.
+
+        Returns:
+            The value for the run.
         """
         return value
 
     @classmethod
     def python_classes(cls) -> tuple[type, ...]:
-        """The accepted classes whose top-level package is already imported.
+        """Return the accepted classes whose top-level package is already imported.
 
         A value can only be an instance of a class whose package has been imported, so
         classes of packages that are not loaded are skipped; their modules are not
-        imported.
+        imported. Classes that cannot be imported are skipped too.
         """
         classes = []
         for path in cls.pytypes:
@@ -70,16 +80,17 @@ class DataType:
 
     @classmethod
     def accepts(cls, value: Any) -> bool:
+        """Return whether `value` is an instance of one of the accepted classes."""
         return isinstance(value, cls.python_classes())
 
     @classmethod
     def display_name(cls, name: str) -> str:
-        """How a result of this type is shown, e.g. ``"Table: Summary"``."""
+        """Return how a result of this type is shown, e.g. `Table: Summary`."""
         return f"{cls.pretty_name}: {name}"
 
     @staticmethod
     def of(value: Any) -> Optional[type["DataType"]]:
-        """The type of ``value`` (the most specific one), None if no type accepts it."""
+        """Return the most specific type that accepts `value`, or None if none does."""
         matches = [t for t in _all_types() if t.accepts(value)]
         if not matches:
             return None
@@ -87,20 +98,33 @@ class DataType:
 
 
 class TableType(DataType):
+    """Tables: pandas DataFrames and Series."""
+
     pretty_name = "Table"
     pytypes = ("pandas.DataFrame", "pandas.Series")
     kind = "table"
     save_options = TableSaveOptions
 
     @classmethod
-    def snapshot(cls, value):
-        """A copy: a table window can change its table while a run reads it."""
+    def snapshot(cls, value: Any) -> Any:
+        """Return a deep copy: a table window can change its table during a run."""
         return value.copy(deep=True)
 
     @classmethod
-    def save(cls, value, base, options: TableSaveOptions) -> Path:
-        """Save a table without the row index (#119); line breaks in column names
-        (headers of several lines joined into one name) become spaces."""
+    def save(cls, value: Any, base: str | Path, options: TableSaveOptions) -> Path:
+        """Save a table as text, without the row index (#119).
+
+        Line breaks in column names (headers of several lines joined into one name)
+        become spaces.
+
+        Args:
+            value: The DataFrame or Series.
+            base: The path without the file ending, which the format adds.
+            options: The format (e.g. tab- or comma-separated).
+
+        Returns:
+            The file written.
+        """
         from flim.core.saving import write_table
 
         path = Path(f"{base}{options.extension}")
@@ -109,14 +133,25 @@ class TableType(DataType):
 
 
 class PlotType(DataType):
+    """Plots: matplotlib figures."""
+
     pretty_name = "Plot"
     pytypes = ("matplotlib.figure.Figure",)
     kind = "plot"
     save_options = PlotSaveOptions
 
     @classmethod
-    def save(cls, value, base, options: PlotSaveOptions) -> Path:
-        """Save a figure with matplotlib's `savefig`; `dpi` for png only."""
+    def save(cls, value: Any, base: str | Path, options: PlotSaveOptions) -> Path:
+        """Save a figure with matplotlib's `savefig`.
+
+        Args:
+            value: The figure.
+            base: The path without the file ending, which the format adds.
+            options: The format and, used for png only, the resolution (`dpi`).
+
+        Returns:
+            The file written.
+        """
         path = Path(f"{base}{options.extension}")
         kwargs = {"dpi": options.dpi} if options.format == "png" else {}
         value.savefig(path, format=options.format, **kwargs)
@@ -124,19 +159,34 @@ class PlotType(DataType):
 
 
 class ImageType(DataType):
+    """Images: NumPy, Dask and PyTorch arrays."""
+
     pretty_name = "Image"
     pytypes = ("numpy.ndarray", "dask.array.Array", "torch.Tensor")
     kind = "image"
 
 
 class FileType(DataType):
+    """Files, as paths."""
+
     pretty_name = "File"
     pytypes = ("pathlib.Path",)
     kind = "file"
 
     @classmethod
-    def save(cls, value, base, options=None) -> Path:
-        """Copy the file as it is, keeping its ending."""
+    def save(
+        cls, value: Any, base: str | Path, options: Optional[SaveOptions] = None
+    ) -> Path:
+        """Copy the file as it is, keeping its ending.
+
+        Args:
+            value: The path of the file.
+            base: The path of the copy without the file ending.
+            options: Not used.
+
+        Returns:
+            The copy.
+        """
         import shutil
 
         source = Path(value)
@@ -146,6 +196,7 @@ class FileType(DataType):
 
 
 def _all_types() -> list[type[DataType]]:
+    """Return all subclasses of `DataType`, including indirect ones."""
     found, todo = [], list(DataType.__subclasses__())
     while todo:
         t = todo.pop()
@@ -178,4 +229,8 @@ class OutputSpec:
 
     @property
     def display_name(self) -> str:
+        """The name shown for the result.
+
+        For example `Table: Summary`.
+        """
         return self.type.display_name(self.name)

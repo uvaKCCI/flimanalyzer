@@ -23,10 +23,14 @@ import inspect
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Callable, Optional
+from collections.abc import Collection, Iterable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from flim.configs.data import Calculation
 
 logger = logging.getLogger(__name__)
 
@@ -50,18 +54,25 @@ _ALLOWED_NODES = (
 )  # fmt: skip
 
 
-def register_function(func: Optional[Callable] = None, *, name: Optional[str] = None):
+def register_function(
+    func: Optional[Callable] = None, *, name: Optional[str] = None
+) -> Callable:
     """Register a function for calculations of kind `function`; usable as a decorator.
 
     The function takes one value per argument column (positional) and the
     calculation's parameters (keywords), and returns one value; it is called row by row.
+    A function registered under an existing name replaces it.
 
     Args:
-        func: The function.
-        name: The name calculations refer to; default: the function's name.
+        func: The function; None when used as `@register_function(name=...)`.
+        name: The name calculations refer to; defaults to the function's name.
+
+    Returns:
+        The function itself if `func` is given, otherwise a decorator that registers
+        and returns the function it decorates.
     """
 
-    def register(f):
+    def register(f: Callable) -> Callable:
         FUNCTIONS[name or f.__name__] = f
         return f
 
@@ -69,6 +80,7 @@ def register_function(func: Optional[Callable] = None, *, name: Optional[str] = 
 
 
 def _register_builtins() -> None:
+    """Register the functions of `flim.core.preprocessor`, unless already registered."""
     from flim.core import preprocessor as p
 
     for f in (
@@ -97,7 +109,7 @@ def expression_columns(expression: str) -> list[str]:
         raise ValueError("the expression is empty")
     quoted: list[str] = []
 
-    def placeholder(match):
+    def placeholder(match: re.Match) -> str:
         quoted.append(match.group(1))
         return f" _c{len(quoted) - 1}_ "
 
@@ -139,17 +151,27 @@ def expression_columns(expression: str) -> list[str]:
     return sorted(dict.fromkeys(names), key=lambda n: positions[n])
 
 
-def _is_called(tree, name_node) -> bool:
+def _is_called(tree: ast.AST, name_node: ast.Name) -> bool:
+    """Return whether a name node is the function of a call in the tree."""
     return any(isinstance(n, ast.Call) and n.func is name_node for n in ast.walk(tree))
 
 
-def function_problem(name: str, args, params) -> Optional[str]:
+def function_problem(
+    name: str, args: Sequence[Any], params: Mapping[str, Any]
+) -> Optional[str]:
     """Return why a function calculation can't be called, or None.
+
+    Registers the built-in functions first. The arguments and parameters are bound
+    to the function's signature; they are not called.
 
     Args:
         name: The registered function's name.
         args: The argument columns.
         params: The keyword parameters.
+
+    Returns:
+        The problem: the function is not registered, or the arguments don't fit its
+        signature; None if it can be called.
     """
     _register_builtins()
     func = FUNCTIONS.get(name)
@@ -163,7 +185,7 @@ def function_problem(name: str, args, params) -> Optional[str]:
     return None
 
 
-def quote_columns(expression: str, columns=()) -> str:
+def quote_columns(expression: str, columns: Iterable[Any] = ()) -> str:
     """Return an expression with the table's column names in backticks.
 
     A column name that appears in the expression as a whole name (not as part of a
@@ -198,12 +220,18 @@ def quote_columns(expression: str, columns=()) -> str:
     )
 
 
-def needed_columns(calculation, columns=()) -> list[str]:
+def needed_columns(
+    calculation: "Calculation", columns: Iterable[Any] = ()
+) -> list[str]:
     """Return the columns a calculation uses.
 
     Args:
         calculation: The calculation.
         columns: The table's column names (they may be typed without backticks).
+
+    Returns:
+        The column names: those of the expression in order of first use, or the
+        function's argument columns.
 
     Raises:
         ValueError: If an expression is not valid.
@@ -251,7 +279,8 @@ def evaluate(data: pd.DataFrame, expression: str) -> pd.Series:
     return result
 
 
-def _evaluate(data: pd.DataFrame, calculation):
+def _evaluate(data: pd.DataFrame, calculation: "Calculation") -> pd.Series:
+    """Return a calculation's values, one per row of the table."""
     if calculation.kind == "expression":
         return evaluate(data, calculation.expression)
     problem = function_problem(calculation.function, calculation.args, calculation.params)
@@ -262,25 +291,30 @@ def _evaluate(data: pd.DataFrame, calculation):
     return pd.Series(func(*columns, **calculation.params), index=data.index)
 
 
-def calculate(data: pd.DataFrame, calculations, missing: str = "skip") -> Outcome:
+def calculate(
+    data: pd.DataFrame, calculations: Iterable["Calculation"], missing: str = "skip"
+) -> Outcome:
     """Calculate new columns, in order: a calculation can use earlier ones' columns.
 
     A calculation that is not `enabled` is left out. A column named like an input
     column replaces it. Columns of calculations with `keep` False are removed at the
-    end (helper columns).
+    end (helper columns), unless they replaced an input column. Numeric results are
+    features, with infinite values as missing values; true/false and text results
+    are category columns.
 
     Args:
         data: The table (not changed).
         calculations: The calculations (ExpressionCalculation, FunctionCalculation).
         missing: What to do if a calculation uses a column that is not in the table:
-            `skip` it, or `raise` a ValueError.
+            `skip` it, or `raise` a ValueError. Defaults to `skip`.
 
     Returns:
         The table with the new columns, and what was calculated, skipped or replaced.
 
     Raises:
         ValueError: If a calculation is not valid (e.g. an expression that is not
-            allowed), or uses a missing column with `missing="raise"`.
+            allowed), fails (e.g. text columns in arithmetic), or uses a missing
+            column with `missing="raise"`.
     """
     outcome = Outcome(data=data.copy())
     table = outcome.data
@@ -323,17 +357,19 @@ def calculate(data: pd.DataFrame, calculations, missing: str = "skip") -> Outcom
     return outcome
 
 
-def _closest(name: str, columns) -> str:
-    """A missing column's name, with the closest of the table's columns, if any."""
+def _closest(name: str, columns: Iterable[Any]) -> str:
+    """Return a missing column's name, with the closest of the table's columns."""
     import difflib
 
     close = difflib.get_close_matches(name, [str(c) for c in columns], n=1, cutoff=0.6)
     return f"'{name}' (did you mean '{close[0]}'?)" if close else f"'{name}'"
 
 
-def _hint(message: str, expression: str, columns) -> str:
-    """An expression's error, with a hint if it names columns that are not in the
-    table: names with spaces or other characters must then be in backticks."""
+def _hint(message: str, expression: str, columns: Optional[Iterable[Any]]) -> str:
+    """Return an expression's error, with a hint on backticks.
+
+    The hint is added if the columns are known and the expression has no backticks.
+    """
     if columns is None or "`" in expression:
         return message
     return (
@@ -342,13 +378,17 @@ def _hint(message: str, expression: str, columns) -> str:
     )
 
 
-def check(calculations, columns=None) -> list[tuple[int, str, str, str]]:
+def check(
+    calculations: Iterable["Calculation"], columns: Optional[Collection[Any]] = None
+) -> list[tuple[int, str, str, str]]:
     """Check calculations before running them.
+
+    Calculations that are not `enabled` are not checked.
 
     Args:
         calculations: The calculations.
-        columns: The input table's column names; None: unknown (the columns used are
-            not checked).
+        columns: The input table's column names; None if unknown (the columns used
+            are then not checked).
 
     Returns:
         (index, field, severity, message) per problem: `error` for calculations that
@@ -399,7 +439,9 @@ def check(calculations, columns=None) -> list[tuple[int, str, str, str]]:
     return problems
 
 
-def applicable(presets, columns) -> list:
+def applicable(
+    presets: Sequence["Calculation"], columns: Iterable[Any]
+) -> list["Calculation"]:
     """Return the presets (calculations) that apply to a table, in their order.
 
     A preset applies if the columns it uses are in the table, or are calculated by
@@ -430,7 +472,11 @@ def applicable(presets, columns) -> list:
     return [p for p in presets if p.name in offered]
 
 
-def with_prerequisites(chosen, offered, columns) -> list:
+def with_prerequisites(
+    chosen: Iterable["Calculation"],
+    offered: Iterable["Calculation"],
+    columns: Collection[Any],
+) -> list["Calculation"]:
     """Return chosen presets with the presets they need first, in calculation order.
 
     Args:
@@ -444,7 +490,7 @@ def with_prerequisites(chosen, offered, columns) -> list:
     by_name = {p.name: p for p in offered}
     result, names = [], set()
 
-    def add(preset):
+    def add(preset: "Calculation") -> None:
         if preset.name in names:
             return
         pool = {str(c) for c in columns} | names

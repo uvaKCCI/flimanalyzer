@@ -3,9 +3,15 @@
 """Plot of the task graph of a workflow run."""
 
 import logging
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import matplotlib.pyplot as plt
 import networkx as nx
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+
+if TYPE_CHECKING:
+    from flim.core.runner import FlowRun
 
 logger = logging.getLogger(__name__)
 
@@ -18,21 +24,29 @@ FAILED_EDGE_COLOR = (0.7, 0.0, 0.0)
 
 
 class WorkflowGraph:
-    """Plots the task graph recorded by :class:`flim.core.runner.FlowRun`.
+    """Plots the task graph recorded by `flim.core.runner.FlowRun`.
 
-    Tool calls are drawn in blue, data/result nodes in red. Failed tasks have a
+    Tool calls are drawn in blue, input and result nodes in red. Failed tasks have a
     dark red outline, skipped tasks are faded.
     """
 
-    def __init__(self, flow_run):
+    def __init__(self, flow_run: "FlowRun") -> None:
+        """Create the plot of a run's task graph.
+
+        Args:
+            flow_run: The run; its `graph` and `name` are plotted.
+        """
         self.flow_run = flow_run
         self.graph = flow_run.graph
 
-    def layout(self):
-        """Returns node positions: one row per dependency level, top to bottom.
+    def layout(self) -> dict[str, tuple[float, float]]:
+        """Return the node positions: one row per dependency level, top to bottom.
+
+        Within a row the nodes are in call order, each as wide as its label plus a
+        gap, and the row is centred on x = 0. Rows are 3 units apart.
 
         Returns:
-            dict: node -> (x, y) in character-width units.
+            The position `(x, y)` of each node, in character widths.
         """
         pos = {}
         for level, nodes in enumerate(nx.topological_generations(self.graph)):
@@ -45,18 +59,24 @@ class WorkflowGraph:
                 x += width
         return pos
 
-    def get_plot(self, ax=None, fontsize=9, **callback):
-        """Draws the graph.
+    def get_plot(
+        self,
+        ax: Optional[Axes] = None,
+        fontsize: float = 9,
+        **callback: Callable[..., Any],
+    ) -> tuple[Figure, Axes]:
+        """Draw the graph.
 
         Args:
-            ax: matplotlib Axes to draw into; a new figure is created if None.
-            fontsize: label font size.
-            callback: matplotlib event name -> handler, e.g. ``pick_event=...``.
-                Node labels carry the node id as ``gid``; they are pickable if
-                callbacks are given.
+            ax: The axes to draw into; None creates a figure whose size follows the
+                graph's width and number of rows.
+            fontsize: The label font size, in points. Defaults to 9.
+            **callback: Handlers by matplotlib event name, e.g. `pick_event=...`.
+                Node labels carry the node id as `gid`; they are pickable if
+                callbacks are given. A handler that can't be connected is logged.
 
         Returns:
-            (Figure, Axes)
+            The figure and the axes.
         """
         pos = self.layout()
         if ax is None:

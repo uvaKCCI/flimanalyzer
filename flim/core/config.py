@@ -7,11 +7,31 @@ JSON, and the source from which the GUI builds configuration dialogs.
 import copy
 import logging
 import typing
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from typing import Annotated, Any, ClassVar, Literal, Optional, Self, Union
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    ClassVar,
+    Literal,
+    Optional,
+    Self,
+    Union,
+)
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    model_serializer,
+    model_validator,
+)
 from pydantic.fields import FieldInfo
+
+if TYPE_CHECKING:
+    from flim.core.schema import TableSchema
 
 logger = logging.getLogger(__name__)
 
@@ -29,30 +49,42 @@ class BaseConfig(BaseModel):
     version: Optional[str] = None  # FLIMAnalyzer version that wrote the config
 
     @classmethod
-    def allowed_values(cls, values: dict) -> dict[str, tuple]:
-        """Fields that allow only some of their values, given the other ``values``:
-        name -> the allowed values (the first: the default).
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple]:
+        """Return the fields that allow only some of their values, given the others.
 
         E.g. a lower half of a grid only exists if the grid is symmetric; legends of
         a single figure are not inside a plot. Dialogs offer only the allowed values,
         and hide a field with one. Configs that define this apply it with
-        ``_apply_allowed_values`` at the end of their validator.
+        `_apply_allowed_values` at the end of their validator.
+
+        Args:
+            values: The config's field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first: the default); empty for this
+            base class.
         """
         return {}
 
     @classmethod
-    def fixed_fields(cls, values: dict) -> dict:
-        """Fields with one allowed value: name -> the value."""
+    def fixed_fields(cls, values: dict[str, Any]) -> dict[str, Any]:
+        """Return the fields with one allowed value: name -> the value.
+
+        Args:
+            values: The config's field values, by name (see `allowed_values`).
+        """
         return {n: v[0] for n, v in cls.allowed_values(values).items() if len(v) == 1}
 
     def _apply_allowed_values(self) -> None:
+        """Set each field whose value is not allowed to its first allowed value."""
         # through __dict__: assignments would run the validators again
         for name, allowed in self.allowed_values(self.__dict__).items():
             if self.__dict__.get(name) not in allowed:
                 self.__dict__[name] = allowed[0]
 
     @model_serializer(mode="wrap")
-    def _serialize(self, handler):
+    def _serialize(self, handler: SerializerFunctionWrapHandler):
+        """Dump the fields; leave out a missing version, and classname where unused."""
         data = handler(self)
         # the version is set once per settings file; classname names the tool of a
         # task config (see TaskConfig) and means nothing in nested models such as
@@ -67,8 +99,8 @@ class BaseConfig(BaseModel):
                 data.pop("classname", None)
         return self._after_dump(data)
 
-    def _after_dump(self, data: dict) -> dict:
-        """Adjusts the dumped fields of this model (subclasses)."""
+    def _after_dump(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Return the dumped fields, adjusted by subclasses; unchanged here."""
         return data
 
 
@@ -77,16 +109,22 @@ class BaseConfig(BaseModel):
 
 @dataclass(frozen=True)
 class ColumnRole:
-    """Marks a field as naming table columns of a kind: "category", "feature" or
-    "label" (a category or text column, e.g. Source)."""
+    """Marks a field as naming table columns of a kind.
+
+    The kind (`role`) is `category`, `feature` or `label` (a category or text
+    column, e.g. `Source`).
+    """
 
     role: str
 
 
 @dataclass(frozen=True)
 class ValueOf:
-    """Marks a field as holding a value of the category column that the field
-    ``column_field`` of the same config names (of a list of columns: the first)."""
+    """Marks a field as holding a value of a category column.
+
+    The column is the one that the field `column_field` of the same config names
+    (of a list of columns: the first).
+    """
 
     column_field: str
 
@@ -100,14 +138,22 @@ Probability = Annotated[float, Field(gt=0, lt=1)]
 
 
 def column_role(field: FieldInfo) -> Optional[str]:
-    """The ColumnRole of a field, also inside list[...] or unions; None if it has none."""
+    """Return the `ColumnRole` of a field, also inside `list[...]` or unions.
+
+    Args:
+        field: The field.
+
+    Returns:
+        The role; None if the field has none.
+    """
     for meta in field.metadata:
         if isinstance(meta, ColumnRole):
             return meta.role
     return _column_role_of(field.annotation)
 
 
-def _column_role_of(annotation) -> Optional[str]:
+def _column_role_of(annotation: Any) -> Optional[str]:
+    """Return the first `ColumnRole` in a type annotation and its arguments."""
     if typing.get_origin(annotation) is Annotated:
         for meta in typing.get_args(annotation)[1:]:
             if isinstance(meta, ColumnRole):
@@ -120,9 +166,16 @@ def _column_role_of(annotation) -> Optional[str]:
 
 
 def fixed_value(model: type[BaseModel], name: str) -> tuple[bool, Any]:
-    """(True, value) if the field allows only one value, e.g. ``Literal["cpu"]``.
+    """Return whether a field allows only one value, e.g. `Literal["cpu"]`.
 
     Such fields are not shown in configuration dialogs.
+
+    Args:
+        model: The model class.
+        name: The field's name.
+
+    Returns:
+        `(True, value)` for a `Literal` of one value, else `(False, None)`.
     """
     annotation = model.model_fields[name].annotation
     if typing.get_origin(annotation) is Literal:
@@ -136,8 +189,9 @@ def fixed_value(model: type[BaseModel], name: str) -> tuple[bool, Any]:
 
 
 class Resources(BaseConfig):
-    """What a task requests; what it gets depends on the machine it runs on (see
-    :class:`flim.core.tool.RunContext`).
+    """What a task requests.
+
+    What it gets depends on the machine it runs on (see `flim.core.tool.RunContext`).
 
     Defaults are conservative (CPU, one thread); tools that can use more widen the
     allowed values in a subclass.
@@ -171,10 +225,10 @@ _NOT_LEGACY = ("classname", "version", "resources")
 class TaskConfig(BaseConfig):
     """Base of the configs of all tools and workflows.
 
-    ``from_legacy_params`` and ``to_legacy_params`` convert from and to the parameter
+    `from_legacy_params` and `to_legacy_params` convert from and to the parameter
     dicts of the 0.5 plugins (as stored in 0.5 settings files). Fields are matched by
-    name; ``legacy_keys`` names the legacy key where it differs, or None for fields the
-    hooks ``_from_legacy`` and ``_to_legacy`` convert (or that have no legacy key).
+    name; `legacy_keys` names the legacy key where it differs, or None for fields the
+    hooks `_from_legacy` and `_to_legacy` convert (or that have no legacy key).
     """
 
     legacy_keys: ClassVar[dict[str, Optional[str]]] = {}
@@ -205,15 +259,15 @@ class TaskConfig(BaseConfig):
     resources: Resources = Field(default_factory=Resources, title="Resources")
 
     @model_validator(mode="after")
-    def _set_classname(self):
-        """Names the registered tool of this config, unless a classname is given."""
+    def _set_classname(self) -> Self:
+        """Set the classname of the registered tool of this config, unless given."""
         if self.classname is None:
             # not setattr: that would run the validators again
             self.__dict__["classname"] = self._registered_classname()
         return self
 
     def _registered_classname(self) -> Optional[str]:
-        """``module.Class`` of the registered tool of this config, None if none is.
+        """Return `module.Class` of the registered tool of this config; None if none.
 
         Tools are registered when their module is imported. A config created before
         that has no classname; it is filled in when the config is dumped.
@@ -224,9 +278,22 @@ class TaskConfig(BaseConfig):
         return f"{tool.__module__}.{tool.__qualname__}" if tool else None
 
     @classmethod
-    def from_legacy_params(cls, params: dict) -> Self:
-        """The config for a legacy plugin parameter dict (see the class docstring);
-        unknown keys are logged and ignored."""
+    def from_legacy_params(cls, params: dict[str, Any]) -> Self:
+        """Return the config for a legacy plugin parameter dict.
+
+        See the class docstring. The keys in `LEGACY_IGNORED` and `legacy_dropped` are
+        ignored; other unknown keys are logged and ignored. `all_features` becomes
+        `all`.
+
+        Args:
+            params: The legacy parameters (not changed).
+
+        Returns:
+            The config.
+
+        Raises:
+            pydantic.ValidationError: If a value is not valid for its field.
+        """
         # ignored keys first: "input" holds the input tables at run time
         params = copy.deepcopy(
             {k: v for k, v in params.items() if k not in LEGACY_IGNORED}
@@ -247,8 +314,12 @@ class TaskConfig(BaseConfig):
             )
         return cls(**values)
 
-    def to_legacy_params(self) -> dict:
-        """The plugin parameter dict for this config."""
+    def to_legacy_params(self) -> dict[str, Any]:
+        """Return the plugin parameter dict for this config (see the class docstring).
+
+        `all` features become `all_features`; `classname`, `version` and `resources`
+        have no legacy key.
+        """
         params = {}
         for name in type(self).model_fields:
             key = self.legacy_keys.get(name, name)
@@ -261,12 +332,12 @@ class TaskConfig(BaseConfig):
         return params
 
     @classmethod
-    def _from_legacy(cls, params: dict) -> dict:
-        """Converts (and pops) the legacy parameters that need more than a rename."""
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert (and pop) the legacy parameters that need more than a rename."""
         return {}
 
-    def _to_legacy(self) -> dict:
-        """Legacy parameters that need more than a rename."""
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy parameters that need more than a rename."""
         return {}
 
 
@@ -274,9 +345,9 @@ class TaskConfig(BaseConfig):
 class Issue:
     """A problem found when validating a config, e.g. against its input data.
 
-    ``field`` is a path into the config, e.g. ``"x_vars[1]"`` or
-    ``"range_filters[0].column"``. A ``"guessed"`` issue reports a value that was
-    replaced (``old``) by the closest match (``suggestion``) after an upstream change.
+    `field` is a path into the config, e.g. `"x_vars[1]"` or
+    `"range_filters[0].column"`. A `"guessed"` issue reports a value that was
+    replaced (`old`) by the closest match (`suggestion`) after an upstream change.
     """
 
     field: Optional[str]
@@ -287,10 +358,22 @@ class Issue:
     suggestion: Any = None
 
 
-def requirement_issues(config: "TaskConfig", schemas=()) -> list[Issue]:
-    """Issues if the config selects fewer features or grouping columns than its tool
-    needs (``min_features``, ``min_grouping``). "All features" is counted against the
-    input schemas, and not checked if none of them is known and complete."""
+def requirement_issues(
+    config: "TaskConfig", schemas: Sequence[Optional["TableSchema"]] = ()
+) -> list[Issue]:
+    """Return issues if a config selects fewer features or grouping columns than needed.
+
+    The minimums are the config's `min_features` and `min_grouping`. "All features"
+    is counted against the input schemas (the distinct feature columns of the known
+    and complete ones), and not checked if none of them is known and complete.
+
+    Args:
+        config: The config.
+        schemas: The schemas of the input tables; None for an unknown one.
+
+    Returns:
+        One error per field below its minimum.
+    """
     issues = []
     minimums = (("features", config.min_features), ("grouping", config.min_grouping))
     for name, least in minimums:
@@ -311,9 +394,22 @@ def requirement_issues(config: "TaskConfig", schemas=()) -> list[Issue]:
     return issues
 
 
-def column_references(config: BaseModel, path: str = ""):
-    """Yields ``(path, column, role)`` for every column a config names, also in nested
-    models (e.g. range filters) and in lists and dict keys of column fields."""
+def column_references(
+    config: BaseModel, path: str = ""
+) -> Iterator[tuple[str, str, str]]:
+    """Yield every column a config names, with its path and role.
+
+    Also the columns in nested models (e.g. range filters), and in lists and dict
+    keys of column fields. `features` set to `all` names no column.
+
+    Args:
+        config: The config.
+        path: The prefix of the paths, e.g. `filters[0].`. Defaults to none.
+
+    Yields:
+        `(path, column, role)`, e.g. `("features[2]", "FAD tm", "feature")`; a dict
+        key's path has the key's `repr`, e.g. `ranges['FLIRR']`.
+    """
     for name, field in type(config).model_fields.items():
         value = getattr(config, name)
         field_path = f"{path}{name}"

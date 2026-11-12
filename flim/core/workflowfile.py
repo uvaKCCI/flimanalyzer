@@ -14,9 +14,9 @@ A step's `inputs` refer to earlier steps' outputs: `"4.1"` (output 1 of step 4),
 (the same), or `"input"` (the tables the run starts from, e.g. those Import Tables
 read from files, or open tables). A step without `inputs` takes output 1 of the step
 before it; the first step takes the run's tables. The outputs of a step are numbered
-from 1 in the order its
-tool returns them. `outputs` optionally names them (for readers; not checked). `save` saves a step's
-outputs (`true`) or some of them (`["2.1"]`). `processing` says how much of its
+from 1 in the order its tool returns them. `outputs` optionally names them (for
+readers; not checked). `save` saves a step's outputs (`true`) or some of them
+(`["2.1"]`). `processing` says how much of its
 settings a step must apply to the data: `require_all` (default), `allow_partial` (at
 least one part) or `allow_none`.
 
@@ -27,13 +27,17 @@ Workflow files are registered by their `name` like tools: the built-in files (in
 import json
 import logging
 import os
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from flim.core.saving import AutosaveConfig
+
+if TYPE_CHECKING:
+    from flim.core.workflow import Workflow
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +75,8 @@ class WorkflowStep(BaseModel):
 
     @field_validator("id", mode="before")
     @classmethod
-    def _id_as_text(cls, value):
+    def _id_as_text(cls, value: Any) -> Any:
+        """Accept a number as the id, as text."""
         return str(value) if isinstance(value, int) else value
 
 
@@ -94,7 +99,7 @@ class WorkflowDefinition(BaseModel):
     steps: list[WorkflowStep] = Field(min_length=1)
 
 
-def panel_group(definition: WorkflowDefinition, groups) -> Optional[str]:
+def panel_group(definition: WorkflowDefinition, groups: Iterable[str]) -> Optional[str]:
     """Return the tool panel group a workflow file's tags name, or None.
 
     Args:
@@ -109,7 +114,7 @@ def panel_group(definition: WorkflowDefinition, groups) -> Optional[str]:
     return next((by_name[t.lower()] for t in definition.tags if t.lower() in by_name), None)
 
 
-def workflow_group(definition: WorkflowDefinition, groups=()) -> str:
+def workflow_group(definition: WorkflowDefinition, groups: Iterable[str] = ()) -> str:
     """Return the label of a workflow file's submenu in the Workflow menu.
 
     Args:
@@ -130,6 +135,12 @@ def workflow_group(definition: WorkflowDefinition, groups=()) -> str:
 
 def parse_reference(reference: str) -> tuple[str, int]:
     """Return the step id and output number of a reference ('4.1', '4', 'input').
+
+    Args:
+        reference: `<step id>.<output number>`, `<step id>` (output 1), or `input`.
+
+    Returns:
+        The step id (`input` for the run's tables) and the output number, from 1.
 
     Raises:
         ValueError: If the output number is not a number from 1.
@@ -162,8 +173,16 @@ class WorkflowCheck:
 
 
 def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> None:
-    """Check a workflow's steps: unique ids, references to earlier steps, the tools
-    and their settings. Problems are added to `check`."""
+    """Check a workflow's steps; the problems are added to `check`.
+
+    Checks that the ids are unique and not `input`, that the inputs refer to earlier
+    steps, that the tools exist and their settings are valid, and that `save` names
+    outputs of its own step.
+
+    Args:
+        definition: The workflow.
+        check: The check that collects the errors.
+    """
     from flim.core.registry import tools
 
     seen = []
@@ -243,7 +262,7 @@ def check_workflow_file(path: str | os.PathLike) -> WorkflowCheck:
     return check
 
 
-def workflow_path(user_path=()) -> list[Path]:
+def workflow_path(user_path: Iterable[str | os.PathLike] = ()) -> list[Path]:
     """Return the folders searched for workflow files, in order.
 
     Args:
@@ -252,7 +271,7 @@ def workflow_path(user_path=()) -> list[Path]:
     Returns:
         The folders of `FLIM_WORKFLOW_PATH` if it is set (separated by `os.pathsep`),
         otherwise `user_path` if it is not empty, otherwise the folder `workflows` in
-        the platform's settings folder.
+        the platform's settings folder. `~` is expanded.
     """
     value = os.environ.get(WORKFLOW_PATH_VAR)
     if value:
@@ -263,7 +282,7 @@ def workflow_path(user_path=()) -> list[Path]:
 
 
 def default_workflow_dir() -> Path:
-    """The folder `workflows` in the platform's settings folder."""
+    """Return the folder `workflows` in the platform's settings folder."""
     from platformdirs import user_config_dir
 
     from flim.core.settingsmgr import APP_NAME
@@ -271,8 +290,18 @@ def default_workflow_dir() -> Path:
     return Path(user_config_dir(APP_NAME, appauthor=False)) / "workflows"
 
 
-def find_workflow_file(name: str | os.PathLike, search_path=()) -> Path:
+def find_workflow_file(
+    name: str | os.PathLike, search_path: Iterable[Path] = ()
+) -> Path:
     """Resolve the argument of `--workflow`: a path, or a file name in the search path.
+
+    Args:
+        name: The path of a file (`~` is expanded), or a file name, with or without
+            `.json`, in a folder of the search path.
+        search_path: The folders, searched in order.
+
+    Returns:
+        The file.
 
     Raises:
         FileNotFoundError: If there is no such file.
@@ -287,8 +316,15 @@ def find_workflow_file(name: str | os.PathLike, search_path=()) -> Path:
     raise FileNotFoundError(f"No workflow file '{name}'")
 
 
-def workflow_files(search_path=()) -> list[Path]:
-    """The built-in workflow files and those in the search path's folders."""
+def workflow_files(search_path: Iterable[Path] = ()) -> list[Path]:
+    """Return the built-in workflow files and those in the search path's folders.
+
+    Args:
+        search_path: The folders; a folder that doesn't exist is passed over.
+
+    Returns:
+        The `.json` files, the built-in ones first, sorted by name per folder.
+    """
     files = sorted(BUILT_IN.glob("*.json")) if BUILT_IN.is_dir() else []
     for folder in search_path:
         if folder.is_dir():
@@ -302,9 +338,13 @@ MAPPED, SINGLE = "per table", "one table"
 
 
 def _shapes(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
-    """Work out, per step, whether it runs once per table (mapped) or once, and the
-    errors of steps that combine the two. The run's tables are mapped; a step whose
-    input takes many tables (e.g. Concatenate) makes one table of them."""
+    """Return per step whether it runs once per table (mapped) or once, and errors.
+
+    The errors are those of steps that are workflows, that give a tool taking many
+    tables more than one input, or that combine the two shapes. The run's tables
+    are mapped; a step whose input takes many tables (e.g. Concatenate) makes one
+    table of them.
+    """
     from flim.core.registry import tools
     from flim.core.workflow import Workflow
 
@@ -331,21 +371,24 @@ def _shapes(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
     return shapes, errors
 
 
-def _saved(step: WorkflowStep):
+def _saved(step: WorkflowStep) -> Union[bool, list[int]]:
     """A step's `save` as the runner takes it: True, False or output numbers."""
     if isinstance(step.save, bool):
         return step.save
     return [parse_reference(r)[1] for r in step.save]
 
 
-def _file_workflow_base():
-    """The base class of workflows defined by files (created on first use: it needs
-    the Workflow class, which imports much of the core)."""
+def _file_workflow_base() -> type["Workflow"]:
+    """Return the base class of workflows defined by files, created on first use.
+
+    It is created on first use because it needs the Workflow class, which imports
+    much of the core.
+    """
     global FileWorkflow
     if "FileWorkflow" in globals():
         return FileWorkflow
     from flim.configs.workflow import WorkflowConfig
-    from flim.core.config import Issue
+    from flim.core.config import Issue, TaskConfig
     from flim.core.registry import tools
     from flim.core.runner import Nth
     from flim.core.types import InputSpec, TableType
@@ -365,21 +408,41 @@ def _file_workflow_base():
         inputs = (InputSpec("tables", TableType, many=True),)
 
         @classmethod
-        def is_strict(cls, config, default=None) -> bool:
+        def is_strict(
+            cls, config: TaskConfig, default: Optional[bool] = None
+        ) -> bool:
+            """Return True: workflow files never guess columns."""
             return True  # workflow files never guess columns
 
         @classmethod
-        def structure_issues(cls) -> list:
+        def structure_issues(cls) -> list[Issue]:
+            """Return the errors of steps whose shapes don't fit (see `_shapes`)."""
             return [Issue(None, e) for e in _shapes(cls.definition)[1]]
 
-        def resolve(self, config, inputs, strict=None):
+        def resolve(
+            self,
+            config: FileWorkflowConfig,
+            inputs: Sequence[Any],
+            strict: Optional[bool] = None,
+        ) -> ValidationReport:
+            """Return a report of the structure errors; the steps are not traced."""
             return ValidationReport(config=config, issues=self.structure_issues())
 
         @classmethod
-        def validate(cls, config, inputs, strict=None):
+        def validate(
+            cls,
+            config: FileWorkflowConfig,
+            inputs: Sequence[Any],
+            strict: Optional[bool] = None,
+        ) -> list[Issue]:
+            """Return the structure errors (see `structure_issues`)."""
             return cls.structure_issues()
 
-        def build(self, tables, *, config):
+        def build(self, tables: Any, *, config: FileWorkflowConfig) -> None:
+            """Call the steps' tools, per table or once; `leaves` gets the results.
+
+            `tables` is a dict of tables by name, or one table.
+            """
             if not isinstance(tables, dict):
                 tables = {"Input": tables}
             shapes, _ = _shapes(self.definition)
@@ -400,7 +463,7 @@ def _file_workflow_base():
                     else:
                         sources.append(pick(value))
 
-                def call(inputs, tags):
+                def call(inputs: list[Any], tags: list[str]) -> Any:
                     tool = tool_class()
                     tool._save = _saved(step)
                     tool._processing = step.processing
@@ -425,12 +488,17 @@ def _file_workflow_base():
     return FileWorkflow
 
 
-def workflow_class(definition: WorkflowDefinition, path: Optional[Path] = None):
+def workflow_class(
+    definition: WorkflowDefinition, path: Optional[Path] = None
+) -> type["Workflow"]:
     """Return a workflow class (a tool) that runs a workflow file's steps.
 
     Args:
         definition: The workflow.
-        path: Its file.
+        path: Its file; None if it has none.
+
+    Returns:
+        A new class, named after the workflow, with its name and description.
     """
     base = _file_workflow_base()
     name = "".join(c for c in definition.name.title() if c.isalnum()) or "Workflow"
@@ -447,7 +515,7 @@ def workflow_class(definition: WorkflowDefinition, path: Optional[Path] = None):
     )
 
 
-def resolve_workflow(reference: str):
+def resolve_workflow(reference: str) -> type["Workflow"]:
     """Return the workflow a name or a workflow file's path refers to.
 
     Args:
@@ -473,9 +541,13 @@ def resolve_workflow(reference: str):
     return tools.get(reference)
 
 
-def import_workflows() -> list:
-    """Return the workflows Import Tables offers: the registered workflow files tagged
-    `import`, or all of them if none is tagged, by name."""
+def import_workflows() -> list[type["Workflow"]]:
+    """Return the workflows Import Tables offers.
+
+    Returns:
+        The registered workflow files tagged `import`, or all of them if none is
+        tagged, sorted by name.
+    """
     from flim.core.registry import tools
 
     base = _file_workflow_base()
@@ -486,11 +558,12 @@ def import_workflows() -> list:
     return [t for t in files if IMPORT_TAG in t.definition.tags] or files
 
 
-def register_workflow_files(search_path=()) -> list[str]:
+def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
     """Register the built-in workflow files and those in the search path, by name.
 
     A file with errors, or whose name a tool or another workflow already has
-    (ignoring case), is not registered.
+    (ignoring case), is not registered; the messages are also logged as warnings. A
+    file registered before from the same path is registered again.
 
     Args:
         search_path: The folders (see `workflow_path`).
@@ -520,16 +593,19 @@ def register_workflow_files(search_path=()) -> list[str]:
 
 
 def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
-    """Check a workflow's steps against the tables it would run on, without running
-    it: each step's settings against the columns it gets, as far as they are known
-    (each step's outputs are worked out from its inputs, see Tool.output_schema).
+    """Check a workflow's steps against the tables it would run on, without running it.
+
+    Each step's settings are checked against the columns it gets, as far as they are
+    known (each step's outputs are worked out from its inputs, see
+    `Tool.output_schema`).
 
     Args:
         definition: The workflow.
         schemas: The run's tables' schemas (TableSchema) by name.
 
     Returns:
-        The errors, each naming its step and tool.
+        The structure errors (see `_shapes`) and the steps' errors, each naming its
+        step and tool.
     """
     from flim.core.registry import tools
     from flim.core.schema import TableSchema
@@ -564,7 +640,7 @@ def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
 
 
 def leaf_steps(definition: WorkflowDefinition) -> list[WorkflowStep]:
-    """The steps whose outputs no later step uses: the results a run shows."""
+    """Return the steps whose outputs no later step uses: the results a run shows."""
     used, previous = set(), INPUT
     for step in definition.steps:
         for reference in step.inputs or [previous]:
@@ -574,10 +650,11 @@ def leaf_steps(definition: WorkflowDefinition) -> list[WorkflowStep]:
 
 
 def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
-    """How many result windows a run would open, by kind (table, plot, image): the
-    leaf steps' outputs, once per table for steps that run per table. The outputs are
-    worked out from the tables' schemas (see check_steps); an output whose kind is not
-    known counts as a table.
+    """Return how many result windows a run would open, by kind (table, plot, image).
+
+    The windows are the leaf steps' outputs, once per table for steps that run per
+    table. The outputs are worked out from the tables' schemas (see `check_steps`);
+    an output whose kind is not known counts as a table.
 
     Args:
         definition: The workflow.
@@ -622,7 +699,15 @@ def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
 
 
 def too_many_windows(counts: dict, limits: dict) -> list[str]:
-    """The kinds over their limit, as messages, e.g. `300 tables (most: 10)`."""
+    """Return the kinds over their limit, as messages, e.g. `300 tables (most: 10)`.
+
+    Args:
+        counts: The number of windows by kind (see `window_counts`).
+        limits: The most windows by kind; a kind not listed has no limit.
+
+    Returns:
+        A message per kind over its limit.
+    """
     return [
         f"{n} {kind}s (most: {limits[kind]})"
         for kind, n in counts.items()
@@ -631,8 +716,11 @@ def too_many_windows(counts: dict, limits: dict) -> list[str]:
 
 
 def describe_steps(definition: WorkflowDefinition) -> str:
-    """The steps of a workflow as text, one line each, e.g. `2. Drop Columns (may
-    apply nothing)`, for showing a workflow before it runs."""
+    """Return the steps of a workflow as text, for showing it before it runs.
+
+    One line per step, e.g. `2. Drop Columns (may apply nothing)`; a step that saves
+    its outputs is marked `saved`.
+    """
     notes = {"allow_partial": "may apply only some settings", "allow_none": "may apply nothing"}
     lines = []
     for number, step in enumerate(definition.steps, 1):
@@ -662,10 +750,12 @@ def import_read_settings(section: dict) -> dict:
 
 
 def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
-    """The content of a workflow file that processes tables as the `import` settings
-    of a FLIMAnalyzer 0.6 settings file did: rename and drop columns, join the files'
-    tables, take the categories of its filename parser from the paths, fuse its
-    column combinations, calculate. How the files are read is `import_read_settings`.
+    """Return a workflow file that processes tables as a 0.6 settings file's `import`.
+
+    The workflow does what the `import` settings of a FLIMAnalyzer 0.6 settings file
+    did: rename and drop columns, join the files' tables, take the categories of its
+    filename parser from the paths, fuse its column combinations, calculate. How the
+    files are read is `import_read_settings`.
 
     Args:
         section: The file's `import` section (version 1).
@@ -683,7 +773,7 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
     from flim.configs.data import CategoryPattern
     from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE, instantiate_parser
 
-    def settings(tool, config_class):
+    def settings(tool: str, config_class: type[BaseModel]) -> dict[str, Any]:
         config = (tools_data.get(tool) or {}).get("config")
         try:
             value = config_class.model_validate(config) if config else config_class()

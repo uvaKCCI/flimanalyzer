@@ -54,6 +54,9 @@ def log_file_name(program: str, start: datetime.datetime, pid: int) -> str:
 def begin(level: str) -> logging.handlers.MemoryHandler:
     """Configure the root logger and keep records in memory until the log file opens.
 
+    The root logger's existing handlers are removed and closed. The level is set on
+    the root logger and on the `flim` logger.
+
     Args:
         level: The log level, e.g. `INFO`.
 
@@ -90,10 +93,14 @@ def open_log_file(
         folder: The log folder.
         memory: The handler returned by `begin`; it is removed after its records are
             written.
-        start: The session's start time; defaults to now.
+        start: The session's start time. Defaults to now.
 
     Returns:
-        The log file, and a message for the user if the temporary folder is used.
+        The log file, and a message for the user if the temporary folder is used
+        (else None).
+
+    Raises:
+        OSError: If the log file cannot be opened in the temporary folder either.
     """
     name = log_file_name(program, start or datetime.datetime.now(), os.getpid())
     notice = None
@@ -119,6 +126,7 @@ def open_log_file(
 
 
 def _file_handler(folder: Path, name: str) -> logging.handlers.RotatingFileHandler:
+    """Create the folder if needed and return a rotating handler of a file in it."""
     folder.mkdir(parents=True, exist_ok=True)
     handler = logging.handlers.RotatingFileHandler(
         folder / name, maxBytes=MAX_BYTES, backupCount=BACKUP_COUNT, encoding="utf-8"
@@ -127,14 +135,18 @@ def _file_handler(folder: Path, name: str) -> logging.handlers.RotatingFileHandl
     return handler
 
 
-def remove_old_logs(folder: str | os.PathLike, max_age_days: int = MAX_AGE_DAYS) -> list[Path]:
+def remove_old_logs(
+    folder: str | os.PathLike, max_age_days: int = MAX_AGE_DAYS
+) -> list[Path]:
     """Remove FLIMAnalyzer's log files older than an age from a folder.
 
     Only files named like a session's log file (and their rotated parts) are removed.
+    Files that cannot be removed are logged as warnings and skipped.
 
     Args:
         folder: The log folder.
         max_age_days: The age in days, by the time the file was last written.
+            Defaults to 30.
 
     Returns:
         The removed files.
@@ -152,14 +164,15 @@ def remove_old_logs(folder: str | os.PathLike, max_age_days: int = MAX_AGE_DAYS)
 
 
 def session_logs(folder: str | os.PathLike) -> list[Path]:
-    """Return FLIMAnalyzer's log files in a folder, oldest first.
+    """Return FLIMAnalyzer's log files in a folder, sorted by name.
 
     Args:
         folder: The log folder.
 
     Returns:
         The files named like a session's log file, and their rotated parts, sorted by
-        name (the start time).
+        name: by program, then by start time (oldest first). An empty list if the
+        folder does not exist.
     """
     folder = Path(folder)
     if not folder.is_dir():
@@ -168,11 +181,13 @@ def session_logs(folder: str | os.PathLike) -> list[Path]:
 
 
 def console_handler(level: str) -> logging.Handler:
-    """Return a handler that writes records to standard error, as flimbatch did before
-    log files (`LEVEL message`).
+    """Return a handler that writes records to standard error as `LEVEL message`.
 
     Args:
         level: The log level, e.g. `INFO`.
+
+    Returns:
+        The handler.
     """
     handler = logging.StreamHandler()
     handler.setLevel(level)

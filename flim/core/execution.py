@@ -2,12 +2,15 @@
 
 import importlib.util
 import logging
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Self, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from flim.core.saving import AutosaveConfig
 from flim.core.config import BaseConfig
+
+if TYPE_CHECKING:
+    from prefect.task_runners import TaskRunner
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +68,11 @@ DASK = (DaskLocalExecutorSettings, DaskClusterExecutorSettings)
 
 
 class ExecutionOptions(BaseConfig):
-    """The executor of a run and the run's own options: whether, where and in which
-    formats it saves its results (`autosave`), task tags and device policy."""
+    """The executor of a run and the run's own options.
+
+    Besides the executor (`execution`): whether, where and in which formats the run
+    saves its results (`autosave`), the task tags and the device policy.
+    """
 
     execution: ExecutorSettings = Field(default_factory=LocalExecutorSettings)
     autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
@@ -74,23 +80,26 @@ class ExecutionOptions(BaseConfig):
     device_policy: Literal["prefer", "cpu-only"] = "prefer"
 
     @model_validator(mode="after")
-    def _check_autosave(self):
+    def _check_autosave(self) -> Self:
+        """Reject autosave without a results folder."""
         if self.autosave.enabled and self.autosave.results_dir is None:
             raise ValueError("autosave needs a results_dir")
         return self
 
     @classmethod
-    def from_legacy(cls, executor: str = "LocalExecutor", execargs: str = "", **kwargs):
+    def from_legacy(
+        cls, executor: str = "LocalExecutor", execargs: str = "", **kwargs: Any
+    ) -> Self:
         """Create options from the command line's `-e` executor name and `-a` args.
 
         `execargs` is a string of `key=value` pairs separated by commas; pairs that are
         not `key=value` are skipped, and integer values are converted to int.
         `num_workers` sets `workers` if it is a positive integer, for the local
-        executors only. `scheduler` is used only by `LocalDaskExecutor`; any value other
-        than `processes` selects threads. `DaskExecutor` connects to the cluster at
-        `address`; without an address it starts a local Dask cluster, as before this
-        option took the address (`dask-local`). The other args go to `kwargs` of
-        the Dask executors and are ignored by `LocalExecutor`.
+        executors only. `scheduler` is used only by a local Dask cluster; any value
+        other than `processes` selects threads. `DaskExecutor` connects to the
+        cluster at `address`; without an address it starts a local Dask cluster, as
+        before this option took the address (`dask-local`). The other args go to
+        `kwargs` of the Dask executors and are ignored by `LocalExecutor`.
 
         Args:
             executor: `LocalExecutor`, `LocalDaskExecutor` or `DaskExecutor`. An
@@ -149,7 +158,7 @@ class ExecutionOptions(BaseConfig):
                 " uv sync --extra dask (or pip install flimanalyzer[dask])"
             )
 
-    def task_runner(self):
+    def task_runner(self) -> "TaskRunner":
         """Create the Prefect task runner of the executor.
 
         `local`: a `ThreadPoolTaskRunner` with `workers` threads. `dask-local`: a

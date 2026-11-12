@@ -11,14 +11,19 @@ A node that is not enabled, an empty group, and a leaf on a column the table doe
 have keep all rows, as the range filters did up to FLIMAnalyzer 0.6.
 """
 
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 
 from flim.core.calculate import evaluate, expression_columns, quote_columns
+
+if TYPE_CHECKING:
+    from flim.configs.data import FilterNode, RangeFilterNode
+    from flim.core.settings import AppSettings
 
 
 @dataclass
@@ -40,8 +45,17 @@ class Outcome:
     notes: dict = field(default_factory=dict)
 
 
-def label(node) -> str:
-    """A short text for a node, e.g. `trp t1 in [0, 2500]`, `FOV in 1, 2`."""
+def label(node: "FilterNode") -> str:
+    """Return a short text for a node, e.g. `trp t1 in [0, 2500]`, `FOV in 1, 2`.
+
+    Args:
+        node: The filter node.
+
+    Returns:
+        For a range, `<column> in [<low>, <high>]` (`-inf`, `inf` without a limit);
+        for a category filter, `<column> in <values>`; for an expression, the
+        expression; for a group, `<kind> of <n> filters`.
+    """
     if node.kind == "range":
         low = "-inf" if node.low is None else f"{node.low:g}"
         high = "inf" if node.high is None else f"{node.high:g}"
@@ -53,12 +67,15 @@ def label(node) -> str:
     return f"{node.kind} of {len(node.filters)} filters"
 
 
-def _all_rows(data) -> pd.Series:
+def _all_rows(data: pd.DataFrame) -> pd.Series:
+    """Return a mask that keeps all rows of a table."""
     return pd.Series(True, index=data.index)
 
 
-def _keeps(data: pd.DataFrame, node, path: str, outcome: Outcome) -> np.ndarray:
-    """Whether each row is kept by a node; records what each enabled leaf drops."""
+def _keeps(
+    data: pd.DataFrame, node: "FilterNode", path: str, outcome: Outcome
+) -> np.ndarray:
+    """Return whether each row is kept by a node; record what enabled leaves drop."""
     if not node.enabled:
         return np.ones(len(data), dtype=bool)
     if node.kind in ("all", "any", "not"):
@@ -77,7 +94,10 @@ def _keeps(data: pd.DataFrame, node, path: str, outcome: Outcome) -> np.ndarray:
     return mask
 
 
-def _leaf(data: pd.DataFrame, node, path: str, outcome: Outcome) -> pd.Series:
+def _leaf(
+    data: pd.DataFrame, node: "FilterNode", path: str, outcome: Outcome
+) -> pd.Series:
+    """Return whether each row is kept by a leaf; note a missing or wrong column."""
     if node.kind == "expression":
         used = expression_columns(quote_columns(node.expression, data.columns))
         absent = [c for c in used if c not in data.columns]
@@ -105,15 +125,16 @@ def _leaf(data: pd.DataFrame, node, path: str, outcome: Outcome) -> pd.Series:
     return inside
 
 
-def apply_filters(data: pd.DataFrame, filters) -> Outcome:
+def apply_filters(data: pd.DataFrame, filters: Sequence["FilterNode"]) -> Outcome:
     """Keep the rows that every enabled filter of a list keeps (an `all` group).
 
     Args:
         data: The table (not changed).
-        filters: The filter nodes (FilterConfig.filters).
+        filters: The filter nodes (`FilterConfig.filters`).
 
     Returns:
-        The rows kept, and what each leaf dropped.
+        The rows kept, whether each input row is kept, what each enabled leaf
+        dropped, and the leaves that keep all rows because of their column.
 
     Raises:
         ValueError: If an expression is not allowed or is not a condition.
@@ -129,15 +150,22 @@ def apply_filters(data: pd.DataFrame, filters) -> Outcome:
 
 
 def check(
-    filters, columns=None, path: str = "filters", kind: str = "all"
+    filters: Sequence["FilterNode"],
+    columns: Optional[Collection[str]] = None,
+    path: str = "filters",
+    kind: str = "all",
 ) -> list[tuple[str, str, str]]:
     """Check a filter list before using it.
+
+    Nodes that are not enabled are not checked; groups are checked with their
+    nodes.
 
     Args:
         filters: The filter nodes.
         columns: The input table's columns (names); None: unknown.
-        path: The list's path, for the messages.
-        kind: The group the list belongs to (`all`, `any`, `not`).
+        path: The list's path, for the messages. Defaults to `filters`.
+        kind: The group the list belongs to (`all`, `any`, `not`). Defaults to
+            `all`.
 
     Returns:
         (path, severity, message) per problem: `error` for an expression that is not
@@ -184,18 +212,28 @@ def check(
 
 
 class WindowFilters(BaseModel):
-    """The table windows' filters, as their filter dialog edits them: whether they
-    are used, whether dropped rows are shown, and the range filters
-    (flim.core.filter.RangeFilter parameters) of the Filter tool's top-level range
-    leaves, one per column."""
+    """The table windows' filters, as their filter dialog edits them.
+
+    Whether they are used, whether dropped rows are shown, and the range filters
+    (`flim.core.filter.RangeFilter` parameters) of the Filter tool's top-level range
+    leaves, one per column.
+    """
 
     use: bool = False
     show_dropped: bool = True
     range_filters: list[dict] = []
 
 
-def window_filters(settings) -> WindowFilters:
-    """The table windows' filters of the settings (AppSettings)."""
+def window_filters(settings: "AppSettings") -> WindowFilters:
+    """Return the table windows' filters of the settings.
+
+    Args:
+        settings: The settings; the range filters come from the Filter tool's
+            config (see `window_ranges`).
+
+    Returns:
+        The filters.
+    """
     from flim.tools.data import Filter
 
     return WindowFilters(
@@ -205,8 +243,15 @@ def window_filters(settings) -> WindowFilters:
     )
 
 
-def new_range(column: str) -> dict:
-    """RangeFilter parameters of a new range filter: no limits, not used."""
+def new_range(column: str) -> dict[str, Any]:
+    """Return the `RangeFilter` parameters of a new range filter: no limits, not used.
+
+    Args:
+        column: The feature column.
+
+    Returns:
+        The parameters, with infinite limits and missing values dropped.
+    """
     inf = float("inf")
     return {
         "name": column, "rangelow": -inf, "rangehigh": inf, "allowedmin": None,
@@ -214,8 +259,15 @@ def new_range(column: str) -> dict:
     }  # fmt: skip
 
 
-def range_params(node) -> dict:
-    """A range leaf as RangeFilter parameters (no limit: infinite)."""
+def range_params(node: "RangeFilterNode") -> dict[str, Any]:
+    """Return a range leaf as `RangeFilter` parameters (no limit: infinite).
+
+    Args:
+        node: The range leaf.
+
+    Returns:
+        The parameters; `selected` is whether the leaf is enabled.
+    """
     inf = float("inf")
     return {
         "name": node.column,
@@ -228,8 +280,20 @@ def range_params(node) -> dict:
     }
 
 
-def range_node(params: dict):
-    """RangeFilter parameters as a range leaf (infinite: no limit)."""
+def range_node(params: dict[str, Any]) -> "RangeFilterNode":
+    """Return `RangeFilter` parameters as a range leaf (infinite: no limit).
+
+    Args:
+        params: The parameters: `name` (the column), the limits, `selected`
+            (default True) and `dropna`.
+
+    Returns:
+        The range leaf, enabled if `selected` is.
+
+    Raises:
+        KeyError: If `params` has no `name`.
+        pydantic.ValidationError: If the low limit is larger than the high limit.
+    """
     from flim.configs.data import RangeFilterNode, range_of_legacy
 
     return RangeFilterNode(
@@ -239,8 +303,16 @@ def range_node(params: dict):
     )
 
 
-def window_ranges(filters) -> list[dict]:
-    """The top-level range leaves (the first per column) as RangeFilter parameters."""
+def window_ranges(filters: Sequence["FilterNode"]) -> list[dict[str, Any]]:
+    """Return the top-level range leaves as `RangeFilter` parameters.
+
+    Args:
+        filters: The filter nodes; of several range leaves on one column, the
+            first is taken.
+
+    Returns:
+        The parameters, one per column, in the order of the leaves.
+    """
     seen, ranges = set(), []
     for node in filters:
         if node.kind == "range" and node.column not in seen:
@@ -249,9 +321,22 @@ def window_ranges(filters) -> list[dict]:
     return ranges
 
 
-def with_window_ranges(filters, ranges: list[dict]) -> list:
-    """Return the filters with the top-level range leaves (the first per column)
-    replaced by RangeFilter parameters; new columns are appended as range leaves."""
+def with_window_ranges(
+    filters: Sequence["FilterNode"], ranges: list[dict[str, Any]]
+) -> list["FilterNode"]:
+    """Return the filters with the top-level range leaves replaced by range filters.
+
+    Of several range leaves on one column, the first is replaced. Range filters of
+    columns without a top-level range leaf are appended as range leaves. Range
+    leaves of columns without a range filter are kept.
+
+    Args:
+        filters: The filter nodes.
+        ranges: `RangeFilter` parameters, one per column.
+
+    Returns:
+        A new list of nodes; `filters` is not changed.
+    """
     by_column = {p["name"]: p for p in ranges}
     result, seen = [], set()
     for node in filters:
@@ -265,14 +350,25 @@ def with_window_ranges(filters, ranges: list[dict]) -> list:
     return result
 
 
-def default_ranges() -> list:
-    """The range leaves of new settings: the range filters of FLIMAnalyzer 0.6."""
+def default_ranges() -> list["RangeFilterNode"]:
+    """Return the range leaves of new settings.
+
+    They are the range filters of FLIMAnalyzer 0.6.
+    """
     from flim.core.settings import default_range_filters
 
     return [range_node(f.get_params()) for f in default_range_filters()]
 
 
 def leaf_counts(outcome: Outcome) -> Optional[str]:
-    """One line on the rows each leaf dropped, e.g. for the run summary."""
+    """Return one line on the rows each leaf dropped, e.g. for the run summary.
+
+    Args:
+        outcome: The result of `apply_filters`.
+
+    Returns:
+        A text for the leaves that dropped rows, or None if none did, for example
+        `dropped rows: <label>: <n>; ...`.
+    """
     parts = [f"{text}: {n}" for _, text, n in outcome.dropped if n]
     return "dropped rows: " + "; ".join(parts) if parts else None

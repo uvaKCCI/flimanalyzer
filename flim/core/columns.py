@@ -1,13 +1,17 @@
-"""Renaming and dropping columns by parts of their names, as Import and the Rename
-Columns and Drop Columns tools do."""
+"""Renaming and dropping columns by parts of their names.
+
+Import and the Rename Columns and Drop Columns tools use these functions.
+"""
 
 import re
-from typing import Iterable
+from typing import Any, Collection, Container, Iterable, Mapping, Optional, Sequence
 
 MATCHES = ("contains", "starts with", "ends with", "is")
 
 
-def renamed_columns(names: Iterable[str], replacements) -> list[str]:
+def renamed_columns(
+    names: Iterable[str], replacements: Iterable[tuple[str, str]]
+) -> list[str]:
     """Return column names with parts replaced, in order.
 
     Each replacement applies to the names the earlier ones produced. An empty part is
@@ -29,7 +33,20 @@ def renamed_columns(names: Iterable[str], replacements) -> list[str]:
 
 
 def matches(name: str, text: str, match: str) -> bool:
-    """Return whether a column name matches a drop rule's text."""
+    """Return whether a column name matches a drop rule's text.
+
+    Args:
+        name: The column name.
+        text: The rule's text.
+        match: How the text is compared: one of `MATCHES` (`contains`,
+            `starts with`, `ends with`, `is`).
+
+    Returns:
+        Whether the name matches.
+
+    Raises:
+        ValueError: If `match` is not one of `MATCHES`.
+    """
     if match == "contains":
         return text in name
     if match == "starts with":
@@ -50,19 +67,27 @@ def is_empty_header(name: str) -> bool:
     return name.strip() == "" or _UNNAMED.fullmatch(name) is not None
 
 
-def columns_to_drop(names: Iterable[str], rules, drop_empty: bool = True) -> list[str]:
+def columns_to_drop(
+    names: Iterable[str],
+    rules: Optional[Iterable[str | Sequence[str]]],
+    drop_empty: bool = True,
+) -> list[str]:
     """Return the columns that drop rules select.
 
     Args:
         names: The column names.
-        rules: (text, match) pairs; a plain text means `contains`, as Import's drop
-            list did. Rules with an empty text select nothing.
-        drop_empty: Also select a column with an empty header: " ", "", or
-            `Unnamed: <n>`, the name pandas gives a column whose header is empty in the
-            file.
+        rules: (text, match) pairs, `match` as in `matches`; a plain text means
+            `contains`, as in Import's drop list. Rules with an empty text select
+            nothing. None for no rules.
+        drop_empty: Whether to also select a column with an empty header: a name of
+            only white space, "", or `Unnamed: <n>`, the name pandas gives a column
+            whose header is empty in the file. Defaults to True.
 
     Returns:
         The selected names, in table order.
+
+    Raises:
+        ValueError: If a rule's match is unknown (see `matches`).
     """
     rules = [(r, "contains") if isinstance(r, str) else tuple(r) for r in rules or []]
     selected = []
@@ -82,7 +107,7 @@ CLASH_TEMPLATE = "{name} (before {tool})"  # an existing column of a protected n
 TEMPLATE_FIELDS = ("name", "tool", "table")
 
 
-def unique_name(name: str, default: str, existing) -> str:
+def unique_name(name: str, default: str, existing: Container[str]) -> str:
     """Return `name` (or `default` if empty), numbered if it is already taken.
 
     Args:
@@ -104,6 +129,12 @@ def unique_name(name: str, default: str, existing) -> str:
 def check_template(template: str) -> str:
     """Return a rename template if it uses only `{name}`, `{tool}` and `{table}`.
 
+    Args:
+        template: The template, a Python format string.
+
+    Returns:
+        The template, unchanged.
+
     Raises:
         ValueError: If the template has another field or no `{name}`, or is not a
             valid format string.
@@ -123,15 +154,23 @@ def check_template(template: str) -> str:
     return template
 
 
-def make_room(columns, names, template: str, renames=None, **fields) -> dict:
+def make_room(
+    columns: Iterable[Any],
+    names: Collection[str],
+    template: str,
+    renames: Optional[Mapping[str, str]] = None,
+    **fields: Any,
+) -> dict[str, str]:
     """Return how to rename existing columns that have names a tool will write.
 
     Args:
         columns: The table's column names.
         names: The names the tool writes (e.g. `["Source"]`).
         template: The new name of such a column, e.g. `{name} (before {tool})`.
-        renames: Per column, a new name that overrides the template.
-        **fields: The template's other fields, e.g. `tool="Import"`.
+        renames: Per column, a new name that overrides the template; an empty name
+            means the template.
+        **fields: The template's other fields, e.g. `tool="Import"`; fields not
+            given are empty.
 
     Returns:
         Old name -> new name, for the columns in the way; a new name that is taken
@@ -151,10 +190,11 @@ def make_room(columns, names, template: str, renames=None, **fields) -> dict:
     return result
 
 
-def free_names(names, taken) -> list[str]:
-    """Return names a tool generates for new columns, each numbered if a column of
-    the table (or an earlier new one) already has it, so no column of the table is
-    overwritten or duplicated.
+def free_names(names: Iterable[str], taken: Iterable[Any]) -> list[str]:
+    """Return the names a tool gives new columns, numbered where a name is taken.
+
+    A name is numbered if a column of the table (or an earlier new one) already has
+    it, so no column of the table is overwritten or duplicated.
 
     Args:
         names: The wanted names, e.g. `["PC 1", "PC 2"]`.

@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Reads data files into one table, with category columns taken from the file
-names."""
+"""Reading data files into one table, with category columns from the file names."""
 
 import itertools
 import logging
 import os
 import glob
+from collections.abc import Iterable, Sequence
 from pathlib import Path
+from typing import Optional, Union
 import pandas as pd
 
 from flim.core.categories import DELIMITER, fuse
@@ -21,13 +22,28 @@ DEFAULT_EXT = [".txt", ".csv"]
 SOURCE = "Source"  # the column with each row's origin, a URI
 
 
-def source_uri(path) -> str:
-    """The URI of a data file, e.g. `file:///data/9SR/Results-a-Dox15_01.txt`."""
+def source_uri(path: Union[str, os.PathLike]) -> str:
+    """Return the URI of a data file, e.g. `file:///data/9SR/Results-a-Dox15_01.txt`.
+
+    Args:
+        path: The file; a relative path is resolved against the working directory.
+
+    Returns:
+        The `file` URI of the absolute path, with symbolic links resolved.
+    """
     return Path(path).resolve().as_uri()
 
 
 class dataimporter:
-    def __init__(self):
+    """Reads a list of data files into one table (the import of FLIMAnalyzer 0.6).
+
+    The importer holds the files, the column delimiters, the filename parser, the
+    preprocessor and the pairs of category columns to combine; `import_data` reads
+    the files with them.
+    """
+
+    def __init__(self) -> None:
+        """Create an importer without files, with the delimiters tab and comma."""
         self.files = []
         self.delimiter = "\t,"
         self.data = pd.DataFrame()
@@ -36,44 +52,97 @@ class dataimporter:
         self.preprocessor = None
         self.combolist = None
 
-    def set_parser(self, parser):
+    def set_parser(self, parser: Optional[defaultparser]) -> None:
+        """Set the filename parser; None keeps the current one."""
         if parser is not None:
             self.parser = parser
 
-    def get_parser(self):
+    def get_parser(self) -> defaultparser:
+        """Return the filename parser."""
         return self.parser
 
-    def set_preprocessor(self, preprocessor):
+    def set_preprocessor(self, preprocessor: Optional[pp.defaultpreprocessor]) -> None:
+        """Set the preprocessor; None: no renaming, dropping or calculating."""
         self.preprocessor = preprocessor
 
-    def get_preprocessor(self):
+    def get_preprocessor(self) -> Optional[pp.defaultpreprocessor]:
+        """Return the preprocessor; None if there is none."""
         return self.preprocessor
 
-    def set_delimiter(self, delimiter):
+    def set_delimiter(self, delimiter: Optional[str]) -> None:
+        """Set the column delimiters, each character one; None keeps the current."""
         if delimiter is not None:
             self.delimiter = delimiter
 
-    def get_delimiter(self):
+    def get_delimiter(self) -> str:
+        """Return the column delimiters, each character one."""
         return self.delimiter
 
-    def set_column_combos(self, combolist):
+    def set_column_combos(self, combolist: Optional[list[tuple[str, ...]]]) -> None:
+        """Set the category columns to combine into one column each.
+
+        Args:
+            combolist: Tuples of category column names. An empty list: all pairs of
+                the text category columns of the first file read. None: no combined
+                columns.
+        """
         self.combolist = combolist
 
-    def set_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
+    def set_files(
+        self,
+        files: Optional[Iterable[Union[str, os.PathLike]]],
+        extensions: Sequence[str] = DEFAULT_EXT,
+        exclude: Optional[Sequence[str]] = None,
+        sort: bool = True,
+    ) -> None:
+        """Replace the files with the given files and folders' files.
+
+        Args:
+            files: Files and folders (see `add_files`); None removes all files.
+            extensions: The endings of the files to take. Defaults to `DEFAULT_EXT`.
+            exclude: File names (without folder) to leave out. Defaults to the
+                excluded files (`set_excluded_files`).
+            sort: Whether to sort the files by path.
+        """
         if exclude is None:
             exclude = self.excluded_files
         self.files = []
         self.add_files(files, extensions, exclude, sort)
 
-    def set_excluded_files(self, exclude):
+    def set_excluded_files(self, exclude: Optional[Sequence[str]]) -> None:
+        """Set the file names (without folder) to leave out; None: none."""
         if exclude is None:
             exclude = []
         self.excluded_files = exclude
 
-    def get_excluded_files(self):
+    def get_excluded_files(self) -> Sequence[str]:
+        """Return the file names (without folder) that are left out."""
         return self.excluded_files
 
-    def add_files(self, files, extensions=DEFAULT_EXT, exclude=None, sort=True):
+    def add_files(
+        self,
+        files: Optional[Iterable[Union[str, os.PathLike]]],
+        extensions: Sequence[str] = DEFAULT_EXT,
+        exclude: Optional[Sequence[str]] = None,
+        sort: bool = True,
+    ) -> tuple[Optional[int], int]:
+        """Add files, and the files in folders and their subfolders.
+
+        A file is added if it exists, its path ends with one of `extensions` (case
+        sensitive), it has not been added yet, and its name is not in `exclude`.
+        Files are stored as absolute paths.
+
+        Args:
+            files: Files and folders; None adds nothing.
+            extensions: The endings of the files to take, also for files given
+                directly. Defaults to `DEFAULT_EXT`.
+            exclude: File names (without folder) to leave out. Defaults to the
+                excluded files (`set_excluded_files`).
+            sort: Whether to sort all files by path afterwards.
+
+        Returns:
+            The numbers of files added and skipped; `(None, 0)` if `files` is None.
+        """
         if files is None:
             return None, 0
         if exclude is None:
@@ -105,18 +174,32 @@ class dataimporter:
             self.files = sorted(self.files)
         return (added_files, skipped_files)
 
-    def remove_files(self, rfiles):
+    def remove_files(self, rfiles: Optional[Sequence[str]]) -> None:
+        """Remove files, given by their absolute paths; None removes nothing."""
         logger.debug(f"removing {rfiles}")
         if rfiles is not None:
             self.files = [f for f in self.files if f not in rfiles]
 
-    def remove_allfiles(self):
+    def remove_allfiles(self) -> None:
+        """Remove all files."""
         self.files = []
 
-    def get_files(self):
+    def get_files(self) -> list[str]:
+        """Return the files, as absolute paths."""
         return self.files
 
-    def get_reserved_categorycols(self, parser=None):
+    def get_reserved_categorycols(
+        self, parser: Optional[defaultparser] = None
+    ) -> list[str]:
+        """Return the names of the columns read as category columns.
+
+        Args:
+            parser: The parser whose pattern categories (also those not in use) are
+                added to the predefined names. Defaults to the importer's parser.
+
+        Returns:
+            The names, sorted, each once.
+        """
         if parser is None:
             parser = self.parser
         rcatnames = [
@@ -165,15 +248,15 @@ class dataimporter:
 
     def import_data(
         self,
-        delimiter=None,
-        parser=None,
-        preprocessor=None,
-        nrows=None,
-        keep_existing=False,
-        clash_name=CLASH_TEMPLATE,
-        clash_renames=None,
-        tool="Import",
-    ):
+        delimiter: Optional[str] = None,
+        parser: Optional[defaultparser] = None,
+        preprocessor: Optional[pp.defaultpreprocessor] = None,
+        nrows: Optional[int] = None,
+        keep_existing: bool = False,
+        clash_name: str = CLASH_TEMPLATE,
+        clash_renames: Optional[dict[str, str]] = None,
+        tool: str = "Import",
+    ) -> tuple[Optional[pd.DataFrame], list[str], set[str]]:
         """Read the files into one table.
 
         Each file's rows get the columns of its file name: `Directory`, `File`, the
@@ -185,9 +268,27 @@ class dataimporter:
         replaces the file's column. What was renamed or replaced is in `renamed` and
         `replaced`; `tool` is the template's `{tool}`.
 
+        With a preprocessor, each file's columns are renamed and dropped, and after
+        the files are joined, the columns are reordered and the calculations added.
+        The combined columns (`set_column_combos`) join their columns' values with
+        `DELIMITER`. The reserved category columns (`get_reserved_categorycols`) and
+        the combined columns become categories.
+
+        Args:
+            delimiter: The column delimiters, each character one (joined into a
+                regular expression without escaping). Defaults to the importer's.
+            parser: The filename parser. Defaults to the importer's.
+            preprocessor: The preprocessor. Defaults to the importer's; if both are
+                None, the columns are only reordered.
+            nrows: Read only this many rows of each file; None reads all rows.
+            keep_existing: Keep a file's own columns of the names above.
+            clash_name: The template of the new name of a renamed column.
+            clash_renames: Per column, a new name that overrides the template.
+            tool: The template's `{tool}`.
+
         Returns:
             The table (None if no file could be read), the files read, and the names
-            of the columns taken from the file names.
+            of the columns taken from the file names, with the combined columns.
         """
         self.renamed: dict = {}  # file -> {old: new}
         self.replaced: dict = {}  # file -> columns replaced by the parser's

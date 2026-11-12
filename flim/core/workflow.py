@@ -1,27 +1,38 @@
 """Workflows: tools whose run is a Prefect flow of other tools.
 
 A workflow is registered like a tool (category "Workflow") and configured with a
-:class:`flim.configs.workflow.WorkflowConfig`. Its :meth:`Workflow.build` calls the
-tools of its steps, each with its step config, inside a flow; :meth:`Workflow.run_flow`
-runs that flow and returns the :class:`flim.core.runner.FlowRun` (task graph, results,
-run summary).
+`flim.configs.workflow.WorkflowConfig`. Its `Workflow.build` calls the tools of its
+steps, each with its step config, inside a flow; `Workflow.run_flow` runs that flow
+and returns the `flim.core.runner.FlowRun` (task graph, results, run summary).
 """
 
-from typing import Any, ClassVar, Optional
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Sequence
 import os
 
 import pandas as pd
 
-from flim.core.config import TaskConfig, requirement_issues
+from flim.core.config import Issue, TaskConfig, requirement_issues
 from flim.core.schema import TableSchema
 from flim.core.tool import ConfigT, Tool, check_requirements
+from flim.core.types import OutputSpec
 from flim.core.validation import DefaultWorkflowValidator, ValidationReport
+
+if TYPE_CHECKING:
+    from prefect.task_runners import TaskRunner
+
+    from flim.core.runner import CancelToken, FlowRun
 
 
 class WorkflowValidationError(ValueError):
-    """The workflow's config has errors for its inputs (see ``report``)."""
+    """The workflow's config has errors for its inputs (see `report`)."""
 
-    def __init__(self, report: ValidationReport):
+    def __init__(self, report: ValidationReport) -> None:
+        """Create the error; its message has one line per error of the report.
+
+        Args:
+            report: The validation report; each error line starts with its step, if
+                it has one.
+        """
         self.report = report
         lines = [
             f"{i.step}: {i.message}" if i.step else i.message for i in report.errors
@@ -30,52 +41,76 @@ class WorkflowValidationError(ValueError):
 
 
 class Workflow(Tool[ConfigT]):
+    """A tool whose run is a Prefect flow of other tools; subclasses implement `build`.
+
+    The class attribute `validator` checks the config and its steps against the
+    inputs before a run (see `resolve` and `validate`).
+    """
+
     category: ClassVar[str] = "Workflow"
     icon: ClassVar[Optional[str]] = "workflow.png"
     # checks the config and its steps against the inputs; replaceable, e.g. by one
     # with lab-specific naming rules (see flim.core.validation.WorkflowValidator)
     validator: ClassVar = DefaultWorkflowValidator()
 
-    def build(self, *inputs, config: ConfigT) -> None:
-        """Calls the tools of the workflow's steps (inside a flow, see run_flow).
+    def build(self, *inputs: Any, config: ConfigT) -> None:
+        """Call the tools of the workflow's steps, inside a flow (see `run_flow`).
 
-        Inputs are the workflow's input tables; tool calls return
-        :class:`flim.core.runner.TaskOutput` handles to pass on to other calls.
+        Inside the flow, tool calls return `flim.core.runner.TaskOutput` handles to
+        pass on to other calls.
+
+        Args:
+            *inputs: The workflow's input tables.
+            config: The workflow's config.
+
+        Raises:
+            NotImplementedError: Always; subclasses implement it.
         """
         raise NotImplementedError
 
     def run_flow(
         self,
-        *inputs,
+        *inputs: Any,
         config: Optional[ConfigT] = None,
-        task_runner=None,
+        task_runner: Optional["TaskRunner"] = None,
         autosave_dir: Optional[str | os.PathLike] = None,
-        on_progress=None,
-        cancel_token=None,
-        on_start=None,
+        on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
+        cancel_token: Optional["CancelToken"] = None,
+        on_start: Optional[Callable[["FlowRun"], None]] = None,
         strict: Optional[bool] = None,
-        settings_record=(),
-        save_formats=(),
-    ):
-        """Runs the workflow as a Prefect flow; see :func:`flim.core.runner.run_flow`.
+        settings_record: Sequence[str] = (),
+        save_formats: Sequence[Any] = (),
+    ) -> "FlowRun":
+        """Run the workflow as a Prefect flow; see `flim.core.runner.run_flow`.
 
-        The config is validated first (:meth:`resolve`); the run uses it with the
-        guessed columns, which the run summary lists.
+        The config is validated first (`resolve`); the run uses it with the guessed
+        columns, which the run summary lists.
 
         Args:
-            strict: the default for a config whose ``strict`` is None; None: strict
+            *inputs: The workflow's input tables.
+            config: The workflow's config; None for the default config.
+            task_runner: The Prefect task runner; None for
+                `flim.core.runner.default_task_runner`.
+            autosave_dir: The folder below which the tasks' results are saved, in a
+                folder per run; None saves nothing.
+            on_progress: Called with the task counts; see `flim.core.runner.FlowRun`.
+            cancel_token: The signal that cancels the run when set; None for a new
+                one.
+            on_start: Called with the `flim.core.runner.FlowRun` once Prefect has
+                created the flow run, before the first task.
+            strict: The default for a config whose `strict` is None; None: strict
                 (no guesses).
-            settings_record: lines for the run summary naming the settings files
+            settings_record: Lines for the run summary naming the settings files
                 used.
-            save_formats: the formats all steps save their results in.
-
-        Raises:
-            ValueError: the config selects fewer features or grouping columns than
-                the workflow needs.
-            WorkflowValidationError: the config has errors for these inputs.
+            save_formats: The formats all steps save their results in.
 
         Returns:
-            flim.core.runner.FlowRun: task graph and results.
+            The run: its task graph, results and state.
+
+        Raises:
+            ValueError: If the config selects fewer features or grouping columns than
+                the workflow needs.
+            WorkflowValidationError: If the config has errors for these inputs.
         """
         from flim.core.runner import run_flow
 
@@ -104,17 +139,36 @@ class Workflow(Tool[ConfigT]):
         )
 
     @classmethod
-    def is_strict(cls, config, default: Optional[bool] = None) -> bool:
-        """Whether columns missing from the inputs are errors (otherwise guessed): the
-        config's ``strict``, else ``default``, else True."""
+    def is_strict(cls, config: TaskConfig, default: Optional[bool] = None) -> bool:
+        """Return whether columns missing from the inputs are errors (else guessed).
+
+        Args:
+            config: The workflow's config.
+            default: The value for a config whose `strict` is None or missing.
+
+        Returns:
+            The config's `strict`, else `default`, else True.
+        """
         strict = getattr(config, "strict", None)
         if strict is None:
             strict = default
         return True if strict is None else strict
 
-    def resolve(self, config, inputs, strict: Optional[bool] = None):
-        """Validates the config for input tables (or their schemas): the report's
-        config has the guesses applied."""
+    def resolve(
+        self, config: ConfigT, inputs: Sequence[Any], strict: Optional[bool] = None
+    ) -> ValidationReport:
+        """Validate the config for the input tables, or their schemas.
+
+        Args:
+            config: The workflow's config.
+            inputs: The input tables (DataFrames) or their schemas (`TableSchema`).
+            strict: The default for a config whose `strict` is None; None: strict
+                (no guesses).
+
+        Returns:
+            The report of the class's `validator`; its config has the guesses
+            applied.
+        """
         schemas = [
             TableSchema.from_frame(i) if isinstance(i, pd.DataFrame) else i
             for i in inputs
@@ -124,7 +178,9 @@ class Workflow(Tool[ConfigT]):
         )
 
     @classmethod
-    def validate(cls, config, inputs, strict: Optional[bool] = None):
+    def validate(
+        cls, config: ConfigT, inputs: Sequence[Any], strict: Optional[bool] = None
+    ) -> list[Issue]:
         """Check the config and its steps against the input schemas.
 
         Args:
@@ -134,15 +190,24 @@ class Workflow(Tool[ConfigT]):
                 False: columns missing from the inputs are guessed.
 
         Returns:
-            The issues of the config and of its steps.
+            The issues of the config (the number of features and grouping columns it
+            selects) and of its steps.
         """
         strict = cls.is_strict(config, False if strict is None else strict)
         report = cls.validator.validate(cls, config, list(inputs), strict)
         return requirement_issues(config, list(inputs)) + report.issues
 
-    def run(self, *inputs, config: ConfigT) -> dict[str, Any]:
-        """Runs the flow (without saving) and returns the results of its completed
-        tasks, merged into one dict."""
+    def run(self, *inputs: Any, config: ConfigT) -> dict[str, Any]:
+        """Run the flow, without saving, and return its results.
+
+        Args:
+            *inputs: The workflow's input tables.
+            config: The workflow's config.
+
+        Returns:
+            The results of the completed tasks, merged into one dict; for equal
+            names, the result of the later task.
+        """
         results = {}
         for result in self.run_flow(*inputs, config=config).results():
             if isinstance(result, dict):
@@ -150,7 +215,10 @@ class Workflow(Tool[ConfigT]):
         return results
 
     @classmethod
-    def output_schema(cls, config, inputs):
+    def output_schema(
+        cls, config: ConfigT, inputs: Sequence[Any]
+    ) -> dict[str, OutputSpec]:
+        """Return no outputs: they are known only once the flow has been built."""
         return {}  # the outputs are known only once the flow has been built
 
 
@@ -160,19 +228,32 @@ class _Input(Tool[TaskConfig]):
     name = "Input"
     graph_kind = "output"
 
-    def run_task(self, inputs, config=None):
+    def run_task(
+        self, inputs: Sequence[Any], config: Optional[TaskConfig] = None
+    ) -> Any:
+        """Return the input table itself."""
         return inputs[0]  # the table itself, for the steps that use it
 
 
-def workflow_input(data, name: str = "Input", task_tags=None, save=None):
-    """The input table of a workflow, the first node of its graph.
+def workflow_input(
+    data: Any,
+    name: str = "Input",
+    task_tags: Optional[str | Sequence[str]] = None,
+    save: Optional[bool] = None,
+) -> Any:
+    """Add the input table of a workflow, the first node of its graph.
 
     Args:
         data: The table.
-        name: The node's name.
-        task_tags: Tags of the node's task; default: the name.
+        name: The node's name. Defaults to `Input`.
+        task_tags: The tags of the node's task; None for the name.
         save: False: the table is not saved with the run's results (workflow files
-            save only what their steps' `save` says).
+            save only what their steps' `save` says); None or True: it is saved if
+            the run saves its results.
+
+    Returns:
+        Inside a flow, a `flim.core.runner.TaskOutput` handle to the table;
+        otherwise, also during a dry run, `data` itself.
     """
     step = _Input()
     step.name = name

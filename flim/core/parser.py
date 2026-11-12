@@ -1,25 +1,47 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""File name parsers: regular expressions that take category values from the paths
-of data files."""
+"""File name parsers: regular expressions that take category values from file paths."""
 
 import logging
 import os
 import re
 import importlib
 import pkgutil
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
 
-def get_available_parsers(pkdir="core.parser"):
+def get_available_parsers(
+    pkdir: str = "core.parser",
+) -> dict[str, type["defaultparser"]]:
+    """Return the parser classes: the direct subclasses of `defaultparser`.
+
+    The modules in the directory `pkdir` are imported first, relative to this
+    module's package, so that parsers they define are found too.
+
+    Args:
+        pkdir: The directory whose modules are imported. Defaults to `core.parser`.
+
+    Returns:
+        Class name -> parser class.
+    """
     for module_loader, name, ispkg in pkgutil.iter_modules([pkdir]):
         importlib.import_module("." + name, __package__)
     parser_classes = {cls.__name__: cls for cls in defaultparser.__subclasses__()}
     return parser_classes
 
 
-def instantiate_parser(fullname):
+def instantiate_parser(fullname: str) -> Optional["defaultparser"]:
+    """Create a parser from its full class name, e.g. `flim.core.parser.no_parser`.
+
+    Args:
+        fullname: The module and the class name, joined by a dot.
+
+    Returns:
+        The parser; None if the module or the class cannot be imported or the class
+        cannot be instantiated (the error is logged).
+    """
     namesplit = fullname.rpartition(".")
     if len(namesplit) != 3:
         return None
@@ -44,20 +66,36 @@ PATTERN_REGEX = "Regex"
 
 
 class defaultparser(object):
-    def __init__(self):
+    """A parser without patterns; the base of all parsers.
+
+    A pattern is a dict with the keys `PATTERN_USE` (whether it is applied),
+    `PATTERN_CATEGORY` (the name of the category column it fills) and `PATTERN_REGEX`
+    (a regular expression whose first group is the value).
+    """
+
+    def __init__(self) -> None:
+        """Set the parser's patterns and compile them."""
         self.init_patterns()
         self.compile_patterns()
 
-    def is_readonly(self):
+    def is_readonly(self) -> bool:
+        """Return True: the parser's patterns are predefined."""
         return True
 
-    def get_name(self):
+    def get_name(self) -> str:
+        """Return the parser's display name."""
         return "Default Parser"
 
-    def init_patterns(self):
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns; none for this parser."""
         self.regexpatterns = []
 
-    def compile_patterns(self):
+    def compile_patterns(self) -> None:
+        """Compile the regular expressions of the patterns in use, by category.
+
+        Raises:
+            re.error: If a regular expression is not valid.
+        """
         if self.regexpatterns is not None and len(self.regexpatterns) > 0:
             self.compiledpatterns = {
                 rp[PATTERN_CATEGORY]: re.compile(rp[PATTERN_REGEX])
@@ -67,14 +105,40 @@ class defaultparser(object):
         else:
             self.compiledpatterns = {}
 
-    def get_regexpatterns(self):
+    def get_regexpatterns(self) -> list[dict[str, Any]]:
+        """Return the parser's patterns (see the class docstring)."""
         return self.regexpatterns
 
-    def set_regexpatterns(self, patterns):
+    def set_regexpatterns(self, patterns: list[dict[str, Any]]) -> None:
+        """Replace the parser's patterns and compile them.
+
+        Args:
+            patterns: The patterns (see the class docstring).
+
+        Raises:
+            re.error: If a regular expression is not valid.
+        """
         self.regexpatterns = patterns
         self.compile_patterns()
 
-    def parsefilename(self, fname):
+    def parsefilename(self, fname: str) -> dict[str, str]:
+        """Return the category values that the patterns take from a file's path.
+
+        Each pattern in use gives the first group of its regular expression's first
+        match (see `flim.core.categories.separate_by_patterns`): `?` for a group that
+        matches nothing; backslashes in the path are matched as `/`. A pattern that
+        does not match the path gives no value.
+
+        Args:
+            fname: The path of the file.
+
+        Returns:
+            Category -> value: `Directory` (the path's directory), `File` (the file
+            name) and the value of each pattern that matched.
+
+        Raises:
+            ValueError: If a regular expression is not valid or has no group.
+        """
         components = {
             "Directory": os.path.dirname(fname),
             "File": os.path.basename(fname),
@@ -99,15 +163,25 @@ class defaultparser(object):
 
 
 class no_parser(defaultparser):
-    def set_regexpatterns(self, patterns):
+    """A parser that takes no values, not even the directory and the file name."""
+
+    def set_regexpatterns(self, patterns: list[dict[str, Any]]) -> None:
+        """Ignore the patterns: this parser has none."""
         pass
 
-    def parsefilename(self, fname):
+    def parsefilename(self, fname: str) -> dict[str, str]:
+        """Return no values."""
         return {}
 
 
 class celltype_compartment_fov_treatment_cell_parser(defaultparser):
-    def init_patterns(self):
+    """Cell line and compartment from the directories.
+
+    FOV, treatment and cell from the file name.
+    """
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,
@@ -138,7 +212,10 @@ class celltype_compartment_fov_treatment_cell_parser(defaultparser):
 
 
 class compartment_fov_treatment_cell_parser(defaultparser):
-    def init_patterns(self):
+    """Compartment from the directory; FOV, treatment and cell from the file name."""
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,
@@ -164,7 +241,10 @@ class compartment_fov_treatment_cell_parser(defaultparser):
 
 
 class compartment_treatment_fov_cell_parser(defaultparser):
-    def init_patterns(self):
+    """Compartment from the directory; treatment, FOV and cell from the file name."""
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,
@@ -190,7 +270,10 @@ class compartment_treatment_fov_cell_parser(defaultparser):
 
 
 class fov_treatment_cell_parser(defaultparser):
-    def init_patterns(self):
+    """FOV, treatment and cell from the file name."""
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,
@@ -211,7 +294,10 @@ class fov_treatment_cell_parser(defaultparser):
 
 
 class treatment_fov_cell_parser(defaultparser):
-    def init_patterns(self):
+    """Treatment, FOV and cell from the file name."""
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,
@@ -232,7 +318,10 @@ class treatment_fov_cell_parser(defaultparser):
 
 
 class treatment_fov_time_parser(defaultparser):
-    def init_patterns(self):
+    """Treatment, FOV and time from the file name."""
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,
@@ -253,7 +342,10 @@ class treatment_fov_time_parser(defaultparser):
 
 
 class treatment_time_parser(defaultparser):
-    def init_patterns(self):
+    """Treatment and time from the file name."""
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,
@@ -269,7 +361,10 @@ class treatment_time_parser(defaultparser):
 
 
 class fov_time_well_parser(defaultparser):
-    def init_patterns(self):
+    """FOV, time and well from the file name."""
+
+    def init_patterns(self) -> None:
+        """Set the parser's predefined patterns."""
         self.regexpatterns = [
             {
                 PATTERN_USE: True,

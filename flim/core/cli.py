@@ -1,13 +1,13 @@
 """Command-line options of the app settings, shared by flimanalyzer and flimbatch."""
 
 import argparse
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import TypeAdapter, ValidationError
 
 from flim.core.execution import ExecutorSettings
 
-# executor names before 0.7.0 (deprecated)
+# deprecated executor names and the names that replace them
 OLD_EXECUTORS = {
     "LocalExecutor": "local",
     "LocalDaskExecutor": "dask-local",
@@ -28,14 +28,16 @@ EXECUTOR_HELP = """where and how tasks run:
 other keys are further Dask arguments, e.g. threads_per_worker=2"""
 
 
-def add_settings_options(parser: argparse.ArgumentParser, *, output_required=False) -> None:
+def add_settings_options(
+    parser: argparse.ArgumentParser, *, output_required: bool = False
+) -> None:
     """Add the options that set app settings to an argument parser.
 
     Args:
         parser: The argument parser of flimanalyzer or flimbatch. Its formatter must
             keep line breaks in help texts (`argparse.RawTextHelpFormatter`) for the
             help of `-e` to be readable.
-        output_required: Whether `-o` is required.
+        output_required: Whether `-o` is required. Defaults to False.
     """
     parser.add_argument(
         "-s",
@@ -67,7 +69,7 @@ def add_settings_options(parser: argparse.ArgumentParser, *, output_required=Fal
     )
 
 
-def settings_file(args) -> tuple[Optional[str], list[str]]:
+def settings_file(args: argparse.Namespace) -> tuple[Optional[str], list[str]]:
     """Return the app settings file given with `-s`, or with the deprecated `-c`.
 
     Args:
@@ -86,8 +88,8 @@ def settings_file(args) -> tuple[Optional[str], list[str]]:
     return args.config, ["-c/--config is deprecated; use -s/--settings"]
 
 
-def _values(text: str) -> dict:
-    """Parse `KEY=VALUE,...`; integer values become int."""
+def _values(text: str) -> dict[str, int | str]:
+    """Parse `KEY=VALUE,...`; integer values become int; raise ValueError otherwise."""
     values = {}
     for item in filter(None, (part.strip() for part in text.split(","))):
         key, sep, value = item.partition("=")
@@ -101,15 +103,17 @@ def _values(text: str) -> dict:
     return values
 
 
-def executor_settings(spec: Optional[str], execargs: Optional[str] = None) -> tuple[dict, list[str]]:
+def executor_settings(
+    spec: Optional[str], execargs: Optional[str] = None
+) -> tuple[dict[str, Any], list[str]]:
     """Parse the argument of `-e` (and the deprecated `-a`) into executor settings.
 
     `spec` is `NAME[:KEY=VALUE,...]`. The old names `LocalExecutor`,
     `LocalDaskExecutor` and `DaskExecutor`, and the keys of `-a` (`num_workers` for
-    `workers`), are accepted with a deprecation message and work as before 0.7.0:
-    `DaskExecutor` without an address becomes `dask-local`, as it started a local
-    cluster; `workers` that is not a positive integer, and keys the local executor
-    does not use, are ignored with a message.
+    `workers`), are accepted with a deprecation message and keep their earlier
+    behaviour: `DaskExecutor` without an address becomes `dask-local`, as it started
+    a local cluster; `workers` that is not a positive integer, and keys the local
+    executor does not use, are ignored with a message.
 
     Args:
         spec: The argument of `-e`; None for the default executor.
@@ -142,7 +146,7 @@ def executor_settings(spec: Optional[str], execargs: Optional[str] = None) -> tu
     known = {k: v for k, v in values.items() if k in EXECUTOR_KEYS[name]}
     other = {k: v for k, v in values.items() if k not in EXECUTOR_KEYS[name]}
     if old or execargs:
-        # the deprecated forms keep their 0.6 behaviour: invalid or unknown values
+        # the deprecated forms keep their earlier behaviour: invalid or unknown values
         # are ignored, not errors
         workers = known.get("workers")
         if workers is not None and not (isinstance(workers, int) and workers >= 1):
@@ -173,7 +177,7 @@ def executor_settings(spec: Optional[str], execargs: Optional[str] = None) -> tu
     return validated.model_dump(mode="json"), notes
 
 
-def command_line_changes(args) -> tuple[dict, list[str]]:
+def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list[str]]:
     """Return the settings set on the command line, as sections to apply.
 
     Only options that were given are returned. `--log-dir` and `--cache-dir` give the
