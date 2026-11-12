@@ -3,12 +3,14 @@
 import contextvars
 import functools
 import itertools
-from typing import Optional
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any, Optional, TypeVar, Union
 import logging
 import math
 import warnings
 
 import matplotlib.artist
+import matplotlib.axes
 import matplotlib.figure
 import matplotlib.container
 import matplotlib.pyplot as plt
@@ -17,17 +19,23 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import MatplotlibDeprecationWarning
+from matplotlib.backend_bases import RendererBase
+from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 from seaborn.categorical import Beeswarm as _SeabornBeeswarm
 
 from flim.configs.plot import (
     BarPlotConfig,
     BoxPlotConfig,
+    CategoricalPlotConfig,
     FLIRRPlotConfig,
     HeatmapConfig,
     HistogramConfig,
     KDEConfig,
     LinePlotConfig,
     PairPlotConfig,
+    PlotConfig,
+    PointSampling,
     ScatterPlotConfig,
     SwarmPlotConfig,
     ViolinPlotConfig,
@@ -43,10 +51,19 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LINESTYLES = ["-", "--", ":", "-."]
 
+# the config type of a plot tool, for functions that return configs of the same type
+PlotConfigT = TypeVar("PlotConfigT", bound=PlotConfig)
 
-def add_picker(figure) -> None:
-    """Makes the figure's axes, their children and grandchildren, and the axis labels
-    pickable, so that they can be selected and edited."""
+
+def add_picker(figure: matplotlib.figure.Figure) -> None:
+    """Make the figure's axes and their artists pickable, so that they can be edited.
+
+    The axes, their children and grandchildren, and the x and y labels become
+    pickable.
+
+    Args:
+        figure: The figure.
+    """
     for ax in figure.axes:
         ax.set_picker(True)
         for artist in ax.get_children():
@@ -57,16 +74,38 @@ def add_picker(figure) -> None:
         ax.set_ylabel(ax.get_ylabel(), picker=True)
 
 
-def clean_label(label) -> str:
-    """A group name, e.g. ``('WT', '1')``, as a label without quotes and parentheses;
-    a group of one column (``('WT',)``) is its value."""
+def clean_label(label: Any) -> str:
+    """Return a group name as a label without quotes and parentheses.
+
+    For example `('WT', '1')` becomes `WT, 1`; a group of one column (`('WT',)`)
+    becomes its value, `WT`.
+
+    Args:
+        label: The group name: a value or a tuple of values.
+
+    Returns:
+        The label.
+    """
     if isinstance(label, tuple) and len(label) == 1:
         label = label[0]
     return str(label).replace("'", "").replace("(", "").replace(")", "")
 
 
-def tiles(n: int, per_row: int = 0, size=(4.5, 3.5)):
-    """A figure of ``n`` plots, ``per_row`` (0: about square) per row: (figure, axes)."""
+def tiles(
+    n: int, per_row: int = 0, size: tuple[float, float] = (4.5, 3.5)
+) -> tuple[matplotlib.figure.Figure, list[matplotlib.axes.Axes]]:
+    """Create a figure of `n` plots in rows, with constrained layout.
+
+    Args:
+        n: The number of plots; at least 1.
+        per_row: The plots per row; 0 for about as many rows as columns. Defaults
+            to 0.
+        size: The width and height of one plot, in inches.
+
+    Returns:
+        The figure and its `n` axes, row by row. Axes beyond `n` in the last row
+        are removed from the figure.
+    """
     cols = min(per_row or math.ceil(math.sqrt(n)), n)
     rows = math.ceil(n / cols)
     figure, axes = plt.subplots(
@@ -90,13 +129,20 @@ OUTSIDE_LOC = {
 }
 
 
-def arrange_legends(figure, position: str) -> None:
-    """Places the legends of a figure: one legend for the figure outside its plots
-    (right, top, bottom, left), inside the first plot with one, or none.
+def arrange_legends(figure: matplotlib.figure.Figure, position: str) -> None:
+    """Place the legends of a figure: outside its plots, inside a plot, or none.
 
-    Legends with the same title (e.g. one per tile of a single figure) become one,
-    with all their entries. Legends with different titles (e.g. the panels of a FLIRR
-    plot) stay as they are, unless the position is "none".
+    Legends with the same title (e.g. one per tile of a single figure) become one
+    legend with the entries of all of them, each label once. Legends with different
+    titles (e.g. the panels of a FLIRR plot) stay as they are, unless the position is
+    `none`. A legend outside the plots switches the figure to constrained layout,
+    which leaves room for it.
+
+    Args:
+        figure: The figure.
+        position: `right`, `left`, `top` or `bottom` (one legend for the figure,
+            outside its plots), `inside` (in the first plot that has a legend, else
+            in the first plot), or `none` (all legends are removed).
     """
     axes_legends = [ax for ax in figure.axes if ax.get_legend() is not None]
     legends = [ax.get_legend() for ax in axes_legends] + list(figure.legends)
@@ -135,11 +181,20 @@ def arrange_legends(figure, position: str) -> None:
     )
 
 
-def tidy_tiles(figure, axes) -> None:
-    """Moves the words that all visible tile titles share at their start or end into
-    the figure title (first letter in upper case); each tile keeps the rest of its
+def tidy_tiles(
+    figure: matplotlib.figure.Figure, axes: Sequence[matplotlib.axes.Axes]
+) -> None:
+    """Move the words that all visible tile titles share into the figure title.
+
+    The shared words at the start and at the end of the titles become the figure
+    title, with its first letter in upper case; each tile keeps the rest of its
     title. Does nothing for fewer than two visible tiles, a tile without a title, or
-    titles without shared words."""
+    titles without shared words at their start or end.
+
+    Args:
+        figure: The figure.
+        axes: The tiles.
+    """
     axes = [ax for ax in axes if ax.get_visible()]
     if len(axes) < 2:
         return
@@ -167,18 +222,29 @@ def tidy_tiles(figure, axes) -> None:
 MANY_PLOTS, TOO_MANY_PLOTS = 50, 300
 
 
-def _feature_names(config, inputs) -> list:
-    """The features a config selects: its list, or (for "all") the input's."""
+def _feature_names(config: PlotConfig, inputs: Sequence[Any]) -> list[str]:
+    """Return the config's features; for `all`, the input schema's features."""
     if config.features != "all":
         return list(config.features)
     schema = inputs[0] if inputs else None
     return schema.by_role("feature") if schema is not None else []
 
 
-def plot_count_issues(field: str, n: int, what: str) -> list:
-    """A warning if ``n`` is more than MANY_PLOTS, an error if more than
-    TOO_MANY_PLOTS, else no issue. Each plot or tile takes time to draw: e.g. scatter
-    plots of all pairs of 50 features are 1,225 plots."""
+def plot_count_issues(field: str, n: int, what: str) -> list[Issue]:
+    """Check the number of plots or tiles a config draws.
+
+    Each plot or tile takes time to draw: for example, scatter plots of all pairs of
+    50 features are 1,225 plots.
+
+    Args:
+        field: The config field the issue refers to.
+        n: The number of plots or tiles.
+        what: The start of the message, e.g. `10 x 10 panels`.
+
+    Returns:
+        An error if `n` is more than `TOO_MANY_PLOTS`, a warning if it is more than
+        `MANY_PLOTS`, else no issue.
+    """
     if n > TOO_MANY_PLOTS:
         return [
             Issue(
@@ -191,9 +257,17 @@ def plot_count_issues(field: str, n: int, what: str) -> list:
     return []
 
 
-def per_feature(config) -> list:
-    """One config per feature (all features in one config if they are "all"); a
-    dict of per-feature settings keeps each feature's."""
+def per_feature(config: PlotConfigT) -> list[PlotConfigT]:
+    """Return one config per feature.
+
+    Args:
+        config: The config. Its `features` are a list, a dict of per-feature
+            settings, or `all`.
+
+    Returns:
+        A copy of the config per feature; for a dict, each copy keeps its feature's
+        settings. With `all`, the config itself, unsplit.
+    """
     features = config.features
     if features == "all":
         return [config]
@@ -205,12 +279,19 @@ def per_feature(config) -> list:
 
 
 class _Plot:
-    """Shared by the plot tools: their outputs follow from config and input columns."""
+    """Shared by the plot tools: their outputs follow from config and input columns.
+
+    A subclass's `run` is wrapped: after it returns, the legends of each figure are
+    arranged (`arrange_legends`, for configs with a legend) and `finish` is called
+    for each figure. While it runs, seaborn's swarms are not placed (see
+    `freeze_swarms`), and the running tool can be cancelled while swarms are placed.
+    """
 
     category = "Plot"
     draws_figures = True
 
-    def __init_subclass__(cls, **kwargs):
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Wrap the subclass's own `run`, if it defines one (see the class)."""
         super().__init_subclass__(**kwargs)
         if "run" in cls.__dict__:  # wraps run: arranges legends, calls finish
             run = cls.__dict__["run"]
@@ -237,24 +318,51 @@ class _Plot:
 
             cls.run = run_plot
 
-    def finish(self, figure) -> None:
-        """Called for each figure of a run once its layout is final; does nothing
-        here."""
+    def finish(self, figure: matplotlib.figure.Figure) -> None:
+        """Process a figure of the run once its layout is final; does nothing here.
+
+        Args:
+            figure: The figure.
+        """
 
     @classmethod
-    def output_names(cls, config, features: list[str]) -> dict[str, type]:
-        """Output name → type for the selected features (default: one plot each, or
-        a single figure named after the tool)."""
+    def output_names(cls, config: PlotConfig, features: list[str]) -> dict[str, type]:
+        """Return the names and types of the outputs for the selected features.
+
+        Args:
+            config: The config.
+            features: The selected features.
+
+        Returns:
+            Output name -> type. By default one plot per feature (see `plot_name`),
+            or with `single_figure` one figure named after the tool.
+        """
         if getattr(config, "single_figure", False):
             return {cls.name: PlotType}
         return {cls.plot_name(f): PlotType for f in sorted(features)}
 
     @classmethod
     def plot_name(cls, feature: str) -> str:
+        """Return the name of a feature's plot: `<tool name> <feature>` by default."""
         return f"{cls.name} {feature}"
 
     @classmethod
-    def output_schema(cls, config, inputs):
+    def output_schema(
+        cls, config: PlotConfig, inputs: Sequence[Any]
+    ) -> dict[str, OutputSpec]:
+        """Return the outputs, from the config and the input schema's features.
+
+        Unlike `Tool.output_schema`, the tool is not run on sample rows. Tables among
+        the outputs have unknown schemas.
+
+        Args:
+            config: The config.
+            inputs: The input schemas; the first is the table plotted.
+
+        Returns:
+            Output name -> output (see `output_names`); none if the config selects
+            all features and the input schema is unknown or incomplete.
+        """
         schema = inputs[0] if inputs else None
         if config.features == "all":
             if schema is None or not schema.complete:
@@ -269,20 +377,44 @@ class _Plot:
             for name, t in cls.output_names(config, features).items()
         }
 
-    def map_configs(self, config):
+    def map_configs(self, config: PlotConfigT) -> list[PlotConfigT]:
+        """Return one config per feature, so that the features run as separate tasks.
+
+        With `single_figure`, or with all features selected, the config is not split.
+        """
         if getattr(config, "single_figure", False):
             return [config]
         return per_feature(config)
 
 
 def tile_columns(n: int, per_row: int = 0) -> int:
-    """Plots per row of a single figure of ``n`` plots (0: about square)."""
+    """Return the number of plots per row of a single figure of `n` plots.
+
+    Args:
+        n: The number of plots.
+        per_row: The plots per row asked for; 0 for about as many rows as columns.
+
+    Returns:
+        `per_row` (or the automatic number), at most `n` and at least 1.
+    """
     return max(1, min(per_row or math.ceil(math.sqrt(n)), n))
 
 
-def long_format(data, features, keep) -> pd.DataFrame:
-    """``features`` stacked into one value column (with a feature column), for
-    seaborn's facets; ``keep``: the columns kept with each value."""
+def long_format(
+    data: pd.DataFrame, features: Sequence[str], keep: Sequence[str]
+) -> pd.DataFrame:
+    """Stack the features into one value column, for seaborn's facets.
+
+    Args:
+        data: The table.
+        features: The features to stack.
+        keep: The columns kept with each value, e.g. the grouping columns.
+
+    Returns:
+        A table with the `keep` columns, a column `TILE_FEATURE` with the feature's
+        name, and a column `TILE_VALUE` with its value: one row per row of `data`
+        and feature.
+    """
     return data[list(keep) + list(features)].melt(
         id_vars=list(keep),
         value_vars=list(features),
@@ -295,8 +427,20 @@ def long_format(data, features, keep) -> pd.DataFrame:
 TILE_FEATURE, TILE_VALUE = "__feature__", "__value__"
 
 
-def label_tiles(grid, features, ylim=None) -> None:
-    """Titles (the feature), y labels and y limits of a facet grid's plots."""
+def label_tiles(
+    grid: sns.FacetGrid,
+    features: Sequence[str],
+    ylim: Optional[Callable[[str], tuple[float, float]]] = None,
+) -> None:
+    """Set the titles, y labels and y limits of a facet grid's plots.
+
+    Args:
+        grid: The facet grid, one plot per feature in the order of `features`.
+        features: The features; each plot's title and y label is its feature, with
+            line breaks as spaces.
+        ylim: A function that returns the y limits (low, high) of a feature's plot;
+            None to keep seaborn's limits. Defaults to None.
+    """
     for ax, feature in zip(grid.axes.flat, features):
         ax.set_title(str(feature).replace("\n", " "))
         ax.set_ylabel(str(feature).replace("\n", " "))
@@ -304,10 +448,18 @@ def label_tiles(grid, features, ylim=None) -> None:
             ax.set_ylim(*ylim(feature))
 
 
-def axis_range(values, fit=True) -> tuple:
-    """Axis limits for ``values``: their range (``fit``), or their range extended to
-    include 0; with a margin of 5% of the range on each side (if all values are
-    equal: 5% of the value, or 0.5 for 0)."""
+def axis_range(values: pd.Series, fit: bool = True) -> tuple[float, float]:
+    """Return axis limits for the values.
+
+    Args:
+        values: The values on the axis.
+        fit: True for the range of the values; False for their range extended to
+            include 0. Defaults to True.
+
+    Returns:
+        The low and high limit: the range with a margin of 5% of its width on each
+        side. If all values are equal, the margin is 5% of the value, or 0.5 for 0.
+    """
     low, high = float(values.min()), float(values.max())
     if not fit:
         low, high = min(0.0, low), max(0.0, high)
@@ -319,22 +471,53 @@ def axis_range(values, fit=True) -> tuple:
 
 
 def as_strings(values: pd.Series) -> pd.Series:
-    """Values as text (not numbers, e.g. for hue); categories keep their order (of
-    the axes and legends) without the unused ones."""
+    """Return the values as text, so that seaborn treats them as categories.
+
+    Category columns keep the order of their categories (the order on the axes and
+    in the legends), without the categories that do not occur.
+
+    Args:
+        values: The column.
+
+    Returns:
+        The column with text values; a category column stays a category column.
+    """
     if isinstance(values.dtype, pd.CategoricalDtype):
         return values.cat.remove_unused_categories().cat.rename_categories(str)
     return values.astype("str")
 
 
 def strings_for_categories(data: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of the table whose category columns have text values."""
     data = data.copy()
     for column in category_columns(data):
         data[column] = as_strings(data[column])
     return data
 
 
-def catplot_figure(data, feature, grouping, kind, fit=False):
-    """A seaborn catplot of ``feature``: x, hue, col and row from the grouping columns."""
+def catplot_figure(
+    data: pd.DataFrame,
+    feature: str,
+    grouping: Sequence[str],
+    kind: str,
+    fit: bool = False,
+) -> matplotlib.figure.Figure:
+    """Draw a seaborn catplot of one feature.
+
+    Rows without a value of the feature are left out.
+
+    Args:
+        data: The table.
+        feature: The feature, on the y axis.
+        grouping: Up to 4 grouping columns: x, hue, facet column and facet row, in
+            this order. With one grouping column the plot is blue.
+        kind: The kind of seaborn catplot, e.g. `box`, `swarm` or `violin`.
+        fit: Whether the y axis fits the values (True) or includes 0 (False).
+            Defaults to False.
+
+    Returns:
+        The figure, with pickable artists.
+    """
     data = data[list(grouping) + [feature]].dropna(how="any", subset=[feature])
     roles = dict(zip(("x", "hue", "col", "row"), grouping))
     if len(grouping) == 1:
@@ -352,9 +535,29 @@ def catplot_figure(data, feature, grouping, kind, fit=False):
     return figure
 
 
-def catplot_tiles(data, features, grouping, kind, per_row, fit=False):
-    """One seaborn catplot of all ``features``, a tile each (x and hue from the
-    first two grouping columns)."""
+def catplot_tiles(
+    data: pd.DataFrame,
+    features: Sequence[str],
+    grouping: Sequence[str],
+    kind: str,
+    per_row: int,
+    fit: bool = False,
+) -> matplotlib.figure.Figure:
+    """Draw one seaborn catplot of all features, a tile each.
+
+    Args:
+        data: The table.
+        features: The features, a tile each, each with its own y axis.
+        grouping: The grouping columns; the first two are x and hue. With one
+            grouping column the plots are blue.
+        kind: The kind of seaborn catplot, e.g. `box`, `swarm` or `violin`.
+        per_row: The tiles per row; 0 for about as many rows as columns.
+        fit: Whether the y axes fit the values (True) or include 0 (False).
+            Defaults to False.
+
+    Returns:
+        The figure, with pickable artists.
+    """
     long = long_format(data, features, grouping).dropna(subset=[TILE_VALUE])
     roles = dict(zip(("x", "hue"), grouping))
     if len(grouping) == 1:
@@ -384,9 +587,20 @@ def catplot_tiles(data, features, grouping, kind, per_row, fit=False):
     return grid.figure
 
 
-def sampled_rows(data: pd.DataFrame, points) -> tuple[pd.DataFrame, Optional[str]]:
-    """The rows to draw: all, or a random sample that is the same on every run; and
-    a note saying how many are shown (None for all)."""
+def sampled_rows(
+    data: pd.DataFrame, points: Optional[PointSampling]
+) -> tuple[pd.DataFrame, Optional[str]]:
+    """Return the rows to draw: all, or a random sample that is the same on every run.
+
+    Args:
+        data: The table.
+        points: Which points are drawn; None for all.
+
+    Returns:
+        The rows, in their order in the table, and a note saying how many of them are
+        shown; None for all rows. All rows are drawn unless the mode is `sample` and
+        the number of samples is less than the number of rows.
+    """
     total = len(data)
     if points is None or points.mode != "sample" or not 0 < points.samples < total:
         return data, None
@@ -398,9 +612,16 @@ def sampled_rows(data: pd.DataFrame, points) -> tuple[pd.DataFrame, Optional[str
     )
 
 
-def add_note(figure, note: Optional[str]) -> None:
-    """A small note below the plots, e.g. that a sample of the points is shown;
-    several notes are shown one per line."""
+def add_note(figure: matplotlib.figure.Figure, note: Optional[str]) -> None:
+    """Add a small note below the plots, e.g. that a sample of the points is shown.
+
+    The note is added to the figure's x label (`supxlabel`), one line per note.
+    Without constrained layout, the bottom margin grows to make room.
+
+    Args:
+        figure: The figure.
+        note: The note; None or empty for no note.
+    """
     if not note:
         return
     # the figure's x label at its default position: constrained layout (also when the
@@ -415,9 +636,26 @@ def add_note(figure, note: Optional[str]) -> None:
 
 
 class _CategoricalPlot(_Plot):
+    """Shared by the seaborn catplot tools; `kind` is the kind of catplot."""
+
     kind = ""
 
-    def run(self, data, *, config):
+    def run(
+        self, data: pd.DataFrame, *, config: CategoricalPlotConfig
+    ) -> dict[str, Any]:
+        """Draw a catplot of each selected feature.
+
+        Args:
+            data: The table.
+            config: The features, the grouping columns (x, hue, facet column and
+                row), `single_figure` and `plots_per_row`, and, if the config has
+                them, `fit_axes` and `points` (all points or a sample).
+
+        Returns:
+            One figure per feature, named `<tool name> <feature>`, or with
+            `single_figure` one figure named after the tool. A note below the plots
+            says if a sample of the points is shown.
+        """
         data = strings_for_categories(data)
         features = sorted(selected_features(data, config.features))
         data, note = sampled_rows(data, getattr(config, "points", None))
@@ -439,6 +677,8 @@ class _CategoricalPlot(_Plot):
 
 @register_tool
 class BoxPlot(_CategoricalPlot, Tool[BoxPlotConfig]):
+    """Box plots of the features, grouped by up to 4 category columns."""
+
     name = "Box Plot"
     description = "Box plots of the features, grouped by up to 4 category columns."
     icon = "boxplot.png"
@@ -447,12 +687,15 @@ class BoxPlot(_CategoricalPlot, Tool[BoxPlotConfig]):
 
 @register_tool
 class SwarmPlot(_CategoricalPlot, Tool[SwarmPlotConfig]):
+    """Swarm plots of the features, grouped by up to 4 category columns."""
+
     name = "Swarm Plot"
     description = "Swarm plots of the features, grouped by up to 4 category columns."
     icon = "swarmplot.png"
     kind = "swarm"
 
-    def finish(self, figure) -> None:
+    def finish(self, figure: matplotlib.figure.Figure) -> None:
+        """Place the swarms' points once, for the final layout (`freeze_swarms`)."""
         freeze_swarms(figure)
 
 
@@ -461,11 +704,15 @@ _running = contextvars.ContextVar("running_plot_tool", default=None)
 _place_swarms = contextvars.ContextVar("place_swarms", default=True)
 
 
-def _beeswarm(self, orig_xyr):
-    """seaborn's Beeswarm.beeswarm, with the same positions: on a plain array
-    (seaborn passes a masked one, whose indexing makes it twice as slow), and
-    cancellable, as placing a few thousand points can take seconds. While
-    ``_place_swarms`` is False, it returns the original positions."""
+def _beeswarm(self: _SeabornBeeswarm, orig_xyr: np.ndarray) -> np.ndarray:
+    """Place the points of a swarm; replaces seaborn's `Beeswarm.beeswarm`.
+
+    The positions are the same as seaborn's. The points are placed on a plain array
+    (seaborn passes a masked one, whose indexing makes it twice as slow), and the
+    running plot tool can be cancelled every 50 points, as placing a few thousand
+    points can take seconds. While `_place_swarms` is False, the original positions
+    are returned.
+    """
     orig_xyr = np.asarray(orig_xyr, dtype=float)
     if not _place_swarms.get():
         return orig_xyr
@@ -487,12 +734,15 @@ def _beeswarm(self, orig_xyr):
 _SeabornBeeswarm.beeswarm = _beeswarm
 
 
-def freeze_swarms(figure) -> None:
-    """Places the points of seaborn's swarms once, for the figure's final layout.
+def freeze_swarms(figure: matplotlib.figure.Figure) -> None:
+    """Place the points of seaborn's swarms once, for the figure's final layout.
 
     seaborn places them again at every draw (each repaint or resize of a plot
     window), which takes seconds for a few thousand points. If points did not fit in
     their swarm (seaborn then draws them at its edges), a note says so.
+
+    Args:
+        figure: The figure; nothing is done if it has no swarms.
     """
     swarms = [
         c for ax in figure.axes for c in ax.collections if "draw" in c.__dict__
@@ -519,6 +769,8 @@ def freeze_swarms(figure) -> None:
 
 @register_tool
 class ViolinPlot(_CategoricalPlot, Tool[ViolinPlotConfig]):
+    """Violin plots of the features, grouped by up to 4 category columns."""
+
     name = "Violin Plot"
     description = "Violin plots of the features, grouped by up to 4 category columns."
     icon = "violinplot.png"
@@ -526,22 +778,53 @@ class ViolinPlot(_CategoricalPlot, Tool[ViolinPlotConfig]):
 
 
 def grouped_meanbarplot(
-    data,
-    feature,
-    ax=None,
-    title=None,
-    bartype="single",
-    categories=[],
-    dropna=True,
-    pivot_level=1,
-    orientation="horizontal",
-    error_bar="None",
-    error_type="std",
-    legend=True,
-):
-    """Bar plot of the means of the ``feature`` columns, grouped by ``categories``,
-    in ``ax`` (default: a new figure). Returns the figure, or None if ``data`` is
-    None or lacks a ``feature`` column."""
+    data: Optional[pd.DataFrame],
+    feature: Sequence[str],
+    ax: Optional[matplotlib.axes.Axes] = None,
+    title: Optional[str] = None,
+    bartype: str = "single",
+    categories: Optional[Sequence[str]] = [],
+    dropna: bool = True,
+    pivot_level: int = 1,
+    orientation: str = "horizontal",
+    error_bar: str = "None",
+    error_type: str = "std",
+    legend: bool = True,
+) -> Optional[matplotlib.figure.Figure]:
+    """Draw a bar plot of the means of features, grouped by category columns.
+
+    Without grouping columns, the plot has one bar (or stack) of the means of all
+    rows. With grouping columns, it has a bar per group; if the bars are not stacked
+    and there are more grouping columns than `pivot_level`, the first `pivot_level`
+    grouping columns set the bars' colours (and the legend) and the others the
+    positions on the axis. A grouped plot whose means are all missing shows the text
+    `No data`.
+
+    Args:
+        data: The table; None draws nothing.
+        feature: The features (column names); several only for stacked bars.
+        ax: The axes to draw in; None for a new figure, which is then sized for the
+            number of bars. Defaults to None.
+        title: The plot's title; None for the features and the grouping columns,
+            empty for none. Defaults to None.
+        bartype: `single`, `stacked`, or `100% stacked` (each stack scaled to 100%
+            of the sum of the absolute means). Defaults to `single`.
+        categories: The grouping columns; None or empty for no grouping.
+        dropna: Whether rows with a missing value of a feature are left out (grouped
+            plots only). Defaults to True.
+        pivot_level: The number of grouping columns that set the bars' colours.
+            Defaults to 1.
+        orientation: `horizontal` or `vertical` bars. Defaults to `horizontal`.
+        error_bar: `+/-` (both directions), `+` (away from the axis only) or `None`.
+            Defaults to `None`.
+        error_type: `std` for the standard deviation; any other value for the
+            standard error of the mean. Defaults to `std`.
+        legend: Whether the plot has a legend, for several grouping columns or
+            stacked bars. Defaults to True.
+
+    Returns:
+        The figure; None if `data` is None or lacks a feature column.
+    """
     stacked = not bartype == "single"
     if data is None or not all(e in data.columns.values for e in feature):
         return None
@@ -681,22 +964,42 @@ def grouped_meanbarplot(
 
 
 class _CapLimiter(matplotlib.artist.Artist):
-    """Keeps the error bar caps of bars at most ``fraction`` of the bars' width.
+    """Keeps the error bar caps of bars at most `fraction` of the bars' width.
 
     Caps are sized in points, bars in data coordinates. This artist has the lowest
     z-order, so it is drawn before the bars at every draw (e.g. saving, resizing a
     window); it sets the caps' size from the narrowest bar's width at that moment, at
-    most ``2 * capsize``.
+    most `2 * capsize`.
     """
 
-    def __init__(self, caplines, bars, capsize, horizontal, fraction=0.8):
+    def __init__(
+        self,
+        caplines: Iterable[Line2D],
+        bars: Iterable[Rectangle],
+        capsize: float,
+        horizontal: bool,
+        fraction: float = 0.8,
+    ) -> None:
+        """Create the limiter for the caps of a set of bars.
+
+        Args:
+            caplines: The lines that draw the caps.
+            bars: The bars.
+            capsize: The error bars' `capsize`, in points; matplotlib draws caps
+                twice as wide.
+            horizontal: Whether the bars are horizontal (their width is then their
+                height on screen).
+            fraction: The largest cap size, as a fraction of the narrowest bar's
+                width. Defaults to 0.8.
+        """
         super().__init__()
         self.caplines, self.bars = list(caplines), list(bars)
         self.cap_width = 2 * capsize  # matplotlib draws caps 2 * capsize wide
         self.horizontal, self.fraction = horizontal, fraction
         self.set_zorder(-1e9)
 
-    def draw(self, renderer):
+    def draw(self, renderer: RendererBase) -> None:
+        """Set the caps' size from the bars' current width; draws nothing itself."""
         if not self.bars or not self.get_visible():
             return
         sizes = [b.get_window_extent(renderer) for b in self.bars]
@@ -707,9 +1010,23 @@ class _CapLimiter(matplotlib.artist.Artist):
             line.set_markersize(width)
 
 
-def limit_error_caps(ax, capsize, horizontal=False, fraction=0.8) -> None:
-    """Limits the error bar caps of the bars in ``ax`` to ``fraction`` of a bar's
-    width (see _CapLimiter)."""
+def limit_error_caps(
+    ax: matplotlib.axes.Axes,
+    capsize: float,
+    horizontal: bool = False,
+    fraction: float = 0.8,
+) -> None:
+    """Limit the error bar caps of the bars in the axes to a fraction of a bar's width.
+
+    See `_CapLimiter`. Bars without error bars or without caps are left as they are.
+
+    Args:
+        ax: The axes.
+        capsize: The error bars' `capsize`, in points.
+        horizontal: Whether the bars are horizontal. Defaults to False.
+        fraction: The largest cap size, as a fraction of the narrowest bar's width.
+            Defaults to 0.8.
+    """
     for container in ax.containers:
         errorbar = getattr(container, "errorbar", None)
         if isinstance(container, matplotlib.container.BarContainer) and errorbar:
@@ -724,21 +1041,40 @@ def limit_error_caps(ax, capsize, horizontal=False, fraction=0.8) -> None:
 
 @register_tool
 class BarPlot(_Plot, Tool[BarPlotConfig]):
+    """Bar plots of the features' means, grouped by the category columns."""
+
     name = "Bar Plot"
     description = "Mean bar plots of the features, grouped by the category columns."
     icon = "barplot.png"
 
     @classmethod
-    def plot_name(cls, feature):
+    def plot_name(cls, feature: str) -> str:
+        """Return the name of a feature's plot: the feature."""
         return feature
 
     @classmethod
-    def output_names(cls, config, features):
+    def output_names(
+        cls, config: BarPlotConfig, features: list[str]
+    ) -> dict[str, type]:
+        """Return the outputs; stacked bars are one plot named `<f1>|<f2>|...`."""
         if config.bar_type == "single":
             return super().output_names(config, features)
         return {"|".join(features): PlotType}
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: BarPlotConfig) -> dict[str, Any]:
+        """Draw bar plots of the means of the selected features.
+
+        Args:
+            data: The table.
+            config: The features, the grouping columns, `dropna`, `bar_type`
+                (`single`, `stacked` or `100% stacked`), `orientation`, `error_bar`,
+                `error_type`, and `single_figure` and `plots_per_row`.
+
+        Returns:
+            With stacked bars one plot of all features, named `<f1>|<f2>|...`. Else
+            one plot per feature, named after the feature, or with `single_figure`
+            one figure of tiles, named `Bar Plot`. See `grouped_meanbarplot`.
+        """
         features = selected_features(data, config.features)
         options = dict(
             categories=config.grouping,
@@ -769,17 +1105,30 @@ class BarPlot(_Plot, Tool[BarPlotConfig]):
             results[feature] = figure
         return results
 
-    def map_configs(self, config):
+    def map_configs(self, config: BarPlotConfig) -> list[BarPlotConfig]:
+        """Return one config per feature, so that the features run as separate tasks.
+
+        Stacked bars, `single_figure`, or all features selected: the config is not
+        split.
+        """
         if config.bar_type != "single" or config.single_figure:
             return [config]
         return per_feature(config)
 
 
-def ci_to_errorbar(ci):
-    """seaborn's errorbar argument for a Line Plot ``errorbar`` setting.
+def ci_to_errorbar(
+    ci: Union[int, str, None],
+) -> Union[tuple[str, int], str, None]:
+    """Return seaborn's `errorbar` argument for a Line Plot `errorbar` setting.
 
-    seaborn 0.12 replaced ci=<n> with errorbar=("ci", <n>), ci="sd" with
-    errorbar="sd" and ci=None with errorbar=None.
+    seaborn 0.12 replaced `ci=<n>` with `errorbar=("ci", <n>)`, `ci="sd"` with
+    `errorbar="sd"` and `ci=None` with `errorbar=None`.
+
+    Args:
+        ci: The confidence interval in percent, `sd`, or None for no error bars.
+
+    Returns:
+        `("ci", ci)` for a number; `sd` and None unchanged.
     """
     if ci is None or ci == "sd":
         return ci
@@ -788,6 +1137,8 @@ def ci_to_errorbar(ci):
 
 @register_tool
 class LinePlot(_Plot, Tool[LinePlotConfig]):
+    """Line plots of the features along the first grouping column."""
+
     name = "Line Plot"
     description = (
         "Line plots of the features along the first grouping column; further grouping"
@@ -796,10 +1147,25 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
     icon = "lineplot.png"
 
     @classmethod
-    def plot_name(cls, feature):
+    def plot_name(cls, feature: str) -> str:
+        """Return the name of a feature's plot: `Line Plot: <feature>`."""
         return f"Line Plot: {feature}"
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: LinePlotConfig) -> dict[str, Any]:
+        """Draw a line plot of each selected feature.
+
+        Category columns with more than one value are drawn as text (categories).
+
+        Args:
+            data: The table.
+            config: The features, the grouping columns (x, hue, style, facet column
+                and row), `errorbar`, `err_style`, `markers`, and `single_figure` and
+                `plots_per_row`.
+
+        Returns:
+            One figure per feature, named `Line Plot: <feature>`, or with
+            `single_figure` one figure of tiles, named `Line Plot`.
+        """
         data = data.copy()
         for column in category_columns(data):
             if data[column].nunique() > 1:
@@ -812,8 +1178,21 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
             for feature in features
         }
 
-    def line_tiles(self, data, features, config):
-        """All features as tiles of one figure (up to 3 grouping columns)."""
+    def line_tiles(
+        self, data: pd.DataFrame, features: Sequence[str], config: LinePlotConfig
+    ) -> matplotlib.figure.Figure:
+        """Draw all features as tiles of one figure.
+
+        Args:
+            data: The table.
+            features: The features, a tile each.
+            config: Up to 3 grouping columns (x, hue and style), `errorbar`,
+                `err_style`, `markers` and `plots_per_row`.
+
+        Returns:
+            The figure. Without grouping columns, each feature is drawn along the
+            rows of the table.
+        """
         grouping = list(config.grouping)
         per_row = config.plots_per_row
         if not grouping:  # each feature along the rows of the table
@@ -840,7 +1219,22 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
         add_picker(grid.figure)
         return grid.figure
 
-    def line_figure(self, data, feature, config):
+    def line_figure(
+        self, data: pd.DataFrame, feature: str, config: LinePlotConfig
+    ) -> matplotlib.figure.Figure:
+        """Draw a line plot of one feature.
+
+        Args:
+            data: The table.
+            feature: The feature.
+            config: The grouping columns (x, hue, style, facet column and row; with
+                more than 3, a grid of plots), `errorbar`, `err_style` and
+                `markers`.
+
+        Returns:
+            The figure. Without grouping columns, the feature is drawn along the rows
+            of the table.
+        """
         grouping = list(config.grouping)
         options = dict(
             errorbar=ci_to_errorbar(config.errorbar),
@@ -862,9 +1256,19 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
         return figure
 
 
-def group_styles(data, groups) -> list[dict]:
-    """Colour (and, for two grouping columns, line style) of each group, in the order
-    of ``data.groupby(groups, observed=False)``: the same in every plot."""
+def group_styles(data: pd.DataFrame, groups: Sequence[str]) -> list[dict[str, Any]]:
+    """Return the line style of each group, the same in every plot.
+
+    Args:
+        data: The table.
+        groups: The grouping columns.
+
+    Returns:
+        The matplotlib style arguments of each group, in the order of
+        `data.groupby(groups, observed=False)`: a colour; for two grouping columns
+        whose second has at most 4 values, a colour per value of the first column and
+        a line style per value of the second.
+    """
     if len(groups) == 2:
         values = [
             data[g].cat.categories if hasattr(data[g], "cat") else data[g].unique()
@@ -881,8 +1285,29 @@ def group_styles(data, groups) -> list[dict]:
     return [{"color": c} for c in sns.color_palette(n_colors=n)]
 
 
-def grouped_kdeplot(data, column, ax, groups=(), show_legend=True, **kwargs):
-    """KDE curves of ``column``, one per group, labelled with the group."""
+def grouped_kdeplot(
+    data: pd.DataFrame,
+    column: str,
+    ax: matplotlib.axes.Axes,
+    groups: Sequence[str] = (),
+    show_legend: bool = True,
+    **kwargs: Any,
+) -> None:
+    """Draw KDE curves of a column, one per group, labelled with the group.
+
+    Rows without a value are left out, and so are groups without rows. A curve that
+    seaborn cannot draw is logged as an error and left out. The y axis starts at 0.
+
+    Args:
+        data: The table.
+        column: The column.
+        ax: The axes to draw in.
+        groups: The grouping columns; none for one curve of all rows. Defaults to
+            none.
+        show_legend: Whether the axes get a legend of the groups (if any curve is
+            drawn). Defaults to True.
+        **kwargs: Passed to `seaborn.kdeplot`, e.g. `clip`.
+    """
     kwargs = {**kwargs, "ax": ax, "warn_singular": False}
     data = data[list(groups) + [column]].dropna(how="any", subset=[column])
     if groups:
@@ -909,7 +1334,8 @@ def grouped_kdeplot(data, column, ax, groups=(), show_legend=True, **kwargs):
     ax.set_ylim(0, None)
 
 
-def group_legend_options(groups) -> dict:
+def group_legend_options(groups: Sequence[str]) -> dict[str, Any]:
+    """Return the `Axes.legend` arguments of a legend of groups, right of the plot."""
     return dict(
         loc="upper left",
         title=", ".join(groups),
@@ -921,17 +1347,34 @@ def group_legend_options(groups) -> dict:
 
 @register_tool
 class KDE(_Plot, Tool[KDEConfig]):
+    """Kernel density estimates of the features, one curve per group."""
+
     name = "KDE"
     description = "Kernel density estimates of the features, one curve per group."
     icon = "kde.png"
 
     @classmethod
-    def output_names(cls, config, features):
+    def output_names(cls, config: KDEConfig, features: list[str]) -> dict[str, type]:
+        """Return the outputs: one plot per feature, or one figure named `KDE`."""
         if config.single_figure:
             return {"KDE": PlotType}
         return super().output_names(config, features)
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: KDEConfig) -> dict[str, Any]:
+        """Draw the KDE curves of each selected feature, one curve per group.
+
+        The curves are clipped to the range of the feature's finite values, and the
+        x axis shows that range (unless the feature is constant).
+
+        Args:
+            data: The table.
+            config: The features, the grouping columns, and `single_figure` and
+                `plots_per_row`.
+
+        Returns:
+            One figure per feature, named `KDE <feature>`, or with `single_figure`
+            one figure of tiles, named `KDE`; none without features.
+        """
         features = sorted(selected_features(data, config.features))
         if not features:
             return {}
@@ -965,12 +1408,15 @@ class KDE(_Plot, Tool[KDEConfig]):
             results["KDE"] = figure
         return results
 
-    def map_configs(self, config):
+    def map_configs(self, config: KDEConfig) -> list[KDEConfig]:
+        """Return one config per feature, unless `single_figure` is set."""
         return [config] if config.single_figure else per_feature(config)
 
 
 @register_tool
 class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
+    """Histograms of the features in percent of the measurements."""
+
     name = "Frequency Histogram"
     description = (
         "Histograms of the features in percent of the measurements (per group, unless"
@@ -979,11 +1425,15 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
     icon = "histogram.png"
 
     @classmethod
-    def plot_name(cls, feature):
+    def plot_name(cls, feature: str) -> str:
+        """Return the name of a feature's plot: `Frequency Histo Plot: <feature>`."""
         return f"Frequency Histo Plot: {feature}"
 
     @classmethod
-    def output_names(cls, config, features):
+    def output_names(
+        cls, config: HistogramConfig, features: list[str]
+    ) -> dict[str, type]:
+        """Return the outputs: the plots, and with `table` a table per feature."""
         names = {"Frequency Histogram": PlotType} if config.single_figure else {}
         for feature in sorted(features):
             if not config.single_figure:
@@ -992,7 +1442,24 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
                 names[f"Frequency Histo Table: {feature}"] = TableType
         return names
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: HistogramConfig) -> dict[str, Any]:
+        """Draw a histogram of each selected feature.
+
+        Args:
+            data: The table.
+            config: The features with their bins and range (`min`, `max`; None for
+                the feature's minimum or maximum), `auto_range` (the range of the
+                values for all features), the grouping columns, `stacked`,
+                `histtype`, `cumulative`, `density`, `table`, and `single_figure` and
+                `plots_per_row`.
+
+        Returns:
+            One figure per feature, named `Frequency Histo Plot: <feature>`, or with
+            `single_figure` one figure of tiles, named `Frequency Histogram`. With
+            `table`, also a table per feature, named `Frequency Histo Table:
+            <feature>`: the bin edges (`bin edge low`, `bin edge high`) and a column
+            of bin values per group (see `histogram`).
+        """
         results = {}
         features = sorted(selected_features(data, config.features))
         if config.single_figure and features:
@@ -1029,22 +1496,47 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
             tidy_tiles(figure, axes)
         return results
 
-    def map_configs(self, config):
+    def map_configs(self, config: HistogramConfig) -> list[HistogramConfig]:
+        """Return one config per feature, unless `single_figure` is set."""
         return [config] if config.single_figure else per_feature(config)
 
     @classmethod
-    def validate(cls, config, inputs):
+    def validate(cls, config: HistogramConfig, inputs: Sequence[Any]) -> list[Issue]:
+        """Check the config; the number of features is checked by `Tool.validate`."""
         # too few features: min_features, checked by Tool.validate
         return super().validate(config, inputs)
 
     @staticmethod
-    def histogram(data, column, groups, stacked, normalize=100, ax=None, **kwargs):
-        """Histogram in percent of all (stacked) or of each group's measurements, in
-        ``ax`` (default: a new figure); with ``density``, matplotlib's density (area
-        1) instead of percent.
+    def histogram(
+        data: pd.DataFrame,
+        column: str,
+        groups: Sequence[str],
+        stacked: bool,
+        normalize: float = 100,
+        ax: Optional[matplotlib.axes.Axes] = None,
+        **kwargs: Any,
+    ) -> tuple[np.ndarray, np.ndarray, list[str], matplotlib.figure.Figure]:
+        """Draw a histogram of a column in percent of the measurements.
+
+        Each group's bars are in percent of the group's measurements, or, if stacked,
+        of all measurements. With `density`, the bars are matplotlib's density (an
+        area of 1) instead of percent. Groups without rows are left out.
+
+        Args:
+            data: The table.
+            column: The column.
+            groups: The grouping columns; none for one histogram of all rows.
+            stacked: Whether the groups' bars are stacked.
+            normalize: The total of each histogram's bars (without `density`).
+                Defaults to 100 (percent).
+            ax: The axes to draw in; None for a new figure. Defaults to None.
+            **kwargs: Passed to `Axes.hist`, e.g. `bins`, `range`, `histtype`,
+                `cumulative` and `density`.
 
         Returns:
-            (bin values, bin edges, a table column name per group, figure).
+            The bin values (a row per group), the bin edges, a table column name per
+            group (`<group> [rel %]` or `<group> [density]`; `all` without groups),
+            and the figure.
         """
         own_figure = ax is None
         if own_figure:
@@ -1108,15 +1600,31 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
 
 @register_tool
 class Heatmap(_Plot, Tool[HeatmapConfig]):
+    """Correlation heatmap of the features, with the correlation table."""
+
     name = "Heatmap"
     description = "Correlation heatmap of the features, with the correlation table."
     icon = "heatmap.png"
 
     @classmethod
-    def output_names(cls, config, features):
+    def output_names(
+        cls, config: HeatmapConfig, features: list[str]
+    ) -> dict[str, type]:
+        """Return the outputs: `Heatmap` and `Heatmap Correlation`."""
         return {"Heatmap": PlotType, "Heatmap Correlation": TableType}
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: HeatmapConfig) -> dict[str, Any]:
+        """Draw the correlations between the selected features as a heatmap.
+
+        Args:
+            data: The table.
+            config: The features, the correlation method (`pearson`, `spearman` or
+                `kendall`) and whether the cells show their values (`annotate`).
+
+        Returns:
+            `Heatmap`: the figure; `Heatmap Correlation`: the correlation matrix,
+            with the features' names in a category column `Feature`.
+        """
         features = selected_features(data, config.features)
         corr = data[features].corr(method=config.correlation)
         figure, ax = plt.subplots(constrained_layout=True)
@@ -1138,14 +1646,15 @@ class Heatmap(_Plot, Tool[HeatmapConfig]):
         corr["Feature"] = corr["Feature"].astype("category")
         return {"Heatmap": ax.get_figure(), "Heatmap Correlation": corr}
 
-    def map_configs(self, config):
+    def map_configs(self, config: HeatmapConfig) -> list[HeatmapConfig]:
+        """Return the config unsplit: all features are in one heatmap."""
         return [config]
 
 
-def _sampled(func, keep):
-    """Wraps a seaborn plot function to draw only the rows where ``keep`` is True.
+def _sampled(func: Callable[..., Any], keep: np.ndarray) -> Callable[..., Any]:
+    """Wrap a seaborn plot function to draw only the rows where `keep` is True.
 
-    PairGrid passes each panel's x, y and hue columns of the whole table; ``keep``
+    PairGrid passes each panel's x, y and hue columns of the whole table; `keep`
     is a boolean array over the table's (reset, 0..n-1) index.
     """
 
@@ -1160,6 +1669,8 @@ def _sampled(func, keep):
 
 @register_tool
 class PairPlot(_Plot, Tool[PairPlotConfig]):
+    """A grid of scatter plots of feature pairs, with distributions on the diagonal."""
+
     name = "Pair Plot"
     description = (
         "A grid of scatter plots of feature pairs, colored by the first grouping"
@@ -1168,10 +1679,34 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
     icon = "pairplot.png"
 
     @classmethod
-    def output_names(cls, config, features):
+    def output_names(
+        cls, config: PairPlotConfig, features: list[str]
+    ) -> dict[str, type]:
+        """Return the output: one figure named `Pair Plot: <grouping>`."""
         return {f"Pair Plot: {config.grouping}": PlotType}
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: PairPlotConfig) -> dict[str, Any]:
+        """Draw a seaborn pair grid of the features.
+
+        If the grid is square (the same features as columns and rows), its diagonal
+        shows histograms or KDEs and the other panels scatter plots; otherwise all
+        panels are scatter plots. With a sample of the points, all scatter plots show
+        the same rows, and a note below the plots says so.
+
+        Args:
+            data: The table.
+            config: The features of the columns (`x_vars`, else the selected
+                features) and rows (`y_vars`, or the columns with `symmetric`),
+                `corner` (the lower half only, for a symmetric grid), the first
+                grouping column (the points' colours), `diagonal` (`Histogram` or
+                `KDE`), `hist_bins` and `points` (all points or a sample).
+
+        Returns:
+            One figure, named `Pair Plot: <grouping>`.
+
+        Raises:
+            ValueError: If no features are selected for the columns or the rows.
+        """
         x_vars, y_vars = self.grid_vars(data, config)
         if not x_vars or not y_vars:
             raise ValueError(f"{self.name}: select the features to plot")
@@ -1221,19 +1756,30 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
         return {f"Pair Plot: {config.grouping}": grid.figure}
 
     @staticmethod
-    def grid_vars(data, config) -> tuple[list, list]:
-        """The features of the grid's columns and rows. Without ``x_vars`` (older
-        settings), the selected features are the columns; with ``symmetric``, the
-        rows are the columns."""
+    def grid_vars(
+        data: pd.DataFrame, config: PairPlotConfig
+    ) -> tuple[list[str], list[str]]:
+        """Return the features of the grid's columns and rows.
+
+        Without `x_vars` (older settings), the selected features are the columns;
+        with `symmetric`, the rows are the columns, else `y_vars`.
+        """
         x_vars = config.x_vars or selected_features(data, config.features)
         y_vars = x_vars if config.symmetric else config.y_vars
         return x_vars, y_vars
 
-    def map_configs(self, config):
+    def map_configs(self, config: PairPlotConfig) -> list[PairPlotConfig]:
+        """Return the config unsplit: all features are in one grid."""
         return [config]
 
     @classmethod
-    def validate(cls, config, inputs):
+    def validate(cls, config: PairPlotConfig, inputs: Sequence[Any]) -> list[Issue]:
+        """Check the config: features for the columns and rows, and the panel count.
+
+        No columns (`x_vars`, unless all features are selected) or no rows (`y_vars`,
+        unless `symmetric`) are errors; many panels are a warning, too many an error
+        (see `plot_count_issues`).
+        """
         issues = super().validate(config, inputs)
         if not config.x_vars and config.features != "all":
             issues.append(Issue("x_vars", "Select the features of the grid columns"))
@@ -1249,14 +1795,20 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
 
 @register_tool
 class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
+    """A scatter plot for each pair of features, colored by group."""
+
     name = "Scatter Plot"
     description = "A scatter plot for each pair of features, colored by group."
     icon = "scatter.png"
 
     @staticmethod
-    def pairs(config, features) -> list[tuple]:
-        """(x, y) of each plot: all pairs of the features, sorted by name. For a single
-        pair, ``x_axis`` sets the feature on the x axis."""
+    def pairs(
+        config: ScatterPlotConfig, features: Sequence[str]
+    ) -> list[tuple[str, str]]:
+        """Return the (x, y) features of each plot: all pairs, sorted by name.
+
+        For a single pair, `x_axis` sets the feature on the x axis.
+        """
         pairs = sorted(itertools.combinations(features, 2))
         if len(pairs) == 1 and config.x_axis is not None:
             (pair,) = pairs
@@ -1265,12 +1817,30 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
         return pairs
 
     @classmethod
-    def output_names(cls, config, features):
+    def output_names(
+        cls, config: ScatterPlotConfig, features: list[str]
+    ) -> dict[str, type]:
+        """Return the outputs: a plot per pair, or one figure named after the tool."""
         if config.single_figure:
             return {cls.name: PlotType}
         return {f"Scatter Plot: {pair}": PlotType for pair in cls.pairs(config, features)}
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: ScatterPlotConfig) -> dict[str, Any]:
+        """Draw a scatter plot of each pair of the selected features.
+
+        With a sample of the points, all plots show the same rows, and a note below
+        the plots says so.
+
+        Args:
+            data: The table.
+            config: The features, `x_axis` (for a single pair), the grouping
+                columns (a colour per group), `fit_axes`, `points` (all points or a
+                sample), and `single_figure` and `plots_per_row`.
+
+        Returns:
+            One figure per pair, or with `single_figure` one figure of tiles, named
+            `Scatter Plot: (<x>, <y>)` and `Scatter Plot`.
+        """
         features = selected_features(data, config.features)
         pairs = self.pairs(config, features)
         # the same sampled rows in every plot
@@ -1297,8 +1867,28 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
         return results
 
     @staticmethod
-    def scatter_figure(data, pair, groups, ax=None, fit=False):
-        """A scatter plot of ``pair``, in ``ax`` (default: a figure of its own)."""
+    def scatter_figure(
+        data: pd.DataFrame,
+        pair: tuple[str, str],
+        groups: Sequence[str],
+        ax: Optional[matplotlib.axes.Axes] = None,
+        fit: bool = False,
+    ) -> matplotlib.figure.Figure:
+        """Draw a scatter plot of a pair of features.
+
+        Rows without a value of either feature are left out.
+
+        Args:
+            data: The table.
+            pair: The features on the x and y axis.
+            groups: The grouping columns; a colour and a legend entry per group.
+            ax: The axes to draw in; None for a figure of its own. Defaults to None.
+            fit: Whether the axes fit the values (True) or include 0 (False).
+                Defaults to False.
+
+        Returns:
+            The figure.
+        """
         x, y = pair
         own_figure = ax is None
         if own_figure:
@@ -1335,7 +1925,11 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
         return figure
 
     @classmethod
-    def validate(cls, config, inputs):
+    def validate(cls, config: ScatterPlotConfig, inputs: Sequence[Any]) -> list[Issue]:
+        """Check the config; many feature pairs (plots) are a warning or an error.
+
+        See `plot_count_issues`.
+        """
         issues = super().validate(config, inputs)
         n = len(_feature_names(config, inputs))
         pairs = n * (n - 1) // 2
@@ -1343,7 +1937,11 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
             "features", pairs, f"{n} features: {pairs:,} feature pairs (plots)"
         )
 
-    def map_configs(self, config):
+    def map_configs(self, config: ScatterPlotConfig) -> list[ScatterPlotConfig]:
+        """Return one config per pair of features, so that they run as separate tasks.
+
+        With `single_figure`, or with all features selected, the config is not split.
+        """
         if config.features == "all" or config.single_figure:
             return [config]
         return [
@@ -1352,9 +1950,28 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
         ]
 
 
-def flirr_columns(columns, flirr=None, fad_a1=None, nadph_a2=None) -> tuple:
-    """The FLIRR, FAD a1 % and NAD(P)H a2 % columns: as given, else found by name (the
-    first that fits; None if none does)."""
+def flirr_columns(
+    columns: Iterable[str],
+    flirr: Optional[str] = None,
+    fad_a1: Optional[str] = None,
+    nadph_a2: Optional[str] = None,
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Return the FLIRR, FAD a1 % and NAD(P)H a2 % columns.
+
+    A column not given is the first of `columns` whose name fits: `FLIRR` in any
+    case for FLIRR; for FAD a1 % (NAD(P)H a2 %), a name with `FAD` (`NAD`), `a1`
+    (`a2`) and `%`, without `FLIRR` or `/`.
+
+    Args:
+        columns: The column names to search, e.g. a table's numeric columns. They
+            are iterated once for each column searched for.
+        flirr: The FLIRR column; None to search for it.
+        fad_a1: The FAD a1 % column; None to search for it.
+        nadph_a2: The NAD(P)H a2 % column; None to search for it.
+
+    Returns:
+        The three columns; None for a column not given and not found.
+    """
 
     def first(fits):
         return next((c for c in columns if fits(c)), None)
@@ -1373,6 +1990,8 @@ def flirr_columns(columns, flirr=None, fad_a1=None, nadph_a2=None) -> tuple:
 
 @register_tool
 class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
+    """One figure of FAD a1 %, NAD(P)H a2 % and FLIRR plots, colored by group."""
+
     name = "FLIRR Plot"
     description = (
         "FAD a1% vs NAD(P)H a2% scatter, their KDEs, FLIRR KDE, FLIRR along the first"
@@ -1381,10 +2000,35 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
     icon = "flirrplot.png"
 
     @classmethod
-    def output_names(cls, config, features):
+    def output_names(
+        cls, config: FLIRRPlotConfig, features: list[str]
+    ) -> dict[str, type]:
+        """Return the output: one figure named `FLIRR Plot: <grouping>`."""
         return {f"FLIRR Plot: {config.grouping}": PlotType}
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: FLIRRPlotConfig) -> dict[str, Any]:
+        """Draw the FLIRR figure.
+
+        The panels: a scatter plot of FAD a1 % against NAD(P)H a2 %; KDEs of FAD
+        a1 %, NAD(P)H a2 % and FLIRR; FLIRR along the first grouping column (line
+        style from the second); and bars of the FLIRR means per group, with the
+        standard error of the mean. The first grouping column sets the colours of the
+        scatter plot and the KDEs.
+
+        Args:
+            data: The table.
+            config: The grouping columns, and the FLIRR, FAD a1 % and NAD(P)H a2 %
+                columns (`flirr`, `fad_a1`, `nadph_a2`; each None to find it by
+                name, see `flirr_columns`).
+
+        Returns:
+            One figure, named `FLIRR Plot: <grouping>`.
+
+        Raises:
+            ValueError: If no grouping column is selected, or a FLIRR, FAD a1 % or
+                NAD(P)H a2 % column is neither given nor found among the numeric
+                columns.
+        """
         grouping = list(config.grouping)
         if not grouping:
             raise ValueError(f"{self.name}: select at least one grouping column")
@@ -1437,11 +2081,17 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
         add_picker(figure)
         return {f"FLIRR Plot: {config.grouping}": figure}
 
-    def map_configs(self, config):
+    def map_configs(self, config: FLIRRPlotConfig) -> list[FLIRRPlotConfig]:
+        """Return the config unsplit: the plot has all its columns in one figure."""
         return [config]
 
     @classmethod
-    def validate(cls, config, inputs):
+    def validate(cls, config: FLIRRPlotConfig, inputs: Sequence[Any]) -> list[Issue]:
+        """Check the config: each FLIRR, FAD a1 % and NAD(P)H a2 % column is found.
+
+        A column not given and not found by name among the input's features is an
+        error, if the input schema is complete.
+        """
         issues = super().validate(config, inputs)  # grouping: min_grouping
         schema = inputs[0] if inputs else None
         if schema is not None and schema.complete:

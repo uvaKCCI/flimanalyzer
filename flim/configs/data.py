@@ -1,6 +1,6 @@
 """Configs of the Data tools."""
 
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Self, Union
 
 from pydantic import Field, field_validator, model_validator
 
@@ -16,12 +16,14 @@ from flim.core.config import (
 
 
 class DataTaskConfig(TaskConfig):
-    pass
+    """Base config of the Data tools."""
 
 
 class ProtectedNamesConfig(BaseConfig):
-    """Fields of tools that write columns of protected names (Source, Input, ...):
-    how they rename a column of the table that already has such a name."""
+    """Settings of tools that write columns of protected names (Source, Input, ...).
+
+    They set how a tool renames a column the table already has under such a name.
+    """
 
     clash_name: str = Field(
         default="{name} (before {tool})",
@@ -32,15 +34,16 @@ class ProtectedNamesConfig(BaseConfig):
 
     @model_validator(mode="before")
     @classmethod
-    def _no_renames(cls, data):
-        """Drop `clash_renames` (a name per column, in earlier builds of 0.7.0)."""
+    def _no_renames(cls, data: Any) -> Any:
+        """Drop `clash_renames`, a name per column, which older settings files have."""
         if isinstance(data, dict) and "clash_renames" in data:
             data = {k: v for k, v in data.items() if k != "clash_renames"}
         return data
 
     @field_validator("clash_name")
     @classmethod
-    def _template(cls, template):
+    def _template(cls, template: str) -> str:
+        """Check the rename template with `flim.core.columns.check_template`."""
         from flim.core.columns import check_template
 
         return check_template(template)
@@ -60,7 +63,8 @@ class CategoryOrderConfig(DataTaskConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `categories`; only their values are used."""
         # legacy: {column: {"values": [...], "sort": ...}}; only the values are used
         categories = params.pop("categories", {}) or {}
         return {
@@ -69,7 +73,8 @@ class CategoryOrderConfig(DataTaskConfig):
             }
         }
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the value orders as legacy `categories` with custom sorting."""
         return {
             "categories": {
                 col: {"values": list(values), "sort": "custom"}
@@ -79,6 +84,8 @@ class CategoryOrderConfig(DataTaskConfig):
 
 
 class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
+    """Config of Concatenate: the direction and the columns that are appended."""
+
     legacy_keys = {
         "mode": None, "clash_name": None, "add_input": None,
     }  # fmt: skip
@@ -115,18 +122,28 @@ class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `type`, true for horizontal."""
         # legacy "type" is the "Horizontal Concatenate" checkbox
         if "type" in params:
             return {"mode": "horizontal" if params.pop("type") else "vertical"}
         return {}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy `type`, true for horizontal."""
         return {"type": self.mode == "horizontal"}
 
 
-def range_of_legacy(spec: dict) -> dict:
-    """low, high and dropna of a plugin's range filter; infinite: no limit."""
+def range_of_legacy(spec: dict[str, Any]) -> dict[str, Any]:
+    """Return the limits of a legacy plugin's range filter.
+
+    Args:
+        spec: The legacy range filter, with `rangelow`, `rangehigh` and `dropna`.
+
+    Returns:
+        `low`, `high` and `dropna`. A missing or infinite limit is None (no limit);
+        `dropna` defaults to True.
+    """
     low, high = spec.get("rangelow"), spec.get("rangehigh")
     return {
         "low": None if low is None or low == float("-inf") else low,
@@ -136,7 +153,7 @@ def range_of_legacy(spec: dict) -> dict:
 
 
 class RangeSettings(BaseConfig):
-    """Rows whose value lies outside [low, high] are dropped; empty: no limit."""
+    """A range of values: rows outside [low, high] are dropped; empty: no limit."""
 
     low: Optional[float] = Field(default=None, title="Low")
     high: Optional[float] = Field(default=None, title="High")
@@ -147,7 +164,8 @@ class RangeSettings(BaseConfig):
     )
 
     @model_validator(mode="after")
-    def _check_range(self):
+    def _check_range(self) -> Self:
+        """Reject a range whose `low` is larger than its `high`."""
         if self.low is not None and self.high is not None and self.low > self.high:
             raise ValueError(f"low ({self.low}) > high ({self.high})")
         return self
@@ -166,7 +184,7 @@ class FilterNode(BaseConfig):
 
 
 class RangeFilterNode(FilterNode):
-    """Keeps the rows whose value lies in [low, high]; empty: no limit."""
+    """A filter that keeps the rows whose value lies in [low, high]; empty: no limit."""
 
     kind: Literal["range"] = "range"
     column: FeatureColumn = Field(default="", title="Column")
@@ -177,14 +195,15 @@ class RangeFilterNode(FilterNode):
     )
 
     @model_validator(mode="after")
-    def _check_range(self):
+    def _check_range(self) -> Self:
+        """Reject a range whose `low` is larger than its `high`."""
         if self.low is not None and self.high is not None and self.low > self.high:
             raise ValueError(f"low ({self.low}) > high ({self.high})")
         return self
 
 
 class CategoryFilterNode(FilterNode):
-    """Keeps the rows whose value is one of `keep`."""
+    """A filter that keeps the rows whose value is one of `keep`."""
 
     kind: Literal["category"] = "category"
     column: CategoryColumn = Field(default="", title="Column")
@@ -192,8 +211,10 @@ class CategoryFilterNode(FilterNode):
 
 
 class ExpressionFilterNode(FilterNode):
-    """Keeps the rows for which a condition is true, e.g. `FAD tm` > 1000 (column names
-    in backticks, as in Calculate's expressions)."""
+    """A filter that keeps the rows for which a condition is true.
+
+    For example ``FAD tm > 1000``, written as the expressions of Calculate.
+    """
 
     kind: Literal["expression"] = "expression"
     expression: str = Field(
@@ -206,9 +227,11 @@ class ExpressionFilterNode(FilterNode):
 
 
 class FilterGroup(FilterNode):
-    """Combines filters: `all` keeps the rows all of them keep, `any` the rows one of
-    them keeps, `not` the rows that `all` of them would drop. An empty group keeps all
-    rows."""
+    """A group of filters, combined by its kind.
+
+    `all` keeps the rows all of them keep, `any` the rows one of them keeps, `not` the
+    rows that `all` of them would drop. An empty group keeps all rows.
+    """
 
     kind: Literal["all", "any", "not"] = "all"
     filters: list["FilterEntry"] = Field(default=[], title="Filters")
@@ -221,8 +244,10 @@ FilterEntry = Annotated[
 FilterGroup.model_rebuild()
 
 
-def _filters_of_v1(values: dict, enabled: bool = True) -> list:
-    """0.6's Filter config (`category_filters`, `range_filters` per column) as nodes."""
+def _filters_of_v1(
+    values: dict[str, Any], enabled: bool = True
+) -> list[dict[str, Any]]:
+    """Return older Filter fields (`category_filters`, `range_filters`) as nodes."""
     nodes = []
     ranges = values.get("range_filters") or {}
     if isinstance(ranges, (list, tuple)):
@@ -241,8 +266,11 @@ def _filters_of_v1(values: dict, enabled: bool = True) -> list:
 
 
 class FilterConfig(DataTaskConfig):
-    """Keeps the rows that the filters keep: a tree whose top level is an `all` group
-    (a row is kept if every filter of the list keeps it)."""
+    """Config of Filter: keeps the rows that the filters keep.
+
+    The filters are a tree whose top level is an `all` group: a row is kept if every
+    filter of the list keeps it.
+    """
 
     legacy_keys = {"filters": None}
     legacy_dropped = frozenset({"use", "inplace", "show_dropped"})  # unused
@@ -257,8 +285,8 @@ class FilterConfig(DataTaskConfig):
 
     @model_validator(mode="before")
     @classmethod
-    def _from_v1(cls, values):
-        """0.6's fields `category_filters` and `range_filters` become filters."""
+    def _from_v1(cls, values: Any) -> Any:
+        """Convert the older fields `category_filters` and `range_filters`."""
         if isinstance(values, dict) and (
             "category_filters" in values or "range_filters" in values
         ):
@@ -268,7 +296,8 @@ class FilterConfig(DataTaskConfig):
         return values
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy range and category filters."""
         # the plugin: range_filters, a list of {"name", "rangelow", "rangehigh",
         # "selected", ...} (it applied the selected ones), and category_filters
         filters = []
@@ -279,7 +308,8 @@ class FilterConfig(DataTaskConfig):
             filters.append({"kind": "category", "column": column, "keep": list(keep)})
         return {"filters": filters}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the enabled top-level range and category filters in legacy form."""
         inf = float("inf")
         return {
             "range_filters": [
@@ -304,6 +334,8 @@ class FilterConfig(DataTaskConfig):
 
 
 class MergeConfig(DataTaskConfig):
+    """Config of Merge: the join, the columns to merge on and the suffixes."""
+
     legacy_keys = {
         "how": None, "on": None, "suffix_left": None, "suffix_right": None,
         "combine_identical": None,
@@ -342,22 +374,26 @@ class MergeConfig(DataTaskConfig):
     )
 
     @model_validator(mode="after")
-    def _suffixes_differ(self):
+    def _suffixes_differ(self) -> Self:
+        """Reject equal suffixes for the two tables."""
         if self.suffix_left == self.suffix_right:
             raise ValueError("the two suffixes must differ")
         return self
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `how`; an empty one gives the default."""
         how = params.pop("how", "")
         return {"how": how} if how else {}  # legacy default "" fails in pandas
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy `how`."""
         return {"how": self.how}
 
 
 class PivotConfig(DataTaskConfig):
-    """Pivots the ``grouping`` columns."""
+    """Config of Pivot: the columns whose values become columns, and the features."""
+
     min_features = 1
 
     grouping: list[CategoryColumn] = Field(
@@ -371,7 +407,7 @@ class PivotConfig(DataTaskConfig):
 
 
 class SortConfig(DataTaskConfig):
-    """Sorts by the ``features`` columns."""
+    """Config of Sort: the columns to sort by, in order, and the direction."""
 
     hidden_fields = frozenset({"grouping"})
 
@@ -387,7 +423,7 @@ class SortConfig(DataTaskConfig):
 
 
 class SplitConfig(DataTaskConfig):
-    """Splits a table by the values of the ``grouping`` columns."""
+    """Config of Split: a table per combination of values of the `grouping` columns."""
 
     min_grouping = 1
     hidden_fields = frozenset({"features"})
@@ -400,9 +436,12 @@ class SplitConfig(DataTaskConfig):
 
 
 class UnpivotConfig(DataTaskConfig):
-    """Moves one level (line) of the columns' headers into a category column: the
-    inverse of Pivot. E.g. the level Treatment of ``"FLIRR\\nctrl"``,
-    ``"FLIRR\\nDox15"``: a column Treatment (ctrl, Dox15) and a column FLIRR."""
+    r"""Config of Unpivot: moves one header line of the columns into a category column.
+
+    It is the inverse of Pivot. For example, the level Treatment of `"FLIRR\nctrl"`
+    and `"FLIRR\nDox15"` gives a column Treatment (ctrl, Dox15) and a column FLIRR.
+    """
+
     min_features = 1
 
     legacy_keys = {"category_name": None}
@@ -436,17 +475,19 @@ class UnpivotConfig(DataTaskConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `category_name`; `Category` means none."""
         # "Category" (the plugin's default name): the level's name
         name = params.pop("category_name", None)
         return {"category_name": None if name in (None, "", "Category") else name}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy `category_name`, `Category` if none is set."""
         return {"category_name": self.category_name or "Category"}
 
 
 class ScaleConfig(DataTaskConfig):
-    """Scales the selected features, over the whole table or within each group."""
+    """Config of Scale: the method, and whether to scale within groups."""
 
     min_features = 1
 
@@ -472,8 +513,10 @@ class ScaleConfig(DataTaskConfig):
 
 
 class FuseCategoriesConfig(DataTaskConfig):
-    """Joins category columns into one category column, e.g. FOV and Cell into
-    FOV:Cell."""
+    """Config of Fuse Categories: joins category columns into one category column.
+
+    For example, FOV and Cell become FOV:Cell.
+    """
 
     min_grouping = 2
     hidden_fields = frozenset({"features"})
@@ -516,8 +559,11 @@ class CategoryPattern(BaseConfig):
 
 
 class SeparateCategoriesConfig(DataTaskConfig):
-    """Separates a category column into several: at delimiters, by regular expressions
-    (patterns), or by a template of its values."""
+    """Config of Separate Categories: separates a category column into several.
+
+    The column is separated at delimiters, by regular expressions (patterns), or by
+    a template of its values.
+    """
 
     hidden_fields = frozenset({"features", "grouping"})
 
@@ -573,13 +619,13 @@ class SeparateCategoriesConfig(DataTaskConfig):
 
     @field_validator("mode", mode="before")
     @classmethod
-    def _singular(cls, mode):
-        """Read the mode names of earlier versions of 0.7.0 (`delimiters`, `patterns`)."""
+    def _singular(cls, mode: Any) -> Any:
+        """Read the older mode names `delimiters` and `patterns`."""
         return {"delimiters": "delimiter", "patterns": "pattern"}.get(mode, mode)
 
 
 class Replacement(BaseConfig):
-    """Replaces a part of the column names."""
+    """A replacement of Rename Columns: a part of the column names and its new text."""
 
     part: str = Field(
         default="",
@@ -595,14 +641,15 @@ class Replacement(BaseConfig):
     )
 
 
-def _default_replacements() -> list:
+def _default_replacements() -> list[Replacement]:
+    """Return the default replacements, from `flim.core.preprocessor`."""
     from flim.core.preprocessor import DEFAULT_RENAME
 
     return [Replacement(part=p, new=n) for p, n in DEFAULT_RENAME.items()]
 
 
 class RenameColumnsConfig(DataTaskConfig):
-    """Replaces parts of the column names, in order."""
+    """Config of Rename Columns: replaces parts of the column names, in order."""
 
     hidden_fields = frozenset({"features", "grouping"})
 
@@ -615,14 +662,15 @@ class RenameColumnsConfig(DataTaskConfig):
 
     @field_validator("replacements")
     @classmethod
-    def _parts_given(cls, replacements):
+    def _parts_given(cls, replacements: list[Replacement]) -> list[Replacement]:
+        """Reject a replacement without a part to replace."""
         if any(not r.part for r in replacements):
             raise ValueError("a replacement needs the part to replace")
         return replacements
 
 
 class DropRule(BaseConfig):
-    """Drops the columns whose names match a text."""
+    """A rule of Drop Columns: the columns whose names match a text are dropped."""
 
     text: str = Field(default="", title="Text")
     match: Literal["contains", "starts with", "ends with", "is"] = Field(
@@ -632,14 +680,15 @@ class DropRule(BaseConfig):
     )
 
 
-def _default_drop_rules() -> list:
+def _default_drop_rules() -> list[DropRule]:
+    """Return the default drop rules, from `flim.core.preprocessor`."""
     from flim.core.preprocessor import DEFAULT_DROP
 
     return [DropRule(text=t) for t in DEFAULT_DROP]
 
 
 class DropColumnsConfig(DataTaskConfig):
-    """Drops columns by their names; a column with an empty header too."""
+    """Config of Drop Columns: drops columns by their names, and empty headers."""
 
     hidden_fields = frozenset({"features", "grouping"})
 
@@ -671,8 +720,8 @@ class Calculation(BaseConfig):
 
     @model_validator(mode="before")
     @classmethod
-    def _no_column_type(cls, values):
-        """Files may still have `column_type`: the type now follows the values."""
+    def _no_column_type(cls, values: Any) -> Any:
+        """Drop `column_type`, which older files have; the type follows the values."""
         if isinstance(values, dict) and "column_type" in values:
             values = {k: v for k, v in values.items() if k != "column_type"}
         return values
@@ -710,7 +759,8 @@ CalculationEntry = Annotated[
 ]
 
 
-def _default_calculations() -> list:
+def _default_calculations() -> list[FunctionCalculation]:
+    """Return the default calculations, from `flim.core.preprocessor`."""
     from flim.core.preprocessor import DEFAULT_CALCULATIONS
 
     return [
@@ -720,7 +770,7 @@ def _default_calculations() -> list:
 
 
 class CalculateConfig(DataTaskConfig):
-    """Calculates new columns, in order: later ones may use earlier ones' columns."""
+    """Config of Calculate: new columns, in order; later ones may use earlier ones."""
 
     hidden_fields = frozenset({"features", "grouping"})
 
@@ -733,7 +783,7 @@ class CalculateConfig(DataTaskConfig):
 
 
 class SourceFromPathConfig(DataTaskConfig, ProtectedNamesConfig):
-    """Builds the `Source` column (file URIs) from `Directory` and `File`."""
+    """Config of Directory/File to Source: the `Source` column from the paths."""
 
     hidden_fields = frozenset({"features", "grouping"})
 

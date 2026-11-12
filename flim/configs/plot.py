@@ -1,7 +1,7 @@
 """Configs of the Plot tools."""
 
 import logging
-from typing import Annotated, ClassVar, Literal, Optional, Union
+from typing import Annotated, Any, ClassVar, Literal, Optional, Self, Union
 
 from pydantic import Field, ValidationError, field_validator, model_validator
 
@@ -30,20 +30,39 @@ class PlotConfig(TaskConfig):
     )
 
     @classmethod
-    def has_legend(cls, values) -> bool:
+    def has_legend(cls, values: dict[str, Any]) -> bool:
+        """Return whether the plots have a legend, given the field values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            True if there is a grouping column at index `legend_grouping`.
+        """
         if cls.legend_grouping is None:
             return False
         return len(values.get("grouping") or []) > cls.legend_grouping
 
     @classmethod
-    def allowed_values(cls, values):
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first is the default): those of
+            the base class; `legend_position` is fixed to its value if there is no
+            legend.
+        """
         allowed = super().allowed_values(values)
         if not cls.has_legend(values):  # nothing to place
             allowed["legend_position"] = (values.get("legend_position", "right"),)
         return allowed
 
     @model_validator(mode="after")
-    def _allowed(self):
+    def _allowed(self) -> Self:
+        """Set the fields with restricted values to allowed values."""
         self._apply_allowed_values()
         return self
 
@@ -63,7 +82,16 @@ class PointSampling(BaseConfig):
     random_seed: int = Field(default=0, title="Random seed")
 
     @classmethod
-    def allowed_values(cls, values):
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first is the default): `samples`
+            and `random_seed` are fixed to their values in mode `all`.
+        """
         # the sample's size and seed: only for a sample
         if values.get("mode", "all") == "all":
             return {
@@ -74,13 +102,13 @@ class PointSampling(BaseConfig):
 
 
 class TiledPlotConfig(PlotConfig):
-    """Base of the configs of plot tools that draw one figure per feature (or feature
-    pair), with the option to draw them as tiles of a single figure instead.
+    """Base of the configs of plot tools that draw one figure per feature or pair.
 
-    Plot tools that always draw one figure (e.g. Heatmap) base their configs on
-    PlotConfig. Where a tool cannot tile in some cases (e.g. with more grouping
-    columns than ``max_tiled_grouping``, as those become facets), ``allowed_values``
-    turns the option off and dialogs hide it.
+    The figures can instead be drawn as tiles of a single figure. Plot tools that
+    always draw one figure (e.g. Heatmap) base their configs on `PlotConfig`. Where a
+    tool cannot tile in some cases (e.g. with more grouping columns than
+    `max_tiled_grouping`, as those become facets), `allowed_values` turns the option
+    off and dialogs hide it.
     """
 
     legacy_keys = {
@@ -107,7 +135,19 @@ class TiledPlotConfig(PlotConfig):
     )
 
     @classmethod
-    def allowed_values(cls, values):
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first is the default): those of
+            the base class; `single_figure` is fixed to False with more grouping
+            columns than `max_tiled_grouping`; `plots_per_row` is fixed to its value
+            without a single figure; with a single figure, the legend is outside the
+            plots or none.
+        """
         allowed = super().allowed_values(values)
         per_row = (values.get("plots_per_row", 5),)
         limit = cls.max_tiled_grouping
@@ -121,19 +161,33 @@ class TiledPlotConfig(PlotConfig):
 
 
 class CategoricalPlotConfig(TiledPlotConfig):
+    """Base of the configs of the categorical plots: x axis and hue by category."""
+
     # x and hue; further grouping columns become facet columns and rows
     max_tiled_grouping = 2
     legend_grouping = 1  # the hue
 
 
 class BarPlotConfig(CategoricalPlotConfig):
+    """Config of Bar Plot: the bar layout and the error bars."""
+
     min_features = 1
     legacy_dropped = frozenset({"display", "ordering"})  # unused
 
     max_tiled_grouping = None  # bars are grouped in one plot, not in facets
 
     @classmethod
-    def allowed_values(cls, values):
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first is the default): those of
+            the base class; with stacked bars, `single_figure` is fixed to False and
+            `plots_per_row` to its value.
+        """
         allowed = super().allowed_values(values)
         # stacked bars: all features are in one plot already
         if values.get("bar_type", "single") != "single":
@@ -159,7 +213,8 @@ class BarPlotConfig(CategoricalPlotConfig):
     error_type: Literal["std", "s.e.m."] = Field(default="std", title="Error")
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert the legacy error type and pop the legacy `legend` switch."""
         if params.get("error_type") == "s.e.m":
             params["error_type"] = "s.e.m."
         # the plugin's legend on/off: the legend position "none" for off
@@ -168,11 +223,20 @@ class BarPlotConfig(CategoricalPlotConfig):
         params.pop("legend", None)
         return {}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy `legend` switch, off for the legend position `none`."""
         return {"legend": self.legend_position != "none"}
 
     @classmethod
-    def has_legend(cls, values):
+    def has_legend(cls, values: dict[str, Any]) -> bool:
+        """Return whether the plots have a legend; stacked bars always have one.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            True for stacked bars (a legend of the features), else as the base class.
+        """
         # stacked bars: a legend of the features
         if values.get("bar_type", "single") != "single":
             return True
@@ -192,16 +256,22 @@ class AxesRange(BaseConfig):
 
 
 class BoxPlotConfig(AxesRange, CategoricalPlotConfig):
+    """Config of Box Plot."""
+
     min_features = 1
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
 class ViolinPlotConfig(AxesRange, CategoricalPlotConfig):
+    """Config of Violin Plot."""
+
     min_features = 1
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
 class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
+    """Config of Swarm Plot: the points to draw."""
+
     min_features = 1
     legacy_keys = {
         **CategoricalPlotConfig.legacy_keys,
@@ -216,6 +286,8 @@ class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
 
 
 class LinePlotConfig(CategoricalPlotConfig):
+    """Config of Line Plot: the error bars and markers."""
+
     min_features = 1
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "errorbar": "ci"}
     max_tiled_grouping = 3  # x, hue and style
@@ -239,6 +311,8 @@ class DistributionPlotConfig(TiledPlotConfig):
 
 
 class KDEConfig(DistributionPlotConfig):
+    """Config of KDE."""
+
     min_features = 1
     legacy_keys = {
         **DistributionPlotConfig.legacy_keys,
@@ -259,13 +333,16 @@ class HistogramRange(BaseConfig):
     bins: int = Field(default=DEFAULT_BINS, ge=1, title="Bins")
 
     @model_validator(mode="after")
-    def _check_range(self):
+    def _check_range(self) -> Self:
+        """Reject a range whose `min` is not smaller than its `max`."""
         if self.min is not None and self.max is not None and self.min >= self.max:
             raise ValueError(f"min ({self.min}) >= max ({self.max})")
         return self
 
 
 class HistogramConfig(DistributionPlotConfig):
+    """Config of Frequency Histogram: the range and bins per feature, and the style."""
+
     min_features = 1
     legacy_keys = {
         **DistributionPlotConfig.legacy_keys,
@@ -323,9 +400,8 @@ class HistogramConfig(DistributionPlotConfig):
 
     @model_validator(mode="before")
     @classmethod
-    def _older_global_bins(cls, data):
-        """Configs with a global "bins": it becomes the bins of the features without
-        their own."""
+    def _older_global_bins(cls, data: Any) -> Any:
+        """Move an older global `bins` to the features without their own bins."""
         if isinstance(data, dict) and "bins" in data:
             data = dict(data)
             bins = data.pop("bins")
@@ -341,15 +417,15 @@ class HistogramConfig(DistributionPlotConfig):
 
     @field_validator("features", mode="before")
     @classmethod
-    def _features_from_list(cls, features):
-        """A list of features: each with the default range and bins."""
+    def _features_from_list(cls, features: Any) -> Any:
+        """Give each feature of a list the default range and bins."""
         if isinstance(features, (list, tuple)):
             return {f: {} for f in features}
         return features
 
     @model_validator(mode="after")
-    def _same_bins(self):
-        """With ``sync_bins``, all features get the bins of the first feature."""
+    def _same_bins(self) -> Self:
+        """With `sync_bins`, give all features the bins of the first feature."""
         if self.sync_bins and self.features:
             bins = next(iter(self.features.values())).bins
             # through __dict__: assignments would run the validators again
@@ -360,7 +436,8 @@ class HistogramConfig(DistributionPlotConfig):
         return self
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy features and their settings."""
         # the plugin: a list of features, and {"min", "max", "bins"} per feature in
         # "featuresettings". Its defaults there are lists [min, max, bins, groups]
         # that it never read; they are skipped to keep the plots unchanged.
@@ -379,7 +456,8 @@ class HistogramConfig(DistributionPlotConfig):
         params.pop("bins", None)  # not used by the plugin
         return {"features": {f: settings.get(f, HistogramRange()) for f in features}}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy features, with the settings of those with min and max."""
         # the plugin uses a feature's settings only if all three are set; its "bins"
         # was not used
         return {
@@ -397,7 +475,8 @@ class HistogramConfig(DistributionPlotConfig):
 
 
 class ScatterPlotConfig(AxesRange, TiledPlotConfig):
-    """A scatter plot for each pair of ``features``."""
+    """Config of Scatter Plot: a scatter plot for each pair of `features`."""
+
     min_features = 2
 
     legacy_keys = {
@@ -417,7 +496,17 @@ class ScatterPlotConfig(AxesRange, TiledPlotConfig):
     )
 
     @classmethod
-    def allowed_values(cls, values):
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first is the default): those of
+            the base class; `x_axis` is one of the features if there are two, else
+            fixed to None.
+        """
         allowed = super().allowed_values(values)
         features = values.get("features")
         if isinstance(features, list) and len(set(features)) == 2:
@@ -428,10 +517,10 @@ class ScatterPlotConfig(AxesRange, TiledPlotConfig):
 
 
 class PairPlotConfig(PlotConfig):
-    """A grid of scatter plots: one per (row feature, column feature).
+    """Config of Pair Plot: a grid of scatter plots, one per row and column feature.
 
-    ``features`` is not edited: it is set to the grid's features (columns, then rows).
-    Configs that only set ``features`` (older settings) use them as the columns.
+    `features` is not edited: it is set to the grid's features (columns, then rows).
+    Configs that only set `features` (older settings) use them as the columns.
     """
 
     legacy_keys = {
@@ -466,14 +555,25 @@ class PairPlotConfig(PlotConfig):
     points: PointSampling = Field(default_factory=PointSampling, title="Scatter points")
 
     @classmethod
-    def allowed_values(cls, values):
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first is the default): those of
+            the base class; with `symmetric`, `y_vars` is fixed to `x_vars`;
+            otherwise `corner` is fixed to False.
+        """
         allowed = super().allowed_values(values)
         if values.get("symmetric", True):  # the rows are the columns
             return {**allowed, "y_vars": (list(values.get("x_vars") or []),)}
         return {**allowed, "corner": (False,)}  # a lower half needs a symmetric grid
 
     @model_validator(mode="after")
-    def _grid_features(self):
+    def _grid_features(self) -> Self:
+        """Set the grid columns from older `features`, then `features` from the grid."""
         # set through __dict__: assignments would run the validators again
         values = self.__dict__
         if not self.x_vars and isinstance(self.features, list):
@@ -484,7 +584,8 @@ class PairPlotConfig(PlotConfig):
         return self
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy point sampling; derive `symmetric`."""
         points = {}
         for key, field in (
             ("plotting", "mode"),
@@ -499,7 +600,8 @@ class PairPlotConfig(PlotConfig):
         values["symmetric"] = not y_vars or x_vars == y_vars
         return values
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the point sampling as legacy parameters."""
         return {
             "plotting": self.points.mode,
             "samples": self.points.samples,
@@ -508,6 +610,8 @@ class PairPlotConfig(PlotConfig):
 
 
 class HeatmapConfig(PlotConfig):
+    """Config of Heatmap: the correlation coefficient and whether values are shown."""
+
     hidden_fields = frozenset({"grouping"})  # the correlations are of the whole table
     min_features = 1
     legacy_keys = {
@@ -526,6 +630,8 @@ class HeatmapConfig(PlotConfig):
 
 
 class FLIRRPlotConfig(PlotConfig):
+    """Config of FLIRR Plot: the FLIRR, FAD a1 % and NAD(P)H a2 % columns."""
+
     min_grouping = 1
     legend_grouping = None  # each panel has its own
     # the plotted columns are the three below (not plugin parameters: found by name)

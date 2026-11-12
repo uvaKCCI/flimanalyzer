@@ -7,7 +7,7 @@ validated, hidden in dialogs and not saved.
 """
 
 import copy
-from typing import Annotated, ClassVar, Optional
+from typing import Annotated, Any, ClassVar, Optional, Self
 
 from pydantic import Field, model_validator
 
@@ -22,6 +22,8 @@ from flim.core.config import CategoryColumn, FeatureColumn, TaskConfig, ValueOf
 
 
 class WorkflowConfig(TaskConfig):
+    """Base config of the workflows: the shared fields and the configs of the steps."""
+
     legacy_keys = {"strict": None}
     legacy_dropped = frozenset({"executor"})  # an execution option
     hidden_fields = frozenset({"prefix"})  # the steps name their results (#189)
@@ -43,7 +45,8 @@ class WorkflowConfig(TaskConfig):
     )
 
     @model_validator(mode="after")
-    def _share_fields(self):
+    def _share_fields(self) -> Self:
+        """Copy the bound fields the workflow config has into the step configs."""
         for step, names in self.bound_fields.items():
             config = getattr(self, step)
             for name in names & set(type(self).model_fields):
@@ -52,7 +55,8 @@ class WorkflowConfig(TaskConfig):
                     setattr(config, name, copy.deepcopy(value))
         return self
 
-    def _after_dump(self, data):
+    def _after_dump(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Remove the bound fields from the dumped step configs."""
         for step, names in self.bound_fields.items():
             if isinstance(data.get(step), dict):
                 for name in names:
@@ -61,6 +65,8 @@ class WorkflowConfig(TaskConfig):
 
 
 class BasicFLIRRConfig(WorkflowConfig):
+    """Basic FLIRR Analysis: summaries, relative changes and plots of the features."""
+
     min_features = 1
     min_grouping = 1
     grouping: list[CategoryColumn] = ["Treatment", "FOV", "Cell"]
@@ -115,8 +121,8 @@ _TRAINING_KEYS = (
 _SHARED = frozenset({"grouping", "features", "resources"})
 
 
-def _workflow_training(**changes) -> AETrainConfig:
-    """Training step defaults of the autoencoder workflows."""
+def _workflow_training(**changes: Any) -> AETrainConfig:
+    """Return the training step defaults of the autoencoder workflows, with changes."""
     return AETrainConfig(
         epochs=6,
         learning_rates=[1e-5, 2e-5],
@@ -129,6 +135,8 @@ def _workflow_training(**changes) -> AETrainConfig:
 
 
 class _AEWorkflowConfig(WorkflowConfig):
+    """Base config of the autoencoder workflows, which start with a training step."""
+
     legacy_keys = {**WorkflowConfig.legacy_keys, "training": None}
     bound_fields = {"training": _SHARED | {"timeseries"}}
 
@@ -139,7 +147,8 @@ class _AEWorkflowConfig(WorkflowConfig):
     training: AETrainConfig
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy device and training parameters."""
         values = {}
         if "device" in params:
             values["resources"] = {"preferred_device": params.pop("device")}
@@ -150,7 +159,8 @@ class _AEWorkflowConfig(WorkflowConfig):
         )
         return values
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy device and training parameters."""
         params = self.training.to_legacy_params()
         return {
             **{k: params[k] for k in _TRAINING_KEYS},
@@ -174,14 +184,16 @@ class AETuneConfig(_AEWorkflowConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy parameters, including the number of sets."""
         values = super()._from_legacy(params)
         augment = cls.model_fields["augment"].default_factory()
         if "sets" in params:
             augment.sets = params.pop("sets")
         return {**values, "augment": augment}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy parameters, including the number of sets."""
         return {**super()._to_legacy(), "sets": self.augment.sets}
 
 

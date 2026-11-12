@@ -1,7 +1,7 @@
 """Configs of the Analysis tools: statistics, machine learning and autoencoders."""
 
 from pathlib import Path
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Self, Union
 
 from pydantic import AfterValidator, Field, field_validator, model_validator
 
@@ -17,6 +17,7 @@ from flim.core.config import (
 )
 
 def _not_zero(threads: int) -> int:
+    """Reject 0 threads."""
     if threads == 0:
         raise ValueError("0 threads: use -1 (all cores) or a positive number")
     return threads
@@ -27,14 +28,14 @@ Threads = Annotated[int, Field(ge=-1), AfterValidator(_not_zero)]
 
 
 class AnalysisConfig(TaskConfig):
-    pass
+    """Base config of the Analysis tools."""
 
 
 # --- statistics ---
 
 
 class StatisticsConfig(AnalysisConfig):
-    pass
+    """Base config of the statistics tools."""
 
 
 Aggregate = Literal[
@@ -53,6 +54,8 @@ AGGREGATES: tuple[str, ...] = Aggregate.__args__
 
 
 class SummaryConfig(StatisticsConfig):
+    """Config of Summarize: the statistics per group and the table layout."""
+
     min_features = 1
     legacy_keys = {
         "aggs": "aggs",
@@ -78,6 +81,8 @@ KSAlpha = Literal[0.1, 0.05, 0.025, 0.01, 0.005, 0.001]
 
 
 class KSStatsConfig(StatisticsConfig):
+    """Config of KS-Statistics: the comparison column and the significance level."""
+
     min_features = 1
     comparison: CategoryColumn = Field(
         default="Treatment",
@@ -91,6 +96,8 @@ class KSStatsConfig(StatisticsConfig):
 
 
 class RelativeChangeConfig(StatisticsConfig):
+    """Config of Relative Change: the reference rows and the reference statistic."""
+
     min_features = 1
     method: Literal["mean", "median"] = Field(
         default="mean", title="Reference statistic"
@@ -124,6 +131,8 @@ SERIES_STATISTICS: tuple[str, ...] = SeriesStatistic.__args__
 
 
 class SeriesAnalysisConfig(StatisticsConfig):
+    """Config of Series Analysis: the statistics over the features of each row."""
+
     hidden_fields = frozenset({"grouping"})  # the series are rows: nothing is grouped
     min_features = 2
     legacy_keys = {"statistics": None}
@@ -140,7 +149,8 @@ class SeriesAnalysisConfig(StatisticsConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy booleans, one per statistic."""
         # legacy: one boolean per statistic
         if not any(s in params for s in SERIES_STATISTICS):
             return {}
@@ -149,7 +159,8 @@ class SeriesAnalysisConfig(StatisticsConfig):
             "statistics": {s for s in SERIES_STATISTICS if params.pop(s, s in defaults)}
         }
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return one legacy boolean per statistic."""
         return {s: s in self.statistics for s in SERIES_STATISTICS}
 
 
@@ -157,6 +168,8 @@ class SeriesAnalysisConfig(StatisticsConfig):
 
 
 class MLConfig(AnalysisConfig):
+    """Base config of the machine learning tools, with a random seed."""
+
     legacy_keys = {"random_seed": None}
     hidden_fields = frozenset({"grouping"})
 
@@ -168,7 +181,7 @@ class MLConfig(AnalysisConfig):
 
 
 class ParallelResources(Resources):
-    """For tools using scikit-learn's ``n_jobs``."""
+    """Resources of the tools that use scikit-learn's `n_jobs`."""
 
     preferred_threads: Threads = Field(
         default=-1,
@@ -178,12 +191,14 @@ class ParallelResources(Resources):
 
 
 class PCAConfig(MLConfig):
+    """Config of PCA: standardization, the components and the columns kept."""
+
     min_features = 2
     # scikit-learn uses the seed only for its randomized solver, which FLIM-sized
     # tables never get (checked with scikit-learn 1.9.1): it has no effect
     hidden_fields = MLConfig.hidden_fields | {"random_seed"}
     legacy_keys = {
-        "standardize_input": None,  # new in 0.7.0: no 0.5 name
+        "standardize_input": None,  # no legacy name
         **MLConfig.legacy_keys,
         "keep_original": "keeporig",
         "keep_standardized": "keepstd",
@@ -222,8 +237,10 @@ class PCAConfig(MLConfig):
 
 
 class KMeansConfig(MLConfig):
+    """Config of K-Means: the number of clusters and the scikit-learn settings."""
+
     min_features = 1
-    legacy_keys = {**MLConfig.legacy_keys, "standardize_input": None}  # new in 0.7.0
+    legacy_keys = {**MLConfig.legacy_keys, "standardize_input": None}  # no legacy name
     standardize_input: bool = Field(
         default=True,
         title="Standardize input",
@@ -253,7 +270,8 @@ class KMeansConfig(MLConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Replace the legacy algorithm names `auto` and `full` by `lloyd`."""
         # names removed in scikit-learn 1.3; both meant "lloyd"
         if params.get("algorithm") in ("auto", "full"):
             params["algorithm"] = "lloyd"
@@ -261,11 +279,13 @@ class KMeansConfig(MLConfig):
 
 
 class GMMConfig(MLConfig):
+    """Config of Gaussian Mixed Model: the method, components and covariance type."""
+
     min_features = 1
     legacy_keys = {
         **MLConfig.legacy_keys,
         "covariance": "covar_type",
-        "standardize_input": None,  # new in 0.7.0: no 0.5 name
+        "standardize_input": None,  # no legacy name
     }
 
     standardize_input: bool = Field(
@@ -287,6 +307,8 @@ class GMMConfig(MLConfig):
 
 
 class RandomForestConfig(MLConfig):
+    """Config of Random Forest: the category column to predict and the forest."""
+
     min_features = 1
     legacy_keys = {
         **MLConfig.legacy_keys,
@@ -309,15 +331,17 @@ class RandomForestConfig(MLConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `classifier`; empty means no target."""
         return {"target": params.pop("classifier", "") or None}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy `classifier`, empty without a target."""
         return {"classifier": self.target or ""}
 
 
 class CategoryRule(BaseConfig):
-    """Rows whose ``feature`` lies in (min, max] get the category ``value``."""
+    """A rule of Categorize Data: rows with `min < feature <= max` get `value`."""
 
     value: str = Field(title="Value")
     feature: FeatureColumn = Field(title="Feature")
@@ -325,13 +349,15 @@ class CategoryRule(BaseConfig):
     max: float = Field(title="Max")
 
     @model_validator(mode="after")
-    def _check_range(self):
+    def _check_range(self) -> Self:
+        """Reject a range whose `min` is not smaller than its `max`."""
         if self.min >= self.max:
             raise ValueError(f"'{self.value}': min ({self.min}) >= max ({self.max})")
         return self
 
 
-def _default_rules():
+def _default_rules() -> list[CategoryRule]:
+    """Return the default rules: negative, neutral and positive FLIRR."""
     return [
         CategoryRule(value="negative", feature="FLIRR", min=-100000.0, max=-0.5),
         CategoryRule(value="neutral", feature="FLIRR", min=-0.5, max=0.5),
@@ -340,6 +366,8 @@ def _default_rules():
 
 
 class CategorizerConfig(AnalysisConfig):
+    """Config of Categorize Data: the new column, its rules and its default value."""
+
     legacy_keys = {"rules": None}
     hidden_fields = frozenset({"grouping"})
 
@@ -368,7 +396,16 @@ class CategorizerConfig(AnalysisConfig):
     )
 
     @classmethod
-    def allowed_values(cls, values):
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values: `features` is fixed to its value while
+            `merge_input` is on (the default); otherwise none.
+        """
         # features (the columns to keep) can be chosen only if merge_input is off,
         # i.e. the input's columns are not added to the output; if merge_input is on,
         # features is fixed to its current value (dialogs hide it)
@@ -378,7 +415,8 @@ class CategorizerConfig(AnalysisConfig):
 
     @field_validator("rules")
     @classmethod
-    def _check_overlaps(cls, rules):
+    def _check_overlaps(cls, rules: list[CategoryRule]) -> list[CategoryRule]:
+        """Reject rules of the same feature whose ranges overlap."""
         for i, a in enumerate(rules):
             for b in rules[i + 1 :]:
                 if a.feature == b.feature and a.min < b.max and b.min < a.max:
@@ -386,7 +424,8 @@ class CategorizerConfig(AnalysisConfig):
         return rules
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `categories` into rules."""
         if "categories" not in params:
             return {}
         return {
@@ -396,7 +435,8 @@ class CategorizerConfig(AnalysisConfig):
             ]
         }
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the rules as the legacy `categories`."""
         return {
             "categories": [
                 {
@@ -436,6 +476,8 @@ DEFAULT_DEVICE = "auto"  # see flim.core.tool.resolve_device
 
 
 class AutoencoderResources(Resources):
+    """Resources of the autoencoder tools: the device and the number of threads."""
+
     preferred_device: Device = Field(
         default=DEFAULT_DEVICE,
         title="Device",
@@ -449,15 +491,19 @@ class AutoencoderResources(Resources):
 
 
 class AutoencoderConfig(AnalysisConfig):
+    """Base config of the autoencoder tools, with their resources."""
+
     resources: AutoencoderResources = Field(default_factory=AutoencoderResources)
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `device`."""
         if "device" in params:
             return {"resources": {"preferred_device": params.pop("device")}}
         return {}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy `device`."""
         return {"device": self.resources.preferred_device}
 
 
@@ -467,6 +513,8 @@ PositiveInt = Annotated[int, Field(ge=1)]
 
 
 class AETrainConfig(AutoencoderConfig):
+    """Config of Autoencoder: Train: the model, the training settings and the split."""
+
     min_features = 2
     legacy_keys = {
         "epochs": "epoches",
@@ -543,7 +591,8 @@ class AETrainConfig(AutoencoderConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert the legacy parameters; single numbers become lists."""
         # a legacy value may be a single number instead of a list
         for key in ("learning_rate", "weight_decay", "batch_size"):
             if key in params and not isinstance(params[key], (list, tuple)):
@@ -552,6 +601,8 @@ class AETrainConfig(AutoencoderConfig):
 
 
 class _ModelFilesConfig(AutoencoderConfig):
+    """Base config of the autoencoder tools that use saved models."""
+
     legacy_keys = {"model_files": None}
 
     model_files: list[Path] = Field(
@@ -561,27 +612,33 @@ class _ModelFilesConfig(AutoencoderConfig):
     )
 
     @classmethod
-    def _from_legacy(cls, params):
+    def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:
+        """Convert and pop the legacy `modelfile`: empty, one path or a list."""
         values = super()._from_legacy(params)
         files = params.pop("modelfile", "")  # "", one path or a list
         if isinstance(files, (str, Path)):
             files = [files] if files else []
         return {**values, "model_files": files}
 
-    def _to_legacy(self):
+    def _to_legacy(self) -> dict[str, Any]:
+        """Return the legacy parameters; `modelfile` is empty without models."""
         files = [str(f) for f in self.model_files]
         return {**super()._to_legacy(), "modelfile": files if files else ""}
 
 
 class AERunConfig(_ModelFilesConfig):
+    """Config of Autoencoder: Run: the saved models to run on the data."""
+
     min_features = 1
     hidden_fields = frozenset({"grouping"})
 
 
 class AEAugmentConfig(_ModelFilesConfig):
+    """Config of Autoencoder: Augment Data: the models, copies and added noise."""
+
     min_features = 1
     min_grouping = 1
-    # random_seed is new in 0.7.0: no 0.5 name
+    # random_seed has no legacy name
     legacy_keys = {**_ModelFilesConfig.legacy_keys, "random_seed": None}
     grouping: list[CategoryColumn] = Field(
         default=[],

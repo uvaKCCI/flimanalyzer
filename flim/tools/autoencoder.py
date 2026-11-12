@@ -12,9 +12,12 @@ import random
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Union
 
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
 
 from flim.configs.analysis import AEAugmentConfig, AERunConfig, AETrainConfig
 from flim.core.config import Issue
@@ -24,6 +27,13 @@ from flim.core.tool import Tool, pyplot_lock
 from flim.core.columns import free_names
 from flim.core.types import FileType, OutputSpec, PlotType, TableType
 from flim.tools.common import category_columns, selected_features
+
+if TYPE_CHECKING:  # torch, scikit-learn and matplotlib are imported when a tool runs
+    import torch
+    from matplotlib.figure import Figure
+    from sklearn.impute import SimpleImputer
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +47,15 @@ ENCODED_SIZE = {
 
 
 def combinations(config: AETrainConfig) -> list[tuple]:
-    """(batch size, learning rate, weight decay) of each model to train."""
+    """Return the (batch size, learning rate, weight decay) of each model to train.
+
+    Args:
+        config: The config; every combination of its `batch_sizes`,
+            `learning_rates` and `weight_decays` is a model.
+
+    Returns:
+        The combinations, in the order of the config's lists.
+    """
     return list(
         itertools.product(
             config.batch_sizes, config.learning_rates, config.weight_decays
@@ -45,9 +63,13 @@ def combinations(config: AETrainConfig) -> list[tuple]:
     )
 
 
-def _train_names(categories, features, encoded_size):
-    """The names AE Train gives its label column and its new columns: numbered if a
-    category column of the input already has them (free_names)."""
+def _train_names(
+    categories: Sequence[str], features: Sequence[str], encoded_size: int
+) -> tuple[str, list[str], list[str]]:
+    """Return the names of AE Train's label, reconstructed and encoded columns.
+
+    A name that a category column has already is numbered (see `free_names`).
+    """
     (label,) = free_names(["Autoencoder"], categories)
     taken = list(categories) + [label]
     recon = free_names([f"AE Recon {f}" for f in features], taken)
@@ -55,7 +77,10 @@ def _train_names(categories, features, encoded_size):
     return label, recon, encoded
 
 
-def _schema_columns(categories, names, role="feature"):
+def _schema_columns(
+    categories: Sequence[ColumnInfo], names: Sequence[str], role: str = "feature"
+) -> list[ColumnInfo]:
+    """Return the category columns, then a float32 column per name, for a schema."""
     category_columns_ = [
         ColumnInfo(name=c.name, role="category", dtype="category", levels=c.levels)
         for c in categories
@@ -68,33 +93,43 @@ def _schema_columns(categories, names, role="feature"):
 class _Rows:
     """Rows of features with their labels, for torch's DataLoader."""
 
-    def __init__(self, data, labels):
+    def __init__(self, data: ArrayLike, labels: ArrayLike) -> None:
         self.data = np.asarray(data)
         self.labels = np.asarray(labels)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> tuple[np.ndarray, np.ndarray]:
         return self.data[index], self.labels[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
 
-def _torch_device(name: str):
+def _torch_device(name: str) -> "torch.device":
+    """Return the torch device of a name, e.g. `cpu` or `cuda`; imports torch."""
     import torch
 
     return torch.device(name)
 
 
-def _skip_gpu_check_on_cpu(optimizer, device):
-    """Replaces the optimizer's CUDA-graph health check by a no-op on the CPU (#143).
+def _skip_gpu_check_on_cpu(
+    optimizer: "torch.optim.Optimizer", device: "torch.device"
+) -> "torch.optim.Optimizer":
+    """Replace the optimizer's CUDA-graph health check by a no-op on the CPU (#143).
 
-    PyTorch's ``optimizer.step()`` asks whether a GPU is available for this check,
-    whatever device the model is on (PyTorch 2.11: ``torch.cuda.is_available()``,
-    2.14: ``torch.accelerator.current_accelerator(check_available=True)``). On a CUDA
+    PyTorch's `optimizer.step()` asks whether a GPU is available for this check,
+    whatever device the model is on (PyTorch 2.11: `torch.cuda.is_available()`,
+    2.14: `torch.accelerator.current_accelerator(check_available=True)`). On a CUDA
     build that initialises CUDA and can warn although the CPU was selected. On the
     CPU there is no graph to check. The attribute is private PyTorch API: if it is
-    renamed, nothing is replaced and ``test_cpu_never_touches_cuda`` fails. Returns
-    ``optimizer``."""
+    renamed, nothing is replaced and `test_cpu_never_touches_cuda` fails.
+
+    Args:
+        optimizer: The optimizer, changed in place.
+        device: The device of the model.
+
+    Returns:
+        `optimizer`.
+    """
     if device.type == "cpu" and hasattr(optimizer, "_accelerator_graph_capture_health_check"):
         optimizer._accelerator_graph_capture_health_check = lambda: None
     return optimizer
@@ -102,6 +137,8 @@ def _skip_gpu_check_on_cpu(optimizer, device):
 
 @register_tool
 class AETraining(Tool[AETrainConfig]):
+    """Trains autoencoder models of the features and saves them to files."""
+
     name = "Autoencoder: Train"
     category = "Analysis"
     description = (
@@ -112,7 +149,23 @@ class AETraining(Tool[AETrainConfig]):
     )
     icon = "aetrain.png"
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: AETrainConfig) -> dict[str, Any]:
+        """Train and save a model for each combination of the training settings.
+
+        The models are saved in the run's results folder, or without one in a new
+        temporary folder (with a warning in the log). See `train`.
+
+        Args:
+            data: The table.
+            config: The features; the grouping columns and the time series column;
+                the lists `batch_sizes`, `learning_rates` and `weight_decays`, whose
+                combinations are the models; and the training settings (see
+                `train`).
+
+        Returns:
+            The results of `train` for each model; `Model File` lists the files of
+            all models.
+        """
         output_dir = self.context.output_dir
         if not output_dir:
             output_dir = Path(tempfile.mkdtemp(prefix="flim-autoencoder-"))
@@ -130,7 +183,8 @@ class AETraining(Tool[AETrainConfig]):
                 results[key] = value
         return results
 
-    def map_configs(self, config):
+    def map_configs(self, config: AETrainConfig) -> list[AETrainConfig]:
+        """Return one config per model, so that the models train as separate tasks."""
         return [
             config.model_copy(
                 update={
@@ -142,7 +196,23 @@ class AETraining(Tool[AETrainConfig]):
             for b, lr, wd in combinations(config)
         ]
 
-    def _datasets(self, data, config, batch_size):
+    def _datasets(
+        self, data: pd.DataFrame, config: AETrainConfig, batch_size: int
+    ) -> tuple[
+        "torch.utils.data.DataLoader",
+        "torch.utils.data.DataLoader",
+        "MinMaxScaler",
+        "SimpleImputer",
+        "defaultdict[str, LabelEncoder]",
+    ]:
+        """Return the training and validation loaders, the scaler, imputer and encoders.
+
+        The groups of the grouping columns (except the time series column), or the
+        rows without grouping columns, are split randomly into training and
+        validation. The features are scaled to 0..1 and missing values set to 0, both
+        fitted on the training rows. The category columns are encoded as integers, the
+        loaders' labels.
+        """
         import torch
         from sklearn import preprocessing
         from sklearn.impute import SimpleImputer
@@ -209,7 +279,8 @@ class AETraining(Tool[AETrainConfig]):
         ]
         return loaders[0], loaders[1], scaler, imputer, encoders
 
-    def _new_model(self, config):
+    def _new_model(self, config: AETrainConfig) -> "torch.nn.Module":
+        """Return a new model of the config's architecture, seeded by `random_seed`."""
         import torch
 
         import flim.analysis.ml.autoencoder as autoencoder
@@ -225,7 +296,45 @@ class AETraining(Tool[AETrainConfig]):
                 model_class, nb_param=len(config.features)
             )
 
-    def train(self, data, config, batch_size, learning_rate, weight_decay, output_dir):
+    def train(
+        self,
+        data: pd.DataFrame,
+        config: AETrainConfig,
+        batch_size: int,
+        learning_rate: float,
+        weight_decay: float,
+        output_dir: str | os.PathLike,
+    ) -> dict[str, Any]:
+        """Train one model and save its checkpoints.
+
+        The model trains with RMSprop on the mean squared error of the reconstructed
+        features, for `epochs` epochs. A checkpoint is saved every
+        `checkpoint_interval` epochs and after the last epoch, as a scikit-learn
+        pipeline of the scaler, the imputer and the model, in
+        `<model_name>_<batch size>_<learning rate>_<weight decay>_epoch<n>.model`.
+
+        Args:
+            data: The table.
+            config: The features, the grouping and time series columns, `epochs`,
+                `architecture`, `train_size`, `checkpoint_interval`, `model_name`,
+                `rescale_output`, `create_plots` and `random_seed`.
+            batch_size: The number of rows per batch.
+            learning_rate: The optimizer's learning rate.
+            weight_decay: The optimizer's weight decay.
+            output_dir: The folder of the model files.
+
+        Returns:
+            With the label `<batch size>-<learning rate>-<weight decay>`:
+            `AE Loss-<label>`: the training and validation loss per epoch, and the
+            model file of each checkpoint (`---` for other epochs).
+            `AE Decoded-<label>`, `AE Encoded-<label>`: the last epoch's
+            reconstructed features (rescaled to the input's range if
+            `rescale_output`) and encoder outputs, with the category columns and a
+            column `Autoencoder` (`training` or `validation`; numbered if a category
+            column has the name). With `create_plots`,
+            `AE Loss-<label> Plot`. Each checkpoint's pipeline, by file name.
+            `Model File`: the paths of the files.
+        """
         import torch
         import torch.nn as nn
         import torch.optim as optim
@@ -365,7 +474,16 @@ class AETraining(Tool[AETrainConfig]):
         return results
 
     @staticmethod
-    def loss_plot(loss_train, loss_val):
+    def loss_plot(loss_train: Sequence[float], loss_val: Sequence[float]) -> "Figure":
+        """Return a plot of the training and validation loss per epoch.
+
+        Args:
+            loss_train: The training loss of each epoch.
+            loss_val: The validation loss of each epoch.
+
+        Returns:
+            The figure.
+        """
         import matplotlib.pyplot as plt
         from matplotlib.ticker import MaxNLocator
 
@@ -385,7 +503,14 @@ class AETraining(Tool[AETrainConfig]):
         return figure
 
     @classmethod
-    def output_schema(cls, config, inputs):
+    def output_schema(
+        cls, config: AETrainConfig, inputs: Sequence[Any]
+    ) -> dict[str, OutputSpec]:
+        """Return the outputs of each model without training: see `train`.
+
+        The model files' pipelines are not included. The decoded and encoded tables'
+        schemas are complete only if the input schema is.
+        """
         schema = inputs[0] if inputs else None
         categories = (
             []
@@ -446,12 +571,14 @@ class AETraining(Tool[AETrainConfig]):
         return outputs
 
     @classmethod
-    def validate(cls, config, inputs):
+    def validate(cls, config: AETrainConfig, inputs: Sequence[Any]) -> list[Issue]:
+        """Check the config; the number of features is checked by `Tool.validate`."""
         # too few features: min_features, checked by Tool.validate
         return super().validate(config, inputs)
 
 
-def _load_model(path, device):
+def _load_model(path: str | os.PathLike, device: "torch.device") -> "Pipeline":
+    """Load a model file's pipeline, with the autoencoder on `device`."""
     from joblib import load
 
     pipeline = load(path)
@@ -462,13 +589,19 @@ def _load_model(path, device):
 class _ModelTool:
     """Runs once per model file; outputs are named after the files."""
 
-    def map_configs(self, config):
+    def map_configs(
+        self, config: Union[AERunConfig, AEAugmentConfig]
+    ) -> list[Union[AERunConfig, AEAugmentConfig]]:
+        """Return one config per model file, so that the files run as separate tasks."""
         return [
             config.model_copy(update={"model_files": [f]}) for f in config.model_files
         ]
 
     @classmethod
-    def validate(cls, config, inputs):
+    def validate(
+        cls, config: Union[AERunConfig, AEAugmentConfig], inputs: Sequence[Any]
+    ) -> list[Issue]:
+        """Check the config; no model file is an error."""
         issues = super().validate(config, inputs)
         if not config.model_files:
             issues.append(Issue("model_files", "Select at least one model file"))
@@ -478,19 +611,49 @@ class _ModelTool:
 
 @register_tool
 class RunAE(_ModelTool, Tool[AERunConfig]):
+    """Runs trained autoencoder models on the features."""
+
     name = "Autoencoder: Run"
     category = "Analysis"
     description = "Runs trained autoencoder models on the selected features."
     icon = "aerun.png"
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: AERunConfig) -> dict[str, Any]:
+        """Run each model file on the selected features.
+
+        Args:
+            data: The table.
+            config: The features, in the order the models were trained with, and the
+                model files (`model_files`).
+
+        Returns:
+            The results of `run_model` for each model file.
+        """
         results = {}
         for path in config.model_files:
             self.check_cancelled()
             results.update(self.run_model(data, config, str(path)))
         return results
 
-    def run_model(self, data, config, path):
+    def run_model(
+        self, data: pd.DataFrame, config: AERunConfig, path: str
+    ) -> dict[str, pd.DataFrame]:
+        """Run one model file on the selected features.
+
+        Missing values are set to 0 after scaling, as in training.
+
+        Args:
+            data: The table.
+            config: The features.
+            path: The model file.
+
+        Returns:
+            With the file name `<name>`: `Reconstructed-<name>`: the category columns
+            and the reconstructed features, `Recon Feature 1`, `Recon Feature 2`, and
+            so on, in the model's scaled units. `Features-<name>`: the category
+            columns and the encoder outputs, `Feature 1`, `Feature 2`, and so on.
+            Names that a category column has already are numbered.
+        """
         import torch
 
         values = data[selected_features(data, config.features)].astype(float)
@@ -537,7 +700,14 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
         }
 
     @classmethod
-    def output_schema(cls, config, inputs):
+    def output_schema(
+        cls, config: AERunConfig, inputs: Sequence[Any]
+    ) -> dict[str, OutputSpec]:
+        """Return the outputs of each model file without running the models.
+
+        The encoded table's schema lists only the category columns and is
+        incomplete: the number of encoder outputs depends on the model.
+        """
         schema = inputs[0] if inputs else None
         categories = (
             []
@@ -573,6 +743,8 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
 
 @register_tool
 class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
+    """Creates simulated copies of the data with trained autoencoder models."""
+
     name = "Autoencoder: Augment Data"
     category = "Analysis"
     description = (
@@ -582,7 +754,22 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
     )
     icon = "aeaugment.png"
 
-    def run(self, data, *, config):
+    def run(self, data: pd.DataFrame, *, config: AEAugmentConfig) -> dict[str, Any]:
+        """Create simulated copies of the data with each model file.
+
+        Args:
+            data: The table.
+            config: The features; the grouping columns, whose last is renumbered in
+                each copy; the model files; the number of copies (`sets`);
+                `add_noise` and its signal-to-noise ratio (`snr_db`); and
+                `random_seed`.
+
+        Returns:
+            The results of `simulate` for each model file.
+
+        Raises:
+            ValueError: If no grouping column is selected.
+        """
         results = {}
         for path in config.model_files:
             self.check_cancelled()
@@ -590,15 +777,51 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
         return results
 
     @staticmethod
-    def noise_model(signal, snr_db):
-        """Mean (0) and standard deviation of white noise for ``snr_db``, per column of
-        ``signal``: each column's signal power is the mean of its squared values."""
+    def noise_model(
+        signal: pd.DataFrame, snr_db: float
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return the mean and standard deviation of white noise, per column.
+
+        Each column's signal power is the mean of its squared values.
+
+        Args:
+            signal: The values, a column per feature.
+            snr_db: The signal-to-noise ratio, in dB.
+
+        Returns:
+            The means (zeros) and the standard deviations, one per column.
+        """
         signal_avg_db = 10 * np.log10((signal**2).mean().to_numpy())
         noise_avg_power = 10 ** ((signal_avg_db - snr_db) / 10)
         std_noise = np.sqrt(noise_avg_power)
         return np.zeros(std_noise.shape), std_noise
 
-    def simulate(self, data, config, path):
+    def simulate(
+        self, data: pd.DataFrame, config: AEAugmentConfig, path: str
+    ) -> dict[str, pd.DataFrame]:
+        """Create `sets` simulated copies of the data with one model file.
+
+        Each copy is the model's reconstruction of the features, with white noise
+        added first if `add_noise`, rescaled to the input's range. The last grouping
+        column is renumbered: if its values are integers, copy n (counted from 0)
+        adds n times (largest value + 1), otherwise `.<n>` is appended. Amplitude
+        columns such as `FAD a1`, `FAD a2` get relative amplitude columns, e.g.
+        `FAD a1%`, in percent of their sum; a column of the input whose name contains
+        the amplitude's name and `%` but no `/` gives its name.
+
+        Args:
+            data: The table.
+            config: The features, the grouping columns, `sets`, `add_noise`,
+                `snr_db` and `random_seed`.
+            path: The model file.
+
+        Returns:
+            `Simulated-<file name>`: the copies, one below the other: the category
+            columns, then the other columns sorted by name.
+
+        Raises:
+            ValueError: If no grouping column is selected.
+        """
         if not config.grouping:
             raise ValueError(
                 f"{self.name}: select the grouping columns (the last is renumbered)"
@@ -668,7 +891,10 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
         return {f"Simulated-{os.path.basename(path)}": simulated}
 
     @classmethod
-    def output_schema(cls, config, inputs):
+    def output_schema(
+        cls, config: AEAugmentConfig, inputs: Sequence[Any]
+    ) -> dict[str, OutputSpec]:
+        """Return a table per model file; their schemas are unknown."""
         return {
             f"Simulated-{os.path.basename(str(p))}": OutputSpec(
                 f"Simulated-{os.path.basename(str(p))}",
@@ -679,6 +905,9 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
         }
 
     @classmethod
-    def validate(cls, config, inputs):
+    def validate(
+        cls, config: AEAugmentConfig, inputs: Sequence[Any]
+    ) -> list[Issue]:
+        """Check the config; `Tool.validate` checks the number of grouping columns."""
         # too few grouping columns: min_grouping, checked by Tool.validate
         return super().validate(config, inputs)
