@@ -810,8 +810,9 @@ def grouped_meanbarplot(
         bartype: `single`, `stacked`, or `100% stacked` (each stack scaled to 100%
             of the sum of the absolute means). Defaults to `single`.
         categories: The grouping columns; None or empty for no grouping.
-        dropna: Whether rows with a missing value of a feature are left out (grouped
-            plots only). Defaults to True.
+        dropna: Whether rows with a missing value of any feature are left out, so
+            that the means of all features come from the same rows. Defaults to
+            True.
         pivot_level: The number of grouping columns that set the bars' colours.
             Defaults to 1.
         orientation: `horizontal` or `vertical` bars. Defaults to `horizontal`.
@@ -837,14 +838,17 @@ def grouped_meanbarplot(
     if categories is None:
         categories = []
     if len(categories) == 0:
+        values = data[list(feature)]
+        if dropna:
+            values = values.dropna(how="any")
         mean = pd.DataFrame(columns=feature)
-        mean.loc[0] = data[feature].mean()
+        mean.loc[0] = values.mean()
         if error_bar != "None":
             error = pd.DataFrame(columns=feature)
             if error_type == "std":
-                error.loc[0] = data[feature].std()
+                error.loc[0] = values.std()
             else:
-                error.loc[0] = data[feature].sem()
+                error.loc[0] = values.sem()
         else:
             error = None
         if bartype == "100% stacked":
