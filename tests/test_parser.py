@@ -1,5 +1,16 @@
+import importlib
+import sys
+
+import pytest
+
+with pytest.warns(DeprecationWarning):
+    from flim.core import parser
 from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE
-from flim.core import parser
+
+
+def test_import_warns_that_the_module_is_deprecated():
+    with pytest.warns(DeprecationWarning, match="removed in 0.8.0"):
+        importlib.reload(sys.modules["flim.core.parser"])
 
 
 def test_fov_treatment_cell_parser():

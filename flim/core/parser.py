@@ -1,15 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""File name parsers: regular expressions that take category values from file paths."""
+"""File name parsers: regular expressions that take category values from file paths.
+
+Deprecated: importing this module issues a `DeprecationWarning`. It is removed in
+0.8.0. Separate Categories (`flim.core.categories.separate_by_patterns`, with the
+built-in presets of `flim.core.categories.separate_presets`) replaces it.
+"""
 
 import logging
 import os
 import re
 import importlib
 import pkgutil
+import warnings
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+warnings.warn(
+    "flim.core.parser is deprecated and is removed in 0.8.0; use Separate Categories"
+    " (flim.core.categories.separate_by_patterns and separate_presets) instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def get_available_parsers(
