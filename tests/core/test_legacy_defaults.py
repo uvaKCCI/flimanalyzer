@@ -21,6 +21,7 @@ PLUGIN_DEFAULTS = json.loads(
 CHANGED_DEFAULTS = {
     "Merge": {"how": "inner"},  # "" fails in pandas
     "Frequency Histogram": {"featuresettings": {}},  # list entries were never read
+    "Unpivot": {"missing_label": "none"},  # new: columns with fewer header lines
 }
 
 

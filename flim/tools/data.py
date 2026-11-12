@@ -415,25 +415,50 @@ class Unpivot(Tool[UnpivotConfig]):
     # the value column of single-line columns (no other level names it)
     VALUE = "Value"
 
+    @staticmethod
+    def lines(column, depth: int) -> list[str]:
+        """Return a column's header lines, padded with empty ones at the end to
+        `depth` lines (e.g. `FLIRR` next to `FLIRR / standardized`)."""
+        parts = headers.split(column)
+        return parts + [""] * (depth - len(parts))
+
+    @classmethod
+    def validate_data(cls, config, tables):
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None:
+            return []
+        columns = selected_features(table, config.features)
+        depth = headers.depth(columns)
+        shorter = [c.replace("\n", " / ") for c in columns if len(headers.split(c)) < depth]
+        if not shorter:
+            return []
+        named = ", ".join(f"'{c}'" for c in shorter[:5]) + (", ..." if len(shorter) > 5 else "")
+        return [
+            Issue(
+                "missing_label",
+                f"{named} {'has' if len(shorter) == 1 else 'have'} fewer header"
+                f" lines than the other columns: the missing lines count as"
+                f" '{config.missing_label}'",
+                "warning",
+            )
+        ]
+
     def run(self, data, *, config):
         categories = category_columns(data)
         columns = selected_features(data, config.features)
         if not columns:
             raise ValueError(f"{self.name}: select the columns to unpivot")
         depth = headers.depth(columns)
-        if any(len(headers.split(c)) != depth for c in columns):
-            raise ValueError(
-                f"{self.name}: the columns have different numbers of header lines"
-            )
         names = headers.names_for(depth, headers.level_names(data))
         index = headers.level_index(config.level, names)
         category = unique_name(config.category_name or "", names[index], categories)
         # level value -> {value column: input column}, in the columns' order
         values: dict = {}
         for column in columns:
-            parts = headers.split(column)
-            value = parts.pop(index)
-            values.setdefault(value, {})[headers.join(parts) or self.VALUE] = column
+            parts = self.lines(column, depth)
+            value = parts.pop(index) or config.missing_label
+            name = headers.join([p for p in parts if p])
+            values.setdefault(value, {})[name or self.VALUE] = column
         # value column names that a category column has are numbered
         wanted = list(dict.fromkeys(n for s in values.values() for n in s))
         value_names = dict(zip(wanted, free_names(wanted, categories + [category])))

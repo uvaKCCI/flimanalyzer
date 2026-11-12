@@ -295,11 +295,19 @@ def test_unpivot_without_recorded_levels(data):
         Unpivot().run(pivoted, config=UnpivotConfig(level="Treatment"))
 
 
-def test_unpivot_needs_the_same_number_of_header_lines(data):
-    pivoted = table(Pivot()(data, config=PivotConfig(grouping=["Treatment"])))
-    pivoted["t3"] = 1.0
-    with pytest.raises(ValueError, match="different numbers of header lines"):
-        Unpivot().run(pivoted, config=UnpivotConfig())
+def test_unpivot_fills_missing_header_lines():
+    """A column with fewer header lines (FLIRR next to FLIRR / standardized, after
+    Scale with Keep original): its missing line gets the label."""
+    data = pd.DataFrame({
+        "FOV": pd.Categorical(["1", "2"]), "FLIRR": [1.0, 2.0], "FLIRR\nstandardized": [-1.0, 1.0],
+    })  # fmt: skip
+    config = UnpivotConfig(category_name="Scaling mode", missing_label="original")
+    df = table(Unpivot()(data, config=config))
+    assert list(df.columns) == ["FOV", "Scaling mode", "FLIRR"]
+    assert list(df["Scaling mode"]) == ["original", "original", "standardized", "standardized"]
+    assert list(df["FLIRR"]) == [1.0, 2.0, -1.0, 1.0]
+    (issue,) = Unpivot.validate_data(UnpivotConfig(), [data])
+    assert issue.field == "missing_label" and "'FLIRR'" in issue.message and "'none'" in issue.message
 
 
 def test_unique_name():

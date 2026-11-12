@@ -426,6 +426,14 @@ class UnpivotConfig(DataTaskConfig):
         title="Category column",
         description="Name of the new category column; empty: the level's name.",
     )
+    missing_label: str = Field(
+        default="none",
+        title="Label for a missing line",
+        description="The category value of a column whose header has fewer lines than"
+        " the others (e.g. FLIRR next to FLIRR / standardized, after Scale): its"
+        " missing last lines count as empty, and an empty level gets this label, e.g."
+        " original.",
+    )
 
     @classmethod
     def _from_legacy(cls, params):
