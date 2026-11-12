@@ -1084,14 +1084,21 @@ class AppFrame(wx.Frame):
         data_choices.update(self.get_alldata())
         return {name: TableType.snapshot(table) for name, table in data_choices.items()}
 
-    def run_tool(self, tool):
+    def run_tool(self, tool, current=None):
         """Configures a tool in its dialog and runs it on the selected tables.
 
         The dialog's config and run settings are stored for the tool. The run shows a
         progress dialog; afterwards a window opens for each result table and figure, or,
         for a workflow, the graph of its tasks and a run summary.
+
+        Args:
+            tool: The tool (class).
+            current: The title of the window whose table the dialog selects first;
+                None: the current window's.
         """
         data_choices = self.tool_data_choices()
+        if current in data_choices:  # first: the dialog selects it
+            data_choices = {current: data_choices[current], **data_choices}
         if not data_choices:
             wx.MessageBox("Open or import data first.", tool.name, wx.OK)
             return
@@ -1320,6 +1327,7 @@ class AppFrame(wx.Frame):
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
                 on_filters_changed=self.report_filters,
+                on_run_tool=lambda name, window: self.run_tool(tools.get(name), current=window),
             )
             frame.set_modified(event.IsModified())
             frame.Show(True)

@@ -37,15 +37,6 @@ def _open(frame, data, title="Data"):
     return frame.windows_by_title()[title]
 
 
-def _answer_group_dialogs(monkeypatch, *answers):
-    """SelectGroupsDlg: OK, with the given selections in order."""
-    from flim.gui.dialogs import SelectGroupsDlg
-
-    answers = list(answers)
-    monkeypatch.setattr(SelectGroupsDlg, "ShowModal", lambda dlg: wx.ID_OK)
-    monkeypatch.setattr(SelectGroupsDlg, "get_selected", lambda dlg: list(answers.pop(0)))
-
-
 def _answer_file_dialog(monkeypatch, path):
     monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
     monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(path))
@@ -88,11 +79,27 @@ def _new_windows(frame, before):
     return {t: w for t, w in frame.windows_by_title().items() if t not in before}
 
 
-def test_pivot(frame, monkeypatch, flim_data):
+def test_pivot_button_runs_the_pivot_tool(frame, monkeypatch, prefect_harness, flim_data):
+    from flim.configs import PivotConfig
+    from flim.core.runner import CancelToken
+    from flim.gui import configdialog
+
     window = _open(frame, flim_data)
-    _answer_group_dialogs(monkeypatch, ["Treatment"], [FEATURE])
+
+    def show(dialog):
+        assert dialog.tool.name == "Pivot" and dialog.selected_names() == ["Data"]
+        dialog.set_values(PivotConfig(grouping=["Treatment"], features=[FEATURE]))
+        dialog.autosave.SetValue(False)
+        dialog.validate()
+        return wx.ID_OK
+
+    monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", show)
+    monkeypatch.setattr(
+        frame, "run_with_progress",
+        lambda title, start: start(CancelToken(), lambda *a: None, lambda run: None),
+    )  # fmt: skip
     before = set(frame.windows_by_title())
-    window.pivot_(window.GetViewData())
+    window.OnPivotView(None)
     (pivoted,) = _new_windows(frame, before).values()
     table = pivoted.GetViewData()
     assert {f"{FEATURE}\nWT", f"{FEATURE}\nKO"} <= set(table.columns)
@@ -630,8 +637,8 @@ def test_favorites_choose_the_tool_panel(frame, monkeypatch):
     frame.set_favorites(["Box Plot", "not a tool", "Calculate"])
     # each in its menu's group; the groups in menu order, without empty ones
     groups = _panel_groups(frame)
-    assert groups == {"File": ["Open Tables", "Import Tables"], "Data": ["Calculate"], "Plot": ["Box Plot"]}
-    assert list(groups) == ["File", "Data", "Plot"]
+    assert groups == {"File": ["Open Tables", "Import Tables"], "Analysis": ["Calculate"], "Plot": ["Box Plot"]}
+    assert list(groups) == ["File", "Analysis", "Plot"]
     assert frame.settings.favorites == ["Box Plot", "not a tool", "Calculate"]
     # the dialog: the favorites first, checked; the order and the checks it returns
     shown = {}
@@ -661,3 +668,20 @@ def test_window_menu_lists_each_window_once(frame, flim_data):
         assert menu == ["Close all windows"]
     else:
         assert menu == ["Close all windows", "cells"]
+
+
+def test_unpivot_button_runs_the_tool_on_this_table(frame, monkeypatch, flim_data):
+    from flim.gui import configdialog
+
+    first = _open(frame, flim_data, "first")
+    _open(frame, flim_data, "second")  # the current window now
+    seen = {}
+
+    def show(dialog):
+        seen["tool"], seen["selected"] = dialog.tool.name, dialog.selected_names()
+        return wx.ID_CANCEL
+
+    monkeypatch.setattr(configdialog.ConfigDialog, "ShowModal", show)
+    assert first.unpivotbutton.IsShown()
+    first.OnUnpivot(None)
+    assert seen == {"tool": "Unpivot", "selected": ["first"]}

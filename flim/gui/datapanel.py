@@ -183,6 +183,7 @@ class PandasFrame(wx.Frame):
         precision=3,
         enableclose=True,
         on_filters_changed=None,
+        on_run_tool=None,
     ):
         """
         Args:
@@ -190,10 +191,14 @@ class PandasFrame(wx.Frame):
                 windows (default: the built-in defaults, not shared).
             on_filters_changed: called with ``filters`` after the user changes them
                 (filter checkbox, Filter Settings dialog).
+            on_run_tool: called with a tool's name and this window's title to run
+                the tool on this window's table in its dialog (Pivot, Unpivot); None:
+                the window has no such buttons.
         """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
         self.filters = filters if filters is not None else window_filters(AppSettings.default())
         self.on_filters_changed = on_filters_changed
+        self.on_run_tool = on_run_tool
         self.enableclose = enableclose
         self.grid = None
         self.SetData(data, showcolindex, groups, analyzable, savemodified, precision)
@@ -300,8 +305,15 @@ class PandasFrame(wx.Frame):
         self.filterbutton.Enable(self.filtercb.GetValue())
         self.filterbutton.Bind(wx.EVT_BUTTON, self.OnFilterSettings)
 
-        pivotviewbutton = wx.Button(self, wx.ID_ANY, "Pivot")
+        pivotviewbutton = wx.Button(self, wx.ID_ANY, "Pivot...")
+        pivotviewbutton.SetToolTip("The Pivot tool on this table: category values become columns")
         pivotviewbutton.Bind(wx.EVT_BUTTON, self.OnPivotView)
+        pivotviewbutton.Show(self.on_run_tool is not None)
+
+        self.unpivotbutton = wx.Button(self, wx.ID_ANY, "Unpivot...")
+        self.unpivotbutton.SetToolTip("The Unpivot tool on this table: a header line becomes a category column")
+        self.unpivotbutton.Bind(wx.EVT_BUTTON, self.OnUnpivot)
+        self.unpivotbutton.Show(self.on_run_tool is not None)
 
         saveallbutton = wx.Button(self, wx.ID_ANY, SAVE_ALL_ROWS)
         saveallbutton.Bind(wx.EVT_BUTTON, self.OnSave)
@@ -319,6 +331,7 @@ class PandasFrame(wx.Frame):
         toolsizer.Add(self.filtercb, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(self.filterbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(pivotviewbutton, 0, wx.ALL | wx.EXPAND, 5)
+        toolsizer.Add(self.unpivotbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(saveallbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(saveviewbutton, 0, wx.ALL | wx.EXPAND, 5)
 
@@ -660,60 +673,16 @@ class PandasFrame(wx.Frame):
             self.grid.SetColSize(colindex, width + 20)
             colindex += 1
 
-    def OnPivotAll(self, event):
-        self.pivot_(self.data)
+    def OnUnpivot(self, event):
+        """Run the Unpivot tool on this window's table, in the tool's dialog."""
+        if self.on_run_tool is not None:
+            self.on_run_tool("Unpivot", self.GetTitle())
 
     def OnPivotView(self, event):
-        self.pivot_(self.dataview)
-
-    def pivot_(self, usedata):
-        dlg = SelectGroupsDlg(
-            self, title="Pivot data: Groups to pivot", groups=self.groups
-        )
-        if dlg.ShowModal() == wx.ID_CANCEL:
-            dlg.Destroy()
-            return
-        selgroups = dlg.get_selected()
-        dlg.Destroy()
-        valcols = [col for col in usedata.columns.values if col not in self.groups]
-        dlg = SelectGroupsDlg(
-            self, title="Pivot data: Columns to retain", groups=valcols
-        )
-        if dlg.ShowModal() == wx.ID_CANCEL:
-            dlg.Destroy()
-            return
-        selcolumns = dlg.get_selected()
-        dlg.Destroy()
-        logger.debug(usedata.head())
-        if len(selgroups) > 0:
-            indexgroups = [
-                g
-                for g in usedata.columns.values
-                if g in self.groups and g not in selgroups
-            ]
-            logger.debug(f"index groups: {indexgroups}")
-            logger.debug(f"pivoting {selgroups} in {self.groups}")
-            pivot_data = usedata.reset_index()
-            selcolumns.extend(self.groups)
-            pivot_data = pd.pivot_table(
-                pivot_data[selcolumns], index=indexgroups, columns=selgroups, observed=False
-            )
-            # flatten multiindex in column headers
-            pivot_data.columns = [
-                "\n".join(col).strip() for col in pivot_data.columns.values
-            ]
-
-            pivot_data = pivot_data.reset_index()
-            windowtitle = self.GetTitle()
-            event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
-            event.SetEventInfo(
-                pivot_data,
-                windowtitle,
-                "createnew",
-                showcolindex=False,
-                analyzable=True,
-            )
-            self.GetEventHandler().ProcessEvent(event)
+        """Run the Pivot tool on this window's table (the rows it shows), in the
+        tool's dialog."""
+        if self.on_run_tool is not None:
+            self.on_run_tool("Pivot", self.GetTitle())
 
     def OnViewAll(self, event):
         if len(self.droppedrows) > 0:

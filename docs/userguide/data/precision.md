@@ -9,4 +9,5 @@ The `Precision` field in each table window sets the number of decimal places sho
 ## Other controls of the table window
 
 * `Autosize Cols` makes each column as wide as its contents.
+* `Pivot...` and `Unpivot...` open the [Pivot](pivot.md) and [Unpivot](unpivot.md) dialogs for the window's table (the rows it shows).
 * Double-click the header of a category column to rename its values. In the `<column>: Pattern Rename` dialog, enter a pattern (a regular expression) under `Pattern match` and the text that replaces it under `Replacement`. The pattern is replaced in every value of the column. The default pattern `^0+` removes leading zeros, so `007` becomes `7`.

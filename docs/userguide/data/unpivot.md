@@ -8,7 +8,7 @@ Unpivoting reverses [pivoting](pivot.md): it moves one line of the column header
 
 Column headers made by tools can have several lines, one per *level*. Pivoting the `Treatment` column gives headers such as `FLIRR` / `ctrl` (line 1: the feature, line 2: the treatment); a summary gives headers such as `FLIRR` / `mean` (line 1: the feature, line 2: the statistic). The tools that make such headers record the names of their levels (`Feature`, `Treatment`, `Statistic`).
 
-1. Select `Data` > `Unpivot`.
+1. Select `Data` > `Unpivot`, or click `Unpivot...` in the table window to unpivot its table (the dialog opens with it selected).
 
 2. Under `Columns`, check the columns to unpivot.
 
@@ -16,7 +16,7 @@ Column headers made by tools can have several lines, one per *level*. Pivoting t
 
 4. Optionally, enter a name for the new category column under `Category column`; by default it is named after the level.
 
-    A column with fewer header lines than the others, for example `FLIRR` next to `FLIRR` / `standardized` after [Scale](scale.md) with `Keep original` checked, counts as having empty last lines. In the new category column, its rows get the value of `Label for a missing line` (default `none`; for example `original`). The dialog warns which columns have fewer lines. With `Category column` `Scaling mode` and the label `original`, the table has one `FLIRR` column and `Scaling mode` `original` or `standardized`.
+    A column with fewer header lines than the others, for example `FLIRR` next to `FLIRR` / `standardized` after [Scale](/userguide/analysis/scale.md) with `Keep original` checked, counts as having empty last lines. In the new category column, its rows get the value of `Label for a missing line` (default `none`; for example `original`). The dialog warns which columns have fewer lines. With `Category column` `Scaling mode` and the label `original`, the table has one `FLIRR` column and `Scaling mode` `original` or `standardized`.
 
 5. Click `OK`.
 
