@@ -859,3 +859,31 @@ def test_separate_shows_only_the_modes_fields(wxapp):
         assert fields.editors["template"].get() == "{A}"
     finally:
         d.Destroy()
+
+
+def test_spaces_in_values_are_kept(wxapp):
+    """Rename's new texts ('trp ') and Fuse's delimiter (' - ') keep their spaces; the
+    dialog trimmed them, which renamed Exc1_-Ch1-_t1 to trpt1."""
+    from flim.configs.data import FuseCategoriesConfig, RenameColumnsConfig
+    from flim.core.fields import describe
+    from flim.core.registry import tools
+    from flim.gui.configdialog import dialog_class
+    from flim.gui.editors import editor_for
+
+    tool = tools.get("Rename Columns")
+    data = pd.DataFrame({"Exc1_-Ch1-_t1": [1.0]})
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: d": data})
+    try:
+        config, _ = d.current_config()
+        assert config.replacements == RenameColumnsConfig().replacements
+        assert config.replacements[0].new == "trp "
+    finally:
+        d.Destroy()
+    frame = wx.Frame(None)
+    try:
+        spec = next(s for s in describe(FuseCategoriesConfig) if s.name == "delimiter")
+        editor = editor_for(FuseCategoriesConfig, spec)(frame, spec)
+        editor.control.SetValue(" - ")
+        assert editor.get() == " - "
+    finally:
+        frame.Destroy()

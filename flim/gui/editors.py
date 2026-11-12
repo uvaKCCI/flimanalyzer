@@ -809,6 +809,8 @@ class ModelsEditor(_RowIssues, Editor):
             return ", ".join(str(v) for v in value)
         if isinstance(value, dict):
             return ", ".join(f"{k}={v}" for k, v in value.items())
+        if getattr(column, "escapes", False):
+            return escape(str(value))
         return str(value)
 
     def _cell_value(self, column, text: str):
@@ -934,7 +936,12 @@ class ModelsEditor(_RowIssues, Editor):
         for row in range(self.grid.GetNumberRows()):
             values = {}
             for col, column in enumerate(self.columns):
-                text = self.grid.GetCellValue(row, col + self.offset).strip()
+                text = self.grid.GetCellValue(row, col + self.offset)
+                if getattr(column, "escapes", False):  # spaces are part of the value
+                    if text != "":
+                        values[column.name] = unescape(text)
+                    continue
+                text = text.strip()
                 if text != "":
                     values[column.name] = self._cell_value(column, text)
             key = self.grid.GetCellValue(row, 0).strip() if self.key_title else ""

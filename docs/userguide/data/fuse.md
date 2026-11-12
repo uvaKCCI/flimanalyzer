@@ -11,7 +11,7 @@ The `Fuse Categories` tool joins two or more category columns into one, for exam
 2. In the `Configuration: Fuse Categories` dialog, set:
 
     - `Columns to fuse`: the category columns (at least two), in the order their values are joined. Use `Up` and `Down` to change the order.
-    - `Delimiter` (default `:`): joins the column names and the values.
+    - `Delimiter` (default `:`): joins the column names and the values. Spaces count, for example ` - ` gives `1 - 2`; a tab is typed `\t`.
     - `New column`: the new column's name. Empty: the column names joined by the delimiter, for example `FOV:Cell`.
     - `Keep the original columns` (checked by default): unchecked, the fused columns are removed.
 

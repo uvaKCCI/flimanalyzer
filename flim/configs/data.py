@@ -488,7 +488,8 @@ class FuseCategoriesConfig(DataTaskConfig):
         min_length=1,
         title="Delimiter",
         description="Joins the column names and the values; Separate Categories"
-        " reverses it with the same delimiter.",
+        " reverses it with the same delimiter. Spaces count, e.g. ' - '; \\t is a tab.",
+        json_schema_extra={"escapes": True},
     )
     name: Optional[str] = Field(
         default=None,
@@ -580,8 +581,18 @@ class SeparateCategoriesConfig(DataTaskConfig):
 class Replacement(BaseConfig):
     """Replaces a part of the column names."""
 
-    part: str = Field(default="", title="Part", description="The text to replace.")
-    new: str = Field(default="", title="New text", description="Its replacement.")
+    part: str = Field(
+        default="",
+        title="Part",
+        description="The text to replace; spaces count (\\t: a tab).",
+        json_schema_extra={"escapes": True},
+    )
+    new: str = Field(
+        default="",
+        title="New text",
+        description="Its replacement; spaces count, e.g. 'trp ' gives 'trp t1'.",
+        json_schema_extra={"escapes": True},
+    )
 
 
 def _default_replacements() -> list:
