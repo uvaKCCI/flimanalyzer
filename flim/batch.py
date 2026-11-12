@@ -1,23 +1,23 @@
 """Batch mode: read data files and run tools or workflows on them without the GUI.
 
-``flimbatch -i <files or folders> -o <folder> [-s settings.json] (--run NAME |
---workflow FILE) ...``
+`flimbatch -i <files or folders> -o <folder> [-s settings.json] (--run NAME |
+--workflow FILE) ...`
 
-1. Reads the settings file given with ``-s`` (any version, see flim.core.settings),
+1. Reads the settings file given with `-s` (any version, see `flim.core.settings`),
    else the defaults; the user settings file is not used, so batch results don't
    depend on settings changed in the GUI.
-2. Reads each data file into a table, with ``Source`` (the file as a URI); nothing
+2. Reads each data file into a table, with `Source` (the file as a URI); nothing
    else is done to the data before the runs.
-3. Runs each ``--run`` (a tool, a code-defined workflow, or a workflow file by its
-   name) and ``--workflow`` (a workflow file) on the tables: a tool once per table
+3. Runs each `--run` (a tool, a code-defined workflow, or a workflow file by its
+   name) and `--workflow` (a workflow file) on the tables: a tool once per table
    (a tool that takes many tables, e.g. Concatenate, once on all), a workflow file as
    its steps say (each step once per table until a step joins them). A tool uses its
    settings from the settings file; a workflow file's steps carry their own. The
-   results are saved in ``<output>/<name>/``.
+   results are saved in `<output>/<name>/`.
 
-With ``--dry-run`` nothing runs: the first rows of each file are read and every run
+With `--dry-run` nothing runs: the first rows of each file are read and every run
 is checked against them. The exit code is 0 if every run completed without failed
-tasks (with ``--dry-run``: if no check found an error), 1 otherwise. wxPython is not
+tasks (with `--dry-run`: if no check found an error), 1 otherwise. wxPython is not
 imported.
 """
 
@@ -26,7 +26,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import canonical_folder, folder_problem
@@ -38,6 +38,12 @@ from flim.core.reader import ReadSettings, read_tables
 from flim.core.settings import AppSettings
 from flim.core.settingsmgr import session_settings
 
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from flim.core.runner import FlowRun
+    from flim.core.tool import Tool
+
 logger = logging.getLogger(__name__)
 
 DRY_RUN_ROWS = 20  # rows read of each file for --dry-run (column names and types)
@@ -47,8 +53,19 @@ class BatchError(Exception):
     """A batch step that cannot be done, with the reason for the user."""
 
 
-def resolve_run(name: str, kind: str, search_path=()):
+def resolve_run(
+    name: str, kind: str, search_path: Sequence[str | os.PathLike] = ()
+) -> type["Tool"]:
     """Return the tool or workflow class of a `--run NAME` or `--workflow FILE`.
+
+    Args:
+        name: The argument of the option: a registered name for `--run`, a path or a
+            file name in the search path for `--workflow`.
+        kind: `run` for `--run`; any other value for `--workflow`.
+        search_path: The folders searched for workflow files.
+
+    Returns:
+        The class; for a workflow file, a workflow class that runs its steps.
 
     Raises:
         BatchError: If there is no such tool, workflow or file, or the file has
@@ -70,9 +87,10 @@ def resolve_run(name: str, kind: str, search_path=()):
     return workflow_class(check.definition, path)
 
 
-def file_run(tool, settings: AppSettings):
-    """Return what a run does with the files: the tool to run on their tables, and
-    how they are read.
+def file_run(
+    tool: type["Tool"], settings: AppSettings
+) -> tuple[type["Tool"], ReadSettings]:
+    """Return the tool to run on the files' tables, and how the files are read.
 
     Import Tables reads with its own settings and runs the workflow they name; every
     other tool or workflow runs on the files read with Open Tables' settings.
@@ -82,7 +100,7 @@ def file_run(tool, settings: AppSettings):
         settings: The session's settings (the `-s` file and the defaults).
 
     Returns:
-        The tool or workflow, and the read settings (ReadSettings).
+        The tool or workflow, and the settings the files are read with.
 
     Raises:
         BatchError: If Import Tables' settings name no workflow, or one that is not
@@ -105,16 +123,37 @@ def file_run(tool, settings: AppSettings):
         raise BatchError(f"Import Tables: {err}") from None
 
 
-def read_settings(read: ReadSettings, exclude=()) -> ReadSettings:
-    """Return the read settings of a run with `-x` added to the files left out."""
+def read_settings(read: ReadSettings, exclude: Sequence[str] = ()) -> ReadSettings:
+    """Return the read settings of a run with `-x` added to the files left out.
+
+    Args:
+        read: The read settings.
+        exclude: The file names of `-x`.
+
+    Returns:
+        A copy of `read` whose `exclude` also has the names of `exclude`.
+    """
     return read.model_copy(update={"exclude": list(read.exclude) + list(exclude)})
 
 
-def check_run(tool, tables: dict, settings: AppSettings) -> list[str]:
+def check_run(
+    tool: type["Tool"], tables: dict[str, "pd.DataFrame"], settings: AppSettings
+) -> list[str]:
     """Check a run against the tables (or their first rows) without running it.
 
+    A workflow file's steps are checked against the tables' columns. A tool that
+    takes many tables is checked once on all of them, any other tool or workflow on
+    each table. A tool (not a workflow) that needs more than one input table is an
+    error.
+
+    Args:
+        tool: The tool or workflow class.
+        tables: The tables by name.
+        settings: The session's settings; a tool or workflow is checked with its
+            settings from them.
+
     Returns:
-        The errors.
+        The errors, each with the tool and the table; empty if there are none.
     """
     from flim.core.workflow import Workflow
     from flim.core.workflowfile import check_steps
@@ -141,14 +180,14 @@ def check_run(tool, tables: dict, settings: AppSettings) -> list[str]:
 
 
 def run_on_tables(
-    tool,
-    tables: dict,
+    tool: type["Tool"],
+    tables: dict[str, "pd.DataFrame"],
     settings: AppSettings,
     output_dir: str | os.PathLike,
     execution: Optional[ExecutionOptions] = None,
     strict: bool = True,
     settings_record: Sequence[str] = (),
-) -> list:
+) -> list["FlowRun"]:
     """Run a tool or workflow on the tables read from the files.
 
     A workflow file runs as its steps say. A tool runs once per table (one that takes
@@ -161,15 +200,17 @@ def run_on_tables(
         tables: The tables by name.
         settings: The app settings (the tools' settings and save formats).
         output_dir: The results folder.
-        execution: The executor.
-        strict: Code-defined workflows: columns not in the data are errors.
+        execution: The executor; None for the default `ExecutionOptions`.
+        strict: Code-defined workflows: whether columns not in the data are errors.
+            Defaults to True.
         settings_record: The settings files, for the run summary.
 
     Returns:
-        The runs (flim.core.runner.FlowRun).
+        The runs: one per table for a code-defined workflow, else one.
 
     Raises:
-        BatchError: If the run's settings don't fit the tables.
+        BatchError: If the run's settings don't fit the tables (see `check_run`), or
+            a code-defined workflow's config has errors for a table.
     """
     from flim.core.runner import run_flow
     from flim.core.workflow import Workflow, WorkflowValidationError
@@ -212,7 +253,7 @@ def run_on_tables(
                 raise BatchError(f"{tool.name} on {name}:\n{err}") from None
         return runs
 
-    def build():
+    def build() -> None:
         if tool.inputs and tool.inputs[0].many:
             for each in tool().map_configs(config):
                 tool()(dict(tables), config=each, task_tags=tool.name)
@@ -287,7 +328,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_arguments(argv=None):
+def parse_arguments(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     """Parse the command line of flimbatch.
 
     Args:
@@ -299,7 +340,24 @@ def parse_arguments(argv=None):
     return build_parser().parse_args(argv)
 
 
-def main(argv=None) -> int:
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    """Run flimbatch: read the data files and run the tools and workflows on them.
+
+    The steps are described in the module docstring. Errors of the settings, the
+    files or the runs are printed to standard error.
+
+    Args:
+        argv: The arguments; defaults to `sys.argv[1:]`.
+
+    Returns:
+        The exit code: 0 if every run completed without failed tasks (with
+        `--dry-run`: if no check found an error), 1 otherwise.
+
+    Raises:
+        SystemExit: If the arguments are invalid, or neither `--run` nor
+            `--workflow` is given, or `-o` is missing without `--dry-run` (exit
+            code 2, from `argparse`).
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     if not args.run and not args.workflow:
@@ -378,8 +436,12 @@ def main(argv=None) -> int:
     return 0
 
 
-def _read(paths, settings: ReadSettings, nrows=None) -> dict:
-    """Read the data files; raises BatchError if none could be read."""
+def _read(
+    paths: Sequence[str | os.PathLike],
+    settings: ReadSettings,
+    nrows: Optional[int] = None,
+) -> dict[str, "pd.DataFrame"]:
+    """Read the data files; raises `BatchError` if none could be read."""
     reading = read_tables(paths, settings, nrows=nrows)
     for path, reason in reading.skipped.items():
         print(f"flimbatch: warning: not read: {path}: {reason}", file=sys.stderr)
@@ -391,7 +453,11 @@ def _read(paths, settings: ReadSettings, nrows=None) -> dict:
     return reading.tables
 
 
-def _dry_run(runs, args, settings) -> int:
+def _dry_run(
+    runs: Sequence[tuple[type["Tool"], ReadSettings]],
+    args: argparse.Namespace,
+    settings: AppSettings,
+) -> int:
     """Check every run against the first rows of the files; report; run nothing."""
     errors = 0
     for tool, read in runs:

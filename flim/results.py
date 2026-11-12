@@ -6,13 +6,30 @@ import logging
 import matplotlib.figure
 import pandas as pd
 import re
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
+
 from joblib import dump
+
+if TYPE_CHECKING:
+    from flim.core.saving import SaveOptions
 
 logger = logging.getLogger(__name__)
 
 
 def clean_path_component(name: str) -> str:
-    """Makes a result/tag name usable as a file or directory name."""
+    r"""Return a result or tag name changed for use as a file or folder name.
+
+    `%` becomes `pcent`; carriage returns are removed; line breaks become spaces;
+    `|`, `/` and `\` become `_`; and a `:` with the whitespace character after it,
+    if any, becomes `_`.
+
+    Args:
+        name: The name; other values are converted with `str`.
+
+    Returns:
+        The changed name.
+    """
     name = (
         str(name)
         .replace("%", "pcent")
@@ -28,27 +45,39 @@ def clean_path_component(name: str) -> str:
 def write_table(
     table: pd.DataFrame, path: str | os.PathLike, index: bool = False
 ) -> None:
-    """Writes a table as tab-separated text (flim.core.saving.write_table)."""
+    """Write a table as tab-separated text (see `flim.core.saving.write_table`).
+
+    Args:
+        table: The table.
+        path: The file, with its ending.
+        index: Whether to write the row index. Defaults to False.
+    """
     from flim.core.saving import write_table as write
 
     write(table, path, index=index)
 
 
-def save_results(results, directory: str | os.PathLike, name: str, formats=()) -> None:
-    """Saves a tool's results below ``directory``.
+def save_results(
+    results: Any,
+    directory: str | os.PathLike,
+    name: str,
+    formats: Sequence["SaveOptions"] = (),
+) -> None:
+    """Save a tool's results in `directory`.
 
-    The result without its figures is pickled to ``<directory>/pickled/<name>``
+    The result without its figures is pickled to `<directory>/pickled/<name>`
     (nothing is pickled if no other value remains), for reloading results. If the
-    result is a dict, each value is also saved as ``<key>`` with its data type's
-    writer, in the formats for its kind (flim.core.saving.save_value): tables
-    tab-separated as ``<key>.txt`` and figures as ``<key>.png`` by default. Values of no
-    data type with a writer are pickled as ``<key>``.
+    result is a dict, each value is also saved as `<key>` with its data type's
+    writer, in the formats for its kind (`flim.core.saving.save_value`): tables
+    tab-separated as `<key>.txt` and figures as `<key>.png` by default. Values of no
+    data type with a writer are pickled as `<key>`. Names and keys are changed for
+    use as file names (see `clean_path_component`).
 
     Figures are not pickled: pickling them is slow for figures with many points, and
     the pickles only work with the matplotlib version that wrote them.
 
     Args:
-        results: The tool's result, usually a dict of DataFrames and/or Figures.
+        results: The tool's result, usually a dict of tables and figures.
         directory: The target folder, created if it does not exist.
         name: The name of the task that produced the results.
         formats: The formats (`AutosaveConfig.formats`); a kind not listed is saved

@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Command-line entry point of flimanalyzer: parses the arguments and starts the GUI,
-or batch mode with ``--batch``."""
+"""Command-line entry point of flimanalyzer: starts the GUI or batch mode.
+
+Parses the arguments and starts the GUI; with `--batch` or `--dry-run`, runs batch
+mode (`flim.batch`) instead.
+"""
 
 import logging
 import argparse
 import sys
+from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 from flim._version import __version__
 from flim.core import logs
 from flim.core.cli import add_settings_options, command_line_changes, settings_file
@@ -18,6 +24,12 @@ from flim.core.settingsmgr import (
     user_settings_path,
 )
 from flim.core.tools import FLIMAnalyzer
+
+if TYPE_CHECKING:
+    import logging.handlers
+
+    from flim.core.settings import LogSettings, SettingsCheck
+    from flim.core.settingsmgr import Pick, SettingsManager
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +84,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_arguments(argv=None):
+def parse_arguments(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     """Parse the command line of flimanalyzer.
 
     Args:
@@ -84,7 +96,32 @@ def parse_arguments(argv=None):
     return build_parser().parse_args(argv)
 
 
-def interactive_run(fa, files=None, settings_manager=None, runs=(), exclude=()):
+def interactive_run(
+    fa: FLIMAnalyzer,
+    files: Optional[Sequence[str]] = None,
+    settings_manager: Optional["SettingsManager"] = None,
+    runs: Sequence[tuple[str, str]] = (),
+    exclude: Sequence[str] = (),
+) -> None:
+    """Open the main window and run the GUI until it is closed.
+
+    If the GUI app was already created for a dialog at startup, that app opens the
+    main window; otherwise a new app is created.
+
+    Args:
+        fa: The FLIMAnalyzer object that provides the task runner and the execution
+            settings.
+        files: The data files or folders of `-i`, each opened in its own window, or
+            read for the runs; None for none.
+        settings_manager: The settings manager of the session; None for the GUI
+            app's default.
+        runs: The `--run` and `--workflow` arguments, as (`run` or `workflow`, name)
+            pairs, run on the files at startup instead of opening them.
+        exclude: The file names of `-x`, not read.
+
+    Raises:
+        SystemExit: If wxPython is not installed.
+    """
     try:
         import wx  # noqa: F401
     except ImportError:
@@ -107,9 +144,11 @@ def interactive_run(fa, files=None, settings_manager=None, runs=(), exclude=()):
     app.MainLoop()
 
 
-def choose_settings(check):
-    """Ask the user how to use an app settings file some of whose settings cannot be
-    used (flim.gui.settingscheck.choose_settings), before the main window opens.
+def choose_settings(check: "SettingsCheck") -> Optional["SettingsCheck"]:
+    """Ask how to use an app settings file some of whose settings cannot be used.
+
+    The dialog (`flim.gui.settingscheck.choose_settings`) is shown before the main
+    window opens.
 
     Args:
         check: The result of `check_settings_file`.
@@ -131,7 +170,7 @@ def choose_settings(check):
     return ask(check)
 
 
-def _gui_app():
+def _gui_app() -> None:
     """Create the GUI app for a dialog before the main window, if there is none."""
     import wx
 
@@ -144,17 +183,23 @@ def _gui_app():
         _startup_app = FLIMAnalyzerApp()
 
 
-def pick_app_settings(files, default=None, warning=None):
-    """Ask which app settings file to start with (flim.gui.settingscheck), before the
-    main window opens.
+def pick_app_settings(
+    files: list[Path],
+    default: Optional[Path] = None,
+    warning: Optional[str] = None,
+) -> "Pick":
+    """Ask which app settings file to start with, before the main window opens.
+
+    The dialog is `flim.gui.settingscheck.pick_app_settings`.
 
     Args:
         files: The files in the app settings search path.
         default: The default app settings file, preselected; None if none is set.
-        warning: A message to show with the question.
+        warning: A message to show with the question; None for none.
 
     Returns:
-        The `Pick`; without wxPython the default, unchanged.
+        The file to start with and the default from now on; without wxPython, the
+        default for both.
     """
     from flim.core.settingsmgr import Pick
 
@@ -168,14 +213,14 @@ def pick_app_settings(files, default=None, warning=None):
     return ask(files, default, warning)
 
 
-def init_logger(loglevel):
+def init_logger(loglevel: str) -> "logging.handlers.MemoryHandler":
     """Configure logging; records are kept in memory until `open_log`.
 
     Args:
         loglevel: The log level, e.g. `INFO`.
 
     Returns:
-        The handler that keeps the records (flim.core.logs.begin).
+        The handler that keeps the records (see `flim.core.logs.begin`).
 
     Raises:
         ValueError: If the level is not a log level.
@@ -187,12 +232,14 @@ def init_logger(loglevel):
     return memory
 
 
-def open_log(memory, log=None) -> tuple:
+def open_log(
+    memory: "logging.handlers.MemoryHandler", log: Optional["LogSettings"] = None
+) -> tuple[Path, Optional[str]]:
     """Open the session's log file in the log folder, after removing old logs there.
 
     Args:
         memory: The handler returned by `init_logger`.
-        log: The `log` settings (LogSettings); None for the defaults.
+        log: The `log` settings; None for the defaults.
 
     Returns:
         The log file, and a message for the user if it is not in the log folder.
@@ -205,7 +252,23 @@ def open_log(memory, log=None) -> tuple:
     return logs.open_log_file("flimanalyzer", folder, memory)
 
 
-def main(argv=None):
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    """Run flimanalyzer: start the GUI, or batch mode with `--batch` or `--dry-run`.
+
+    In batch mode, the arguments without `--batch` go to `flim.batch.main`. For the
+    GUI, the tools and workflows are registered, the settings of the session are
+    read (with the dialogs of `choose_settings` and `pick_app_settings` where
+    needed), the log file is opened, and the main window runs until it is closed.
+
+    Args:
+        argv: The arguments; defaults to `sys.argv[1:]`.
+
+    Raises:
+        SystemExit: In batch mode, with the exit code of `flim.batch.main`; with
+            exit code 2 if the arguments or the settings are invalid; and with a
+            message if the Prefect server cannot be used or wxPython is not
+            installed.
+    """
     argv = sys.argv[1:] if argv is None else list(argv)
     if "--batch" in argv or "--dry-run" in argv:  # flim.batch.main, without the GUI
         from flim import batch
@@ -264,9 +327,15 @@ def main(argv=None):
         sys.exit(f"flimanalyzer: {err}")
 
 
-def show_startup_error(message):
-    """Shows a startup error in a message box, because the GUI may have been started
-    without a console. Does nothing if wxPython is not installed."""
+def show_startup_error(message: str) -> None:
+    """Show a startup error in a message box.
+
+    The GUI may have been started without a console, where the message printed to
+    standard error is not seen. Does nothing if wxPython is not installed.
+
+    Args:
+        message: The error message.
+    """
     try:
         import wx
     except ImportError:

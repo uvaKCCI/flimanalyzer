@@ -1,5 +1,10 @@
-"""FLIM Feature Analysis: trains autoencoders, then runs them on the data and compares
-their first feature with FLIRR and the first principal component."""
+"""FLIM Feature Analysis: trains autoencoders and compares their first feature.
+
+The models run on the data, and their first feature is compared with FLIRR and the
+first principal component.
+"""
+
+import pandas as pd
 
 from flim.configs import (
     BarPlotConfig,
@@ -15,6 +20,7 @@ from flim.configs import (
 )
 from flim.configs.workflow import AEFeatureConfig
 from flim.core.registry import register_tool
+from flim.core.runner import TaskOutput
 from flim.core.types import InputSpec, TableType
 from flim.core.workflow import Workflow, workflow_input
 from flim.tools.autoencoder import RunAE
@@ -28,6 +34,8 @@ from flim.workflow.aetune import model_files, result_name, train_models
 
 @register_tool
 class AEFeature(Workflow[AEFeatureConfig]):
+    """Trains autoencoders and compares their first feature with FLIRR and PCA."""
+
     name = "FLIM Feature Analysis"
     description = (
         "Trains an autoencoder for each combination of batch size, learning rate and"
@@ -42,7 +50,41 @@ class AEFeature(Workflow[AEFeatureConfig]):
         InputSpec("data", TableType, description="The models run on this table."),
     )
 
-    def build(self, data_train, data_run, *, config):
+    def build(
+        self,
+        data_train: pd.DataFrame,
+        data_run: pd.DataFrame,
+        *,
+        config: AEFeatureConfig,
+    ) -> None:
+        """Call the workflow's steps on the training table and the table to analyze.
+
+        The steps are:
+
+        - Filter both tables, and compute the principal components of the features of
+          the filtered `data_run`.
+        - Train a model per combination of the training settings on the filtered
+          `data_train` (see `train_models`), and run each trained model of the last
+          epoch on the filtered `data_run` (Autoencoder: Run).
+        - For FLIRR, the first principal component and the first feature of each
+          model: a KDE plot per time point; the mean per group of the other grouping
+          columns and time point, pivoted to one column per time point; the
+          normalized changes between consecutive time points (Series Analysis),
+          sorted by the changes from the time points whose name contains the control
+          group (not case-sensitive), and shown as stacked bars with S.E.M. per group
+          of the other grouping columns; and KS statistics between the time points,
+          per group of the other grouping columns.
+        - Concatenate the KS statistics tables into one table.
+
+        The time points are the values of the time series column of `data_train`, in
+        the order of its categories.
+
+        Args:
+            data_train: The table the models are trained on.
+            data_run: The table the models run on.
+            config: The features, the grouping columns, the time series column, the
+                control group, and the settings of the training and run steps.
+        """
         features = config.features
         last_epoch = config.training.epochs
         timeseries = config.timeseries
@@ -51,7 +93,7 @@ class AEFeature(Workflow[AEFeatureConfig]):
         series = ordered_values(data_train[timeseries])  # the time points
         pairs = list(zip(series, series[1:]))
 
-        def filtered(data, name):
+        def filtered(data: pd.DataFrame, name: str) -> TaskOutput:
             return Filter()(
                 workflow_input(data, name),
                 config=FilterConfig(),

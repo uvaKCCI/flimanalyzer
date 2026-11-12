@@ -2,9 +2,13 @@
 
 import os
 from pathlib import Path
+from typing import Optional
+
+import pandas as pd
 
 from flim import utils
 from flim.configs import (
+    AETrainConfig,
     BarPlotConfig,
     ConcatConfig,
     FilterConfig,
@@ -16,24 +20,40 @@ from flim.configs import (
 )
 from flim.configs.workflow import AETuneConfig
 from flim.core.registry import register_tool
-from flim.core.runner import select
+from flim.core.runner import TaskOutput, select
 from flim.core.workflow import Workflow, workflow_input
 from flim.tools.autoencoder import AEAugment, AETraining
 from flim.tools.data import Concat, Filter, Unpivot
 from flim.tools.plot import KDE, BarPlot, Heatmap, LinePlot
 from flim.tools.statistics import Summarize
 
+# the columns of the loss tables that name a model's training combination
 LOSS_GROUPING = ["Batch Size", "Learning Rate", "Weight Decay"]
 
 
-def train_models(data, training, model_name: str, last_epoch: bool = False):
-    """Adds one training task per combination of batch size, learning rate and weight
-    decay, with ``model_name`` and without loss plots. Each task is tagged with its
-    combination (and, with ``last_epoch``, the number of epochs), which names its
-    results folder.
+def train_models(
+    data: TaskOutput,
+    training: AETrainConfig,
+    model_name: str,
+    last_epoch: bool = False,
+) -> list[tuple[str, TaskOutput]]:
+    """Add one Autoencoder: Train task per combination of the training settings.
+
+    A combination is one batch size, one learning rate and one weight decay. The
+    tasks use `training` with `model_name` and without loss plots. Each task is
+    tagged with its combination, e.g. `b128_l1e05_d1e07` (see `utils.clean`), which
+    names its results folder.
+
+    Args:
+        data: The training table, the output of an earlier step.
+        training: The training settings, with the lists of batch sizes, learning
+            rates and weight decays.
+        model_name: The name of the models, used in their file names.
+        last_epoch: If true, the tag also has the number of epochs, e.g. `_e0006`.
+            Defaults to False.
 
     Returns:
-        list of (tag, TaskOutput) pairs.
+        The tag and the output of each training task.
     """
     tool = AETraining()
     training = training.model_copy(
@@ -52,23 +72,48 @@ def train_models(data, training, model_name: str, last_epoch: bool = False):
     return trained
 
 
-def model_files(output, epoch: int = None) -> list[Path]:
-    """The model files a training task saved; with ``epoch``, only those whose path
-    contains the epoch as four digits. Waits for the task to finish."""
+def model_files(output: TaskOutput, epoch: Optional[int] = None) -> list[Path]:
+    """Return the model files a training task saved; waits for the task to finish.
+
+    Args:
+        output: The output of an Autoencoder: Train task.
+        epoch: If set, only the files whose path contains the epoch as four digits,
+            e.g. `0006`. Defaults to None (all files).
+
+    Returns:
+        The files; empty if the task did not complete.
+    """
     found = output["Model File"].value() or []
     found = [found] if isinstance(found, str) else found
     return [Path(f) for f in found if epoch is None or f"{epoch:04d}" in str(f)]
 
 
-def result_name(kind: str, path) -> str:
-    """The name of a result an autoencoder tool names after a model file."""
+def result_name(kind: str, path: str | os.PathLike) -> str:
+    """Return the name of a result that an autoencoder tool names after a model file.
+
+    Args:
+        kind: The kind of result, e.g. `Features` or `Simulated`.
+        path: The model file; only its file name is used.
+
+    Returns:
+        `Table: <kind>-<file name>`.
+    """
     return f"Table: {kind}-{os.path.basename(str(path))}"
 
 
-def loss_summary(trained, tags: str):
-    """Adds tasks for the training and validation losses of the models: a combined
-    table, its summary, a line plot and bar plots. Failed trainings are left out;
-    nothing is added if all failed."""
+def loss_summary(trained: list[tuple[str, TaskOutput]], tags: str) -> None:
+    """Add tasks for the training and validation losses of the trained models.
+
+    The tasks are: the loss tables of all models concatenated into one table, its
+    minimum losses per input and combination, a line plot of both losses per epoch
+    and combination, and a bar plot of each loss per epoch and combination. Waits
+    for the training tasks to finish. Failed trainings are left out; nothing is added
+    if all failed.
+
+    Args:
+        trained: The tag and the output of each training task (see `train_models`).
+        tags: The tags of the added tasks.
+    """
     tables = {}
     for tag, output in trained:
         found = select([output], "^Table: AE Loss")  # waits for the training
@@ -112,9 +157,18 @@ def loss_summary(trained, tags: str):
         )
 
 
-def overview(data, features, grouping, tags):
-    """Correlations of the features, and their distributions per value of the column
-    ``grouping``."""
+def overview(data: TaskOutput, features: list[str], grouping: str, tags: str) -> None:
+    """Add tasks for a heatmap of the features' correlations and their KDE plots.
+
+    The heatmap shows the Spearman correlations; the KDE plots show the distribution
+    of each feature per value of the column `grouping`.
+
+    Args:
+        data: The table, the output of an earlier step.
+        features: The features.
+        grouping: The grouping column of the KDE plots.
+        tags: The tags of the added tasks.
+    """
     Heatmap()(
         data,
         config=HeatmapConfig(features=features, correlation="spearman"),
@@ -125,6 +179,8 @@ def overview(data, features, grouping, tags):
 
 @register_tool
 class AETune(Workflow[AETuneConfig]):
+    """Trains autoencoders with each combination of settings, then augments the data."""
+
     name = "FLIM Data Augmentation Tuning"
     description = (
         "Trains an autoencoder for each combination of batch size, learning rate and"
@@ -132,7 +188,25 @@ class AETune(Workflow[AETuneConfig]):
     )
     icon = "aetuneworkflow.png"
 
-    def build(self, data, *, config):
+    def build(self, data: pd.DataFrame, *, config: AETuneConfig) -> None:
+        """Call the workflow's steps on the table.
+
+        The steps are:
+
+        - Filter the table and add the overview of its features (see `overview`), per
+          value of the time series column.
+        - Train a model per combination of the training settings (see
+          `train_models`) and summarize their losses (see `loss_summary`).
+        - For each model that was trained: augment the filtered table with the
+          model's files (Autoencoder: Augment), filter the result, add its overview,
+          and summarize its features (min, max, median, count) per value of the time
+          series column, one table per feature.
+
+        Args:
+            data: The table.
+            config: The features, the time series column, and the settings of the
+                training and augmentation steps.
+        """
         features = config.features
         input = workflow_input(data)
         filtered = Filter()(input, config=FilterConfig(), task_tags="Input_Filtered")[

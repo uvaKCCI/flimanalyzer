@@ -1,3 +1,5 @@
+"""FLIMAnalyzer: analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data."""
+
 # Importing flim does not import the tools or the GUI. The tools are registered when
 # flim.tools is imported, so flim.core can be used without wxPython.
 
