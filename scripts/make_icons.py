@@ -421,19 +421,26 @@ def fuse_icon(reverse=False):
 
 def scale_icon():
     im, d = canvas()
-    # values on a long scale mapped onto a short one (e.g. 0 to 1)
-    top, (b0, b1) = (2, 30), (7.5, 24.5)
-    d.line(s(top[0], 6, top[1], 6), fill=DARK, width=px(1.3))
-    d.line(s(b0, 26, b1, 26), fill=DARK, width=px(1.3))
-    for x, y in ((top[0], 6), (top[1], 6), (b0, 26), (b1, 26)):
-        d.line(s(x, y - 2.5, x, y + 2.5), fill=DARK, width=px(1.2))
-    values = (4, 11, 19, 28)
-    mapped = [b0 + (x - top[0]) / (top[1] - top[0]) * (b1 - b0) for x in values]
-    for xt, xb in zip(values, mapped):
-        d.line(s(xt, 8, xb, 24), fill=LGRAY, width=px(0.9))
-    for xt, xb in zip(values, mapped):
-        circle(d, xt, 6, 1.8, GRAY)
-        circle(d, xb, 26, 1.6, BLUE)
+    # a group of small bars (left) scaled up as a whole (right): a zoom from the
+    # small group's outline to the large one's, on one baseline
+    base, heights = 29, (0.45, 1.0, 0.7)
+    small = (1.5, 9, 10)  # x, width, height of the group
+    large = (15, 16, 25)
+
+    def outline(x0, width, height):
+        return (x0 - 0.5, base - height - 1, x0 + width + 0.5, base)
+
+    (ax0, ay0, ax1, _), (bx0, by0, bx1, _) = outline(*small), outline(*large)
+    line(d, [(ax0, ay0), (bx0, by0)], LGRAY, 0.9)
+    line(d, [(ax1, ay0), (bx1, by0)], LGRAY, 0.9)
+    for box in (outline(*small), outline(*large)):
+        d.rectangle(s(*box), outline=LGRAY, width=px(0.9))
+    for (x0, width, height), fill in ((small, LBLUE), (large, BLUE)):
+        bar = width / len(heights)
+        for i, h in enumerate(heights):
+            x = x0 + i * bar
+            d.rectangle(s(x, base - height * h, x + bar * 0.8, base), fill=fill, outline=DARK, width=px(0.9))
+    d.line(s(0.5, base, 31.5, base), fill=DARK, width=px(1.3))
     return im
 
 
