@@ -120,6 +120,9 @@ class Concat(Tool[ConcatConfig]):
     def run(self, tables: dict, *, config):
         horizontal = config.mode == "horizontal"
         frames = list(tables.values())
+        if len(frames) == 1:  # nothing to join: the table as it is (no Input column)
+            logger.info(f"{self.name}: one table, passed on unchanged")
+            return {"Concatenated": frames[0].copy()}
         if horizontal:
             # side by side, rows are paired by position: warn if the tables' shared
             # category columns don't match row by row (e.g. one was reordered)

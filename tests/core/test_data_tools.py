@@ -632,3 +632,13 @@ def test_separate_modes_of_earlier_versions_are_read():
 
     assert SeparateCategoriesConfig(mode="patterns").mode == "pattern"
     assert SeparateCategoriesConfig(mode="delimiters").mode == "delimiter"
+
+
+@pytest.mark.parametrize("mode", ["vertical", "horizontal"])
+def test_concat_of_one_table_passes_it_on_unchanged(data, mode):
+    from flim.configs import ConcatConfig
+    from flim.tools.data import Concat
+
+    (table,) = Concat()({"only": data}, config=ConcatConfig(mode=mode, add_input=True)).values()
+    pd.testing.assert_frame_equal(table, data)  # no Input column
+    assert table is not data

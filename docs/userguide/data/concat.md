@@ -10,6 +10,8 @@ By default (`Direction`: `Rows (stack below)`), the `Concatenate` tool copies th
 
 Side by side, the rows are paired by their position: the first row of each table, then the second, and so on. If the tables have category columns in common (e.g. `Treatment`) and their values differ in some row, or the tables have different numbers of rows, the tool warns: the rows probably don't belong together, for example because one table was sorted or reordered with `Order Categories`. To pair rows by their category values instead, use [Merge](/userguide/data/merge).
 
+With a single table, there is nothing to join: the result is the table as it is, without an `Input` column, in either direction. In a workflow, for example the built-in `Import` run on one file, the `Concatenate` step then passes the table on unchanged.
+
 In the `Configuration: Concatenate` dialog, check the open tables to concatenate under `Tables`. With the settings below, the tool creates a new table with all rows of `example1.txt`, followed by all rows of `example2.txt`.
 
 ![](/images/data/concat-config1.png)
