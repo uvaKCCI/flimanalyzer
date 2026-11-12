@@ -39,12 +39,12 @@ To run a workflow file on a table that is already open, for example after reshap
 
 `Open Tables` and `Import Tables` each have these settings, saved like the settings of any tool:
 
-* `Delimiter`: each of these characters separates columns. Default: a tab or a comma.
-* `Extensions`: the file types read from folders. Default: `.txt` and `.csv`.
-* `Encoding`: the files' text encoding. Default: `utf-8`.
-* `Exclude`: file names (without folder) that are not read.
-* `Existing`: what happens to a file's own `Source`, `Directory` or `File` column: `keep` (the default) or `rename` (see [The Source column](#the-source-column)).
-* `Clash name`: the new name of a renamed column. Default: `{name} (before {tool})`, for example `Source (before Read)`.
+* `Column delimiters`: each of these characters separates columns. A tab is shown and typed as `\t`. Default: `\t,`, a tab or a comma.
+* `Files to include`: in folders (given with `-i`, or to `flimbatch`), the files with these endings, separated by commas. Default: `.txt, .csv`. Files you choose one by one are read whatever their ending.
+* `Text encoding`: the files' text encoding, for example `utf-8` (the default) or `latin-1`.
+* `Files to exclude`: file names without folder that are not read, separated by commas, for example `Results_old.txt`.
+* `File's own Source, Directory, File`: what happens to a file's own `Source`, `Directory` or `File` column: `keep` (the default) or `rename` (see [The Source column](#the-source-column)).
+* `Name of renamed column`: the new name of such a column. Default: `{name} (before {tool})`, for example `Source (before Read)`.
 
 After [opening](#open-tables) or [importing](#import-tables) files, the data are shown in a table window. Some columns become category columns: columns with values taken from the file names by a workflow, and columns with one of the names FLIMAnalyzer knows as categories, such as `Treatment`, `FOV`, `Cell`, `Cell line`, `Well`, `Time` or `Compartment`. A category column has a small, usually fixed, set of possible values, such as treatment names. Category column headers have a light blue background. All other column headers have a gray background. Other text columns, such as `Source`, `Directory` and `File`, are not category columns: they can't be used to group or filter the data.
 
@@ -52,6 +52,6 @@ After [opening](#open-tables) or [importing](#import-tables) files, the data are
 
 `Source` records where each row comes from: its file, as a URI. It replaces `Directory` and `File`, which are still added in this version but will be removed in a later one. To add `Source` to a table imported with FLIMAnalyzer 0.6 or earlier, use [Directory/File to Source](source.md).
 
-When a file is read, its own `Source`, `Directory` or `File` column is kept: a table saved by FLIMAnalyzer keeps the `Source` of the files it was made from, and no other `Source` is added. A `Source` column whose values are not URIs (for example a column the measurement software wrote) is renamed `Source (before Read)` instead, and FLIMAnalyzer's own `Source` is added; the message after reading lists the renamed columns. The read setting `Existing` set to `rename` renames all three columns.
+When a file is read, its own `Source`, `Directory` or `File` column is kept: a table saved by FLIMAnalyzer keeps the `Source` of the files it was made from, and no other `Source` is added. A `Source` column whose values are not URIs (for example a column the measurement software wrote) is renamed `Source (before Read)` instead, and FLIMAnalyzer's own `Source` is added; the message after reading lists the renamed columns. The read setting `File's own Source, Directory, File` set to `rename` renames all three columns.
 
 ![](/images/data/dataframe.png)

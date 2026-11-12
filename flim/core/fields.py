@@ -42,6 +42,8 @@ class FieldSpec:
     hidden: bool = False  # metadata, in hidden_fields, or only one value allowed
     section: str = "settings"  # the dialog section: "settings" or "output"
     wide: bool = False  # a row of its own at full width (e.g. a formula)
+    words: bool = False  # a list of texts, edited as one line separated by commas (empty entries kept)
+    escapes: bool = False  # text: a tab shown and typed as \t, a backslash as \\
 
 
 def title_of(name: str) -> str:
@@ -77,6 +79,8 @@ def describe(model: type[BaseModel]) -> list[FieldSpec]:
                 hidden=hidden or spec.get("hidden", False),
                 section=extra.get("section", "settings"),
                 wide=bool(extra.get("wide", False)),
+                words=bool(extra.get("words", False)),
+                escapes=bool(extra.get("escapes", False)),
                 **{k: v for k, v in spec.items() if k != "hidden"},
             )
         )

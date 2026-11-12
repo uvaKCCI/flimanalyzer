@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from flim.core.columns import CLASH_TEMPLATE, make_room, unique_name
 
@@ -42,26 +42,49 @@ _URI = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]+:\S+$")  # a scheme of 2+ characters
 
 
 class ReadSettings(BaseModel):
-    """How data files are read (a workflow file's `read` section)."""
+    """How data files are read (the settings of the readers, Open Tables and Import
+    Tables)."""
 
     delimiter: str = Field(
-        default="\t,", description="Each of these characters separates columns."
+        default="\t,",
+        title="Column delimiters",
+        description="Each of these characters separates columns; \\t is a tab.",
+        json_schema_extra={"escapes": True},
     )
     extensions: list[str] = Field(
-        default=[".txt", ".csv"], description="The file types read from folders."
+        default=[".txt", ".csv"],
+        title="Files to include",
+        description="In folders (given with -i, or to flimbatch): the files with these"
+        " endings, for example .txt, .csv. Files chosen one by one are read whatever"
+        " their ending.",
+        json_schema_extra={"words": True},
     )
-    encoding: str = Field(default="utf-8", description="The files' text encoding.")
+    encoding: str = Field(
+        default="utf-8", title="Text encoding", description="For example utf-8 or latin-1."
+    )
     exclude: list[str] = Field(
-        default=[], description="File names (without folder) that are not read."
+        default=[],
+        title="Files to exclude",
+        description="File names without folder, for example Results_old.txt.",
+        json_schema_extra={"words": True},
     )
     existing: Literal["keep", "rename"] = Field(
         default="keep",
+        title="File's own Source, Directory, File",
         description="A file's own Source, Directory or File column: keep (Source only"
         " if its values are URIs) or rename it.",
     )
     clash_name: str = Field(
-        default=CLASH_TEMPLATE, description="The new name of a renamed column."
+        default=CLASH_TEMPLATE,
+        title="Name of renamed column",
+        description="{name} is the column's name, {tool} the reader's short name (Read).",
     )
+
+    @field_validator("extensions")
+    @classmethod
+    def _dotted(cls, extensions: list[str]) -> list[str]:
+        """Return the endings in lower case with a leading dot (`TXT` -> `.txt`)."""
+        return ["." + e.strip().lstrip(".").lower() for e in extensions if e.strip().lstrip(".")]
 
 
 def source_uri(path) -> str:

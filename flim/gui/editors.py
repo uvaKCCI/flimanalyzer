@@ -133,8 +133,12 @@ class TextEditor(Editor):
         return control
 
     def get(self):
+        if self.spec.escapes:  # spaces may be part of the value, tabs are typed as \t
+            return unescape(self.control.GetValue())
         text = self.control.GetValue().strip()
         kind = self.spec.kind
+        if self.spec.words:  # empty entries are kept: "a, , b" has three
+            return [t.strip() for t in text.split(",")] if text else []
         if text == "" and self.spec.optional:
             return None
         if kind == "text":
@@ -167,9 +171,30 @@ class TextEditor(Editor):
             text = ""
         elif isinstance(value, (list, tuple)):
             text = ", ".join(str(v) for v in value)
+        elif self.spec.escapes:
+            text = escape(str(value))
         else:
             text = str(value)
         self.control.ChangeValue(text)
+
+
+def escape(text: str) -> str:
+    r"""Return text with its backslashes as `\\` and its tabs as `\t`."""
+    return text.replace("\\", "\\\\").replace("\t", "\\t")
+
+
+def unescape(text: str) -> str:
+    r"""Return text with `\t` as a tab and `\\` as a backslash (the reverse of
+    `escape`)."""
+    out, i = [], 0
+    while i < len(text):
+        if text[i] == "\\" and i + 1 < len(text) and text[i + 1] in "t\\":
+            out.append("\t" if text[i + 1] == "t" else "\\")
+            i += 2
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
 
 
 class IntEditor(Editor):
@@ -1604,6 +1629,8 @@ def _jsonable(value):
 
 def editor_class(spec: FieldSpec) -> type[Editor]:
     """The editor for a field kind."""
+    if spec.words or spec.escapes:
+        return TextEditor
     if spec.kind == "bool":
         return ChoiceEditor if spec.optional else BoolEditor
     if spec.kind == "int" and not spec.optional:

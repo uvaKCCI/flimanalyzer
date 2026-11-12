@@ -550,8 +550,10 @@ class SeparateCategoriesConfig(DataTaskConfig):
     names: list[str] = Field(
         default=[],
         title="New columns",
-        description="delimiters mode: the new columns' names by position; an empty"
-        " name skips that part; none: the column name separated the same way.",
+        description="delimiters mode: the new columns' names by position, separated by"
+        " commas; an empty name skips that part (e.g. , Treatment, Cell); none: the"
+        " column name separated the same way.",
+        json_schema_extra={"words": True},
     )
     patterns: list[CategoryPattern] = Field(
         default=[],

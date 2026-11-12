@@ -544,3 +544,53 @@ def test_own_folder_starts_with_the_default(dialog, tmp_path):
     d._on_use_default()
     assert d.folder.GetPath() == str(default)  # no folder of its own yet
     assert not d.make_default.IsEnabled()  # it is the default already
+
+
+def test_read_settings_fields(wxapp):
+    """Tabs are shown as \\t and kept (a stripped tab read tab-separated files as one
+    column); lists of words are one line separated by commas."""
+    from flim.configs import ImportTablesConfig
+    from flim.core.fields import describe
+    from flim.gui.editors import editor_for
+
+    frame = wx.Frame(None)
+    try:
+        specs = {s.name: s for s in describe(ImportTablesConfig)}
+        assert specs["extensions"].title == "Files to include"
+        editors = {n: editor_for(ImportTablesConfig, specs[n])(frame, specs[n]) for n in specs}
+        defaults = ImportTablesConfig()
+        for name in ("delimiter", "extensions", "exclude"):
+            editors[name].set(getattr(defaults, name))
+        assert editors["delimiter"].control.GetValue() == "\\t,"
+        assert editors["delimiter"].get() == "\t,"
+        assert editors["extensions"].control.GetValue() == ".txt, .csv"
+        editors["extensions"].control.SetValue("txt, CSV, .dat")
+        config = ImportTablesConfig(extensions=editors["extensions"].get())
+        assert config.extensions == [".txt", ".csv", ".dat"]
+        editors["exclude"].control.SetValue("")
+        assert editors["exclude"].get() == []
+    finally:
+        frame.Destroy()
+
+
+def test_import_tables_dialog_keeps_the_tab(dialog):
+    from flim.configs import ImportTablesConfig
+
+    d = dialog("Import Tables", data_choices={})
+    config, issues = d.current_config()
+    assert config.delimiter == "\t," and config == ImportTablesConfig()
+
+
+def test_separate_names_keep_empty_entries(wxapp):
+    from flim.configs.data import SeparateCategoriesConfig
+    from flim.core.fields import describe
+    from flim.gui.editors import editor_for
+
+    frame = wx.Frame(None)
+    try:
+        spec = next(s for s in describe(SeparateCategoriesConfig) if s.name == "names")
+        editor = editor_for(SeparateCategoriesConfig, spec)(frame, spec)
+        editor.control.SetValue(", Treatment, Cell")
+        assert editor.get() == ["", "Treatment", "Cell"]  # the empty name skips a part
+    finally:
+        frame.Destroy()

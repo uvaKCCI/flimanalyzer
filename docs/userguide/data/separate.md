@@ -25,11 +25,11 @@ The result is `Table: Separated`, with the new columns after the separated colum
 
 The values are separated at any of the `Delimiters` (default `:`, the reverse of `Fuse Categories`).
 
-- `New columns`: the names of the new columns, one per part, in order. An empty name skips that part. If you give no names, they come from the column name separated the same way: `FOV:Cell` gives `FOV` and `Cell`.
+- `New columns`: the names of the new columns, one per part, in order, separated by commas. An empty name skips that part, for example `, Treatment, Cell`. If you give no names, they come from the column name separated the same way: `FOV:Cell` gives `FOV` and `Cell`.
 
 A value with more or fewer parts than there are names is not separated: its row gets missing values in the new columns, so that no part ends up in the wrong column. The run summary lists these values.
 
-For example, to separate file names like `Results-ko_01.txt`: `Part` `file name without extension`, `Delimiters` `-` and `_`, and `New columns` empty, `Treatment`, `Cell` (the empty name skips `Results`).
+For example, to separate file names like `Results-ko_01.txt`: `Part` `file name without extension`, `Delimiters` `-` and `_`, and `New columns` `, Treatment, Cell` (the empty first name skips `Results`).
 
 ## By patterns
 
