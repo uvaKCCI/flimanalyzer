@@ -267,7 +267,7 @@ class AppSettings(_Settings):
         title="Saved Separate Categories presets",
         description="Presets saved in the Separate Categories dialog (Save as Preset...),"
         " offered by its Load Preset... button besides the built-in ones: a name and"
-        " the settings it sets (column, mode, part, delimiters, names, patterns).",
+        " the settings it sets (column, mode, part, delimiters, names, patterns, template).",
     )
     favorites: list[str] = Field(
         default=[],

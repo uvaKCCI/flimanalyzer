@@ -797,7 +797,7 @@ def test_separate_categories_presets(wxapp, monkeypatch):
         monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: index)
         d._on_load_preset(None)
         config, _ = d.current_config()
-        assert config.mode == "patterns" and [p.name for p in config.patterns] == ["FOV", "Treatment", "Cell"]
+        assert config.mode == "pattern" and [p.name for p in config.patterns] == ["FOV", "Treatment", "Cell"]
         # Save as Preset...: in the user settings, under its name; a built-in name is refused
         monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
@@ -820,3 +820,29 @@ def test_separate_categories_presets(wxapp, monkeypatch):
     finally:
         d.Destroy()
         separate.bind(None)
+
+
+def test_separate_shows_only_the_modes_fields(wxapp):
+    from flim.configs.data import SeparateCategoriesConfig
+    from flim.core.registry import tools
+    from flim.gui.configdialog import dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results-a-ctrl_1.txt"], "t1": [1.0]})
+    tool = tools.get("Separate Categories")
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        fields = d.fields
+
+        def shown():
+            names = ("delimiters", "names", "patterns", "template")
+            return {n for n in names if fields.editors[n].control.IsShown()}
+
+        assert shown() == {"delimiters", "names"}  # the default mode: delimiter
+        for mode, expected in (("template", {"template"}), ("pattern", {"patterns"})):
+            d.set_values(SeparateCategoriesConfig(column="Source", mode=mode))
+            assert shown() == expected, mode
+        # hidden fields keep their values
+        d.set_values(SeparateCategoriesConfig(column="Source", mode="pattern", template="{A}"))
+        assert fields.editors["template"].get() == "{A}"
+    finally:
+        d.Destroy()

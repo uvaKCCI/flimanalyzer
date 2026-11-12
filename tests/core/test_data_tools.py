@@ -498,12 +498,12 @@ def test_separate_by_patterns_and_validation():
 
     data = pd.DataFrame({"File": pd.Categorical(["/d/ctrl/c1.txt", "/d/dox/c2.txt"]), "t1": [1.0, 2.0]})
     config = SeparateCategoriesConfig(
-        column="File", mode="patterns",
+        column="File", mode="pattern",
         patterns=[CategoryPattern(name="Treatment", regex=r"/d/(.*?)/")],
     )
     (table,) = SeparateCategories()(data, config=config).values()
     assert list(table["Treatment"]) == ["ctrl", "dox"]
-    issues = SeparateCategories.validate(SeparateCategoriesConfig(mode="patterns"), [])
+    issues = SeparateCategories.validate(SeparateCategoriesConfig(mode="pattern"), [])
     assert {i.field for i in issues} == {"column", "patterns"}
 
 
@@ -552,7 +552,7 @@ def test_separate_example_and_data_checks():
     (issue,) = SeparateCategories.validate_data(config, [data])
     assert issue.field == "names" and "'Results-wt'" in issue.message
     bad = SeparateCategoriesConfig(
-        column="File", mode="patterns", patterns=[CategoryPattern(name="X", regex="(")]
+        column="File", mode="pattern", patterns=[CategoryPattern(name="X", regex="(")]
     )
     (issue,) = SeparateCategories.validate_data(bad, [data])
     assert issue.severity == "error" and "not a valid pattern" in issue.message
@@ -599,3 +599,36 @@ def test_drop_columns_match_modes():
     assert kept(("t1", "ends with")) == ["t1 sd"]
     assert kept(("t1", "is")) == ["Exc1_t1", "t1 sd", "sd t1"]
     assert DropColumns.example(DropColumnsConfig(), [data]) == "drops Exc1_t1, (empty header)"
+
+
+def test_separate_by_template():
+    from flim.configs.data import SeparateCategoriesConfig
+    from flim.tools.data import SeparateCategories
+
+    data = pd.DataFrame({"Source": ["file:///d/Results-a-ctrl_1.txt", "file:///d/Results-b-ko_12.txt", "file:///d/x.txt"]})
+    config = SeparateCategoriesConfig(
+        column="Source", mode="template", part="file name without extension",
+        template="Results-{FOV}-{Treatment}_{Cell}",
+    )  # fmt: skip
+    (table,) = SeparateCategories()(data, config=config).values()
+    assert list(table["FOV"])[:2] == ["a", "b"] and list(table["Cell"])[:2] == ["1", "12"]
+    assert table["Treatment"].isna().iloc[2]  # x.txt doesn't fit
+    # the dialog's example line: the first row
+    assert SeparateCategories.example(config, [data]) == (
+        "file:///d/Results-a-ctrl_1.txt → FOV a, Treatment ctrl, Cell 1"
+    )
+    (issue,) = SeparateCategories.validate_data(config, [data])
+    assert issue.field == "template" and "don't fit" in issue.message
+    # {} skips a part; a template without names is an error
+    skip = config.model_copy(update={"template": "{}-{FOV}-{}"})
+    (table,) = SeparateCategories()(data.iloc[:2], config=skip).values()
+    assert list(table["FOV"]) == ["a", "b"] and "Treatment" not in table.columns
+    issues = SeparateCategories.validate(config.model_copy(update={"template": "Results"}), [])
+    assert any(i.field == "template" and "no part with a name" in i.message for i in issues)
+
+
+def test_separate_modes_of_earlier_versions_are_read():
+    from flim.configs.data import SeparateCategoriesConfig
+
+    assert SeparateCategoriesConfig(mode="patterns").mode == "pattern"
+    assert SeparateCategoriesConfig(mode="delimiters").mode == "delimiter"

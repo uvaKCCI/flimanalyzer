@@ -581,12 +581,21 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
 
     @classmethod
     def _separated(cls, config, data):
-        from flim.core.categories import separate, separate_by_patterns
+        from flim.core.categories import separate, separate_by_patterns, separate_by_template
 
-        if config.mode == "patterns":
+        if config.mode == "pattern":
             patterns = [(p.name, p.regex) for p in config.patterns]
             return separate_by_patterns(data, config.column, patterns, config.part)
+        if config.mode == "template":
+            return separate_by_template(data, config.column, config.template, config.part)
         return separate(data, config.column, config.delimiters, config.names, config.part)
+
+    @staticmethod
+    def _incomplete(config) -> bool:
+        """Whether the mode's settings are still empty (nothing to show or check)."""
+        return (config.mode == "pattern" and not config.patterns) or (
+            config.mode == "template" and not config.template.strip()
+        )
 
     @classmethod
     def _table(cls, config, tables):
@@ -602,7 +611,7 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
     @classmethod
     def example(cls, config, tables):
         table = cls._table(config, tables) if config.column else None
-        if table is None or (config.mode == "patterns" and not config.patterns):
+        if table is None or cls._incomplete(config):
             return None
         values = table[config.column].dropna()
         if values.empty:
@@ -619,9 +628,9 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
     @classmethod
     def validate_data(cls, config, tables):
         table = cls._table(config, tables) if config.column else None
-        if table is None or (config.mode == "patterns" and not config.patterns):
+        if table is None or cls._incomplete(config):
             return []
-        field = "patterns" if config.mode == "patterns" else "names"
+        field = {"pattern": "patterns", "template": "template"}.get(config.mode, "names")
         distinct = table[[config.column]].drop_duplicates()  # few: category values
         try:
             result = cls._separated(config, distinct)
@@ -634,22 +643,21 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
         issues = list(super().validate(config, schemas))
         if config.column is None:
             issues.append(Issue("column", "Select the column to separate"))
-        if config.mode == "patterns" and not config.patterns:
+        if config.mode == "pattern" and not config.patterns:
             issues.append(Issue("patterns", "Add at least one pattern"))
+        if config.mode == "template":
+            from flim.core.categories import template_regex
+
+            try:
+                template_regex(config.template)
+            except ValueError as err:
+                issues.append(Issue("template", str(err)[:1].upper() + str(err)[1:]))
         return issues
 
     def run(self, data, *, config):
-        from flim.core.categories import separate, separate_by_patterns
-
         if config.column is None:
             raise ValueError(f"{self.name}: select the column to separate")
-        if config.mode == "patterns":
-            patterns = [(p.name, p.regex) for p in config.patterns]
-            result = separate_by_patterns(data, config.column, patterns, config.part)
-        else:
-            result = separate(
-                data, config.column, config.delimiters, config.names, config.part
-            )
+        result = self._separated(config, data)
         for message in result.warnings:
             self.warn(message)
         remove = () if config.keep_original else [config.column]

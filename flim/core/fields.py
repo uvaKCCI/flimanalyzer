@@ -44,6 +44,10 @@ class FieldSpec:
     wide: bool = False  # a row of its own at full width (e.g. a formula)
     words: bool = False  # a list of texts, edited as one line separated by commas (empty entries kept)
     escapes: bool = False  # text: a tab shown and typed as \t, a backslash as \\
+    chars: bool = False  # a list of single characters, typed as one text (with escapes)
+    # shown only while other fields have these values, e.g. {"mode": "pattern"}; a
+    # list of values: any of them
+    shown_when: dict = field(default_factory=dict)
 
 
 def title_of(name: str) -> str:
@@ -81,6 +85,8 @@ def describe(model: type[BaseModel]) -> list[FieldSpec]:
                 wide=bool(extra.get("wide", False)),
                 words=bool(extra.get("words", False)),
                 escapes=bool(extra.get("escapes", False)),
+                chars=bool(extra.get("chars", False)),
+                shown_when=dict(extra.get("shown_when", {})),
                 **{k: v for k, v in spec.items() if k != "hidden"},
             )
         )

@@ -219,9 +219,81 @@ def separate_by_patterns(data: pd.DataFrame, column: str, patterns, part: str = 
     return result
 
 
-# the column, mode, part, delimiters, names and patterns of Separate Categories that a
+def template_regex(template: str) -> tuple[re.Pattern, list[str]]:
+    """Return the regular expression of a template, and the names of its parts.
+
+    In a template, `{Name}` is a part that becomes the column `Name`, `{}` a part that
+    is not kept, and the text between the braces must be there as it is, e.g.
+    `Results-{FOV}-{Treatment}_{Cell}`.
+
+    Args:
+        template: The template.
+
+    Returns:
+        The regular expression, which matches the whole value (a group per part
+        with a name), and the names in order.
+
+    Raises:
+        ValueError: If the template has no named part, a name twice, or a brace
+            that is not closed.
+    """
+    regex, names = "", []
+    for piece in re.split(r"(\{[^{}]*\})", template):
+        if piece.startswith("{") and piece.endswith("}"):
+            name = piece[1:-1].strip()
+            if name in names:
+                raise ValueError(f"the template names '{name}' twice")
+            if name:
+                names.append(name)
+                regex += "(.+?)"
+            else:
+                regex += ".*?"  # a part that is not kept
+        elif "{" in piece or "}" in piece:
+            raise ValueError(f"the template has a brace that is not closed: '{piece}'")
+        else:
+            regex += re.escape(piece)
+    if not names:
+        raise ValueError("the template has no part with a name, e.g. {Treatment}")
+    return re.compile(f"^{regex}$"), names
+
+
+def separate_by_template(data: pd.DataFrame, column: str, template: str, part: str = "value") -> Result:
+    """Separate a category column into several by a template of its values (see
+    `template_regex`).
+
+    A value that doesn't fit the template is not separated (missing values in its
+    row) and is named in a warning.
+
+    Args:
+        data: The table.
+        column: The category column.
+        template: The layout of the values, e.g. `Results-{FOV}-{Treatment}_{Cell}`.
+        part: Which part of the values (see `separate`).
+
+    Returns:
+        The new columns, and warnings.
+
+    Raises:
+        ValueError: If the template is not valid (see `template_regex`).
+    """
+    regex, names = template_regex(template)
+    result = Result()
+    texts = _part(data[column], part)
+    matches = texts.map(lambda v: None if pd.isna(v) else regex.match(v))
+    unmatched = texts[matches.isna() & texts.notna()]
+    if len(unmatched):
+        result.warnings.append(
+            f"{column}: {len(unmatched)} value(s) don't fit the template '{template}' and"
+            f" are not separated: {_listed(unmatched.unique())}"
+        )
+    for i, name in enumerate(names, 1):
+        result.columns[name] = pd.Categorical(matches.map(lambda m: None if m is None else m.group(i)))
+    return result
+
+
+# the column, mode, part, delimiters, names, patterns and template of Separate Categories that a
 # preset sets (see `separate_presets`)
-PRESET_FIELDS = ("column", "mode", "part", "delimiters", "names", "patterns")
+PRESET_FIELDS = ("column", "mode", "part", "delimiters", "names", "patterns", "template")
 
 
 def separate_presets() -> list[dict]:
@@ -233,7 +305,7 @@ def separate_presets() -> list[dict]:
         `PRESET_FIELDS`).
     """
     return [
-        {"name": name, "settings": {"column": "Source", "mode": "patterns", "patterns": patterns}}
+        {"name": name, "settings": {"column": "Source", "mode": "pattern", "patterns": patterns}}
         for name, patterns in _PARSER_PATTERNS
     ]
 

@@ -74,7 +74,7 @@ def _settings_file(settings, tmp_path):
 
 
 SEPARATE = {
-    "column": "Source", "mode": "patterns",
+    "column": "Source", "mode": "pattern",
     "patterns": [
         {"name": "FOV", "regex": ".*/.*?[_-](.*?)[_-]"},
         {"name": "Treatment", "regex": ".*/.*?[_-].*?[_-](.*?)[_-]"},

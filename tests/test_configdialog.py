@@ -594,3 +594,22 @@ def test_separate_names_keep_empty_entries(wxapp):
         assert editor.get() == ["", "Treatment", "Cell"]  # the empty name skips a part
     finally:
         frame.Destroy()
+
+
+def test_separate_delimiters_as_characters(wxapp):
+    from flim.configs.data import SeparateCategoriesConfig
+    from flim.core.fields import describe
+    from flim.gui.editors import editor_for
+
+    frame = wx.Frame(None)
+    try:
+        spec = next(s for s in describe(SeparateCategoriesConfig) if s.name == "delimiters")
+        editor = editor_for(SeparateCategoriesConfig, spec)(frame, spec)
+        editor.set(["-", "_", "\t"])
+        assert editor.control.GetValue() == "-_\\t"
+        editor.control.SetValue(":, ")  # a comma and a space are delimiters too
+        assert editor.get() == [":", ",", " "]
+        editor.set(["::", "-"])  # longer delimiters: as a list
+        assert editor.control.GetValue() == '["::", "-"]' and editor.get() == ["::", "-"]
+    finally:
+        frame.Destroy()

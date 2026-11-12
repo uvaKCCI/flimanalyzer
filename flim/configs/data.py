@@ -523,18 +523,20 @@ class CategoryPattern(BaseConfig):
 
 
 class SeparateCategoriesConfig(DataTaskConfig):
-    """Separates a category column into several, at delimiters or by patterns."""
+    """Separates a category column into several: at delimiters, by regular expressions
+    (patterns), or by a template of its values."""
 
     hidden_fields = frozenset({"features", "grouping"})
 
     column: Optional[LabelColumn] = Field(
         default=None, title="Column", description="The category column to separate."
     )
-    mode: Literal["delimiters", "patterns"] = Field(
-        default="delimiters",
-        title="Separate",
-        description="delimiters: at the delimiters (the reverse of Fuse Categories);"
-        " patterns: take parts by regular expressions, as the filename parser does.",
+    mode: Literal["delimiter", "pattern", "template"] = Field(
+        default="delimiter",
+        title="Mode",
+        description="delimiter: at the delimiters (the reverse of Fuse Categories);"
+        " pattern: take parts by regular expressions, as the filename parsers did;"
+        " template: by the layout of the values, e.g. Results-{FOV}-{Treatment}_{Cell}.",
     )
     part: Literal["value", "file name", "file name without extension"] = Field(
         default="value",
@@ -545,26 +547,42 @@ class SeparateCategoriesConfig(DataTaskConfig):
     delimiters: list[str] = Field(
         default=[":"],
         title="Delimiters",
-        description="delimiters mode: any of them separates.",
+        description="Each of these characters separates, e.g. -_ ; \\t is a tab.",
+        json_schema_extra={"chars": True, "shown_when": {"mode": "delimiter"}},
     )
     names: list[str] = Field(
         default=[],
         title="New columns",
-        description="delimiters mode: the new columns' names by position, separated by"
-        " commas; an empty name skips that part (e.g. , Treatment, Cell); none: the"
-        " column name separated the same way.",
-        json_schema_extra={"words": True},
+        description="The new columns' names by position, separated by commas; an empty"
+        " name skips that part (e.g. , Treatment, Cell); none: the column name"
+        " separated the same way.",
+        json_schema_extra={"words": True, "shown_when": {"mode": "delimiter"}},
     )
     patterns: list[CategoryPattern] = Field(
         default=[],
         title="Patterns",
-        description="patterns mode: a new column per pattern.",
+        description="A new column per pattern.",
+        json_schema_extra={"shown_when": {"mode": "pattern"}},
+    )
+    template: str = Field(
+        default="",
+        title="Template",
+        description="The layout of the values, {Name} for a new column, {} for a part"
+        " that is not kept; the text between must be as it is, e.g."
+        " Results-{FOV}-{Treatment}_{Cell}.",
+        json_schema_extra={"wide": True, "shown_when": {"mode": "template"}},
     )
     keep_original: bool = Field(
         default=True,
         title="Keep the original column",
         description="Keep the separated column; unchecked: it is removed.",
     )
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def _singular(cls, mode):
+        """Read the mode names of earlier versions of 0.7.0 (`delimiters`, `patterns`)."""
+        return {"delimiters": "delimiter", "patterns": "pattern"}.get(mode, mode)
 
 
 class Replacement(BaseConfig):

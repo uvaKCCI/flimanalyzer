@@ -133,6 +133,14 @@ class TextEditor(Editor):
         return control
 
     def get(self):
+        if self.spec.chars:  # each character one entry; JSON for longer entries
+            text = self.control.GetValue()
+            if text.strip().startswith("["):
+                try:
+                    return json.loads(text)
+                except ValueError:
+                    raise ValueError("not a valid list, e.g. [\"::\", \"-\"]") from None
+            return list(dict.fromkeys(unescape(text)))
         if self.spec.escapes:  # spaces may be part of the value, tabs are typed as \t
             return unescape(self.control.GetValue())
         text = self.control.GetValue().strip()
@@ -169,6 +177,9 @@ class TextEditor(Editor):
     def set(self, value):
         if value is None:
             text = ""
+        elif self.spec.chars:
+            values = [str(v) for v in value]
+            text = escape("".join(values)) if all(len(v) == 1 for v in values) else json.dumps(values)
         elif isinstance(value, (list, tuple)):
             text = ", ".join(str(v) for v in value)
         elif self.spec.escapes:
@@ -1629,7 +1640,7 @@ def _jsonable(value):
 
 def editor_class(spec: FieldSpec) -> type[Editor]:
     """The editor for a field kind."""
-    if spec.words or spec.escapes:
+    if spec.words or spec.escapes or spec.chars:
         return TextEditor
     if spec.kind == "bool":
         return ChoiceEditor if spec.optional else BoolEditor
@@ -1700,6 +1711,7 @@ class FieldsPanel(wx.Panel):
         self.markers: dict[str, wx.StaticBitmap] = {}
         self.widgets: dict[str, list] = {}  # field -> its label and editor
         self.fixed: set = set()  # fields that allow only one value now (not shown)
+        self.hidden: set = set()  # fields not shown now: fixed, or `shown_when` not met
         specs = [s for s in visible(describe(model)) if s.name not in exclude]
         if stacked:
             self._stack(specs)
@@ -1820,27 +1832,38 @@ class FieldsPanel(wx.Panel):
 
     def refresh(self) -> None:
         """Lets editors that depend on other fields update (e.g. value choices), and
-        hides the fields that allow only one value given the others."""
+        hides the fields that allow only one value given the others, and those whose
+        `shown_when` is not met (e.g. the settings of another mode)."""
         for editor in self.editors.values():
             editor.refresh(self)
         allowed_values = getattr(self.model, "allowed_values", None)
-        if allowed_values is None:
+        if allowed_values is not None:
+            values = {name: self.value_of(name) for name in self.editors}
+            allowed = allowed_values(values)
+            for name, editor in self.editors.items():
+                editor.set_allowed(allowed.get(name))
+            self.fixed = {n for n, a in allowed.items() if len(a) == 1} & set(self.editors)
+        hidden = self.fixed | {
+            name for name, editor in self.editors.items() if not self._shown(editor.spec)
+        }
+        if hidden == self.hidden:
             return
-        values = {name: self.value_of(name) for name in self.editors}
-        allowed = allowed_values(values)
-        for name, editor in self.editors.items():
-            editor.set_allowed(allowed.get(name))
-        fixed = {n for n, a in allowed.items() if len(a) == 1} & set(self.editors)
-        if fixed == self.fixed:
-            return
-        self.fixed = fixed
+        self.hidden = hidden
         for name, widgets in self.widgets.items():
             for widget in widgets:
-                widget.Show(name not in fixed)
-            if name in fixed:
+                widget.Show(name not in hidden)
+            if name in hidden:
                 self.markers[name].Hide()
         self.Layout()
         relayout(self)
+
+    def _shown(self, spec) -> bool:
+        """Whether the other fields have the values a field's `shown_when` asks for."""
+        for other, wanted in spec.shown_when.items():
+            wanted = wanted if isinstance(wanted, (list, tuple)) else [wanted]
+            if other in self.editors and self.value_of(other) not in wanted:
+                return False
+        return True
 
     def set_schema(self, schema) -> None:
         for editor in self.editors.values():
@@ -1855,7 +1878,7 @@ class FieldsPanel(wx.Panel):
         marker = self.markers.get(name)
         if marker is None:
             return
-        if severity is None or name in self.fixed:
+        if severity is None or name in self.hidden:
             marker.Hide()
         else:
             marker.SetBitmap(_marker_bitmap(severity))

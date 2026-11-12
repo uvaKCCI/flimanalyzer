@@ -706,7 +706,7 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
     ]
     if patterns:
         separate = SeparateCategoriesConfig(
-            column="Source", mode="patterns",
+            column="Source", mode="pattern",
             patterns=[CategoryPattern(name=p[PATTERN_CATEGORY], regex=p[PATTERN_REGEX]) for p in patterns],
         ).model_dump(mode="json")  # fmt: skip
         separate.pop("classname", None)
