@@ -41,7 +41,6 @@ from flim.tools.common import (
 
 if TYPE_CHECKING:
     from flim.core.categories import Result
-    from flim.core.preprocessor import defaultpreprocessor
     from flim.core.settings import AppSettings
 
 logger = logging.getLogger(__name__)
@@ -110,7 +109,7 @@ def _row_mismatch(first: pd.DataFrame, other: pd.DataFrame) -> Optional[str]:
 
 
 INPUT = "Input"  # Concatenate's column: the table each row came from
-SOURCE = "Source"  # each row's origin, a URI (flim.core.importer.SOURCE)
+SOURCE = "Source"  # each row's origin, a URI (flim.core.reader.SOURCE)
 
 
 @register_tool
@@ -1285,29 +1284,6 @@ class Calculate(Tool[CalculateConfig]):
         for name in outcome.replaced:
             self.warn(f"{name}: the input column is replaced")
         return {"Calculated": outcome.data}
-
-
-def import_preprocessor(settings: "AppSettings") -> "defaultpreprocessor":
-    """Return the preprocessor of the import of FLIMAnalyzer 0.6 (`flim.core.importer`).
-
-    It renames, drops and calculates columns with the stored settings of the Rename
-    Columns, Drop Columns and Calculate tools.
-
-    Args:
-        settings: The application settings.
-
-    Returns:
-        The preprocessor.
-    """
-    from flim.core.preprocessor import defaultpreprocessor
-
-    rename = settings.tools.config(RenameColumns)
-    drop = settings.tools.config(DropColumns)
-    preprocessor = defaultpreprocessor()
-    preprocessor.set_calculations(settings.tools.config(Calculate).calculations)
-    preprocessor.set_replacementheaders({r.part: r.new for r in rename.replacements})
-    preprocessor.set_dropcolumns([(r.text, r.match) for r in drop.drop])
-    return preprocessor
 
 
 def shortened(text: str, most: int = 40) -> str:

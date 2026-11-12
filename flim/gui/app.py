@@ -26,8 +26,6 @@ from importlib.resources import files
 from matplotlib.backend_bases import PickEvent
 from matplotlib.figure import Figure
 
-import flim.core.parser
-import flim.core.preprocessor
 import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)

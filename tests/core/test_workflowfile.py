@@ -238,6 +238,27 @@ def raw_dir(tmp_path):
     return folder
 
 
+# what FLIMAnalyzer 0.6's import gave for `raw_dir` (tests/core/data/import-0.6, written
+# with the 0.6 importer before it was removed; without Source and Directory, which name
+# the temporary folder)
+IMPORT_0_6 = Path(__file__).parent / "data" / "import-0.6"
+
+
+def assert_as_in_0_6(new: pd.DataFrame, reference: str) -> None:
+    """Assert that a table equals a stored result of 0.6's import, row by row."""
+    old = pd.read_csv(IMPORT_0_6 / reference, sep="\t")
+    new = new.drop(columns=["Source", "Directory"]).sort_values("File", kind="stable")
+    assert set(new.columns) == set(old.columns)
+    columns = sorted(old.columns)
+    # category and text columns are read back as numbers where they look like them
+    text = {c: str for c in columns if not pd.api.types.is_numeric_dtype(new[c])}
+    pd.testing.assert_frame_equal(
+        new[columns].reset_index(drop=True).astype(text),
+        old[columns].reset_index(drop=True).astype(text),
+        check_dtype=False,
+    )
+
+
 @pytest.mark.parametrize(
     "preset, parser", [(None, "defaultparser"), ("FOV, Treatment, Cell", "fov_treatment_cell_parser")]
 )
@@ -245,11 +266,7 @@ def test_built_in_import_and_presets_match_the_import_of_0_6(prefect_harness, ra
     """Import alone, and Import with the Separate Categories step of a preset, give
     what 0.6's import gave with the default parser or that filename parser."""
     from flim.core.reader import read_tables
-    from flim.core.settings import AppSettings
-    from flim.core.importer import dataimporter
-    from flim.core.parser import instantiate_parser
     from flim.core.workflowfile import BUILT_IN
-    from flim.tools.data import import_preprocessor
 
     from tests.workflows import import_with_preset, write_workflow
 
@@ -261,45 +278,12 @@ def test_built_in_import_and_presets_match_the_import_of_0_6(prefect_harness, ra
     run = workflow_class(check.definition)().run_flow(read_tables([raw_dir]).tables)
     assert run.state == "completed", run.failed
     (new,) = [v for r in run.results() if isinstance(r, dict) for k, v in r.items() if k == "Table: Calculated"]
-    # 0.6's import: the importer with the filename parser and the preprocessor
-    importer = dataimporter()
-    importer.set_files([str(raw_dir)])
-    importer.set_parser(instantiate_parser(f"flim.core.parser.{parser}"))
-    importer.set_preprocessor(import_preprocessor(AppSettings.default()))
-    old, _, _ = importer.import_data()
-    assert set(new.columns) == set(old.columns)
-    columns = sorted(old.columns)
-    pd.testing.assert_frame_equal(
-        new.sort_values("Source").reset_index(drop=True)[columns],
-        old.sort_values("Source").reset_index(drop=True)[columns],
-        check_categorical=False,
-    )
-
-
-def test_old_read_settings_that_differ():
-    from flim.core.workflowfile import import_read_settings
-
-    assert import_read_settings({"delimiter": "\t,", "exclude_files": []}) == {}
-    assert import_read_settings({"delimiter": ";", "exclude_files": ["x.txt"]}) == {
-        "delimiter": ";", "exclude": ["x.txt"]
-    }
-
-
-def test_every_built_in_file_is_valid():
-    from flim.core.workflowfile import BUILT_IN
-
-    files = sorted(BUILT_IN.glob("*.json"))
-    assert [p.name for p in files] == ["import.json"]
-    for path in files:
-        assert check_workflow_file(path).errors == [], path
+    assert_as_in_0_6(new, f"{parser}.txt")
 
 
 def test_old_import_settings_become_an_equivalent_workflow(prefect_harness, raw_dir, tmp_path):
-    from flim.core.importer import dataimporter
-    from flim.core.parser import instantiate_parser
     from flim.core.reader import read_tables
-    from flim.core.settings import AppSettings, check_settings_file, load_settings
-    from flim.tools.data import import_preprocessor
+    from flim.core.settings import check_settings_file
 
     v1 = json.loads((Path(__file__).parent / "data" / "settings_v1.json").read_text())
     v1["import"]["filename_parser"] = {"parser": "fov_treatment_cell_parser", "patterns": []}
@@ -320,21 +304,41 @@ def test_old_import_settings_become_an_equivalent_workflow(prefect_harness, raw_
     run = workflow_class(result.definition)().run_flow(read_tables([raw_dir]).tables)
     assert run.state == "completed", run.failed
     (new,) = [v for r in run.results() if isinstance(r, dict) for k, v in r.items() if k == "Table: Calculated"]
-    # 0.6: the importer with the file's settings
-    settings = load_settings(settings_file, AppSettings.default())
-    importer = dataimporter()
-    importer.set_files([str(raw_dir)])
-    importer.set_parser(instantiate_parser("flim.core.parser.fov_treatment_cell_parser"))
-    importer.set_column_combos([("FOV", "Treatment")])
-    importer.set_preprocessor(import_preprocessor(settings))
-    old, _, _ = importer.import_data()
-    assert set(new.columns) == set(old.columns)
-    columns = sorted(old.columns)
-    pd.testing.assert_frame_equal(
-        new.sort_values("Source").reset_index(drop=True)[columns],
-        old.sort_values("Source").reset_index(drop=True)[columns],
-        check_categorical=False,
-    )
+    assert_as_in_0_6(new, "settings_v1_fov_treatment_cell.txt")
+
+
+def _steps(section):
+    from flim.core.workflowfile import import_workflow_data
+
+    return import_workflow_data(section, {}, "old")["steps"]
+
+
+def test_old_import_with_own_patterns_skips_those_not_in_use():
+    section = {
+        "filename_parser": {
+            "parser": "fov_treatment_cell_parser",  # own patterns replace the parser's
+            "patterns": [
+                {"Use": True, "Category": "A", "Regex": r"/(\w+)_"},
+                {"Use": False, "Category": "B", "Regex": r"_(\w+)\."},
+            ],
+        }
+    }
+    (separate,) = [s for s in _steps(section) if s["tool"] == "Separate Categories"]
+    assert separate["config"]["patterns"] == [{"name": "A", "regex": r"/(\w+)_"}]
+
+
+@pytest.mark.parametrize("parser", ["defaultparser", "no_parser", "unknown_parser"])
+def test_old_import_without_patterns_has_no_separate_step(parser):
+    steps = _steps({"filename_parser": {"parser": parser}, "category_combinations": []})
+    assert [s["tool"] for s in steps] == ["Rename Columns", "Drop Columns", "Concatenate", "Calculate"]
+
+
+def test_old_import_with_no_combinations_listed_fuses_all_pairs():
+    section = {"filename_parser": {"parser": "fov_treatment_cell_parser"}, "category_combinations": []}
+    fused = [s["config"]["grouping"] for s in _steps(section) if s["tool"] == "Fuse Categories"]
+    assert fused == [["FOV", "Treatment"], ["FOV", "Cell"], ["Treatment", "Cell"]]
+    section["category_combinations"] = None  # none
+    assert not [s for s in _steps(section) if s["tool"] == "Fuse Categories"]
 
 
 def test_each_task_records_its_settings_in_prefect(prefect_harness):

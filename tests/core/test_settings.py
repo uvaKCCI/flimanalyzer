@@ -223,22 +223,6 @@ def test_rename_and_drop_of_version_1_become_tool_settings():
     ]
 
 
-def test_import_applies_the_tools_settings():
-    from flim.configs import DropColumnsConfig, RenameColumnsConfig
-    from flim.configs.data import DropRule, Replacement
-    from flim.tools.data import DropColumns, RenameColumns, import_preprocessor
-
-    settings = AppSettings.default()
-    settings.tools.set(RenameColumns, RenameColumnsConfig(replacements=[Replacement(part="a_", new="")]))
-    settings.tools.set(DropColumns, DropColumnsConfig(drop=[DropRule(text="x", match="is")]))
-    preprocessor = import_preprocessor(settings)
-    data = pd.DataFrame({"a_t1": [1.0], "x": [2.0], "xy": [3.0]})
-    data, _ = preprocessor.rename_headers(data)
-    data, dropped = preprocessor.drop_columns(data)
-    assert dropped == ["x"]
-    assert list(data.columns) == ["t1", "xy"]
-
-
 def test_calculate_of_version_1_becomes_function_calculations():
     from flim.tools.data import Calculate
 

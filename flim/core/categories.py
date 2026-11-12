@@ -342,7 +342,7 @@ def separate_presets() -> list[dict]:
     ]
 
 
-# (preset name, patterns) of the 0.6 filename parsers (flim.core.parser)
+# (preset name, patterns) of the filename parsers of FLIMAnalyzer 0.6
 _PARSER_PATTERNS = [
     (
         "Cell line, Compartment, FOV, Treatment, Cell",

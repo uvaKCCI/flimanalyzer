@@ -85,3 +85,68 @@ def test_separate_by_patterns_as_the_filename_parser():
 def test_invalid_patterns(pattern, message):
     with pytest.raises(ValueError, match=message):
         categories.separate_by_patterns(pd.DataFrame({"f": ["a"]}), "f", [("A", pattern)])
+
+
+# the values the filename parsers of 0.6 took from these paths (None: no match)
+PATHS_0_6 = [
+    "/data/Results_FOV1_WT_7.txt",
+    r"C:\data\HeLa\nucleus\Results_FOV2_KO_3.txt",
+    "/data/other.csv",
+    "/a/b/c/Results__WT_.txt",
+]
+PARSED_0_6 = {
+    "Cell line, Compartment, FOV, Treatment, Cell": {
+        "Cell line": [None, "HeLa", None, "b"],
+        "Compartment": ["data", "nucleus", "data", "c"],
+        "FOV": ["FOV1", "FOV2", None, "?"],
+        "Treatment": ["WT", "KO", None, "WT"],
+        "Cell": ["7", "3", None, "?"],
+    },
+    "Compartment, FOV, Treatment, Cell": {
+        "Compartment": ["data", "nucleus", "data", "c"],
+        "FOV": ["FOV1", "FOV2", None, "?"],
+        "Treatment": ["WT", "KO", None, "WT"],
+        "Cell": ["7", "3", None, "?"],
+    },
+    "Compartment, Treatment, FOV, Cell": {
+        "Compartment": ["data", "nucleus", "data", "c"],
+        "Treatment": ["FOV1", "FOV2", None, "?"],
+        "FOV": ["WT", "KO", None, "WT"],
+        "Cell": ["7", "3", None, "?"],
+    },
+    "FOV, Time, Well": {
+        "FOV": ["FOV1", "FOV2", None, "?"],
+        "Time": ["WT", "KO", None, "WT"],
+        "Well": ["7", "3", None, "?"],
+    },
+    "FOV, Treatment, Cell": {
+        "FOV": ["FOV1", "FOV2", None, "?"],
+        "Treatment": ["WT", "KO", None, "WT"],
+        "Cell": ["7", "3", None, "?"],
+    },
+    "Treatment, FOV, Cell": {
+        "Treatment": ["FOV1", "FOV2", None, "?"],
+        "FOV": ["WT", "KO", None, "WT"],
+        "Cell": ["7", "3", None, "?"],
+    },
+    "Treatment, FOV, Time": {
+        "Treatment": ["FOV1", "FOV2", None, "?"],
+        "FOV": ["WT", "KO", None, "WT"],
+        "Time": ["7", "3", None, "?"],
+    },
+    "Treatment, Time": {
+        "Treatment": ["FOV1", "FOV2", None, "?"],
+        "Time": ["7", "3", None, "?"],
+    },
+}
+
+
+@pytest.mark.parametrize("preset", categories.separate_presets(), ids=lambda p: p["name"])
+def test_presets_take_the_values_of_the_0_6_parsers(preset):
+    settings = preset["settings"]
+    data = pd.DataFrame({"Source": PATHS_0_6})
+    patterns = [(p["name"], p["regex"]) for p in settings["patterns"]]
+    result = categories.separate_by_patterns(data, settings["column"], patterns, settings["part"])
+    taken = {name: [None if pd.isna(v) else v for v in values] for name, values in result.columns.items()}
+    assert taken == PARSED_0_6[preset["name"]]
+    assert list(taken) == list(PARSED_0_6[preset["name"]])  # the columns in order

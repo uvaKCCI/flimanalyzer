@@ -24,6 +24,7 @@ Workflow files are registered by their `name` like tools: the built-in files (in
 `flim/workflow/files`) and those in the folders of the `workflow_paths` setting.
 """
 
+import itertools
 import json
 import logging
 import os
@@ -749,12 +750,27 @@ def import_read_settings(section: dict) -> dict:
     return settings
 
 
+# the built-in Separate Categories preset of each filename parser of 0.6
+PARSER_PRESETS = {
+    "celltype_compartment_fov_treatment_cell_parser": "Cell line, Compartment, FOV, Treatment, Cell",
+    "compartment_fov_treatment_cell_parser": "Compartment, FOV, Treatment, Cell",
+    "compartment_treatment_fov_cell_parser": "Compartment, Treatment, FOV, Cell",
+    "fov_time_well_parser": "FOV, Time, Well",
+    "fov_treatment_cell_parser": "FOV, Treatment, Cell",
+    "treatment_fov_cell_parser": "Treatment, FOV, Cell",
+    "treatment_fov_time_parser": "Treatment, FOV, Time",
+    "treatment_time_parser": "Treatment, Time",
+}
+
+
 def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
     """Return a workflow file that processes tables as a 0.6 settings file's `import`.
 
     The workflow does what the `import` settings of a FLIMAnalyzer 0.6 settings file
     did: rename and drop columns, join the files' tables, take the categories of its
-    filename parser from the paths, fuse its column combinations, calculate. How the
+    filename parser from the paths, fuse its column combinations, calculate. An
+    empty `category_combinations` list fuses all pairs of the parser's categories
+    (0.6 took all pairs of the text category columns of the first file). How the
     files are read is `import_read_settings`.
 
     Args:
@@ -771,7 +787,7 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         RenameColumnsConfig, SeparateCategoriesConfig,
     )  # fmt: skip
     from flim.configs.data import CategoryPattern
-    from flim.core.parser import PATTERN_CATEGORY, PATTERN_REGEX, PATTERN_USE, instantiate_parser
+    from flim.core.categories import separate_presets
 
     def settings(tool: str, config_class: type[BaseModel]) -> dict[str, Any]:
         config = (tools_data.get(tool) or {}).get("config")
@@ -785,11 +801,16 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         return data
 
     parser_section = section.get("filename_parser") or {}
-    patterns = list(parser_section.get("patterns") or [])
+    # a pattern of a 0.6 file: {"Use": bool, "Category": column, "Regex": regex}
+    patterns = [
+        {"name": p["Category"], "regex": p["Regex"]}
+        for p in parser_section.get("patterns") or []
+        if p.get("Use", True)
+    ]
     if not patterns:
-        parser = instantiate_parser(f"flim.core.parser.{parser_section.get('parser', 'defaultparser')}")
-        patterns = parser.get_regexpatterns() if parser is not None else []
-    patterns = [p for p in patterns if p.get(PATTERN_USE, True)]
+        preset = PARSER_PRESETS.get(parser_section.get("parser", "defaultparser"))
+        presets = {p["name"]: p["settings"]["patterns"] for p in separate_presets()}
+        patterns = list(presets.get(preset, []))
     steps = [
         {"tool": "Rename Columns", "processing": "allow_none", "config": settings("Rename Columns", RenameColumnsConfig)},
         {"tool": "Drop Columns", "processing": "allow_none", "config": settings("Drop Columns", DropColumnsConfig)},
@@ -798,12 +819,15 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
     if patterns:
         separate = SeparateCategoriesConfig(
             column="Source", mode="pattern",
-            patterns=[CategoryPattern(name=p[PATTERN_CATEGORY], regex=p[PATTERN_REGEX]) for p in patterns],
+            patterns=[CategoryPattern(**p) for p in patterns],
         ).model_dump(mode="json")  # fmt: skip
         separate.pop("classname", None)
         separate.pop("version", None)
         steps.append({"tool": "Separate Categories", "config": separate})
-    for pair in section.get("category_combinations") or []:
+    pairs = section.get("category_combinations")
+    if pairs == []:  # in 0.6: all pairs of the category columns
+        pairs = list(itertools.combinations([p["name"] for p in patterns], 2))
+    for pair in pairs or []:
         fuse = FuseCategoriesConfig(grouping=list(pair)).model_dump(mode="json")
         fuse.pop("classname", None)
         fuse.pop("version", None)

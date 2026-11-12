@@ -34,20 +34,6 @@ def data_dir(tmp_path):
     return folder
 
 
-def test_open_keeps_the_provenance_of_a_saved_table(tmp_path):
-    from flim.core.importer import dataimporter
-
-    path = tmp_path / "saved.txt"
-    saved = {"Source": ["file:///raw/a.txt"], "Directory": ["/raw"], "File": ["a.txt"], "t1": [1.0]}
-    pd.DataFrame(saved).to_csv(path, sep="\t", index=False)
-    importer = dataimporter()
-    importer.set_files([str(path)])
-    table, _, _ = importer.import_data(keep_existing=True)  # as File > Open does
-    assert table["Source"].iloc[0] == "file:///raw/a.txt"
-    assert table["File"].iloc[0] == "a.txt" and table["Directory"].iloc[0] == "/raw"
-    assert "Source (before Import)" not in table.columns
-
-
 def test_concatenate_renames_an_input_column():
     a = pd.DataFrame({"t1": [1.0, 2.0]})
     b = pd.DataFrame({"t1": [3.0]})
