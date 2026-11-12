@@ -65,3 +65,24 @@ def test_import_tables_checks_the_workflow():
     (issue,) = ImportTables.validate(ImportTablesConfig(workflow="no such workflow"), [])
     assert issue.field == "workflow" and "No workflow named" in issue.message
     assert ImportTables.validate(ImportTablesConfig(), []) == []
+
+
+def test_import_joins_files_without_flim_channels(prefect_harness, tmp_path, monkeypatch):
+    """The built-in Import on files without the channels' columns (e.g. one channel,
+    `_t1`): nothing to rename, drop or calculate; the tables are joined as they are."""
+    paths = []
+    for name in ("Results-1-KO.txt", "Results-2-WT.txt"):
+        path = tmp_path / name
+        pd.DataFrame({"_t1": [1.0, 2.0], "_a1[%]": [60.0, 70.0]}).to_csv(path, sep="\t", index=False)
+        paths.append(path)
+    from flim.core.registry import tools
+    from flim.core.workflowfile import register_workflow_files
+
+    monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # restored afterwards
+    register_workflow_files()
+    workflow = ImportTables()
+    run = workflow.run_flow(paths, config=ImportTablesConfig(workflow="Import"))
+    assert run.state == "completed", run.failed
+    ((_, output),) = workflow.leaves.items()
+    (table,) = output.value().values()
+    assert len(table) == 4 and "_t1" in table.columns

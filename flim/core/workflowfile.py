@@ -717,7 +717,7 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         fuse.pop("classname", None)
         fuse.pop("version", None)
         steps.append({"tool": "Fuse Categories", "config": fuse})
-    steps.append({"tool": "Calculate", "processing": "allow_partial", "save": True,
+    steps.append({"tool": "Calculate", "processing": "allow_none", "save": True,
                   "config": settings("Calculate", CalculateConfig)})  # fmt: skip
     for number, step in enumerate(steps, 1):
         step["id"] = str(number)
