@@ -20,35 +20,6 @@ from flim.gui.events import FILTERS_UPDATED, ANALYSIS_BINS_UPDATED
 
 logger = logging.getLogger(__name__)
 
-EVT_FU_TYPE = wx.NewEventType()
-EVT_FILTERUPDATED = wx.PyEventBinder(EVT_FU_TYPE, 1)
-
-EVT_AU_TYPE = wx.NewEventType()
-EVT_ANALYSISUPDATED = wx.PyEventBinder(EVT_AU_TYPE, 1)
-
-
-class ListCtrlUpdatedEvent(wx.PyCommandEvent):
-    """A command event that carries the items of a list control that changed."""
-
-    def __init__(self, evtType: int, id: int) -> None:
-        """Create the event.
-
-        Args:
-            evtType: The event type, `EVT_FU_TYPE` or `EVT_AU_TYPE`.
-            id: The id of the window that sends the event.
-        """
-        wx.PyCommandEvent.__init__(self, evtType, id)
-        self.items = None
-
-    def SetUpdatedItems(self, items: Any) -> None:
-        """Set the items that changed."""
-        self.items = items
-
-    def GetUpdatedItems(self) -> Any:
-        """Return the items that changed; None if none were set."""
-        return self.items
-
-
 class AnalysisListCtrl(
     wx.ListCtrl,
     listmix.ListCtrlAutoWidthMixin,
@@ -318,7 +289,6 @@ class FilterListCtrl(AnalysisListCtrl):
         self.setdrop(dropped)
         self.fireevents = fireevents
         self.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.EndLabelEdit)
-        self.Bind(EVT_FILTERUPDATED, self.OnFilterUpdated)
 
     def setdrop(self, dropped: Optional[dict[str, Any]]) -> None:
         """Set the dropped rows by filter name, and those of filters not listed.
@@ -423,13 +393,6 @@ class FilterListCtrl(AnalysisListCtrl):
         self.Thaw()
         self.enableevents = True
         self.fire_rowsupdated_event(changed)
-
-    def OnFilterUpdated(self, event: ListCtrlUpdatedEvent) -> None:
-        """Log the updated filters."""
-        logger.debug(f"{len(event.GetUpdatedItems())} updated")
-        for i in event.GetUpdatedItems():
-            logger.debug(i)
-        event.Skip()
 
     def GetDroppedRows(self, rowkey: str) -> Any:
         """Return the row positions the filter `rowkey` drops; None if not known."""

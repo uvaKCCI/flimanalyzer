@@ -21,7 +21,6 @@ import wx.adv
 
 from pubsub import pub
 from flim._version import __version__
-from wx.lib.newevent import NewEvent
 from importlib.resources import files
 from matplotlib.backend_bases import PickEvent
 from matplotlib.figure import Figure
@@ -55,8 +54,6 @@ from flim.gui.progressdlg import RunProgressDialog, RunSummaryDialog
 from flim.gui.datapanel import PandasFrame
 from flim.gui.dialogs import ConfigureAxisDlg
 from flim.gui.events import (
-    EVT_DATAUPDATED,
-    DataUpdatedEvent,
     DataWindowEvent,
     EVT_DATA,
     EVT_DATA_TYPE,
@@ -69,11 +66,6 @@ from flim.gui.events import (
     CLOSING_DATA_WINDOW,
     REQUEST_RENAME_DATA_WINDOW,
     RENAMED_DATA_WINDOW,
-)
-from flim.gui.listcontrol import (
-    EVT_FILTERUPDATED,
-    EVT_ANALYSISUPDATED,
-    ListCtrlUpdatedEvent,
 )
 import flim.tools  # noqa: F401  (registers the built-in tools)
 
@@ -109,9 +101,6 @@ def docs_url(version: str = __version__) -> str:
     return f"{DOCS_URL}/en/latest/"
 
 
-ImportEvent, EVT_IMPORT = NewEvent()
-ApplyFilterEvent, EVT_APPLYFILTER = NewEvent()
-DataUpdateEvent, EVT_UPDATEDATA = NewEvent()
 
 
 
@@ -472,13 +461,8 @@ class AppFrame(wx.Frame):
         self.Centre()
         self.Show(True)
 
-        self.Bind(EVT_IMPORT, self.OnImport)
         self.Bind(EVT_DATA, self.OnDataWindowRequest)
         self.Bind(EVT_PLOT, self.OnPlotWindowRequest)
-        self.Bind(EVT_DATAUPDATED, self.OnDataUpdated)
-        self.Bind(EVT_APPLYFILTER, self.OnApplyFilter)
-        self.Bind(EVT_FILTERUPDATED, self.OnRangeFilterUpdated)
-        self.Bind(EVT_ANALYSISUPDATED, self.OnAnalysisUpdated)
         pub.subscribe(self.OnDataWindowFocused, FOCUSED_DATA_WINDOW)
         pub.subscribe(self.OnClosingDataWindow, CLOSING_DATA_WINDOW)
         pub.subscribe(self.OnRequestRenameDataWindow, REQUEST_RENAME_DATA_WINDOW)
@@ -1721,7 +1705,7 @@ class AppFrame(wx.Frame):
             for item_id, window in self.windowframes.items()
             if isinstance(window, PandasFrame)
             and window
-            and window.savemodied
+            and window.savemodified
             and window.modified
         ]
 
@@ -1747,7 +1731,7 @@ class AppFrame(wx.Frame):
         for item_id, window in self.windowframes.items():
             if not window or not window.modified:
                 continue
-            if isinstance(window, PandasFrame) and not window.savemodied:
+            if isinstance(window, PandasFrame) and not window.savemodified:
                 continue
             unsaved.append((window, self.data_manager.get(item_id).title))
         return unsaved
@@ -1929,32 +1913,3 @@ class AppFrame(wx.Frame):
             if window:
                 window.Close()
 
-    def OnImport(self, event: wx.PyEvent) -> None:
-        """`EVT_IMPORT`: log the column types of `self.rawdata`."""
-        logger.debug(f"###############  OLD IMPORT: datatypes\n{self.rawdata.dtypes}")
-
-    def OnDataUpdated(self, event: DataUpdatedEvent) -> None:
-        """`EVT_DATAUPDATED`: log the type of the updated data."""
-        data, datatype = event.GetUpdatedData()
-        logger.debug(f"###############  OLD appframe.OnDataUpdated - {datatype}")
-
-    def OnRangeFilterUpdated(self, event: ListCtrlUpdatedEvent) -> None:
-        """`EVT_FILTERUPDATED`: log the number of updated filters."""
-        rfilters = event.GetUpdatedItems()
-        logger.debug(
-            "###############  OLD appframe.OnRangeFilterUpdated -"
-            f" {len(rfilters)} Filters updated:"
-        )
-
-    def OnApplyFilter(self, event: wx.PyEvent) -> None:
-        """`EVT_APPLYFILTER`: pass the event's data to `self.analysistab`."""
-        logger.debug("###############  OLD AppFrame.OnApplyFilter")
-        self.data = event.data
-        self.analysistab.update_data(event.data)
-
-    def OnAnalysisUpdated(self, event: ListCtrlUpdatedEvent) -> None:
-        """`EVT_ANALYSISUPDATED`: log the updated analysis items."""
-        updated = event.GetUpdatedItems()
-        logger.debug(f"appframe.OnAnalysisUpdated - {len(updated)} Analysis updated:")
-        for key in updated:
-            logger.debug(f"\t {key} {updated[key]}")

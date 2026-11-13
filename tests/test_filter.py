@@ -24,13 +24,6 @@ def test_get_dropped_unknown_column(df):
     assert RangeFilter("y").get_dropped(df) == []
 
 
-def test_apply_filter_not_inplace(df):
-    f = RangeFilter("x", rangelow=0, rangehigh=1)
-    filtered = f.apply_filter(df, inplace=False)
-    assert list(filtered["x"]) == [0.5, 1.0]
-    assert len(df) == 5
-
-
 def test_params_roundtrip():
     f = RangeFilter("x", rangelow=1, rangehigh=5, selected=True, dropna=False)
     g = RangeFilter(params=f.get_params())

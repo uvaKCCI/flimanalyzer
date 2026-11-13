@@ -332,7 +332,7 @@ class PandasFrame(wx.Frame):
         `__init__` for the arguments.
         """
         self.analyzable = analyzable
-        self.savemodied = savemodified
+        self.savemodified = savemodified
         self.modified = True
         self.precision = precision
 
@@ -348,9 +348,6 @@ class PandasFrame(wx.Frame):
             groups = data.select_dtypes(["category"]).columns.get_level_values(0).values
         self.groups = groups
         self.numcols = data.select_dtypes(["number"]).columns.get_level_values(0).values
-        self.popupmenus = {}
-        for group in groups:
-            self.popupmenus[group] = self.create_popupmenu(group)
         if self.grid is not None:
             logger.debug(
                 f"datapanel.PandasFrame.SetData - REFRESHING {self.GetTitle()}"
@@ -602,44 +599,6 @@ class PandasFrame(wx.Frame):
         filters.update({f["name"]: f for f in edited})
         return list(filters.values())
 
-    def OnPopupItemSelected(self, event: wx.CommandEvent) -> None:
-        """Show or hide the rows of a category value chosen in `currentpopup`.
-
-        `All` shows and `None` hides the rows of all values of the menu's column.
-        """
-        item = self.currentpopup.FindItemById(event.GetId())
-        value = item.GetText()
-        group = item.GetMenu().GetTitle()
-        if value in ["All", "None"]:
-            for item in self.currentpopup.GetMenuItems():
-                label = item.GetLabel()
-                if item.IsCheckable():
-                    item.Check(value == "All")
-                    if value == "All":
-                        if self.droppedrows.get((group, label)) is not None:
-                            del self.droppedrows[(group, label)]
-                            self.modified = True
-                    else:  #'None'
-                        self.droppedrows[(group, label)] = np.flatnonzero(
-                            self.data[group] == label
-                        )
-                        self.modified = True
-
-        else:
-            ischecked = item.IsChecked()
-            if ischecked:
-                if self.droppedrows.get((group, value)) is not None:
-                    del self.droppedrows[(group, value)]
-                    self.modified = True
-                else:
-                    wx.MessageBox(f"View selection for '{group}' out of sync.")
-            else:
-                self.droppedrows[(group, value)] = np.flatnonzero(
-                    self.data[group] == value
-                )
-                self.modified = True
-        self.update_view()
-
     def _flatten_array(self, arraylist: list[Any]) -> np.ndarray:
         """Return the unique values of the arrays in `arraylist`, sorted."""
         arraylist = [a for a in arraylist if len(a) > 0]
@@ -706,25 +665,6 @@ class PandasFrame(wx.Frame):
                 filtered=False,
             )
             self.GetEventHandler().ProcessEvent(event)
-
-    def create_popupmenu(self, colheader: str) -> wx.Menu:
-        """Return a menu with `All`, `None` and a checked item per value of a column.
-
-        Args:
-            colheader: The category column; it is the menu's title.
-        """
-        menu = wx.Menu()
-        menu.SetTitle(colheader)
-        for item in ["All", "None"]:
-            mitem = menu.Append(-1, item)
-            self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
-        for chitem in category_values(self.data[colheader]):
-            mitem = menu.AppendCheckItem(-1, str(chitem))
-            if mitem is not None:
-                mitem.Check(True)
-                self.Bind(wx.EVT_MENU, self.OnPopupItemSelected, mitem)
-        menu.InsertSeparator(2)
-        return menu
 
     def OnLabelDClick(self, event: wx.grid.GridEvent) -> None:
         """Rename the values of a category column with a pattern and a replacement."""
@@ -854,17 +794,6 @@ class PandasFrame(wx.Frame):
         if self.on_run_tool is not None:
             self.on_run_tool("Pivot", self.GetTitle())
 
-    def OnViewAll(self, event: wx.CommandEvent) -> None:
-        """Show all rows: clear the view filters' rows and check all menu items."""
-        if len(self.droppedrows) > 0:
-            for colheader in self.popupmenus:
-                for item in self.popupmenus[colheader].GetMenuItems():
-                    if item.IsCheckable():
-                        item.Check(True)
-            self.droppedrows = {}
-            self.modified = True
-            self.update_view()
-
     def OnSave(self, event: wx.CommandEvent) -> None:
         """Save all rows or the rows shown, by the button's label.
 
@@ -900,22 +829,6 @@ class PandasFrame(wx.Frame):
                 frame=self,
             )
 
-    def OnSaveView(self, event: wx.CommandEvent) -> None:
-        """Save the rows shown and send `REQUEST_RENAME_DATA_WINDOW` with the path."""
-        original = self.GetTitle()
-        fname = flim.gui.dialogs.save_dataframe(
-            self,
-            "Save current data view",
-            self.dataview,
-            original + ".txt",
-            saveindex=self.showcolindex,
-        )
-        if fname:
-            self.modified = False
-            pub.sendMessage(
-                REQUEST_RENAME_DATA_WINDOW, original=original, new=fname, frame=self
-            )
-
     def close_and_destroy(self, event: wx.CloseEvent) -> None:
         """Close the window, after asking to save a modified table.
 
@@ -926,7 +839,7 @@ class PandasFrame(wx.Frame):
         if not self.enableclose:
             wx.MessageBox("This window needs to stay open. It can be minimized.")
             return
-        if self.savemodied and self.modified:
+        if self.savemodified and self.modified:
             dlg = wx.MessageDialog(
                 self,
                 "The current view of the data has not been saved.\n\nDo you want to"

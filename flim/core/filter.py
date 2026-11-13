@@ -86,17 +86,6 @@ class Filter:
         return []
 
 
-class SeriesFilter(Filter):
-    """A filter subclass whose constructor raises `TypeError`, so it cannot be created.
-
-    The constructor calls `super.__init__` instead of `super().__init__`.
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Raise `TypeError` (see the class)."""
-        super.__init__(self, args, kwargs)
-
-
 class RangeFilter(Filter):
     """A filter that drops the rows whose value in a column is outside a range.
 
@@ -235,25 +224,6 @@ class RangeFilter(Filter):
             self.allowedmin = maxa
             self.allowedmax = mina
         self.clip_range()
-
-    def apply_filter(
-        self, data: "pd.DataFrame", inplace: bool = True
-    ) -> Optional["pd.DataFrame"]:
-        """Drop the rows that `get_dropped` selects.
-
-        `get_dropped` returns row positions, which are dropped as index labels; the
-        two agree only for a table with the default index (0, 1, 2, ...).
-
-        Args:
-            data: The table.
-            inplace: Whether to drop the rows from `data` itself. Defaults to True.
-
-        Returns:
-            None if `inplace`, else the filtered table.
-        """
-        droppedrows = self.get_dropped(data)
-        filtereddata = data.drop(droppedrows, inplace=inplace)
-        return filtereddata
 
     def get_dropped(self, data: "pd.DataFrame") -> np.ndarray | list[int]:
         """Return the positions of the rows whose value is outside the range.

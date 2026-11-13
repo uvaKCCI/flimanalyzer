@@ -26,21 +26,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def check_data_msg(data: Optional["pd.DataFrame"]) -> bool:
-    """Return whether there is data; if not, show a warning message box.
-
-    Args:
-        data: The table; None if no data is loaded.
-
-    Returns:
-        True if `data` has rows; otherwise False, after the warning is closed.
-    """
-    ok = data is not None and len(data) > 0
-    if not ok:
-        wx.MessageBox("No data loaded. Import data first.", "Warning", wx.OK)
-    return ok
-
-
 def fix_filename(fname: Optional[str]) -> Optional[str]:
     """Return a file name without the characters that cause problems in paths.
 
@@ -473,76 +458,6 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.EndModal(wx.ID_CANCEL)
 
 
-class ConfigureCategoriesDlg(wx.Dialog):
-    """Dialog that edits the bins and labels of a category, as comma-separated text."""
-
-    def __init__(
-        self,
-        parent: Optional[wx.Window],
-        title: str = "",
-        bins: list[float] = [],
-        labels: list[str] = [],
-    ) -> None:
-        """Build the dialog and show it.
-
-        Args:
-            parent: The parent window.
-            title: Appended to the dialog's title `Category Configuration: `.
-                Defaults to "".
-            bins: The bin edges. Defaults to none.
-            labels: The category labels. Defaults to none.
-        """
-        wx.Dialog.__init__(
-            self,
-            parent,
-            wx.ID_ANY,
-            f"Category Configuration: {title}",
-            size=(650, 220),
-        )
-        self.panel = wx.Panel(self, wx.ID_ANY)
-
-        self.bin = wx.StaticText(self.panel, label="Category bins", pos=(20, 20))
-        self.bin_field = wx.TextCtrl(
-            self.panel,
-            value=",".join([str(b) for b in bins]),
-            pos=(110, 20),
-            size=(500, -1),
-        )
-        self.label = wx.StaticText(self.panel, label="Category labels", pos=(20, 60))
-        self.label_field = wx.TextCtrl(
-            self.panel, value=",".join(labels), pos=(110, 60), size=(500, -1)
-        )
-        self.okButton = wx.Button(self.panel, label="OK", pos=(110, 160))
-        self.okButton.Bind(wx.EVT_BUTTON, self.OnSave)
-        self.cancelButton = wx.Button(self.panel, label="Cancel", pos=(210, 160))
-        self.cancelButton.Bind(wx.EVT_BUTTON, self.OnQuit)
-        self.Bind(wx.EVT_CLOSE, self.OnQuit)
-        self.Show()
-
-    def OnQuit(self, event: wx.Event) -> None:
-        """Close the dialog with Cancel; `get_config` returns None."""
-        self.bins = None
-        self.labels = None
-        self.EndModal(wx.ID_CANCEL)
-
-    def get_config(self) -> Optional[tuple[list[float], list[str]]]:
-        """Return the edited bins and labels; None if cancelled or there are no bins."""
-        if self.bins:
-            return self.bins, self.labels
-        else:
-            return None
-
-    def OnSave(self, event: wx.CommandEvent) -> None:
-        """Store the bins and labels and close the dialog with OK.
-
-        Raises:
-            ValueError: If a bin is not a number.
-        """
-        self.bins = [float(f) for f in self.bin_field.GetValue().split(",")]
-        self.labels = self.label_field.GetValue().split(",")
-        self.EndModal(wx.ID_OK)
-
-
 class ConfigureAxisDlg(wx.Dialog):
     """Dialog that edits the label and the range of a plot axis."""
 
@@ -650,75 +565,3 @@ class RenameGroupsDlg(wx.Dialog):
 
 
 # Feature-level analysis customization
-class ConfigureFeatureDlg(wx.Dialog):
-    """Dialog with an input control per option of a feature's analysis."""
-
-    def __init__(
-        self,
-        parent: Optional[wx.Window],
-        title: str,
-        feature: str,
-        settings: dict[str, list[Any]],
-        defaults: Optional[dict[str, Any]],
-    ) -> None:
-        """Build the dialog; it is not shown.
-
-        Args:
-            parent: The parent window.
-            title: The dialog's title.
-            feature: Not used.
-            settings: Per option name: the class of its input control and a dict of
-                the control's keyword arguments.
-            defaults: The value of each option to show; None: the controls'
-                initial values.
-        """
-        wx.Dialog.__init__(
-            self, parent, wx.ID_ANY, title, size=(200 * min(len(settings), 3), 120)
-        )
-
-        mainsizer = wx.BoxSizer(wx.VERTICAL)
-        optsizer = wx.WrapSizer(wx.HORIZONTAL)
-        buttonsizer = wx.BoxSizer(wx.HORIZONTAL)
-
-        self.settings = (
-            settings  # dict of option name -> [input handler class, handler args]
-        )
-        self.insettings = dict(self.settings)
-        self.inputs = dict()
-
-        for name, specs in self.settings.items():
-            opt_handler = specs[0](self, wx.ID_ANY, **specs[1])
-            self.inputs[name] = opt_handler
-            if defaults is not None:
-                self.inputs[name].SetValue(defaults[name])
-            optsizer.Add(
-                wx.StaticText(self, label=name), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5
-            )
-            optsizer.Add(opt_handler, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 5)
-
-        self.okButton = wx.Button(self, label="OK", pos=(110, 160))
-        buttonsizer.Add(self.okButton, 0, wx.ALL, 10)
-        self.closeButton = wx.Button(self, label="Cancel", pos=(210, 160))
-        buttonsizer.Add(self.closeButton, 0, wx.ALL, 10)
-        self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
-        self.closeButton.Bind(wx.EVT_BUTTON, self.OnQuit)
-        self.Bind(wx.EVT_CLOSE, self.OnQuit)
-
-        self.SetSizer(mainsizer)
-        mainsizer.Add(optsizer, 0, wx.ALIGN_LEFT, 10)
-        mainsizer.Add(buttonsizer, 0, wx.ALIGN_CENTER, 10)
-
-    def OnOK(self, event: wx.CommandEvent) -> None:
-        """Store the options' values and close the dialog with OK."""
-        self.insettings = {
-            setting: self.inputs[setting].GetValue() for setting in self.settings
-        }
-        self.EndModal(wx.ID_OK)
-
-    def OnQuit(self, event: wx.Event) -> None:
-        """Close the dialog with Cancel."""
-        self.EndModal(wx.ID_CANCEL)
-
-    def get_settings(self) -> dict[str, Any]:
-        """Return the options' values with OK; after Cancel, the `settings` given."""
-        return self.insettings  # dict of option name -> option value

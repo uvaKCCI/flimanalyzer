@@ -106,14 +106,14 @@ def test_pivot_button_runs_the_pivot_tool(frame, monkeypatch, prefect_harness, f
     assert len(table) == 30  # one row per FOV and cell
 
 
-def test_range_filter_and_view_all(frame, flim_data):
+def test_range_filter_on_and_off(frame, flim_data):
     window = _open(frame, flim_data)
     low, high = flim_data[FEATURE].quantile([0.25, 0.75])
     window.apply_filters({FEATURE: {"name": FEATURE, "rangelow": low, "rangehigh": high, "selected": True}})
     expected = flim_data[FEATURE].between(low, high).sum()
     assert len(window.GetViewData()) == expected < len(flim_data)
     assert window.is_modified()
-    window.OnViewAll(None)
+    window.updateusefilter(False)  # Filter Data unchecked
     assert len(window.GetViewData()) == len(flim_data)
 
 

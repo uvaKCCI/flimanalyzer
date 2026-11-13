@@ -8,9 +8,6 @@ import pandas as pd
 import wx
 from matplotlib.figure import Figure
 
-EVT_DU_TYPE = wx.NewEventType()
-EVT_DATAUPDATED = wx.PyEventBinder(EVT_DU_TYPE, 1)
-
 EVT_DATA_TYPE = wx.NewEventType()
 EVT_DATA = wx.PyEventBinder(EVT_DATA_TYPE, 1)
 
@@ -25,30 +22,6 @@ RENAMED_DATA_WINDOW = "datawindow.renamed"
 
 ANALYSIS_BINS_UPDATED = "analysis.bins.updated"
 FILTERS_UPDATED = "filters.updated"
-
-
-class DataUpdatedEvent(wx.PyCommandEvent):
-    """An event that carries updated data and its data type."""
-
-    def __init__(self, evtType: int, id: int) -> None:
-        """Create the event, without data.
-
-        Args:
-            evtType: The event type, e.g. `EVT_DU_TYPE`.
-            id: The ID of the window that sends the event.
-        """
-        super().__init__(evtType, id)
-        self.data = None
-        self.datatype = None
-
-    def SetUpdatedData(self, data: Any, dtype: Any) -> None:
-        """Set the updated data and its data type."""
-        self.data = data
-        self.datatype = dtype
-
-    def GetUpdatedData(self) -> tuple[Any, Any]:
-        """Return the updated data and its data type."""
-        return self.data, self.datatype
 
 
 class DataWindowEvent(wx.PyCommandEvent):
@@ -167,8 +140,13 @@ class DataWindowEvent(wx.PyCommandEvent):
 class PlotEvent(wx.PyCommandEvent):
     """A request to the main window to open a figure in a plot window."""
 
-    def __init_(self, evtType: int, id: int) -> None:
-        """Set the attributes to None; named `__init_`, so Python does not call it."""
+    def __init__(self, evtType: int, id: int) -> None:
+        """Create the event, without a figure (see `SetEventInfo`).
+
+        Args:
+            evtType: The event type, `EVT_PLOT_TYPE`.
+            id: The ID of the window that sends the event.
+        """
         wx.PyCommandEvent.__init__(self, evtType, id)
         self.figure = None
         self.title = None
