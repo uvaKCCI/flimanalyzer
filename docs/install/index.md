@@ -130,22 +130,20 @@ FLIMAnalyzer writes its messages to a log file. When an error message says "see 
 
 The location of the log file is determined in this order; the first that applies is used:
 
-1. The folder given with `--log-dir`, or in the environment variable `FLIM_LOG_DIR`, or in `log` > `dir` in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
-2. For the GUI, the platform's log folder:
+1. The folder given with `--log-dir`.
+2. The folder in the environment variable `FLIM_LOG_DIR`, for example set in your shell profile or in a cluster job script: `export FLIM_LOG_DIR=/scratch/$USER/flimanalyzer-logs`.
+3. The folder in `log` > `dir` of the app settings file given with `-s`, or, for the GUI, of the user settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
+4. For the GUI, the platform's log folder:
    * macOS: `~/Library/Logs/FLIMAnalyzer`
    * Linux: `~/.local/state/FLIMAnalyzer/log`
    * Windows: `%LOCALAPPDATA%\FLIMAnalyzer\Logs`
-3. For `flimbatch`, its output folder (`-o`), next to the results. `flimbatch` also writes its messages to the console.
+5. For `flimbatch`, its output folder (`-o`), next to the results. `flimbatch` also writes its messages to the console.
 
 If the log folder can't be created or written to, the log goes to the folder `FLIMAnalyzer` in the system's temporary folder, and FLIMAnalyzer says so. The Settings dialog of the GUI shows the log file in use (`File` > `Settings...`).
 
 A log file that reaches 10 MB is renamed with `.1` added (`.2`, `.3` for older parts; up to three are kept), and a new one is started. When the GUI starts, it removes the log files in its log folder that are older than 30 days; `log` > `max_age_days` in an app settings file sets another number of days. It removes only files named like FLIMAnalyzer's log files. `flimbatch` doesn't remove logs, because its log folder is usually a results folder.
 
 `--log` sets the level of the messages written, for FLIMAnalyzer and for the libraries it uses. Each message names where it comes from, for example `flim.core.runner` or `matplotlib`.
-
-### Log files on a cluster
-
-On a cluster, administrators can set one log folder for every user, for example on fast scratch space, by setting `FLIM_LOG_DIR` in the environment module or in the launch script of an Open OnDemand app. The variable can contain `$USER`, as the shell expands it, for example `export FLIM_LOG_DIR=/scratch/$USER/flimanalyzer-logs`. Without it, the GUI writes to the platform's log folder in the home directory, and batch jobs write to their output folder.
 
 ## Using a GPU
 
