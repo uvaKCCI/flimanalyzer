@@ -91,7 +91,7 @@ def _skip_sklearn_members(app, what, name, obj, skip, options):
 
 
 def _narrow_tall_images(app, doctree):
-    """Show screenshots that are taller than wide at half the column width.
+    """Show screenshots that are taller than wide at half the column width, on the right.
 
     The screenshots are taken on a high-resolution screen (two pixels per point),
     and the theme shows an image at its pixel size up to the column width, so tall
@@ -111,6 +111,30 @@ def _narrow_tall_images(app, doctree):
             continue
         if height > width:
             node["width"] = "50%"
+            node["align"] = "right"  # the text flows beside it
+            _to_start_of_step(node)
+
+
+def _to_start_of_step(image):
+    """Move a floated image to the start of the numbered or bulleted step it is in.
+
+    A float only lets the text after it flow beside it. The screenshots stand at the
+    end of their step in the page source, so they are moved before the step's text.
+    """
+    from docutils import nodes
+
+    block = image.parent if isinstance(image.parent, nodes.paragraph) else image
+    if isinstance(block, nodes.paragraph) and len(block.children) != 1:
+        return  # an image inside a sentence: left where it is
+    item = block.parent
+    while item is not None and not isinstance(item, nodes.list_item):
+        item = item.parent
+    if item is None:
+        return  # not in a step: left where it is
+    if block.parent is item and item.index(block) == 0:
+        return  # already first
+    block.parent.remove(block)
+    item.insert(0, block)
 
 
 def setup(app):
@@ -134,6 +158,8 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "docs"]
 html_theme = "sphinx_rtd_theme"
 
 html_theme_options = {"collapse_navigation": False}
+html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 
 # the program icon, drawn by scripts/make_icons.py
 html_logo = "../flim/resources/flimanalyzer.png"
