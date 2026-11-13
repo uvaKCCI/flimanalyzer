@@ -218,7 +218,7 @@ SHOTS = {
     "data/exdata_table.png": ("table", {}),
     "data/dataframe.png": ("table", {}),
     # Data
-    "data/precision.png": ("table", {"crop": (860, 28, 1000, 64)}),
+    "data/precision.png": ("table", {"crop": (400, 28, 1000, 250)}),  # decimals next to the control
     "files/open-dlg.png": ("window", {"make": "open_dialog"}),
     "files/import-dlg.png": ("window", {"make": "import_dialog"}),
     "data/category-filter.png": ("window", {"make": "category_filter"}),
