@@ -49,6 +49,7 @@ from prefect.settings import get_current_settings
 from prefect.states import Cancelled, Completed, State
 from prefect.task_runners import TaskRunner, ThreadPoolTaskRunner
 
+from flim.core.deprecation import deprecated_names
 from flim.core.tool import TaskCancelled, Tool, pyplot_lock, release_figures
 from flim.core.paths import unique_run_folder  # noqa: F401  (also used from here)
 from flim.results import clean_path_component, save_results
@@ -60,6 +61,11 @@ if TYPE_CHECKING:
     from flim.core.config import TaskConfig
 
 logger = logging.getLogger(__name__)
+
+# names of 0.6 that were renamed (PEP 562: resolved with a DeprecationWarning)
+__getattr__ = deprecated_names(
+    __name__, {"default_max_workers": ("flim.core.runner", "default_workers", "0.8.0")}
+)
 
 __all__ = [
     "Parameter",
