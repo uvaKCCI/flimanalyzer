@@ -124,7 +124,7 @@ def test_downstream_task_waits_for_its_input(flim_data):
     assert second[0] >= first[1]
 
 
-def _basic_flirr(flirr_data, tmp_path, workers):
+def _basic_flirr(flirr_data, workers):
     from flim.configs.workflow import BasicFLIRRConfig
     from flim.workflow.basicflow import BasicFLIRR
 
@@ -150,9 +150,9 @@ def _basic_flirr(flirr_data, tmp_path, workers):
     return tables, figures
 
 
-def test_workflow_results_do_not_depend_on_worker_count(flirr_data, tmp_path):
-    tables_1, figures_1 = _basic_flirr(flirr_data, tmp_path / "w1", 1)
-    tables_n, figures_n = _basic_flirr(flirr_data, tmp_path / "wn", 6)
+def test_workflow_results_do_not_depend_on_worker_count(flirr_data):
+    tables_1, figures_1 = _basic_flirr(flirr_data, 1)
+    tables_n, figures_n = _basic_flirr(flirr_data, 6)
     assert tables_1.keys() == tables_n.keys() and tables_1
     for key in tables_1:
         pd.testing.assert_frame_equal(tables_1[key], tables_n[key])

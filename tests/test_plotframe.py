@@ -136,7 +136,7 @@ def test_plot_window_fits_a_small_screen_without_resize_events(wxapp, monkeypatc
         window.Destroy()
 
 
-def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch):
+def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch, tmp_path):
     """A figure much larger than the screen: shrunk and zoomed out (lower dpi on
     screen), so that its layout keeps room for titles and labels; saving keeps the
     figure's dpi."""
@@ -164,6 +164,14 @@ def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch):
         with warnings.catch_warnings():
             warnings.simplefilter("error")  # e.g. "constrained_layout not applied"
             window.canvas.draw()
+        assert fig.dpi < 100  # zoomed out on the screen
+        # saved as the window's Save does (savefig's default dpi): at the figure's dpi
+        import matplotlib.image
+
+        fig.savefig(tmp_path / "tiles.png", format="png")
+        height, width = matplotlib.image.imread(tmp_path / "tiles.png").shape[:2]
+        inches = fig.get_size_inches()
+        assert (width, height) == pytest.approx((inches[0] * 100, inches[1] * 100), abs=2)
     finally:
         window.Destroy()
 

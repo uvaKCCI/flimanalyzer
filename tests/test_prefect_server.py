@@ -77,7 +77,10 @@ def test_no_server_and_no_start_uses_a_temporary_server(monkeypatch, no_side_eff
     _popen(monkeypatch, started, FakeProcess())
     with temporary_settings(restore_defaults={PREFECT_API_URL}):
         assert ps.ensure_prefect_server(start=False) is None
+        # no API URL anywhere, so Prefect runs each flow with a temporary server
+        assert PREFECT_API_URL.value() is None
     assert started == []
+    assert "PREFECT_API_URL" not in ps.os.environ  # none passed to subprocesses
 
 
 def test_starts_a_local_server(monkeypatch, no_side_effects):

@@ -201,5 +201,7 @@ def test_tools_in_a_flow(prefect_harness, table):
     assert isinstance(outputs["plot"].value()["Plot: Plot"], matplotlib.figure.Figure)
     labels = [label for label, _ in run.tasks()]
     assert labels == ["Double", "Sort", "Demo Plot"]
-    # the graph links the steps through the table they pass on
-    assert run.graph.number_of_edges() >= 2
+    # the graph links the steps through the table they pass on; the plot is apart
+    label = {n: a["label"] for n, a in run.graph.nodes(data=True)}
+    edges = sorted((label[u], label[v]) for u, v in run.graph.edges)
+    assert edges == [("Double", "Table: Doubled"), ("Table: Doubled", "Sort")]

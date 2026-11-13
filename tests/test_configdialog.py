@@ -91,12 +91,9 @@ def test_unused_fields_and_order(dialog):
     assert names.index("tolerance") < names.index("random_seed")
     # the result prefix names the results: in the Output section
     assert "prefix" not in names and list(d.output_fields.editors) == ["prefix"]
-    label = next(
-        w.GetLabel()
-        for w in d.fields.GetChildren()
-        if isinstance(w, wx.StaticText) and w.GetLabel() == "Clusters"
-    )
-    assert label == "Clusters"  # the field's title
+    # the field's title labels its editor
+    label = d.fields.widgets["n_clusters"][0]
+    assert isinstance(label, wx.StaticText) and label.GetLabel() == "Clusters"
 
 
 def test_reference_values_are_offered(dialog):

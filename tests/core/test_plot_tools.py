@@ -705,7 +705,26 @@ def test_legend_position(data, tool, config_class, grouping, position, single_fi
             assert len(_legends(figure)) == 1 and not figure.legends
         else:
             assert not _legends(figure) and len(figure.legends) == 1
-            assert sorted(t.get_text() for t in figure.legends[0].get_texts())
+            _assert_legend_outside(figure, figure.legends[0], position)
+        legends = _legends(figure) + list(figure.legends)
+        for legend in legends:  # the entries name the groups
+            texts = " ".join(t.get_text() for t in legend.get_texts())
+            assert any(value in texts for value in ("WT", "KO", "1", "2")), texts
+
+
+def _assert_legend_outside(figure, legend, position):
+    """Assert that a figure legend is on the `position` side of the figure."""
+    figure.canvas.draw()
+    box = legend.get_window_extent()
+    center_x, center_y = (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2
+    width, height = figure.bbox.width, figure.bbox.height
+    side = {
+        "right": center_x > width / 2,
+        "left": center_x < width / 2,
+        "top": center_y > height / 2,
+        "bottom": center_y < height / 2,
+    }
+    assert side[position], (position, box.extents, figure.bbox.extents)
 
 
 def test_single_figure_legend_is_not_inside():
