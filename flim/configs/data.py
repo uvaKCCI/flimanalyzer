@@ -271,13 +271,21 @@ class FilterConfig(DataTaskConfig):
     """Config of Filter: keeps the rows that the filters keep.
 
     The filters are a tree whose top level is an `all` group: a row is kept if every
-    filter of the list keeps it.
+    filter of the list keeps it. A filter is used only if `enabled` (the switch of
+    all filters), the `enabled` of each group it is in and its own `enabled` are all
+    true.
     """
 
-    legacy_keys = {"filters": None}
-    legacy_dropped = frozenset({"use", "inplace", "show_dropped"})  # unused
+    legacy_keys = {"filters": None, "enabled": "use"}  # 0.5: `use`, the same switch
+    legacy_dropped = frozenset({"inplace", "show_dropped"})  # unused
     hidden_fields = frozenset({"grouping", "features"})
 
+    enabled: bool = Field(
+        default=True,
+        title="Use filters",
+        description="The switch of all filters: off keeps all rows. A filter is used"
+        " only if this, the groups it is in and its own Use are all on.",
+    )
     filters: list[FilterEntry] = Field(
         default=[],
         title="Filters",

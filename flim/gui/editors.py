@@ -16,6 +16,7 @@ import wx
 import wx.grid
 from pydantic import BaseModel
 
+from flim.core.paths import with_extension
 from flim.core.fields import FieldSpec, describe, field_order, title_of, visible
 from flim.core.schema import TableSchema
 from flim.core.validation import guess_column
@@ -1614,7 +1615,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as dialog:
             if dialog.ShowModal() == wx.ID_OK:
-                self.save_settings(dialog.GetPath())
+                self.save_settings(with_extension(dialog.GetPath(), ".json"))
 
     def load_settings(self, path: str | os.PathLike) -> tuple[list, list]:
         """Apply the settings in a file to the matching features.

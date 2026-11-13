@@ -176,8 +176,8 @@ def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch, tmp_path):
         window.Destroy()
 
 
-@pytest.mark.parametrize("index, ending", [(0, ".png"), (1, ".svg"), (2, ".pdf")])
-def test_save_button_offers_the_plot_formats(wxapp, monkeypatch, tmp_path, index, ending):
+@pytest.mark.parametrize("index, extension", [(0, ".png"), (1, ".svg"), (2, ".pdf")])
+def test_save_button_offers_the_plot_formats(wxapp, monkeypatch, tmp_path, index, extension):
     import matplotlib.figure
     import wx
 
@@ -199,7 +199,7 @@ def test_save_button_offers_the_plot_formats(wxapp, monkeypatch, tmp_path, index
         path = window.toolbar.save_figure()
     finally:
         window.Destroy()
-    assert path == str(tmp_path / "plot") + ending and (tmp_path / f"plot{ending}").exists()
+    assert path == str(tmp_path / "plot") + extension and (tmp_path / f"plot{extension}").exists()
     assert offered[0] == (
         "PNG image (*.png)|*.png|SVG drawing (*.svg)|*.svg|PDF document (*.pdf)|*.pdf"
     )

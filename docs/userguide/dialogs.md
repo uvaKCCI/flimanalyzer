@@ -37,7 +37,7 @@ In the `Output` section, check `Save results` to save the results as files. The 
 
 Below the folder, the `Output` section has a column for each kind of result the tool makes, with the formats to save it in and their options. You can check several formats of one kind; each kind needs at least one:
 
-* `Tables`: `tsv`, tab-separated text with the ending `.txt` (default), and `csv`, comma-separated text (`.csv`). Tables are saved without the row numbers.
+* `Tables`: `tsv`, tab-separated text with the extension `.txt` (default), and `csv`, comma-separated text (`.csv`). Tables are saved without the row numbers.
 * `Plots`: `png` (default), `svg` and `pdf`. `Resolution (dpi)` applies to `png`; the default is 300 dpi.
 
 The tool's dialog keeps the formats you chose, with its other settings.

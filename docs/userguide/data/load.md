@@ -40,7 +40,7 @@ To run a workflow file on a table that is already open, for example after reshap
 `Open Tables` and `Import Tables` each have these settings, saved like the settings of any tool:
 
 * `Column delimiters`: each of these characters separates columns. A tab is shown and typed as `\t`. Default: `\t,`, a tab or a comma.
-* `Files to include`: in folders (given with `-i`, or to `flimbatch`), the files with these endings, separated by commas. Default: `.txt, .csv`. Files you choose one by one are read whatever their ending.
+* `Files to include`: in folders (given with `-i`, or to `flimbatch`), the files with these extensions, separated by commas. Default: `.txt, .csv`. Files you choose one by one are read whatever their extension.
 * `Text encoding`: the files' text encoding, for example `utf-8` (the default) or `latin-1`.
 * `Files to exclude`: file names without folder that are not read, separated by commas, for example `Results_old.txt`.
 * `File's own Source, Directory, File`: what happens to a file's own `Source`, `Directory` or `File` column: `keep` (the default) or `rename` (see [The Source column](#the-source-column)).

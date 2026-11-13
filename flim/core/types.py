@@ -33,7 +33,7 @@ class DataType:
 
         Args:
             value: The value.
-            base: The path without the file ending, which the format adds.
+            base: The path without the file extension, which the format adds.
             options: The format and its options (`save_options`).
 
         Returns:
@@ -119,7 +119,7 @@ class TableType(DataType):
 
         Args:
             value: The DataFrame or Series.
-            base: The path without the file ending, which the format adds.
+            base: The path without the file extension, which the format adds.
             options: The format (e.g. tab- or comma-separated).
 
         Returns:
@@ -146,7 +146,7 @@ class PlotType(DataType):
 
         Args:
             value: The figure.
-            base: The path without the file ending, which the format adds.
+            base: The path without the file extension, which the format adds.
             options: The format and, used for png only, the resolution (`dpi`).
 
         Returns:
@@ -177,11 +177,11 @@ class FileType(DataType):
     def save(
         cls, value: Any, base: str | Path, options: Optional[SaveOptions] = None
     ) -> Path:
-        """Copy the file as it is, keeping its ending.
+        """Copy the file as it is, keeping its extension.
 
         Args:
             value: The path of the file.
-            base: The path of the copy without the file ending.
+            base: The path of the copy without the file extension.
             options: Not used.
 
         Returns:

@@ -8,7 +8,7 @@ The `Filter` tool creates a new table with only the rows you want to keep: rows 
 
 The filters of the table window (see [Filtering Data](filter.md)) only hide rows in that window. The `Filter` tool instead creates a new table, `Table: Filtered`, and leaves the original table unchanged. Use it when the filtered rows should be saved, or used as the input of other tools and workflows.
 
-The range filters of the `Filter` tool are the defaults for new table windows (see [Filtering Data](filter.md#presets)): a new table window starts with the ranges that are checked here. A change in a table window's `Filter Settings` changes only that window. The `Filter` tool applies the filters checked in its dialog to the rows the table window shows. If the window's `Filter Data` is checked, or category values are hidden in the window, the rows it hides are not in the tool's input. This is the same for every tool started for that window.
+The range filters of the `Filter` tool are the defaults for new table windows (see [Filtering Data](filter.md#presets)): a new table window starts with the ranges that are checked here. A change in a table window's `Filter Settings` changes only that window. The `Filter` tool applies the filters checked in its dialog to the rows the table window shows. If the window's `Filter Data` is checked, the rows that the window's filters hide are not in the tool's input. This is the same for every tool started for that window.
 
 ## Filtering the Data
 
@@ -36,16 +36,18 @@ The range filters of the `Filter` tool are the defaults for new table windows (s
 
 5. Click `OK`. The new table `Table: Filtered` opens in its own window.
 
-**Presets:** the buttons below the settings load and save the filters by name. `Load Preset...` replaces the filters of the dialog with those of a preset. `Save as Preset...` saves all filters of the dialog as a preset; a preset with the same name is replaced. `Remove Presets...` removes presets. The presets are in the user settings file. A table window's `Filter Settings` offers them too, and the presets saved there have only range filters.
+**Use filters:** the switch of all filters (`enabled` in settings files, on by default). If it is off, the tool keeps all rows. In a table window, `Filter Data` is this switch.
 
-A row is kept only if it passes every filter that is switched on: its category values are among the selected ones, its values lie within all checked ranges, and every condition is true for it. A filter on a column that the table doesn't have keeps all rows; the dialog marks it with a warning. The log file lists how many rows each filter dropped.
+**Presets:** the buttons below the settings load and save `Use filters` and the filters by name. `Load Preset...` replaces them with those of a preset. `Save as Preset...` saves them as a preset; a preset with the same name is replaced. `Remove Presets...` removes presets. The presets are in the user settings file. A table window's `Filter Settings` offers them too. A preset saved there has the window's `Filter Data`, range filters and category values.
+
+A row is kept only if it passes every filter that applies: its category values are among the selected ones, its values lie within all checked ranges, and every condition is true for it. A filter on a column that the table doesn't have keeps all rows; the dialog marks it with a warning. The log file lists how many rows each filter dropped.
 
 ## Filters in settings files
 
 In the settings (see [Settings](/userguide/settings)), the filters are the `Filter` tool's `filters`: a list of filters, each with a `kind`. A row is kept if every filter of the list keeps it:
 
 ```
-"Filter": {"config": {"filters": [
+"Filter": {"config": {"enabled": true, "filters": [
   {"kind": "range", "column": "FAD t1", "low": 10, "high": 1500, "dropna": true, "enabled": true},
   {"kind": "category", "column": "Treatment", "keep": ["ctrl", "Dox15"]},
   {"kind": "expression", "expression": "`FAD tm` > 1000"},
@@ -58,4 +60,6 @@ In the settings (see [Settings](/userguide/settings)), the filters are the `Filt
 
 * `range`, `category` and `expression`: the filters described above. An empty `low` or `high` (`null`) is no limit.
 * `all`, `any` and `not`: groups, with their own `filters`. `all` keeps the rows that all of its filters keep, `any` the rows that at least one of them keeps, and `not` the rows that `all` would drop. Groups can contain groups. An empty group keeps all rows.
-* `enabled` (default `true`): `false` switches a filter or a whole group off; it then keeps all rows.
+* `enabled` (default `true`): `false` switches a filter or a whole group off; it then keeps all rows. The `enabled` next to `filters` is `Use filters`, the switch of all filters.
+
+A filter applies only if every `enabled` on its way is `true`: that of the Filter settings (`Use filters`), that of each group that contains the filter, and its own. The `enabled` values are combined with a logical AND. For example, a range filter with `"enabled": true` in a group with `"enabled": false` keeps all rows.

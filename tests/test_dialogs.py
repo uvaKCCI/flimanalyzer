@@ -131,13 +131,13 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
             len([c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)])
             for box in boxes
         )
-        # Open and Import, the tools of the menus, Prefect Server; workflow files only
-        # as favorites
+        # Open and Import, the tools of the menus, Prefect Server and Last Run; workflow
+        # files only as favorites
         in_menus = [
             t for group in tools.by_category().values() for t in group
             if t.in_menus and getattr(t, "definition", None) is None
         ]
-        assert n_tools == 2 + len(in_menus) + 1
+        assert n_tools == 2 + len(in_menus) + 2
     finally:
         frame.Destroy()
 

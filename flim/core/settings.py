@@ -687,6 +687,8 @@ class Changes:
     import_section: Optional[dict] = None
 
 
+# keys of earlier 0.7.0 development builds that are not used any more
+_DEVELOPMENT_KEYS = ("import_workflow",)
 # the preset keys of earlier 0.7.0 development builds: key -> (tool, preset of an item)
 _PRESET_KEYS: dict[str, tuple[str, Callable[[dict], dict]]] = {
     "separate_presets": ("Separate Categories", lambda item: item),
@@ -698,13 +700,18 @@ _PRESET_KEYS: dict[str, tuple[str, Callable[[dict], dict]]] = {
 
 
 def _moved_presets(data: dict, changes: Changes) -> dict:
-    """Return the data with the older preset keys moved into `presets`, by tool.
+    """Return the data with the keys of earlier development builds moved or removed.
 
     `separate_presets` and `calculation_presets` (each calculation a preset) become
-    `presets` > `Separate Categories` and `presets` > `Calculate`. Data without them
-    is returned as it is.
+    `presets` > `Separate Categories` and `presets` > `Calculate`. The keys of
+    `_DEVELOPMENT_KEYS` are removed without a record: no release wrote them. Data
+    without these keys is returned as it is.
     """
-    if not isinstance(data, dict) or not any(key in data for key in _PRESET_KEYS):
+    if not isinstance(data, dict):
+        return data
+    if any(key in data for key in _DEVELOPMENT_KEYS):
+        data = {k: v for k, v in data.items() if k not in _DEVELOPMENT_KEYS}  # not released
+    if not any(key in data for key in _PRESET_KEYS):
         return data
     data = copy.deepcopy(data)
     presets = data.setdefault("presets", {})
@@ -751,6 +758,32 @@ def _unknown_keys(model: BaseModel, path: str = "") -> list[str]:
         if isinstance(value, BaseModel):
             keys += _unknown_keys(value, f"{path}{name}.")
     return keys
+
+
+def known_data(model: BaseModel) -> dict:
+    """Return a settings model as JSON data without its unknown keys.
+
+    Unknown keys (`_unknown_keys`) are kept in the model but not used; this data has
+    only the settings that are used, with field aliases as keys.
+
+    Args:
+        model: The settings, for example `AppSettings`.
+
+    Returns:
+        The JSON-compatible data.
+    """
+    data = model.model_dump(mode="json", by_alias=True)
+
+    def strip(part: BaseModel, part_data: dict) -> None:
+        for key in part.model_extra or {}:
+            part_data.pop(key, None)
+        for name, info in type(part).model_fields.items():
+            value, key = getattr(part, name), info.alias or name
+            if isinstance(value, BaseModel) and isinstance(part_data.get(key), dict):
+                strip(value, part_data[key])
+
+    strip(model, data)
+    return data
 
 
 def _validated(data: dict) -> AppSettings:

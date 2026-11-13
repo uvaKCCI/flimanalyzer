@@ -535,11 +535,14 @@ class PandasFrame(wx.Frame):
         self.grid.Refresh()
 
     def updateusefilter(self, enabled: bool, showdiscarded: bool = False) -> None:
-        """Turn the range filters on or off and update the view.
+        """Turn all filters on or off and update the view.
+
+        The category values hidden in the window are kept, and apply only while the
+        filters are on.
 
         Args:
-            enabled: True to apply the range filters of `filters`, False to clear
-                them.
+            enabled: True to apply the range filters of `filters` and the hidden
+                category values, False to show all rows.
             showdiscarded: Whether a new table window shows the rows the range
                 filters drop (only when `enabled`). Defaults to False.
         """
@@ -556,7 +559,7 @@ class PandasFrame(wx.Frame):
             self.apply_filters({})
 
     def OnFilterData(self, event: wx.CommandEvent) -> None:
-        """Turn the range filters on or off with the Filter Data checkbox."""
+        """Turn all filters (ranges and category values) on or off with Filter Data."""
         cb = event.GetEventObject()
         self.updateusefilter(cb.GetValue())
         self._filters_changed()
@@ -585,19 +588,54 @@ class PandasFrame(wx.Frame):
         """Edit the view filters in the filter dialog and apply them on OK."""
         rfilterlist = self.filters.range_filters
         shown = self.filters.model_copy(
-            update={"range_filters": self._existing_rangefilters(rfilterlist)}
+            update={
+                "range_filters": self._existing_rangefilters(rfilterlist),
+                "category_filters": self.category_filters(),
+            }
         )
         # a copy of the dropped rows, so that Cancel leaves droppedrows unchanged
         dlg = ConfigureFiltersDlg(
             self, shown, self.data, self.droppedrows.copy(), presets=self.presets
         )
         response = dlg.ShowModal()
+        edited = dlg.GetData()
+        dlg.Destroy()
         if response == wx.ID_OK:
-            edited = dlg.GetData()
             self.filters.range_filters = self._merged_filters(edited.range_filters)
             self.filters.show_dropped = edited.show_dropped
-            self.updateusefilter(self.filters.use, showdiscarded=edited.show_dropped)
+            if edited.category_filters != shown.category_filters:
+                self.set_category_filters(edited.category_filters)
+            self.filtercb.SetValue(edited.use)
+            self.updateusefilter(edited.use, showdiscarded=edited.show_dropped)
             self._filters_changed()
+
+    def category_filters(self) -> dict[str, list]:
+        """Return the values kept of each category column that hides values."""
+        hidden: dict[str, set] = {}
+        for key in self.droppedrows:
+            if isinstance(key, tuple):
+                hidden.setdefault(key[0], set()).add(key[1])
+        return {
+            column: [v for v in category_values(self.data[column]) if v not in values]
+            for column, values in hidden.items()
+        }
+
+    def set_category_filters(self, kept: dict[str, list]) -> None:
+        """Hide the values of category columns that are not kept; show all others.
+
+        Args:
+            kept: The values kept, by category column; columns not in it keep all
+                values, and columns the table doesn't have are ignored.
+        """
+        for key in [k for k in self.droppedrows if isinstance(k, tuple)]:
+            del self.droppedrows[key]
+        for column, keep in kept.items():
+            if column not in self.data.columns:
+                continue
+            for value in category_values(self.data[column]):
+                if value not in keep:
+                    self.droppedrows[(column, value)] = np.flatnonzero(self.data[column] == value)
+        self.modified = True
 
     def _merged_filters(self, edited: list[dict]) -> list[dict]:
         """Return the range filters with the edited ones replaced, by column name."""
@@ -629,12 +667,12 @@ class PandasFrame(wx.Frame):
                 if fname in self.droppedrows
             ]
         )
-        # get rows dropped by category filters
+        # get rows dropped by category filters; Filter Data switches them too
         catdropped = self._flatten_array(
             [
                 self.droppedrows[fname]
                 for fname in self.droppedrows
-                if fname not in rfilter_names
+                if fname not in rfilter_names and self.filters.use
             ]
         )
         # all dropped rows: the union of rfilterdropped and catdropped
@@ -716,7 +754,13 @@ class PandasFrame(wx.Frame):
                     self.data[group] == value
                 )
             self.modified = True
-            self.update_view()
+            if notselected and not self.filters.use:
+                # hidden values apply with Filter Data on: switch it on
+                self.filtercb.SetValue(True)
+                self.updateusefilter(True)
+                self._filters_changed()
+            else:
+                self.update_view()
         elif (
             event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue()
         ):
@@ -736,8 +780,10 @@ class PandasFrame(wx.Frame):
                 show_dropped_option=False,
             )
             response = dlg.ShowModal()
+            result = dlg.GetData()
+            dlg.Destroy()
             if response == wx.ID_OK:
-                edited = dlg.GetData().range_filters
+                edited = result.range_filters
                 self.filters.range_filters = self._merged_filters(edited)
                 self.apply_filters({f["name"]: f for f in edited})
                 self._filters_changed()

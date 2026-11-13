@@ -59,8 +59,8 @@ class ReadSettings(BaseModel):
         default=[".txt", ".csv"],
         title="Files to include",
         description="In folders (given with -i, or to flimbatch): the files with these"
-        " endings, for example .txt, .csv. Files chosen one by one are read whatever"
-        " their ending.",
+        " extensions, for example .txt, .csv. Files chosen one by one are read whatever"
+        " their extension.",
         json_schema_extra={"words": True},
     )
     encoding: str = Field(
@@ -87,7 +87,7 @@ class ReadSettings(BaseModel):
     @field_validator("extensions")
     @classmethod
     def _dotted(cls, extensions: list[str]) -> list[str]:
-        """Return the endings in lower case with a leading dot (`TXT` -> `.txt`)."""
+        """Return the extensions in lower case with a leading dot (`TXT` -> `.txt`)."""
         return ["." + e.strip().lstrip(".").lower() for e in extensions if e.strip().lstrip(".")]
 
 
@@ -123,14 +123,14 @@ def find_files(
 ) -> tuple[list[Path], dict[str, str]]:
     """Return the data files among files and folders (with their subfolders).
 
-    A file given directly is taken whatever its ending; in folders, only the files
+    A file given directly is taken whatever its extension; in folders, only the files
     with one of `settings.extensions` (in any letter case) are taken. Files named in
     `settings.exclude` are left out.
 
     Args:
         paths: Files and folders; relative paths are resolved against the working
             directory.
-        settings: The file endings and the file names to leave out. Defaults to
+        settings: The file extensions and the file names to leave out. Defaults to
             `ReadSettings()`.
 
     Returns:

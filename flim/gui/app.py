@@ -31,14 +31,14 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.configs.data import ImportTablesConfig
 from flim.core.datamgr import DataManager, Item, ItemId
 from flim.core.saving import AutosaveConfig
-from flim.core.filtering import WindowFilters, window_filters, with_window_ranges
+from flim.core.filtering import WindowFilters, window_filters, window_settings, with_window_ranges
 from flim.tools.data import Filter
 from flim.core.types import TableType
 from flim.core.settings import AppSettings, tool_settings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
 from flim.core.reader import LEFT_OUT, ReadSettings, read_tables
 from flim.core.schema import TableSchema
-from flim.core.paths import canonical_folder, resolved_folder
+from flim.core.paths import canonical_folder, resolved_folder, with_extension
 from flim.core.graph import WorkflowGraph
 from flim.core.tool import Tool
 from flim.core.tools import FLIMAnalyzer
@@ -335,10 +335,10 @@ class AppFrame(wx.Frame):
         self.settings_manager = (
             settings_manager if settings_manager is not None else SettingsManager()
         )
-        # the filter settings shared by the data windows (the Filter tool's range
-        # filters and the windows' switches); changes are reported to the settings
-        # manager (report_filters)
+        # the filters new table windows start with (the Filter tool's range filters
+        # and the `filters` switches); each window works on its own copy
         self.filters = WindowFilters()
+        self.last_run_url: Optional[str] = None  # the Prefect page of the last run (OnLastRun)
         self._quit_confirmed = False  # the user chose to quit (confirm_quit)
         self.refresh_window_filters()
         flim.gui.dialogs.calculate.bind(self.settings_manager)  # the saved presets
@@ -563,7 +563,8 @@ class AppFrame(wx.Frame):
     def build_tool_panel(self) -> None:
         """Create the tool panel's groups: File first, one per tool category, Runs last.
 
-        Runs holds the button that opens the Prefect server (`OnPrefectServer`).
+        Runs holds the buttons that open the Prefect server (`OnPrefectServer`) and
+        the last run started in this session (`OnLastRun`).
 
         With favorites (`favorites` setting), the groups hold only them, in their
         order: a tool in its category's group, a workflow file in the group its tags
@@ -585,7 +586,10 @@ class AppFrame(wx.Frame):
         for label, buttons in groups.items():
             if label == "File" or buttons or not favorites:
                 self._add_tool_group(label, buttons)
-        self._add_tool_group("Runs", [("Prefect Server", icon_bitmap("runs.png"), self.OnPrefectServer)])
+        self._add_tool_group("Runs", [
+            ("Prefect Server", icon_bitmap("runs.png"), self.OnPrefectServer),
+            ("Last Run", icon_bitmap("lastrun.png"), self.OnLastRun),
+        ])  # fmt: skip
         self._layout_tool_groups(rows=2)
 
     def favorite_buttons(
@@ -678,8 +682,9 @@ class AppFrame(wx.Frame):
     def filter_presets(self) -> "flim.gui.dialogs.FilterPresets":
         """Return where the table windows' `Filter Settings` load and save filters.
 
-        The defaults for new tables are the `filters` setting and the Filter tool's
-        range filters (`window_filters`); saved presets are the Filter tool's presets.
+        The defaults for new tables are the `filters` setting (`use`) and the Filter
+        tool's range filters (`window_filters`), as the Filter tool's settings; saved
+        presets are the Filter tool's presets.
         """
         from flim.gui.dialogs import FilterPresets
 
@@ -688,7 +693,7 @@ class AppFrame(wx.Frame):
             self.refresh_window_filters()
 
         return FilterPresets(
-            defaults=lambda: window_filters(self.settings).range_filters,
+            defaults=lambda: window_settings(window_filters(self.settings)),
             save_defaults=save_defaults,
             saved=lambda: self.settings.tool_presets(Filter),
             save=lambda presets: self.settings_manager.set_presets(Filter, presets),
@@ -1214,7 +1219,7 @@ class AppFrame(wx.Frame):
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            path = fileDialog.GetPath()
+            path = with_extension(fileDialog.GetPath(), ".json")
         self.save_settings(path)
         self.offer_search_path(path)
 
@@ -1469,7 +1474,10 @@ class AppFrame(wx.Frame):
         dlg = RunProgressDialog(self, title, start_run)
         dlg.ShowModal()
         flow_run, error = dlg.run, dlg.error
+        started = dlg.started_run
         dlg.Destroy()
+        if started is not None and started.ui_url:
+            self.last_run_url = started.ui_url  # also of a failed or cancelled run
         if error is not None:
             wx.MessageBox(
                 f"{title} stopped with an error, see the log for details:\n{error}",
@@ -1904,6 +1912,22 @@ class AppFrame(wx.Frame):
             )
             return
         wx.LaunchDefaultBrowser(url)
+
+    def OnLastRun(self, event: wx.CommandEvent) -> None:
+        """Open the Prefect page of the last run started in this session.
+
+        The run may have completed, failed or been cancelled. Before the first run,
+        or if runs use temporary servers, a message says so.
+        """
+        if self.last_run_url:
+            wx.LaunchDefaultBrowser(self.last_run_url)
+            return
+        wx.MessageBox(
+            "No run with a Prefect page was started in this session. Runs on a"
+            " temporary server (--no-prefect-server) have no page after they end.",
+            "Last Run",
+            wx.OK | wx.ICON_INFORMATION,
+        )
 
     def OnDocumentation(self, event: wx.CommandEvent) -> None:
         """Help > Documentation: open this version's documentation in the browser."""

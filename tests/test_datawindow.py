@@ -327,6 +327,69 @@ def _frame_with_user_file(tmp_path):
     return AppFrame(FLIMAnalyzer(), SettingsManager(user_file=UserSettingsFile(path))), path
 
 
+def test_filter_settings_dialogs_are_destroyed_and_unsubscribed(frame, monkeypatch, flim_data):
+    from pubsub import pub
+
+    from flim.gui.events import FILTERS_UPDATED
+
+    window = _open(frame, flim_data)
+    monkeypatch.setattr(wx.Dialog, "ShowModal", lambda d: wx.ID_CANCEL)
+    for _ in range(3):
+        window.OnFilterSettings(None)
+    wxapp_yield = wx.GetApp().Yield
+    wxapp_yield()
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    assert not [w for w in wx.GetTopLevelWindows() if isinstance(w, ConfigureFiltersDlg)]
+    topic = pub.getDefaultTopicMgr().getTopic(FILTERS_UPDATED)
+    assert not [l for l in topic.getListeners() if "ConfigureFiltersDlg" in repr(l)]
+
+
+def test_filter_data_switches_the_category_filters_too(frame, monkeypatch, flim_data):
+    import flim.gui.datapanel as datapanel
+
+    window = _open(frame, flim_data)
+
+    class Checked:  # the Filter Data checkbox's event
+        def __init__(self, value):
+            self.value = value
+
+        def GetEventObject(self):
+            return self
+
+        def GetValue(self):
+            return self.value
+
+    window.set_category_filters({"Treatment": ["WT"]})
+    window.update_view()
+    assert len(window.GetViewData()) == len(flim_data)  # Filter Data off: all rows
+    window.OnFilterData(Checked(True))
+    assert set(window.GetViewData()["Treatment"]) == {"WT"}
+    assert window.category_filters() == {"Treatment": ["WT"]}
+    window.OnFilterData(Checked(False))
+    assert len(window.GetViewData()) == len(flim_data)
+
+    class Dialog:  # Filter Settings, closed with OK after loading a preset
+        def __init__(self, parent, shown, *args, **kwargs):
+            assert shown.category_filters == {"Treatment": ["WT"]}
+            self.result = shown.model_copy(update={"use": True, "category_filters": {"FOV": ["1", "2"]}})
+
+        def ShowModal(self):
+            return wx.ID_OK
+
+        def GetData(self):
+            return self.result
+
+        def Destroy(self):
+            pass
+
+    monkeypatch.setattr(datapanel, "ConfigureFiltersDlg", Dialog)
+    window.OnFilterSettings(None)
+    assert window.filtercb.GetValue() and window.filters.use
+    assert window.category_filters() == {"FOV": ["1", "2"]}
+    assert set(window.GetViewData()["FOV"]) == {"1", "2"} and len(window.GetViewData()) == 40
+
+
 def test_filters_belong_to_their_table_window(wxapp, monkeypatch, tmp_path, flim_data):
     import json
 
@@ -357,6 +420,7 @@ def test_filter_presets_defaults_saved_and_files(wxapp, monkeypatch, tmp_path, f
     import json
 
     from flim.core.filtering import new_range
+    from flim.core.settings import ToolSettings, read_tool_settings, write_tool_settings
     from flim.gui.dialogs import DEFAULTS_PRESET, ConfigureFiltersDlg
     from flim.tools.data import Filter
 
@@ -386,23 +450,55 @@ def test_filter_presets_defaults_saved_and_files(wxapp, monkeypatch, tmp_path, f
             monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda d: "Mito")
             dlg._on_save_preset(None)
             assert [p["name"] for p in frame.settings.tool_presets(Filter)] == ["Mito"]
-            # ... a file, in the format of Save Feature Settings...
+            # ... a settings file with the Filter section, as the Filter dialog's Save Settings...
             choice["index"] = 3  # defaults, Mito, New preset..., To file...
-            target = tmp_path / "ranges.json"
+            target = tmp_path / "filters"  # .json is added
             monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda d: wx.ID_OK)
             monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(target))
+            dlg.categories = {"Treatment": ["WT"]}
             dlg._on_save_preset(None)
-            assert json.loads(target.read_text()) == {column: {"low": 60.0, "high": 75.0, "dropna": True}}
-            # Load Preset...: the saved preset, then the file, into the shown filters
+            written = json.loads((tmp_path / "filters.json").read_text())
+            config = written["tools"]["Filter"]["config"]
+            assert written["schema_version"] == 2 and config["enabled"] is True
+            assert {"enabled": True, "kind": "category", "column": "Treatment", "keep": ["WT"]} in config["filters"]
+            assert {"enabled": True, "kind": "range", "column": column, "low": 60.0, "high": 75.0,
+                    "dropna": True} in config["filters"]
+            entry = read_tool_settings(tmp_path / "filters.json", Filter)  # the Filter tool reads it
+            assert Filter.config_class.model_validate(entry.config).enabled
+            # Load Preset...: the saved preset, then the file: switch, ranges, categories
             dlg.show_ranges([new_range(column)])
+            dlg.use, dlg.categories = False, {}
             choice["index"] = 1
             dlg._on_load_preset(None)
             assert next(r for r in dlg.current_ranges() if r["name"] == column)["rangehigh"] == 75.0
-            target.write_text(json.dumps({column: {"low": 65, "high": 70}, "not here": {"low": 1}}))
+            assert dlg.use and dlg.categories == {}  # the preset was saved before the categories
+            dlg.use = False
+            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(tmp_path / "filters.json"))
             choice["index"] = 2  # defaults, Mito, From file...
             dlg._on_load_preset(None)
-            loaded = next(r for r in dlg.current_ranges() if r["name"] == column)
-            assert (loaded["rangelow"], loaded["rangehigh"], loaded["selected"]) == (65, 70, True)
+            assert dlg.use and dlg.categories == {"Treatment": ["WT"]}
+            assert dlg.current_filters().category_filters == {"Treatment": ["WT"]}
+            # a file of the Filter tool: its switch off, an expression the window doesn't use
+            tool_file = tmp_path / "tool.json"
+            write_tool_settings(tool_file, Filter, ToolSettings(config=Filter.config_class(
+                enabled=False, filters=[{"kind": "expression", "expression": "`FAD a1[%]` > 1"},
+                                        {"kind": "range", "column": FEATURE, "low": 0, "high": 5}]
+            ).model_dump(mode="json")))
+            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(tool_file))
+            dlg._on_load_preset(None)
+            shown = {r["name"]: r for r in dlg.current_ranges()}
+            assert not dlg.use and dlg.categories == {}
+            assert (shown[FEATURE]["rangehigh"], shown[FEATURE]["selected"]) == (5, True)
+            assert not shown[column]["selected"]  # not in the file: off
+            assert "1 filters not used by table windows" in dlg.message.GetLabel()
+            # a file of Save Feature Settings... (ranges only): all on, Filter Data unchanged
+            ranges_file = tmp_path / "ranges.json"
+            ranges_file.write_text(json.dumps({column: {"low": 65, "high": 70}, "not here": {"low": 1}}))
+            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(ranges_file))
+            dlg._on_load_preset(None)
+            shown = {r["name"]: r for r in dlg.current_ranges()}
+            assert (shown[column]["rangelow"], shown[column]["rangehigh"], shown[column]["selected"]) == (65, 70, True)
+            assert not shown[FEATURE]["selected"] and not dlg.use
             assert "not in this table: not here" in dlg.message.GetLabel()
             # Remove Presets...
             monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda d: wx.ID_OK)
@@ -430,7 +526,7 @@ def test_table_formats_in_the_save_dialog(frame, monkeypatch, tmp_path, flim_dat
     monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "cells"))
     monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: index)
     path = save_dataframe(window, "Save", window.data, "cells.txt", saveindex=False)
-    assert path.endswith(".txt" if fmt == "tsv" else ".csv")  # the ending is added
+    assert path.endswith(".txt" if fmt == "tsv" else ".csv")  # the extension is added
     assert pd.read_csv(path, sep=sep).shape == flim_data.shape
 
 
@@ -681,7 +777,7 @@ def test_favorites_choose_the_tool_panel(frame, monkeypatch):
     groups = _panel_groups(frame)
     assert groups == {
         "File": ["Open Tables", "Import Tables"], "Analysis": ["Calculate"], "Plot": ["Box Plot"],
-        "Runs": ["Prefect Server"],  # always shown, as File
+        "Runs": ["Prefect Server", "Last Run"],  # always shown, as File
     }  # fmt: skip
     assert list(groups) == ["File", "Analysis", "Plot", "Runs"]
     assert frame.settings.favorites == ["Box Plot", "not a tool", "Calculate"]
@@ -822,3 +918,34 @@ def test_prefect_server_button_opens_the_server_or_explains(frame, monkeypatch):
     with temporary_settings(restore_defaults={PREFECT_UI_URL, PREFECT_API_URL}):
         frame.OnPrefectServer(None)
     assert opened == ["http://127.0.0.1:4200"] and "temporary server" in shown[0]
+
+
+def test_last_run_button_opens_the_last_run_of_the_session(frame, monkeypatch):
+    from flim.gui.progressdlg import RunProgressDialog
+
+    names = [b.GetName() for b in frame.toolpanel.GetChildren() for b in [b] + list(b.GetChildren())]
+    assert "Last Run" in names
+    opened, shown = [], []
+    monkeypatch.setattr(wx, "LaunchDefaultBrowser", lambda url: opened.append(url))
+    monkeypatch.setattr(wx, "MessageBox", lambda *args, **kwargs: shown.append(args[0]))
+    frame.OnLastRun(None)  # no run yet
+    assert opened == [] and "No run" in shown[0]
+
+    class Run:
+        state, ui_url = "failed", "http://127.0.0.1:4200/runs/flow-run/abc"
+
+    class Dialog:  # the progress dialog of a run that started and then failed
+        def __init__(self, *args):
+            self.run, self.error, self.started_run = None, RuntimeError("stopped"), Run()
+
+        def ShowModal(self):
+            return wx.ID_OK
+
+        def Destroy(self):
+            pass
+
+    monkeypatch.setattr("flim.gui.app.RunProgressDialog", Dialog)
+    assert frame.run_with_progress("Sort", lambda *a: None) is None
+    frame.OnLastRun(None)
+    assert opened == ["http://127.0.0.1:4200/runs/flow-run/abc"]
+    assert isinstance(RunProgressDialog.started_run, property)

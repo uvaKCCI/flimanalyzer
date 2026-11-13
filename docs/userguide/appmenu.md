@@ -1,6 +1,6 @@
 # Menus
 
-The tool panel, the main window of FLIMAnalyzer, has a group of icons for each menu: `File` (open and import data), `Data`, `Analysis`, `Plot` and `Workflow`. The last group, `Runs`, has the `Prefect Server` icon: it opens the Prefect server in the web browser, with all runs and their tasks (see [Prefect server](/install/index.md#prefect-server)). Hover the mouse over an icon to see the name of its tool. Each icon does the same as the menu entry of the same name. To show only the tools and workflows you use, choose them with `File` > `Favorites...`.
+The tool panel, the main window of FLIMAnalyzer, has a group of icons for each menu: `File` (open and import data), `Data`, `Analysis`, `Plot` and `Workflow`. The last group, `Runs`, has two icons. `Prefect Server` opens the Prefect server in the web browser, with all runs and their tasks (see [Prefect server](/install/index.md#prefect-server)). `Last Run` opens the page of the last run started in this session, also if it failed or was cancelled. Hover the mouse over an icon to see the name of its tool. Each icon does the same as the menu entry of the same name. To show only the tools and workflows you use, choose them with `File` > `Favorites...`.
 
 ## File
 

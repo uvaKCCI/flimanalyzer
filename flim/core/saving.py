@@ -31,7 +31,7 @@ class SaveOptions(BaseModel):
     """Base of the save options of a data type: the format and its options.
 
     `kind` names the data type (e.g. `table`); each subclass fixes it and lists its
-    formats. `extensions` maps a format to the file ending it is saved with.
+    formats. `extensions` maps a format to the file extension it is saved with.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -42,7 +42,7 @@ class SaveOptions(BaseModel):
 
     @property
     def extension(self) -> str:
-        """Return the file ending of the format, e.g. `.txt`."""
+        """Return the file extension of the format, e.g. `.txt`."""
         return self.extensions[self.format]
 
 
@@ -156,7 +156,7 @@ def save_value(
 
     Args:
         value: The value, e.g. a DataFrame or a Figure.
-        base: The path without the file ending.
+        base: The path without the file extension.
         formats: The formats (`AutosaveConfig.formats`); defaults per kind.
 
     Returns:
@@ -190,7 +190,7 @@ def write_table(
 
     Args:
         table: A DataFrame or Series.
-        path: The file, with its ending.
+        path: The file, with its extension.
         options: The format; None for tab-separated.
         index: Whether to write the row index. Defaults to False.
     """
@@ -336,7 +336,7 @@ def formats_from_values(
 
 
 def unique_file_names(titles: Iterable[str]) -> list[str]:
-    """Return file names (without endings) for titles, unique within the list.
+    """Return file names (without extensions) for titles, unique within the list.
 
     Titles are cleaned for file names (flim.results.clean_path_component) and
     compared ignoring case, as macOS and Windows do; a later duplicate gets `-2`, `-3`,

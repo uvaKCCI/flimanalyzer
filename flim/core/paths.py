@@ -213,3 +213,19 @@ def path_uri(directory: str, name: str) -> str:
     if text.startswith("/"):
         return PurePosixPath(text).as_uri()
     return quote(text)
+
+
+def with_extension(path: str | os.PathLike, extension: str) -> str:
+    """Return a path with a file extension, added if the path doesn't have it.
+
+    The comparison ignores case, so `data.JSON` is kept.
+
+    Args:
+        path: The path, for example from a save dialog.
+        extension: The extension with its dot, for example `.json`.
+
+    Returns:
+        The path as a string.
+    """
+    path = os.fspath(path)
+    return path if path.lower().endswith(extension.lower()) else path + extension

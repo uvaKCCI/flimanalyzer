@@ -319,3 +319,23 @@ def test_presets_by_tool_and_the_preset_keys_of_development_builds():
     settings = AppSettings.model_validate({"schema_version": 2, "presets": {"Order Categories": [separate]}})
     assert settings.tool_presets(tools.get("Order Category Values")) == [separate]
     assert settings.tool_presets(tools.get("Sort")) == []
+
+
+def test_export_leaves_out_unknown_keys_and_migration_drops_development_keys(tmp_path):
+    import json
+
+    from flim.core.settings import Changes, migrate, settings_from_data
+    from flim.core.settingsmgr import SettingsManager
+
+    data = {"schema_version": 2, "import_workflow": "Import", "newer_setting": 1,
+            "filters": {"use": True, "newer_switch": 2}}
+    changes = Changes()
+    migrated = migrate(data, changes)
+    assert "import_workflow" not in migrated and "newer_setting" in migrated
+    assert changes.converted == [] and changes.dropped == []  # never released: no record
+    manager = SettingsManager(base=settings_from_data(migrated))
+    path = tmp_path / "exported.json"
+    manager.export(path)
+    exported = json.loads(path.read_text())
+    assert "newer_setting" not in exported and "newer_switch" not in exported["filters"]
+    assert exported["filters"]["use"] is True

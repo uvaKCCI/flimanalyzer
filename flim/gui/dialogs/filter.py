@@ -30,11 +30,12 @@ class FilterDialog(PresetsDialog):
     """The Filter dialog, with buttons for presets below the settings.
 
     The buttons are `Load Preset...`, `Save as Preset...` and `Remove Presets...`;
-    a preset sets the filters. A preset saved in a table window's Filter Settings
-    has only range filters.
+    a preset sets the switch of all filters (`enabled`) and the filters. A preset
+    saved in a table window's Filter Settings has the window's range filters and
+    category values.
     """
 
-    preset_fields = ("filters",)
+    preset_fields = ("enabled", "filters")
 
 
 class CategoryFiltersEditor(Editor):

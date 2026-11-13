@@ -870,19 +870,23 @@ def test_separate_categories_presets(wxapp, monkeypatch):
 
 
 def test_filter_dialog_presets_are_those_of_filter_settings(wxapp, monkeypatch):
-    """The Filter dialog loads a preset saved in a table window's Filter Settings,
-    and saves its whole filter list as a preset."""
-    from flim.core.filtering import new_range, preset_ranges, ranges_preset
+    """The Filter dialog loads a preset saved in a table window's Filter Settings
+    (switch, ranges, category values), and saves its switch and filter list."""
+    from flim.core.filtering import WindowFilters, new_range, window_part, window_settings
     from flim.core.registry import tools
     from flim.core.settingsmgr import SettingsManager
     from flim.gui.configdialog import bind_presets, dialog_class
     from flim.gui.dialogs.filter import FilterDialog
 
-    data = pd.DataFrame({"t1": [1.0, 5.0], "Treatment": ["a", "b"]})
+    data = pd.DataFrame({"t1": [1.0, 5.0], "Treatment": pd.Categorical(["a", "b"])})
     manager = SettingsManager()
     tool = tools.get("Filter")
-    ranges = [new_range("t1") | {"rangelow": 2.0, "rangehigh": 9.0, "selected": True}]
-    manager.set_presets(tool, [{"name": "From a table", "settings": ranges_preset(ranges)}])
+    window = WindowFilters(
+        use=False,
+        range_filters=[new_range("t1") | {"rangelow": 2.0, "rangehigh": 9.0, "selected": True}],
+        category_filters={"Treatment": ["a"]},
+    )
+    manager.set_presets(tool, [{"name": "From a table", "settings": window_settings(window)}])
     bind_presets(manager)
     d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": data})
     try:
@@ -891,15 +895,20 @@ def test_filter_dialog_presets_are_those_of_filter_settings(wxapp, monkeypatch):
         monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: 0)
         d._on_load_preset(None)
         config, _ = d.current_config()
+        assert config.enabled is False  # the window's Filter Data
         (leaf,) = [f for f in config.filters if f.kind == "range"]
         assert (leaf.column, leaf.low, leaf.high, leaf.enabled) == ("t1", 2.0, 9.0, True)
-        # Save as Preset...: all filters, also loaded by Filter Settings (its ranges)
+        (category,) = [f for f in config.filters if f.kind == "category"]
+        assert (category.column, category.keep) == ("Treatment", ["a"])
+        # Save as Preset...: the switch and all filters, also loaded by Filter Settings
         monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
         d._on_save_preset(None)
         saved = {p["name"]: p["settings"] for p in manager.settings.tool_presets(tool)}
-        assert set(saved) == {"From a table", "Mine"} and set(saved["Mine"]) == {"filters"}
-        assert [(r["name"], r["rangehigh"]) for r in preset_ranges(saved["Mine"]) if r["selected"]] == [("t1", 9.0)]
+        assert set(saved) == {"From a table", "Mine"} and set(saved["Mine"]) == {"enabled", "filters"}
+        part = window_part(saved["Mine"])
+        assert part.use is False and part.categories == {"Treatment": ["a"]}
+        assert [(r["name"], r["rangehigh"]) for r in part.ranges if r["selected"]] == [("t1", 9.0)]
         # Remove Presets...
         monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0, 1])
@@ -908,6 +917,21 @@ def test_filter_dialog_presets_are_those_of_filter_settings(wxapp, monkeypatch):
     finally:
         d.Destroy()
         bind_presets(None)
+
+
+def test_filter_tool_with_its_filters_switched_off_keeps_all_rows():
+    from flim.configs.data import FilterConfig
+    from flim.tools.data import Filter
+
+    data = pd.DataFrame({"t1": [1.0, 5.0, 9.0]})
+    on = FilterConfig(filters=[{"kind": "range", "column": "t1", "high": 4}])
+    assert len(Filter().run(data, config=on)["Filtered"]) == 1
+    off = on.model_copy(update={"enabled": False})
+    assert len(Filter().run(data, config=off)["Filtered"]) == 3
+    # a filter is used only if every enabled up its chain is on
+    group = FilterConfig(filters=[{"kind": "all", "enabled": False,
+                                   "filters": [{"kind": "range", "column": "t1", "high": 4}]}])
+    assert len(Filter().run(data, config=group)["Filtered"]) == 3
 
 
 def test_separate_shows_only_the_modes_fields(wxapp):

@@ -521,7 +521,7 @@ def resolve_workflow(reference: str) -> type["Workflow"]:
 
     Args:
         reference: The name of a registered workflow, or the path of a workflow file
-            (ending in `.json`).
+            (with the extension `.json`).
 
     Returns:
         The workflow (a tool class).

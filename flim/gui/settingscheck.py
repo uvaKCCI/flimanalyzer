@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 import wx
 
+from flim.core.paths import with_extension
 from flim.core.settingsmgr import Pick, SettingsManager
 from flim.core.settings import (
     SETTINGS_VERSION,
@@ -160,7 +161,7 @@ def _save_file(parent: Optional[wx.Window]) -> Optional[str]:
         wildcard="JSON files (*.json)|*.json|All files|*",
         style=wx.FD_SAVE,
     ) as dialog:
-        return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else None
+        return with_extension(dialog.GetPath(), ".json") if dialog.ShowModal() == wx.ID_OK else None
 
 
 SKIP = "Skip App Settings"
@@ -403,7 +404,7 @@ def offer_import_workflow(
     ) as dialog:  # fmt: skip
         if dialog.ShowModal() != wx.ID_OK:
             return None
-        path = Path(dialog.GetPath())
+        path = Path(with_extension(dialog.GetPath(), ".json"))
     path.write_text(json.dumps(data, indent=2) + "\n")
     result = check_workflow_file(path)
     if result.definition is not None and result.definition.name not in tools:

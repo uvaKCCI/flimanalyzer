@@ -267,15 +267,21 @@ class Filter(Tool[FilterConfig]):
         A filter on a column the table doesn't have keeps all rows and is reported as
         a skipped part of the settings. The rows each filter drops are logged.
 
+        With `enabled` off, all rows are kept.
+
         Args:
             data: The table.
-            config: The filter tree (`filters`).
+            config: The switch of all filters (`enabled`) and the filter tree
+                (`filters`).
 
         Returns:
             `Filtered`: the rows kept, numbered from 0.
         """
         from flim.core.filtering import apply_filters, leaf_counts
 
+        if not config.enabled:
+            logger.info(f"{self.name}: the filters are switched off (Use filters): all rows kept")
+            return {"Filtered": data.reset_index(drop=True).copy()}
         outcome = apply_filters(data, config.filters)
         # parts: a filter on a column the table doesn't have keeps all rows
         self.applied(len(outcome.dropped) - len(outcome.notes))
@@ -297,7 +303,7 @@ class Filter(Tool[FilterConfig]):
         """
         from flim.core.filtering import check
 
-        enabled = set(_enabled_paths(config.filters, "filters"))
+        enabled = set(_enabled_paths(config.filters, "filters")) if config.enabled else set()
         issues = []
         for issue in super().validate(config, inputs):
             node = (issue.field or "").rsplit(".", 1)[0]

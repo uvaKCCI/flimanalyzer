@@ -49,7 +49,7 @@ def write_table(
 
     Args:
         table: The table.
-        path: The file, with its ending.
+        path: The file, with its extension.
         index: Whether to write the row index. Defaults to False.
     """
     from flim.core.saving import write_table as write

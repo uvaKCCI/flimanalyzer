@@ -809,6 +809,21 @@ def runs_icon():
     return im
 
 
+def lastrun_icon():
+    im, d = canvas()
+    # the runs window with the latest run picked out: older runs grey, the last green
+    d.rounded_rectangle(s(1.5, 3, 30.5, 29), radius=px(2), fill=WHITE, outline=DARK, width=px(1.3))
+    d.rectangle(s(1.5, 3, 30.5, 8), fill=MAGENTA)
+    for x in (4, 7, 10):
+        circle(d, x, 5.5, 0.9, WHITE)
+    for i, (start, length) in enumerate(((4, 12), (8, 10), (6, 9))):
+        y = 11 + i * 4.3
+        d.rounded_rectangle(s(start, y, start + length, y + 2.6), radius=px(0.8), fill=LGRAY)
+    d.rounded_rectangle(s(4, 23.4, 21, 26.8), radius=px(1), fill=GREEN)
+    arrow(d, 29, 25.1, 23, 25.1, DARK, w=1.6, head=3)
+    return im
+
+
 def flirrworkflow_icon():
     im, d = canvas()
     # table -> FLIRR ratio -> bar chart
@@ -975,6 +990,7 @@ ICONS = {
     "workflow.png": workflow_icon,
     # Runs
     "runs.png": runs_icon,
+    "lastrun.png": lastrun_icon,
     "flirrworkflow.png": flirrworkflow_icon,
     "aetuneworkflow.png": aetuneworkflow_icon,
     "aefeatureworkflow.png": aefeatureworkflow_icon,

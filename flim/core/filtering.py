@@ -214,14 +214,16 @@ def check(
 class WindowFilters(BaseModel):
     """The table windows' filters, as their filter dialog edits them.
 
-    Whether they are used, whether dropped rows are shown, and the range filters
-    (`flim.core.filter.RangeFilter` parameters) of the Filter tool's top-level range
-    leaves, one per column.
+    Whether they are used (`Filter Data`, the switch of all of them), whether
+    dropped rows are shown, the range filters (`flim.core.filter.RangeFilter`
+    parameters) of the Filter tool's top-level range leaves, one per column, and the
+    values kept of the category columns that hide values.
     """
 
     use: bool = False
     show_dropped: bool = True
     range_filters: list[dict] = []
+    category_filters: dict[str, list] = {}
 
 
 def window_filters(settings: "AppSettings") -> WindowFilters:
@@ -374,58 +376,83 @@ def leaf_counts(outcome: Outcome) -> Optional[str]:
     return "dropped rows: " + "; ".join(parts) if parts else None
 
 
-def ranges_preset(ranges: list[dict[str, Any]]) -> dict[str, Any]:
-    """Return range filters as a preset's settings: a part of the Filter tool's config.
+def window_settings(filters: WindowFilters) -> dict[str, Any]:
+    """Return a table window's filters as the Filter tool's settings.
 
     Args:
-        ranges: `RangeFilter` parameters, one per column; those not selected are
-            kept as range leaves that are not enabled.
+        filters: The window's filters.
 
     Returns:
-        The settings with the key `filters`: the range leaves as JSON data.
+        `enabled` (the window's `Filter Data`) and `filters`: a range leaf per
+        range filter (enabled if selected) and a category leaf per category column
+        that hides values, as JSON data.
     """
-    return {"filters": [node.model_dump(mode="json") for node in with_window_ranges([], ranges)]}
+    nodes = [node.model_dump(mode="json") for node in with_window_ranges([], filters.range_filters)]
+    nodes += [
+        {"enabled": True, "kind": "category", "column": column, "keep": list(keep)}
+        for column, keep in filters.category_filters.items()
+    ]
+    return {"enabled": filters.use, "filters": nodes}
 
 
-def preset_ranges(settings: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return the range filters of a preset's settings (`ranges_preset`).
+@dataclass
+class WindowPart:
+    """The part of the Filter tool's settings that a table window uses.
+
+    Attributes:
+        use: `enabled`, the switch of all filters; None if the settings don't have
+            it.
+        ranges: `RangeFilter` parameters of the top-level range leaves.
+        categories: The values kept, of the first enabled top-level category leaf
+            of each column.
+        unused: The number of filters a table window doesn't use: expressions,
+            groups, further leaves of a column and category leaves that are off.
+    """
+
+    use: Optional[bool]
+    ranges: list[dict[str, Any]]
+    categories: dict[str, list]
+    unused: int
+
+
+def window_part(settings: dict[str, Any]) -> WindowPart:
+    """Return the part of the Filter tool's settings that a table window uses.
 
     Args:
-        settings: A part of the Filter tool's config, with `filters`.
+        settings: The Filter tool's settings, or a part of them, with `filters`
+            and, if set, `enabled`.
 
     Returns:
-        `RangeFilter` parameters, one per column with a top-level range leaf.
+        The switch, the range filters, the category filters and the number of
+        filters left unused.
 
     Raises:
         ValueError: If the settings are not valid Filter settings.
     """
     from flim.configs.data import FilterConfig
 
-    return window_ranges(FilterConfig.model_validate(settings).filters)
-
-
-def ranges_file_data(ranges: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Return the selected range filters in the format of feature settings files.
-
-    The format of `Save Feature Settings...`: {column: {low, high, dropna}}, a missing
-    limit None.
-
-    Args:
-        ranges: `RangeFilter` parameters.
-
-    Returns:
-        The selected filters by column.
-    """
-    from flim.configs.data import range_of_legacy
-
-    return {p["name"]: range_of_legacy(p) for p in ranges if p.get("selected")}
+    config = FilterConfig.model_validate({"filters": settings.get("filters") or []})
+    ranges = window_ranges(config.filters)
+    categories: dict[str, list] = {}
+    unused = 0
+    first_range = set()
+    for node in config.filters:
+        if node.kind == "range" and node.column not in first_range:
+            first_range.add(node.column)
+        elif node.kind == "category" and node.enabled and node.column not in categories:
+            categories[node.column] = list(node.keep)
+        else:
+            unused += 1
+    use = settings.get("enabled")
+    return WindowPart(None if use is None else bool(use), ranges, categories, unused)
 
 
 def file_data_ranges(data: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     """Return range filters, all selected, from feature settings ({column: {low, high, dropna}}).
 
     Args:
-        data: The settings by column; a missing or None limit means no limit.
+        data: The settings by column, as `Save Feature Settings...` writes them; a
+            missing or None limit means no limit.
 
     Returns:
         `RangeFilter` parameters, one per column.

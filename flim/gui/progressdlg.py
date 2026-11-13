@@ -193,6 +193,11 @@ class RunProgressDialog(wx.Dialog):
             self.error = e
         wx.CallAfter(self._finished)
 
+    @property
+    def started_run(self) -> Optional[FlowRun]:
+        """Return the run once Prefect has started it, also if it failed later; else None."""
+        return self._flow_run
+
     def _on_start(self, run: FlowRun) -> None:
         """Pass the started run to the main thread."""
         wx.CallAfter(self._started, run)

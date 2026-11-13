@@ -25,7 +25,7 @@ from wx.lib.scrolledpanel import ScrolledPanel
 from flim.core.config import Issue, TaskConfig
 from flim.core.workflow import Workflow
 from flim.core.execution import ExecutionOptions
-from flim.core.paths import canonical_folder, folder_problem, resolved_folder, stored_folder
+from flim.core.paths import canonical_folder, folder_problem, resolved_folder, stored_folder, with_extension
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.settings import read_tool_settings, tool_settings, write_tool_settings
 from flim.gui.editors import FieldErrors, FieldsPanel
@@ -917,7 +917,7 @@ class ConfigDialog(wx.Dialog):
             style=wx.FD_SAVE,
         ) as dialog:
             if dialog.ShowModal() == wx.ID_OK:
-                self.save_settings(dialog.GetPath())
+                self.save_settings(with_extension(dialog.GetPath(), ".json"))
 
     def _tool_entry(
         self, path: Union[str, os.PathLike]

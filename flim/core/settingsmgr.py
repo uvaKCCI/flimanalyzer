@@ -27,6 +27,7 @@ from flim.core.settings import (
     AppSettings,
     SettingsCheck,
     check_settings_file,
+    known_data,
     merge_sections,
     migrate,
     tool_settings,
@@ -468,7 +469,7 @@ class SettingsManager:
                 except ValidationError:
                     continue
                 settings.tools.set(tool, config)
-        data = settings.to_json()
+        data = known_data(settings)  # unknown keys are not used: not exported
         data.pop("appsettings_path", None)
         data.pop("workflow_paths", None)
         data.pop("default_app_settings", None)

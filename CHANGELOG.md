@@ -90,7 +90,9 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   and the `filters` setting. `Save as Preset...` > `Defaults for new tables` in
   `Filter Settings` changes them. Until 0.6.2 all table windows shared one set of range
   filters. The `Use Filters` checkbox of `Filter Settings` is removed: `Filter Data` in
-  the table window switches the filters on and off.
+  the table window switches the filters on and off. `Filter Data` now also switches the
+  values hidden in category columns; until 0.6.2 they applied whether it was on or off.
+  Hiding values while it is off switches it on.
 - **Settings file format:** files saved by 0.7.0 have `schema_version` 2.
   FLIMAnalyzer 0.6 refuses them; 0.7.0 reads the files of 0.5 and 0.6.
 - **Settings are saved automatically:** the GUI writes the settings you change (tool
@@ -217,12 +219,18 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   `Calculate` (expressions and functions, presets) and `Scale` (standardize, min-max or
   robust, per group) in `Analysis`.
 - **Filter tool:** filters by category values, ranges and conditions written as
-  expressions, and, in settings files, groups (`all`, `any`, `not`).
+  expressions, and, in settings files, groups (`all`, `any`, `not`). `Use filters`
+  (`enabled`) switches all filters; off, the tool keeps all rows. A filter applies only
+  if `Use filters`, the `enabled` of each group that contains it and its own `enabled`
+  are all on.
 - **Presets:** `Load Preset...`, `Save as Preset...` and `Remove Presets...` in the
   `Calculate`, `Separate Categories` and `Filter` dialogs and in a table window's
   `Filter Settings`. Presets are saved in the user settings file, in the `presets`
-  section by tool name. `Filter Settings` also loads and saves range filters as the
-  defaults for new tables and as files in the format of `Save Feature Settings...`.
+  section by tool name. A preset of `Filter Settings` holds the table window's
+  `Filter Data`, range filters and category values as `Filter` tool settings, and
+  `Filter Settings` also loads them from and saves them to settings files, as the
+  `Filter` dialog's `Load Settings...` and `Save Settings...` do, and saves the range
+  filters as the defaults for new tables.
 - **Standardize input** in `PCA`, `K-Means` and `Gaussian Mixed Model`: one setting with
   the same meaning in all three. The defaults keep the earlier behaviour (on, on, off).
 - **Autoencoder: Augment Data:** `Random seed`, for the same noise on every run.
@@ -240,7 +248,8 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
 - **`File` > `Favorites...`** chooses the tools and workflows the tool panel shows, and
   their order.
 - **Prefect UI:** the `Prefect Server` icon in the tool panel's `Runs` group opens it in
-  the web browser. Each task's settings are shown in the task run's `Artifacts` tab. Each
+  the web browser, and the `Last Run` icon opens the page of the last run started in
+  the session. Each task's settings are shown in the task run's `Artifacts` tab. Each
   flow run's `Artifacts` tab shows the versions of FLIMAnalyzer, Python and the main
   packages, how the tasks ran (threads or Dask, with their settings) and the input
   files. FLIMAnalyzer's log messages from a run are shown in the run's `Logs` tab,
@@ -297,7 +306,8 @@ describes how API changes are handled.
   type failed with the error `C++ assertion "nIndex < m_nCount" failed` when `Save` was
   clicked, and no file was written. This affected `Export Settings...`, the tool
   dialogs' `Save Settings...` and `Save Feature Settings...`, and in 0.6.2 also saving
-  tables and plots. These dialogs now also offer `All files`.
+  tables and plots. These dialogs now also offer `All files`, and the dialogs that
+  save JSON files add `.json` to a file name without it.
 - **Prefect server:** the instance that started the local Prefect server stopped it when
   it quit, and every run of other open instances (GUI or `flimbatch`) then failed with
   `ConnectError: Connection refused`. Each run now checks the server first and finds or
