@@ -587,8 +587,8 @@ class AppFrame(wx.Frame):
             if label == "File" or buttons or not favorites:
                 self._add_tool_group(label, buttons)
         self._add_tool_group("Runs", [
-            ("Prefect Server", icon_bitmap("runs.png"), self.OnPrefectServer),
-            ("Last Run", icon_bitmap("lastrun.png"), self.OnLastRun),
+            ("Prefect Server", icon_bitmap("prefect_server.png"), self.OnPrefectServer),
+            ("Last Run", icon_bitmap("prefect_lastrun.png"), self.OnLastRun),
         ])  # fmt: skip
         self._layout_tool_groups(rows=2)
 
