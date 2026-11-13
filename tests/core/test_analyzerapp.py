@@ -113,7 +113,7 @@ def test_config_option_still_works_with_a_warning(monkeypatch, clean_logging, ca
     _no_server(monkeypatch)
     analyzerapp.main(["-c", str(path)])
     assert started["manager"].source == path
-    assert "-c/--config is deprecated; use -s/--settings" in capsys.readouterr().err
+    assert "-c/--config is deprecated and is removed in 0.8.0; use -s/--settings" in capsys.readouterr().err
 
 
 def test_command_line_options_set_the_session_settings(monkeypatch, clean_logging):

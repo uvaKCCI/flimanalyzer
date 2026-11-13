@@ -85,7 +85,7 @@ def settings_file(args: argparse.Namespace) -> tuple[Optional[str], list[str]]:
         return args.settings, []
     if args.settings is not None:
         raise ValueError("-c/--config and -s/--settings: give only -s")
-    return args.config, ["-c/--config is deprecated; use -s/--settings"]
+    return args.config, ["-c/--config is deprecated and is removed in 0.8.0; use -s/--settings"]
 
 
 def _values(text: str) -> dict[str, int | str]:
@@ -163,8 +163,9 @@ def executor_settings(
         keys = ",".join(f"{k}={v}" for k, v in {**known, **other}.items())
         notes.insert(
             0,
-            "the -e names LocalExecutor, LocalDaskExecutor, DaskExecutor and -a are"
-            f" deprecated; use -e {name}{':' + keys if keys else ''}",
+            "the -e names LocalExecutor, LocalDaskExecutor, DaskExecutor (removed in"
+            " 1.0.0) and -a (removed in 0.8.0) are deprecated;"
+            f" use -e {name}{':' + keys if keys else ''}",
         )
     try:
         validated = TypeAdapter(ExecutorSettings).validate_python(settings)
@@ -205,7 +206,7 @@ def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list
     if args.cache_dir is not None:
         changes["cache"] = {"dir": args.cache_dir}
     if getattr(args, "allow_guesses", False):
-        notes.append("--allow-guesses is deprecated; use --no-strict")
+        notes.append("--allow-guesses is deprecated and is removed in 0.8.0; use --no-strict")
         if args.strict is None:
             args.strict = False
     if args.strict is not None:

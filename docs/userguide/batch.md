@@ -52,12 +52,12 @@ These options can also be set with environment variables (see [Environment varia
 
 **Deprecated options.** These options still work, but print a warning that shows the new form:
 
-| Deprecated | Use instead | Example |
-|---|---|---|
-| `-c`, `--config FILE` | `-s`, `--settings FILE` | `-c settings.json` → `-s settings.json` |
-| `--allow-guesses` | `--no-strict` | `--allow-guesses` → `--no-strict` |
-| `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` |
-| `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `--execargs="num_workers=4"` → `-e local:workers=4` |
+| Deprecated | Use instead | Example | Removed in |
+|---|---|---|---|
+| `-c`, `--config FILE` | `-s`, `--settings FILE` | `-c settings.json` → `-s settings.json` | 0.8.0 |
+| `--allow-guesses` | `--no-strict` | `--allow-guesses` → `--no-strict` | 0.8.0 |
+| `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` | 1.0.0 |
+| `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `--execargs="num_workers=4"` → `-e local:workers=4` | 0.8.0 |
 
 `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
 
