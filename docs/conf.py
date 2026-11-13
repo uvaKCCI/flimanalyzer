@@ -90,8 +90,32 @@ def _skip_sklearn_members(app, what, name, obj, skip, options):
     return None
 
 
+def _narrow_tall_images(app, doctree):
+    """Show screenshots that are taller than wide at half the column width.
+
+    The screenshots are taken on a high-resolution screen (two pixels per point),
+    and the theme shows an image at its pixel size up to the column width, so tall
+    dialogs would fill several screens. Images with a width set are left as they are.
+    """
+    from docutils import nodes
+    from PIL import Image
+
+    for node in doctree.findall(nodes.image):
+        if "width" in node or "scale" in node:
+            continue
+        path = os.path.join(app.srcdir, node["uri"].lstrip("/"))
+        try:
+            with Image.open(path) as image:
+                width, height = image.size
+        except OSError:
+            continue
+        if height > width:
+            node["width"] = "50%"
+
+
 def setup(app):
     app.connect("autodoc-skip-member", _skip_sklearn_members)
+    app.connect("doctree-read", _narrow_tall_images)
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ["_templates"]
