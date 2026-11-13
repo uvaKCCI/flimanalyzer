@@ -384,6 +384,117 @@ def _record_settings(tool: Tool, config: Optional["TaskConfig"]) -> None:
         logger.debug(f"Settings artifact not created: {err}")
 
 
+def _sources(value: Any) -> set[str]:
+    """Return the values of the `Source` columns of the tables in `value`.
+
+    `value` is a tool call's arguments: tables, lists and dicts of them, and
+    `TaskOutput` handles of other tasks, which are left out (their tables come
+    from the run itself).
+    """
+    import pandas as pd
+
+    if isinstance(value, pd.DataFrame):
+        if "Source" in value.columns:
+            return {str(v) for v in value["Source"].dropna().unique()}
+        return set()
+    if isinstance(value, dict):
+        value = value.values()
+    if isinstance(value, (list, tuple, set, type({}.values()))):
+        found: set[str] = set()
+        for item in value:
+            found |= _sources(item)
+        return found
+    return set()
+
+
+# the packages whose versions a run records, besides FLIMAnalyzer
+RECORDED_PACKAGES = (
+    "numpy", "pandas", "scipy", "scikit-learn", "matplotlib", "seaborn", "torch",
+    "pydantic", "prefect", "prefect-dask", "dask", "distributed",
+)  # fmt: skip
+
+
+def _versions() -> dict[str, str]:
+    """Return the versions of FLIMAnalyzer, Python and `RECORDED_PACKAGES` installed."""
+    import platform
+    from importlib.metadata import PackageNotFoundError, version
+
+    from flim import __version__
+
+    found = {"FLIMAnalyzer": __version__, "Python": platform.python_version()}
+    for name in RECORDED_PACKAGES:
+        try:
+            found[name] = version(name)
+        except PackageNotFoundError:
+            pass  # not installed, e.g. prefect-dask
+    return found
+
+
+def _execution(task_runner: Any) -> dict[str, Any]:
+    """Return how a flow's tasks run: the task runner and its settings."""
+    found: dict[str, Any] = {"task runner": type(task_runner).__name__}
+    if type(task_runner).__name__ == "ThreadPoolTaskRunner":
+        found["threads"] = getattr(task_runner, "_max_workers", None)
+    elif type(task_runner).__name__ == "DaskTaskRunner":
+        for key in ("address", "cluster_class", "cluster_kwargs", "adapt_kwargs"):
+            value = getattr(task_runner, key, None)
+            if value:
+                found[key] = value if isinstance(value, (str, dict)) else getattr(value, "__name__", str(value))
+    return found
+
+
+def _record_run(run: "FlowRun", task_runner: Any) -> None:
+    """Attach the app version, the execution and the input files to the flow run.
+
+    A Prefect artifact (the flow run's Artifacts tab), next to the settings that
+    each task records (`_record_settings`). A failure is logged, not raised.
+    """
+    import json
+
+    try:
+        from prefect.artifacts import create_markdown_artifact
+
+        record = {
+            "app": _versions(),
+            "execution": _execution(task_runner),
+            "input files": sorted(run.sources),
+        }
+        create_markdown_artifact(
+            markdown=f"```json\n{json.dumps(record, indent=2, default=str)}\n```",
+            description=f"{run.name}: app version, execution and input files",
+        )
+    except Exception as err:  # e.g. no Prefect API reachable
+        logger.debug(f"Run artifact not created: {err}")
+
+
+class _InRun(logging.Filter):
+    """Passes only records logged inside a Prefect flow or task run."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Return whether a flow or task run is active in this thread."""
+        from prefect.context import TaskRunContext
+
+        return FlowRunContext.get() is not None or TaskRunContext.get() is not None
+
+
+def forward_logs_to_prefect() -> None:
+    """Send FLIMAnalyzer's log records from inside runs to the Prefect server.
+
+    A Prefect API log handler on the `flim` logger, with a filter that passes only
+    records logged in a flow or task run, so that they appear with the run's logs
+    in the Prefect UI; records logged elsewhere (the GUI) go to the log file only.
+    The handler is added once.
+    """
+    from prefect.logging.handlers import APILogHandler
+
+    flim_logger = logging.getLogger("flim")
+    if any(isinstance(h, APILogHandler) for h in flim_logger.handlers):
+        return
+    handler = APILogHandler()
+    handler.addFilter(_InRun())
+    flim_logger.addHandler(handler)
+
+
 class _StartNotifier:
     """Marks a task as running when it starts.
 
@@ -446,6 +557,7 @@ class FlowRun:
         self.start_time = datetime.datetime.now()
         self.end_time = None
         self.notes: List[str] = []  # for the run summary, e.g. guessed columns
+        self.sources: set[str] = set()  # the files of the tables that enter the run
         self.settings_record: List[str] = []  # the settings files, for the run summary
         self.save_formats: list = []  # AutosaveConfig.formats of the run
         self.graph = nx.DiGraph()
@@ -529,6 +641,7 @@ class FlowRun:
         node = self._add_node(label, getattr(tool, "graph_kind", "tool"), tool=tool)
         tool._notify_started = _StartNotifier(self, node)
         upstream = set()
+        self.sources.update(_sources(kwargs))
         payload = self._to_payload(kwargs, upstream)
         for u in upstream:
             self.graph.add_edge(u, node)
@@ -891,6 +1004,7 @@ def _flow_body() -> Optional[State]:
         run.complete = True
         run._report_progress("")
         run.wait()
+        _record_run(run, task_runner)  # the input files are known now
     finally:
         _CURRENT_RUN.reset(token)
     if run.cancel_token.is_set():
@@ -951,6 +1065,7 @@ def run_flow(
 
     if task_runner is None:
         task_runner = default_task_runner()
+    forward_logs_to_prefect()
     prefect_flow = flow(name=name, validate_parameters=False, task_runner=task_runner)(
         _flow_body
     )

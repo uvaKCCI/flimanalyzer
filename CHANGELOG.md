@@ -226,7 +226,11 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   folder (#14).
 - **`File` > `Favorites...`** chooses the tools and workflows the tool panel shows, and
   their order.
-- **Prefect UI:** each task's settings are shown in the task run's `Artifacts` tab.
+- **Prefect UI:** each task's settings are shown in the task run's `Artifacts` tab. Each
+  flow run's `Artifacts` tab shows the versions of FLIMAnalyzer, Python and the main
+  packages, how the tasks ran (threads or Dask, with their settings) and the input
+  files. FLIMAnalyzer's log messages from a run are shown in the run's `Logs` tab,
+  except those of tasks that Dask runs in other processes.
 - **Icons** at 64 px for high-resolution screens; icons for the new tools.
 - **Plugin and tool API** (developers): `Tool.short_name`, `Tool.example`,
   `Tool.validate_data`, `Tool.proposals` and `Tool.inapplicable_fields` for the dialogs;

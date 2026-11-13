@@ -359,6 +359,44 @@ def test_each_task_records_its_settings_in_prefect(prefect_harness):
     assert len(settings) == 1 and '"aggs"' in settings[0].data and '"max"' in settings[0].data
 
 
+def test_each_run_records_app_execution_and_inputs_and_sends_its_logs_to_prefect(prefect_harness, monkeypatch):
+    import json
+    import logging
+
+    from prefect.client.orchestration import get_client
+    from prefect.client.schemas.filters import ArtifactFilter, ArtifactFilterFlowRunId, LogFilter, LogFilterFlowRunId
+
+    from flim.tools.statistics import Summarize as Summary
+
+    original = Summary.run
+
+    def logging_run(self, *args, **kwargs):
+        logging.getLogger("flim.tools.statistics").info("summarizing for the test")
+        return original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Summary, "run", logging_run)
+    monkeypatch.setattr(logging.getLogger("flim"), "level", logging.INFO)
+    table = _tables()["a.txt"].assign(Source=["file:///data/a.txt", "file:///data/a.txt"])
+    definition = {
+        "name": "run record",
+        "steps": [{"id": "1", "tool": "Summarize", "config": {"aggs": ["max"], "features": ["t1"]}}],
+    }
+    run = _run(definition, {"a.txt": table})
+    assert run.state == "completed"
+    logging.getLogger("flim.core").info("outside any run: not sent")  # no warning either
+    with get_client(sync_client=True) as client:
+        artifacts = client.read_artifacts(
+            artifact_filter=ArtifactFilter(flow_run_id=ArtifactFilterFlowRunId(any_=[run.flow_run_id]))
+        )
+        logs = client.read_logs(log_filter=LogFilter(flow_run_id=LogFilterFlowRunId(any_=[run.flow_run_id])))
+    (record,) = [a for a in artifacts if "app version, execution and input files" in (a.description or "")]
+    data = json.loads(record.data.split("```json\n", 1)[1].rsplit("```", 1)[0])
+    assert data["app"]["FLIMAnalyzer"] and data["app"]["pandas"] and data["app"]["Python"]
+    assert data["execution"]["task runner"] == "ThreadPoolTaskRunner"
+    assert data["input files"] == ["file:///data/a.txt"]
+    assert any("summarizing for the test" in log.message for log in logs)
+
+
 def test_tags_and_menu_groups():
     from flim.core.workflowfile import (
         BUILT_IN, IMPORT_TAG, WorkflowDefinition, check_workflow_file, panel_group,
