@@ -69,6 +69,7 @@ def test_menus_and_tool_panel_from_the_registry(frame):
         "Analysis",
         "Plot",
         "Workflow",
+        "Monitor",
         "Window",
         "Help",
     ]

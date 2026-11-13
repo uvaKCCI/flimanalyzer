@@ -432,6 +432,11 @@ class AppFrame(wx.Frame):
                 )
                 self.Bind(wx.EVT_MENU, lambda e: self.run_workflow_file(), item)
             menubar.Append(menu, f"&{category}")
+        monitormenu = wx.Menu()
+        for name, _icon, handler, help_text in self.monitor_entries():
+            item = monitormenu.Append(wx.ID_ANY, name, help_text)
+            self.Bind(wx.EVT_MENU, handler, item)
+        menubar.Append(monitormenu, "&Monitor")
         menubar.Append(self.windowmenu, "&Window")
         menubar.Append(helpmenu, "&Help")
 
@@ -561,10 +566,9 @@ class AppFrame(wx.Frame):
         return ["File"] + [c for c in tools.categories() if c != "File"]
 
     def build_tool_panel(self) -> None:
-        """Create the tool panel's groups: File first, one per tool category, Runs last.
+        """Create the tool panel's groups: File first, one per tool category, Monitor last.
 
-        Runs holds the buttons that open the Prefect server (`OnPrefectServer`) and
-        the last run started in this session (`OnLastRun`).
+        Monitor holds the entries of `monitor_entries`, as the Monitor menu does.
 
         With favorites (`favorites` setting), the groups hold only them, in their
         order: a tool in its category's group, a workflow file in the group its tags
@@ -586,11 +590,25 @@ class AppFrame(wx.Frame):
         for label, buttons in groups.items():
             if label == "File" or buttons or not favorites:
                 self._add_tool_group(label, buttons)
-        self._add_tool_group("Runs", [
-            ("Prefect Server", icon_bitmap("prefect_server.png"), self.OnPrefectServer),
-            ("Last Run", icon_bitmap("prefect_lastrun.png"), self.OnLastRun),
-        ])  # fmt: skip
+        self._add_tool_group(
+            "Monitor", [(name, icon_bitmap(icon), handler) for name, icon, handler, _ in self.monitor_entries()]
+        )
         self._layout_tool_groups(rows=2)
+
+    def monitor_entries(
+        self,
+    ) -> list[tuple[str, str, Callable[[wx.CommandEvent], None], str]]:
+        """Return the entries of the Monitor menu and the tool panel's Monitor group.
+
+        Returns:
+            One `(name, icon file, handler, help text)` per entry, in menu order.
+        """
+        return [
+            ("Prefect Server", "prefect_server.png", self.OnPrefectServer,
+             "Open the Prefect server in the web browser, with all runs and their tasks"),
+            ("Last Run", "prefect_lastrun.png", self.OnLastRun,
+             "Open the Prefect page of the last run started in this session"),
+        ]  # fmt: skip
 
     def favorite_buttons(
         self,

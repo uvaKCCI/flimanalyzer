@@ -800,9 +800,9 @@ def test_favorites_choose_the_tool_panel(frame, monkeypatch):
     groups = _panel_groups(frame)
     assert groups == {
         "File": ["Open Tables", "Import Tables"], "Analysis": ["Calculate"], "Plot": ["Box Plot"],
-        "Runs": ["Prefect Server", "Last Run"],  # always shown, as File
+        "Monitor": ["Prefect Server", "Last Run"],  # always shown, as File
     }  # fmt: skip
-    assert list(groups) == ["File", "Analysis", "Plot", "Runs"]
+    assert list(groups) == ["File", "Analysis", "Plot", "Monitor"]
     assert frame.settings.favorites == ["Box Plot", "not a tool", "Calculate"]
     # the dialog: the favorites first, checked; the order and the checks it returns
     shown = {}
@@ -972,3 +972,16 @@ def test_last_run_button_opens_the_last_run_of_the_session(frame, monkeypatch):
     frame.OnLastRun(None)
     assert opened == ["http://127.0.0.1:4200/runs/flow-run/abc"]
     assert isinstance(RunProgressDialog.started_run, property)
+
+
+def test_monitor_menu_has_the_entries_of_the_monitor_group(frame, monkeypatch):
+    menubar = frame.GetMenuBar()
+    menu = menubar.GetMenu(menubar.FindMenu("Monitor"))
+    labels = [i.GetItemLabelText() for i in menu.GetMenuItems()]
+    assert labels == ["Prefect Server", "Last Run"]
+    assert _panel_groups(frame)["Monitor"] == labels
+    shown = []
+    monkeypatch.setattr(wx, "MessageBox", lambda *args, **kwargs: shown.append(args[0]))
+    event = wx.CommandEvent(wx.wxEVT_MENU, menu.FindItem("Last Run"))
+    frame.ProcessEvent(event)  # no run yet: the Last Run message
+    assert "No run" in shown[0]
