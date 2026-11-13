@@ -124,9 +124,12 @@ Python 3.12 to 3.14; PyTorch 2.14.1 with CUDA 13.0 (NVIDIA driver 580 or newer).
   settings that have no effect (`Grouping` in `Series Analysis`, `Random Forest` and
   `Heatmap`; `Random seed` in `PCA`; for `Concatenate`, the settings of the other
   direction).
-- **Saved results:** plots that a tool saves are 300 dpi `.png` by default; until 0.6.2
-  they had the figure's resolution. Tables are tab-separated `.txt` by default, as in
-  0.6.2. A run folder started in the same second as another one gets `-2`, `-3` added.
+- **Saved results:** plots saved by a tool (`Save results`, workflows, `flimbatch`) are
+  `.png` files at 300 dpi by default; `Resolution (dpi)` in the tool's `Output` section
+  sets another value. Until 0.6.2 they were saved at 100 dpi, matplotlib's default
+  resolution, so the same plot now has three times as many pixels in width and height.
+  Tables are tab-separated `.txt` by default, as in 0.6.2. A run folder started in the
+  same second as another one gets `-2`, `-3` added.
 - **Quitting** with unsaved windows asks `Cancel`, `Review...`, `Save All Windows...` or
   `Discard All`, also when you log out or shut down the computer (where the system lets
   it ask). Plot windows count as unsaved after edits, such as an axis, a label or a
