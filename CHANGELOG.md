@@ -177,6 +177,10 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   GPU of the Turing generation or newer. For older GPUs, such as the V100, see
   `PyTorch and the GPU` in the installation guide. New dependencies: `filelock`,
   `platformdirs`, `pydantic-settings`.
+- **Version of development installs** (from the repository, between releases): it names
+  the next minor release as a development release, for example `0.7.0.dev12+g1a2b3c4`;
+  until 0.6.2 it named the last release, for example `0.6.1.post12+g1a2b3c4`. Release
+  versions are unchanged.
 - **Plugin and tool API** (developers): names that changed without a deprecated alias,
   because an alias would behave differently: in `flim.core.settings`, `ToolEntry` is now
   `ToolSettings` (`autosave` is an `AutosaveConfig`, without `results_dir`), the 0.6
