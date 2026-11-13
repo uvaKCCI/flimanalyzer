@@ -796,6 +796,19 @@ def workflow_icon():
     return im
 
 
+def runs_icon():
+    im, d = canvas()
+    # a browser window that shows runs: task bars on a timeline, by state
+    d.rounded_rectangle(s(1.5, 3, 30.5, 29), radius=px(2), fill=WHITE, outline=DARK, width=px(1.3))
+    d.rectangle(s(1.5, 3, 30.5, 8), fill=MAGENTA)
+    for x in (4, 7, 10):
+        circle(d, x, 5.5, 0.9, WHITE)
+    for i, (start, length, color) in enumerate(((4, 12, GREEN), (8, 10, GREEN), (12, 14, MAGENTA), (6, 8, GREEN))):
+        y = 11 + i * 4.3
+        d.rounded_rectangle(s(start, y, start + length, y + 2.6), radius=px(0.8), fill=color)
+    return im
+
+
 def flirrworkflow_icon():
     im, d = canvas()
     # table -> FLIRR ratio -> bar chart
@@ -960,6 +973,8 @@ ICONS = {
     "violinplot.png": violin_icon,
     # Workflow
     "workflow.png": workflow_icon,
+    # Runs
+    "runs.png": runs_icon,
     "flirrworkflow.png": flirrworkflow_icon,
     "aetuneworkflow.png": aetuneworkflow_icon,
     "aefeatureworkflow.png": aefeatureworkflow_icon,

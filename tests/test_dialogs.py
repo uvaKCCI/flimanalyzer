@@ -124,18 +124,20 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
             rows.setdefault(box.GetPosition().y, []).append(box.GetLabel())
         assert len(rows) == 2
         labels = [label for y in sorted(rows) for label in rows[y]]
-        # menu order is kept; the File tools (readers) are the File group's buttons
-        assert labels == ["File"] + [c for c in tools.categories() if c != "File"]
+        # menu order is kept; the File tools (readers) are the File group's buttons;
+        # Runs (the Prefect server) last
+        assert labels == ["File"] + [c for c in tools.categories() if c != "File"] + ["Runs"]
         n_tools = sum(
             len([c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)])
             for box in boxes
         )
-        # Open and Import, and the tools of the menus; workflow files only as favorites
+        # Open and Import, the tools of the menus, Prefect Server; workflow files only
+        # as favorites
         in_menus = [
             t for group in tools.by_category().values() for t in group
             if t.in_menus and getattr(t, "definition", None) is None
         ]
-        assert n_tools == 2 + len(in_menus)
+        assert n_tools == 2 + len(in_menus) + 1
     finally:
         frame.Destroy()
 

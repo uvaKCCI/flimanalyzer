@@ -657,8 +657,11 @@ def test_favorites_choose_the_tool_panel(frame, monkeypatch):
     frame.set_favorites(["Box Plot", "not a tool", "Calculate"])
     # each in its menu's group; the groups in menu order, without empty ones
     groups = _panel_groups(frame)
-    assert groups == {"File": ["Open Tables", "Import Tables"], "Analysis": ["Calculate"], "Plot": ["Box Plot"]}
-    assert list(groups) == ["File", "Analysis", "Plot"]
+    assert groups == {
+        "File": ["Open Tables", "Import Tables"], "Analysis": ["Calculate"], "Plot": ["Box Plot"],
+        "Runs": ["Prefect Server"],  # always shown, as File
+    }  # fmt: skip
+    assert list(groups) == ["File", "Analysis", "Plot", "Runs"]
     assert frame.settings.favorites == ["Box Plot", "not a tool", "Calculate"]
     # the dialog: the favorites first, checked; the order and the checks it returns
     shown = {}
@@ -781,3 +784,19 @@ def test_save_on_close_suggests_the_window_title(frame, monkeypatch, flim_data):
     window.close_and_destroy(None)
     assert suggested == ["cells.txt"]
     window.modified = False
+
+
+def test_prefect_server_button_opens_the_server_or_explains(frame, monkeypatch):
+    from prefect.settings import PREFECT_API_URL, PREFECT_UI_URL, temporary_settings
+
+    names = [b.GetName() for b in frame.toolpanel.GetChildren() for b in [b] + list(b.GetChildren())]
+    assert "Prefect Server" in names
+    opened, shown = [], []
+    monkeypatch.setattr(wx, "LaunchDefaultBrowser", lambda url: opened.append(url))
+    monkeypatch.setattr(wx, "MessageBox", lambda *args, **kwargs: shown.append(args[0]))
+    with temporary_settings(updates={PREFECT_UI_URL: "http://127.0.0.1:4200"}):
+        frame.OnPrefectServer(None)
+    assert opened == ["http://127.0.0.1:4200"]
+    with temporary_settings(restore_defaults={PREFECT_UI_URL, PREFECT_API_URL}):
+        frame.OnPrefectServer(None)
+    assert opened == ["http://127.0.0.1:4200"] and "temporary server" in shown[0]

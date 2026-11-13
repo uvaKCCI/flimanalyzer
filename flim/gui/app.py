@@ -561,7 +561,9 @@ class AppFrame(wx.Frame):
         return ["File"] + [c for c in tools.categories() if c != "File"]
 
     def build_tool_panel(self) -> None:
-        """Create the tool panel's groups: File first, then one per tool category.
+        """Create the tool panel's groups: File first, one per tool category, Runs last.
+
+        Runs holds the button that opens the Prefect server (`OnPrefectServer`).
 
         With favorites (`favorites` setting), the groups hold only them, in their
         order: a tool in its category's group, a workflow file in the group its tags
@@ -583,6 +585,7 @@ class AppFrame(wx.Frame):
         for label, buttons in groups.items():
             if label == "File" or buttons or not favorites:
                 self._add_tool_group(label, buttons)
+        self._add_tool_group("Runs", [("Prefect Server", icon_bitmap("runs.png"), self.OnPrefectServer)])
         self._layout_tool_groups(rows=2)
 
     def favorite_buttons(
@@ -1862,6 +1865,26 @@ class AppFrame(wx.Frame):
             message, "Save All Windows", wx.OK | (wx.ICON_WARNING if failed else 0)
         )
         return not failed
+
+    def OnPrefectServer(self, event: wx.CommandEvent) -> None:
+        """Open the Prefect server's UI in the browser, with the runs and their tasks.
+
+        The address is that of the server the session uses (`PREFECT_UI_URL`); without
+        one, a message says that runs use temporary servers.
+        """
+        from prefect.settings import PREFECT_UI_URL
+
+        url = PREFECT_UI_URL.value()
+        if not url:
+            wx.MessageBox(
+                "No Prefect server is in use: each run uses a temporary server that"
+                " stops when the run ends. Start FLIMAnalyzer without"
+                " --no-prefect-server to keep a server with all runs.",
+                "Prefect Server",
+                wx.OK | wx.ICON_INFORMATION,
+            )
+            return
+        wx.LaunchDefaultBrowser(url)
 
     def OnDocumentation(self, event: wx.CommandEvent) -> None:
         """Help > Documentation: open this version's documentation in the browser."""
