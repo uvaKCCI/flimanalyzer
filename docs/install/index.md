@@ -128,7 +128,7 @@ These options can also be set with environment variables, and in an app settings
 
 FLIMAnalyzer writes its messages to a log file. When an error message says "see the log", the details are in this file. Each session gets its own file, named after the program, its start time and its process ID, for example `flimanalyzer_2026-11-09T14-23-43_12345.log` or `flimbatch_2026-11-09T14-23-43_12345.log`. A file is never overwritten.
 
-The log folder is, first match:
+The location of the log file is determined in this order; the first that applies is used:
 
 1. The folder given with `--log-dir`, or in the environment variable `FLIM_LOG_DIR`, or in `log` > `dir` in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
 2. For the GUI, the platform's log folder:
