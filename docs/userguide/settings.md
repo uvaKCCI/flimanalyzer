@@ -157,6 +157,8 @@ Some tools have a table with a row for each feature, for example the table of ra
 
 ## Layout of a settings file
 
+The example shows an app settings file as `Export Settings...` writes it, shortened. A user settings file has the same layout, but it contains only the settings changed in the GUI.
+
 ```
 {
   "schema_version": 2,
@@ -166,7 +168,6 @@ Some tools have a table with a row for each feature, for example the table of ra
   "log": {"dir": null, "max_age_days": 30},
   "cache": {"dir": null, "max_size_mb": 2048, "max_age_days": 7},
   "strict": null,
-  "appsettings_path": [],
   "filters": { ... },
   "tools": {
     "Summarize": {"config": { ... }, "autosave": {"enabled": false, "results_dir": null, "formats": []}},
@@ -183,7 +184,7 @@ Some tools have a table with a row for each feature, for example the table of ra
 * `log`: the log folder (`dir`) and how many days the GUI keeps its log files (`max_age_days`). If the folder is not set (`null`), the GUI uses the platform's log folder and `flimbatch` its output folder (see [Log files](/install/index.md#log-files)).
 * `cache`: the cache folder setting (`dir`), the maximum cache size in MB (`max_size_mb`) and the maximum age of cached items in days (`max_age_days`).
 * `strict`: workflows: `true` makes columns that are not in the data errors; `false` replaces them by the closest matching column. A workflow's own `Strict` setting takes precedence. If it is not set (`null`), missing columns are guessed in the GUI, where the guesses are shown before the run, and are errors in `flimbatch`.
-* `appsettings_path`: the folders searched for app settings files. It is read from the user settings file (see [App settings files](#app-settings-files)).
+* `appsettings_path`: the folders searched for app settings files. It is read only from the user settings file, because it is needed to find an app settings file; in an app settings file it has no effect (see [App settings files](#app-settings-files)).
 * `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it, `appsettings_path` and `workflow_paths` out.
 * `workflow_paths`: the folders searched for workflow files (see [Workflow files](/userguide/workflows.md#workflow-files)). It is read from the user settings file, and from an app settings file, which takes precedence. `flimbatch` reads no user settings file, so it uses only that of the `-s` file.
 * `favorites`: the names of the tools and workflows the tool panel shows, in order (see [Menus](/userguide/appmenu)). Empty: all tools. The GUI writes it to the user settings file with `File` > `Favorites...`; an app settings file can set it, for example for a course, and the user settings file takes precedence.
