@@ -225,6 +225,7 @@ class ConfigDialog(wx.Dialog):
         strict: Optional[bool] = None,
         default_folder: Union[str, os.PathLike, None] = None,
         on_make_default: Optional[Callable[[Path], Any]] = None,
+        keep_relative: bool = True,
     ) -> None:
         """Build the dialog and show the config, its inputs and output options.
 
@@ -249,6 +250,10 @@ class ConfigDialog(wx.Dialog):
                 `Use the default folder` and `Make Default Folder`.
             on_make_default: Called with the folder when the user makes it the
                 default results folder. Defaults to None.
+            keep_relative: Whether a folder inside the default folder is kept
+                relative to it. False when the default folder is only the start
+                folder (no `results_dir` set), which can differ from one session to
+                the next: folders are then kept as full paths. Defaults to True.
         """
         super().__init__(
             parent,
@@ -265,6 +270,7 @@ class ConfigDialog(wx.Dialog):
         # what makes a folder the default (SettingsManager)
         self.default_folder = Path(default_folder) if default_folder else None
         self.on_make_default = on_make_default
+        self.keep_relative = keep_relative
         self.issues: list[Issue] = []
         self._schema_cache: dict[str, TableSchema] = {}
 
@@ -622,8 +628,10 @@ class ConfigDialog(wx.Dialog):
         kept = stored_folder(path, self.default_folder)
         if kept is None:
             return "The default folder."
-        if not kept.is_absolute():
+        if not kept.is_absolute() and self.keep_relative:
             return f"Inside the default folder, kept as {kept}: it moves with the default folder."
+        if not kept.is_absolute():
+            return "Kept as this path (no results folder set: the default is the start folder)."
         return "Outside the default folder, kept as this path."
 
     def _make_default(self) -> None:
@@ -1081,6 +1089,8 @@ class ConfigDialog(wx.Dialog):
             folder = None
         elif stored and path and self.default_folder is not None:
             folder = stored_folder(path, self.default_folder)  # relative inside it
+            if folder is not None and not self.keep_relative and not folder.is_absolute():
+                folder = Path(path)
         else:
             folder = path
         return AutosaveConfig(

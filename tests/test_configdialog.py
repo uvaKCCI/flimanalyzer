@@ -470,6 +470,16 @@ def test_a_folder_inside_the_default_folder_is_kept_relative(dialog, tmp_path):
     assert d._shown_folder(Path("kmeans")) == str(inside)
 
 
+def test_without_a_results_folder_set_folders_are_kept_as_full_paths(dialog, tmp_path):
+    # the default is then only the start folder, which can change between sessions
+    default = tmp_path / "start"
+    inside = default / "kmeans"
+    execution = ExecutionOptions(autosave={"enabled": True, "results_dir": inside})
+    d = dialog("K-Means", execution=execution, default_folder=default, keep_relative=False)
+    assert d._autosave(stored=True).results_dir == inside
+    assert d.folder_note.GetLabel().startswith("Kept as this path")
+
+
 def test_no_default_folder_controls_without_a_default(dialog):
     d = dialog("K-Means")
     assert d.use_default is None and d.make_default is None

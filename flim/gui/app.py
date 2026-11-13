@@ -891,6 +891,7 @@ class AppFrame(wx.Frame):
                 self, tool, self.settings.tools.config(tool), execution=execution,
                 autosave_locked=True,  # the workflow's steps decide what is saved
                 default_folder=self.settings.resolved_results_dir(),
+                keep_relative=self.settings.results_dir is not None,
                 on_make_default=self.make_default_folder,
             )  # fmt: skip
             if result is None:
@@ -1308,6 +1309,7 @@ class AppFrame(wx.Frame):
             autosave_locked=is_workflow,  # workflows always save their results
             strict=self.settings.strict,
             default_folder=self.settings.resolved_results_dir(),
+            keep_relative=self.settings.results_dir is not None,
             on_make_default=self.make_default_folder,
         )
         if result is None:
