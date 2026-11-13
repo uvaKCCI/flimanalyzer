@@ -398,6 +398,23 @@ class HistogramConfig(DistributionPlotConfig):
         description="Also return the binned values as a table.",
     )
 
+    @classmethod
+    def allowed_values(cls, values: dict[str, Any]) -> dict[str, tuple[Any, ...]]:
+        """Return the fields that allow only some values, given the other values.
+
+        Args:
+            values: The field values, by name.
+
+        Returns:
+            Field name -> the allowed values (the first is the default): those of
+            the base class; `stacked` is fixed to True in the `barstacked` style,
+            which stacks the groups, so their bars are in percent of all rows.
+        """
+        allowed = super().allowed_values(values)
+        if values.get("histtype") == "barstacked":
+            allowed["stacked"] = (True,)
+        return allowed
+
     @model_validator(mode="before")
     @classmethod
     def _older_global_bins(cls, data: Any) -> Any:

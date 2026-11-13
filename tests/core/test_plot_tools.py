@@ -1049,3 +1049,19 @@ def test_pair_plot_all_ignores_samples(flim_data):
     figure = _pairplot(flim_data, mode="all", samples=20)
     assert set(_points_per_panel(figure)) == {len(flim_data)}
     assert _notes(figure) == []
+
+
+@pytest.mark.parametrize("style, stacked", [("bar", True), ("barstacked", False)])
+def test_stacked_histogram_is_in_percent_of_all_rows(style, stacked):
+    from flim.tools.plot import FrequencyHistogram
+
+    # a: x = 1, 1, 2; b: x = 1; stacked: percent of all 4 rows, each group its own
+    data = pd.DataFrame({"G": pd.Categorical(["a", "a", "a", "b"]), "x": [1.0, 1.0, 2.0, 1.0]})
+    config = HistogramConfig(
+        grouping=["G"], histtype=style, stacked=stacked, table=True,
+        features={"x": HistogramRange(min=0.5, max=2.5, bins=2)},
+    )  # fmt: skip
+    assert config.stacked  # the barstacked style stacks: fixed
+    (table,) = [v for k, v in FrequencyHistogram()(data, config=config).items() if k.startswith("Table")]
+    assert list(table["a [rel %]"]) == [50.0, 25.0]
+    assert list(table["b [rel %]"]) == [25.0, 0.0]  # 0.6.2: the stack heights, 75 and 25
