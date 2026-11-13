@@ -91,7 +91,7 @@ def _skip_sklearn_members(app, what, name, obj, skip, options):
 
 
 def _narrow_tall_images(app, doctree):
-    """Show screenshots that are taller than wide at half the column width, on the right.
+    """Show screenshots that are clearly taller than wide at half the column width, on the right.
 
     The screenshots are taken on a high-resolution screen (two pixels per point),
     and the theme shows an image at its pixel size up to the column width, so tall
@@ -109,7 +109,7 @@ def _narrow_tall_images(app, doctree):
                 width, height = image.size
         except OSError:
             continue
-        if height > width:
+        if height > 1.1 * width:  # dialogs; plots are about square and stay as they are
             node["width"] = "50%"
             node["align"] = "right"  # the text flows beside it
             _to_start_of_step(node)
