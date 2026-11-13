@@ -73,7 +73,6 @@ Create a Plot
     kde
     heatmap
     flirr
-    plotwindow
 
 Plot Windows and Saving
 -----------------------
@@ -81,3 +80,8 @@ Plot Windows and Saving
 Each plot opens in a plot window. There you can zoom into the plot, change its axes, labels and line colors, and save it as an image file. See :doc:`plotwindow`.
 
 The options common to all tool dialogs, such as the choice of the data and the result prefix, are described in :doc:`/userguide/dialogs`. To save the plots automatically each time a tool runs, check `Save results` in the tool's dialog (see `Saving results <../dialogs.html#saving-results>`_). Plots are saved as `png` (the default), `svg` or `pdf` files, as chosen under `Save results`.
+
+.. toctree::
+    :hidden:
+
+    plotwindow
