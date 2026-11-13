@@ -87,12 +87,11 @@ def permutate(*args: Any) -> list[tuple]:
 
 
 def clean(str: str) -> str:
-    r"""Return a text with characters removed or replaced, for tags and folder names.
+    """Return a text with characters removed or replaced, for tags and folder names.
 
-    Kept are ASCII letters and digits, spaces, line breaks and the ASCII characters
-    from `.` to `_` (these include `/`, `:`, `;`, `<` to `@`, `[`, `\`, `]` and
-    `^`); all other characters are removed, including `-`. Then each space and each
-    `/` is replaced by `_`.
+    Kept are ASCII letters and digits, spaces, line breaks, `.`, `_` and `/`; all
+    other characters are removed, including `-`. Then each space and each `/` is
+    replaced by `_`.
 
     Args:
         str: The text.
@@ -100,7 +99,7 @@ def clean(str: str) -> str:
     Returns:
         The cleaned text, e.g. `a_b_c` for `a b/c` and `ab` for `a#b`.
     """
-    rmstr = re.sub(r"[^a-zA-Z0-9 \n\.-_]", "", str)
+    rmstr = re.sub(r"[^a-zA-Z0-9 \n._/]", "", str)
     return re.sub("[ /]", "_", rmstr)
 
 

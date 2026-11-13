@@ -48,7 +48,6 @@ def test_range_low_clipped_to_allowed_min():
     assert f.get_rangelow() == 0
 
 
-@pytest.mark.xfail(strict=True, reason="clip_range assigns self.rangemax instead of self.rangehigh")
 def test_range_high_clipped_to_allowed_max():
     f = RangeFilter("x", rangelow=0, rangehigh=50, allowedmin=0, allowedmax=10)
     assert f.get_rangehigh() == 10

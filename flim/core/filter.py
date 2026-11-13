@@ -174,10 +174,7 @@ class RangeFilter(Filter):
         self.set_range(self.rangelow, self.rangehigh)
 
     def clip_range(self) -> tuple[float, float]:
-        """Raise the lower end of the range to the allowed minimum, if below it.
-
-        The upper end is not changed: if it is above the allowed maximum, the
-        attribute `rangemax` (not `rangehigh`) is set to the allowed maximum.
+        """Clip the range to the allowed minimum and maximum, where they are set.
 
         Returns:
             The range, (low, high).
@@ -185,7 +182,7 @@ class RangeFilter(Filter):
         if self.allowedmin is not None and self.rangelow < self.allowedmin:
             self.rangelow = self.allowedmin
         if self.allowedmax is not None and self.rangehigh > self.allowedmax:
-            self.rangemax = self.allowedmax
+            self.rangehigh = self.allowedmax
         return self.rangelow, self.rangehigh
 
     def set_range(self, low: float, high: float) -> tuple[float, float]:

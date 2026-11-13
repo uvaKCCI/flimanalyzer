@@ -82,6 +82,8 @@ class BaseConfig(BaseModel):
             if self.__dict__.get(name) not in allowed:
                 self.__dict__[name] = allowed[0]
 
+    # no return annotation: pydantic would take it as the output's schema, and the
+    # serialization JSON schema of every config would lose its fields
     @model_serializer(mode="wrap")
     def _serialize(self, handler: SerializerFunctionWrapHandler):
         """Dump the fields; leave out a missing version, and classname where unused."""
@@ -209,7 +211,7 @@ class Resources(BaseConfig):
     preferred_threads: Literal[1] = Field(
         default=1,
         title="Threads",
-        description="Threads within the task; -1: all cores allocated to the task.",
+        description="Threads within the task: 1 (tools that use one thread).",
     )
 
 

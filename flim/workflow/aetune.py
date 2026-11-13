@@ -77,15 +77,16 @@ def model_files(output: TaskOutput, epoch: Optional[int] = None) -> list[Path]:
 
     Args:
         output: The output of an Autoencoder: Train task.
-        epoch: If set, only the files whose path contains the epoch as four digits,
-            e.g. `0006`. Defaults to None (all files).
+        epoch: If set, only the files of that epoch, whose names end with
+            `_epoch<epoch, four digits>.model`, e.g. `_epoch0006.model`. Defaults to
+            None (all files).
 
     Returns:
         The files; empty if the task did not complete.
     """
     found = output["Model File"].value() or []
     found = [found] if isinstance(found, str) else found
-    return [Path(f) for f in found if epoch is None or f"{epoch:04d}" in str(f)]
+    return [Path(f) for f in found if epoch is None or str(f).endswith(f"_epoch{epoch:04d}.model")]
 
 
 def result_name(kind: str, path: str | os.PathLike) -> str:
