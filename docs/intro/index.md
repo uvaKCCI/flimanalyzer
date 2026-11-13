@@ -2,7 +2,7 @@
 
 ## Concept
 
-FLIMAnalyzer is open source software for analyzing fluorescence lifetime imaging microscopy (FLIM) data. It is written in Python by the UVA Keck Center for Cellular Imaging. Its code is in the public GitHub repository [uvaKCCI/flimanalyzer](https://github.com/uvaKCCI/flimanalyzer).
+FLIMAnalyzer is open source software for analyzing fluorescence lifetime imaging microscopy (FLIM) data. Its code is in the public GitHub repository [uvaKCCI/flimanalyzer](https://github.com/uvaKCCI/flimanalyzer).
 
 FLIMAnalyzer reads fitted FLIM data from text files laid out like a spreadsheet, usually tab-separated `.txt` files or comma-separated `.csv` files. It combines several files into one table, and it can read values such as the treatment or the cell from the file names (see [Loading Data](/userguide/data/load)). The tables can then be filtered, sorted, rearranged and summarized (see [Data Tables](/userguide/data/index)).
 
