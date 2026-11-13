@@ -1220,16 +1220,28 @@ class AppFrame(wx.Frame):
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             path = with_extension(fileDialog.GetPath(), ".json")
-        self.save_settings(path)
+        with wx.TextEntryDialog(
+            self,
+            "Description of the settings file (optional), for example a course or an"
+            " experiment. It is shown when FLIMAnalyzer asks which app settings file to"
+            " start with.",
+            "Export Settings",
+            self.settings.description or "",
+        ) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            description = dialog.GetValue().strip()
+        self.save_settings(path, description)
         self.offer_search_path(path)
 
-    def save_settings(self, path: str | os.PathLike) -> None:
+    def save_settings(self, path: str | os.PathLike, description: Optional[str] = None) -> None:
         """Write all current settings, in the current version, to a file.
 
         Args:
             path: The file.
+            description: The file's description; None or empty for none.
         """
-        self.settings_manager.export(path)
+        self.settings_manager.export(path, description)
 
     def offer_search_path(self, path: str | os.PathLike) -> bool:
         """Ask whether to add an exported file's folder to the settings search path.

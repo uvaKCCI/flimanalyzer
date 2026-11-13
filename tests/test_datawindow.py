@@ -203,8 +203,15 @@ def test_save_and_load_settings(frame, monkeypatch, tmp_path):
     manager.set_tool(tools.get("Rename Columns"), RenameColumnsConfig(replacements=[]))
     manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=5))
     _answer_file_dialog(monkeypatch, path)
+    monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda d: wx.ID_OK)
+    monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda d: " Course 2026 ")
     frame.OnSaveSettings(None)
-    assert json.loads(path.read_text())["schema_version"] == SETTINGS_VERSION
+    exported = json.loads(path.read_text())
+    assert list(exported)[:2] == ["schema_version", "description"]  # first in the file
+    assert exported["schema_version"] == SETTINGS_VERSION and exported["description"] == "Course 2026"
+    monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda d: "")
+    frame.OnSaveSettings(None)
+    assert "description" not in json.loads(path.read_text())  # empty: none
 
     manager.set_tool(tools.get("Rename Columns"), RenameColumnsConfig())
     manager.set_tool(tools.get("K-Means"), KMeansConfig(n_clusters=2))
@@ -388,6 +395,22 @@ def test_filter_data_switches_the_category_filters_too(frame, monkeypatch, flim_
     assert window.filtercb.GetValue() and window.filters.use
     assert window.category_filters() == {"FOV": ["1", "2"]}
     assert set(window.GetViewData()["FOV"]) == {"1", "2"} and len(window.GetViewData()) == 40
+
+
+def test_filter_settings_select_all_and_deselect_all(frame, flim_data):
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    window = _open(frame, flim_data)
+    shown = window.filters.model_copy(update={"range_filters": window._existing_rangefilters([])})
+    dlg = ConfigureFiltersDlg(window, shown, window.data, {})
+    try:
+        dlg.use_all(True)
+        assert all(r["selected"] for r in dlg.current_ranges())
+        assert all(dlg.filterlist.IsChecked(i) for i in range(dlg.filterlist.GetItemCount()))
+        dlg.use_all(False)
+        assert not any(r["selected"] for r in dlg.current_ranges())
+    finally:
+        dlg.Destroy()
 
 
 def test_filters_belong_to_their_table_window(wxapp, monkeypatch, tmp_path, flim_data):

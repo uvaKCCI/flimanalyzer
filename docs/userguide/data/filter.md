@@ -30,7 +30,7 @@ Follow these steps to view and change the range filters:
 
 3. The `Filter Settings` dialog opens. It shows the current minimum and maximum of the range filter for each column with numeric values. A column without a range filter has no limits (`-inf` and `inf`) until you set them. The `Dropped view` column shows how many of the window's rows each filter hides; it shows `---` for a filter that is switched off.
 
-4. Change the range filters as needed. Check `Use` to switch a filter on. Filters whose `Use` box is unchecked are ignored.
+4. Change the range filters as needed. Check `Use` to switch a filter on. Filters whose `Use` box is unchecked are ignored. `Select All` and `Deselect All` check or uncheck `Use` for all filters.
 
 5. Click `OK`. The dialog closes, and the table shows only the rows whose values are inside the ranges of the filters switched on in step 4. While the dialog is open, it shows how many rows these filters hide (`Dropped from view`) and how many remain.
 

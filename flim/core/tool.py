@@ -498,6 +498,22 @@ class Tool(Generic[ConfigT]):
         return None
 
     @classmethod
+    def used_config(cls, config: ConfigT, tables: Sequence[Any]) -> ConfigT:
+        """Return the config with the values the tool uses on the tables filled in.
+
+        It is the record of a run: the task's settings artifact shows it. For
+        example, columns found by name at run time are filled in.
+
+        Args:
+            config: The config the task runs with.
+            tables: The input tables (DataFrames).
+
+        Returns:
+            The config; by default the one given.
+        """
+        return config
+
+    @classmethod
     def dialog_config(cls, config: ConfigT) -> ConfigT:
         """Return the config the tool's dialog opens with, from its stored settings.
 

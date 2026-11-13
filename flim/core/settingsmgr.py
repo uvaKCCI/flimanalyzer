@@ -178,6 +178,7 @@ class UserSettingsFile:
                 raise OSError(f"{self.path} cannot be read or renamed: {self.set_aside[1]}")
             data = merge_sections(current, changes)
             data["schema_version"] = SETTINGS_VERSION
+            data = _ordered(data)
             fd, tmp = tempfile.mkstemp(
                 dir=self.path.parent, prefix=".settings-", suffix=".json"
             )
@@ -188,6 +189,23 @@ class UserSettingsFile:
             except BaseException:
                 os.unlink(tmp)
                 raise
+
+
+def _ordered(data: dict) -> dict:
+    """Return settings data with `schema_version` first, then `description`."""
+    first = {k: data[k] for k in ("schema_version", "description") if k in data}
+    return {**first, **{k: v for k, v in data.items() if k not in first}}
+
+
+def file_description(path: str | os.PathLike) -> str:
+    """Return the `description` of a settings file; empty if it has none or can't be read."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return ""
+    value = data.get("description") if isinstance(data, dict) else None
+    return value if isinstance(value, str) else ""
 
 
 def _sections(data: dict) -> list[str]:
@@ -443,7 +461,7 @@ class SettingsManager:
                 lines.append(f"  {label}: {'; '.join(items)}")
         return lines
 
-    def export(self, path: str | os.PathLike) -> None:
+    def export(self, path: str | os.PathLike, description: Optional[str] = None) -> None:
         """Write all current settings, in the current version, to an app settings file.
 
         Every installed tool's settings are written, its defaults if none are set, so
@@ -453,8 +471,11 @@ class SettingsManager:
         `default_app_settings` are left out: they are read only from the user
         settings file.
 
+        The file starts with `schema_version` and, if there is one, `description`.
+
         Args:
             path: The file; it is replaced if it exists.
+            description: The file's description; None or empty for none.
         """
         from flim.core.registry import tools as registry
 
@@ -470,6 +491,10 @@ class SettingsManager:
                     continue
                 settings.tools.set(tool, config)
         data = known_data(settings)  # unknown keys are not used: not exported
+        data["description"] = description or None
+        if data["description"] is None:
+            data.pop("description")
+        data = _ordered(data)
         data.pop("appsettings_path", None)
         data.pop("workflow_paths", None)
         data.pop("default_app_settings", None)

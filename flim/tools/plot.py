@@ -2045,6 +2045,31 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
         """Return the output: one figure named `FLIRR Plot: <grouping>`."""
         return {f"FLIRR Plot: {config.grouping}": PlotType}
 
+    @classmethod
+    def used_config(cls, config: FLIRRPlotConfig, tables: Sequence[Any]) -> FLIRRPlotConfig:
+        """Return the config with the FLIRR, FAD a1 % and NAD(P)H a2 % columns found.
+
+        The three columns (`flirr_columns`) fill their fields and `features`, the
+        columns the figure plots.
+        """
+        if not tables or not isinstance(tables[0], pd.DataFrame):
+            return config
+        found = flirr_columns(
+            tables[0].select_dtypes(include=np.number).columns,
+            config.flirr,
+            config.fad_a1,
+            config.nadph_a2,
+        )
+        flirr, fad, nadph = found
+        return config.model_copy(
+            update={
+                "flirr": flirr,
+                "fad_a1": fad,
+                "nadph_a2": nadph,
+                "features": [c for c in found if c is not None],
+            }
+        )
+
     def run(self, data: pd.DataFrame, *, config: FLIRRPlotConfig) -> dict[str, Any]:
         """Draw the FLIRR figure.
 

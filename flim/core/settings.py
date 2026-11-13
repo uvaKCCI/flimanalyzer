@@ -273,6 +273,12 @@ class AppSettings(_Settings):
     """
 
     schema_version: int = SETTINGS_VERSION
+    description: Optional[str] = Field(
+        default=None,
+        title="Description",
+        description="What the settings file is for, for example a course or an"
+        " experiment; shown when the GUI asks which app settings file to start with.",
+    )
     results_dir: Optional[Path] = Field(
         default=None,
         title="Results folder",

@@ -248,8 +248,9 @@ def test_startup_dialog_preselects_the_default(wxapp, tmp_path):
     a, b = tmp_path / "a.json", tmp_path / "b.json"
     d = _startup_dialog([a, b], default=b)
     try:
-        assert d.table.GetItemCount() == 2 and d.table.GetColumnCount() == 3
-        assert d.rows()[1] == (settingscheck.DEFAULT_MARK, "b.json", str(tmp_path))
+        # columns: Default, File, Description, Folder
+        assert d.table.GetItemCount() == 2 and d.table.GetColumnCount() == 4
+        assert d.rows()[1] == (settingscheck.DEFAULT_MARK, "b.json", "", str(tmp_path))
         assert d.selected() == b and d.ok.IsEnabled()
         assert d.GetDefaultItem() is d.ok  # Enter: start with the default
         assert not d.make_default.IsEnabled()  # already the default
@@ -366,3 +367,28 @@ def test_old_import_settings_are_offered_as_a_workflow_file(wxapp, tmp_path, mon
         assert manager.settings.tools.config(ImportTables).workflow == "Import (lab)"
     finally:
         tools.unregister("Import (lab)")
+
+
+def test_startup_dialog_shows_the_descriptions(wxapp, tmp_path):
+    import json
+
+    a, b = tmp_path / "a.json", tmp_path / "b.json"
+    a.write_text(json.dumps({"schema_version": 2, "description": "Course 2026"}))
+    b.write_text("not json")
+    d = _startup_dialog([a, b], default=None)
+    try:
+        column = settingscheck.STARTUP_COLUMNS.index("Description")
+        assert [d.table.GetItemText(i, column) for i in range(2)] == ["Course 2026", ""]
+    finally:
+        d.Destroy()
+
+
+def test_user_settings_file_starts_with_the_version_and_description(tmp_path):
+    import json
+
+    from flim.core.settingsmgr import UserSettingsFile
+
+    path = tmp_path / "usersettings.json"
+    path.write_text(json.dumps({"tools": {}, "description": "mine", "schema_version": 2}))
+    UserSettingsFile(path).merge({"results_dir": "/data"})
+    assert list(json.loads(path.read_text()))[:2] == ["schema_version", "description"]

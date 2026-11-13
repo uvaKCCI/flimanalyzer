@@ -64,7 +64,7 @@ The app settings search path is, in this order:
 
 ### Choosing an app settings file at startup
 
-If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI asks which app settings file to start with. The table lists the `.json` files in the folders of the app settings search path, and your default app settings file if you have set one, with their folders; the default has a check mark. `OK` starts with the selected file, and `Skip App Settings` (or Esc) starts without one. With a default, its row is selected, so pressing Enter starts with it; without one, no row is selected and Enter skips. If there are no files and no default, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`.
+If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI asks which app settings file to start with. The table lists the `.json` files in the folders of the app settings search path, and your default app settings file if you have set one, with their folders; the default has a check mark. `OK` starts with the selected file, and `Skip App Settings` (or Esc) starts without one. With a default, its row is selected, so pressing Enter starts with it; without one, no row is selected and Enter skips. If there are no files and no default, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`. The `Description` column shows each file's `description`.
 
 * `Make Default` makes the selected file your default from now on.
 * `Clear Default` removes the default.
@@ -109,7 +109,7 @@ flimbatch -i data/ -o results/ -s settings.json --run Summarize
 
 **Menu Access:** `File` > `Export Settings...` and `File` > `Import Settings...`
 
-`Export Settings...` saves the settings as they are active now to an app settings file, as soon as you click `Save`. It saves every setting, whatever it comes from: the built-in defaults, your user settings file, the app settings file given with `-s`, an environment variable, a command-line option, or a change you made in the GUI. A value you gave only for this session is saved too, for example a results folder given with `-o`. Before you share the file or use it on another computer, check these values in the [Settings viewer](#viewing-the-app-settings), which shows where each value comes from. Three settings are left out, because they only have an effect in the user settings file: `appsettings_path`, `workflow_paths` and `default_app_settings`. Settings you change in the GUI after exporting are not added to the file; export again to save them there.
+`Export Settings...` saves the settings as they are active now to an app settings file. After you choose the file, it asks for a description of the file (optional), for example a course or an experiment, and saves when you click `OK`. It saves every setting, whatever it comes from: the built-in defaults, your user settings file, the app settings file given with `-s`, an environment variable, a command-line option, or a change you made in the GUI. A value you gave only for this session is saved too, for example a results folder given with `-o`. Before you share the file or use it on another computer, check these values in the [Settings viewer](#viewing-the-app-settings), which shows where each value comes from. Three settings are left out, because they only have an effect in the user settings file: `appsettings_path`, `workflow_paths` and `default_app_settings`. Settings you change in the GUI after exporting are not added to the file; export again to save them there.
 
 If the file's folder isn't in the app settings search path yet, it then asks whether to add it to `appsettings_path` in your user settings file, so that the GUI lists the file at startup and `-s` finds it by name. While `appsettings_path` is empty, the default folder is kept in the search path when a folder is added. The question doesn't appear while `FLIM_APP_SETTINGS_PATH` is set, because it replaces `appsettings_path`. The saved file includes the settings of every installed tool, with the tool's defaults if you haven't changed them, so that the file gives the same settings in a later FLIMAnalyzer version, even if the defaults change there. `Import Settings...` loads the settings from a file and uses them for this session; they are not saved to the user settings file. If a file has only some of the settings, for example those of a single tool, only those settings change. All other settings stay as they are.
 
@@ -177,7 +177,8 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
 }
 ```
 
-* `schema_version`: the version of the file format.
+* `schema_version`: the version of the file format. It is the first entry of the file.
+* `description`: what the file is for, for example a course or an experiment (optional). `Export Settings...` asks for it; in the user settings file, edit it in the file. The GUI shows it when it asks which app settings file to start with.
 * `results_dir`: the folder under `Save results` for tools that have no folder of their own. If it is not set (`null`), the results go to the folder FLIMAnalyzer was started from.
 * `execution`: the executor and its options, as with `-e` (see [Concurrent and Distributed Execution](/userguide/execution)). For example, `{"executor": "dask-local", "workers": 8, "scheduler": "processes"}`, or `{"executor": "dask", "address": "tcp://host:8786"}`.
 * `prefect_server`: `false` does the same as `--no-prefect-server`.

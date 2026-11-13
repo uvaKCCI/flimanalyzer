@@ -7,7 +7,7 @@ from typing import Callable, Optional
 import wx
 
 from flim.core.paths import with_extension
-from flim.core.settingsmgr import Pick, SettingsManager
+from flim.core.settingsmgr import Pick, SettingsManager, file_description
 from flim.core.settings import (
     SETTINGS_VERSION,
     SettingsCheck,
@@ -165,7 +165,7 @@ def _save_file(parent: Optional[wx.Window]) -> Optional[str]:
 
 
 SKIP = "Skip App Settings"
-STARTUP_COLUMNS = ("Default", "File", "Folder")
+STARTUP_COLUMNS = ("Default", "File", "Description", "Folder")
 DEFAULT_MARK = "\u2713"  # check mark
 MAKE_DEFAULT = "Make Default"
 CLEAR_DEFAULT = "Clear Default"
@@ -253,8 +253,8 @@ class StartupSettingsDialog(wx.Dialog):
             self.skip.SetDefault()  # Enter: start without a file
             self._update()
 
-    def rows(self) -> list[tuple[str, str, str]]:
-        """Return the table's rows: default mark, file name, folder.
+    def rows(self) -> list[tuple[str, str, str, str]]:
+        """Return the table's rows: default mark, file name, description, folder.
 
         A folder in the home folder starts with `~`.
         """
@@ -264,7 +264,9 @@ class StartupSettingsDialog(wx.Dialog):
             folder = f.parent
             if folder.is_relative_to(home):
                 folder = Path("~") / folder.relative_to(home)
-            rows.append((DEFAULT_MARK if f == self.default else "", f.name, str(folder)))
+            rows.append(
+                (DEFAULT_MARK if f == self.default else "", f.name, file_description(f), str(folder))
+            )
         return rows
 
     def _fill(self) -> None:
@@ -272,11 +274,11 @@ class StartupSettingsDialog(wx.Dialog):
         self.table.DeleteAllItems()
         for row in self.rows():
             index = self.table.InsertItem(self.table.GetItemCount(), row[0])
-            self.table.SetItem(index, 1, row[1])
-            self.table.SetItem(index, 2, row[2])
+            for column in range(1, len(row)):
+                self.table.SetItem(index, column, row[column])
         self.table.SetColumnWidth(0, wx.LIST_AUTOSIZE_USEHEADER)
-        self.table.SetColumnWidth(1, wx.LIST_AUTOSIZE)
-        self.table.SetColumnWidth(2, wx.LIST_AUTOSIZE)
+        for column in range(1, len(STARTUP_COLUMNS)):
+            self.table.SetColumnWidth(column, wx.LIST_AUTOSIZE_USEHEADER)
 
     def select(self, index: int) -> None:
         """Select the row of file `index`."""

@@ -347,7 +347,7 @@ def run_tool(
         The results by display name; if the tool warned, a `Completed` state with
         the warnings as its message and the results as its data.
     """
-    _record_settings(tool, kwargs.get("config"))
+    _record_settings(tool, kwargs.get("config"), _unwrap(kwargs).get("inputs"))
     results = _run_tool(tool, kwargs)
     if autosave:
         only = autosave.get("only")
@@ -364,15 +364,22 @@ def run_tool(
     return results
 
 
-def _record_settings(tool: Tool, config: Optional["TaskConfig"]) -> None:
+def _record_settings(
+    tool: Tool, config: Optional["TaskConfig"], inputs: Optional[Sequence[Any]] = None
+) -> None:
     """Attach the config a task runs with to its task run, as a Prefect artifact.
 
     The artifact (the run's Artifacts tab in the Prefect UI) holds the config as
-    JSON, no data values. A failure is logged, not raised: the run doesn't depend
-    on it.
+    JSON, no data values, with the values the tool uses on the inputs filled in
+    (`Tool.used_config`). A failure is logged, not raised: the run doesn't depend on
+    it.
     """
     if config is None or not hasattr(config, "model_dump_json"):
         return
+    try:
+        config = type(tool).used_config(config, list(inputs or []))
+    except Exception as err:  # the record falls back to the config as given
+        logger.debug(f"Used config not found: {err}")
     try:
         from prefect.artifacts import create_markdown_artifact
 

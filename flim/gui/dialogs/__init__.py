@@ -407,6 +407,12 @@ class ConfigureFiltersDlg(wx.Dialog):
         currentfilters = {rfcfg["name"]: RangeFilter(params=rfcfg) for rfcfg in cfgdata}
 
         filtersizer.Add(self.filterlist, 0, wx.ALL | wx.EXPAND, 5)
+        checks = wx.BoxSizer(wx.HORIZONTAL)
+        for label, check in (("Select All", True), ("Deselect All", False)):
+            button = wx.Button(self.panel, label=label)
+            button.Bind(wx.EVT_BUTTON, lambda event, check=check: self.use_all(check))
+            checks.Add(button, 0, wx.RIGHT, 5)
+        filtersizer.Add(checks, 0, wx.LEFT | wx.RIGHT, 5)
 
         okbutton = wx.Button(self.panel, label="OK")
         okbutton.Bind(wx.EVT_BUTTON, self.OnOK)
@@ -494,6 +500,10 @@ class ConfigureFiltersDlg(wx.Dialog):
     def GetData(self) -> Optional["FilterSettings"]:
         """Return the edited filter settings; None if the dialog was cancelled."""
         return self.result
+
+    def use_all(self, check: bool) -> None:
+        """Check (`Select All`) or uncheck (`Deselect All`) the Use of every range filter."""
+        self.filterlist.check_items(list(self.filterlist.GetData()), check)
 
     def current_ranges(self) -> list[dict]:
         """Return the range filters as shown, as `RangeFilter` parameters."""

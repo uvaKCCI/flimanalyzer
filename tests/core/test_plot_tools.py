@@ -1095,3 +1095,20 @@ def test_group_styles_more_than_ten_groups_dont_repeat_colours():
 
     styles = group_styles(_groups_table([f"g{i:02d}" for i in range(12)]), ["A"])
     assert len({s["color"] for s in styles}) == 12
+
+
+def test_flirr_plot_records_the_columns_it_plots(data, monkeypatch):
+    """The settings artifact shows the columns found by name, also in `features`."""
+    import prefect.artifacts
+
+    from flim.core.runner import _record_settings
+
+    config = FLIRRPlotConfig(grouping=["Treatment"])
+    used = FLIRRPlot.used_config(config, [data])
+    assert (used.flirr, used.fad_a1, used.nadph_a2) == ("FLIRR", "FAD a1%", "NAD(P)H a2%")
+    assert used.features == ["FLIRR", "FAD a1%", "NAD(P)H a2%"]
+    assert FLIRRPlot.used_config(config, []) == config  # no input: as given
+    recorded = []
+    monkeypatch.setattr(prefect.artifacts, "create_markdown_artifact", lambda **kw: recorded.append(kw))
+    _record_settings(FLIRRPlot(), config, [data])
+    assert '"FAD a1%"' in recorded[0]["markdown"] and '"features": [\n    "FLIRR"' in recorded[0]["markdown"]

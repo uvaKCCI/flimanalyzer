@@ -92,7 +92,7 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   filters. The `Use Filters` checkbox of `Filter Settings` is removed: `Filter Data` in
   the table window switches the filters on and off. `Filter Data` now also switches the
   values hidden in category columns; until 0.6.2 they applied whether it was on or off.
-  Hiding values while it is off switches it on.
+  Hiding values while it is off switches it on. `Filter Settings` has `Select All` and `Deselect All`.
 - **Settings file format:** files saved by 0.7.0 have `schema_version` 2.
   FLIMAnalyzer 0.6 refuses them; 0.7.0 reads the files of 0.5 and 0.6.
 - **Settings are saved automatically:** the GUI writes the settings you change (tool
@@ -194,7 +194,8 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   search path (`FLIM_APP_SETTINGS_PATH`, `appsettings_path`, or the folder
   `appsettings` in the platform's settings folder). Started without `-s`, the GUI asks
   which file to start with, if there are any, and can keep one as the default.
-  `Export Settings...` offers to add the file's folder to the search path.
+  `Export Settings...` offers to add the file's folder to the search path, and asks for
+  an optional `description` of the file, which the list of files at startup shows.
 - **`File` > `Settings...`** shows the app settings of the session (results folder,
   executor, Prefect server, log folder, how workflows handle missing columns), where
   each value comes from, and how to change it.
