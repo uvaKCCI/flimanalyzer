@@ -1,9 +1,11 @@
 # Changelog
 
-All notable changes to FLIMAnalyzer, newest first. From 0.6.1 on, the sections follow
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) (`Added`, `Changed`,
-`Deprecated`, `Removed`, `Fixed`, `Security`), headed by `Results that change` and
-followed by `Documentation` and `Known issues` where needed. The sections of 0.6.0 and
+All notable changes to FLIMAnalyzer, newest first. It lists the changes that affect
+users and plugin developers, not changes to the documentation. From 0.6.1 on, each
+release has these sections where needed, in this order: `Results that change`,
+`Changed`, `Added`, `Deprecated`, `Removed`, `Fixed`, `Security` and `Known issues`
+(0.6.1 also has `Documentation`). The sections from `Changed` to `Security` are those of
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The sections of 0.6.0 and
 earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
 ## 0.7.0 - YYYY-MM-DD
@@ -226,16 +228,15 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   their order.
 - **Prefect UI:** each task's settings are shown in the task run's `Artifacts` tab.
 - **Icons** at 64 px for high-resolution screens; icons for the new tools.
-- **API changes policy** (developers): the Programming Guide describes how changes to the
-  plugin and tool API are handled until 1.0.0: where feasible, a renamed or removed name
-  keeps working for at least one minor release, with a `DeprecationWarning` that names
-  its replacement and the release that removes it.
 - **Plugin and tool API** (developers): `Tool.short_name`, `Tool.example`,
   `Tool.validate_data`, `Tool.proposals` and `Tool.inapplicable_fields` for the dialogs;
   tool lookups accept `former_names`; each data type declares its `save_options` and
   writes with `DataType.save`; `flim.__version__`.
 
 ### Deprecated
+
+Deprecated names keep working for at least one minor release; the Programming Guide
+describes how API changes are handled.
 
 - **`-c` / `--config`:** use `-s` / `--settings`. Removed in 0.8.0.
 - **Executor names `LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor`:** use `-e local`,
