@@ -25,7 +25,7 @@ from wx.lib.scrolledpanel import ScrolledPanel
 from flim.core.config import Issue, TaskConfig
 from flim.core.workflow import Workflow
 from flim.core.execution import ExecutionOptions
-from flim.core.paths import canonical_folder, folder_problem
+from flim.core.paths import canonical_folder, folder_problem, resolved_folder, stored_folder
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.settings import read_tool_settings, tool_settings, write_tool_settings
 from flim.gui.editors import FieldErrors, FieldsPanel
@@ -510,12 +510,12 @@ class ConfigDialog(wx.Dialog):
         self.folder = wx.DirPickerCtrl(
             self, path="" if folder is None else str(folder), style=wx.DIRP_USE_TEXTCTRL
         )
-        self.folder.Bind(wx.EVT_DIRPICKER_CHANGED, lambda e: self.validate())
+        self.folder.Bind(wx.EVT_DIRPICKER_CHANGED, lambda e: self._on_folder())
         row.Add(self.folder_label, 0, wx.ALIGN_CENTER_VERTICAL | wx.RIGHT, 6)
         row.Add(self.folder, 1, wx.EXPAND)
         outer.AddSpacer(4)
         outer.Add(row, 0, wx.EXPAND | wx.LEFT, indent)
-        self.use_default = self.make_default = None
+        self.use_default = self.make_default = self.folder_note = None
         # the tool's own folder while the field shows the default folder (kept only
         # while the dialog is open: a tool that follows the default stores no folder)
         self._own_folder = ""
@@ -534,10 +534,17 @@ class ConfigDialog(wx.Dialog):
             row.Add(self.make_default, 0)
             outer.AddSpacer(4)
             outer.Add(row, 0, wx.LEFT, indent + self.folder_label.GetBestSize().width + 6)
+            # how the tool's own folder is kept (`stored_folder`)
+            self.folder_note = wx.StaticText(self, label="")
+            outer.AddSpacer(2)
+            outer.Add(
+                self.folder_note, 0, wx.LEFT, indent + self.folder_label.GetBestSize().width + 6
+            )
             follows = self._is_default(folder)
             self.use_default.SetValue(follows)
             if not follows:
-                self._own_folder = str(folder)
+                self._own_folder = self._shown_folder(folder)
+                self.folder.SetPath(self._own_folder)
             self._follow_default()
         # the formats in an "Output" box: a column per kind of output, its fields
         # (generated from the data type's save options) one under the other
@@ -553,10 +560,26 @@ class ConfigDialog(wx.Dialog):
         self.formats.set(formats)
 
     def _is_default(self, folder: Union[str, os.PathLike, None]) -> bool:
-        """Return whether a stored folder means the default folder (None, or it)."""
+        """Return whether a stored or shown folder means the default folder."""
         if folder is None or self.default_folder is None:
             return True
-        return canonical_folder(str(folder)) == canonical_folder(str(self.default_folder))
+        return stored_folder(self._shown_folder(folder), self.default_folder) is None
+
+    def _shown_folder(self, folder: Union[str, os.PathLike, None]) -> str:
+        """Return the path the folder field shows for a stored folder.
+
+        A folder relative to the default folder is shown as the folder inside it.
+        """
+        if not folder:
+            return ""
+        if self.default_folder is None:
+            return str(folder)
+        return str(resolved_folder(folder, self.default_folder))
+
+    def _on_folder(self) -> None:
+        """Update the controls after the folder field changed."""
+        self._update_output_controls()
+        self.validate()
 
     def _on_use_default(self) -> None:
         """Switch the folder field between the default and the tool's own folder."""
@@ -587,6 +610,21 @@ class ConfigDialog(wx.Dialog):
             self.make_default.Enable(saving and not follows and usable)
         if hasattr(self, "formats"):
             self.formats.Enable(saving)
+        if self.folder_note is not None:
+            self.folder_note.SetLabel(self._folder_note(follows))
+            self.folder_note.Enable(saving)
+
+    def _folder_note(self, follows: bool) -> str:
+        """Return how the tool's folder is kept: inside the default folder or not."""
+        path = self.folder.GetPath()
+        if follows or not path:
+            return ""
+        kept = stored_folder(path, self.default_folder)
+        if kept is None:
+            return "The default folder."
+        if not kept.is_absolute():
+            return f"Inside the default folder, kept as {kept}: it moves with the default folder."
+        return "Outside the default folder, kept as this path."
 
     def _make_default(self) -> None:
         """Make the folder the GUI's default results folder; the tool follows it."""
@@ -929,8 +967,8 @@ class ConfigDialog(wx.Dialog):
         if self.use_default is not None:
             self.use_default.SetValue(self._is_default(entry.autosave.results_dir))
         if entry.autosave.results_dir and not (self.use_default and self.use_default.GetValue()):
-            self.folder.SetPath(str(entry.autosave.results_dir))
-            self._own_folder = str(entry.autosave.results_dir)
+            self._own_folder = self._shown_folder(entry.autosave.results_dir)
+            self.folder.SetPath(self._own_folder)
         self._follow_default()
         if entry.autosave.formats:
             self.set_formats(entry.autosave.formats)
@@ -1030,13 +1068,21 @@ class ConfigDialog(wx.Dialog):
 
         Args:
             stored: True for the tool's settings: no folder if the tool follows the
-                default folder. False: the folder the run saves in.
+                default folder or its folder is the default folder, a relative path
+                if it is inside the default folder (`stored_folder`). False: the
+                folder the run saves in.
         """
         from flim.core.saving import AutosaveConfig
 
         formats, _ = self.save_formats()
         follows = bool(self.use_default and self.use_default.GetValue())
-        folder = None if stored and follows else canonical_folder(self.folder.GetPath()) or None
+        path = canonical_folder(self.folder.GetPath()) or None
+        if stored and follows:
+            folder = None
+        elif stored and path and self.default_folder is not None:
+            folder = stored_folder(path, self.default_folder)  # relative inside it
+        else:
+            folder = path
         return AutosaveConfig(
             enabled=self.autosave.GetValue(), results_dir=folder, formats=formats
         )

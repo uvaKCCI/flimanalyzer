@@ -1,13 +1,17 @@
 """Folders for results: one canonical form, and a check before a run.
 
 A folder chosen by the user is stored as an absolute path with links resolved
-(`canonical_folder`). On Windows a mapped network drive (`Z:\\results`) becomes
+(`canonical_folder`). A tool's folder is stored relative to the default results
+folder (`stored_folder`): no folder if it is the default folder, a relative path if
+it is inside it, so that it moves with the default folder; `resolved_folder` turns it
+back into a path. On Windows a mapped network drive (`Z:\\results`) becomes
 its UNC path (`\\\\server\\share\\results`): that also works for programs that do not
 see the user's drive mappings (e.g. started as administrator), and on computers that
 map the share to another letter.
 """
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +39,61 @@ def canonical_folder(
     except (OSError, ValueError):
         return path
 
+
+
+def _key(path: str) -> str:
+    """Return a path in the form used to compare folders.
+
+    On Windows and macOS file names are case-insensitive by default, so the path is
+    compared case-folded there.
+    """
+    path = os.path.normcase(path)
+    return path.casefold() if sys.platform == "darwin" else path
+
+
+def stored_folder(
+    folder: Optional[str | os.PathLike], default: str | os.PathLike
+) -> Optional[Path]:
+    """Return a tool's results folder in the form it is stored in its settings.
+
+    Args:
+        folder: The folder chosen, e.g. with `Browse`; empty or None for none.
+        default: The default results folder.
+
+    Returns:
+        None if `folder` is empty or is the default folder; the path relative to the
+        default folder if `folder` is inside it (e.g. `kmeans/run1`); otherwise the
+        canonical absolute path (`canonical_folder`).
+    """
+    if not folder:
+        return None
+    path, base = Path(canonical_folder(folder)), Path(canonical_folder(default))
+    parts, base_parts = path.parts, base.parts
+    same = [_key(a) for a in parts[: len(base_parts)]] == [_key(b) for b in base_parts]
+    if not same:
+        return path
+    inner = parts[len(base_parts):]
+    return Path(*inner) if inner else None
+
+
+def resolved_folder(
+    folder: Optional[str | os.PathLike], default: str | os.PathLike
+) -> Path:
+    """Return the folder a tool saves in, from its stored folder (`stored_folder`).
+
+    Args:
+        folder: The stored folder: None, a path relative to the default folder, or
+            an absolute path (`~` is expanded).
+        default: The default results folder.
+
+    Returns:
+        `default` for None; `default / folder` for a relative path; otherwise the
+        path itself.
+    """
+    if not folder:
+        return Path(default)
+    path = Path(folder).expanduser()
+    return path if path.is_absolute() else Path(default) / path
 
 def folder_problem(path: str | os.PathLike) -> Optional[str]:
     """Return why results cannot be saved in `path`, or None if they can.

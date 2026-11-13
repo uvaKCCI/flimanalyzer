@@ -448,6 +448,28 @@ def test_use_the_default_folder(dialog, tmp_path, stored, follows):
         assert d._autosave(stored=True).results_dir == other
 
 
+def test_a_folder_inside_the_default_folder_is_kept_relative(dialog, tmp_path):
+    from pathlib import Path
+
+    default = tmp_path / "default"
+    inside, outside = default / "kmeans", tmp_path / "other"
+    execution = ExecutionOptions(autosave={"enabled": True, "results_dir": inside})
+    d = dialog("K-Means", execution=execution, default_folder=default)
+    assert not d.use_default.GetValue()
+    assert d._autosave(stored=True).results_dir == Path("kmeans")  # moves with the default
+    assert d._autosave().results_dir == inside  # where this run saves
+    assert "kept as kmeans" in d.folder_note.GetLabel()
+    d.folder.SetPath(str(outside))
+    d._on_folder()
+    assert d._autosave(stored=True).results_dir == outside
+    assert d.folder_note.GetLabel() == "Outside the default folder, kept as this path."
+    d.folder.SetPath(str(default))  # the default folder itself: none stored
+    d._on_folder()
+    assert d._autosave(stored=True).results_dir is None
+    # a relative folder from the settings is shown inside the default folder
+    assert d._shown_folder(Path("kmeans")) == str(inside)
+
+
 def test_no_default_folder_controls_without_a_default(dialog):
     d = dialog("K-Means")
     assert d.use_default is None and d.make_default is None

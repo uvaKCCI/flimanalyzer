@@ -88,3 +88,33 @@ def test_shorten_path(path, short):
 def test_shorten_path_keeps_the_last_folder():
     path = "/Users/mst3k/" + "a" * 60
     assert shorten_path(path) == path  # nothing to leave out
+
+
+def test_tool_folders_are_stored_relative_to_the_default_folder(tmp_path):
+    from pathlib import Path
+
+    from flim.core.paths import resolved_folder, stored_folder
+
+    default = tmp_path / "results"
+    inside = default / "kmeans" / "run1"
+    outside = tmp_path / "elsewhere"
+    assert stored_folder(default, default) is None  # the default folder: none stored
+    assert stored_folder(str(default) + os.sep, default) is None
+    assert stored_folder(inside, default) == Path("kmeans", "run1")  # moves with it
+    assert stored_folder(outside, default) == Path(canonical_folder(outside))
+    assert stored_folder(tmp_path / "results2", default).is_absolute()  # not inside
+    assert stored_folder("", default) is None
+    # and back
+    assert resolved_folder(None, default) == default
+    assert resolved_folder(Path("kmeans", "run1"), tmp_path / "moved") == tmp_path / "moved" / "kmeans" / "run1"
+    assert resolved_folder(outside, default) == outside
+
+
+@pytest.mark.skipif(os.sys.platform != "darwin", reason="case-insensitive file names by default")
+def test_folders_compared_without_case_on_macos(tmp_path):
+    from pathlib import Path
+
+    from flim.core.paths import stored_folder
+
+    default = tmp_path / "Results"
+    assert stored_folder(tmp_path / "results" / "a", default) == Path("a")

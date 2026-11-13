@@ -38,7 +38,7 @@ from flim.core.settings import AppSettings, tool_settings
 from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
 from flim.core.reader import LEFT_OUT, ReadSettings, read_tables
 from flim.core.schema import TableSchema
-from flim.core.paths import canonical_folder
+from flim.core.paths import canonical_folder, resolved_folder
 from flim.core.graph import WorkflowGraph
 from flim.core.tool import Tool
 from flim.core.tools import FLIMAnalyzer
@@ -882,7 +882,7 @@ class AppFrame(wx.Frame):
         tool = ImportTables
         entry = self.settings.tools.entry(tool)
         saved = entry.autosave if entry else AutosaveConfig()
-        folder = saved.results_dir or self.settings.resolved_results_dir()
+        folder = resolved_folder(saved.results_dir, self.settings.resolved_results_dir())
         if config is None:
             execution = self.flimanalyzer.execution.model_copy(
                 update={"autosave": saved.model_copy(update={"enabled": True, "results_dir": folder})}
@@ -899,7 +899,9 @@ class AppFrame(wx.Frame):
                 tool, result.config, result.stored_autosave or result.execution.autosave
             )
             config = result.config
-            folder = result.execution.autosave.results_dir or self.settings.resolved_results_dir()
+            folder = resolved_folder(
+                result.execution.autosave.results_dir, self.settings.resolved_results_dir()
+            )
         if exclude:
             config = config.model_copy(update={"exclude": list(config.exclude) + list(exclude)})
         importer = tool()
@@ -1054,8 +1056,9 @@ class AppFrame(wx.Frame):
                 wx.OK | wx.ICON_WARNING,
             )
             return None
-        folder = (autosave.results_dir if autosave is not None else None) or (
-            self.settings.resolved_results_dir()
+        folder = resolved_folder(
+            autosave.results_dir if autosave is not None else None,
+            self.settings.resolved_results_dir(),
         )
         autosave_dir = os.path.join(canonical_folder(str(folder)), tool.name)
         formats = autosave.formats if autosave is not None else tool.definition.autosave.formats
@@ -1287,7 +1290,7 @@ class AppFrame(wx.Frame):
         definition = getattr(tool, "definition", None)
         if definition is not None and definition.autosave.formats:
             saved = saved.model_copy(update={"formats": definition.autosave.formats})
-        folder = saved.results_dir or self.settings.resolved_results_dir()
+        folder = resolved_folder(saved.results_dir, self.settings.resolved_results_dir())
         execution = self.flimanalyzer.execution.model_copy(
             update={
                 "autosave": saved.model_copy(
@@ -1324,7 +1327,7 @@ class AppFrame(wx.Frame):
         autosave = result.execution.autosave
         if is_workflow:
             folder = canonical_folder(
-                autosave.results_dir or self.settings.resolved_results_dir()
+                resolved_folder(autosave.results_dir, self.settings.resolved_results_dir())
             )
             autosave_dir = os.path.join(folder, tool.name)
 
