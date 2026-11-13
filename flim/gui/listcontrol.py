@@ -323,8 +323,8 @@ class FilterListCtrl(AnalysisListCtrl):
     def setdrop(self, dropped: Optional[dict[str, Any]]) -> None:
         """Set the dropped rows by filter name, and those of filters not listed.
 
-        The rows of filters not in the list are kept as `otherdropped` only if there
-        are two or more such filters.
+        The rows of the filters not in the list (e.g. category values hidden in the
+        table window) are kept as `otherdropped`.
         """
         if dropped is None:
             dropped = {}
@@ -332,7 +332,7 @@ class FilterListCtrl(AnalysisListCtrl):
         rfilter_names = [name for name in self.data]
         non_rfilters = [name for name in dropped if name not in rfilter_names]
         odropped = [dropped[n] for n in non_rfilters]
-        if len(odropped) > 1:
+        if len(odropped) > 0:
             odropped = np.concatenate(odropped)
             self.otherdropped = np.unique(odropped)
         else:

@@ -40,6 +40,22 @@ def test_filter_dialog(wxapp, table, recwarn):
         dlg.Destroy()
 
 
+def test_filter_dialog_counts_rows_hidden_by_one_category_value(wxapp, table):
+    from flim.core.filtering import window_filters
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    # one category value hidden in the table window: 20 of the 40 rows
+    hidden = {("Treatment", "a"): np.flatnonzero(table["Treatment"] == "a")}
+    dlg = ConfigureFiltersDlg(None, window_filters(AppSettings.default()), table, hidden)
+    try:
+        assert len(dlg.filterlist.otherdropped) == 20  # 0.6.2: ignored with one such filter
+        dlg.filterlist.dropped["x"] = np.arange(10)  # rows 0-9; the even ones are hidden already
+        assert len(dlg.filterlist.get_view_dropped("x")) == 5
+    finally:
+        dlg.Destroy()
+
+
 def test_select_dialog_shows_all_its_buttons(wxapp):
     from flim.gui.dialogs import SelectGroupsDlg
 
