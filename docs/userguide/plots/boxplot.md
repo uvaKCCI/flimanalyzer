@@ -34,8 +34,6 @@ The `Box Plot` tool creates box plots of grouped data. Each box shows the median
 
     In the example, `FLIRR` is plotted, grouped by `Treatment` and `FOV`.
 
-    ![](/images/analysis/boxplot-config-grouping.png)
-
 4. Click `OK`.
 
 5. Without `Single figure`, each feature is plotted in its own plot window, for example `Plot: Box Plot FLIRR`. With `Single figure`, all features are in one plot window, `Plot: Box Plot`.

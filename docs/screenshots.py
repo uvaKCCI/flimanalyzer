@@ -275,7 +275,6 @@ SHOTS = {
     "analysis/barplot-config-grouping.png": ("dialog", {"tool": "Bar Plot", "config": BAR[0]}),
     "analysis/barplot-result1-grouping.png": ("plot", {"tool": "Bar Plot", "config": BAR[0]}),
     "analysis/barplot-result2-grouping.png": ("plot", {"tool": "Bar Plot", "config": BAR[1]}),
-    "analysis/boxplot-config-grouping.png": ("dialog", {"tool": "Box Plot", "config": BOX[0]}),
     "analysis/boxplot-result1-grouping.png": ("plot", {"tool": "Box Plot", "config": BOX[0]}),
     "analysis/boxplot-result2-grouping.png": ("plot", {"tool": "Box Plot", "config": BOX[1]}),
     "analysis/lineplot-config-grouping.png": ("dialog", {"tool": "Line Plot", "config": LINE[0]}),
