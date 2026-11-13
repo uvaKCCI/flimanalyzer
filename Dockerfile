@@ -14,7 +14,7 @@
 
 # --- build: the locked environment, with FLIMAnalyzer (version from the git tags) ---
 # base image pinned by digest (updated by Dependabot); the same in both stages
-FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30 AS build
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/* \
@@ -48,7 +48,7 @@ RUN if [ -n "$TORCH_INDEX" ]; then \
     fi
 
 # --- runtime ---
-FROM python:3.12-slim@sha256:b18b261e1b4974b4f321451ad5251ded85abb22c2b8b262da527dda1d031ab30
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 COPY --from=build /opt/venv /opt/venv
 # no display support: matplotlib draws off-screen; no Prefect usage statistics
