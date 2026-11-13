@@ -53,7 +53,7 @@ class WorkflowEditor(Editor):
         from flim.core.workflowfile import check_workflow_file
 
         with wx.FileDialog(
-            self.control, "Workflow file", wildcard="Workflow files (*.json)|*.json",
+            self.control, "Workflow file", wildcard="Workflow files (*.json)|*.json|All files|*",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         ) as dialog:  # fmt: skip
             if dialog.ShowModal() != wx.ID_OK:

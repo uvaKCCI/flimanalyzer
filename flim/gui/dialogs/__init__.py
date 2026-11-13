@@ -526,7 +526,7 @@ class ConfigureFiltersDlg(wx.Dialog):
                 ranges = preset_ranges(saved[index - 1]["settings"])
             else:
                 with wx.FileDialog(
-                    self, "Load Filters", wildcard="JSON files (*.json)|*.json",
+                    self, "Load Filters", wildcard="JSON files (*.json)|*.json|All files|*",
                     style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
                 ) as files:  # fmt: skip
                     if files.ShowModal() != wx.ID_OK:
@@ -563,7 +563,7 @@ class ConfigureFiltersDlg(wx.Dialog):
             return
         if choice == "To file...":
             with wx.FileDialog(
-                self, "Save Filters", wildcard="JSON files (*.json)|*.json",
+                self, "Save Filters", wildcard="JSON files (*.json)|*.json|All files|*",
                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
             ) as files:  # fmt: skip
                 if files.ShowModal() != wx.ID_OK:

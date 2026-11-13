@@ -839,7 +839,7 @@ class AppFrame(wx.Frame):
         from flim.core.workflowfile import check_workflow_file, workflow_class
 
         with wx.FileDialog(
-            self, title, wildcard="Workflow files (*.json)|*.json",
+            self, title, wildcard="Workflow files (*.json)|*.json|All files|*",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         ) as dialog:  # fmt: skip
             if dialog.ShowModal() != wx.ID_OK:
@@ -1156,7 +1156,7 @@ class AppFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Import Settings",
-            wildcard="json files (*.json)|*.json",
+            wildcard="json files (*.json)|*.json|All files|*",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
@@ -1209,7 +1209,7 @@ class AppFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Export Settings",
-            wildcard="json files (*.json)|*.json",
+            wildcard="json files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:

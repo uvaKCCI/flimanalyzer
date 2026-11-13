@@ -157,7 +157,7 @@ def _save_file(parent: Optional[wx.Window]) -> Optional[str]:
     with wx.FileDialog(
         parent,
         "Save Settings",
-        wildcard="JSON files (*.json)|*.json",
+        wildcard="JSON files (*.json)|*.json|All files|*",
         style=wx.FD_SAVE,
     ) as dialog:
         return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else None
@@ -398,7 +398,7 @@ def offer_import_workflow(
     folder.mkdir(parents=True, exist_ok=True)
     with wx.FileDialog(
         parent, "Save as Workflow File", defaultDir=str(folder),
-        defaultFile=f"{check.path.stem}-import.json", wildcard="Workflow files (*.json)|*.json",
+        defaultFile=f"{check.path.stem}-import.json", wildcard="Workflow files (*.json)|*.json|All files|*",
         style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
     ) as dialog:  # fmt: skip
         if dialog.ShowModal() != wx.ID_OK:

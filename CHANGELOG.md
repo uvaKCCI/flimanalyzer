@@ -293,6 +293,11 @@ describes how API changes are handled.
 
 ### Fixed
 
+- **Save dialogs on macOS:** with wxPython 4.2.5, a save dialog that offered one file
+  type failed with the error `C++ assertion "nIndex < m_nCount" failed` when `Save` was
+  clicked, and no file was written. This affected `Export Settings...`, the tool
+  dialogs' `Save Settings...` and `Save Feature Settings...`, and in 0.6.2 also saving
+  tables and plots. These dialogs now also offer `All files`.
 - **Prefect server:** the instance that started the local Prefect server stopped it when
   it quit, and every run of other open instances (GUI or `flimbatch`) then failed with
   `ConnectError: Connection refused`. Each run now checks the server first and finds or

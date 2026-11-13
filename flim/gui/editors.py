@@ -1610,7 +1610,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         with wx.FileDialog(
             self.control,
             "Save feature settings",
-            wildcard="JSON files (*.json)|*.json",
+            wildcard="JSON files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as dialog:
             if dialog.ShowModal() == wx.ID_OK:

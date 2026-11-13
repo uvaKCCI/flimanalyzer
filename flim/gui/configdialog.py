@@ -913,7 +913,7 @@ class ConfigDialog(wx.Dialog):
         with wx.FileDialog(
             self,
             f"Save Settings: {self.tool.name}",
-            wildcard="JSON files (*.json)|*.json",
+            wildcard="JSON files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE,
         ) as dialog:
             if dialog.ShowModal() == wx.ID_OK:
