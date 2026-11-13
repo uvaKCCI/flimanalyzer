@@ -50,7 +50,7 @@ After [opening](#open-tables) or [importing](#import-tables) files, the data are
 
 ## The Source column
 
-`Source` records where each row comes from: its file, as a URI. It replaces `Directory` and `File`, which are still added in this version but will be removed in a later one. To add `Source` to a table imported with FLIMAnalyzer 0.6 or earlier, use [Directory/File to Source](source.md).
+`Source` records where each row comes from: its file, as a URI. It replaces `Directory` and `File`. They are still added in this version and are removed in 0.8.0. To add `Source` to a table imported with FLIMAnalyzer 0.6 or earlier, use [Directory/File to Source](source.md).
 
 When a file is read, its own `Source`, `Directory` or `File` column is kept: a table saved by FLIMAnalyzer keeps the `Source` of the files it was made from, and no other `Source` is added. A `Source` column whose values are not URIs (for example a column the measurement software wrote) is renamed `Source (before Read)` instead, and FLIMAnalyzer's own `Source` is added; the message after reading lists the renamed columns. The read setting `File's own Source, Directory, File` set to `rename` renames all three columns.
 
