@@ -27,3 +27,6 @@ coverage.xml
 # local planning notes
 PLAN-*.md
 milestones.md
+
+# PowerPoint files (diagrams and slides kept locally)
+*.pptx
