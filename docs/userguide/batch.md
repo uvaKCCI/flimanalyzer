@@ -52,10 +52,14 @@ These options can also be set with environment variables (see [Environment varia
 
 **Deprecated options.** These options still work, but print a warning that shows the new form:
 
-* `-c`, `--config FILE`: use `-s FILE`.
-* `--allow-guesses`: use `--no-strict`.
-* The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`: use `local`, `dask-local` and `dask`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
-* `-a`, `--execargs`: put the options after the executor name, as `-e NAME:KEY=VALUE,...`. `num_workers` is now `workers`. For example, `--execargs="num_workers=4"` becomes `-e local:workers=4`.
+| Deprecated | Use instead | Example |
+|---|---|---|
+| `-c`, `--config FILE` | `-s`, `--settings FILE` | `-c settings.json` → `-s settings.json` |
+| `--allow-guesses` | `--no-strict` | `--allow-guesses` → `--no-strict` |
+| `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` |
+| `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `--execargs="num_workers=4"` → `-e local:workers=4` |
+
+`DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
 
 The options of the GUI (`flimanalyzer`) are listed in [Command-line options](/install/index.md#command-line-options). The executors and their arguments, and how to run `flimbatch` on an HPC cluster with Slurm, are described in [Concurrent and Distributed Execution](/userguide/execution).
 

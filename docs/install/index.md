@@ -116,9 +116,13 @@ These options can also be set with environment variables, and in an app settings
 
 **Deprecated options.** These options still work, but print a warning that shows the new form:
 
-* `-c`, `--config FILE`: use `-s FILE`.
-* The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`: use `local`, `dask-local` and `dask`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
-* `-a`, `--execargs`: put the options after the executor name, as `-e NAME:KEY=VALUE,...`. `num_workers` is now `workers`. For example, `-e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"` becomes `-e dask-local:workers=8,scheduler=processes`.
+| Deprecated | Use instead | Example |
+|---|---|---|
+| `-c`, `--config FILE` | `-s`, `--settings FILE` | `-c settings.json` → `-s settings.json` |
+| `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` |
+| `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `-e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"` → `-e dask-local:workers=8,scheduler=processes` |
+
+`DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
 
 ## Log files
 
