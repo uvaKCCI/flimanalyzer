@@ -147,7 +147,7 @@ A log file that reaches 10 MB is renamed with `.1` added (`.2`, `.3` for older p
 
 ## Using a GPU
 
-The autoencoder tools have a `Device` setting. These tools are `Autoencoder: Train`, `Autoencoder: Run` and `Autoencoder: Augment Data`, and the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis`. The `Device` setting chooses which processor does the calculations, in the GUI and in batch mode:
+The autoencoder tools have a `Device` setting. These tools are `Autoencoder: Train`, `Autoencoder: Run` and `Autoencoder: Augment Data`, and the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis`. The `Device` setting selects the hardware these tools compute on: a GPU (graphics processor) or the CPU. This applies to both the GUI and batch mode. The choices are:
 
 * `auto` (default): uses an NVIDIA GPU (`cuda`) if there is one, otherwise the Apple GPU (`mps`), otherwise the CPU.
 * `cpu`, `cuda` or `mps`: uses that device, or the CPU if the device is not available.
