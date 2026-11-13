@@ -50,7 +50,7 @@ flimanalyzer -e dask:address=tcp://<scheduler-host>:8786
 
 The address is required. The workers must have the same FLIMAnalyzer version installed as the computer that starts the run. Other options are passed on to Prefect's Dask task runner.
 
-## Limiting tasks of one kind
+## Limiting task concurrency
 
 Prefect can limit how many tasks with a given *tag* run at the same time ([tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits)), whichever executor is used. The limits are set on the Prefect server.
 
