@@ -15,7 +15,7 @@ The `KDE` tool creates kernel density estimate (KDE) plots of grouped data. A KD
 
 3. In the `Configuration: KDE` dialog, select the grouping and the features to plot. You can group the data by the table's category columns, here `Treatment`, `FOV` and `Cell`. The features are the columns with numbers, such as `FAD a1`.
 
-    Each plot has one curve for each combination of the values of the grouping columns. With 2 grouping columns, the color shows the value of the 1st column and the line style the value of the 2nd (if the 2nd has at most 4 values). Otherwise each curve has its own color. Without grouping, each plot has one curve of all rows. The curves and the x axis cover only the range of the feature's values in the data.
+    Each plot has one curve for each combination of the values of the grouping columns. With 2 grouping columns, the color shows the value of the 1st column. The line style shows the value of the 2nd column, if it has at most 4 values. With more values, shades of the color show it, from lighter to darker. With 1 grouping column, or with 3 or more, each curve has its own color. Without grouping, each plot has one curve of all rows. The curves and the x axis cover only the range of the feature's values in the data.
 
     `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (default 5; 0: about as many rows as columns). Without `Single figure`, each feature gets its own figure.
 

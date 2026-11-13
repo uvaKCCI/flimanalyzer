@@ -1065,3 +1065,33 @@ def test_stacked_histogram_is_in_percent_of_all_rows(style, stacked):
     (table,) = [v for k, v in FrequencyHistogram()(data, config=config).items() if k.startswith("Table")]
     assert list(table["a [rel %]"]) == [50.0, 25.0]
     assert list(table["b [rel %]"]) == [25.0, 0.0]  # 0.6.2: the stack heights, 75 and 25
+
+
+def _groups_table(first, second=None):
+    columns = {"A": pd.Categorical([a for a in first for _ in (second or [None])])}
+    if second:
+        columns["B"] = pd.Categorical([b for _ in first for b in second])
+    return pd.DataFrame(columns)
+
+
+def test_group_styles_two_columns_colour_by_the_first():
+    from flim.tools.plot import group_styles
+
+    # second column with up to 4 values: one colour per value of A, a line style per B
+    styles = group_styles(_groups_table("xyz", ["1", "2", "3"]), ["A", "B"])
+    assert [s["color"] for s in styles[:3]] == [styles[0]["color"]] * 3
+    assert len({s["linestyle"] for s in styles[:3]}) == 3
+    # more values (0.6.2: 25 curves in 10 repeating colours): shades of A's colour
+    styles = group_styles(_groups_table("vwxyz", list("abcde")), ["A", "B"])
+    colors = [s["color"] for s in styles]
+    assert len(set(colors)) == 25  # no colour repeats
+    first = np.array(colors[:5])
+    assert list(np.diff(first.sum(axis=1)) < 0) == [True] * 4  # lighter to darker
+    assert "linestyle" not in styles[0]
+
+
+def test_group_styles_more_than_ten_groups_dont_repeat_colours():
+    from flim.tools.plot import group_styles
+
+    styles = group_styles(_groups_table([f"g{i:02d}" for i in range(12)]), ["A"])
+    assert len({s["color"] for s in styles}) == 12
