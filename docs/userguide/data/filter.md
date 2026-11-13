@@ -34,7 +34,9 @@ Follow these steps to view and change the range filters:
 
 5. Click `OK`. The dialog closes, and the table shows only the rows whose values are inside the ranges of the filters switched on in step 4. While the dialog is open, it shows how many rows these filters hide (`Dropped from view`) and how many remain.
 
-**Note:** The `Use Filters` checkbox in the `Filter Settings` dialog and the `Filter Data` checkbox in the table window switch all the checked filters on or off at once. This is a quick way to switch between the filtered table and the full data. A table window that opens while `Filter Data` is on shows only the rows inside the ranges too.
+**Note:** The `Filter Data` checkbox in the table window switches all the checked filters on or off at once. This is a quick way to switch between the filtered table and the full data.
+
+**Note:** The range filters and `Filter Data` apply only to their table window. A change in one window doesn't change the other windows. A new table window starts with the defaults for new tables (see [Presets](#presets)).
 
 **Note:** Check `Show Dropped` in the `Filter Settings` dialog to see the rows that the range filters hide. When you click `OK`, a new window, `<title> - Discarded`, opens with these rows. Rows hidden only by the values selected in category columns are not in it. In this window, `Filter Data` is off, so that all its rows are shown.
 
@@ -42,6 +44,17 @@ Follow these steps to view and change the range filters:
 
 To change the range filter of a single column, it is quicker to check `Filter Data` in the table window and right-click the header of that column. Change the minimum and maximum of the filter as needed and click `OK`.
 
+## Presets
+
+The buttons of the `Filter Settings` dialog load and save sets of range filters:
+
+* `Load Preset...` shows the range filters of the defaults for new tables, of a preset you saved, or of a file (`From file...`). They replace the range filters of the columns they have. A column that the table doesn't have is listed below the filters. The table window uses the loaded filters when you click `OK`.
+* `Save as Preset...` saves the range filters of the dialog:
+    - `Defaults for new tables`: new table windows start with these range filters, and with `Filter Data` as it is in this window. The GUI writes them to the user settings file, so they are used in later sessions too.
+    - A preset you saved: replaces it. `New preset...` asks for a name. The presets are in the user settings file. The `Filter` tool's `Load Preset...` offers them too (see [Filter Tool](filtertool.md)).
+    - `To file...`: saves the checked range filters in the format of `Save Feature Settings...` of the `Filter` tool.
+* `Remove Presets...` removes presets you saved.
+
 ## Filters in settings files and batch mode
 
-The range filters are the same in all table windows, and they are the range filters of the [Filter tool](filtertool.md). They are part of the settings: `File` > `Export Settings...` saves them (see [Settings](/userguide/settings)). [Batch mode](/userguide/batch) doesn't filter by them: to filter rows there, add a `Filter` step to a workflow file. The values selected in category columns in a table window are not saved in settings files and are not used in batch mode. They apply only to that window, and to the tools started for it: a tool gets only the rows the window shows. To keep a table with only some category values, use the [Filter tool](filtertool.md).
+The defaults for new tables are the range filters of the [Filter tool](filtertool.md) and the `filters` setting. They are part of the settings: `File` > `Export Settings...` saves them (see [Settings](/userguide/settings)). The range filters of a table window are not saved, unless you save them as the defaults or as a preset. [Batch mode](/userguide/batch) doesn't filter by them: to filter rows there, add a `Filter` step to a workflow file. The values selected in category columns in a table window are not saved in settings files and are not used in batch mode. They apply only to that window, and to the tools started for it: a tool gets only the rows the window shows. To keep a table with only some category values, use the [Filter tool](filtertool.md).

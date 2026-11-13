@@ -318,18 +318,23 @@ def test_run_workflow_file_on_the_current_table(frame, monkeypatch, tmp_path, pr
     assert new[title].modified  # not saved: the step doesn't save
 
 
-def test_filter_changes_reach_the_user_settings_file(wxapp, monkeypatch, tmp_path, flim_data):
-    import json
-
+def _frame_with_user_file(tmp_path):
     from flim.core.settingsmgr import SettingsManager, UserSettingsFile
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
 
-    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)  # never wait
     path = tmp_path / "settings.json"
-    frame = AppFrame(FLIMAnalyzer(), SettingsManager(user_file=UserSettingsFile(path)))
+    return AppFrame(FLIMAnalyzer(), SettingsManager(user_file=UserSettingsFile(path))), path
+
+
+def test_filters_belong_to_their_table_window(wxapp, monkeypatch, tmp_path, flim_data):
+    import json
+
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)  # never wait
+    frame, path = _frame_with_user_file(tmp_path)
     try:
-        window = _open(frame, flim_data)
+        first = _open(frame, flim_data, "First")
+        second = _open(frame, flim_data, "Second")
 
         class Checked:  # the filter checkbox's event: checked
             def GetEventObject(self):
@@ -338,65 +343,82 @@ def test_filter_changes_reach_the_user_settings_file(wxapp, monkeypatch, tmp_pat
             def GetValue(self):
                 return True
 
-        window.OnFilterData(Checked())
-        assert json.loads(path.read_text())["filters"]["use"] is True
-        assert frame.settings.filters.use is True
+        first.OnFilterData(Checked())
+        assert first.filters.use and not second.filters.use  # this table only
+        assert not frame.filters.use  # the defaults for new tables are unchanged
+        assert not path.exists() or "use" not in json.loads(path.read_text()).get("filters", {})
+        assert first.filters is not second.filters is not frame.filters
     finally:
         frame.OnCloseAll(None)
         frame.Destroy()
 
 
-def test_column_range_filter_reaches_the_user_settings_file(
-    wxapp, monkeypatch, tmp_path, flim_data
-):
-    """A range filter changed through a column label's dialog is reported, like the
-    filter checkbox and the Filter Settings dialog."""
+def test_filter_presets_defaults_saved_and_files(wxapp, monkeypatch, tmp_path, flim_data):
     import json
 
-    from flim.core.settingsmgr import SettingsManager, UserSettingsFile
-    from flim.core.tools import FLIMAnalyzer
-    from flim.gui import datapanel
-    from flim.gui.app import AppFrame
+    from flim.core.filtering import new_range
+    from flim.gui.dialogs import DEFAULTS_PRESET, ConfigureFiltersDlg
+    from flim.tools.data import Filter
 
-    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)  # never wait
-    path = tmp_path / "settings.json"
-    frame = AppFrame(FLIMAnalyzer(), SettingsManager(user_file=UserSettingsFile(path)))
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)
+    frame, path = _frame_with_user_file(tmp_path)
+    column = "FAD a1[%]"
     try:
-        window = _open(frame, flim_data)
-        column = "FAD a1[%]"
-        edited = [{**window._existing_rangefilters([], columns=[column])[0], "rangehigh": 70.0}]
-
-        class Dialog:  # ConfigureFiltersDlg answered with OK and an edited range
-            def __init__(self, *args, **kwargs):
-                pass
-
-            def ShowModal(self):
-                return wx.ID_OK
-
-            def GetData(self):
-                return window.filters.model_copy(update={"range_filters": edited})
-
-        monkeypatch.setattr(datapanel, "ConfigureFiltersDlg", Dialog)
-        window.filtercb.SetValue(True)
-
-        class Click:  # a click on the column's label
-            def GetCol(self):
-                return 1 + list(window.dataview.columns).index(column)
-
-            def GetRow(self):
-                return -1
-
-        monkeypatch.setattr(window.grid, "GetColLabelValue", lambda col: column)
-        window.OnLabelClick(Click())
-        # the windows' range filters are the Filter tool's filters
-        stored = json.loads(path.read_text())["tools"]["Filter"]["config"]["filters"]
-        leaf = next(f for f in stored if f.get("column") == column)
-        assert (leaf["kind"], leaf["high"], leaf["low"]) == ("range", 70.0, None)
+        window = _open(frame, flim_data, "Data")
+        window.filters.use = True
+        shown = window.filters.model_copy(update={"range_filters": window._existing_rangefilters([])})
+        dlg = ConfigureFiltersDlg(window, shown, window.data, {}, presets=window.presets)
+        try:
+            assert not hasattr(dlg, "filtercb")  # no Use Filters: Filter Data is the switch
+            dlg.show_ranges([new_range(column) | {"rangelow": 60.0, "rangehigh": 75.0, "selected": True}])
+            choice = {"index": 0}
+            monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda d: wx.ID_OK)
+            monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda d: choice["index"])
+            # Save as Preset...: Defaults for new tables
+            dlg._on_save_preset(None)
+            stored = json.loads(path.read_text())
+            leaf = next(f for f in stored["tools"]["Filter"]["config"]["filters"] if f.get("column") == column)
+            assert (leaf["low"], leaf["high"], leaf["enabled"]) == (60.0, 75.0, True)
+            assert stored["filters"]["use"] is True
+            # ... a new preset, by name (choices: defaults, New preset..., To file...)
+            choice["index"] = 1
+            monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda d: wx.ID_OK)
+            monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda d: "Mito")
+            dlg._on_save_preset(None)
+            assert [p["name"] for p in frame.settings.tool_presets(Filter)] == ["Mito"]
+            # ... a file, in the format of Save Feature Settings...
+            choice["index"] = 3  # defaults, Mito, New preset..., To file...
+            target = tmp_path / "ranges.json"
+            monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda d: wx.ID_OK)
+            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(target))
+            dlg._on_save_preset(None)
+            assert json.loads(target.read_text()) == {column: {"low": 60.0, "high": 75.0, "dropna": True}}
+            # Load Preset...: the saved preset, then the file, into the shown filters
+            dlg.show_ranges([new_range(column)])
+            choice["index"] = 1
+            dlg._on_load_preset(None)
+            assert next(r for r in dlg.current_ranges() if r["name"] == column)["rangehigh"] == 75.0
+            target.write_text(json.dumps({column: {"low": 65, "high": 70}, "not here": {"low": 1}}))
+            choice["index"] = 2  # defaults, Mito, From file...
+            dlg._on_load_preset(None)
+            loaded = next(r for r in dlg.current_ranges() if r["name"] == column)
+            assert (loaded["rangelow"], loaded["rangehigh"], loaded["selected"]) == (65, 70, True)
+            assert "not in this table: not here" in dlg.message.GetLabel()
+            # Remove Presets...
+            monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda d: wx.ID_OK)
+            monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda d: [0])
+            dlg._on_remove_presets(None)
+            assert frame.settings.tool_presets(Filter) == []
+        finally:
+            dlg.Destroy()
+        assert DEFAULTS_PRESET == "Defaults for new tables"
+        # a new table starts with the defaults
+        new = _open(frame, flim_data, "New")
+        assert new.filtercb.GetValue()
+        assert len(new.GetViewData()) == flim_data[column].between(60, 75).sum()
     finally:
         frame.OnCloseAll(None)
         frame.Destroy()
-
-
 
 
 @pytest.mark.parametrize("index, fmt, sep", [(0, "tsv", "\t"), (1, "csv", ",")])

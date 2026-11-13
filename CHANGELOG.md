@@ -84,10 +84,18 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   equivalent workflow file, and `flimbatch` says that it is not used. In such a workflow
   file, combined categories are joined with `:` instead of `-`, for example
   `FOV:Treatment` = `FOV1:WT` instead of `FOV-Treatment` = `FOV1-WT`.
+- **Range filters of the table windows:** each table window has its own range filters
+  and `Filter Data` setting. A change in one window doesn't change the others, and a
+  new window starts with the defaults for new tables: the `Filter` tool's range filters
+  and the `filters` setting. `Save as Preset...` > `Defaults for new tables` in
+  `Filter Settings` changes them. Until 0.6.2 all table windows shared one set of range
+  filters. The `Use Filters` checkbox of `Filter Settings` is removed: `Filter Data` in
+  the table window switches the filters on and off.
 - **Settings file format:** files saved by 0.7.0 have `schema_version` 2.
   FLIMAnalyzer 0.6 refuses them; 0.7.0 reads the files of 0.5 and 0.6.
 - **Settings are saved automatically:** the GUI writes the settings you change (tool
-  dialogs, range filters, the default results folder) to the user settings file
+  dialogs, presets, the range filters saved as the defaults for new tables, the default
+  results folder) to the user settings file
   `usersettings.json` in the platform's settings folder, and uses them at the next
   start. Until 0.6.2 they were lost when the GUI closed unless exported.
   `flimbatch` does not read this file, so its results don't depend on settings changed
@@ -210,6 +218,11 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   robust, per group) in `Analysis`.
 - **Filter tool:** filters by category values, ranges and conditions written as
   expressions, and, in settings files, groups (`all`, `any`, `not`).
+- **Presets:** `Load Preset...`, `Save as Preset...` and `Remove Presets...` in the
+  `Calculate`, `Separate Categories` and `Filter` dialogs and in a table window's
+  `Filter Settings`. Presets are saved in the user settings file, in the `presets`
+  section by tool name. `Filter Settings` also loads and saves range filters as the
+  defaults for new tables and as files in the format of `Save Feature Settings...`.
 - **Standardize input** in `PCA`, `K-Means` and `Gaussian Mixed Model`: one setting with
   the same meaning in all three. The defaults keep the earlier behaviour (on, on, off).
 - **Autoencoder: Augment Data:** `Random seed`, for the same noise on every run.
@@ -257,7 +270,7 @@ describes how API changes are handled.
   for example `cells.json`, and start with `-s cells`. Removed in 0.8.0.
 - **`flim.core.parser`** (developers): the filename parser classes of 0.6. Importing the
   module issues a `DeprecationWarning`; use Separate Categories
-  (`flim.core.categories.separate_by_patterns`, the `separate_presets` setting). Removed in
+  (`flim.core.categories.separate_by_patterns`, the `presets` of `Separate Categories`). Removed in
   0.8.0.
 - **`flim.core.runner.default_max_workers`** (developers): use `default_workers`. Removed
   in 0.8.0.

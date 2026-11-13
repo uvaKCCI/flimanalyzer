@@ -342,7 +342,7 @@ class AppFrame(wx.Frame):
         self._quit_confirmed = False  # the user chose to quit (confirm_quit)
         self.refresh_window_filters()
         flim.gui.dialogs.calculate.bind(self.settings_manager)  # the saved presets
-        flim.gui.dialogs.separate.bind(self.settings_manager)
+        flim.gui.configdialog.bind_presets(self.settings_manager)  # Separate Categories, Filter
         # the items the windows show (tables, plots): the windows are views of them
         self.data_manager = DataManager()
         self.windowframes = {}  # item ID -> its window
@@ -665,18 +665,37 @@ class AppFrame(wx.Frame):
         return self.settings_manager.settings
 
     def refresh_window_filters(self) -> None:
-        """Update the windows' shared filters in place from the settings.
+        """Update the defaults for new tables in place from the settings.
 
         These are the switches (`use`, `show_dropped`) and the Filter tool's
-        top-level range filters.
+        top-level range filters. Open table windows keep their own filters.
         """
         current = window_filters(self.settings)
         self.filters.use = current.use
         self.filters.show_dropped = current.show_dropped
         self.filters.range_filters = current.range_filters
 
+    def filter_presets(self) -> "flim.gui.dialogs.FilterPresets":
+        """Return where the table windows' `Filter Settings` load and save filters.
+
+        The defaults for new tables are the `filters` setting and the Filter tool's
+        range filters (`window_filters`); saved presets are the Filter tool's presets.
+        """
+        from flim.gui.dialogs import FilterPresets
+
+        def save_defaults(filters: WindowFilters) -> None:
+            self.report_filters(filters)
+            self.refresh_window_filters()
+
+        return FilterPresets(
+            defaults=lambda: window_filters(self.settings).range_filters,
+            save_defaults=save_defaults,
+            saved=lambda: self.settings.tool_presets(Filter),
+            save=lambda presets: self.settings_manager.set_presets(Filter, presets),
+        )
+
     def report_filters(self, filters: WindowFilters) -> None:
-        """Write the windows' filters to the user settings file.
+        """Write filters to the user settings file, as the defaults for new tables.
 
         The switches go to the `filters` setting, the range filters to the Filter
         tool's filters; its other filters are kept.
@@ -1326,7 +1345,7 @@ class AppFrame(wx.Frame):
         stored = result.stored_autosave or result.execution.autosave
         self.settings_manager.set_tool(tool, result.config, stored)
         if getattr(tool, "name", None) == Filter.name:
-            self.refresh_window_filters()  # the windows use the same filters
+            self.refresh_window_filters()  # the defaults for new tables
 
         task_runner = self.flimanalyzer.get_task_runner()
         autosave = result.execution.autosave
@@ -1542,16 +1561,16 @@ class AppFrame(wx.Frame):
             frame = PandasFrame(
                 self,
                 title,
-                self.filters,  # shared by the data windows
+                self.filters,  # the defaults for new tables; each window keeps a copy
                 data,
                 showcolindex=event.ShowColIndex(),
                 analyzable=event.IsAnalyzable(),
                 groups=event.GetGroups(),
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
-                on_filters_changed=self.report_filters,
                 on_run_tool=lambda name, window: self.run_tool(tools.get(name), current=window),
                 filtered=event.IsFiltered(),
+                presets=self.filter_presets(),
             )
             frame.set_modified(event.IsModified())
             frame.Show(True)

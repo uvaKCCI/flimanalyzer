@@ -365,6 +365,7 @@ def test_each_run_records_app_execution_and_inputs_and_sends_its_logs_to_prefect
 
     from prefect.client.orchestration import get_client
     from prefect.client.schemas.filters import ArtifactFilter, ArtifactFilterFlowRunId, LogFilter, LogFilterFlowRunId
+    from prefect.logging.handlers import APILogHandler
 
     from flim.tools.statistics import Summarize as Summary
 
@@ -384,6 +385,7 @@ def test_each_run_records_app_execution_and_inputs_and_sends_its_logs_to_prefect
     run = _run(definition, {"a.txt": table})
     assert run.state == "completed"
     logging.getLogger("flim.core").info("outside any run: not sent")  # no warning either
+    APILogHandler().flush()  # the records are sent by a background worker
     with get_client(sync_client=True) as client:
         artifacts = client.read_artifacts(
             artifact_filter=ArtifactFilter(flow_run_id=ArtifactFilterFlowRunId(any_=[run.flow_run_id]))

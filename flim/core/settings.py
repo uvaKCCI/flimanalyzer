@@ -315,18 +315,12 @@ class AppSettings(_Settings):
         " run opens; a run that would open more is refused. A kind not listed: no"
         " limit.",
     )
-    calculation_presets: list[dict] = Field(
-        default=[],
-        title="Saved calculations",
-        description="Calculations saved in the Calculate dialog (Save as Presets), offered"
-        " by its Add Calculations button besides the built-in ones.",
-    )
-    separate_presets: list[dict] = Field(
-        default=[],
-        title="Saved Separate Categories presets",
-        description="Presets saved in the Separate Categories dialog (Save as Preset...),"
-        " offered by its Load Preset... button besides the built-in ones: a name and"
-        " the settings it sets (column, mode, part, delimiters, names, patterns, template).",
+    presets: dict[str, list[dict]] = Field(
+        default={},
+        title="Presets",
+        description="Named sets of a tool's settings, by tool name: each a `name` and"
+        " the `settings` it sets, a part of the tool's config. Saved in a tool's dialog"
+        " (Save as Preset...) and offered by its Load Preset... button.",
     )
     favorites: list[str] = Field(
         default=[],
@@ -370,6 +364,22 @@ class AppSettings(_Settings):
     def to_json(self) -> dict:
         """Return the settings as JSON-compatible data, with field aliases as keys."""
         return self.model_dump(mode="json", by_alias=True)
+
+    def tool_presets(self, tool: "type[Tool]") -> list[dict]:
+        """Return a tool's saved presets, also those saved under a former name.
+
+        Args:
+            tool: The tool class; its `name` is looked up first, then its
+                `former_names` in order.
+
+        Returns:
+            Copies of the presets, each a dict with `name` and `settings`; empty if
+            none are saved.
+        """
+        for name in (tool.name, *getattr(tool, "former_names", ())):
+            if name in self.presets:
+                return copy.deepcopy(self.presets[name])
+        return []
 
     def resolved_results_dir(self) -> Path:
         """Return the results folder.
@@ -677,11 +687,41 @@ class Changes:
     import_section: Optional[dict] = None
 
 
+# the preset keys of earlier 0.7.0 development builds: key -> (tool, preset of an item)
+_PRESET_KEYS: dict[str, tuple[str, Callable[[dict], dict]]] = {
+    "separate_presets": ("Separate Categories", lambda item: item),
+    "calculation_presets": (
+        "Calculate",
+        lambda item: {"name": item.get("name", ""), "settings": {"calculations": [item]}},
+    ),
+}
+
+
+def _moved_presets(data: dict, changes: Changes) -> dict:
+    """Return the data with the older preset keys moved into `presets`, by tool.
+
+    `separate_presets` and `calculation_presets` (each calculation a preset) become
+    `presets` > `Separate Categories` and `presets` > `Calculate`. Data without them
+    is returned as it is.
+    """
+    if not isinstance(data, dict) or not any(key in data for key in _PRESET_KEYS):
+        return data
+    data = copy.deepcopy(data)
+    presets = data.setdefault("presets", {})
+    for key, (tool, preset) in _PRESET_KEYS.items():
+        if key in data:
+            items = data.pop(key) or []
+            presets.setdefault(tool, []).extend(preset(i) for i in items if isinstance(i, dict))
+            changes.converted.append(f"{key} to presets.{tool}")
+    return data
+
+
 def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
     """Upgrade settings data of any version to the current one.
 
     Args:
-        data: The settings data; data of the current version is returned unchanged.
+        data: The settings data; data of the current version is returned unchanged,
+            apart from the preset keys of earlier development builds (`_moved_presets`).
         changes: Records the converted and dropped keys; None for no record.
 
     Returns:
@@ -700,7 +740,7 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
         data = MIGRATIONS[version](data, changes=changes)
         version += 1
         data["schema_version"] = version
-    return data
+    return _moved_presets(data, changes if changes is not None else Changes())
 
 
 def _unknown_keys(model: BaseModel, path: str = "") -> list[str]:

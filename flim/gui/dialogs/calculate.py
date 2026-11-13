@@ -3,10 +3,10 @@
 The table starts empty (`Calculate.dialog_config`). `Add Calculation...` and `Edit...`
 open the calculation editor: a kind (expression or function), then only that kind's
 fields, generated from its config; the function's parameters are generated from its
-signature. `Load Presets...` adds presets that apply to the input table: the
-built-in calculations and those saved with `Save as Presets` (the user settings'
-`calculation_presets`). `Remove Presets...` removes saved ones; the built-in ones
-can't be removed.
+signature. `Load Preset...` adds presets that apply to the input table: the
+built-in calculations and those saved with `Save as Preset...` (the user settings'
+`presets` > `Calculate`, one calculation per preset). `Remove Presets...` removes
+saved ones; the built-in ones can't be removed.
 """
 
 import inspect
@@ -65,11 +65,13 @@ def saved_presets() -> list[Calculation]:
     """
     if _settings_manager is None:
         return []
+    from flim.tools.data import Calculate
+
     presets = []
-    for data in _settings_manager.settings.calculation_presets:
+    for preset in _settings_manager.settings.tool_presets(Calculate):
         try:
-            presets.extend(CalculateConfig(calculations=[data]).calculations)
-        except ValueError as err:
+            presets.extend(CalculateConfig.model_validate(preset["settings"]).calculations)
+        except (KeyError, TypeError, ValueError) as err:
             logger.warning(f"Saved calculation not valid, not offered: {err}")
     return presets
 
@@ -83,8 +85,14 @@ def save_presets(presets: Iterable[Calculation]) -> None:
         presets: The calculations.
     """
     if _settings_manager is not None:
-        _settings_manager.update(
-            {"calculation_presets": [p.model_dump(mode="json") for p in presets]}
+        from flim.tools.data import Calculate
+
+        _settings_manager.set_presets(
+            Calculate,
+            [
+                {"name": p.name, "settings": {"calculations": [p.model_dump(mode="json")]}}
+                for p in presets
+            ],
         )
 
 
@@ -445,7 +453,7 @@ class CalculationsEditor(_RowIssues, Editor):
             [("Add Calculation...", self._on_add), ("Edit...", self._on_edit),
              ("Remove", self._on_remove), ("Up", lambda e: self._move(-1)),
              ("Down", lambda e: self._move(1))],
-            [("Load Presets...", self._on_load_presets), ("Save as Presets", self._on_save_presets),
+            [("Load Preset...", self._on_load_presets), ("Save as Preset...", self._on_save_presets),
              ("Remove Presets...", self._on_remove_presets)],
         ):  # fmt: skip
             buttons = wx.BoxSizer(wx.HORIZONTAL)
@@ -538,7 +546,7 @@ class CalculationsEditor(_RowIssues, Editor):
             wx.MessageBox(
                 "No preset applies to this table: their columns are missing, or the"
                 " table has their results already.",
-                "Load Presets",
+                "Load Preset",
                 wx.OK,
             )
             return
@@ -548,7 +556,7 @@ class CalculationsEditor(_RowIssues, Editor):
             for p in offered
         ]
         with wx.MultiChoiceDialog(
-            self.control, "Calculations that apply to the table:", "Load Presets", labels
+            self.control, "Calculations that apply to the table:", "Load Preset", labels
         ) as dialog:
             if dialog.ShowModal() != wx.ID_OK:
                 return
@@ -561,13 +569,13 @@ class CalculationsEditor(_RowIssues, Editor):
         """Save the selected calculations as presets; same names are replaced."""
         new = [self.items[r] for r in self._selected()]
         if not new:
-            wx.MessageBox("Select the calculations to save.", "Save as Presets", wx.OK)
+            wx.MessageBox("Select the calculations to save.", "Save as Preset", wx.OK)
             return
         names = {p.name for p in new}
         save_presets([p for p in saved_presets() if p.name not in names] + new)
         wx.MessageBox(
-            f"Saved {len(new)} calculation(s); Load Presets... offers them.",
-            "Save as Presets",
+            f"Saved {len(new)} calculation(s); Load Preset... offers them.",
+            "Save as Preset",
             wx.OK,
         )
 

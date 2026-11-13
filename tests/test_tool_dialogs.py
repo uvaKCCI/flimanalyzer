@@ -825,20 +825,21 @@ def test_separate_categories_presets(wxapp, monkeypatch):
     """Load Preset... fills the settings of a built-in or saved preset; Save as
     Preset... and Remove Presets... change only the saved ones."""
     import flim.gui.dialogs.separate as separate
+    from flim.core.categories import PRESET_FIELDS, separate_presets
     from flim.core.registry import tools
     from flim.core.settingsmgr import SettingsManager
-    from flim.gui.configdialog import dialog_class
+    from flim.gui.configdialog import bind_presets, dialog_class
 
     source = pd.DataFrame({"Source": ["file:///data/Results_a_ctrl_1.txt"], "t1": [1.0]})
     manager = SettingsManager()
-    separate.bind(manager)
+    bind_presets(manager)
     tool = tools.get("Separate Categories")
     d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
     try:
         assert isinstance(d, separate.SeparateDialog)
         # Load Preset...: the 0.6 parser FOV, Treatment, Cell
         monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
-        built_in = [p["name"] for p in separate.separate_presets()]
+        built_in = [p["name"] for p in separate_presets()]
         index = built_in.index("FOV, Treatment, Cell")
         monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: index)
         d._on_load_preset(None)
@@ -848,24 +849,65 @@ def test_separate_categories_presets(wxapp, monkeypatch):
         monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
         d._on_save_preset(None)
-        (saved,) = manager.settings.separate_presets
+        (saved,) = manager.settings.presets.get("Separate Categories", [])
         assert saved["name"] == "Mine" and saved["settings"]["column"] == "Source"
-        assert set(saved["settings"]) == set(separate.PRESET_FIELDS)
+        assert set(saved["settings"]) == set(PRESET_FIELDS)
         messages = []
         monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
         monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Treatment, Time")
         d._on_save_preset(None)
-        assert "built-in" in messages[0] and len(manager.settings.separate_presets) == 1
+        assert "built-in" in messages[0] and len(manager.settings.presets.get("Separate Categories", [])) == 1
         # the saved one is offered after the built-in ones
-        assert [p["name"] for p in separate.saved_presets()] == ["Mine"]
+        assert [p["name"] for p in d.saved_presets()] == ["Mine"]
         # Remove Presets...
         monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0])
         d._on_remove_presets(None)
-        assert manager.settings.separate_presets == []
+        assert manager.settings.presets.get("Separate Categories", []) == []
     finally:
         d.Destroy()
-        separate.bind(None)
+        bind_presets(None)
+
+
+def test_filter_dialog_presets_are_those_of_filter_settings(wxapp, monkeypatch):
+    """The Filter dialog loads a preset saved in a table window's Filter Settings,
+    and saves its whole filter list as a preset."""
+    from flim.core.filtering import new_range, preset_ranges, ranges_preset
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import bind_presets, dialog_class
+    from flim.gui.dialogs.filter import FilterDialog
+
+    data = pd.DataFrame({"t1": [1.0, 5.0], "Treatment": ["a", "b"]})
+    manager = SettingsManager()
+    tool = tools.get("Filter")
+    ranges = [new_range("t1") | {"rangelow": 2.0, "rangehigh": 9.0, "selected": True}]
+    manager.set_presets(tool, [{"name": "From a table", "settings": ranges_preset(ranges)}])
+    bind_presets(manager)
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": data})
+    try:
+        assert isinstance(d, FilterDialog)
+        monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: 0)
+        d._on_load_preset(None)
+        config, _ = d.current_config()
+        (leaf,) = [f for f in config.filters if f.kind == "range"]
+        assert (leaf.column, leaf.low, leaf.high, leaf.enabled) == ("t1", 2.0, 9.0, True)
+        # Save as Preset...: all filters, also loaded by Filter Settings (its ranges)
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        saved = {p["name"]: p["settings"] for p in manager.settings.tool_presets(tool)}
+        assert set(saved) == {"From a table", "Mine"} and set(saved["Mine"]) == {"filters"}
+        assert [(r["name"], r["rangehigh"]) for r in preset_ranges(saved["Mine"]) if r["selected"]] == [("t1", 9.0)]
+        # Remove Presets...
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0, 1])
+        d._on_remove_presets(None)
+        assert manager.settings.tool_presets(tool) == []
+    finally:
+        d.Destroy()
+        bind_presets(None)
 
 
 def test_separate_shows_only_the_modes_fields(wxapp):

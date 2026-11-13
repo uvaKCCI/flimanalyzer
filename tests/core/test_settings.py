@@ -299,3 +299,23 @@ def test_order_category_values_keeps_its_former_name(tmp_path):
     wf.write_text(json.dumps({"schema_version": 1, "name": "old", "steps": [{"id": "1", "tool": "Order Categories"}]}))
     result = check_workflow_file(wf)
     assert result.errors == [] and result.definition.steps[0].tool in ("Order Categories", "Order Category Values")
+
+
+def test_presets_by_tool_and_the_preset_keys_of_development_builds():
+    from flim.core.settings import Changes, migrate
+
+    calc = {"kind": "expression", "name": "t2", "expression": "t1 * 2"}
+    separate = {"name": "Mine", "settings": {"column": "Source"}}
+    data = {"schema_version": 2, "calculation_presets": [calc], "separate_presets": [separate]}
+    changes = Changes()
+    settings = AppSettings.model_validate(migrate(data, changes))
+    assert settings.presets == {
+        "Separate Categories": [separate],
+        "Calculate": [{"name": "t2", "settings": {"calculations": [calc]}}],
+    }
+    assert "calculation_presets to presets.Calculate" in changes.converted
+    assert "separate_presets to presets.Separate Categories" in changes.converted
+    # read under a former name too (Order Categories is now Order Category Values)
+    settings = AppSettings.model_validate({"schema_version": 2, "presets": {"Order Categories": [separate]}})
+    assert settings.tool_presets(tools.get("Order Category Values")) == [separate]
+    assert settings.tool_presets(tools.get("Sort")) == []

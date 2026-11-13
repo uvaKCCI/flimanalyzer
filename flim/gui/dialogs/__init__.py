@@ -5,9 +5,12 @@
 The save functions ask for the file and its format in a file dialog.
 """
 
+import json
 import logging
 import os
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, Union
 import wx.grid
 from pubsub import pub
@@ -21,6 +24,7 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
     from flim.core.saving import SaveOptions
+    from flim.core.filtering import WindowFilters
     from flim.core.settings import FilterSettings
 
 logger = logging.getLogger(__name__)
@@ -298,12 +302,34 @@ class SelectGroupsDlg(wx.Dialog):
             self.EndModal(wx.ID_OK)
 
 
+@dataclass
+class FilterPresets:
+    """Where `Filter Settings` loads range filters from and saves them to.
+
+    Attributes:
+        defaults: Returns the range filters new tables start with.
+        save_defaults: Makes a table's filters (`WindowFilters`) the defaults.
+        saved: Returns the saved presets, each a dict with `name` and `settings`.
+        save: Replaces the saved presets.
+    """
+
+    defaults: Callable[[], list[dict]]
+    save_defaults: Callable[["WindowFilters"], None]
+    saved: Callable[[], list[dict]]
+    save: Callable[[list[dict]], None]
+
+
+DEFAULTS_PRESET = "Defaults for new tables"
+
+
 class ConfigureFiltersDlg(wx.Dialog):
     """Dialog that edits the range filters of a table.
 
     The list shows each filter's column, range and the number of rows it drops from
-    the view; the labels above it show the rows dropped and remaining. With OK,
-    `GetData` returns an edited copy of the filter settings.
+    the view; the labels above it show the rows dropped and remaining. With
+    `presets`, `Load Preset...`, `Save as Preset...` and `Remove Presets...` load
+    and save the filters: the defaults for new tables, a saved preset or a file.
+    With OK, `GetData` returns an edited copy of the filter settings.
     """
 
     def __init__(
@@ -312,7 +338,8 @@ class ConfigureFiltersDlg(wx.Dialog):
         filters: Optional["FilterSettings"] = None,
         dataframe: Optional["pd.DataFrame"] = None,
         dropped: dict[Any, Any] = {},
-        showusefilter: bool = True,
+        show_dropped_option: bool = True,
+        presets: Optional[FilterPresets] = None,
     ) -> None:
         """Build the dialog and show it.
 
@@ -323,25 +350,24 @@ class ConfigureFiltersDlg(wx.Dialog):
                 handled).
             dropped: The row positions dropped from the view, by filter name or
                 other key. Defaults to none.
-            showusefilter: Whether the dialog shows `Use Filters` and
-                `Show Dropped`, whose values `GetData` returns. Defaults to True.
+            show_dropped_option: Whether the dialog shows `Show Dropped`, whose value
+                `GetData` returns. Defaults to True.
+            presets: Where the preset buttons load and save filters; None for no
+                preset buttons. Defaults to None.
         """
         wx.Dialog.__init__(
             self, parent, wx.ID_ANY, "Filter Settings", size=(650, 400)
         )
         self.dataframe = dataframe
         self.dropped = dropped
-        self.showusefilter = showusefilter
+        self.show_dropped_option = show_dropped_option
+        self.presets = presets
         self.filters = filters
         cfgdata = filters.range_filters
         self.panel = wx.Panel(self, wx.ID_ANY)
         cbsizer = wx.BoxSizer(wx.HORIZONTAL)
         filtersizer = wx.BoxSizer(wx.VERTICAL)
-        if self.showusefilter:
-            self.filtercb = wx.CheckBox(self.panel, wx.ID_ANY, label="Use Filters")
-            self.filtercb.SetValue(filters.use)
-            self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnUseFilters)
-            cbsizer.Add(self.filtercb, 0, wx.ALL | wx.EXPAND, 5)
+        if self.show_dropped_option:
             self.showdropcb = wx.CheckBox(self.panel, wx.ID_ANY, label="Show Dropped")
             self.showdropcb.SetValue(filters.show_dropped)
             cbsizer.Add(self.showdropcb, 0, wx.ALL | wx.EXPAND, 5)
@@ -379,7 +405,20 @@ class ConfigureFiltersDlg(wx.Dialog):
         cancelbutton.Bind(wx.EVT_BUTTON, self.OnQuit)
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
 
+        self.message = wx.StaticText(self.panel, label="")
+        filtersizer.Add(self.message, 0, wx.ALL | wx.EXPAND, 5)
+
         buttonsizer = wx.BoxSizer(wx.VERTICAL)
+        if self.presets is not None:
+            for label, tip, handler in (
+                ("Load Preset...", "Filters of the defaults, a saved preset or a file", self._on_load_preset),
+                ("Save as Preset...", "Save these filters as the defaults, a preset or a file", self._on_save_preset),
+                ("Remove Presets...", "Remove saved presets", self._on_remove_presets),
+            ):
+                button = wx.Button(self.panel, label=label)
+                button.SetToolTip(tip)
+                button.Bind(wx.EVT_BUTTON, handler)
+                buttonsizer.Add(button, 0, wx.ALL | wx.EXPAND, 5)
         buttonsizer.Add(
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
         )
@@ -435,19 +474,138 @@ class ConfigureFiltersDlg(wx.Dialog):
         """Return the edited filter settings; None if the dialog was cancelled."""
         return self.result
 
-    def OnUseFilters(self, event: wx.CommandEvent) -> None:
-        """Enable the labels and the list while `Use Filters` is checked."""
-        enable = event.GetEventObject().GetValue()
-        self.dropped_label.Enable(enable)
-        self.remaining_label.Enable(enable)
-        self.filterlist.Enable(enable)
+    def current_ranges(self) -> list[dict]:
+        """Return the range filters as shown, as `RangeFilter` parameters."""
+        cfgs = self.filterlist.GetData()
+        return [cfgs[key].get_params() for key in cfgs]
+
+    def show_ranges(self, ranges: list[dict]) -> None:
+        """Show range filters for the table's columns; report the others.
+
+        A filter of a column the table has replaces that column's filter; the other
+        columns keep theirs. The rows each selected filter drops are computed again.
+        """
+        cfgs = self.filterlist.GetData()
+        missing = [p["name"] for p in ranges if p["name"] not in cfgs]
+        for params in ranges:
+            if params["name"] in cfgs:
+                cfgs[params["name"]] = RangeFilter(params=params)
+        dropped = dict(self.dropped)
+        for name, rfilter in cfgs.items():
+            if rfilter.is_selected():
+                dropped[name] = rfilter.get_dropped(self.dataframe)
+            else:
+                dropped.pop(name, None)
+        self.dropped = dropped
+        self.filterlist.SetData(
+            cfgs,
+            dataframe=self.dataframe,
+            dropped=dropped,
+            headers=["Use", "Column", "Min", "Max", "Dropped view"],
+        )
+        loaded = len(ranges) - len(missing)
+        text = f"{loaded} filters loaded"
+        if missing:
+            text += f"; not in this table: {', '.join(missing)}"
+        self.message.SetLabel(text)
+
+    def _on_load_preset(self, event: wx.CommandEvent) -> None:
+        """Ask for the defaults, a saved preset or a file, and show its filters."""
+        saved = self.presets.saved()
+        choices = [DEFAULTS_PRESET] + [p["name"] for p in saved] + ["From file..."]
+        with wx.SingleChoiceDialog(self, "Load filters from:", "Load Preset", choices) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            index = dialog.GetSelection()
+        from flim.core.filtering import file_data_ranges, preset_ranges
+
+        try:
+            if index == 0:
+                ranges = self.presets.defaults()
+            elif index <= len(saved):
+                ranges = preset_ranges(saved[index - 1]["settings"])
+            else:
+                with wx.FileDialog(
+                    self, "Load Filters", wildcard="JSON files (*.json)|*.json",
+                    style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+                ) as files:  # fmt: skip
+                    if files.ShowModal() != wx.ID_OK:
+                        return
+                    path = files.GetPath()
+                from flim.gui.editors import find_feature_settings
+
+                with open(path) as f:
+                    found = find_feature_settings(json.load(f), ["low", "high", "dropna"])
+                if not found:
+                    self.message.SetLabel(f"No range filters in {os.path.basename(path)}")
+                    return
+                ranges = file_data_ranges(found)
+        except (OSError, ValueError, KeyError, TypeError) as err:
+            self.message.SetLabel(f"Could not load the filters: {err}")
+            return
+        self.show_ranges(ranges)
+
+    def _on_save_preset(self, event: wx.CommandEvent) -> None:
+        """Ask where to save the filters: the defaults, a saved preset, a new one or a file."""
+        from flim.core.filtering import ranges_file_data, ranges_preset
+
+        saved = self.presets.saved()
+        names = [p["name"] for p in saved]
+        choices = [DEFAULTS_PRESET] + names + ["New preset...", "To file..."]
+        with wx.SingleChoiceDialog(self, "Save the filters as:", "Save as Preset", choices) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            choice = choices[dialog.GetSelection()]
+        ranges = self.current_ranges()
+        if choice == DEFAULTS_PRESET:
+            self.presets.save_defaults(self.filters.model_copy(update={"range_filters": ranges}))
+            self.message.SetLabel("Saved as the defaults for new tables")
+            return
+        if choice == "To file...":
+            with wx.FileDialog(
+                self, "Save Filters", wildcard="JSON files (*.json)|*.json",
+                style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
+            ) as files:  # fmt: skip
+                if files.ShowModal() != wx.ID_OK:
+                    return
+                path = files.GetPath()
+            try:
+                with open(path, "w") as f:
+                    json.dump(ranges_file_data(ranges), f, indent=2)
+            except OSError as err:
+                self.message.SetLabel(f"Could not save {os.path.basename(path)}: {err}")
+                return
+            self.message.SetLabel(f"Saved to {os.path.basename(path)}")
+            return
+        if choice == "New preset...":
+            with wx.TextEntryDialog(self, "Name of the preset:", "Save as Preset") as entry:
+                if entry.ShowModal() != wx.ID_OK:
+                    return
+                choice = entry.GetValue().strip()
+            if not choice or choice == DEFAULTS_PRESET:
+                return
+        presets = [p for p in saved if p["name"] != choice]  # same name: replaced
+        self.presets.save(presets + [{"name": choice, "settings": ranges_preset(ranges)}])
+        self.message.SetLabel(f"Saved as preset {choice}")
+
+    def _on_remove_presets(self, event: wx.CommandEvent) -> None:
+        """Ask for saved presets and remove them."""
+        saved = self.presets.saved()
+        if not saved:
+            self.message.SetLabel("No saved presets")
+            return
+        names = [p["name"] for p in saved]
+        with wx.MultiChoiceDialog(self, "Saved presets to remove:", "Remove Presets", names) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            remove = {names[i] for i in dialog.GetSelections()}
+        self.presets.save([p for p in saved if p["name"] not in remove])
+        self.message.SetLabel(f"{len(remove)} presets removed")
 
     def OnOK(self, event: wx.CommandEvent) -> None:
         """Store the edited filter settings and close the dialog with OK."""
-        cfgs = self.filterlist.GetData()
-        changes = {"range_filters": [cfgs[key].get_params() for key in cfgs]}
-        if self.showusefilter:
-            changes["use"] = self.filtercb.GetValue()
+        changes = {"range_filters": self.current_ranges()}
+        if self.show_dropped_option:
             changes["show_dropped"] = self.showdropcb.GetValue()
         self.result = self.filters.model_copy(update=changes)
         self.EndModal(wx.ID_OK)

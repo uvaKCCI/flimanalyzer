@@ -329,6 +329,19 @@ class SettingsManager:
         entry = tool_settings(config, autosave)
         return self.update({"tools": {tool.name: entry.model_dump(mode="json")}})
 
+    def set_presets(self, tool: "type[Tool]", presets: list[dict]) -> AppSettings:
+        """Replace a tool's saved presets and write them to the user settings file.
+
+        Args:
+            tool: The tool class; the presets are stored under its name.
+            presets: The presets, each a dict with `name` and `settings` (a part of
+                the tool's config, as JSON data).
+
+        Returns:
+            A copy of the new settings.
+        """
+        return self.update({"presets": {tool.name: list(presets)}})
+
     def load(self, path: str | os.PathLike) -> AppSettings:
         """Apply the sections of a settings file of any version for this session.
 

@@ -1,7 +1,8 @@
-"""Filter: the editor of the filter tree, in three views.
+"""Filter: the dialog with presets, and the editor of the filter tree in three views.
 
 The views are the category values to keep, the range filters (the top-level
-leaves, one per column), and the other filters.
+leaves, one per column), and the other filters. The presets are those saved in the
+user settings file (`presets` > `Filter`), also by the table windows' Filter Settings.
 """
 
 from typing import Any, Optional
@@ -13,6 +14,7 @@ from flim.configs.data import FilterConfig, FilterEntry, RangeSettings
 from flim.core.config import FeatureColumn, Issue
 from flim.core.schema import TableSchema
 from flim.core.fields import FieldSpec, describe_annotation
+from flim.gui.configdialog import PresetsDialog, register_dialog
 from flim.gui.editors import (
     Editor,
     FeatureSettingsEditor,
@@ -21,6 +23,18 @@ from flim.gui.editors import (
     fit_rows,
     register_editor,
 )
+
+
+@register_dialog(FilterConfig)
+class FilterDialog(PresetsDialog):
+    """The Filter dialog, with buttons for presets below the settings.
+
+    The buttons are `Load Preset...`, `Save as Preset...` and `Remove Presets...`;
+    a preset sets the filters. A preset saved in a table window's Filter Settings
+    has only range filters.
+    """
+
+    preset_fields = ("filters",)
 
 
 class CategoryFiltersEditor(Editor):

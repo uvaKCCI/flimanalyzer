@@ -372,3 +372,73 @@ def leaf_counts(outcome: Outcome) -> Optional[str]:
     """
     parts = [f"{text}: {n}" for _, text, n in outcome.dropped if n]
     return "dropped rows: " + "; ".join(parts) if parts else None
+
+
+def ranges_preset(ranges: list[dict[str, Any]]) -> dict[str, Any]:
+    """Return range filters as a preset's settings: a part of the Filter tool's config.
+
+    Args:
+        ranges: `RangeFilter` parameters, one per column; those not selected are
+            kept as range leaves that are not enabled.
+
+    Returns:
+        The settings with the key `filters`: the range leaves as JSON data.
+    """
+    return {"filters": [node.model_dump(mode="json") for node in with_window_ranges([], ranges)]}
+
+
+def preset_ranges(settings: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return the range filters of a preset's settings (`ranges_preset`).
+
+    Args:
+        settings: A part of the Filter tool's config, with `filters`.
+
+    Returns:
+        `RangeFilter` parameters, one per column with a top-level range leaf.
+
+    Raises:
+        ValueError: If the settings are not valid Filter settings.
+    """
+    from flim.configs.data import FilterConfig
+
+    return window_ranges(FilterConfig.model_validate(settings).filters)
+
+
+def ranges_file_data(ranges: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Return the selected range filters in the format of feature settings files.
+
+    The format of `Save Feature Settings...`: {column: {low, high, dropna}}, a missing
+    limit None.
+
+    Args:
+        ranges: `RangeFilter` parameters.
+
+    Returns:
+        The selected filters by column.
+    """
+    from flim.configs.data import range_of_legacy
+
+    return {p["name"]: range_of_legacy(p) for p in ranges if p.get("selected")}
+
+
+def file_data_ranges(data: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return range filters, all selected, from feature settings ({column: {low, high, dropna}}).
+
+    Args:
+        data: The settings by column; a missing or None limit means no limit.
+
+    Returns:
+        `RangeFilter` parameters, one per column.
+    """
+    ranges = []
+    for column, limits in data.items():
+        low, high = limits.get("low"), limits.get("high")
+        ranges.append(
+            new_range(column) | {
+                "rangelow": float("-inf") if low is None else low,
+                "rangehigh": float("inf") if high is None else high,
+                "dropna": limits.get("dropna", True),
+                "selected": True,
+            }
+        )  # fmt: skip
+    return ranges

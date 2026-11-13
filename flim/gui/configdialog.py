@@ -34,6 +34,7 @@ from flim.gui.formats import FormatsBox
 if TYPE_CHECKING:
     from flim.core.saving import AutosaveConfig, SaveOptions
     from flim.core.settings import ToolSettings
+    from flim.core.settingsmgr import SettingsManager
     from flim.core.tool import Tool
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,18 @@ class DialogResult:
 
 
 _DIALOGS: dict = {}
+_settings_manager: Optional["SettingsManager"] = None  # the session's (see bind_presets)
+
+
+def bind_presets(settings_manager: Optional["SettingsManager"]) -> None:
+    """Use a session's settings for the saved presets of the `PresetsDialog` dialogs.
+
+    Args:
+        settings_manager: The SettingsManager of the session; None for no saved
+            presets.
+    """
+    global _settings_manager
+    _settings_manager = settings_manager
 
 
 def register_dialog(
@@ -1117,3 +1130,124 @@ class ConfigDialog(wx.Dialog):
             execution=ExecutionOptions.model_validate(execution.model_dump()),
             stored_autosave=self._autosave(stored=True),
         )
+
+
+class PresetsDialog(ConfigDialog):
+    """A configuration dialog with buttons for presets of its settings.
+
+    The buttons are `Load Preset...`, `Save as Preset...` and `Remove Presets...`.
+    A preset is a `name` and the `settings` it sets: the values of `preset_fields`.
+    Saved presets are in the user settings file (`presets` > the tool's name); the
+    presets of `built_in_presets` can't be replaced or removed.
+
+    Attributes:
+        preset_fields: The config fields that a preset sets.
+    """
+
+    preset_fields: tuple[str, ...] = ()
+
+    def settings_buttons(
+        self,
+    ) -> list[tuple[str, str, Callable[[wx.CommandEvent], None]]]:
+        """Return the buttons of the base class and the buttons for presets."""
+        return super().settings_buttons() + [
+            ("Load Preset...", "Settings of a built-in or saved preset", self._on_load_preset),
+            ("Save as Preset...", "Save these settings as a preset, to load later", self._on_save_preset),
+            ("Remove Presets...", "Remove saved presets", self._on_remove_presets),
+        ]
+
+    def built_in_presets(self) -> list[dict]:
+        """Return the built-in presets, each a `name` and its `settings`; none here."""
+        return []
+
+    def saved_presets(self) -> list[dict]:
+        """Return the presets saved in the user settings file.
+
+        Presets that are not valid are left out, with a warning in the log.
+
+        Returns:
+            One dict per preset: its `name` and its `settings`; empty if no settings
+            manager is bound (`bind_presets`).
+        """
+        if _settings_manager is None:
+            return []
+        presets, current = [], self._current().model_dump()
+        for data in _settings_manager.settings.tool_presets(self.tool):
+            try:
+                settings = {k: v for k, v in data["settings"].items() if k in self.preset_fields}
+                self.tool.config_class.model_validate({**current, **settings})
+                presets.append({"name": str(data["name"]), "settings": settings})
+            except (KeyError, TypeError, ValueError) as err:
+                logger.warning(f"Saved {self.tool.name} preset not valid, not offered: {err}")
+        return presets
+
+    def save_presets(self, presets: list[dict]) -> None:
+        """Replace the saved presets in the user settings file.
+
+        Nothing is saved if no settings manager is bound (`bind_presets`).
+
+        Args:
+            presets: One dict per preset: its `name` and its `settings`.
+        """
+        if _settings_manager is not None:
+            _settings_manager.set_presets(self.tool, presets)
+
+    def _current(self) -> TaskConfig:
+        """Return the edited config, or the dialog's config if it is not valid."""
+        config, _ = self.current_config()
+        return config if config is not None else self.config
+
+    def apply_preset(self, preset: dict) -> None:
+        """Show a preset's settings in the fields; the other fields are kept."""
+        data = {**self._current().model_dump(), **preset["settings"]}
+        self.set_values(self.tool.config_class.model_validate(data))
+        self.validate()
+        self.settings_message.SetLabel(f"Preset {preset['name']}")
+
+    def _on_load_preset(self, event: wx.CommandEvent) -> None:
+        """Ask for a built-in or saved preset and show its settings."""
+        built_in, saved = self.built_in_presets(), self.saved_presets()
+        if not built_in and not saved:
+            self.settings_message.SetLabel("No saved presets")
+            return
+        labels = [p["name"] for p in built_in] + [f"{p['name']} (saved)" for p in saved]
+        with wx.SingleChoiceDialog(self, "Preset:", "Load Preset", labels) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            preset = (built_in + saved)[dialog.GetSelection()]
+        self.apply_preset(preset)
+
+    def _on_save_preset(self, event: wx.CommandEvent) -> None:
+        """Ask for a name and save the values of `preset_fields` as a preset.
+
+        A saved preset of the same name is replaced; a built-in preset's name is
+        refused with a message.
+        """
+        with wx.TextEntryDialog(self, "Name of the preset:", "Save as Preset") as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            name = dialog.GetValue().strip()
+        if not name:
+            return
+        if name in [p["name"] for p in self.built_in_presets()]:
+            wx.MessageBox(f"'{name}' is a built-in preset; choose another name.", "Save as Preset")
+            return
+        data = self._current().model_dump(mode="json")
+        settings = {field: data[field] for field in self.preset_fields}
+        presets = [p for p in self.saved_presets() if p["name"] != name]  # same name: replaced
+        self.save_presets(presets + [{"name": name, "settings": settings}])
+        self.settings_message.SetLabel(f"Saved as preset {name}")
+
+    def _on_remove_presets(self, event: wx.CommandEvent) -> None:
+        """Ask for saved presets and remove them."""
+        saved = self.saved_presets()
+        if not saved:
+            self.settings_message.SetLabel("No saved presets")
+            return
+        names = [p["name"] for p in saved]
+        with wx.MultiChoiceDialog(self, "Saved presets to remove:", "Remove Presets", names) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            remove = {names[i] for i in dialog.GetSelections()}
+        self.save_presets([p for p in saved if p["name"] not in remove])
+        self.settings_message.SetLabel(f"{len(remove)} presets removed")

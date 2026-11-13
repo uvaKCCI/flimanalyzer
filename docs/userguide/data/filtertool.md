@@ -8,7 +8,7 @@ The `Filter` tool creates a new table with only the rows you want to keep: rows 
 
 The filters of the table window (see [Filtering Data](filter.md)) only hide rows in that window. The `Filter` tool instead creates a new table, `Table: Filtered`, and leaves the original table unchanged. Use it when the filtered rows should be saved, or used as the input of other tools and workflows.
 
-The range filters are the same as those of the table windows: a range you change in a table window's `Filter Settings` shows in the `Filter` dialog, and the other way round. The `Filter` tool applies the filters checked in its dialog to the rows the table window shows. If the window's `Filter Data` is checked, or category values are hidden in the window, the rows it hides are not in the tool's input. This is the same for every tool started for that window.
+The range filters of the `Filter` tool are the defaults for new table windows (see [Filtering Data](filter.md#presets)): a new table window starts with the ranges that are checked here. A change in a table window's `Filter Settings` changes only that window. The `Filter` tool applies the filters checked in its dialog to the rows the table window shows. If the window's `Filter Data` is checked, or category values are hidden in the window, the rows it hides are not in the tool's input. This is the same for every tool started for that window.
 
 ## Filtering the Data
 
@@ -35,6 +35,8 @@ The range filters are the same as those of the table windows: a range you change
     Groups of filters (see [Filters in settings files](#filters-in-settings-files)) are listed here too. Their `Use` can be changed, the filters in them only in the settings file.
 
 5. Click `OK`. The new table `Table: Filtered` opens in its own window.
+
+**Presets:** the buttons below the settings load and save the filters by name. `Load Preset...` replaces the filters of the dialog with those of a preset. `Save as Preset...` saves all filters of the dialog as a preset; a preset with the same name is replaced. `Remove Presets...` removes presets. The presets are in the user settings file. A table window's `Filter Settings` offers them too, and the presets saved there have only range filters.
 
 A row is kept only if it passes every filter that is switched on: its category values are among the selected ones, its values lie within all checked ranges, and every condition is true for it. A filter on a column that the table doesn't have keeps all rows; the dialog marks it with a warning. The log file lists how many rows each filter dropped.
 

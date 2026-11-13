@@ -26,7 +26,7 @@ from flim.gui.events import (
     RENAMED_DATA_WINDOW,
 )
 import flim.gui.dialogs
-from flim.gui.dialogs import SelectGroupsDlg, ConfigureFiltersDlg, RenameGroupsDlg
+from flim.gui.dialogs import FilterPresets, SelectGroupsDlg, ConfigureFiltersDlg, RenameGroupsDlg
 
 logger = logging.getLogger(__name__)
 
@@ -267,14 +267,16 @@ class PandasFrame(wx.Frame):
         on_filters_changed: Optional[Callable[[WindowFilters], None]] = None,
         on_run_tool: Optional[Callable[[str, str], None]] = None,
         filtered: bool = True,
+        presets: Optional[FilterPresets] = None,
     ) -> None:
         """Create the window.
 
         Args:
             parent: The parent window; None for none.
             title: The window title.
-            filters: The view filters, shared by the GUI's table windows. Defaults to
-                the built-in defaults, not shared.
+            filters: The view filters the window starts with, usually the defaults
+                for new tables; the window keeps a copy of its own, so changes apply to
+                this table only. Defaults to the built-in defaults.
             data: The table; None for an empty table.
             showcolindex: Whether the first column shows the row index.
             groups: The category columns, which have view filters. Defaults to the
@@ -284,8 +286,8 @@ class PandasFrame(wx.Frame):
             precision: The number of decimals of floats.
             enableclose: Whether the window can be closed; if not, closing it shows
                 a message.
-            on_filters_changed: Called with `filters` after the user changes them
-                (filter checkbox, Filter Settings dialog).
+            on_filters_changed: Called with the window's filters after the user
+                changes them (filter checkbox, Filter Settings dialog).
             on_run_tool: Called with a tool's name and this window's title to run
                 the tool on this window's table in its dialog (Pivot, Unpivot); None:
                 the window does not show these buttons.
@@ -293,9 +295,13 @@ class PandasFrame(wx.Frame):
                 when they are on (`filters.use`), also when it opens; False for a
                 window of the rows they hide (`Show Dropped`), whose `Filter Data`
                 box is then unchecked.
+            presets: Where `Filter Settings` loads and saves filters (the defaults
+                for new tables, saved presets, files); None for no preset buttons.
         """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
-        self.filters = filters if filters is not None else window_filters(AppSettings.default())
+        start = filters if filters is not None else window_filters(AppSettings.default())
+        self.filters = start.model_copy(deep=True)  # this table's own
+        self.presets = presets
         self.on_filters_changed = on_filters_changed
         self.on_run_tool = on_run_tool
         self.enableclose = enableclose
@@ -582,15 +588,15 @@ class PandasFrame(wx.Frame):
             update={"range_filters": self._existing_rangefilters(rfilterlist)}
         )
         # a copy of the dropped rows, so that Cancel leaves droppedrows unchanged
-        dlg = ConfigureFiltersDlg(self, shown, self.data, self.droppedrows.copy())
+        dlg = ConfigureFiltersDlg(
+            self, shown, self.data, self.droppedrows.copy(), presets=self.presets
+        )
         response = dlg.ShowModal()
         if response == wx.ID_OK:
             edited = dlg.GetData()
             self.filters.range_filters = self._merged_filters(edited.range_filters)
             self.filters.show_dropped = edited.show_dropped
-            self.filters.use = edited.use
-            self.filtercb.SetValue(edited.use)
-            self.updateusefilter(edited.use, showdiscarded=edited.show_dropped)
+            self.updateusefilter(self.filters.use, showdiscarded=edited.show_dropped)
             self._filters_changed()
 
     def _merged_filters(self, edited: list[dict]) -> list[dict]:
@@ -727,7 +733,7 @@ class PandasFrame(wx.Frame):
                 shown,
                 self.data,
                 self.droppedrows.copy(),
-                showusefilter=False,
+                show_dropped_option=False,
             )
             response = dlg.ShowModal()
             if response == wx.ID_OK:
