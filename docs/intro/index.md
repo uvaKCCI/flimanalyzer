@@ -8,8 +8,9 @@ FLIMAnalyzer reads fitted FLIM data from text files laid out like a spreadsheet,
 
 The analysis tools include summaries, relative changes, Kolmogorov-Smirnov (KS) statistics, principal component analysis (PCA), clustering and random forests (see [Analysis](/userguide/analysis/index)). Many of them use the scikit-learn package. The plots use the pandas, matplotlib and seaborn packages (see [Plots](/userguide/plots/index)). Autoencoders, built with PyTorch, reduce the features to a few values or make augmented (simulated) data; tools for tuning their training are included.
 
-There are three ways to work with FLIMAnalyzer:
+There are two ways to work with FLIMAnalyzer:
 
 * **The GUI** (graphical user interface): open data, choose a tool from a menu or the tool panel, set its options in a dialog, and see the results in table and plot windows (see [Menus](/userguide/appmenu) and [Tool dialogs](/userguide/dialogs)).
-* **Workflows** run several tools in one go, for example summaries, relative changes and plots of the same features (see [Workflows](/userguide/workflows)).
-* **Batch mode** (`flimbatch`) runs tools and workflows without the GUI, with the settings saved in the GUI, for example on a computing cluster (see [Batch Mode](/userguide/batch)).
+* **Batch mode** (`flimbatch`) runs tools without the GUI, for example on a computing cluster, with the settings of an app settings file, such as one exported from the GUI (see [Batch Mode](/userguide/batch)).
+
+In both, a workflow runs several tools in one go, for example summaries, relative changes and plots of the same features (see [Workflows](/userguide/workflows)).
