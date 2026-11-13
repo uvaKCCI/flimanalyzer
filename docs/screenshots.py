@@ -144,6 +144,7 @@ HISTOGRAMS = [
     for style in ("bar", "barstacked", "step", "stepfilled")
 ]
 HISTOGRAM = HISTOGRAMS[0]  # the bar style, as the user guide's example
+HISTOGRAM_CUMULATIVE = HISTOGRAMS[2].model_copy(update={"cumulative": True})  # step style
 FLIRR = FLIRRPlotConfig(grouping=["Treatment", "FOV"])
 FILTER = FilterConfig(
     category_filters={"Treatment": ["ctrl", "Dox15", "Dox30"]},
@@ -270,7 +271,7 @@ SHOTS = {
     "analysis/histogram-results1.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[0]}),
     "analysis/histogram-results2.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[1]}),
     "analysis/histogram-results3.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[2]}),
-    "analysis/histogram-results4.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[3]}),
+    "analysis/histogram-cumulative.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAM_CUMULATIVE}),
     "analysis/histogram-results1a.png": ("table", {"tool": "Frequency Histogram", "config": HISTOGRAMS[0]}),
     "analysis/barplot-config-grouping.png": ("dialog", {"tool": "Bar Plot", "config": BAR[0]}),
     "analysis/barplot-result1-grouping.png": ("plot", {"tool": "Bar Plot", "config": BAR[0]}),

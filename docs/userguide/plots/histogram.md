@@ -55,9 +55,9 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data. By
 
 ![](/images/analysis/histogram-results3.png)
 
-**Example Results:** Use of the `stepfilled` histogram style:
+**Example Results:** `Cumulative` checked, in the `step` style, grouped by `Treatment`:
 
-![](/images/analysis/histogram-results4.png)
+![](/images/analysis/histogram-cumulative.png)
 
 **Example Results:** Generated `Binned data table`:
 
