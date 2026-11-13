@@ -36,6 +36,20 @@ def table():
     )
 
 
+def _with_cell_editor(grid, row, col, use):
+    """Return `use(editor)` for a cell's editor, then release the editor.
+
+    `GetCellEditor` returns a new reference; one not released keeps the editor
+    beyond its grid, and wx later asserts that its control still has the grid's
+    event handler pushed ("any pushed event handlers must have been removed").
+    """
+    editor = grid.GetCellEditor(row, col)
+    try:
+        return use(editor)
+    finally:
+        editor.DecRef()
+
+
 # --- Order Categories ---
 
 
@@ -209,7 +223,7 @@ def test_ok_takes_the_value_of_a_cell_still_being_edited(dialog):
     grid = editor.grid
     grid.SetGridCursor(0, 4)  # bins
     grid.EnableCellEditControl()
-    grid.GetCellEditor(0, 4).GetControl().SetValue("12")  # typed, cell not left
+    _with_cell_editor(grid, 0, 4, lambda e: e.GetControl().SetValue("12"))  # typed, cell not left
     closing = []  # the click reaches the dialog, which then closes
     d.Bind(wx.EVT_BUTTON, lambda e: closing.append(e.GetId()), id=wx.ID_OK)
     click = wx.CommandEvent(wx.EVT_BUTTON.typeId, wx.ID_OK)
@@ -501,11 +515,11 @@ def test_categorize_rules_table(dialog):
     assert labels[:2] == ["Add Rule", "Remove Rules"]
     # the feature column: a drop-down of the input's features
     col = [c.name for c in editor.columns].index("feature")
-    choice = editor.grid.GetCellEditor(0, col)
-    assert isinstance(choice, wx.grid.GridCellChoiceEditor)
+    assert _with_cell_editor(editor.grid, 0, col, lambda e: isinstance(e, wx.grid.GridCellChoiceEditor))
     editor.grid.SetGridCursor(0, col)
     editor.grid.EnableCellEditControl()
-    assert editor.grid.GetCellEditor(0, col).GetControl().GetItems() == ["t1", "t2"]
+    items = _with_cell_editor(editor.grid, 0, col, lambda e: e.GetControl().GetItems())
+    assert items == ["t1", "t2"]
     editor.grid.DisableCellEditControl()
 
 
