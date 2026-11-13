@@ -8,12 +8,8 @@ earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
 ## 0.7.0 - YYYY-MM-DD
 
-Settings in a user settings file and app settings files, with a Settings viewer;
-data files read by `Open Tables` and `Import Tables`, with what is done to them in
-workflow files; new tools to rename, drop and calculate columns, fuse and separate
-categories, scale features and filter by conditions; save formats, `Save All Windows...`
-and a full quit dialog. Bug fixes, several of which change results (see below).
-Python 3.12 to 3.14; PyTorch 2.14.1 with CUDA 13.0 (NVIDIA driver 580 or newer).
+Settings files, workflow files and new data tools, and bug fixes for 0.6.2, several of
+which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
 
 ### Results that change
 
@@ -230,6 +226,10 @@ Python 3.12 to 3.14; PyTorch 2.14.1 with CUDA 13.0 (NVIDIA driver 580 or newer).
   their order.
 - **Prefect UI:** each task's settings are shown in the task run's `Artifacts` tab.
 - **Icons** at 64 px for high-resolution screens; icons for the new tools.
+- **API changes policy** (developers): the Programming Guide describes how changes to the
+  plugin and tool API are handled until 1.0.0: where feasible, a renamed or removed name
+  keeps working for at least one minor release, with a `DeprecationWarning` that names
+  its replacement and the release that removes it.
 - **Plugin and tool API** (developers): `Tool.short_name`, `Tool.example`,
   `Tool.validate_data`, `Tool.proposals` and `Tool.inapplicable_fields` for the dialogs;
   tool lookups accept `former_names`; each data type declares its `save_options` and
@@ -309,15 +309,6 @@ Python 3.12 to 3.14; PyTorch 2.14.1 with CUDA 13.0 (NVIDIA driver 580 or newer).
   of the column names; `Rename Columns` skips a replacement with empty text.
 - **Docker:** matplotlib warned at every start that it can't write its cache folder; the
   images set `MPLCONFIGDIR` to `/tmp/matplotlib`.
-
-### Documentation
-
-- The user guide covers the new tools, settings files, workflow files, batch mode and
-  the command line. All screenshots are from 0.7.0; tall dialog screenshots are shown
-  at half the page width, beside the text of their step.
-- The Programming Guide describes how API changes are
-  handled until 1.0.0: a renamed or removed name stays available with a
-  `DeprecationWarning` for at least one minor release, where feasible.
 
 ### Known issues
 
