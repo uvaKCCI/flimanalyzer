@@ -338,7 +338,6 @@ class AppFrame(wx.Frame):
         # the filters new table windows start with (the Filter tool's range filters
         # and the `filters` switches); each window works on its own copy
         self.filters = WindowFilters()
-        self.last_run_url: Optional[str] = None  # the Prefect page of the last run (OnLastRun)
         self._quit_confirmed = False  # the user chose to quit (confirm_quit)
         self.refresh_window_filters()
         flim.gui.dialogs.calculate.bind(self.settings_manager)  # the saved presets
@@ -436,6 +435,7 @@ class AppFrame(wx.Frame):
         for name, _icon, handler, help_text in self.monitor_entries():
             item = monitormenu.Append(wx.ID_ANY, name, help_text)
             self.Bind(wx.EVT_MENU, handler, item)
+        self._last_run_item = monitormenu.FindItem("Last Run")
         menubar.Append(monitormenu, "&Monitor")
         menubar.Append(self.windowmenu, "&Window")
         menubar.Append(helpmenu, "&Help")
@@ -594,6 +594,22 @@ class AppFrame(wx.Frame):
             "Monitor", [(name, icon_bitmap(icon), handler) for name, icon, handler, _ in self.monitor_entries()]
         )
         self._layout_tool_groups(rows=2)
+        self.show_last_run_state()
+
+    @property
+    def last_run_url(self) -> Optional[str]:
+        """The Prefect page of the last run the GUI started (`last_run_url` setting)."""
+        return self.settings_manager.settings.last_run_url
+
+    def show_last_run_state(self) -> None:
+        """Enable `Last Run` in the Monitor menu and group only if a last run is known."""
+        enable = bool(self.last_run_url)
+        item_id = getattr(self, "_last_run_item", wx.NOT_FOUND)
+        if item_id != wx.NOT_FOUND and self.GetMenuBar() is not None:
+            self.GetMenuBar().Enable(item_id, enable)
+        button = wx.FindWindowByName("Last Run", self.toolpanel)
+        if button is not None:
+            button.Enable(enable)
 
     def monitor_entries(
         self,
@@ -607,7 +623,7 @@ class AppFrame(wx.Frame):
             ("Prefect Server", "prefect_server.png", self.OnPrefectServer,
              "Open the Prefect server in the web browser, with all runs and their tasks"),
             ("Last Run", "prefect_lastrun.png", self.OnLastRun,
-             "Open the Prefect page of the last run started in this session"),
+             "Open the Prefect page of the last run started"),
         ]  # fmt: skip
 
     def favorite_buttons(
@@ -1507,7 +1523,9 @@ class AppFrame(wx.Frame):
         started = dlg.started_run
         dlg.Destroy()
         if started is not None and started.ui_url:
-            self.last_run_url = started.ui_url  # also of a failed or cancelled run
+            # also of a failed or cancelled run; kept for the next sessions
+            self.settings_manager.update({"last_run_url": started.ui_url})
+            self.show_last_run_state()
         if error is not None:
             wx.MessageBox(
                 f"{title} stopped with an error, see the log for details:\n{error}",
@@ -1944,17 +1962,18 @@ class AppFrame(wx.Frame):
         wx.LaunchDefaultBrowser(url)
 
     def OnLastRun(self, event: wx.CommandEvent) -> None:
-        """Open the Prefect page of the last run started in this session.
+        """Open the Prefect page of the last run the GUI started (`last_run_url`).
 
-        The run may have completed, failed or been cancelled. Before the first run,
-        or if runs use temporary servers, a message says so.
+        The run may have completed, failed or been cancelled, also in an earlier
+        session. Without a known run the entry is disabled; if it is used anyway, a
+        message says so.
         """
         if self.last_run_url:
             wx.LaunchDefaultBrowser(self.last_run_url)
             return
         wx.MessageBox(
-            "No run with a Prefect page was started in this session. Runs on a"
-            " temporary server (--no-prefect-server) have no page after they end.",
+            "No run with a Prefect page is known yet. Runs on a temporary server"
+            " (--no-prefect-server) have no page after they end.",
             "Last Run",
             wx.OK | wx.ICON_INFORMATION,
         )

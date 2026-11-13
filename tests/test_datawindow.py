@@ -944,14 +944,19 @@ def test_prefect_server_button_opens_the_server_or_explains(frame, monkeypatch):
 
 
 def test_last_run_button_opens_the_last_run_of_the_session(frame, monkeypatch):
+    from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
     from flim.gui.progressdlg import RunProgressDialog
 
-    names = [b.GetName() for b in frame.toolpanel.GetChildren() for b in [b] + list(b.GetChildren())]
-    assert "Last Run" in names
+    user_file = UserSettingsFile(user_settings_path())
+    frame.settings_manager = SettingsManager(user_file=user_file)
+
+    button = wx.FindWindowByName("Last Run", frame.toolpanel)
+    item = frame.GetMenuBar().FindItemById(frame._last_run_item)
+    assert not button.IsEnabled() and not item.IsEnabled()  # no run known yet
     opened, shown = [], []
     monkeypatch.setattr(wx, "LaunchDefaultBrowser", lambda url: opened.append(url))
     monkeypatch.setattr(wx, "MessageBox", lambda *args, **kwargs: shown.append(args[0]))
-    frame.OnLastRun(None)  # no run yet
+    frame.OnLastRun(None)
     assert opened == [] and "No run" in shown[0]
 
     class Run:
@@ -971,6 +976,11 @@ def test_last_run_button_opens_the_last_run_of_the_session(frame, monkeypatch):
     assert frame.run_with_progress("Sort", lambda *a: None) is None
     frame.OnLastRun(None)
     assert opened == ["http://127.0.0.1:4200/runs/flow-run/abc"]
+    assert button.IsEnabled() and item.IsEnabled()
+    # kept in the user settings file, for the next sessions; not exported
+    assert SettingsManager(user_file=user_file).settings.last_run_url == opened[0]  # next start
+    frame.build_tool_panel()  # e.g. after Favorites...: the new button is enabled too
+    assert wx.FindWindowByName("Last Run", frame.toolpanel).IsEnabled()
     assert isinstance(RunProgressDialog.started_run, property)
 
 

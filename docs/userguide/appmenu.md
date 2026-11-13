@@ -45,7 +45,7 @@ The tools of the `Data`, `Analysis`, `Plot` and `Workflow` menus are always avai
 The `Monitor` menu opens pages that show the runs:
 
 - `Prefect Server` opens the Prefect server in the web browser, with all runs and their tasks (see [Prefect server](/install/index.md#prefect-server)).
-- `Last Run` opens the page of the last run started in this session, also if it failed or was cancelled.
+- `Last Run` opens the page of the last run the GUI started, also if it failed or was cancelled. The GUI keeps it in the user settings file (`last_run_url`), so it is also available after a restart. Until the GUI has started a run on a Prefect server, `Last Run` is not available.
 
 ## Window
 

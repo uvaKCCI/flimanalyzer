@@ -345,6 +345,13 @@ class AppSettings(_Settings):
         description="The app settings file preselected when the GUI starts without -s."
         " Read only from the user settings file.",
     )
+    last_run_url: Optional[str] = Field(
+        default=None,
+        title="Last run",
+        description="The Prefect page of the last run the GUI started, also of a run"
+        " that failed or was cancelled; opened by Monitor > Last Run. Read only from"
+        " the user settings file.",
+    )
     filters: FilterSettings = Field(default_factory=FilterSettings)
     tools: ToolSettingsMap = Field(default_factory=ToolSettingsMap)
 

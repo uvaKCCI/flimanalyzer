@@ -250,8 +250,8 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   their order.
 - **Prefect UI:** the new `Monitor` menu, also a group of the tool panel: `Prefect
   Server` opens the Prefect UI in the web browser, and `Last Run` opens the page of the
-  last run started in the session. Each task's settings are shown in the task run's `Artifacts` tab. Each
-  flow run's `Artifacts` tab shows the versions of FLIMAnalyzer, Python and the main
+  last run the GUI started, also in an earlier session. Each task's settings are shown
+  in the task run's `Artifacts` tab. Each flow run's `Artifacts` tab shows the versions of FLIMAnalyzer, Python and the main
   packages, how the tasks ran (threads or Dask, with their settings) and the input
   files. FLIMAnalyzer's log messages from a run are shown in the run's `Logs` tab,
   except those of tasks that Dask runs in other processes.

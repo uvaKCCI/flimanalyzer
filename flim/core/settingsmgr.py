@@ -467,9 +467,9 @@ class SettingsManager:
         Every installed tool's settings are written, its defaults if none are set, so
         that the file does not depend on the defaults of the version that reads it.
         Defaults that do not pass validation are not written: they could not be used
-        when the file is read. `appsettings_path`, `workflow_paths` and
-        `default_app_settings` are left out: they are read only from the user
-        settings file.
+        when the file is read. `appsettings_path`, `workflow_paths`,
+        `default_app_settings` and `last_run_url` are left out: they are read only
+        from the user settings file.
 
         The file starts with `schema_version` and, if there is one, `description`.
 
@@ -498,6 +498,7 @@ class SettingsManager:
         data.pop("appsettings_path", None)
         data.pop("workflow_paths", None)
         data.pop("default_app_settings", None)
+        data.pop("last_run_url", None)
         data["tools"] = dict(sorted(data["tools"].items()))
         with open(path, "w") as f:
             json.dump(data, f, indent=2, default=str)

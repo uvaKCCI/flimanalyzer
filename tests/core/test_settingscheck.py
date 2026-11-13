@@ -255,7 +255,10 @@ def test_default_that_cannot_be_used_is_cleared_with_a_warning(tmp_path, monkeyp
     assert SettingsManager(user_file=user).settings.default_app_settings is None
 
 
-def test_default_is_not_exported(tmp_path):
-    manager = SettingsManager(user_file=_user(tmp_path, default_app_settings="x.json"))
+def test_default_and_last_run_are_not_exported(tmp_path):
+    user = _user(tmp_path, default_app_settings="x.json", last_run_url="http://h/runs/flow-run/a")
+    manager = SettingsManager(user_file=user)
+    assert manager.settings.last_run_url == "http://h/runs/flow-run/a"
     manager.export(tmp_path / "e.json")
-    assert "default_app_settings" not in json.loads((tmp_path / "e.json").read_text())
+    exported = json.loads((tmp_path / "e.json").read_text())
+    assert "default_app_settings" not in exported and "last_run_url" not in exported
