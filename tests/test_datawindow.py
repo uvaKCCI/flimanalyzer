@@ -951,7 +951,7 @@ def test_last_run_button_opens_the_last_run_of_the_session(frame, monkeypatch):
     frame.settings_manager = SettingsManager(user_file=user_file)
 
     button = wx.FindWindowByName("Last Run", frame.toolpanel)
-    item = frame.GetMenuBar().FindItemById(frame._last_run_item)
+    item = frame.GetMenuBar().FindItemById(frame._monitor_items["Last Run"])
     assert not button.IsEnabled() and not item.IsEnabled()  # no run known yet
     opened, shown = [], []
     monkeypatch.setattr(wx, "LaunchDefaultBrowser", lambda url: opened.append(url))
@@ -988,10 +988,12 @@ def test_monitor_menu_has_the_entries_of_the_monitor_group(frame, monkeypatch):
     menubar = frame.GetMenuBar()
     menu = menubar.GetMenu(menubar.FindMenu("Monitor"))
     labels = [i.GetItemLabelText() for i in menu.GetMenuItems()]
-    assert labels == ["Prefect Server", "Last Run"]
-    assert _panel_groups(frame)["Monitor"] == labels
+    assert labels == ["Prefect Server \u2197", "Last Run \u2197"]  # they open web pages
+    assert _panel_groups(frame)["Monitor"] == ["Prefect Server", "Last Run"]
+    tip = wx.FindWindowByName("Last Run", frame.toolpanel).GetToolTipText()
+    assert tip == "Last Run \u2197 (web browser)"
     shown = []
     monkeypatch.setattr(wx, "MessageBox", lambda *args, **kwargs: shown.append(args[0]))
-    event = wx.CommandEvent(wx.wxEVT_MENU, menu.FindItem("Last Run"))
+    event = wx.CommandEvent(wx.wxEVT_MENU, frame._monitor_items["Last Run"])
     frame.ProcessEvent(event)  # no run yet: the Last Run message
     assert "No run" in shown[0]

@@ -79,6 +79,8 @@ import flim.gui.dialogs.separate  # noqa: F401  (Separate Categories: presets)
 import flim.gui.dialogs.unpivot  # noqa: F401
 
 logger = logging.getLogger(__name__)
+# marks menu entries and buttons that open a page in the web browser
+EXTERNAL = " \u2197"
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
 CHECK_ROWS = 20  # the rows of each file Import Tables checks its run against
 # macOS lists the open windows in the Window menu itself (wxWidgets makes the menu
@@ -410,7 +412,9 @@ class AppFrame(wx.Frame):
         self.windowmenu.AppendSeparator()
 
         helpmenu = wx.Menu()
-        docsitem = helpmenu.Append(wx.ID_ANY, "Documentation", "Open the documentation of this version")
+        docsitem = helpmenu.Append(
+            wx.ID_ANY, f"Documentation{EXTERNAL}", "Open the documentation of this version in the web browser"
+        )
         aboutitem = helpmenu.Append(wx.ID_ABOUT, "About FLIMAnalyzer")
 
         menubar.Append(filemenu, "&File")
@@ -432,10 +436,11 @@ class AppFrame(wx.Frame):
                 self.Bind(wx.EVT_MENU, lambda e: self.run_workflow_file(), item)
             menubar.Append(menu, f"&{category}")
         monitormenu = wx.Menu()
+        self._monitor_items = {}  # entry name -> menu item ID
         for name, _icon, handler, help_text in self.monitor_entries():
-            item = monitormenu.Append(wx.ID_ANY, name, help_text)
+            item = monitormenu.Append(wx.ID_ANY, f"{name}{EXTERNAL}", help_text)
             self.Bind(wx.EVT_MENU, handler, item)
-        self._last_run_item = monitormenu.FindItem("Last Run")
+            self._monitor_items[name] = item.GetId()
         menubar.Append(monitormenu, "&Monitor")
         menubar.Append(self.windowmenu, "&Window")
         menubar.Append(helpmenu, "&Help")
@@ -593,6 +598,8 @@ class AppFrame(wx.Frame):
         self._add_tool_group(
             "Monitor", [(name, icon_bitmap(icon), handler) for name, icon, handler, _ in self.monitor_entries()]
         )
+        for name, *_ in self.monitor_entries():  # they open web pages
+            wx.FindWindowByName(name, self.toolpanel).SetToolTip(f"{name}{EXTERNAL} (web browser)")
         self._layout_tool_groups(rows=2)
         self.show_last_run_state()
 
@@ -604,7 +611,7 @@ class AppFrame(wx.Frame):
     def show_last_run_state(self) -> None:
         """Enable `Last Run` in the Monitor menu and group only if a last run is known."""
         enable = bool(self.last_run_url)
-        item_id = getattr(self, "_last_run_item", wx.NOT_FOUND)
+        item_id = getattr(self, "_monitor_items", {}).get("Last Run", wx.NOT_FOUND)
         if item_id != wx.NOT_FOUND and self.GetMenuBar() is not None:
             self.GetMenuBar().Enable(item_id, enable)
         button = wx.FindWindowByName("Last Run", self.toolpanel)
@@ -615,6 +622,9 @@ class AppFrame(wx.Frame):
         self,
     ) -> list[tuple[str, str, Callable[[wx.CommandEvent], None], str]]:
         """Return the entries of the Monitor menu and the tool panel's Monitor group.
+
+        All of them open web pages: the menu labels and the tooltips end with
+        `EXTERNAL`.
 
         Returns:
             One `(name, icon file, handler, help text)` per entry, in menu order.
