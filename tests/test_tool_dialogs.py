@@ -137,6 +137,13 @@ def test_save_and_load_feature_settings(dialog, tmp_path):
     assert _ranges(other.result().config)["t1"] == RangeSettings(low=120, high=180)
 
 
+def test_feature_settings_that_cannot_be_saved_give_a_message(dialog, tmp_path):
+    d = dialog("Filter", FilterConfig(range_filters={"t1": {"low": 120, "high": 180}}))
+    editor = d.fields.editors["filters"].ranges
+    editor.save_settings(tmp_path / "missing folder" / "ranges.json")  # no error raised
+    assert editor.message.GetLabel().startswith("Could not save ranges.json:")
+
+
 def test_load_settings_from_an_old_settings_file(dialog, tmp_path):
     import json
 
@@ -563,6 +570,18 @@ def test_features_of_another_table_are_not_listed(dialog, table):
     d._update_inputs()
     assert features.items == ["t1", "t2"]
     assert features.get() == []  # the summary's feature is not in the raw data
+
+
+# --- Concatenate ---
+
+
+def test_concatenate_shows_the_settings_of_its_direction(dialog):
+    d = dialog("Concatenate")
+    shown = lambda name: d.fields.widgets[name][0].IsShown()  # noqa: E731
+    assert shown("add_input") and not shown("numbers_only")  # rows (default)
+    d.fields.editors["mode"].set("horizontal")
+    d.fields.refresh()
+    assert shown("numbers_only") and not shown("add_input") and not shown("clash_name")
 
 
 # --- Scatter Plot ---

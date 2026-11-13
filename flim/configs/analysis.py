@@ -186,7 +186,7 @@ class ParallelResources(Resources):
     preferred_threads: Threads = Field(
         default=-1,
         title="Threads",
-        description="Threads within the task (1 or more); -1: all cores allocated to the task.",
+        description="Threads within the task (1 or more); -1: all cores of the computer that runs it.",
     )
 
 
@@ -381,7 +381,7 @@ class CategorizerConfig(AnalysisConfig):
         title="Rules",
         description=(
             "Rows whose feature lies in a rule's range (min < value <= max) get the"
-            " rule's value; the first matching rule wins."
+            " rule's value; where ranges overlap, the first rule in the list applies."
         ),
     )
     default: str = Field(
@@ -486,7 +486,7 @@ class AutoencoderResources(Resources):
     preferred_threads: Threads = Field(
         default=-1,
         title="Threads",
-        description="Threads within the task (1 or more); -1: all cores allocated to the task.",
+        description="Threads within the task (1 or more); -1: all cores of the computer that runs it.",
     )
 
 

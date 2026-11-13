@@ -1668,13 +1668,11 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         """Write the settings of the checked features to a JSON file.
 
         The file holds {feature: {setting: value}}; features whose settings are not
-        valid are left out. The message below the table reports the result.
+        valid are left out. The message below the table reports the result, also
+        when the file cannot be written.
 
         Args:
             path: The file.
-
-        Raises:
-            OSError: If the file cannot be written.
         """
         settings = {}
         for feature, values in self.get().items():
@@ -1683,8 +1681,12 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             except ValueError:
                 continue
             settings[feature] = model.model_dump(exclude={"classname", "version"})
-        with open(path, "w") as f:
-            json.dump(settings, f, indent=2)
+        try:
+            with open(path, "w") as f:
+                json.dump(settings, f, indent=2)
+        except OSError as err:
+            self.message.SetLabel(f"Could not save {Path(path).name}: {err}")
+            return
         self.message.SetLabel(f"Saved the settings of {len(settings)} features")
 
     # --- rows ---

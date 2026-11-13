@@ -107,12 +107,14 @@ class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
     numbers_only: bool = Field(
         default=False,
         title="Numeric columns only",
-        description="Columns: append only the numeric columns of the other tables.",
+        description="Append only the numeric columns of the other tables.",
+        json_schema_extra={"shown_when": {"mode": "horizontal"}},
     )
     add_input: bool = Field(
         default=True,
         title="Add Input column",
-        description="Rows: a column with the name of each row's table.",
+        description="A column with the name of each row's table.",
+        json_schema_extra={"shown_when": {"mode": "vertical"}},
     )
     clash_name: str = Field(
         default="{name} ({table})",
