@@ -50,10 +50,8 @@ sys.modules["wx.lib.newevent"] = _newevent
 # -- Project information -----------------------------------------------------
 
 project = "FLIMAnalyzer"
-copyright = "2021-2026, UVA Keck Center for Cellular Imaging"
-author = (
-    "UVA Keck Center for Cellular Imaging: Karsten Siller, Brian Mbogo, Jiaxin Zhang"
-)
+copyright = "2021-2026, The University of Virginia"
+author = "Karsten Siller, Jiaxin Zhang, Brian Mbogo"
 
 
 # -- General configuration ---------------------------------------------------
