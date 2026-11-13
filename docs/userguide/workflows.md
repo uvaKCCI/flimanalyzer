@@ -127,7 +127,7 @@ Makes summaries and relative changes of the features, and KDE, line, pair and sc
 Settings:
 
 * `Grouping`: the category columns to group the data by, in this order. Default: `Treatment`, `FOV`, `Cell`. The first column (for example `Treatment`) is the one the results compare.
-* `Reference value`: the value of the first grouping column that the relative changes refer to, for example `ctrl`. Empty (default): the first value of that column, in the order of its categories (see [Order Categories](/userguide/data/order)).
+* `Reference value`: the value of the first grouping column that the relative changes refer to, for example `ctrl`. Empty (default): the first value of that column, in the order of its categories (see [Order Category Values](/userguide/data/order)).
 * `Scatter x (FAD a1 %)` and `Scatter y (NAD(P)H a2 %)`: the columns of the scatter plot. Empty (default): found by their names (FAD, a1 and % for x; NAD, a2 and % for y). Without them, there is no scatter plot.
 * `Features`: the features to analyze. By default, the FAD and NAD(P)H amplitudes (a1, a2, a1%, a2%), lifetimes (t1, t2) and photons.
 * `Strict`: see [Checking the settings](#checking-the-settings).

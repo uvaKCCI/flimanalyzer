@@ -21,7 +21,7 @@ def ordered_values(column: pd.Series) -> list[str]:
         column: The column.
 
     Returns:
-        The values in the order of the column's categories (see Order Categories) if
+        The values in the order of the column's categories (see Order Category Values) if
         it is a category column, else in the order they first occur.
     """
     present = set(column.dropna().unique())

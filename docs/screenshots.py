@@ -226,7 +226,7 @@ SHOTS = {
     "data/filtertool-config.png": ("dialog", {"tool": "Filter", "config": FILTER}),
     "data/sort-config.png": ("dialog", {"tool": "Sort", "config": SORT}),
     "data/sort-results.png": ("table", {"tool": "Sort", "config": SORT}),
-    "data/order-config.png": ("dialog", {"tool": "Order Categories", "setup": "show_treatment_order"}),
+    "data/order-config.png": ("dialog", {"tool": "Order Category Values", "setup": "show_treatment_order"}),
     "data/concat-config1.png": ("dialog", {"tool": "Concatenate", "config": ConcatConfig(), "inputs": TWO_FILES, "selected": [list(TWO_FILES)]}),
     "data/split-input.png": ("dialog", {"tool": "Split", "config": SPLIT}),
     "data/split-result.png": ("table", {"tool": "Split", "config": SPLIT, "result": "FOV=a"}),
@@ -693,7 +693,7 @@ class Shooter:
         relayout(editor.pane)
 
     def show_treatment_order(self, dialog):
-        """Order Categories: Treatment selected and checked, its values shown."""
+        """Order Category Values: Treatment selected and checked, its values shown."""
         editor = dialog.fields.editors["categories"]
         index = editor.columns.FindString("Treatment")
         editor.columns.Check(index)

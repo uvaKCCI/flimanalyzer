@@ -22,7 +22,7 @@ Say you want to see how `FAD a1[%]` and `NAD(P)H a2[%]` change for each cell ove
 
 4. Click `OK`.
 
-The result opens in a new table window, `Table: Pivoted`. It looks like the one below. Each row now shows the **mean** values of one cell (one combination of `FOV` and `Cell`). The values of the original `Treatment` column became columns, so each row shows the trend across the treatments for the two selected measurements: `FAD a1[%]` / `ctrl` through `FAD a1[%]` / `Dox60`, and `NAD(P)H a2[%]` / `ctrl` through `NAD(P)H a2[%]` / `Dox60` (the column headers have two lines: the measurement and the treatment). The treatments are in their category order (see [Order Categories](order.md)).
+The result opens in a new table window, `Table: Pivoted`. It looks like the one below. Each row now shows the **mean** values of one cell (one combination of `FOV` and `Cell`). The values of the original `Treatment` column became columns, so each row shows the trend across the treatments for the two selected measurements: `FAD a1[%]` / `ctrl` through `FAD a1[%]` / `Dox60`, and `NAD(P)H a2[%]` / `ctrl` through `NAD(P)H a2[%]` / `Dox60` (the column headers have two lines: the measurement and the treatment). The treatments are in their category order (see [Order Category Values](order.md)).
 
 ![](/images/data/pivot-result.png)
 

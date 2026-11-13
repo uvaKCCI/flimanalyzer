@@ -28,7 +28,7 @@ EXPECTED = {
     "Filter": (0, 0),
     "Fuse Categories": (0, 2),
     "Merge": (0, 0),
-    "Order Categories": (0, 0),
+    "Order Category Values": (0, 0),
     "Pivot": (1, 0),
     "Rename Columns": (0, 0),
     "Sort": (0, 0),  # sorting by nothing leaves the table as it is

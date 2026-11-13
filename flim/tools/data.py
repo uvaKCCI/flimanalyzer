@@ -50,7 +50,8 @@ logger = logging.getLogger(__name__)
 class CategoryOrder(Tool[CategoryOrderConfig]):
     """Sets the order of the values of category columns and sorts the rows by them."""
 
-    name = "Order Categories"
+    name = "Order Category Values"
+    former_names = ("Order Categories",)
     category = "Data"
     description = "Sets the order of category values and sorts the rows by them."
     icon = "order.png"

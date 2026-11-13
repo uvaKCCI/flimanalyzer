@@ -77,7 +77,7 @@ def test_category_order_renumbers_the_rows(data, tmp_path):
     config = CategoryOrderConfig(categories={"Treatment": ["WT", "KO"]})
     df = table(CategoryOrder()(data, config=config))
     assert list(df.index) == list(range(len(data)))
-    save_results({"Reordered": df}, str(tmp_path), "Order Categories")
+    save_results({"Reordered": df}, str(tmp_path), "Order Category Values")
     saved = pd.read_csv(tmp_path / "Reordered.txt", sep="\t")
     assert list(saved.columns) == [str(c) for c in df.columns]
     assert list(saved["Treatment"]) == list(df["Treatment"])

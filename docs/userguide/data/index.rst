@@ -24,7 +24,7 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Creates a separate table for each value of a category column.
    * - :doc:`Merge Data <merge>`
      - Combines two data tables by matching their category columns.
-   * - :doc:`Order Categories <order>`
+   * - :doc:`Order Category Values <order>`
      - Sets the order of the values in category columns.
    * - :doc:`Concatenate <concat>`
      - Stacks two or more data tables, or places them side by side.

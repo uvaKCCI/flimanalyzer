@@ -1,8 +1,8 @@
-# Order Categories
+# Order Category Values
 
-The `Order Categories` tool sets the order of the values of category columns, for example the treatments of a time series, and sorts the rows by them.
+The `Order Category Values` tool sets the order of the values of category columns, for example the treatments of a time series, and sorts the rows by them.
 
-**Menu Access:** `Data` > `Order Categories`
+**Menu Access:** `Data` > `Order Category Values`
 
 **Tool panel icon:** ![](/images/data/order.png)
 

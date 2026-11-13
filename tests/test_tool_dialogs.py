@@ -50,11 +50,11 @@ def _with_cell_editor(grid, row, col, use):
         editor.DecRef()
 
 
-# --- Order Categories ---
+# --- Order Category Values ---
 
 
 def test_category_order(dialog):
-    d = dialog("Order Categories")
+    d = dialog("Order Category Values")
     editor = d.fields.editors["categories"]
     assert editor.column_names() == ["Treatment", "FOV"]
     assert editor.get() == {}  # nothing checked: no order set

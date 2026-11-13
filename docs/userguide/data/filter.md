@@ -10,7 +10,7 @@ Follow these steps to filter rows by the values of a category column:
 
 1. Right-click the header of a category column. Category column headers have a light blue background.
 
-2. A dialog opens with the values found in the column. Check the values to show, and uncheck the values to hide. `Select All` and `Deselect All` check or uncheck all values. The values are listed in their category order (see [Order Categories](order.md)).
+2. A dialog opens with the values found in the column. Check the values to show, and uncheck the values to hide. `Select All` and `Deselect All` check or uncheck all values. The values are listed in their category order (see [Order Category Values](order.md)).
 
 3. Click `OK`. The dialog closes, and the table shows only the rows with the values checked in step 2.
 

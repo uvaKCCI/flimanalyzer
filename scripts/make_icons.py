@@ -288,15 +288,17 @@ def pivot_icon(reverse=False):
 
 def order_icon():
     im, d = canvas()
-    # categorical columns swap places: the first and last trade positions
-    table(d, 2, 11, 30, 30, 3, 4, header=None)
-    for i, c in enumerate((GREEN, LGRAY, MAGENTA)):
-        x = 2 + i * 28 / 3
-        d.rectangle(s(x, 11, x + 28 / 3, 15.75), fill=c, outline=DARK, width=px(1.1))
-    # two-headed arc from the first to the last column
-    x0, x1, y = 6.7, 25.3, 9.5
+    # one category column, a header and its values: two values trade places
+    x0, x1, y0, y1, rows = 4, 17, 2, 30, 4
+    table(d, x0, y0, x1, y1, 1, rows)
+    rh = (y1 - y0) / rows
+    for j, c in enumerate((GREEN, LGRAY, MAGENTA), start=1):
+        y = y0 + rh * j
+        d.rectangle(s(x0, y, x1, y + rh), fill=c, outline=DARK, width=px(1.1))
+    # two-headed arc beside the column, from the first value to the last
+    ya, yb = y0 + rh * 1.5, y0 + rh * 3.5
     n = 30
-    pts = [(x0 + (x1 - x0) * i / n, y - 7 * math.sin(math.pi * i / n)) for i in range(n + 1)]
+    pts = [(19 + 8 * math.sin(math.pi * i / n), ya + (yb - ya) * i / n) for i in range(n + 1)]
     line(d, pts[3:-3], DARK, 1.6)
     arrow(d, *pts[4], *pts[0], DARK, w=1.6, head=3.4)
     arrow(d, *pts[-5], *pts[-1], DARK, w=1.6, head=3.4)

@@ -98,22 +98,35 @@ class ToolRegistry:
         self._tools.pop(name, None)
 
     def get(self, name: str) -> type["Tool"]:
-        """Return the tool registered under a name.
+        """Return the tool registered under a name, or that had the name before.
+
+        A former name (`former_names`) is accepted, so that settings files,
+        workflow files and command lines that name a renamed tool keep working.
+        Names are matched exactly; a short name is not accepted.
 
         Args:
-            name: The tool's name (not a former or short name).
+            name: The tool's name or one of its former names.
 
         Returns:
             The tool class.
 
         Raises:
-            KeyError: If no tool is registered under the name.
+            KeyError: If no tool has the name or a former name equal to it.
         """
-        return self._tools[name]
+        if name in self._tools:
+            return self._tools[name]
+        for cls in self._tools.values():
+            if name in getattr(cls, "former_names", ()):
+                return cls
+        raise KeyError(name)
 
     def __contains__(self, name: str) -> bool:
-        """Return whether a tool is registered under the name."""
-        return name in self._tools
+        """Return whether a tool has the name or a former name equal to it."""
+        try:
+            self.get(name)
+        except KeyError:
+            return False
+        return True
 
     def __len__(self) -> int:
         """Return the number of registered tools."""

@@ -1,4 +1,4 @@
-"""Order Categories: the order of the values of category columns."""
+"""Order Category Values: the order of the values of category columns."""
 
 from typing import Any, Optional
 

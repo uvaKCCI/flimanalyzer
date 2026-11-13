@@ -277,3 +277,25 @@ def test_import_of_version_1_is_dropped_for_a_workflow_file():
     assert "import" not in settings.to_json() and "Import" not in settings.to_json()["tools"]
     (dropped,) = [d for d in changes.dropped if d.startswith("import")]
     assert "fov_treatment_cell_parser" in dropped and "workflow file" in dropped
+
+
+def test_order_category_values_keeps_its_former_name(tmp_path):
+    from flim.configs import CategoryOrderConfig
+    from flim.core.settings import AppSettings, load_settings, save_settings
+    from flim.core.workflowfile import check_workflow_file
+
+    tool = tools.get("Order Categories")  # e.g. flimbatch --run "Order Categories"
+    assert tool is tools.get("Order Category Values")
+    # settings saved under the former name are read by the renamed tool
+    path = tmp_path / "app.json"
+    data = AppSettings.default().to_json()
+    data["tools"]["Order Categories"] = tool_settings(
+        CategoryOrderConfig(categories={"Treatment": ["b", "a"]})
+    ).model_dump(mode="json")
+    path.write_text(json.dumps(data))
+    assert load_settings(path).tools.config(tool).categories == {"Treatment": ["b", "a"]}
+    # a workflow file step that names the former name
+    wf = tmp_path / "wf.json"
+    wf.write_text(json.dumps({"schema_version": 1, "name": "old", "steps": [{"id": "1", "tool": "Order Categories"}]}))
+    result = check_workflow_file(wf)
+    assert result.errors == [] and result.definition.steps[0].tool in ("Order Categories", "Order Category Values")
