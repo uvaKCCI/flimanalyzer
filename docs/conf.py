@@ -116,10 +116,12 @@ def _narrow_tall_images(app, doctree):
 
 
 def _to_start_of_step(image):
-    """Move a floated image to the start of the numbered or bulleted step it is in.
+    """Move a floated image below the first paragraph of the step it is in.
 
     A float only lets the text after it flow beside it. The screenshots stand at the
-    end of their step in the page source, so they are moved before the step's text.
+    end of their step in the page source, so they are moved up: below the step's
+    first paragraph (e.g. "In the Configuration: Bar Plot dialog, ..."), which keeps
+    the full width.
     """
     from docutils import nodes
 
@@ -131,10 +133,9 @@ def _to_start_of_step(image):
         item = item.parent
     if item is None:
         return  # not in a step: left where it is
-    if block.parent is item and item.index(block) == 0:
-        return  # already first
     block.parent.remove(block)
-    item.insert(0, block)
+    first = item.children[0] if item.children else None
+    item.insert(1 if isinstance(first, nodes.paragraph) else 0, block)
 
 
 def setup(app):
