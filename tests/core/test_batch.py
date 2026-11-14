@@ -338,6 +338,26 @@ def test_inputs_with_the_same_folder_name_stop_the_run(tmp_path, capsys):
     assert "the inputs 'a b.txt' and 'a_b.txt' get the same folder name" in capsys.readouterr().err
 
 
+def test_list_shows_what_run_takes(workflow_folder, capsys):
+    (workflow_folder / "summarize.json").write_text(json.dumps(
+        {"schema_version": 2, "tool": "Summarize", "config": {}}
+    ))  # fmt: skip
+    assert main(["--list", "-w", str(workflow_folder)]) == 0  # no -i, -o or --run needed
+    out = capsys.readouterr().out
+    assert "  Analysis: " in out and "Summarize" in out
+    assert "Workflows:\n  Basic FLIRR Analysis" in out
+    assert f"  per treatment  ({workflow_folder / 'per-treatment.json'})" in out
+    assert "  Import  (built-in)" in out
+    assert f"Tool files (by path or file name):\n  summarize.json  ({workflow_folder})" in out
+    assert f"Workflow search path:\n  {workflow_folder}" in out
+
+
+def test_input_is_required_without_list(capsys):
+    with pytest.raises(SystemExit):
+        main(["--run", "Import", "-o", "out"])
+    assert "required: -i/--input" in capsys.readouterr().err
+
+
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):
     first, second, third = sorted(data_dir.glob("*.txt"))[:3]
     code = main(["-i", str(first), "-i", str(second), str(third),
