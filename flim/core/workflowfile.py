@@ -557,6 +557,35 @@ def _step_schemas(definition: WorkflowDefinition, schemas: dict) -> dict:
     return known
 
 
+def id_width(definition: WorkflowDefinition) -> int:
+    """Return the number of digits of a workflow's step ids in folder names.
+
+    Args:
+        definition: The workflow.
+
+    Returns:
+        The digits of the largest step id, at least 2, so that file listings sort
+        the step folders by id.
+    """
+    return max(2, *(len(step.id) for step in definition.steps))
+
+
+def step_folder(step: WorkflowStep, width: int = 2) -> str:
+    """Return the name of a step's results folder, `<id>-<tool>`, e.g. `02-Summarize`.
+
+    The id has leading zeros up to `width` digits (see `id_width`); the runner makes
+    the folder name with `flim.core.paths.path_name` (e.g. `03-Order_Category_Values`).
+
+    Args:
+        step: The step.
+        width: The digits of the id.
+
+    Returns:
+        The name.
+    """
+    return f"{int(step.id):0{width}d}-{step.tool}"
+
+
 def _leaf(results: dict) -> Any:
     """Return a leaf step's outputs as the GUI takes them.
 
@@ -660,6 +689,7 @@ def _file_workflow_base() -> type["Workflow"]:
                 INPUT: {(name,): workflow_input(t, name, save=False) for name, t in tables.items()}
             }
             previous = INPUT
+            width = id_width(self.definition)
             for step in self.definition.steps:
                 tool_class = tools.get(step.tool)
                 step_config = tool_class.config_class.model_validate(step.config)
@@ -685,7 +715,8 @@ def _file_workflow_base() -> type["Workflow"]:
                     tool._save = _saved(step)
                     tool._formats = step.output.formats  # None: the workflow's (the run's)
                     tool._processing = step.processing
-                    tags = [str(k) for k in key] or [step.id]  # the results' folders
+                    # the results' folders: the step's, then its input and part
+                    tags = [step_folder(step, width)] + [str(k) for k in key]
                     return tool(*inputs, config=config, task_tags=tags)
 
                 def run(inputs: list[Any], key: tuple, results: dict) -> None:

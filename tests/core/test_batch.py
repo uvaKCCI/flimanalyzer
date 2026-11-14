@@ -67,6 +67,12 @@ def settings():
     return AppSettings.default()
 
 
+def run_dir(out, number=1):
+    """Return the folder of a flimbatch call's run: `<out>/<date and time>/run-<n>`."""
+    (call,) = [p for p in out.iterdir() if p.is_dir()]  # one folder per call
+    return call / f"run-{number}"
+
+
 def _settings_file(settings, tmp_path):
     path = tmp_path / "settings.json"
     save_settings(settings, path)
@@ -91,11 +97,11 @@ def test_run_a_tool_on_each_file(data_dir, settings, tmp_path, monkeypatch):
                  "--no-prefect-server"])
     assert code == 0
     assert not (out / "Imported.txt").exists()  # no fixed outputs: the run's only
-    summaries = sorted((out / "Summarize").rglob("*Summary*"))
+    summaries = sorted(run_dir(out).rglob("*Summary*"))
     assert len(summaries) == 8  # one per file
     table = pd.read_csv(summaries[0], sep="\t")  # tab-separated, no index column (#119)
     assert list(table.columns) == ["FLIRR mean"]
-    (run_summary,) = (out / "Summarize").rglob("run_summary.txt")
+    (run_summary,) = run_dir(out).rglob("run_summary.txt")
     text = run_summary.read_text()
     assert "User settings file: not read" in text
     assert f"App settings file: {path} (schema version 2)" in text
@@ -118,7 +124,7 @@ def test_a_workflow_file_joins_the_files(data_dir, settings, tmp_path):
     code = main(["-i", str(data_dir), "-o", str(out), "--run", str(workflow),
                  "--no-prefect-server"])
     assert code == 0
-    saved = [p for p in (out / "per treatment").rglob("*.txt") if p.name != "run_summary.txt"]
+    saved = [p for p in run_dir(out).rglob("*.txt") if p.name != "run_summary.txt"]
     (summary,) = saved  # only the step that saves
     table = pd.read_csv(summary, sep="\t")
     assert list(table.columns) == ["Treatment", "FLIRR mean"] and set(table["Treatment"]) == {"WT", "KO"}
@@ -128,7 +134,7 @@ def test_the_built_in_import_workflow_runs_by_name(data_dir, tmp_path):
     out = tmp_path / "out"
     code = main(["-i", str(data_dir), "-o", str(out), "--run", "Import", "--no-prefect-server"])
     assert code == 0
-    (calculated,) = (out / "Import").rglob("*Calculated*")
+    (calculated,) = run_dir(out).rglob("*Calculated*")
     table = pd.read_csv(calculated, sep="\t")
     assert len(table) == 40 and "FLIRR" in table.columns
 
@@ -140,7 +146,7 @@ def test_import_with_a_preset_step_takes_the_categories(data_dir, tmp_path):
     out = tmp_path / "out"
     code = main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"])
     assert code == 0
-    (calculated,) = (out / "Import: FOV, Treatment, Cell").rglob("*Calculated*")
+    (calculated,) = run_dir(out).rglob("*Calculated*")
     table = pd.read_csv(calculated, sep="\t")
     assert set(table["Treatment"]) == {"WT", "KO"} and set(table["FOV"]) == {"FOV1", "FOV2"}
 
@@ -155,7 +161,7 @@ def test_import_tables_takes_reading_and_workflow_from_the_settings(data_dir, se
     code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Import Tables",
                  "--no-prefect-server"])  # fmt: skip
     assert code == 0
-    (calculated,) = (out / "Import").rglob("*Calculated*")
+    (calculated,) = run_dir(out).rglob("*Calculated*")
     assert len(pd.read_csv(calculated, sep="\t")) == 40
     # without a workflow in the settings: an error that says what to set
     settings.tools.set(ImportTables, ImportTablesConfig())
@@ -271,7 +277,7 @@ def test_run_takes_a_tool_file_as_a_workflow_of_one_step(
     assert code == 0, captured.err
     assert ("flimbatch: warning: step 01, tool 'Summarize': output.save=false ignored:"
             " saving is always on; the step's save decides") in captured.err  # fmt: skip
-    assert list((out / "Summarize").rglob("Table_Summary*"))  # saved anyway
+    assert list(run_dir(out).rglob("Table_Summary*"))  # saved anyway
     # in the workflow folder, the tool file is not a workflow: no message about it
     assert "summarize.json: not loaded" not in captured.err
 
@@ -358,6 +364,24 @@ def test_input_is_required_without_list(capsys):
     with pytest.raises(SystemExit):
         main(["--run", "Import", "-o", "out"])
     assert "required: -i/--input" in capsys.readouterr().err
+
+
+def test_one_folder_per_call_with_a_folder_per_run(data_dir, settings, tmp_path, workflow_folder):
+    settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["FLIRR"], aggs=["mean"]))
+    path = _settings_file(settings, tmp_path)
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "-w", str(workflow_folder),
+                 "--run", "Summarize", "--run", "per-treatment.json", "--no-prefect-server"])  # fmt: skip
+    assert code == 0
+    (call,) = [p for p in out.iterdir() if p.is_dir()]
+    assert sorted(p.name for p in call.iterdir() if p.is_dir()) == ["run-1", "run-2"]
+    first, second = call / "run-1", call / "run-2"
+    assert (first / "run_summary.txt").is_file() and (second / "run_summary.txt").is_file()
+    # --run Summarize: a workflow of one step, run per file
+    inputs = sorted(p.name for p in (first / "01-Summarize").iterdir())
+    assert len(inputs) == 8 and inputs[0].endswith(".txt")
+    # the workflow file: Concatenate joins the files, Summarize saves
+    assert sorted(p.name for p in second.iterdir() if p.is_dir()) == ["02-Summarize"]
 
 
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):
@@ -449,7 +473,7 @@ def test_the_application_command_hands_batch_runs_to_flimbatch(data_dir, tmp_pat
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-2000:]
-    assert list((out / "Import").rglob("*Calculated*"))
+    assert list(run_dir(out).rglob("*Calculated*"))
 
 
 def test_old_import_settings_are_not_used_and_said_so(data_dir, tmp_path, capsys):

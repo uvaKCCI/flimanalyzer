@@ -20,6 +20,7 @@ from flim.configs import (  # noqa: E402
 from flim.core.execution import ExecutionOptions  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
 
+import flim.gui.dialogs  # noqa: E402,F401  (registers the dialogs)
 from flim.gui.configdialog import shown_in_gui  # noqa: E402
 
 # the tools the GUI offers (a category and a registered dialog)
@@ -185,7 +186,7 @@ def test_rules_table(dialog):
 
 
 def test_nested_resources_section(dialog):
-    d = dialog("Autoencoder: Train")
+    d = dialog("Autoencoder Train Model")
     resources = d.fields.editors["resources"]
     resources.fields.editors["preferred_device"].set("cpu")
     resources.fields.editors["preferred_threads"].set(2)
@@ -364,7 +365,7 @@ def test_nested_settings_are_inline_and_advanced_ones_collapsed(dialog):
     editors["samples"].set(20000)
     result = d.result().config.points
     assert (result.mode, result.samples) == ("sample", 20000)
-    training = dialog("Autoencoder: Train")
+    training = dialog("Autoencoder Train Model")
     assert isinstance(training.fields.editors["resources"].control, wx.CollapsiblePane)
 
 

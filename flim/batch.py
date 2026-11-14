@@ -12,7 +12,9 @@
    (a tool that takes many tables, e.g. Concatenate, once on all), a workflow file as
    its steps say (each step once per table until a step joins them). A tool uses its
    settings from the settings file; a workflow file's steps carry their own. The
-   results are saved in `<output>/<name>/`.
+   results are saved in one folder per call, `<output>/<date and time>/`, with a
+   folder per `--run`, `run-<n>`, holding its run summary and a folder per step,
+   `<id>-<tool>` (e.g. `01-Summarize`), then per table and part.
 
 With `--dry-run` (or `FLIM_DRY_RUN=true`) nothing runs: the first rows of each file
 are read and every run is checked against them; the first and the last line of the
@@ -22,6 +24,7 @@ imported.
 """
 
 import argparse
+import datetime
 import logging
 import os
 from pathlib import Path
@@ -29,7 +32,13 @@ import sys
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 from flim.core.execution import ExecutionOptions
-from flim.core.paths import canonical_folder, folder_problem, same_names, set_char_replacements
+from flim.core.paths import (
+    canonical_folder,
+    folder_problem,
+    same_names,
+    set_char_replacements,
+    unique_run_folder,
+)
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
 from flim.core import logs
@@ -213,97 +222,115 @@ def run_on_tables(
     tool: type["Tool"],
     tables: dict[str, "pd.DataFrame"],
     settings: AppSettings,
-    output_dir: str | os.PathLike,
+    run_dir: str | os.PathLike,
     execution: Optional[ExecutionOptions] = None,
     strict: bool = True,
     settings_record: Sequence[str] = (),
-) -> list["FlowRun"]:
-    """Run a tool or workflow on the tables read from the files.
+) -> "FlowRun":
+    """Run a tool or workflow on the tables read from the files, as one run.
 
-    A workflow file runs as its steps say. A tool runs once per table (one that takes
-    many tables, e.g. Concatenate, once on all of them), with its settings from
-    `settings`; a code-defined workflow runs once per table. Results are saved in
-    `<output_dir>/<name>/`.
+    A workflow file runs as its steps say. A tool runs as a workflow of one step,
+    `1`, with its settings from `settings` and saving on (`tool_workflow`). A workflow
+    defined in code runs once per table, all in this run, its results below a folder
+    per table. The results go into `run_dir`, with the run summary.
 
     Args:
         tool: The tool or workflow class.
         tables: The tables by name.
         settings: The app settings (the tools' settings and save formats).
-        output_dir: The results folder.
+        run_dir: The run's folder, e.g. `<output>/<date and time>/run-1`.
         execution: The executor; None for the default `ExecutionOptions`.
-        strict: Code-defined workflows: whether columns not in the data are errors.
-            Defaults to True.
+        strict: Workflows defined in code: whether columns not in the data are
+            errors. Defaults to True.
         settings_record: The settings files, for the run summary.
 
     Returns:
-        The runs: one per table for a code-defined workflow, else one.
+        The run.
 
     Raises:
         BatchError: If the run's settings don't fit the tables, or two tables' names
-            become the same folder name (see `check_run`), or a code-defined
-            workflow's config has errors for a table.
+            become the same folder name (see `check_run`), or a workflow defined in
+            code has errors for a table.
     """
-    from flim.core.runner import run_flow
+    from flim.core.runner import run_flow, tag_prefix
+    from flim.core.tool import check_requirements
     from flim.core.workflow import Workflow, WorkflowValidationError
 
     errors = check_run(tool, tables, settings)
     if errors:
         raise BatchError(f"{tool.name}:\n" + "\n".join(errors))
     execution = execution or ExecutionOptions()
-    autosave_dir = Path(output_dir) / tool.name
+    if getattr(tool, "definition", None) is None and not issubclass(tool, Workflow):
+        tool = tool_workflow(tool, settings)
     definition = getattr(tool, "definition", None)
-    if definition is not None:  # a workflow file
-        return [
-            tool().run_flow(
-                tables,
-                task_runner=execution.task_runner(),
-                autosave_dir=autosave_dir,  # the steps' `save` decides what is written
-                settings_record=settings_record,
-                save_formats=definition.output.formats,
-            )
-        ]
+    if definition is not None:  # a workflow file, or a tool as one
+        return tool().run_flow(
+            tables,
+            task_runner=execution.task_runner(),
+            run_dir=run_dir,  # the steps' `save` decides what is written
+            settings_record=settings_record,
+            save_formats=definition.output.formats,
+        )
+    # a workflow defined in code: checked per table, then all tables in one run
     config = settings.tools.config(tool)
     entry = settings.tools.entry(tool)
-    formats = entry.output.formats if entry else []  # the tool's save formats
-    if issubclass(tool, Workflow):
-        runs = []
-        for name, table in tables.items():
-            try:
-                runs.append(
-                    tool().run_flow(
-                        *[table] * len(tool.inputs),
-                        config=config,
-                        task_runner=execution.task_runner(),
-                        autosave_dir=autosave_dir / name if len(tables) > 1 else autosave_dir,
-                        strict=strict,
-                        settings_record=settings_record,
-                        save_formats=formats,
-                    )
-                )
-            except WorkflowValidationError as err:
-                raise BatchError(f"{tool.name} on {name}:\n{err}") from None
-        return runs
+    configs, notes = {}, []
+    for name, table in tables.items():
+        inputs = [table] * len(tool.inputs)
+        try:
+            check_requirements(tool.name, config, inputs)
+        except ValueError as err:
+            raise BatchError(f"{tool.name} on {name}: {err}") from None
+        report = tool().resolve(config, inputs, strict)
+        if report.errors:
+            raise BatchError(f"{tool.name} on {name}:\n{WorkflowValidationError(report)}")
+        configs[name] = report.config
+        notes += [
+            f"{name}: {i.step + ': ' if i.step else ''}{i.field}: '{i.old}' ->"
+            f" '{i.suggestion}' (guessed)"
+            for i in report.guesses
+        ]
 
     def build() -> None:
-        if tool.inputs and tool.inputs[0].many:
-            for each in tool().map_configs(config):
-                tool()(dict(tables), config=each, task_tags=tool.name)
-            return
         for name, table in tables.items():
-            tags = [name] if len(tables) > 1 else []
-            for each in tool().map_configs(config):
-                tool()(table, config=each, task_tags=tags + [tool.name])
+            with tag_prefix(name):  # its results below a folder per table
+                tool().build(*[table] * len(tool.inputs), config=configs[name])
 
-    return [
-        run_flow(
-            tool.name,
-            build,
-            task_runner=execution.task_runner(),
-            autosave_dir=autosave_dir,
-            settings_record=settings_record,
-            save_formats=formats,
-        )
-    ]
+    return run_flow(
+        tool.name,
+        build,
+        task_runner=execution.task_runner(),
+        run_dir=run_dir,
+        notes=notes,
+        settings_record=settings_record,
+        save_formats=entry.output.formats if entry else [],
+    )
+
+
+def tool_workflow(tool: type["Tool"], settings: AppSettings) -> type["Tool"]:
+    """Return a tool as a workflow of one step, `1`, as `--run <tool>` runs it.
+
+    The step has the tool's settings from `settings` (else its defaults) and always
+    saves, in the tool's formats; its results go into the folder `01-<tool>`.
+
+    Args:
+        tool: The tool class.
+        settings: The session's settings.
+
+    Returns:
+        The workflow class.
+    """
+    from flim.core.workflowfile import WorkflowDefinition, workflow_class
+
+    entry = settings.tools.entry(tool)
+    config = settings.tools.config(tool).model_dump(mode="json", exclude={"classname", "version"})
+    formats = [f.model_dump(mode="json") for f in entry.output.formats] if entry else []
+    definition = WorkflowDefinition.model_validate({
+        "name": tool.name,
+        "steps": [{"id": "1", "tool": tool.name, "config": config,
+                   "output": {"save": True, "formats": formats}}],
+    })  # fmt: skip
+    return workflow_class(definition)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -492,17 +519,20 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         logger.info(f"Log file: {log_file}")
         strict = True if settings.strict is None else settings.strict
         failed = []
+        # one folder per call, named after its start; a folder per --run inside
+        call_dir = unique_run_folder(output, datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        logger.info(f"Results: {call_dir}")
         with use_prefect_server(start=settings.prefect_server, timeout=settings.server_timeout):
-            for tool, read in runs:
+            for number, (tool, read) in enumerate(runs, 1):
                 tables = _read(args.input, read_settings(read, args.exclude))
                 with checked_prefect_server():
-                    results = run_on_tables(
-                        tool, tables, settings, output, execution, strict, manager.record()
-                    )
-                for run in results:
-                    if run.failed or run.state != "completed":
-                        failed.append(f"{tool.name}: {', '.join(run.failed) or run.state}")
-                    logger.info(f"{tool.name}: {run.state}; results in {run.autosave_dir}")
+                    run = run_on_tables(
+                        tool, tables, settings, call_dir / f"run-{number}", execution, strict,
+                        manager.record(),
+                    )  # fmt: skip
+                if run.failed or run.state != "completed":
+                    failed.append(f"{tool.name}: {', '.join(run.failed) or run.state}")
+                logger.info(f"{tool.name}: {run.state}; results in {run.autosave_dir}")
     except (BatchError, RuntimeError, OSError, ValueError) as err:  # incl. FileNotFoundError
         print(f"flimbatch: {err}", file=sys.stderr)
         return 1

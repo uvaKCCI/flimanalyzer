@@ -38,7 +38,7 @@ from pathlib import Path
 import re
 import threading
 import uuid
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
 
 import networkx as nx
 from prefect import flow, tags, task, unmapped
@@ -83,6 +83,26 @@ __all__ = [
 ]
 
 _CURRENT_RUN = contextvars.ContextVar("flim_flow_run", default=None)
+# tags put in front of the task tags of every call made inside (`tag_prefix`), e.g.
+# the input a workflow defined in code runs on: they name the first results folders
+_TAG_PREFIX: contextvars.ContextVar = contextvars.ContextVar("flim_tag_prefix", default=())
+
+
+@contextlib.contextmanager
+def tag_prefix(*tags: str) -> Iterator[None]:
+    """Put tags in front of the task tags of the calls made inside the block.
+
+    Args:
+        *tags: The tags, e.g. the name of the input a workflow runs on.
+
+    Yields:
+        Nothing; the prefix is removed when the block ends.
+    """
+    token = _TAG_PREFIX.set(_TAG_PREFIX.get() + tuple(tags))
+    try:
+        yield
+    finally:
+        _TAG_PREFIX.reset(token)
 _MARKER = "__flim_task_output__"
 _AFTER = "__flim_after__"  # tasks a tool call waits for, see call_tool
 
@@ -694,6 +714,7 @@ class FlowRun:
         tool._cancel_token = self.cancel_token
 
         tag_list = [task_tags] if isinstance(task_tags, str) else list(task_tags or [])
+        tag_list = list(_TAG_PREFIX.get()) + tag_list
         label = self._unique_label(tool.name)
         node = self._add_node(label, getattr(tool, "graph_kind", "tool"), tool=tool)
         tool._notify_started = _StartNotifier(self, node)
@@ -1089,6 +1110,7 @@ def run_flow(
     notes: Sequence[str] = (),
     settings_record: Sequence[str] = (),
     save_formats: Sequence = (),
+    run_dir: Optional[str | os.PathLike] = None,
 ) -> FlowRun:
     """Run `build` as a Prefect flow; tool calls inside it become task runs.
 
@@ -1111,6 +1133,9 @@ def run_flow(
         save_formats: The formats the tasks save their results in
             (`AutosaveConfig.formats`); a kind not listed is saved in its default
             format.
+        run_dir: The run's folder, used as it is (e.g. `<output>/<date and
+            time>/run-1` of a flimbatch call); None: a folder per run below
+            `autosave_dir`.
 
     Returns:
         The recorded task graph and results; `state` is completed, cancelled or
@@ -1125,7 +1150,10 @@ def run_flow(
     run.notes = list(notes)
     run.settings_record = list(settings_record)
     run.save_formats = list(save_formats)
-    if autosave_dir:
+    if run_dir:
+        run.autosave_dir = Path(run_dir)
+        run.autosave_dir.mkdir(parents=True, exist_ok=True)
+    elif autosave_dir:
         run.autosave_dir = unique_run_folder(
             autosave_dir, run.start_time.strftime("%Y-%m-%d_%H-%M-%S")
         )

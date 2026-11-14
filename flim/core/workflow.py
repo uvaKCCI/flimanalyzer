@@ -80,6 +80,7 @@ class Workflow(Tool[ConfigT]):
         strict: Optional[bool] = None,
         settings_record: Sequence[str] = (),
         save_formats: Sequence[Any] = (),
+        run_dir: Optional[str | os.PathLike] = None,
     ) -> "FlowRun":
         """Run the workflow as a Prefect flow; see `flim.core.runner.run_flow`.
 
@@ -103,6 +104,8 @@ class Workflow(Tool[ConfigT]):
             settings_record: Lines for the run summary naming the settings files
                 used.
             save_formats: The formats all steps save their results in.
+            run_dir: The run's folder, used as it is; None: a folder per run below
+                `autosave_dir`.
 
         Returns:
             The run: its task graph, results and state.
@@ -136,6 +139,7 @@ class Workflow(Tool[ConfigT]):
             notes=notes,
             settings_record=settings_record,
             save_formats=save_formats,
+            run_dir=run_dir,
         )
 
     @classmethod

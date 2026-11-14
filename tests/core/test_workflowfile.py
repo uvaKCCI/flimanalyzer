@@ -521,8 +521,8 @@ def test_a_mappable_step_saves_each_part(prefect_harness, tmp_path):
     run = _run(definition, _two_feature_tables(), autosave_dir=tmp_path)
     assert run.state == "completed", run.failed
     assert _saved_files(run) == [
-        "a.txt/t1/Table_Summary_t1.txt", "a.txt/t2/Table_Summary_t2.txt",
-        "b.txt/t1/Table_Summary_t1.txt", "b.txt/t2/Table_Summary_t2.txt",
+        "01-Summarize/a.txt/t1/Table_Summary_t1.txt", "01-Summarize/a.txt/t2/Table_Summary_t2.txt",
+        "01-Summarize/b.txt/t1/Table_Summary_t1.txt", "01-Summarize/b.txt/t2/Table_Summary_t2.txt",
     ]  # fmt: skip
 
 
@@ -532,7 +532,7 @@ def test_one_feature_is_still_a_part(prefect_harness, tmp_path):
         {"id": "1", "tool": "Summarize", "config": config, "output": {"save": True}},
     ]}  # fmt: skip
     run = _run(definition, {"a.txt": _two_feature_tables()["a.txt"]}, autosave_dir=tmp_path)
-    assert _saved_files(run) == ["a.txt/t1/Table_Summary_t1.txt"]
+    assert _saved_files(run) == ["01-Summarize/a.txt/t1/Table_Summary_t1.txt"]
 
 
 def test_a_later_step_maps_over_the_parts(prefect_harness, tmp_path):
@@ -544,8 +544,8 @@ def test_a_later_step_maps_over_the_parts(prefect_harness, tmp_path):
     run = workflow.run_flow(_two_feature_tables(), autosave_dir=tmp_path)
     assert run.state == "completed", run.failed
     assert _saved_files(run) == [
-        "a.txt/t1/Table_Sorted.txt", "a.txt/t2/Table_Sorted.txt",
-        "b.txt/t1/Table_Sorted.txt", "b.txt/t2/Table_Sorted.txt",
+        "02-Sort/a.txt/t1/Table_Sorted.txt", "02-Sort/a.txt/t2/Table_Sorted.txt",
+        "02-Sort/b.txt/t1/Table_Sorted.txt", "02-Sort/b.txt/t2/Table_Sorted.txt",
     ]  # fmt: skip
     # the GUI gets the leaves by label
     assert sorted(workflow.leaves["2"]) == ["a.txt / t1", "a.txt / t2", "b.txt / t1", "b.txt / t2"]
@@ -558,7 +558,9 @@ def test_a_join_keeps_the_parts(prefect_harness, tmp_path):
     ]}  # fmt: skip
     run = _run(definition, _two_feature_tables(), autosave_dir=tmp_path)
     assert run.state == "completed", run.failed
-    assert _saved_files(run) == ["t1/Table_Concatenated.txt", "t2/Table_Concatenated.txt"]
+    assert _saved_files(run) == [
+        "02-Concatenate/t1/Table_Concatenated.txt", "02-Concatenate/t2/Table_Concatenated.txt"
+    ]
 
 
 def test_features_all_gives_a_part_per_feature_of_the_input(prefect_harness, tmp_path):
@@ -568,7 +570,9 @@ def test_features_all_gives_a_part_per_feature_of_the_input(prefect_harness, tmp
     ]}  # fmt: skip
     run = _run(definition, {"a.txt": _two_feature_tables()["a.txt"]}, autosave_dir=tmp_path)
     assert run.state == "completed", run.failed
-    assert _saved_files(run) == ["a.txt/t1/Table_Summary_t1.txt", "a.txt/t2/Table_Summary_t2.txt"]
+    assert _saved_files(run) == [
+        "01-Summarize/a.txt/t1/Table_Summary_t1.txt", "01-Summarize/a.txt/t2/Table_Summary_t2.txt"
+    ]
 
 
 def test_parts_of_two_steps_cant_be_combined(tmp_path):
@@ -591,3 +595,17 @@ def test_window_counts_count_the_parts():
     ]})  # fmt: skip
     schemas = {n: TableSchema.from_frame(t) for n, t in _two_feature_tables().items()}
     assert window_counts(definition, schemas) == {"table": 4}  # 2 inputs x 2 parts, 1 table each
+
+
+def test_step_folders_sort_by_id():
+    from flim.core.workflowfile import id_width, step_folder
+
+    definition = WorkflowDefinition.model_validate({"name": "w", "steps": [
+        {"id": str(i), "tool": "Sort"} for i in range(1, 12)
+    ] + [{"id": "123", "tool": "Order Category Values"}]})  # fmt: skip
+    width = id_width(definition)
+    assert width == 3
+    assert step_folder(definition.steps[0], width) == "001-Sort"
+    assert step_folder(definition.steps[-1], width) == "123-Order Category Values"
+    small = WorkflowDefinition.model_validate({"name": "w", "steps": [{"id": "1", "tool": "Sort"}]})
+    assert step_folder(small.steps[0], id_width(small)) == "01-Sort"
