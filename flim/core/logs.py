@@ -23,6 +23,9 @@ MAX_BYTES = 10 * 1024 * 1024  # size of a log file before it is rotated
 BACKUP_COUNT = 3  # older parts of a session's log kept: <name>.log.1, ... .3
 MAX_AGE_DAYS = 30  # GUI logs older than this are removed at startup
 FORMAT = "%(levelname)s \t %(asctime)-15s - %(name)s: %(message)s"
+# the terminal: the format of Prefect's console handler, which the GUI's terminal shows
+CONSOLE_FORMAT = "%(asctime)s.%(msecs)03d | %(levelname)-7s | %(name)s - %(message)s"
+CONSOLE_DATE_FORMAT = "%H:%M:%S"
 _NAME = re.compile(r"^(flimanalyzer|flimbatch)_\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d_\d+\.log(\.\d+)?$")
 
 
@@ -181,7 +184,10 @@ def session_logs(folder: str | os.PathLike) -> list[Path]:
 
 
 def console_handler(level: str) -> logging.Handler:
-    """Return a handler that writes records to standard error as `LEVEL message`.
+    """Return a handler that writes records to standard error, as the GUI's terminal.
+
+    The format is that of Prefect's console handler (`CONSOLE_FORMAT`), e.g.
+    `08:29:03.614 | INFO    | flim.batch - Read 8 file(s)`.
 
     Args:
         level: The log level, e.g. `INFO`.
@@ -191,5 +197,5 @@ def console_handler(level: str) -> logging.Handler:
     """
     handler = logging.StreamHandler()
     handler.setLevel(level)
-    handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+    handler.setFormatter(logging.Formatter(CONSOLE_FORMAT, CONSOLE_DATE_FORMAT))
     return handler

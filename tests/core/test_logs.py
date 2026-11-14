@@ -112,3 +112,11 @@ print("debug record written:", "a debug record" in path.read_text())
 """
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=120)
     assert "debug record written: True" in result.stdout, result.stderr[-2000:]
+
+
+def test_the_terminal_shows_the_time_as_the_gui_does():
+    record = logging.LogRecord("flim.batch", logging.INFO, __file__, 1, "Read 8 file(s)", None, None)
+    text = logs.console_handler("INFO").format(record)
+    time_, level, rest = text.split(" | ")
+    assert len(time_) == len("08:29:03.614") and time_[2] == ":" and time_[8] == "."
+    assert level == "INFO   " and rest == "flim.batch - Read 8 file(s)"
