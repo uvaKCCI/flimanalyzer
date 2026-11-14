@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from flim import __version__
 from flim.core.saving import Formats
 
 if TYPE_CHECKING:
@@ -293,8 +294,9 @@ def check_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) ->
         return check
     if version > WORKFLOW_SCHEMA_VERSION:
         check.errors.append(
-            f"{path.name}: workflow file version {version} is newer than this"
-            f" FLIMAnalyzer (version {WORKFLOW_SCHEMA_VERSION}): update FLIMAnalyzer"
+            f"{path.name}: workflow file schema version {version} is not supported by"
+            f" the installed FLIMAnalyzer {__version__} (up to schema version"
+            f" {WORKFLOW_SCHEMA_VERSION}). Upgrade FLIMAnalyzer."
         )
         return check
     try:

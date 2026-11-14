@@ -61,7 +61,7 @@ def test_check_sorts_the_keys(tmp_path):
         ("{not json", "Expecting property name"),
         ("[1, 2]", "not a settings file"),
         (json.dumps({"classname": "x"}), "not a settings file"),  # a config alone
-        (json.dumps({"schema_version": SETTINGS_VERSION + 1}), "newer than this"),
+        (json.dumps({"schema_version": SETTINGS_VERSION + 1}), "is not supported by the installed FLIMAnalyzer"),
     ],
 )
 def test_files_that_cannot_be_used(tmp_path, content, message):

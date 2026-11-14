@@ -70,7 +70,11 @@ def test_unreadable_and_newer_files(tmp_path):
     bad.write_text("{")
     assert "can't be read" in check_workflow_file(bad).errors[0]
     newer = write(tmp_path, {**GOOD, "schema_version": WORKFLOW_SCHEMA_VERSION + 1})
-    assert "update FLIMAnalyzer" in check_workflow_file(newer).errors[0]
+    error = check_workflow_file(newer).errors[0]
+    newest = WORKFLOW_SCHEMA_VERSION
+    assert (f"workflow file schema version {newest + 1} is not supported by the installed"
+            " FLIMAnalyzer") in error  # fmt: skip
+    assert error.endswith(f"(up to schema version {newest}). Upgrade FLIMAnalyzer.")
 
 
 def test_references():

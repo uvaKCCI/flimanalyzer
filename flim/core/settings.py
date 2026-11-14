@@ -47,6 +47,7 @@ from pydantic import (
     model_validator,
 )
 
+from flim import __version__
 from flim.core.config import TaskConfig
 from flim.core.saving import AutosaveConfig, Formats
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
@@ -809,8 +810,9 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
     version = version_of(data)
     if version > SETTINGS_VERSION:
         raise ValueError(
-            f"Settings of version {version} are newer than this FLIMAnalyzer"
-            f" (version {SETTINGS_VERSION}): update FLIMAnalyzer"
+            f"settings file schema version {version} is not supported by the installed"
+            f" FLIMAnalyzer {__version__} (up to schema version {SETTINGS_VERSION})."
+            " Upgrade FLIMAnalyzer."
         )
     while version < SETTINGS_VERSION:
         data = MIGRATIONS[version](data, changes=changes)

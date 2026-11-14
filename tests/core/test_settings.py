@@ -100,7 +100,7 @@ def test_unknown_keys_are_reported_not_fatal(caplog):
 
 
 def test_newer_versions_are_refused():
-    with pytest.raises(ValueError, match="newer than this FLIMAnalyzer"):
+    with pytest.raises(ValueError, match="is not supported by the installed FLIMAnalyzer .* Upgrade FLIMAnalyzer"):
         migrate({"schema_version": SETTINGS_VERSION + 1})
 
 
