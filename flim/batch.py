@@ -438,7 +438,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         parser.error(str(err))
     args.dry_run = dry_run is not None
     args.save_all = save_all  # what turned it on, or None
-    if not args.output and not args.dry_run:
+    if not args.output:  # also for a dry run: it checks the folder, and logs there
         parser.error("the following arguments are required: -o/--output")
     # the console as before; the log file opens once the output folder is known
     memory = logs.begin(level)
@@ -549,7 +549,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
                 for message in save_issues(definition)[0] if definition is not None else []:
                     _warn(message)
         if args.dry_run:
-            return _dry_run(runs, args, settings)
+            return _dry_run(runs, args, settings, memory)
         execution = ExecutionOptions(
             execution=settings.execution, server_timeout=settings.server_timeout
         )
@@ -719,9 +719,66 @@ def _dry_run(
     runs: Sequence[tuple[type["Tool"], ReadSettings]],
     args: argparse.Namespace,
     settings: AppSettings,
+    memory: Optional["logging.Handler"] = None,
 ) -> int:
-    """Check every run against the first rows of the files; report; run nothing."""
+    """Check the environment and every run against the first rows of the files; run nothing.
+
+    The environment: the output folder (reachable and writable; the dry run's log is
+    written there, or into the log folder setting), the executor (its packages, and a
+    Dask cluster answering within `server_timeout`) and the Prefect server (see
+    `flim.core.prefect_server.server_status`). Each check that waits logs what it
+    checks first.
+
+    Args:
+        runs: The tools and workflows of `--run`, and how their files are read.
+        args: The parsed arguments.
+        settings: The session's settings.
+        memory: The handler that keeps the log records until the log file opens; None
+            for no log file.
+
+    Returns:
+        0 if no check found a problem, else 1.
+    """
+    from flim.core.prefect_server import server_status
+
     errors = 0
+
+    def report(what: str, problem: Optional[str], found: str = "OK") -> None:
+        nonlocal errors
+        if problem:
+            errors += 1
+            print(f"{what}: {problem}", file=sys.stderr)
+        else:
+            print(f"{what}: {found}")
+
+    output = canonical_folder(args.output)
+    problem = folder_problem(output)
+    report(f"Output folder {output}", problem)
+    if memory is not None and (settings.log.dir or not problem):
+        if not settings.log.dir:
+            os.makedirs(output, exist_ok=True)
+        folder = settings.log.dir.expanduser() if settings.log.dir else output
+        log_file, notice = logs.open_log_file("flimbatch", folder, memory)
+        if notice:
+            _warn(notice)
+        logger.info(f"Log file: {log_file}")
+    execution = ExecutionOptions(execution=settings.execution, server_timeout=settings.server_timeout)
+    name = settings.execution.executor
+    try:
+        execution.check_available()
+        if name == "dask":
+            logger.info(
+                f"Checking the Dask cluster at {settings.execution.address}"
+                f" (timeout {settings.server_timeout:g} s)"
+            )
+        problem = execution.check_cluster()
+    except RuntimeError as err:
+        problem = str(err)
+    report(f"Executor {name}", problem)
+    if settings.prefect_server:
+        logger.info(f"Checking the Prefect server (timeout {settings.server_timeout:g} s)")
+    ok, found = server_status(start=settings.prefect_server, timeout=settings.server_timeout)
+    report("Prefect server", None if ok else found, found)
     for tool, read in runs:
         tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
         problems = check_run(tool, tables, settings, save_all=bool(args.save_all))
@@ -733,7 +790,6 @@ def _dry_run(
         else:
             print(f"{tool.name}: OK ({len(tables)} file(s))")
     return 1 if errors else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

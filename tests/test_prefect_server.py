@@ -270,3 +270,14 @@ def test_checked_server_searches_as_at_the_start(monkeypatch):
     ):
         pass
     assert seen == [None, None]
+
+
+def test_server_status_without_a_server(monkeypatch):
+    from prefect.settings import PREFECT_API_URL, temporary_settings
+
+    monkeypatch.setattr(ps, "_is_healthy", lambda url, timeout=2.0: False)
+    with temporary_settings(restore_defaults={PREFECT_API_URL}):
+        assert ps.server_status(start=True, timeout=1) == (
+            True, "none running: a local server will be started for the runs"
+        )
+        assert ps.server_status(start=False, timeout=1)[1].startswith("temporary servers")

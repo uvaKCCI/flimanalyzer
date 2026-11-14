@@ -161,6 +161,25 @@ class ExecutionOptions(BaseConfig):
                 " uv sync --extra dask (or pip install flimanalyzer[dask])"
             )
 
+    def check_cluster(self) -> Optional[str]:
+        """Check that the Dask cluster of the `dask` executor answers, within the timeout.
+
+        Connects to the cluster's address, waiting at most `server_timeout` seconds,
+        and disconnects. Other executors have no cluster to check.
+
+        Returns:
+            None if the cluster answers (or there is none), else the problem.
+        """
+        if not isinstance(self.execution, DaskClusterExecutorSettings):
+            return None
+        try:
+            from distributed import Client
+
+            with Client(self.execution.address, timeout=self.server_timeout):
+                return None
+        except Exception as err:  # e.g. OSError: timed out connecting
+            return f"the Dask cluster at {self.execution.address} doesn't answer ({err})"
+
     def task_runner(self) -> "TaskRunner":
         """Create the Prefect task runner of the executor.
 

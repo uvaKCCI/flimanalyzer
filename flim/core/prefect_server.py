@@ -52,6 +52,39 @@ def _configured_server_error() -> Exception | None:
         return err
 
 
+def server_status(start: bool = True, timeout: float = 60.0) -> tuple[bool, str]:
+    """Check, without starting one, the Prefect server a run would use.
+
+    As `ensure_prefect_server` looks for it: the server of the active Prefect settings
+    (environment or profile), else a local server at the default address.
+
+    Args:
+        start: Whether a run would start a local server if none is running.
+        timeout: Seconds to wait for a local server's answer.
+
+    Returns:
+        Whether a run can go ahead, and what was found.
+    """
+    from prefect.settings import PREFECT_API_URL
+
+    configured = PREFECT_API_URL.value()
+    if configured:
+        error = _configured_server_error()
+        if error is None:
+            return True, f"the configured server at {configured} answers"
+        if not start:
+            return True, (
+                f"the configured server at {configured} doesn't answer ({error});"
+                " temporary servers for each run"
+            )
+    api_url = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/api"
+    if _is_healthy(api_url, timeout=timeout):
+        return True, f"a local server answers at {api_url}"
+    if start:
+        return True, "none running: a local server will be started for the runs"
+    return True, "temporary servers for each run (--no-prefect-server)"
+
+
 def _prefect_cli() -> list[str]:
     """Return the command that runs the Prefect CLI of the current environment."""
     exe = Path(sys.executable).parent / ("prefect.exe" if os.name == "nt" else "prefect")

@@ -1,6 +1,7 @@
 """Batch mode (flim.batch): read files and run tools or workflows without the GUI."""
 
 import logging
+import tempfile
 
 import numpy as np
 import pandas as pd
@@ -65,6 +66,10 @@ def data_dir(tmp_path):
 @pytest.fixture
 def settings():
     return AppSettings.default()
+
+
+# a dry run needs -o too: it checks the folder and writes its log there
+DRY_RUN = ["--dry-run", "-o", tempfile.mkdtemp(prefix="flimbatch-dry-run-")]
 
 
 def run_dir(out, number=1):
@@ -177,7 +182,7 @@ def test_files_are_read_with_open_tables_settings(data_dir, settings, tmp_path, 
 
     settings.tools.set(TableReader, TableReaderConfig(exclude=["Results_FOV1_WT_1.txt"]))
     path = _settings_file(settings, tmp_path)
-    assert main(["-i", str(data_dir), "--dry-run", "-s", str(path), "--run", "Import"]) == 0
+    assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "--run", "Import"]) == 0
     assert "Import: OK (7 file(s))" in capsys.readouterr().out  # one file left out
 
 
@@ -213,14 +218,14 @@ def workflow_folder(tmp_path, monkeypatch):
 
 def test_run_takes_a_workflow_file_by_path_or_by_file_name(data_dir, workflow_folder, capsys):
     path = workflow_folder / "per-treatment.json"
-    assert main(["-i", str(data_dir), "--dry-run", "--run", str(path)]) == 0
-    assert main(["-i", str(data_dir), "--dry-run", "-w", str(workflow_folder),
+    assert main(["-i", str(data_dir), *DRY_RUN, "--run", str(path)]) == 0
+    assert main(["-i", str(data_dir), *DRY_RUN, "-w", str(workflow_folder),
                  "--run", "per-treatment.json"]) == 0  # fmt: skip
     assert capsys.readouterr().out.count("per treatment: OK") == 2
 
 
 def test_a_name_without_json_is_a_registered_name(data_dir, workflow_folder, capsys):
-    code = main(["-i", str(data_dir), "--dry-run", "-w", str(workflow_folder),
+    code = main(["-i", str(data_dir), *DRY_RUN, "-w", str(workflow_folder),
                  "--run", "per-treatment"])  # fmt: skip
     assert code == 1
     assert "No tool or workflow named 'per-treatment'" in capsys.readouterr().err
@@ -231,7 +236,7 @@ def test_a_settings_file_doesnt_set_the_workflow_folders(
 ):
     settings.workflow_paths = [workflow_folder]
     path = _settings_file(settings, tmp_path)
-    code = main(["-i", str(data_dir), "--dry-run", "-s", str(path),
+    code = main(["-i", str(data_dir), *DRY_RUN, "-s", str(path),
                  "--run", "per-treatment.json"])  # fmt: skip
     err = capsys.readouterr().err
     assert code == 1 and "No workflow file 'per-treatment.json'" in err
@@ -284,7 +289,7 @@ def test_run_takes_a_tool_file_as_a_workflow_of_one_step(
 
 
 def test_runs_run_in_the_order_given(data_dir, workflow_folder, capsys):
-    code = main(["-i", str(data_dir), "--dry-run", "-w", str(workflow_folder),
+    code = main(["-i", str(data_dir), *DRY_RUN, "-w", str(workflow_folder),
                  "--run", "Import", "--run", "per-treatment.json"])  # fmt: skip
     out = capsys.readouterr().out
     assert code == 0 and out.index("Import: OK") < out.index("per treatment: OK")
@@ -293,7 +298,7 @@ def test_runs_run_in_the_order_given(data_dir, workflow_folder, capsys):
 @pytest.mark.parametrize("value, source", [("true", "FLIM_DRY_RUN"), (None, "--dry-run")])
 def test_a_dry_run_says_so_first_and_last(data_dir, monkeypatch, capsys, value, source):
     monkeypatch.delenv("FLIM_DRY_RUN", raising=False)
-    argv = ["-i", str(data_dir), "--run", "Import"]
+    argv = ["-i", str(data_dir), "--run", "Import", "-o", DRY_RUN[2]]
     if value is None:
         argv.append("--dry-run")
     else:
@@ -340,7 +345,7 @@ def test_inputs_with_the_same_folder_name_stop_the_run(tmp_path, capsys):
     table = pd.DataFrame({"FLIRR": [1.0, 2.0]})
     for name in ("a b.txt", "a_b.txt"):
         table.to_csv(folder / name, sep="\t", index=False)
-    code = main(["-i", str(folder), "--dry-run", "--run", "Sort"])
+    code = main(["-i", str(folder), *DRY_RUN, "--run", "Sort"])
     assert code == 1
     assert "the inputs 'a b.txt' and 'a_b.txt' get the same folder name" in capsys.readouterr().err
 
@@ -397,7 +402,7 @@ UNSAVED = {
 def test_a_workflow_that_saves_nothing_is_refused_and_a_leaf_warned(data_dir, tmp_path, capsys):
     path = tmp_path / "unsaved.json"
     path.write_text(json.dumps(UNSAVED))
-    assert main(["-i", str(data_dir), "--dry-run", "--run", str(path)]) == 1
+    assert main(["-i", str(data_dir), *DRY_RUN, "--run", str(path)]) == 1
     captured = capsys.readouterr()
     assert ("flimbatch: warning: step 2, tool 'Sort': output.save=false and no later step"
             " uses its outputs: its results are not kept") in captured.err  # fmt: skip
@@ -440,19 +445,55 @@ def test_with_a_log_folder_the_log_is_named_after_the_call(data_dir, settings, t
     assert not (run_dir(out).parent / "flimbatch.log").exists()
 
 
+def test_a_dry_run_needs_an_output_folder(data_dir, capsys):
+    with pytest.raises(SystemExit):
+        main(["-i", str(data_dir), "--dry-run", "--run", "Import"])
+    assert "required: -o/--output" in capsys.readouterr().err
+
+
+def test_a_dry_run_checks_the_environment_and_logs_into_the_output_folder(
+    data_dir, tmp_path, monkeypatch, capsys
+):
+    monkeypatch.delenv("FLIM_LOG_DIR", raising=False)
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "--dry-run", "-o", str(out), "--run", "Import",
+                 "--no-prefect-server"])  # fmt: skip
+    assert code == 0
+    from flim.core.paths import canonical_folder
+
+    report = capsys.readouterr().out
+    assert f"Output folder {canonical_folder(out)}: OK" in report
+    assert "Executor local: OK" in report
+    # the test harness configures a server; --no-prefect-server only prevents starting one
+    assert "Prefect server: the configured server at http" in report
+    (log,) = out.glob("flimbatch_*.log")  # no call folder: the log in -o
+    assert "Read 8 file(s)" in log.read_text()
+    assert [p for p in out.iterdir() if p.is_dir()] == []  # nothing else written
+
+
+def test_a_dry_run_reports_a_dask_cluster_that_doesnt_answer(data_dir, tmp_path, capsys):
+    pytest.importorskip("distributed")
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "--dry-run", "-o", str(out), "--run", "Import",
+                 "-e", "dask:address=tcp://127.0.0.1:9", "--server-timeout", "1",
+                 "--no-prefect-server"])  # fmt: skip
+    assert code == 1
+    assert "Executor dask: the Dask cluster at tcp://127.0.0.1:9 doesn't answer" in capsys.readouterr().err
+
+
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):
     first, second, third = sorted(data_dir.glob("*.txt"))[:3]
     code = main(["-i", str(first), "-i", str(second), str(third),
-                 "-x", first.name, "-x", second.name, "--dry-run", "--run", "Import"])  # fmt: skip
+                 "-x", first.name, "-x", second.name, *DRY_RUN, "--run", "Import"])  # fmt: skip
     assert code == 0 and "Import: OK (1 file(s))" in capsys.readouterr().out
 
 
 def test_dry_run_checks_and_runs_nothing(data_dir, settings, tmp_path, capsys):
     settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["gone"], aggs=["mean"]))
     path = _settings_file(settings, tmp_path)
-    assert main(["-i", str(data_dir), "--dry-run", "--run", "Import"]) == 0
+    assert main(["-i", str(data_dir), *DRY_RUN, "--run", "Import"]) == 0
     assert "Import: OK (8 file(s))" in capsys.readouterr().out
-    assert main(["-i", str(data_dir), "--dry-run", "-s", str(path), "--run", "Summarize"]) == 1
+    assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "--run", "Summarize"]) == 1
     assert "'gone'" in capsys.readouterr().err
     assert not list(tmp_path.glob("Summarize*"))
 
@@ -538,5 +579,5 @@ def test_old_import_settings_are_not_used_and_said_so(data_dir, tmp_path, capsys
     v1 = Path(__file__).parent / "data" / "settings_v1.json"
     path = tmp_path / "old.json"
     path.write_text(v1.read_text())
-    main(["-i", str(data_dir), "--dry-run", "-s", str(path), "--run", "Import"])
+    main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "--run", "Import"])
     assert "import settings (FLIMAnalyzer 0.6) are not used" in capsys.readouterr().err
