@@ -16,7 +16,7 @@ from flim.configs.analysis import (
     SummaryConfig,
 )
 from flim.core import headers
-from flim.core.config import Issue
+from flim.core.config import Issue, part_feature
 from flim.core.registry import register_tool
 from flim.core.tool import Tool
 from flim.core.types import OutputSpec, TableType
@@ -136,6 +136,16 @@ class Summarize(Tool[SummaryConfig]):
         if config.single_table or config.features == "all":
             return [config]
         return [config.model_copy(update={"features": [f]}) for f in config.features]
+
+    @classmethod
+    def mappable_output(cls, config: SummaryConfig) -> bool:
+        """Return True without `single_table`: one part (table) per feature."""
+        return not config.single_table
+
+    @classmethod
+    def output_prefix(cls, config: SummaryConfig) -> str:
+        """Return the feature of a config of `map_configs`; empty if not one."""
+        return part_feature(config)
 
     @classmethod
     def output_schema(
@@ -267,6 +277,16 @@ class KSStats(Tool[KSStatsConfig]):
         if config.features == "all":
             return [config]
         return [config.model_copy(update={"features": [f]}) for f in config.features]
+
+    @classmethod
+    def mappable_output(cls, config: KSStatsConfig) -> bool:
+        """Return True: one part (table) per feature."""
+        return True
+
+    @classmethod
+    def output_prefix(cls, config: KSStatsConfig) -> str:
+        """Return the feature of a config of `map_configs`; empty if not one."""
+        return part_feature(config)
 
     @classmethod
     def validate(cls, config: KSStatsConfig, inputs: Sequence[Any]) -> list[Issue]:

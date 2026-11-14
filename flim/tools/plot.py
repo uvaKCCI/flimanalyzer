@@ -40,7 +40,7 @@ from flim.configs.plot import (
     SwarmPlotConfig,
     ViolinPlotConfig,
 )
-from flim.core.config import Issue
+from flim.core.config import Issue, part_feature
 from flim.core.registry import register_tool
 from flim.core.schema import TableSchema
 from flim.core.tool import Tool
@@ -385,6 +385,16 @@ class _Plot:
         if getattr(config, "single_figure", False):
             return [config]
         return per_feature(config)
+
+    @classmethod
+    def mappable_output(cls, config: PlotConfigT) -> bool:
+        """Return True without `single_figure`: one part (figure) per feature."""
+        return not getattr(config, "single_figure", False)
+
+    @classmethod
+    def output_prefix(cls, config: PlotConfigT) -> str:
+        """Return the feature of a config of `map_configs`; empty if not one."""
+        return part_feature(config)
 
 
 def tile_columns(n: int, per_row: int = 0) -> int:
@@ -1119,6 +1129,11 @@ class BarPlot(_Plot, Tool[BarPlotConfig]):
             return [config]
         return per_feature(config)
 
+    @classmethod
+    def mappable_output(cls, config: BarPlotConfig) -> bool:
+        """Return True for single bars without `single_figure`: one part per feature."""
+        return config.bar_type == "single" and not config.single_figure
+
 
 def ci_to_errorbar(
     ci: Union[int, str, None],
@@ -1689,6 +1704,11 @@ class Heatmap(_Plot, Tool[HeatmapConfig]):
         """Return the config unsplit: all features are in one heatmap."""
         return [config]
 
+    @classmethod
+    def mappable_output(cls, config: HeatmapConfig) -> bool:
+        """Return False: always one figure."""
+        return False
+
 
 def _sampled(func: Callable[..., Any], keep: np.ndarray) -> Callable[..., Any]:
     """Wrap a seaborn plot function to draw only the rows where `keep` is True.
@@ -1810,6 +1830,11 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
     def map_configs(self, config: PairPlotConfig) -> list[PairPlotConfig]:
         """Return the config unsplit: all features are in one grid."""
         return [config]
+
+    @classmethod
+    def mappable_output(cls, config: PairPlotConfig) -> bool:
+        """Return False: always one figure."""
+        return False
 
     @classmethod
     def validate(cls, config: PairPlotConfig, inputs: Sequence[Any]) -> list[Issue]:
@@ -1988,6 +2013,17 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
             for pair in itertools.combinations(config.features, 2)
         ]
 
+    @classmethod
+    def mappable_output(cls, config: ScatterPlotConfig) -> bool:
+        """Return True without `single_figure`: one part (figure) per pair of features."""
+        return not config.single_figure
+
+    @classmethod
+    def output_prefix(cls, config: ScatterPlotConfig) -> str:
+        """Return the pair of a config of `map_configs`, `<x> vs <y>`; else empty."""
+        features = config.features
+        return " vs ".join(features) if isinstance(features, list) and len(features) == 2 else ""
+
 
 def flirr_columns(
     columns: Iterable[str],
@@ -2148,6 +2184,11 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
     def map_configs(self, config: FLIRRPlotConfig) -> list[FLIRRPlotConfig]:
         """Return the config unsplit: the plot has all its columns in one figure."""
         return [config]
+
+    @classmethod
+    def mappable_output(cls, config: FLIRRPlotConfig) -> bool:
+        """Return False: always one figure."""
+        return False
 
     @classmethod
     def validate(cls, config: FLIRRPlotConfig, inputs: Sequence[Any]) -> list[Issue]:

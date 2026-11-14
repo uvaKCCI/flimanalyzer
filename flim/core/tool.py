@@ -245,6 +245,38 @@ class Tool(Generic[ConfigT]):
         """
         return [config]
 
+    @classmethod
+    def mappable_output(cls, config: ConfigT) -> bool:
+        """Return whether the tool's output is a list of parts with this config.
+
+        True in the tool's per-part mode, the mode in which `map_configs` splits
+        (e.g. Summarize without `single_table`), whatever the number of parts: one
+        feature still gives a list of one part. Each part is a call with one
+        config of `map_configs`; later steps of a workflow map over the parts.
+
+        Args:
+            config: The config.
+
+        Returns:
+            False by default.
+        """
+        return False
+
+    @classmethod
+    def output_prefix(cls, config: ConfigT) -> str:
+        """Return the name of the part a config of `map_configs` makes.
+
+        A name only (e.g. the feature); the runner decides where it is used, e.g.
+        for the part's folder.
+
+        Args:
+            config: One config of `map_configs`.
+
+        Returns:
+            The part's name; empty by default.
+        """
+        return ""
+
     # --- calling ---
 
     def __call__(

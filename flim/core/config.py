@@ -437,3 +437,18 @@ def column_references(
             for k, v in value.items():
                 if isinstance(v, BaseModel):
                     yield from column_references(v, f"{field_path}[{k!r}].")
+
+
+def part_feature(config: Any) -> str:
+    """Return the one feature of a part's config (`features` a list or dict of one).
+
+    Args:
+        config: A config of `map_configs`.
+
+    Returns:
+        The feature; empty if the config has not exactly one (e.g. `all`).
+    """
+    features = getattr(config, "features", None)
+    if isinstance(features, (list, dict)) and len(features) == 1:
+        return str(next(iter(features)))
+    return ""

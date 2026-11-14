@@ -196,6 +196,21 @@ class AETraining(Tool[AETrainConfig]):
             for b, lr, wd in combinations(config)
         ]
 
+    @classmethod
+    def mappable_output(cls, config: AETrainConfig) -> bool:
+        """Return True: one part per combination of settings (one model each)."""
+        return True
+
+    @classmethod
+    def output_prefix(cls, config: AETrainConfig) -> str:
+        """Return a part's combination, `<batch size>-<learning rate>-<weight decay>`.
+
+        As in its results' names (e.g. `AE Loss-32-0.001-0`); empty for a config
+        with several combinations.
+        """
+        found = combinations(config)
+        return "-".join(str(v) for v in found[0]) if len(found) == 1 else ""
+
     def _datasets(
         self, data: pd.DataFrame, config: AETrainConfig, batch_size: int
     ) -> tuple[
@@ -596,6 +611,17 @@ class _ModelTool:
         return [
             config.model_copy(update={"model_files": [f]}) for f in config.model_files
         ]
+
+    @classmethod
+    def mappable_output(cls, config: Union[AERunConfig, AEAugmentConfig]) -> bool:
+        """Return True: one part per model file."""
+        return True
+
+    @classmethod
+    def output_prefix(cls, config: Union[AERunConfig, AEAugmentConfig]) -> str:
+        """Return a part's model file name without its extension; else empty."""
+        files = config.model_files
+        return Path(files[0]).stem if len(files) == 1 else ""
 
     @classmethod
     def validate(
