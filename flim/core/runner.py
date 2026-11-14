@@ -671,13 +671,14 @@ class FlowRun:
 
         autosave = None
         save = getattr(tool, "_save", None)  # a workflow file's step: True, False, [n]
+        formats = getattr(tool, "_formats", None)  # a workflow file's step: its own
         if self.autosave_dir and save is not False:
             autosave = {
                 "directory": self.autosave_dir.joinpath(
                     *[clean_path_component(t) for t in tag_list]
                 ),
                 "name": label,
-                "formats": self.save_formats,
+                "formats": self.save_formats if formats is None else formats,
             }
             if isinstance(save, (list, tuple)):
                 autosave["only"] = list(save)

@@ -41,8 +41,8 @@ def test_set_tool_writes_only_that_tool(tmp_path):
     assert data["schema_version"] == SETTINGS_VERSION
     assert set(data) == {"schema_version", "tools"}
     assert set(data["tools"]) == {"K-Means"}
-    assert data["tools"]["K-Means"]["autosave"] == {
-        "enabled": True, "results_dir": "/results", "formats": []
+    assert data["tools"]["K-Means"]["output"] == {
+        "save": True, "results_dir": "/results", "formats": []
     }
 
 

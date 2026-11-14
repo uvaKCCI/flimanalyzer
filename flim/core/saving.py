@@ -10,14 +10,14 @@ import logging
 import os
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, Optional
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Literal, Optional
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     SerializeAsAny,
-    field_validator,
     model_validator,
 )
 
@@ -97,6 +97,38 @@ def _options(value: Any) -> SaveOptions:
     return classes[value["kind"]].model_validate(value)
 
 
+def unique_formats(value: Any) -> list[SaveOptions]:
+    """Validate the entries of a `formats` list by their kind and drop duplicates.
+
+    Args:
+        value: The list, of dicts (with `kind`) or `SaveOptions`.
+
+    Returns:
+        The save options, each kind and format once.
+
+    Raises:
+        ValueError: If `value` is not a list, an entry has no or an unknown kind, or
+            the same kind and format is listed twice with different options.
+    """
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("formats must be a list")
+    unique: dict[tuple[str, str], SaveOptions] = {}
+    for options in (_options(v) for v in value):
+        key = (options.kind, options.format)
+        if key in unique and unique[key] != options:
+            raise ValueError(
+                f"{options.kind} as {options.format} is listed twice with different"
+                " options"
+            )
+        unique[key] = options
+    return list(unique.values())
+
+
+# the formats of saved results, per kind of output (tool sections, workflow files,
+# autosave); a kind not listed is saved in its default format
+Formats = Annotated[list[SerializeAsAny[SaveOptions]], BeforeValidator(unique_formats)]
+
+
 class AutosaveConfig(BaseModel):
     """Whether and where a run saves its results, and in which formats.
 
@@ -113,24 +145,7 @@ class AutosaveConfig(BaseModel):
 
     enabled: bool = False
     results_dir: Optional[Path] = None
-    formats: list[SerializeAsAny[SaveOptions]] = []
-
-    @field_validator("formats", mode="before")
-    @classmethod
-    def _each_by_kind(cls, value: Any) -> list[SaveOptions]:
-        """Validate each entry by its kind and drop duplicates."""
-        if not isinstance(value, (list, tuple)):
-            raise ValueError("formats must be a list")
-        unique: dict[tuple[str, str], SaveOptions] = {}
-        for options in (_options(v) for v in value):
-            key = (options.kind, options.format)
-            if key in unique and unique[key] != options:
-                raise ValueError(
-                    f"{options.kind} as {options.format} is listed twice with different"
-                    " options"
-                )
-            unique[key] = options
-        return list(unique.values())
+    formats: Formats = []
 
     def formats_for(self, kind: str) -> list[SaveOptions]:
         """Return the formats a value of a kind is saved in.

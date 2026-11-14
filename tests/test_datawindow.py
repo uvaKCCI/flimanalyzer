@@ -481,8 +481,9 @@ def test_filter_presets_defaults_saved_and_files(wxapp, monkeypatch, tmp_path, f
             dlg.categories = {"Treatment": ["WT"]}
             dlg._on_save_preset(None)
             written = json.loads((tmp_path / "filters.json").read_text())
-            config = written["tools"]["Filter"]["config"]
-            assert written["schema_version"] == 2 and config["enabled"] is True
+            config = written["config"]  # a new file: a tool file
+            assert written["schema_version"] == 2 and written["tool"] == "Filter"
+            assert config["enabled"] is True
             assert {"enabled": True, "kind": "category", "column": "Treatment", "keep": ["WT"]} in config["filters"]
             assert {"enabled": True, "kind": "range", "column": column, "low": 60.0, "high": 75.0,
                     "dropna": True} in config["filters"]
@@ -860,7 +861,7 @@ def test_workflow_file_from_its_menu_saves_where_the_dialog_says(frame, monkeypa
     from flim.gui import configdialog
 
     definition = WorkflowDefinition(name="summary", steps=[{
-        "id": "1", "tool": "Summarize", "save": True,
+        "id": "1", "tool": "Summarize", "output": {"save": True},
         "config": {"features": [FEATURE], "aggs": ["mean"]},
     }])  # fmt: skip
     tool = workflow_class(definition)

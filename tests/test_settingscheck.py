@@ -204,7 +204,7 @@ def test_tool_save_to_another_file(dialog, tmp_path, answers):
     queue += [settingscheck.SAVE_OTHER, str(other)]
     assert dialog("Summarize").save_settings(str(path))
     assert json.loads(path.read_text()) == OLD
-    assert "Summarize" in json.loads(other.read_text())["tools"]
+    assert json.loads(other.read_text())["tool"] == "Summarize"  # a new file: a tool file
 
 
 def test_tool_save_to_a_current_file_does_not_ask(dialog, tmp_path, answers):

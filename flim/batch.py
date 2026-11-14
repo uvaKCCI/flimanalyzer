@@ -26,7 +26,7 @@ import logging
 import os
 from pathlib import Path
 import sys
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import canonical_folder, folder_problem
@@ -61,17 +61,24 @@ class BatchError(Exception):
     """A batch step that cannot be done, with the reason for the user."""
 
 
-def resolve_run(name: str, search_path: Sequence[str | os.PathLike] = ()) -> type["Tool"]:
+def resolve_run(
+    name: str,
+    search_path: Sequence[str | os.PathLike] = (),
+    warn: Callable[[str], None] = logger.warning,
+) -> type["Tool"]:
     """Return the tool or workflow class of a `--run` argument.
 
     An argument that contains a folder separator or ends with `.json` is a workflow
-    file: a path, or a file name in the search path. Any other argument is a
+    file, or a tool file (run as a workflow of one step): a path, or a file name in
+    the search path. Any other argument is a
     registered name: a tool, a workflow defined in code, or a workflow file by the
     `name` in it.
 
     Args:
         name: The argument of `--run`.
         search_path: The folders searched for workflow files.
+        warn: Called with each warning of the file's check, e.g. a tool file with
+            `save: false`. Defaults to logging it.
 
     Returns:
         The class; for a workflow file, a workflow class that runs its steps.
@@ -98,9 +105,11 @@ def resolve_run(name: str, search_path: Sequence[str | os.PathLike] = ()) -> typ
         path = find_workflow_file(name, search_path)
     except FileNotFoundError as err:
         raise BatchError(str(err)) from None
-    check = check_workflow_file(path)
+    check = check_workflow_file(path, tool_files=True)  # a tool file: one step
     if check.errors:
         raise BatchError(f"{path}:\n" + "\n".join(check.errors))
+    for message in check.warnings:
+        warn(message)
     return workflow_class(check.definition, path)
 
 
@@ -245,12 +254,12 @@ def run_on_tables(
                 task_runner=execution.task_runner(),
                 autosave_dir=autosave_dir,  # the steps' `save` decides what is written
                 settings_record=settings_record,
-                save_formats=definition.autosave.formats,
+                save_formats=definition.output.formats,
             )
         ]
     config = settings.tools.config(tool)
     entry = settings.tools.entry(tool)
-    formats = entry.autosave.formats if entry else []  # the tool's save formats
+    formats = entry.output.formats if entry else []  # the tool's save formats
     if issubclass(tool, Workflow):
         runs = []
         for name, table in tables.items():
@@ -372,6 +381,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return _session(args, memory)
     finally:
         if dry_run:
+            sys.stdout.flush()  # the report first: this is the last line
             print(f"flimbatch: dry run (set by {dry_run}): nothing was run", file=sys.stderr)
 
 
@@ -441,7 +451,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         search_path = workflow_path(folders=args.workflow_path)
         for message in register_workflow_files(search_path):
             print(f"flimbatch: warning: {message}", file=sys.stderr)
-        runs = [resolve_run(n, search_path) for n in args.run]
+        runs = [resolve_run(n, search_path, warn=_warn) for n in args.run]
         runs = [file_run(tool, settings) for tool in runs]
         if args.dry_run:
             return _dry_run(runs, args, settings)
@@ -479,6 +489,11 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         print("flimbatch: failed tasks\n" + "\n".join(failed), file=sys.stderr)
         return 1
     return 0
+
+
+def _warn(message: str) -> None:
+    """Print a warning to standard error, as `flimbatch: warning: <message>`."""
+    print(f"flimbatch: warning: {message}", file=sys.stderr)
 
 
 def _read(

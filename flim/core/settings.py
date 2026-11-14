@@ -12,13 +12,17 @@ A settings file has a section per settings area, and one per tool::
      "results_dir": null, "execution": {"executor": "local", ...},
      "prefect_server": true, "log": {...}, "cache": {...},
      "import": {...}, "filters": {...},
-     "tools": {"Summarize": {"config": {...}, "autosave": {...}}, ...}}
+     "tools": {"Summarize": {"config": {...}, "output": {"save": true,
+                             "results_dir": null, "formats": [...]}}, ...}}
 
-A file may have only some of the sections (e.g. only one tool's, saved from its
-dialog): loading it changes only those (`update_settings`).
+A file may have only some of the sections: loading it changes only those
+(`update_settings`). A tool file, which a tool dialog's `Save Settings...` writes,
+holds one tool's settings without the folder: `{"schema_version": 2, "tool":
+"Summarize", "config": {...}, "output": {"save": true, "formats": [...]}}`, the shape
+of a workflow step; it is read as a settings file with that one tool's section.
 
-- `ToolSettingsMap`: the settings of each tool (its config, autosave and results
-  folder), by tool name.
+- `ToolSettingsMap`: the settings of each tool (its config, and its `output`: whether
+  it saves its results, the folder and the formats), by tool name.
 - `AppSettings`: the results folder, the executor, the Prefect server, the log and
   cache folders, import, filters and the tool settings (Import's renaming, dropping
   and calculating: the Rename Columns, Drop Columns and Calculate tools' settings).
@@ -40,10 +44,11 @@ from pydantic import (
     SerializerFunctionWrapHandler,
     ValidationError,
     model_serializer,
+    model_validator,
 )
 
 from flim.core.config import TaskConfig
-from flim.core.saving import AutosaveConfig
+from flim.core.saving import AutosaveConfig, Formats
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
 
 if TYPE_CHECKING:
@@ -78,19 +83,57 @@ class FilterSettings(_Settings):
     show_dropped: bool = True
 
 
+class ToolOutput(_Settings):
+    """A tool's `output` section: whether, where and in which formats it saves.
+
+    The names of a workflow step's `output` (`save`, `formats`); the folder is a
+    setting of this computer, so steps and tool files have none.
+
+    Attributes:
+        save: Whether a run of the tool saves its results.
+        results_dir: The folder (GUI); None for the app's results folder.
+        formats: The formats, per kind of output; a kind not listed is saved in its
+            default format.
+    """
+
+    save: bool = False
+    results_dir: Optional[Path] = None
+    formats: Formats = []
+
+
 class ToolSettings(_Settings):
-    """A tool's settings: its config, autosave settings and legacy plugin parameters.
+    """A tool's settings: its config, its `output` section and legacy parameters.
 
     Attributes:
         config: The tool's config as JSON, with `classname`; None if none is saved.
-        autosave: Whether, where and in which formats the tool saves its results.
+        output: Whether, where and in which formats the tool saves its results.
         legacy: The plugin parameters of a FLIMAnalyzer 0.5 settings file that no
             config class was found for; None otherwise. It is written only if set.
     """
 
     config: Optional[dict] = None
-    autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
+    output: ToolOutput = Field(default_factory=ToolOutput)
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
+
+    @model_validator(mode="before")
+    @classmethod
+    def _output(cls, data: Any) -> Any:
+        """Accept the `autosave` section of earlier 0.7 development builds."""
+        if isinstance(data, dict) and isinstance(data.get("autosave"), dict):
+            data = dict(data)
+            autosave = data.pop("autosave")
+            output = {"save": autosave.get("enabled", False)}
+            output.update({k: autosave[k] for k in ("results_dir", "formats") if k in autosave})
+            data.setdefault("output", output)
+        return data
+
+    @property
+    def autosave(self) -> AutosaveConfig:
+        """Whether, where and in which formats the tool saves, as a run takes it."""
+        output = self.output
+        return AutosaveConfig(
+            enabled=output.save, results_dir=output.results_dir, formats=output.formats
+        )
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
@@ -183,8 +226,12 @@ def tool_settings(
     Returns:
         The settings, with the config as JSON.
     """
+    autosave = autosave or AutosaveConfig()
     return ToolSettings(
-        config=config.model_dump(mode="json"), autosave=autosave or AutosaveConfig()
+        config=config.model_dump(mode="json"),
+        output=ToolOutput(
+            save=autosave.enabled, results_dir=autosave.results_dir, formats=autosave.formats
+        ),
     )
 
 
@@ -614,7 +661,7 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
 
     `working_dir` becomes `results_dir`, and `display` (histogram ranges no longer
     used) is dropped. In the tool sections, `autosave` (whether) and `results_dir`
-    (where) become the section `autosave` (`enabled`, `results_dir`; no formats: the
+    (where) become the section `output` (`save`, `results_dir`; no formats: the
     defaults, as in 0.6), and the `rescale` field of the autoencoder training config,
     also inside the autoencoder workflows' `training` config, becomes
     `rescale_output`.
@@ -660,8 +707,8 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
     for name, entry in (data.get("tools") or {}).items():
         if isinstance(entry, dict) and not isinstance(entry.get("autosave"), dict):
             if "autosave" in entry or "results_dir" in entry:
-                entry["autosave"] = {
-                    "enabled": bool(entry.pop("autosave", False)),
+                entry["output"] = {
+                    "save": bool(entry.pop("autosave", False)),
                     "results_dir": entry.pop("results_dir", None),
                 }
                 moved += 1
@@ -676,7 +723,7 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
             )
     if moved:
         changes.converted.append(
-            f"autosave and results_dir of {moved} tools to their autosave section"
+            f"autosave and results_dir of {moved} tools to their output section"
         )
     return data
 
@@ -758,6 +805,7 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
     Raises:
         ValueError: If `data` is of a newer version than `SETTINGS_VERSION`.
     """
+    data = tool_file_settings(data)
     version = version_of(data)
     if version > SETTINGS_VERSION:
         raise ValueError(
@@ -769,6 +817,38 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
         version += 1
         data["schema_version"] = version
     return _moved_presets(data, changes if changes is not None else Changes())
+
+
+def is_tool_file(data: Any) -> bool:
+    """Return whether settings data is a tool file (one tool's settings, `tool`).
+
+    Args:
+        data: The data read from a file.
+
+    Returns:
+        True for a dict with `tool` and without `tools`.
+    """
+    return isinstance(data, dict) and "tool" in data and "tools" not in data
+
+
+def tool_file_settings(data: dict) -> dict:
+    """Return a tool file's data as settings data with that one tool's section.
+
+    Args:
+        data: The data read from a file.
+
+    Returns:
+        For a tool file, `{"schema_version": ..., "tools": {<tool>: {...}}}` with the
+        file's other keys (`config`, `output`, and any others, which are then
+        reported as unknown) in the section; any other data unchanged.
+    """
+    if not is_tool_file(data):
+        return data
+    section = {k: v for k, v in data.items() if k not in ("schema_version", "tool")}
+    return {
+        "schema_version": data.get("schema_version", SETTINGS_VERSION),
+        "tools": {str(data["tool"]): section},
+    }
 
 
 def _unknown_keys(model: BaseModel, path: str = "") -> list[str]:
@@ -1157,11 +1237,12 @@ def save_settings(settings: AppSettings, path: str | os.PathLike) -> None:
 def read_tool_settings(
     path: str | os.PathLike, tool: "type[Tool]"
 ) -> Optional[ToolSettings]:
-    """Read a tool's section of a settings file.
+    """Read a tool's settings from a tool file or a tool's section of a settings file.
 
     The file may be of an older version, and the section may be under one of the
-    tool's former names. A file with only a config (with `classname`) is returned
-    as the config, without checking that it is a config of `tool`.
+    tool's former names; a tool file of another tool has no settings of `tool`. A
+    file with only a config (with `classname`) is returned as the config, without
+    checking that it is a config of `tool`.
 
     Args:
         path: The settings file, or a config file.
@@ -1191,31 +1272,42 @@ def read_tool_settings(
 def write_tool_settings(
     path: str | os.PathLike, tool: "type[Tool]", entry: ToolSettings
 ) -> None:
-    """Write a tool's section into a settings file.
+    """Write a tool's settings: a tool file, or the tool's section of a settings file.
 
-    The other sections of an existing file are kept, and the file is saved in the
-    current version. The tool's sections under its former names are removed.
+    A new file, or an existing tool file, is written as a tool file (`{"schema_version",
+    "tool", "config", "output": {"save", "formats"}}`, the shape of a workflow step;
+    no folder).
+    In an existing settings file, the tool's section is replaced and the other
+    sections are kept; the file is saved in the current version, and the tool's
+    sections under its former names are removed.
 
     Args:
-        path: The settings file; created if it does not exist.
+        path: The file; created if it does not exist.
         tool: The tool class.
         entry: The tool's settings.
 
     Raises:
         OSError: If the file cannot be read or written.
-        ValueError: If an existing file is not JSON, is not a settings file (or holds
-            a config alone), or is of a newer version than `SETTINGS_VERSION`.
+        ValueError: If an existing file is not JSON, is not a settings or tool file
+            (or holds a config alone), or is of a newer version than
+            `SETTINGS_VERSION`.
     """
-    data = {"schema_version": SETTINGS_VERSION}
+    existing = None
     if os.path.exists(path):
         with open(path) as f:
             existing = json.load(f)
         if not isinstance(existing, dict) or "classname" in existing:
             raise ValueError(f"{path} is not a settings file")
+    if existing is None or is_tool_file(existing):
+        section = entry.model_dump(mode="json")
+        section["output"].pop("results_dir", None)  # a setting of this computer
+        data = {"schema_version": SETTINGS_VERSION, "tool": tool.name}
+        data.update({k: section[k] for k in ("config", "output") if k in section})
+    else:
         data = migrate(existing)
-    tools = data.setdefault("tools", {})
-    for name in getattr(tool, "former_names", ()):
-        tools.pop(name, None)
-    tools[tool.name] = entry.model_dump(mode="json")
+        tools = data.setdefault("tools", {})
+        for name in getattr(tool, "former_names", ()):
+            tools.pop(name, None)
+        tools[tool.name] = entry.model_dump(mode="json")
     with open(path, "w") as f:
         json.dump(data, f, indent=2, default=str)

@@ -952,7 +952,8 @@ class ConfigDialog(wx.Dialog):
     def load_settings(self, path: Union[str, os.PathLike]) -> bool:
         """Show the tool's settings from a file in the dialog.
 
-        The file is a config alone or a settings file (see `_tool_entry`). The
+        The file is a config alone, a tool file or a settings file (see
+        `_tool_entry`). The
         dialog shows the config, whether results are saved (unless locked), the
         folder and the formats. A message next to the buttons tells the result.
 
@@ -999,10 +1000,12 @@ class ConfigDialog(wx.Dialog):
         return True
 
     def save_settings(self, path: Union[str, os.PathLike]) -> bool:
-        """Save the edited settings in the tool's section of a settings file.
+        """Save the edited settings as a tool file, or in a settings file's section.
 
-        The other settings in the file are kept (see
-        `flim.core.settings.write_tool_settings`). If the file is of an older
+        A new file becomes a tool file (the shape of a workflow step, without the
+        folder); in an existing settings file, the tool's section is replaced and the
+        other settings are kept (see `flim.core.settings.write_tool_settings`). If the
+        file is of an older
         version or has settings that cannot be used, the user is asked first:
         update the file (it is rewritten in the current version without those
         settings), save to another file, or cancel. A message next to the buttons

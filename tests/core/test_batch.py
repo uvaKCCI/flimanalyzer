@@ -110,7 +110,7 @@ def test_a_workflow_file_joins_the_files(data_dir, settings, tmp_path):
         "steps": [
             {"id": "1", "tool": "Concatenate", "config": {"add_input": False}},
             {"id": "2", "tool": "Separate Categories", "config": SEPARATE},
-            {"id": "3", "tool": "Summarize", "save": True,
+            {"id": "3", "tool": "Summarize", "output": {"save": True},
              "config": {"grouping": ["Treatment"], "features": ["FLIRR"], "aggs": ["mean"]}},
         ],
     }))
@@ -184,7 +184,7 @@ PER_TREATMENT = {
     "name": "per treatment",
     "steps": [
         {"id": "1", "tool": "Concatenate", "config": {"add_input": False}},
-        {"id": "2", "tool": "Summarize", "save": True,
+        {"id": "2", "tool": "Summarize", "output": {"save": True},
          "config": {"grouping": [], "features": ["FLIRR"], "aggs": ["mean"]}},
     ],
 }
@@ -227,6 +227,27 @@ def test_a_settings_file_doesnt_set_the_workflow_folders(
     code = main(["-i", str(data_dir), "--dry-run", "-s", str(path),
                  "--run", "per-treatment.json"])  # fmt: skip
     assert code == 1 and "No workflow file 'per-treatment.json'" in capsys.readouterr().err
+
+
+def test_run_takes_a_tool_file_as_a_workflow_of_one_step(
+    data_dir, workflow_folder, tmp_path, capsys
+):
+    tool_file = workflow_folder / "summarize.json"
+    tool_file.write_text(json.dumps({
+        "schema_version": 2, "tool": "Summarize",
+        "config": {"grouping": [], "features": ["FLIRR"], "aggs": ["mean"]},
+        "output": {"save": False},
+    }))  # fmt: skip
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "-w", str(workflow_folder),
+                 "--run", "summarize.json", "--no-prefect-server"])  # fmt: skip
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert ("flimbatch: warning: step 01, tool 'Summarize': output.save=false ignored:"
+            " saving is always on; the step's save decides") in captured.err  # fmt: skip
+    assert list((out / "Summarize").rglob("Table_Summary*"))  # saved anyway
+    # in the workflow folder, the tool file is not a workflow: no message about it
+    assert "summarize.json: not loaded" not in captured.err
 
 
 def test_runs_run_in_the_order_given(data_dir, workflow_folder, capsys):

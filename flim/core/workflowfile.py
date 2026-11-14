@@ -4,21 +4,25 @@ A workflow file names its steps; each step is a tool with its own settings, so t
 file alone decides what a run does::
 
     {"schema_version": 1, "name": "calc and aggregate", "tags": ["summaries"],
-     "autosave": {"formats": []},
+     "output": {"formats": [{"kind": "table", "format": "csv"}]},
      "steps": [
        {"id": "1", "tool": "Calculate", "config": {...}, "processing": "allow_partial"},
-       {"id": "2", "tool": "Summarize", "inputs": ["1"], "config": {...}, "save": true}
+       {"id": "2", "tool": "Summarize", "inputs": ["1"], "config": {...},
+        "description": "Summary per cell",
+        "output": {"save": true, "formats": [{"kind": "plot", "format": "svg"}]}}
      ]}
 
 A step's `inputs` refer to earlier steps' outputs: `"4.1"` (output 1 of step 4), `"4"`
 (the same), or `"input"` (the tables the run starts from, e.g. those Import Tables
 read from files, or open tables). A step without `inputs` takes output 1 of the step
 before it; the first step takes the run's tables. The outputs of a step are numbered
-from 1 in the order its tool returns them. `outputs` optionally names them (for
-readers; not checked). `save` saves a step's outputs (`true`) or some of them
-(`["2.1"]`). `processing` says how much of its
-settings a step must apply to the data: `require_all` (default), `allow_partial` (at
-least one part) or `allow_none`.
+from 1 in the order its tool returns them. A step's `output` says what is saved:
+`save` saves its outputs (`true`) or some of them (`["2.1"]`), in its `formats`, else
+the workflow's `output.formats` (a kind not listed in its default format). A step's
+`description` is a note for readers. A step's `config` may leave out `classname`
+(`tool` names the tool); a `classname` of another tool is an error. `processing`
+says how much of its settings a step must apply to the data: `require_all`
+(default), `allow_partial` (at least one part) or `allow_none`.
 
 Workflow files are registered by their `name` like tools: the built-in files (in
 `flim/workflow/files`) and those in the folders of the `workflow_paths` setting.
@@ -35,7 +39,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from flim.core.saving import AutosaveConfig
+from flim.core.saving import Formats
 
 if TYPE_CHECKING:
     from flim.core.workflow import Workflow
@@ -47,6 +51,32 @@ INPUT = "input"  # the reference to the run's tables
 IMPORT_TAG = "import"  # the tag of the workflows File > Import Tables... offers
 BUILT_IN = Path(__file__).resolve().parent.parent / "workflow" / "files"
 WORKFLOW_PATH_VAR = "FLIM_WORKFLOW_PATH"
+
+
+class StepOutput(BaseModel):
+    """What a workflow step saves: its `output` section; every field is optional."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    save: Union[bool, list[str]] = Field(
+        default=False, description="Save the step's outputs, or those listed."
+    )
+    formats: Optional[Formats] = Field(
+        default=None,
+        description="The formats of the saved outputs, per kind; None: the workflow's.",
+    )
+
+
+class WorkflowOutput(BaseModel):
+    """A workflow file's `output` section: the defaults of its steps."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    formats: Formats = Field(
+        default=[],
+        description="The formats of saved outputs, per kind, for steps without their"
+        " own; a kind not listed is saved in its default format.",
+    )
 
 
 class WorkflowStep(BaseModel):
@@ -61,13 +91,9 @@ class WorkflowStep(BaseModel):
         description="Output references, e.g. '4.1', '4' (output 1) or 'input' (the"
         " run's tables); empty: output 1 of the step before.",
     )
+    description: str = Field(default="", description="A note for readers.")
     config: dict = Field(default={}, description="The tool's settings; {}: its defaults.")
-    outputs: dict[str, str] = Field(
-        default={}, description="Names of the outputs by number, for readers; not checked."
-    )
-    save: Union[bool, list[str]] = Field(
-        default=False, description="Save the step's outputs, or those listed."
-    )
+    output: StepOutput = Field(default_factory=StepOutput)
     processing: Literal["require_all", "allow_partial", "allow_none"] = Field(
         default="require_all",
         description="require_all: every part of the settings must apply;"
@@ -96,7 +122,7 @@ class WorkflowDefinition(BaseModel):
         " workflow) puts the workflow in that menu, else in Workflow; the next tag names"
         " its submenu.",
     )
-    autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
+    output: WorkflowOutput = Field(default_factory=WorkflowOutput)
     steps: list[WorkflowStep] = Field(min_length=1)
 
 
@@ -207,6 +233,13 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
             check.errors.append(f"{where}: no tool or workflow named '{step.tool}'")
             continue
         tool = tools.get(step.tool)
+        classname = step.config.get("classname")
+        expected = f"{tool.__module__}.{tool.__qualname__}"
+        if classname is not None and classname != expected:
+            check.errors.append(
+                f"{where}: config.classname '{classname}' is not the class of"
+                f" '{step.tool}' ({expected})"
+            )
         try:
             tool.config_class.model_validate(step.config)
         except ValidationError as err:
@@ -214,25 +247,31 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
                 f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in err.errors()
             )
             check.errors.append(f"{where} ({step.tool}): settings not valid: {reasons}")
-        for reference in step.save if isinstance(step.save, list) else []:
+        save = step.output.save
+        for reference in save if isinstance(save, list) else []:
             try:
                 source, _ = parse_reference(reference)
             except ValueError as err:
-                check.errors.append(f"{where}: save: {err}")
+                check.errors.append(f"{where}: output.save: {err}")
                 continue
             if source != step.id:
-                check.errors.append(f"{where}: save: '{reference}' is not this step's")
+                check.errors.append(f"{where}: output.save: '{reference}' is not this step's")
 
 
-def check_workflow_file(path: str | os.PathLike) -> WorkflowCheck:
-    """Read and check a workflow file.
+def check_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) -> WorkflowCheck:
+    """Read and check a workflow file, or with `tool_files` also a tool file.
 
     Args:
         path: The file.
+        tool_files: Also accept a tool file (one tool's settings, written by a tool
+            dialog's `Save Settings...`), as a workflow of one step (see
+            `tool_file_workflow`). Defaults to False.
 
     Returns:
         The check: the definition if there are no errors, else the errors.
     """
+    from flim.core.settings import is_tool_file
+
     path = Path(path)
     check = WorkflowCheck(path=path)
     try:
@@ -240,6 +279,14 @@ def check_workflow_file(path: str | os.PathLike) -> WorkflowCheck:
     except (OSError, ValueError) as err:
         check.errors.append(f"{path.name}: can't be read ({err})")
         return check
+    if is_tool_file(data):
+        if not tool_files:
+            check.errors.append(
+                f"{path.name}: a tool file (the settings of {data['tool']}), not a"
+                " workflow file"
+            )
+            return check
+        data = tool_file_workflow(data, check)
     version = data.get("schema_version", WORKFLOW_SCHEMA_VERSION) if isinstance(data, dict) else None
     if not isinstance(version, int):
         check.errors.append(f"{path.name}: not a workflow file")
@@ -261,6 +308,34 @@ def check_workflow_file(path: str | os.PathLike) -> WorkflowCheck:
     if not check.errors:
         check.definition = definition
     return check
+
+
+def tool_file_workflow(data: dict, check: WorkflowCheck) -> dict:
+    """Return a tool file's data as a workflow file of one step, `1`.
+
+    The workflow is named after the tool, and the step always saves its outputs, as
+    `--run <tool>` does: a tool file with `save: false` gets a warning in `check`.
+
+    Args:
+        data: The tool file's data (`tool`, `config`, `output`).
+        check: Receives the warning.
+
+    Returns:
+        The workflow file's data.
+    """
+    tool = str(data["tool"])
+    output = dict(data.get("output") or {})
+    if output.get("save") is False:
+        check.warnings.append(
+            f"step 01, tool '{tool}': output.save=false ignored: saving is always on;"
+            " the step's save decides"
+        )
+    output["save"] = True
+    return {
+        "schema_version": WORKFLOW_SCHEMA_VERSION,
+        "name": tool,
+        "steps": [{"id": "1", "tool": tool, "config": data.get("config") or {}, "output": output}],
+    }
 
 
 def workflow_path(
@@ -395,9 +470,10 @@ def _shapes(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
 
 def _saved(step: WorkflowStep) -> Union[bool, list[int]]:
     """A step's `save` as the runner takes it: True, False or output numbers."""
-    if isinstance(step.save, bool):
-        return step.save
-    return [parse_reference(r)[1] for r in step.save]
+    save = step.output.save
+    if isinstance(save, bool):
+        return save
+    return [parse_reference(r)[1] for r in save]
 
 
 def _file_workflow_base() -> type["Workflow"]:
@@ -488,6 +564,7 @@ def _file_workflow_base() -> type["Workflow"]:
                 def call(inputs: list[Any], tags: list[str]) -> Any:
                     tool = tool_class()
                     tool._save = _saved(step)
+                    tool._formats = step.output.formats  # None: the workflow's (the run's)
                     tool._processing = step.processing
                     return tool(*inputs, config=step_config, task_tags=tags)
 
@@ -585,7 +662,8 @@ def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
 
     A file with errors, or whose name a tool or another workflow already has
     (ignoring case), is not registered; the messages are also logged as warnings. A
-    file registered before from the same path is registered again.
+    file registered before from the same path is registered again. Tool files are
+    passed over without a message: they are run by their path or file name.
 
     Args:
         search_path: The folders (see `workflow_path`).
@@ -598,6 +676,8 @@ def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
     base = _file_workflow_base()
     messages = []
     for path in workflow_files(search_path):
+        if _is_tool_file(path):
+            continue
         check = check_workflow_file(path)
         if check.errors:
             messages.append(f"{path}: not loaded: {'; '.join(check.errors)}")
@@ -612,6 +692,16 @@ def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
     for message in messages:
         logger.warning(message)
     return messages
+
+
+def _is_tool_file(path: Path) -> bool:
+    """Return whether a file is a tool file; False if it can't be read as JSON."""
+    from flim.core.settings import is_tool_file
+
+    try:
+        return is_tool_file(json.loads(path.read_text()))
+    except (OSError, ValueError):
+        return False
 
 
 def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
@@ -747,7 +837,7 @@ def describe_steps(definition: WorkflowDefinition) -> str:
     lines = []
     for number, step in enumerate(definition.steps, 1):
         extra = [notes[step.processing]] if step.processing in notes else []
-        if step.save:
+        if step.output.save:
             extra.append("saved")
         lines.append(f"{number}. {step.tool}" + (f" ({', '.join(extra)})" if extra else ""))
     return "\n".join(lines)
@@ -817,8 +907,7 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         except ValidationError:
             value = config_class()
         data = value.model_dump(mode="json")
-        for key in ("classname", "version"):
-            data.pop(key, None)
+        data.pop("version", None)  # the runtime's version is recorded by the run
         return data
 
     parser_section = section.get("filename_parser") or {}
@@ -850,10 +939,9 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         pairs = list(itertools.combinations([p["name"] for p in patterns], 2))
     for pair in pairs or []:
         fuse = FuseCategoriesConfig(grouping=list(pair)).model_dump(mode="json")
-        fuse.pop("classname", None)
         fuse.pop("version", None)
         steps.append({"tool": "Fuse Categories", "config": fuse})
-    steps.append({"tool": "Calculate", "processing": "allow_none", "save": True,
+    steps.append({"tool": "Calculate", "processing": "allow_none", "output": {"save": True},
                   "config": settings("Calculate", CalculateConfig)})  # fmt: skip
     for number, step in enumerate(steps, 1):
         step["id"] = str(number)

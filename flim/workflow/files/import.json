@@ -81,7 +81,7 @@
       "id": "4",
       "tool": "Calculate",
       "processing": "allow_none",
-      "save": true,
+      "output": {"save": true},
       "config": {
         "grouping": [],
         "features": [],

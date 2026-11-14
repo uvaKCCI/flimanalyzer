@@ -738,7 +738,7 @@ def _write_filter_settings(path: str, settings: dict) -> None:
     """Write the Filter tool's settings into a settings file, as `Save Settings...` does.
 
     The file's other sections are kept, and so are the Filter section's other
-    settings and its autosave settings.
+    settings and how it saves its results.
 
     Args:
         path: The settings file; created if it does not exist.
@@ -748,15 +748,14 @@ def _write_filter_settings(path: str, settings: dict) -> None:
         OSError: If the file cannot be read or written.
         ValueError: If an existing file is not a settings file.
     """
-    from flim.core.settings import ToolSettings, read_tool_settings, write_tool_settings
+    from flim.core.settings import read_tool_settings, tool_settings, write_tool_settings
     from flim.tools.data import Filter
 
     entry = read_tool_settings(path, Filter) if os.path.exists(path) else None
     base = (entry.config if entry is not None and entry.config else None) or Filter.config_class().model_dump(mode="json")
     config = Filter.config_class.model_validate({**base, **settings})
     autosave = entry.autosave if entry is not None else None
-    stored = ToolSettings(config=config.model_dump(mode="json"), **({"autosave": autosave} if autosave else {}))
-    write_tool_settings(path, Filter, stored)
+    write_tool_settings(path, Filter, tool_settings(config, autosave))
 
 
 class ConfigureAxisDlg(wx.Dialog):

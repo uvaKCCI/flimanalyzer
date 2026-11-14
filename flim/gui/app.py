@@ -1036,7 +1036,7 @@ class AppFrame(wx.Frame):
             return None
         autosave_dir = os.path.join(canonical_folder(str(folder)), name)
         task_runner = self.flimanalyzer.get_task_runner()
-        formats = workflow.definition.autosave.formats if workflow is not None else []
+        formats = workflow.definition.output.formats if workflow is not None else []
 
         def start_run(
             cancel_token: CancelToken,
@@ -1132,7 +1132,7 @@ class AppFrame(wx.Frame):
             self.settings.resolved_results_dir(),
         )
         autosave_dir = os.path.join(canonical_folder(str(folder)), tool.name)
-        formats = autosave.formats if autosave is not None else tool.definition.autosave.formats
+        formats = autosave.formats if autosave is not None else tool.definition.output.formats
         task_runner = self.flimanalyzer.get_task_runner()
         workflow = tool()
 
@@ -1179,7 +1179,7 @@ class AppFrame(wx.Frame):
                     for value in output.value().values():
                         self.open_table(value, self.unique_window_title(entity))
                 continue
-            save = steps[step_id].save
+            save = steps[step_id].output.save
             items = outputs.items() if isinstance(outputs, dict) else [(None, outputs)]
             for entity, output in items:
                 results = output.value()
@@ -1371,8 +1371,8 @@ class AppFrame(wx.Frame):
         entry = self.settings.tools.entry(tool)
         saved = entry.autosave if entry else AutosaveConfig()
         definition = getattr(tool, "definition", None)
-        if definition is not None and definition.autosave.formats:
-            saved = saved.model_copy(update={"formats": definition.autosave.formats})
+        if definition is not None and definition.output.formats:
+            saved = saved.model_copy(update={"formats": definition.output.formats})
         folder = resolved_folder(saved.results_dir, self.settings.resolved_results_dir())
         execution = self.flimanalyzer.execution.model_copy(
             update={

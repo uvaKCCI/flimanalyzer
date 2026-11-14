@@ -174,16 +174,26 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
         kmeans,
         tool_settings(KMeansConfig(n_clusters=5), AutosaveConfig(enabled=True, results_dir="/r")),
     )
+    # a new file: a tool file, the shape of a workflow step, without the folder
     data = json.loads(path.read_text())
-    assert data["schema_version"] == SETTINGS_VERSION
-    assert list(data["tools"]) == ["K-Means"]  # only the tool's section
-    assert read_tool_settings(path, kmeans).autosave.results_dir == Path("/r")
-    assert read_tool_settings(path, tools.get("Summarize")) is None
+    assert set(data) == {"schema_version", "tool", "config", "output"}
+    assert data["schema_version"] == SETTINGS_VERSION and data["tool"] == "K-Means"
+    assert data["config"]["classname"] == f"{kmeans.__module__}.{kmeans.__qualname__}"
+    assert "version" not in data["config"]  # the run records the runtime's version
+    assert data["output"] == {"save": True, "formats": []}
+    entry = read_tool_settings(path, kmeans)
+    assert entry.output.save and entry.output.results_dir is None
+    assert entry.config["n_clusters"] == 5
+    assert read_tool_settings(path, tools.get("Summarize")) is None  # another tool's file
 
-    # in an application settings file (of an older version): the rest is kept
+    # in an application settings file (of an older version): the rest is kept, and
+    # the tool's section has its folder
     path = tmp_path / "app.json"
     path.write_text(V0_FILE.read_text())
-    write_tool_settings(path, kmeans, tool_settings(KMeansConfig(n_clusters=9)))
+    write_tool_settings(path, kmeans, tool_settings(
+        KMeansConfig(n_clusters=9), AutosaveConfig(enabled=True, results_dir="/r")
+    ))  # fmt: skip
+    assert json.loads(path.read_text())["tools"]["K-Means"]["output"]["results_dir"] == "/r"
     settings = load_settings(path)
     assert settings.tools.config(kmeans).n_clusters == 9
     assert "import" not in settings.to_json()  # version 0's import: dropped
@@ -202,6 +212,30 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
     assert read_tool_settings(path, kmeans).config["n_clusters"] == 4
     with pytest.raises(ValueError, match="not a settings file"):
         write_tool_settings(path, kmeans, tool_settings(KMeansConfig()))
+
+
+def test_a_tool_file_is_read_as_a_settings_file_with_one_tool(tmp_path):
+    from flim.core.settings import check_settings_file
+
+    path = tmp_path / "summarize.json"
+    path.write_text(json.dumps({
+        "schema_version": 2, "tool": "Summarize", "config": {"aggs": ["mean"]},
+        "output": {"save": True, "formats": [{"kind": "table", "format": "csv"}]},
+    }))  # fmt: skip
+    check = check_settings_file(path)
+    assert check.error is None and not check.invalid and not check.unknown
+    section = check.sections["tools"]["Summarize"]
+    assert section["config"]["aggs"] == ["mean"] and section["output"]["save"] is True
+
+
+def test_the_autosave_section_of_development_builds_is_read():
+    from flim.core.settings import ToolSettings
+
+    entry = ToolSettings.model_validate(
+        {"config": {}, "autosave": {"enabled": True, "results_dir": "/r", "formats": []}}
+    )
+    assert entry.output.save and entry.output.results_dir == Path("/r")
+    assert "autosave" not in entry.model_dump(mode="json")
 
 
 def test_rename_and_drop_of_version_1_become_tool_settings():

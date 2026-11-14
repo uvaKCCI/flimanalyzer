@@ -26,8 +26,8 @@ GOOD = {
     "name": "calc and aggregate",
     "steps": [
         {"id": 1, "tool": "Calculate", "processing": "allow_partial"},
-        {"id": "2", "tool": "Summarize", "inputs": ["1.1"], "config": {"aggs": ["mean"]}, "save": True},
-        {"id": "3", "tool": "Sort", "save": ["3.1"]},  # no inputs: step 2's output 1
+        {"id": "2", "tool": "Summarize", "inputs": ["1.1"], "config": {"aggs": ["mean"]}, "output": {"save": True}},
+        {"id": "3", "tool": "Sort", "output": {"save": ["3.1"]}},  # no inputs: step 2's output 1
     ],
 }
 
@@ -50,7 +50,7 @@ def test_a_valid_file(tmp_path):
         (lambda d: d["steps"][2].update(id="1"), "used twice"),
         (lambda d: d["steps"][0].update(tool="Nope"), "no tool or workflow named 'Nope'"),
         (lambda d: d["steps"][1].update(config={"aggs": ["bogus"]}), "settings not valid"),
-        (lambda d: d["steps"][2].update(save=["2.1"]), "is not this step's"),
+        (lambda d: d["steps"][2].update(output={"save": ["2.1"]}), "is not this step's"),
         (lambda d: d["steps"][0].update(processing="lenient"), "processing"),
         (lambda d: d["steps"][0].update(colour="red"), "colour"),
         (lambda d: d.update(steps=[]), "steps"),
@@ -167,13 +167,65 @@ def test_save_decides_what_is_written(prefect_harness, tmp_path):
         "name": "saving",
         "steps": [
             {"id": "1", "tool": "Calculate", "config": {"calculations": [CALC]}},
-            {"id": "2", "tool": "Concatenate", "save": True},
+            {"id": "2", "tool": "Concatenate", "output": {"save": True}},
         ],
     }
     run = _run(definition, _tables(), autosave_dir=tmp_path)
     assert run.state == "completed", run.failed
     saved = [p.name for p in run.autosave_dir.rglob("*.txt") if p.name != "run_summary.txt"]
     assert saved == ["Table_Concatenated.txt"], saved  # not the inputs, not step 1
+
+
+def test_a_step_saves_in_its_own_formats(prefect_harness, tmp_path):
+    definition = {
+        "name": "formats",
+        "output": {"formats": [{"kind": "table", "format": "csv"}]},
+        "steps": [
+            {"id": "1", "tool": "Calculate", "config": {"calculations": [CALC]},
+             "output": {"save": True}},  # the workflow's formats: csv
+            {"id": "2", "tool": "Concatenate",
+             "output": {"save": True, "formats": [{"kind": "table", "format": "tsv"}]}},
+        ],
+    }  # fmt: skip
+    # the caller passes the workflow's formats (the GUI's dialog may change them)
+    formats = WorkflowDefinition.model_validate(definition).output.formats
+    run = _run(definition, _tables(), autosave_dir=tmp_path, save_formats=formats)
+    assert run.state == "completed", run.failed
+    names = {p.name for p in run.autosave_dir.rglob("*") if p.suffix in (".csv", ".txt")}
+    assert "Table_Concatenated.txt" in names  # step 2: its own tsv
+    assert any(n.endswith(".csv") for n in names)  # step 1: the workflow's csv
+    assert not any(n.endswith(".csv") and "Concatenated" in n for n in names)
+
+
+def test_a_step_classname_must_be_its_tools(tmp_path):
+    from flim.core.registry import tools
+
+    summarize = tools.get("Summarize")
+    own = f"{summarize.__module__}.{summarize.__qualname__}"
+    data = {"name": "classnames", "steps": [
+        {"id": "1", "tool": "Summarize", "config": {"classname": own}},
+        {"id": "2", "tool": "Sort", "config": {"classname": own}},
+    ]}  # fmt: skip
+    check = check_workflow_file(write(tmp_path, data))
+    assert len(check.errors) == 1
+    assert "step 2" in check.errors[0].lower() and "is not the class of 'Sort'" in check.errors[0]
+
+
+def test_a_tool_file_is_not_a_workflow_file_unless_asked(tmp_path):
+    path = write(tmp_path, {"schema_version": 2, "tool": "Sort", "config": {}}, "sort.json")
+    check = check_workflow_file(path)
+    assert check.errors == ["sort.json: a tool file (the settings of Sort), not a workflow file"]
+    check = check_workflow_file(path, tool_files=True)
+    assert check.errors == [] and check.definition.name == "Sort"
+    (step,) = check.definition.steps
+    assert (step.id, step.tool, step.output.save) == ("1", "Sort", True)
+
+
+def test_a_step_description_and_no_output_names(tmp_path):
+    data = {"name": "notes", "steps": [{"id": "1", "tool": "Sort", "description": "by FOV"}]}
+    assert check_workflow_file(write(tmp_path, data)).definition.steps[0].description == "by FOV"
+    data["steps"][0]["output"] = {"items": {"1": "sorted"}}  # names of outputs: not a field
+    assert check_workflow_file(write(tmp_path, data)).errors
 
 
 def test_processing(prefect_harness):
