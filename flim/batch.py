@@ -439,6 +439,8 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         # settings or on which tools are installed
         manager = session_settings(name, changes, complete=True)
         settings = manager.settings
+        for notice in manager.notices:  # e.g. keys of the user settings file only
+            _warn(notice)
         if getattr(manager.check, "import_workflow", None):
             print(
                 "flimbatch: warning: the settings file's import settings (FLIMAnalyzer"
@@ -452,6 +454,9 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         for message in register_workflow_files(search_path):
             print(f"flimbatch: warning: {message}", file=sys.stderr)
         runs = [resolve_run(n, search_path, warn=_warn) for n in args.run]
+        output = canonical_folder(args.output) if args.output else None
+        for message in ignored_settings(runs, settings, output):
+            _warn(message)
         runs = [file_run(tool, settings) for tool in runs]
         if args.dry_run:
             return _dry_run(runs, args, settings)
@@ -489,6 +494,45 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         print("flimbatch: failed tasks\n" + "\n".join(failed), file=sys.stderr)
         return 1
     return 0
+
+
+def ignored_settings(
+    runs: Sequence[type["Tool"]], settings: AppSettings, output: Optional[str | os.PathLike]
+) -> list[str]:
+    """Return a message for each setting of a `--run` tool that flimbatch doesn't use.
+
+    A tool given to `--run` runs as a workflow of one step, `01`, with its settings
+    from the settings file. flimbatch saves only under `-o` and always saves, so the
+    tool's `output.results_dir` and an `output.save` of false are not used. Workflow files have no such settings.
+
+    Args:
+        runs: The tools and workflows of `--run`.
+        settings: The session's settings.
+        output: The folder of `-o`; None if not given (a dry run).
+
+    Returns:
+        The messages, e.g. `step 01, tool 'Summarize': output.results_dir=summaries
+        superseded by -o /data/results`.
+    """
+    target = f"-o {output}" if output else "-o"
+    messages = []
+    for tool in runs:
+        if getattr(tool, "definition", None) is not None:  # a workflow or tool file
+            continue
+        entry = settings.tools.entry(tool)
+        if entry is None:
+            continue
+        where = f"step 01, tool '{tool.name}'"
+        if entry.output.results_dir is not None:
+            messages.append(
+                f"{where}: output.results_dir={entry.output.results_dir} superseded by {target}"
+            )
+        if not entry.output.save:
+            messages.append(
+                f"{where}: output.save=false ignored: saving is always on; the step's"
+                " save decides"
+            )
+    return messages
 
 
 def _warn(message: str) -> None:

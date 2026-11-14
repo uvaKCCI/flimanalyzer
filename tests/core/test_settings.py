@@ -228,6 +228,20 @@ def test_a_tool_file_is_read_as_a_settings_file_with_one_tool(tmp_path):
     assert section["config"]["aggs"] == ["mean"] and section["output"]["save"] is True
 
 
+def test_keys_of_the_user_settings_file_only_are_not_used(tmp_path):
+    from flim.core.settings import USER_FILE_ONLY, check_settings_file
+
+    path = tmp_path / "app.json"
+    data = {"schema_version": 2, "results_dir": "res", "workflow_paths": ["/wf"],
+            "last_run_url": "http://x", "default_app_settings": "/a.json",
+            "appsettings_path": ["/as"]}  # fmt: skip
+    path.write_text(json.dumps(data))
+    check = check_settings_file(path)
+    assert check.user_only == list(USER_FILE_ONLY) and not check.problems
+    assert set(check.sections) == {"results_dir"}
+    assert "Not used (read only from the user settings file):" in check.summary()
+
+
 def test_the_autosave_section_of_development_builds_is_read():
     from flim.core.settings import ToolSettings
 

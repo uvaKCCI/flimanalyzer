@@ -24,6 +24,7 @@ from flim.core.execution import ExecutorSettings
 from flim.core.saving import AutosaveConfig
 from flim.core.settings import (
     SETTINGS_VERSION,
+    USER_FILE_ONLY,
     AppSettings,
     SettingsCheck,
     check_settings_file,
@@ -472,6 +473,7 @@ class SettingsManager:
             ("not used (unknown)", check.unknown),
             ("not used (invalid)", check.invalid),
             ("not checked (tool not installed)", check.not_checked),
+            ("not used (user settings file only)", check.user_only),
         ):
             if items:
                 lines.append(f"  {label}: {'; '.join(items)}")
@@ -511,10 +513,8 @@ class SettingsManager:
         if data["description"] is None:
             data.pop("description")
         data = _ordered(data)
-        data.pop("appsettings_path", None)
-        data.pop("workflow_paths", None)
-        data.pop("default_app_settings", None)
-        data.pop("last_run_url", None)
+        for key in USER_FILE_ONLY:  # one user's, on one computer
+            data.pop(key, None)
         data["tools"] = dict(sorted(data["tools"].items()))
         with open(path, "w") as f:
             json.dump(data, f, indent=2, default=str)
@@ -813,6 +813,11 @@ def session_settings(
         if chosen is not None:
             manager.apply(chosen)
             _keep_user_choices(manager, user_file)
+            if chosen.user_only:
+                manager.notices.append(
+                    f"{chosen.path}: not used, read only from the user settings file:"
+                    f" {', '.join(chosen.user_only)}"
+                )
     for changes, names, layer in (
         (environment_changes(), ENV_NAMES, "environment"),
         (command_line or {}, OPTION_NAMES, "command line"),

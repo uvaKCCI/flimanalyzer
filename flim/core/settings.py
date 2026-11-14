@@ -59,6 +59,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 SETTINGS_VERSION = 2
+# settings read only from the user settings file (they belong to one user on one
+# computer); in an app settings file they are reported as not used
+USER_FILE_ONLY = ("appsettings_path", "workflow_paths", "default_app_settings", "last_run_url")
 
 # the folder FLIMAnalyzer was started from: the default results folder. Recorded at
 # import, because file dialogs can change the current folder later.
@@ -1020,6 +1023,8 @@ class SettingsCheck:
             settings) holding one is not used.
         not_checked: Tools whose settings cannot be checked because the tool is not
             installed; their settings are kept.
+        user_only: Keys read only from the user settings file (`USER_FILE_ONLY`)
+            that have a value; not used from this file, without stopping its use.
         sections: The sections that can be used, in the current version, without
             the unknown keys and the sections with invalid values.
         import_workflow: The content of a workflow file that imports data as the
@@ -1037,6 +1042,7 @@ class SettingsCheck:
     unknown: list[str] = field(default_factory=list)
     invalid: list[str] = field(default_factory=list)
     not_checked: list[str] = field(default_factory=list)
+    user_only: list[str] = field(default_factory=list)
     sections: dict = field(default_factory=dict)
     # a workflow file (its content) that imports as the file's 0.6 import settings
     # did; offered to be saved, never applied (see flim.core.workflowfile)
@@ -1085,6 +1091,7 @@ class SettingsCheck:
             ("Converted to the current version", self.converted),
             ("Removed by the conversion (no longer used)", self.dropped),
             ("Not checked (tool not installed)", self.not_checked),
+            ("Not used (read only from the user settings file)", self.user_only),
         ):
             if not items:
                 continue
@@ -1177,6 +1184,10 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
         )
         check.import_read = import_read_settings(changes.import_section)
     data.pop("schema_version", None)
+    # an empty value (e.g. `[]` written by save_settings) carries nothing: not reported
+    check.user_only = [key for key in USER_FILE_ONLY if data.get(key) not in (None, [], "")]
+    for key in USER_FILE_ONLY:
+        data.pop(key, None)
     if "tools" in data and not isinstance(data["tools"], dict):
         check.invalid.append("tools: not a mapping of tool names to settings")
         data.pop("tools")

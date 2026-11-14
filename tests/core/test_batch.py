@@ -226,7 +226,33 @@ def test_a_settings_file_doesnt_set_the_workflow_folders(
     path = _settings_file(settings, tmp_path)
     code = main(["-i", str(data_dir), "--dry-run", "-s", str(path),
                  "--run", "per-treatment.json"])  # fmt: skip
-    assert code == 1 and "No workflow file 'per-treatment.json'" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert code == 1 and "No workflow file 'per-treatment.json'" in err
+    assert "not used, read only from the user settings file: workflow_paths" in err
+
+
+def test_tool_settings_flimbatch_doesnt_use_are_warned(data_dir, settings, tmp_path, capsys):
+    from flim.core.saving import AutosaveConfig
+
+    summarize = tools.get("Summarize")
+    settings.tools.set(
+        summarize,
+        SummaryConfig(features=["FLIRR"], aggs=["mean"]),
+        AutosaveConfig(enabled=False, results_dir="summaries"),
+    )
+    path = _settings_file(settings, tmp_path)
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Summarize",
+                 "--no-prefect-server"])  # fmt: skip
+    err = capsys.readouterr().err
+    assert code == 0, err
+    from flim.core.paths import canonical_folder
+
+    where = "flimbatch: warning: step 01, tool 'Summarize'"
+    assert f"{where}: output.results_dir=summaries superseded by -o {canonical_folder(out)}" in err
+    assert (f"{where}: output.save=false ignored: saving is always on; the step's save"
+            " decides") in err  # fmt: skip
+    assert list(out.rglob("Table_Summary*"))  # saved under -o all the same
 
 
 def test_run_takes_a_tool_file_as_a_workflow_of_one_step(
