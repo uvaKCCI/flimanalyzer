@@ -29,7 +29,7 @@ import sys
 from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 from flim.core.execution import ExecutionOptions
-from flim.core.paths import canonical_folder, folder_problem
+from flim.core.paths import canonical_folder, folder_problem, same_names, set_char_replacements
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
 from flim.core import logs
@@ -167,6 +167,7 @@ def check_run(
 ) -> list[str]:
     """Check a run against the tables (or their first rows) without running it.
 
+    Two tables whose names become the same folder name (`path_name`) are an error.
     A workflow file's steps are checked against the tables' columns. A tool that
     takes many tables is checked once on all of them, any other tool or workflow on
     each table. A tool (not a workflow) that needs more than one input table is an
@@ -184,19 +185,22 @@ def check_run(
     from flim.core.workflow import Workflow
     from flim.core.workflowfile import check_steps
 
+    names = [
+        f"the inputs '{a}' and '{b}' get the same folder name" for a, b in same_names(tables)
+    ]
     schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
     definition = getattr(tool, "definition", None)
     if definition is not None:
-        return check_steps(definition, schemas)
+        return names + check_steps(definition, schemas)
     required = [spec for spec in tool.inputs if not spec.optional]
     if len(required) > 1 and not issubclass(tool, Workflow):
-        return [f"{tool.name} needs {len(required)} input tables; use a workflow file"]
+        return names + [f"{tool.name} needs {len(required)} input tables; use a workflow file"]
     config = settings.tools.config(tool)
     if tool.inputs and tool.inputs[0].many:
         checks = [("all tables", [schemas])]
     else:
         checks = [(name, [schema] * max(1, len(tool.inputs))) for name, schema in schemas.items()]
-    errors = []
+    errors = names
     for name, inputs in checks:
         for issue in tool.validate(config, inputs):
             if issue.severity == "error":
@@ -235,8 +239,9 @@ def run_on_tables(
         The runs: one per table for a code-defined workflow, else one.
 
     Raises:
-        BatchError: If the run's settings don't fit the tables (see `check_run`), or
-            a code-defined workflow's config has errors for a table.
+        BatchError: If the run's settings don't fit the tables, or two tables' names
+            become the same folder name (see `check_run`), or a code-defined
+            workflow's config has errors for a table.
     """
     from flim.core.runner import run_flow
     from flim.core.workflow import Workflow, WorkflowValidationError
@@ -441,6 +446,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         settings = manager.settings
         for notice in manager.notices:  # e.g. keys of the user settings file only
             _warn(notice)
+        set_char_replacements(settings.char_replacements)  # file and folder names
         if getattr(manager.check, "import_workflow", None):
             print(
                 "flimbatch: warning: the settings file's import settings (FLIMAnalyzer"

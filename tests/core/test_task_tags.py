@@ -33,5 +33,5 @@ def test_tasks_are_tagged_with_their_tool_name(flim_data, tmp_path):
     run = run_flow("tags", build, autosave_dir=str(tmp_path))
     assert run.state == "completed"
     assert _prefect_tags(run) == {"Input": {"Input"}, "Summarize": {"Step 1", "Summarize"}}
-    # the results folders are named by the workflow's tags only
-    assert sorted(os.listdir(run.autosave_dir)) == ["Input", "Step 1", "run_summary.txt"]
+    # the results folders are named by the workflow's tags only, as file names
+    assert sorted(os.listdir(run.autosave_dir)) == ["Input", "Step_1", "run_summary.txt"]

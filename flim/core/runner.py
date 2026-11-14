@@ -52,7 +52,8 @@ from prefect.task_runners import TaskRunner, ThreadPoolTaskRunner
 from flim.core.deprecation import deprecated_names
 from flim.core.tool import TaskCancelled, Tool, pyplot_lock, release_figures
 from flim.core.paths import unique_run_folder  # noqa: F401  (also used from here)
-from flim.results import clean_path_component, save_results
+from flim.core.paths import char_replacements, path_name
+from flim.results import save_results
 
 if TYPE_CHECKING:
     from prefect import Task
@@ -724,10 +725,12 @@ class FlowRun:
         if self.autosave_dir and save is not False:
             autosave = {
                 "directory": self.autosave_dir.joinpath(
-                    *[clean_path_component(t) for t in tag_list]
+                    *[path_name(t) for t in tag_list]
                 ),
                 "name": label,
                 "formats": self.save_formats if formats is None else formats,
+                # the session's: a task on a Dask worker names its files the same way
+                "replacements": char_replacements(),
             }
             if isinstance(save, (list, tuple)):
                 autosave["only"] = list(save)

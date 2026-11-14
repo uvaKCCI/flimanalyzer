@@ -29,6 +29,7 @@ of a workflow step; it is read as a settings file with that one tool's section.
 """
 
 import copy
+import re
 import json
 import logging
 import os
@@ -43,12 +44,14 @@ from pydantic import (
     RootModel,
     SerializerFunctionWrapHandler,
     ValidationError,
+    field_validator,
     model_serializer,
     model_validator,
 )
 
 from flim import __version__
 from flim.core.config import TaskConfig
+from flim.core.paths import DEFAULT_CHAR_REPLACEMENTS, NAME_CHARS
 from flim.core.saving import AutosaveConfig, Formats
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
 
@@ -373,6 +376,14 @@ class AppSettings(_Settings):
         description="Folders searched for app settings files, in order. Empty defaults to"
         " the folder appsettings in the platform's settings folder.",
     )
+    char_replacements: dict[str, str] = Field(
+        default_factory=lambda: dict(DEFAULT_CHAR_REPLACEMENTS),
+        title="Characters replaced in file names",
+        description="Text replaced in the names of the files and folders FLIMAnalyzer"
+        " writes, in order, before every other character than ASCII letters, digits,"
+        " -, _ and . becomes _. A file adds entries to the defaults or overrides single"
+        " ones.",
+    )
     max_windows: dict[str, int] = Field(
         default={"table": 10, "plot": 10, "image": 4},
         title="Most windows of a run",
@@ -415,6 +426,22 @@ class AppSettings(_Settings):
     tools: ToolSettingsMap = Field(default_factory=ToolSettingsMap)
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    @field_validator("char_replacements", mode="before")
+    @classmethod
+    def _with_default_replacements(cls, value: Any) -> Any:
+        """Add the default replacements; refuse replacements with other characters."""
+        if not isinstance(value, dict):
+            return value
+        for old, new in value.items():
+            if not old:
+                raise ValueError("char_replacements: an empty text can't be replaced")
+            if not isinstance(new, str) or re.search(f"[^{NAME_CHARS}]", new):
+                raise ValueError(
+                    f"char_replacements: {old!r} -> {new!r}: a replacement may contain"
+                    " only ASCII letters, digits, -, _ and ."
+                )
+        return {**DEFAULT_CHAR_REPLACEMENTS, **value}
 
     @classmethod
     def default(cls) -> "AppSettings":

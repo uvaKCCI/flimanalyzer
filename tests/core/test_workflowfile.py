@@ -225,6 +225,12 @@ def test_a_tool_file_is_not_a_workflow_file_unless_asked(tmp_path):
     assert (step.id, step.tool, step.output.save) == ("1", "Sort", True)
 
 
+@pytest.mark.parametrize("bad", ["a", "0", "-1", "1.5", True])
+def test_step_ids_are_whole_numbers_from_1(tmp_path, bad):
+    data = {"name": "ids", "steps": [{"id": bad, "tool": "Sort"}]}
+    assert "is not a whole number from 1" in " ".join(check_workflow_file(write(tmp_path, data)).errors)
+
+
 def test_a_step_description_and_no_output_names(tmp_path):
     data = {"name": "notes", "steps": [{"id": "1", "tool": "Sort", "description": "by FOV"}]}
     assert check_workflow_file(write(tmp_path, data)).definition.steps[0].description == "by FOV"

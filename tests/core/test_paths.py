@@ -118,3 +118,38 @@ def test_folders_compared_without_case_on_macos(tmp_path):
 
     default = tmp_path / "Results"
     assert stored_folder(tmp_path / "results" / "a", default) == Path("a")
+
+
+# --- file and folder names ---
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("Summary: NAD(P)H a2[%]", "Summary_NAD_P_H_a2_pcent"),
+        ("Autoencoder: Train", "Autoencoder_Train"),
+        ("Order Category Values", "Order_Category_Values"),
+        ("τm (ps)", "taum_ps"),
+        ("µm", "um"),
+        ("café", "cafe"),
+        ("../etc/passwd", "etc_passwd"),  # no folders
+        ("a\nb\r", "a_b"),
+        ("Table_Concatenated", "Table_Concatenated"),
+        ("...", "_"),
+    ],
+)
+def test_path_name(name, expected):
+    assert paths.path_name(name, paths.DEFAULT_CHAR_REPLACEMENTS) == expected
+
+
+def test_path_name_uses_the_sessions_replacements():
+    try:
+        paths.set_char_replacements({**paths.DEFAULT_CHAR_REPLACEMENTS, "%": "pct"})
+        assert paths.path_name("a2[%]") == "a2_pct"
+    finally:
+        paths.set_char_replacements(paths.DEFAULT_CHAR_REPLACEMENTS)
+
+
+def test_same_names_ignore_case():
+    names = ["a b.txt", "A_B.txt", "c.txt"]
+    assert paths.same_names(names, paths.DEFAULT_CHAR_REPLACEMENTS) == [("a b.txt", "A_B.txt")]

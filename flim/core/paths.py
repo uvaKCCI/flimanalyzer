@@ -1,4 +1,8 @@
-"""Folders for results: one canonical form, and a check before a run.
+"""Folders for results: one canonical form, a check before a run, and file names.
+
+Every file and folder name FLIMAnalyzer makes (results, step and input folders) is
+made with one rule, `path_name`: the session's character replacements, then only
+ASCII letters, digits, `-`, `_` and `.`. Paths the user gives are not changed.
 
 A folder chosen by the user is stored as an absolute path with links resolved
 (`canonical_folder`). A tool's folder is stored relative to the default results
@@ -11,9 +15,90 @@ map the share to another letter.
 """
 
 import os
+import re
 import sys
+import unicodedata
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Optional
+
+# the default character replacements of file and folder names (app setting
+# `char_replacements`, which adds to them or overrides single ones)
+DEFAULT_CHAR_REPLACEMENTS = {"%": "pcent", "τ": "tau", "µ": "u", "μ": "u"}
+# the characters a name keeps; any other becomes `_`
+NAME_CHARS = "A-Za-z0-9._-"
+_OTHER = re.compile(f"[^{NAME_CHARS}]")
+_REPEATED = re.compile(r"_{2,}")
+_replacements = dict(DEFAULT_CHAR_REPLACEMENTS)  # the session's (see set_char_replacements)
+
+
+def set_char_replacements(replacements: Mapping[str, str]) -> None:
+    """Set the character replacements of this session's file and folder names.
+
+    Args:
+        replacements: Text -> replacement, applied in order (the app setting
+            `char_replacements`).
+    """
+    global _replacements
+    _replacements = dict(replacements)
+
+
+def char_replacements() -> dict[str, str]:
+    """Return the character replacements of this session's file and folder names."""
+    return dict(_replacements)
+
+
+def path_name(name: object, replacements: Optional[Mapping[str, str]] = None) -> str:
+    """Return a name as FLIMAnalyzer writes it into a file or folder name.
+
+    1. The replacements, in order (e.g. `%` -> `pcent`).
+    2. Letters with accents lose them (`é` -> `e`).
+    3. Every character other than ASCII letters, digits, `-`, `_` and `.` becomes
+       `_`; repeated `_` become one; `_`, `.` and spaces at both ends are removed.
+
+    Args:
+        name: The name, e.g. a result or a tool's name; other values are converted
+            with `str`.
+        replacements: The replacements; None for the session's
+            (`set_char_replacements`).
+
+    Returns:
+        The name, e.g. `Summary_NAD_P_H_a2_pcent` for `Summary: NAD(P)H a2[%]`; `_`
+        if nothing is left.
+    """
+    text = str(name)
+    for old, new in (_replacements if replacements is None else replacements).items():
+        text = text.replace(old, new)
+    text = "".join(
+        c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
+    )
+    text = _REPEATED.sub("_", _OTHER.sub("_", text)).strip("_. ")
+    return text or "_"
+
+
+def same_names(
+    names: Iterable[object], replacements: Optional[Mapping[str, str]] = None
+) -> list[tuple[str, str]]:
+    """Return the pairs of names that `path_name` makes equal, ignoring case.
+
+    Case is ignored as macOS and Windows do.
+
+    Args:
+        names: The names, e.g. a task's results or the inputs of a run.
+        replacements: As for `path_name`; None for the session's.
+
+    Returns:
+        (first, second) for each name that becomes the file name of an earlier one.
+    """
+    seen: dict[str, str] = {}
+    pairs = []
+    for name in names:
+        key = path_name(name, replacements).lower()
+        if key in seen:
+            pairs.append((seen[key], str(name)))
+        else:
+            seen[key] = str(name)
+    return pairs
 
 
 def canonical_folder(

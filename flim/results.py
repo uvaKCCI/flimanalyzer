@@ -5,9 +5,9 @@ import os
 import logging
 import matplotlib.figure
 import pandas as pd
-import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, Optional
 
 from joblib import dump
 
@@ -18,28 +18,28 @@ logger = logging.getLogger(__name__)
 
 
 def clean_path_component(name: str) -> str:
-    r"""Return a result or tag name changed for use as a file or folder name.
+    """Return a name as a file or folder name (deprecated: `flim.core.paths.path_name`).
 
-    `%` becomes `pcent`; carriage returns are removed; line breaks become spaces;
-    `|`, `/` and `\` become `_`; and a `:` with the whitespace character after it,
-    if any, becomes `_`.
+    Deprecated in 0.7.0, removed in 0.8.0: FLIMAnalyzer names files and folders with
+    one rule, `flim.core.paths.path_name`, which this function now calls.
 
     Args:
         name: The name; other values are converted with `str`.
 
     Returns:
-        The changed name.
+        The name as `path_name` returns it.
     """
-    name = (
-        str(name)
-        .replace("%", "pcent")
-        .replace("\r", "")
-        .replace("\n", " ")
-        .replace("|", "_")
-        .replace("/", "_")
-        .replace("\\", "_")
+    import warnings
+
+    from flim.core.paths import path_name
+
+    warnings.warn(
+        "flim.results.clean_path_component is deprecated and is removed in 0.8.0;"
+        " use flim.core.paths.path_name",
+        DeprecationWarning,
+        stacklevel=2,
     )
-    return re.sub(r":\s?", "_", name)
+    return path_name(name)
 
 
 def write_table(
@@ -62,6 +62,7 @@ def save_results(
     directory: str | os.PathLike,
     name: str,
     formats: Sequence["SaveOptions"] = (),
+    replacements: Optional[Mapping[str, str]] = None,
 ) -> None:
     """Save a tool's results in `directory`.
 
@@ -70,8 +71,8 @@ def save_results(
     result is a dict, each value is also saved as `<key>` with its data type's
     writer, in the formats for its kind (`flim.core.saving.save_value`): tables
     tab-separated as `<key>.txt` and figures as `<key>.png` by default. Values of no
-    data type with a writer are pickled as `<key>`. Names and keys are changed for
-    use as file names (see `clean_path_component`).
+    data type with a writer are pickled as `<key>`. Names and keys become file names
+    with `flim.core.paths.path_name`.
 
     Figures are not pickled: pickling them is slow for figures with many points, and
     the pickles only work with the matplotlib version that wrote them.
@@ -82,8 +83,23 @@ def save_results(
         name: The name of the task that produced the results.
         formats: The formats (`AutosaveConfig.formats`); a kind not listed is saved
             in its default format.
+        replacements: The character replacements of the file names; None for the
+            session's (a task on a Dask worker gets the run's).
+
+    Raises:
+        ValueError: If two keys become the same file name (ignoring case); nothing
+            is saved then.
     """
+    from flim.core.paths import path_name, same_names
     from flim.core.saving import save_value
+
+    if isinstance(results, dict):
+        clashes = same_names(results, replacements)
+        if clashes:
+            raise ValueError(
+                "results with the same file name: "
+                + "; ".join(f"'{a}' and '{b}'" for a, b in clashes)
+            )
 
     os.makedirs(directory, exist_ok=True)
     logger.debug(f"Saving results of {name} to {directory}")
@@ -96,10 +112,10 @@ def save_results(
     if to_pickle is not None and not (isinstance(to_pickle, dict) and not to_pickle):
         pickledir = os.path.join(directory, "pickled")
         os.makedirs(pickledir, exist_ok=True)
-        dump(to_pickle, os.path.join(pickledir, clean_path_component(name)))
+        dump(to_pickle, os.path.join(pickledir, path_name(name, replacements)))
     if not isinstance(results, dict):
         return
     for k, v in results.items():
-        basename = os.path.join(directory, clean_path_component(k))
+        basename = os.path.join(directory, path_name(k, replacements))
         if not save_value(v, basename, list(formats)):
             dump(v, basename)

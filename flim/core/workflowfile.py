@@ -104,8 +104,11 @@ class WorkflowStep(BaseModel):
     @field_validator("id", mode="before")
     @classmethod
     def _id_as_text(cls, value: Any) -> Any:
-        """Accept a number as the id, as text."""
-        return str(value) if isinstance(value, int) else value
+        """Accept a whole number from 1, given as a number or as text, as text."""
+        text = str(value).strip() if isinstance(value, (int, str)) and not isinstance(value, bool) else ""
+        if not text.isdigit() or int(text) < 1:
+            raise ValueError(f"{value!r} is not a whole number from 1")
+        return str(int(text))
 
 
 class WorkflowDefinition(BaseModel):

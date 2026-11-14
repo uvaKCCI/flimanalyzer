@@ -327,6 +327,17 @@ def test_server_timeout_reaches_the_prefect_server(data_dir, tmp_path, monkeypat
     assert code == 0 and used == {"start": True, "timeout": 90}
 
 
+def test_inputs_with_the_same_folder_name_stop_the_run(tmp_path, capsys):
+    folder = tmp_path / "data"
+    folder.mkdir()
+    table = pd.DataFrame({"FLIRR": [1.0, 2.0]})
+    for name in ("a b.txt", "a_b.txt"):
+        table.to_csv(folder / name, sep="\t", index=False)
+    code = main(["-i", str(folder), "--dry-run", "--run", "Sort"])
+    assert code == 1
+    assert "the inputs 'a b.txt' and 'a_b.txt' get the same folder name" in capsys.readouterr().err
+
+
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):
     first, second, third = sorted(data_dir.glob("*.txt"))[:3]
     code = main(["-i", str(first), "-i", str(second), str(third),

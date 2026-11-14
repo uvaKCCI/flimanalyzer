@@ -353,7 +353,7 @@ def formats_from_values(
 def unique_file_names(titles: Iterable[str]) -> list[str]:
     """Return file names (without extensions) for titles, unique within the list.
 
-    Titles are cleaned for file names (flim.results.clean_path_component) and
+    Titles become file names with `flim.core.paths.path_name` and are
     compared ignoring case, as macOS and Windows do; a later duplicate gets `-2`, `-3`,
     ... added.
 
@@ -364,11 +364,12 @@ def unique_file_names(titles: Iterable[str]) -> list[str]:
         One file name per title, in order; `untitled` for a title that is empty
         once cleaned.
     """
-    from flim.results import clean_path_component
+    from flim.core.paths import path_name
 
     names, taken = [], set()
     for title in titles:
-        base = clean_path_component(title) or "untitled"
+        cleaned = path_name(title)
+        base = cleaned if cleaned != "_" else "untitled"
         name, number = base, 2
         while name.lower() in taken:
             name = f"{base}-{number}"

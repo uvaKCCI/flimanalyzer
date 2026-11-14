@@ -242,6 +242,16 @@ def test_keys_of_the_user_settings_file_only_are_not_used(tmp_path):
     assert "Not used (read only from the user settings file):" in check.summary()
 
 
+def test_char_replacements_add_to_the_defaults_and_refuse_other_characters():
+    from pydantic import ValidationError
+
+    settings = AppSettings.model_validate({"char_replacements": {"%": "pct", "°": "deg"}})
+    assert settings.char_replacements == {"%": "pct", "τ": "tau", "µ": "u", "μ": "u", "°": "deg"}
+    assert AppSettings().char_replacements["%"] == "pcent"
+    with pytest.raises(ValidationError, match="only ASCII letters, digits"):
+        AppSettings.model_validate({"char_replacements": {"%": "/"}})
+
+
 def test_the_autosave_section_of_development_builds_is_read():
     from flim.core.settings import ToolSettings
 

@@ -197,3 +197,21 @@ def test_save_all_into_a_new_subfolder(tmp_path, table, figure):
     assert [t for t, _ in failed] == ["other"]
     second, _, _ = saving.save_all([("Table: R", table)], tmp_path)
     assert second != first  # never into an earlier folder
+
+
+def test_results_with_the_same_file_name_are_not_saved(tmp_path):
+    import pandas as pd
+
+    from flim.results import save_results
+
+    table = pd.DataFrame({"a": [1]})
+    with pytest.raises(ValueError, match="'Summary: FLIRR' and 'Summary_FLIRR'"):
+        save_results({"Summary: FLIRR": table, "Summary_FLIRR": table}, tmp_path / "out", "t")
+    assert not (tmp_path / "out").exists() or not list((tmp_path / "out").glob("*.txt"))
+
+
+def test_clean_path_component_is_deprecated():
+    from flim.results import clean_path_component
+
+    with pytest.warns(DeprecationWarning, match="removed in 0.8.0; use flim.core.paths.path_name"):
+        assert clean_path_component("Summary: FLIRR") == "Summary_FLIRR"
