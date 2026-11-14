@@ -153,6 +153,12 @@ def test_run_summary_and_prefect_link(tmp_path):
     assert run.ui_url in text
     assert "1 cancelled" in text and "1 completed" in text and "1 failed" in text
     assert "boom" in text  # failure message of Boom
+    # the runtime: versions and execution, also without Prefect's artifacts
+    from flim import __version__
+
+    assert f"Versions:\n  FLIMAnalyzer {__version__}\n  Python " in text
+    assert "  numpy " in text and "  pytest " not in text  # no test extra
+    assert "Execution:\n  task runner: ThreadPoolTaskRunner" in text
 
 
 def test_progress_callback():

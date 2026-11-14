@@ -414,26 +414,59 @@ def _sources(value: Any) -> set[str]:
     return set()
 
 
-# the packages whose versions a run records, besides FLIMAnalyzer
-RECORDED_PACKAGES = (
-    "numpy", "pandas", "scipy", "scikit-learn", "matplotlib", "seaborn", "torch",
-    "pydantic", "prefect", "prefect-dask", "dask", "distributed",
-)  # fmt: skip
+# extras of FLIMAnalyzer whose packages a run doesn't record (not used by a run)
+UNRECORDED_EXTRAS = ("test",)
+_NAME = re.compile(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
+_EXTRA = re.compile(r"""extra\s*==\s*["']([^"']+)["']""")
+
+
+def recorded_packages() -> list[str]:
+    """Return the packages whose versions a run records, besides FLIMAnalyzer.
+
+    FLIMAnalyzer's declared dependencies as installed (`dependencies` and the
+    optional extras of `pyproject.toml`, from the installed package's metadata),
+    without the extras in `UNRECORDED_EXTRAS`; then the installed packages that
+    provide tools of other packages (entry points of `flim.core.registry.TOOLS_GROUP`).
+
+    Returns:
+        The package names, each once, in that order.
+    """
+    from importlib.metadata import PackageNotFoundError, entry_points, requires
+
+    from flim.core.registry import TOOLS_GROUP
+
+    names: list[str] = []
+    try:
+        requirements = requires("flimanalyzer") or []
+    except PackageNotFoundError:  # running from files that are not installed
+        requirements = []
+    for requirement in requirements:
+        name, extra = _NAME.match(requirement), _EXTRA.search(requirement)
+        if name and not (extra and extra.group(1) in UNRECORDED_EXTRAS):
+            names.append(name.group(1))
+    for entry in entry_points(group=TOOLS_GROUP):
+        if entry.dist is not None and entry.dist.name != "flimanalyzer":
+            names.append(entry.dist.name)
+    return list(dict.fromkeys(names))
 
 
 def _versions() -> dict[str, str]:
-    """Return the versions of FLIMAnalyzer, Python and `RECORDED_PACKAGES` installed."""
+    """Return the versions of FLIMAnalyzer, Python and the recorded packages installed.
+
+    See `recorded_packages`; a package that is not installed (e.g. an extra) is left
+    out.
+    """
     import platform
     from importlib.metadata import PackageNotFoundError, version
 
     from flim import __version__
 
     found = {"FLIMAnalyzer": __version__, "Python": platform.python_version()}
-    for name in RECORDED_PACKAGES:
+    for name in recorded_packages():
         try:
             found[name] = version(name)
         except PackageNotFoundError:
-            pass  # not installed, e.g. prefect-dask
+            pass  # not installed, e.g. the dask extra
     return found
 
 
@@ -451,21 +484,24 @@ def _execution(task_runner: Any) -> dict[str, Any]:
 
 
 def _record_run(run: "FlowRun", task_runner: Any) -> None:
-    """Attach the app version, the execution and the input files to the flow run.
+    """Record the app versions, the execution and the input files of a flow run.
 
-    A Prefect artifact (the flow run's Artifacts tab), next to the settings that
-    each task records (`_record_settings`). A failure is logged, not raised.
+    They are kept in `run.versions` and `run.execution` for the run summary, and
+    attached to the flow run as a Prefect artifact (the flow run's Artifacts tab),
+    next to the settings that each task records (`_record_settings`). A failure to
+    create the artifact is logged, not raised.
     """
     import json
 
+    run.versions, run.execution = _versions(), _execution(task_runner)
+    record = {
+        "app": run.versions,
+        "execution": run.execution,
+        "input files": sorted(run.sources),
+    }
     try:
         from prefect.artifacts import create_markdown_artifact
 
-        record = {
-            "app": _versions(),
-            "execution": _execution(task_runner),
-            "input files": sorted(run.sources),
-        }
         create_markdown_artifact(
             markdown=f"```json\n{json.dumps(record, indent=2, default=str)}\n```",
             description=f"{run.name}: app version, execution and input files",
@@ -567,6 +603,10 @@ class FlowRun:
         self.sources: set[str] = set()  # the files of the tables that enter the run
         self.settings_record: List[str] = []  # the settings files, for the run summary
         self.save_formats: list = []  # AutosaveConfig.formats of the run
+        # the runtime, for the run summary: FLIMAnalyzer, Python and package versions,
+        # and the task runner (see _record_run)
+        self.versions: dict[str, str] = {}
+        self.execution: dict[str, Any] = {}
         self.graph = nx.DiGraph()
         self._label_counts = {}
         self._key_nodes = {}
@@ -852,6 +892,10 @@ class FlowRun:
         ]
         if self.settings_record:
             lines += ["Settings:"] + [f"  {line}" for line in self.settings_record] + [""]
+        if self.versions:
+            lines += ["Versions:"] + [f"  {k} {v}" for k, v in self.versions.items()] + [""]
+        if self.execution:
+            lines += ["Execution:"] + [f"  {k}: {v}" for k, v in self.execution.items()] + [""]
         if self.notes:
             lines += ["Notes:"] + [f"  {note}" for note in self.notes] + [""]
         granted = [a.get("resources") or "" for a in tasks]
