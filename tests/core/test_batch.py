@@ -581,3 +581,20 @@ def test_old_import_settings_are_not_used_and_said_so(data_dir, tmp_path, capsys
     path.write_text(v1.read_text())
     main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "--run", "Import"])
     assert "import settings (FLIMAnalyzer 0.6) are not used" in capsys.readouterr().err
+
+
+def test_dask_local_starts_one_cluster_for_all_runs(data_dir, settings, tmp_path, workflow_folder):
+    pytest.importorskip("prefect_dask")
+    settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["FLIRR"], aggs=["mean"]))
+    path = _settings_file(settings, tmp_path)
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "-w", str(workflow_folder),
+                 "--run", "Summarize", "--run", "per-treatment.json", "-e", "dask-local:workers=1",
+                 "--no-prefect-server"])  # fmt: skip
+    assert code == 0
+    notes = []
+    for number in (1, 2):
+        text = (run_dir(out, number) / "run_summary.txt").read_text()
+        (line,) = [s for s in text.splitlines() if "executor dask-local" in s]
+        notes.append(line)
+    assert notes[0] == notes[1]  # the same cluster, at the same address

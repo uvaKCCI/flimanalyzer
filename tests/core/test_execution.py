@@ -135,3 +135,23 @@ def test_dask_task_runners():
         server_timeout=7,
     ).task_runner()
     assert remote.client_kwargs["timeout"] == 3
+
+
+def test_started_gives_local_and_dask_unchanged():
+    for execution in (LocalExecutorSettings(), DaskClusterExecutorSettings(address="tcp://h:8786")):
+        opts = ExecutionOptions(execution=execution)
+        with opts.started() as (started, note):
+            assert started is opts and note is None
+
+
+@pytest.mark.skipif(not HAS_DASK, reason="needs the dask extra")
+def test_started_runs_one_local_dask_cluster_until_the_end():
+    opts = ExecutionOptions(execution=DaskLocalExecutorSettings(workers=1), server_timeout=5)
+    with opts.started() as (started, note):
+        address = started.execution.address
+        assert started.execution.executor == "dask"
+        assert started.server_timeout == 5
+        assert note.startswith(f"executor dask-local: one Dask cluster for all runs, at {address}")
+        assert "(1 workers, threads)" in note
+        assert started.check_cluster() is None  # the cluster answers
+    assert started.check_cluster() is not None  # stopped with the context

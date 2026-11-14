@@ -2,6 +2,8 @@
 
 import importlib.util
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Self, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -209,7 +211,49 @@ class ExecutionOptions(BaseConfig):
             # how long the client waits for the cluster; a client_kwargs timeout wins
             client_kwargs = {"timeout": self.server_timeout, **kwargs.pop("client_kwargs", {})}
             return DaskTaskRunner(address=settings.address, client_kwargs=client_kwargs, **kwargs)
-        cluster_kwargs = {"processes": settings.scheduler == "processes"}
+        return DaskTaskRunner(cluster_kwargs=self._cluster_kwargs())
+
+    def _cluster_kwargs(self) -> dict[str, Any]:
+        """Return the arguments of the local Dask cluster of the `dask-local` executor."""
+        settings = self.execution
+        cluster_kwargs: dict[str, Any] = {"processes": settings.scheduler == "processes"}
         if settings.workers is not None:
             cluster_kwargs["n_workers"] = settings.workers
-        return DaskTaskRunner(cluster_kwargs={**cluster_kwargs, **settings.kwargs})
+        return {**cluster_kwargs, **settings.kwargs}
+
+    @contextmanager
+    def started(self) -> Iterator[tuple[Self, Optional[str]]]:
+        """Start the executor's local Dask cluster once, for several runs.
+
+        With `dask-local`, starts a local Dask cluster and gives options of the `dask`
+        executor connected to it; the cluster stops when the context ends. Other
+        executors are given unchanged: `local` creates its threads per run, and `dask`
+        connects to its existing cluster.
+
+        Yields:
+            The options for the runs, and a note on the started cluster (e.g.
+            `executor dask-local: one Dask cluster for all runs, at tcp://127.0.0.1:
+            51234 (4 workers, threads)`), or None if no cluster was started.
+
+        Raises:
+            RuntimeError: If a Dask executor is selected and `prefect_dask` is not
+                installed.
+        """
+        settings = self.execution
+        if not isinstance(settings, DaskLocalExecutorSettings):
+            yield self, None
+            return
+        self.check_available()
+        from distributed import LocalCluster
+
+        with LocalCluster(**self._cluster_kwargs()) as cluster:
+            address = cluster.scheduler_address
+            workers = len(cluster.workers)
+            logger.info(f"Started a local Dask cluster at {address} ({workers} workers)")
+            shared = self.model_copy(
+                update={"execution": DaskClusterExecutorSettings(address=address)}
+            )
+            yield shared, (
+                f"executor dask-local: one Dask cluster for all runs, at {address}"
+                f" ({workers} workers, {settings.scheduler})"
+            )

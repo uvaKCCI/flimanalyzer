@@ -235,6 +235,7 @@ def run_on_tables(
     strict: bool = True,
     settings_record: Sequence[str] = (),
     save_all: Optional[str] = None,
+    notes: Sequence[str] = (),
 ) -> "FlowRun":
     """Run a tool or workflow on the tables read from the files, as one run.
 
@@ -255,6 +256,7 @@ def run_on_tables(
         save_all: What made every step of a workflow file save all its outputs
             (`--save-all` or `FLIM_SAVE_ALL`), noted in the run summary; None: the
             steps' `output.save`.
+        notes: Notes for the run summary, e.g. on the executor.
 
     Returns:
         The run.
@@ -274,7 +276,7 @@ def run_on_tables(
     if errors:
         raise BatchError(f"{tool.name}:\n" + "\n".join(errors))
     execution = execution or ExecutionOptions()
-    notes = [f"every step saves all its outputs ({save_all})"] if save_all else []
+    notes = list(notes) + ([f"every step saves all its outputs ({save_all})"] if save_all else [])
     if getattr(tool, "definition", None) is None and not issubclass(tool, Workflow):
         tool = tool_workflow(tool, settings)
     definition = getattr(tool, "definition", None)
@@ -577,13 +579,16 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         logger.info(f"Results: {call_dir}")
         strict = True if settings.strict is None else settings.strict
         failed = []
-        with use_prefect_server(start=settings.prefect_server, timeout=settings.server_timeout):
+        with (
+            use_prefect_server(start=settings.prefect_server, timeout=settings.server_timeout),
+            execution.started() as (execution, note),  # dask-local: one cluster per call
+        ):
             for number, (tool, read) in enumerate(runs, 1):
                 tables = _read(args.input, read_settings(read, args.exclude))
                 with checked_prefect_server():
                     run = run_on_tables(
                         tool, tables, settings, call_dir / f"run-{number}", execution, strict,
-                        manager.record(), save_all=args.save_all,
+                        manager.record(), save_all=args.save_all, notes=[note] if note else [],
                     )  # fmt: skip
                 if run.failed or run.state != "completed":
                     failed.append(f"{tool.name}: {', '.join(run.failed) or run.state}")
