@@ -416,6 +416,9 @@ def _sources(value: Any) -> set[str]:
 
 # extras of FLIMAnalyzer whose packages a run doesn't record (not used by a run)
 UNRECORDED_EXTRAS = ("test",)
+# the packages that run the tasks of a Dask executor (indirect dependencies, through
+# prefect-dask), recorded for runs on one
+DASK_PACKAGES = ("dask", "distributed")
 _NAME = re.compile(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 _EXTRA = re.compile(r"""extra\s*==\s*["']([^"']+)["']""")
 
@@ -450,11 +453,14 @@ def recorded_packages() -> list[str]:
     return list(dict.fromkeys(names))
 
 
-def _versions() -> dict[str, str]:
+def _versions(task_runner: Any = None) -> dict[str, str]:
     """Return the versions of FLIMAnalyzer, Python and the recorded packages installed.
 
-    See `recorded_packages`; a package that is not installed (e.g. an extra) is left
-    out.
+    See `recorded_packages`; with a Dask task runner also `DASK_PACKAGES`. A package
+    that is not installed (e.g. an extra) is left out.
+
+    Args:
+        task_runner: The run's task runner; None for none.
     """
     import platform
     from importlib.metadata import PackageNotFoundError, version
@@ -462,7 +468,10 @@ def _versions() -> dict[str, str]:
     from flim import __version__
 
     found = {"FLIMAnalyzer": __version__, "Python": platform.python_version()}
-    for name in recorded_packages():
+    names = recorded_packages()
+    if type(task_runner).__name__ == "DaskTaskRunner":
+        names += [n for n in DASK_PACKAGES if n not in names]
+    for name in names:
         try:
             found[name] = version(name)
         except PackageNotFoundError:
@@ -493,7 +502,7 @@ def _record_run(run: "FlowRun", task_runner: Any) -> None:
     """
     import json
 
-    run.versions, run.execution = _versions(), _execution(task_runner)
+    run.versions, run.execution = _versions(task_runner), _execution(task_runner)
     record = {
         "app": run.versions,
         "execution": run.execution,
