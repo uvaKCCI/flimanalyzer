@@ -1,15 +1,14 @@
 """Batch mode: read data files and run tools or workflows on them without the GUI.
 
-`flimbatch -i <files or folders> -o <folder> [-s settings.json] (--run NAME |
---workflow FILE) ...`
+`flimbatch -i <files or folders> -o <folder> [-s settings.json] --run NAME ...`
 
 1. Reads the settings file given with `-s` (any version, see `flim.core.settings`),
    else the defaults; the user settings file is not used, so batch results don't
    depend on settings changed in the GUI.
 2. Reads each data file into a table, with `Source` (the file as a URI); nothing
    else is done to the data before the runs.
-3. Runs each `--run` (a tool, a code-defined workflow, or a workflow file by its
-   name) and `--workflow` (a workflow file) on the tables: a tool once per table
+3. Runs each `--run`, in the order given (a tool, a code-defined workflow, or a
+   workflow file by its name, path or file name) on the tables: a tool once per table
    (a tool that takes many tables, e.g. Concatenate, once on all), a workflow file as
    its steps say (each step once per table until a step joins them). A tool uses its
    settings from the settings file; a workflow file's steps carry their own. The
@@ -33,7 +32,14 @@ from flim.core.paths import canonical_folder, folder_problem
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.schema import TableSchema
 from flim.core import logs
-from flim.core.cli import add_settings_options, command_line_changes, settings_file
+from flim.core.cli import (
+    add_file_options,
+    add_log_option,
+    add_settings_options,
+    command_line_changes,
+    log_level,
+    settings_file,
+)
 from flim.core.reader import ReadSettings, read_tables
 from flim.core.settings import AppSettings
 from flim.core.settingsmgr import session_settings
@@ -53,15 +59,16 @@ class BatchError(Exception):
     """A batch step that cannot be done, with the reason for the user."""
 
 
-def resolve_run(
-    name: str, kind: str, search_path: Sequence[str | os.PathLike] = ()
-) -> type["Tool"]:
-    """Return the tool or workflow class of a `--run NAME` or `--workflow FILE`.
+def resolve_run(name: str, search_path: Sequence[str | os.PathLike] = ()) -> type["Tool"]:
+    """Return the tool or workflow class of a `--run` argument.
+
+    An argument that contains a folder separator or ends with `.json` is a workflow
+    file: a path, or a file name in the search path. Any other argument is a
+    registered name: a tool, a workflow defined in code, or a workflow file by the
+    `name` in it.
 
     Args:
-        name: The argument of the option: a registered name for `--run`, a path or a
-            file name in the search path for `--workflow`.
-        kind: `run` for `--run`; any other value for `--workflow`.
+        name: The argument of `--run`.
         search_path: The folders searched for workflow files.
 
     Returns:
@@ -71,11 +78,19 @@ def resolve_run(
         BatchError: If there is no such tool, workflow or file, or the file has
             errors.
     """
-    from flim.core.workflowfile import check_workflow_file, find_workflow_file, workflow_class
+    from flim.core.workflowfile import (
+        check_workflow_file,
+        find_workflow_file,
+        is_workflow_file,
+        workflow_class,
+    )
 
-    if kind == "run":
+    if not is_workflow_file(name):
         if name not in tools:
-            raise BatchError(f"No tool or workflow named '{name}'")
+            raise BatchError(
+                f"No tool or workflow named '{name}' (a workflow file is given by its"
+                " path, or by its file name ending in .json)"
+            )
         return tools.get(name)
     try:
         path = find_workflow_file(name, search_path)
@@ -96,7 +111,7 @@ def file_run(
     other tool or workflow runs on the files read with Open Tables' settings.
 
     Args:
-        tool: The tool or workflow of `--run` or `--workflow`.
+        tool: The tool or workflow of `--run`.
         settings: The session's settings (the `-s` file and the defaults).
 
     Returns:
@@ -115,7 +130,7 @@ def file_run(
     if not config.workflow:
         raise BatchError(
             "Import Tables: the settings name no workflow; set `workflow` in its"
-            " section of the settings file, or use --workflow"
+            " section of the settings file, or run the workflow file with --run"
         )
     try:
         return resolve_workflow(config.workflow), config.read_settings()
@@ -279,52 +294,24 @@ def build_parser() -> argparse.ArgumentParser:
     """Create the argument parser of flimbatch.
 
     Returns:
-        The parser, with the input and exclude files, the shared app settings options
-        (`flim.core.cli`), the runs, `--dry-run` and the log level.
+        The parser, with the shared options of the files, the runs and the workflow
+        folders, of the app settings and of the log level (`flim.core.cli`), and
+        `--dry-run`.
     """
     parser = argparse.ArgumentParser(
         prog="flimbatch",
         description="Reads FLIM data files and runs tools or workflows on them.",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    parser.add_argument(
-        "-i", "--input", nargs="+", required=True, help="data files or folders"
-    )
-    parser.add_argument(
-        "-x", "--exclude", nargs="+", default=[], help="files not to read (names)"
-    )
+    add_file_options(parser, input_required=True)
     add_settings_options(parser)
-    parser.add_argument(
-        "-r",
-        "--run",
-        action="append",
-        default=[],
-        metavar="NAME",
-        help="tool or workflow to run on the tables, also a workflow file by its name"
-        " (repeatable)",
-    )
-    parser.add_argument(
-        "-w",
-        "--workflow",
-        action="append",
-        default=[],
-        metavar="FILE",
-        help="workflow file to run: a path, or a file name in the workflow search path"
-        " (repeatable)",
-    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
         help="read the first rows of the files, check the runs against them, run nothing",
     )
     parser.add_argument("--allow-guesses", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument(
-        "-l",
-        "--log",
-        choices=["debug", "info", "warning", "error", "critical"],
-        default="info",
-        help="logging level",
-    )
+    add_log_option(parser)
     return parser
 
 
@@ -354,22 +341,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         `--dry-run`: if no check found an error), 1 otherwise.
 
     Raises:
-        SystemExit: If the arguments are invalid, or neither `--run` nor
-            `--workflow` is given, or `-o` is missing without `--dry-run` (exit
-            code 2, from `argparse`).
+        SystemExit: If the arguments are invalid, or no `--run` is given, or `-o`
+            is missing without `--dry-run` (exit code 2, from `argparse`).
     """
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not args.run and not args.workflow:
+    if not args.run:
         parser.error(
-            "give --run NAME or --workflow FILE (e.g. --run Import to join the files"
+            "give --run NAME (e.g. --run Import to join the files"
             " into one table with the FLIM features)"
         )
     if not args.output and not args.dry_run:
         parser.error("the following arguments are required: -o/--output")
     # the console as before; the log file opens once the output folder is known
-    memory = logs.begin(args.log.upper())
-    logging.getLogger().addHandler(logs.console_handler(args.log.upper()))
+    memory = logs.begin(log_level(args))
+    logging.getLogger().addHandler(logs.console_handler(log_level(args)))
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.prefect_server import checked_prefect_server, use_prefect_server
@@ -393,12 +379,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 " Import Settings...) and save them as a workflow file",
                 file=sys.stderr,
             )
-        search_path = workflow_path(settings.workflow_paths)
+        # from -w or FLIM_WORKFLOW_PATH only: a settings file doesn't decide which
+        # workflow file a name refers to
+        search_path = workflow_path(folders=args.workflow_path)
         for message in register_workflow_files(search_path):
             print(f"flimbatch: warning: {message}", file=sys.stderr)
-        runs = [resolve_run(n, "run", search_path) for n in args.run] + [
-            resolve_run(n, "workflow", search_path) for n in args.workflow
-        ]
+        runs = [resolve_run(n, search_path) for n in args.run]
         runs = [file_run(tool, settings) for tool in runs]
         if args.dry_run:
             return _dry_run(runs, args, settings)

@@ -115,7 +115,7 @@ def test_a_workflow_file_joins_the_files(data_dir, settings, tmp_path):
         ],
     }))
     out = tmp_path / "out"
-    code = main(["-i", str(data_dir), "-o", str(out), "--workflow", str(workflow),
+    code = main(["-i", str(data_dir), "-o", str(out), "--run", str(workflow),
                  "--no-prefect-server"])
     assert code == 0
     saved = [p for p in (out / "per treatment").rglob("*.txt") if p.name != "run_summary.txt"]
@@ -138,7 +138,7 @@ def test_import_with_a_preset_step_takes_the_categories(data_dir, tmp_path):
 
     path = write_workflow(tmp_path / "fov.json", import_with_preset("FOV, Treatment, Cell"))
     out = tmp_path / "out"
-    code = main(["-i", str(data_dir), "-o", str(out), "--workflow", str(path), "--no-prefect-server"])
+    code = main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"])
     assert code == 0
     (calculated,) = (out / "Import: FOV, Treatment, Cell").rglob("*Calculated*")
     table = pd.read_csv(calculated, sep="\t")
@@ -177,7 +177,70 @@ def test_files_are_read_with_open_tables_settings(data_dir, settings, tmp_path, 
 def test_a_run_is_required(data_dir, tmp_path, capsys):
     with pytest.raises(SystemExit):
         main(["-i", str(data_dir), "-o", str(tmp_path)])
-    assert "--run NAME or --workflow FILE" in capsys.readouterr().err
+    assert "give --run NAME" in capsys.readouterr().err
+
+
+PER_TREATMENT = {
+    "name": "per treatment",
+    "steps": [
+        {"id": "1", "tool": "Concatenate", "config": {"add_input": False}},
+        {"id": "2", "tool": "Summarize", "save": True,
+         "config": {"grouping": [], "features": ["FLIRR"], "aggs": ["mean"]}},
+    ],
+}
+
+
+@pytest.fixture
+def workflow_folder(tmp_path, monkeypatch):
+    """A folder with the workflow file `per-treatment.json`; no other search path."""
+    import flim.core.workflowfile as workflowfile
+
+    folder = tmp_path / "workflows"
+    folder.mkdir()
+    (folder / "per-treatment.json").write_text(json.dumps(PER_TREATMENT))
+    monkeypatch.delenv("FLIM_WORKFLOW_PATH", raising=False)
+    empty = tmp_path / "default-workflows"
+    monkeypatch.setattr(workflowfile, "default_workflow_dir", lambda: empty)
+    return folder
+
+
+def test_run_takes_a_workflow_file_by_path_or_by_file_name(data_dir, workflow_folder, capsys):
+    path = workflow_folder / "per-treatment.json"
+    assert main(["-i", str(data_dir), "--dry-run", "--run", str(path)]) == 0
+    assert main(["-i", str(data_dir), "--dry-run", "-w", str(workflow_folder),
+                 "--run", "per-treatment.json"]) == 0  # fmt: skip
+    assert capsys.readouterr().out.count("per treatment: OK") == 2
+
+
+def test_a_name_without_json_is_a_registered_name(data_dir, workflow_folder, capsys):
+    code = main(["-i", str(data_dir), "--dry-run", "-w", str(workflow_folder),
+                 "--run", "per-treatment"])  # fmt: skip
+    assert code == 1
+    assert "No tool or workflow named 'per-treatment'" in capsys.readouterr().err
+
+
+def test_a_settings_file_doesnt_set_the_workflow_folders(
+    data_dir, workflow_folder, settings, tmp_path, capsys
+):
+    settings.workflow_paths = [workflow_folder]
+    path = _settings_file(settings, tmp_path)
+    code = main(["-i", str(data_dir), "--dry-run", "-s", str(path),
+                 "--run", "per-treatment.json"])  # fmt: skip
+    assert code == 1 and "No workflow file 'per-treatment.json'" in capsys.readouterr().err
+
+
+def test_runs_run_in_the_order_given(data_dir, workflow_folder, capsys):
+    code = main(["-i", str(data_dir), "--dry-run", "-w", str(workflow_folder),
+                 "--run", "Import", "--run", "per-treatment.json"])  # fmt: skip
+    out = capsys.readouterr().out
+    assert code == 0 and out.index("Import: OK") < out.index("per treatment: OK")
+
+
+def test_input_and_exclude_can_be_repeated(data_dir, capsys):
+    first, second, third = sorted(data_dir.glob("*.txt"))[:3]
+    code = main(["-i", str(first), "-i", str(second), str(third),
+                 "-x", first.name, "-x", second.name, "--dry-run", "--run", "Import"])  # fmt: skip
+    assert code == 0 and "Import: OK (1 file(s))" in capsys.readouterr().out
 
 
 def test_dry_run_checks_and_runs_nothing(data_dir, settings, tmp_path, capsys):

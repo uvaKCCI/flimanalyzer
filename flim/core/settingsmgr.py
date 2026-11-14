@@ -56,7 +56,7 @@ ENV_NAMES = {
 OPTION_NAMES = {
     "results_dir": "-o",
     "execution": "-e",
-    "prefect_server": "--no-prefect-server",
+    "prefect_server": "--prefect-server, --no-prefect-server",
     "log": "--log-dir",
     "cache": "--cache-dir",
     "strict": "--strict, --no-strict",
@@ -261,6 +261,8 @@ class SettingsManager:
         self._version = 0
         self.source: Optional[Path] = None  # the app settings file of this session
         self.check: Optional[SettingsCheck] = None  # the check of that file
+        # the folders of -w/--workflow-path, for this session only
+        self.workflow_folders: list[Path] = []
         # messages for the user about the settings files, e.g. a renamed user file
         self.notices: list[str] = []
         if user_file is not None and user_file.set_aside:
@@ -284,6 +286,18 @@ class SettingsManager:
         """A copy of the current settings."""
         with self._lock:
             return self._settings.model_copy(deep=True)
+
+    def workflow_search_path(self) -> list[Path]:
+        """Return the folders searched for workflow files in this session.
+
+        Returns:
+            The folders of `-w` (`workflow_folders`), else those of
+            `FLIM_WORKFLOW_PATH`, else `workflow_paths`, else the default folder (see
+            `flim.core.workflowfile.workflow_path`).
+        """
+        from flim.core.workflowfile import workflow_path
+
+        return workflow_path(self.settings.workflow_paths, self.workflow_folders)
 
     @property
     def version(self) -> int:

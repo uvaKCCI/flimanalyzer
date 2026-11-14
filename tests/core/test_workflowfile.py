@@ -91,6 +91,19 @@ def test_search_path(tmp_path, monkeypatch):
         find_workflow_file("gone", [folder])
     monkeypatch.setenv("FLIM_WORKFLOW_PATH", str(tmp_path))
     assert workflow_path([folder]) == [tmp_path]
+    # the folders of -w come first, before the environment variable
+    assert workflow_path([folder], [folder / "a", folder / "b"]) == [folder / "a", folder / "b"]
+
+
+@pytest.mark.parametrize(
+    "name, is_file",
+    [("Summarize", False), ("Basic FLIRR Analysis", False), ("calc.json", True),
+     ("calc.JSON", True), ("sub/calc", True), ("./calc", True)],
+)
+def test_a_run_argument_names_a_file_or_a_registered_name(name, is_file):
+    from flim.core.workflowfile import is_workflow_file
+
+    assert is_workflow_file(name) is is_file
 
 
 # --- running workflow files ---

@@ -1,4 +1,4 @@
-"""Command-line options of the app settings, shared by flimanalyzer and flimbatch."""
+"""Command-line options shared by flimanalyzer and flimbatch: files, settings, log level."""
 
 import argparse
 from typing import Any, Optional
@@ -26,6 +26,70 @@ EXECUTOR_HELP = """where and how tasks run:
   dask:address=URL[,KEY=VALUE...]
                      an existing Dask cluster
 other keys are further Dask arguments, e.g. threads_per_worker=2"""
+LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
+
+
+def add_file_options(
+    parser: argparse.ArgumentParser,
+    *,
+    input_required: bool = False,
+    input_help: str = "data files or folders",
+    run_help: str = "",
+) -> None:
+    """Add the options of the data files and the workflow folders to an argument parser.
+
+    `-i`, `-x` and `-w` take several values after one use, and can be repeated:
+    `-i a.txt -i b.txt` and `-i a.txt b.txt` give both files.
+
+    Args:
+        parser: The argument parser of flimanalyzer or flimbatch.
+        input_required: Whether `-i` is required. Defaults to False.
+        input_help: The help text of `-i`.
+        run_help: Text added to the help of `--run`, e.g. what the program shows first.
+    """
+    parser.add_argument(
+        "-i", "--input", nargs="+", action="extend", required=input_required,
+        metavar="PATH", help=input_help + " (repeatable)",
+    )  # fmt: skip
+    parser.add_argument(
+        "-x", "--exclude", nargs="+", action="extend", default=[], metavar="NAME",
+        help="files not to read, by name (repeatable)",
+    )  # fmt: skip
+    parser.add_argument(
+        "-r", "--run", action="append", default=[], metavar="NAME",
+        help="tool or workflow to run on the files (repeatable; runs in the order given):\n"
+        "a registered name, or a workflow file: a path, or a file name ending in .json\n"
+        "in the workflow search path" + (f";\n{run_help}" if run_help else ""),
+    )  # fmt: skip
+    parser.add_argument(
+        "-w", "--workflow-path", nargs="+", action="extend", default=[], metavar="DIR",
+        help="folders searched for workflow files, before FLIM_WORKFLOW_PATH\n"
+        "(repeatable)",
+    )  # fmt: skip
+
+
+def add_log_option(parser: argparse.ArgumentParser) -> None:
+    """Add the log level option, `-l`/`--log-level` (also `--log`), to an argument parser.
+
+    Args:
+        parser: The argument parser of flimanalyzer or flimbatch.
+    """
+    parser.add_argument(
+        "-l", "--log-level", "--log", dest="log_level", choices=LOG_LEVELS, default=None,
+        help="logging level (default: info)",
+    )  # fmt: skip
+
+
+def log_level(args: argparse.Namespace) -> str:
+    """Return the log level given with `-l`, upper case; `INFO` if none is given.
+
+    Args:
+        args: The parsed arguments (`add_log_option`).
+
+    Returns:
+        The log level, e.g. `INFO`.
+    """
+    return (args.log_level or "info").upper()
 
 
 def add_settings_options(
@@ -54,9 +118,11 @@ def add_settings_options(
     )
     parser.add_argument("-a", "--execargs", help=argparse.SUPPRESS)
     parser.add_argument(
-        "--no-prefect-server",
-        action="store_true",
-        help="don't start a local Prefect server; flows use a temporary one",
+        "--prefect-server",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="use or start a local Prefect server (--prefect-server), or a temporary"
+        " one\nfor each run (--no-prefect-server)",
     )
     parser.add_argument("--log-dir", metavar="DIR", help="folder of the log files")
     parser.add_argument("--cache-dir", metavar="DIR", help="cache folder")
@@ -192,23 +258,25 @@ def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list
         The sections to apply; and the deprecation messages.
 
     Raises:
-        ValueError: If an option has an invalid value (see `executor_settings`).
+        ValueError: If an option has an invalid value (see `executor_settings`), or
+            `--allow-guesses` is given with `--strict` or `--no-strict`.
     """
     changes, notes = {}, []
     if args.output is not None:
         changes["results_dir"] = args.output
     if args.executor is not None or args.execargs:
         changes["execution"], notes = executor_settings(args.executor, args.execargs)
-    if args.no_prefect_server:
-        changes["prefect_server"] = False
+    if args.prefect_server is not None:
+        changes["prefect_server"] = args.prefect_server
     if args.log_dir is not None:
         changes["log"] = {"dir": args.log_dir}
     if args.cache_dir is not None:
         changes["cache"] = {"dir": args.cache_dir}
     if getattr(args, "allow_guesses", False):
+        if args.strict is not None:
+            raise ValueError("--allow-guesses and --strict/--no-strict: give only --no-strict")
         notes.append("--allow-guesses is deprecated and is removed in 0.8.0; use --no-strict")
-        if args.strict is None:
-            args.strict = False
+        args.strict = False
     if args.strict is not None:
         changes["strict"] = args.strict
     return changes, notes

@@ -382,7 +382,7 @@ def offer_import_workflow(
     import json
 
     from flim.core.registry import tools
-    from flim.core.workflowfile import check_workflow_file, workflow_class, workflow_path
+    from flim.core.workflowfile import check_workflow_file, workflow_class
 
     data = getattr(check, "import_workflow", None)
     if not data:
@@ -397,7 +397,7 @@ def offer_import_workflow(
         dialog.SetYesNoLabels("Save as Workflow File...", "Don't Save")
         if dialog.ShowModal() != wx.ID_YES:
             return None
-    folder = workflow_path(settings_manager.settings.workflow_paths)[0]
+    folder = settings_manager.workflow_search_path()[0]
     folder.mkdir(parents=True, exist_ok=True)
     with wx.FileDialog(
         parent, "Save as Workflow File", defaultDir=str(folder),

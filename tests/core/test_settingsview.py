@@ -22,7 +22,7 @@ def test_defaults():
     assert shown["prefect_server"].value.startswith("yes")
     assert all(row.origin == "built-in default" for row in shown.values())
     assert shown["execution"].change.startswith("-e, FLIM_EXECUTION")
-    assert shown["prefect_server"].change == "--no-prefect-server, FLIM_PREFECT_SERVER"
+    assert shown["prefect_server"].change == "--prefect-server, --no-prefect-server, FLIM_PREFECT_SERVER"
 
 
 def test_each_setting_names_its_layer(tmp_path, monkeypatch):

@@ -77,6 +77,58 @@ def test_batch_hands_over_to_flimbatch(monkeypatch):
     assert seen == [["-i", "x", "-o", "y"]]
 
 
+def test_dry_run_is_not_an_option_of_the_gui(monkeypatch, capsys):
+    import flim.batch
+
+    monkeypatch.setattr(flim.batch, "main", lambda argv: pytest.fail("batch mode started"))
+    with pytest.raises(SystemExit) as exit_:
+        analyzerapp.main(["-i", "x", "--run", "Import", "--dry-run"])
+    assert exit_.value.code == 2
+    assert "unrecognized arguments: --dry-run" in capsys.readouterr().err
+
+
+def test_batch_dry_run_still_reaches_flimbatch(monkeypatch):
+    import flim.batch
+
+    seen = []
+    monkeypatch.setattr(flim.batch, "main", lambda argv: seen.append(argv) or 0)
+    with pytest.raises(SystemExit):
+        analyzerapp.main(["--batch", "-i", "x", "--run", "Import", "--dry-run"])
+    assert seen == [["-i", "x", "--run", "Import", "--dry-run"]]
+
+
+def test_files_runs_and_workflow_folders_reach_the_gui(monkeypatch, clean_logging):
+    started = {}
+    monkeypatch.setattr(
+        analyzerapp,
+        "interactive_run",
+        lambda fa, files=None, settings_manager=None, runs=(), exclude=(): started.update(
+            files=files, manager=settings_manager, runs=runs, exclude=exclude
+        ),
+    )
+    _no_server(monkeypatch)
+    analyzerapp.main(["-i", "a.txt", "-i", "b.txt", "-x", "c.txt", "-x", "d.txt",
+                      "-r", "x.json", "-r", "Summarize", "-w", "wf1", "-w", "wf2"])  # fmt: skip
+    assert started["files"] == ["a.txt", "b.txt"]
+    assert started["exclude"] == ["c.txt", "d.txt"]
+    assert started["runs"] == ["x.json", "Summarize"]
+    assert started["manager"].workflow_folders == [Path("wf1"), Path("wf2")]
+    assert started["manager"].workflow_search_path()[:2] == [Path("wf1"), Path("wf2")]
+
+
+def test_prefect_server_option_turns_on_what_a_settings_file_turned_off(
+    monkeypatch, clean_logging
+):
+    from flim.core.settings import AppSettings, save_settings
+
+    path = clean_logging / "project.json"
+    settings = AppSettings.default()
+    settings.prefect_server = False
+    save_settings(settings, str(path))
+    manager = _start(monkeypatch, ["-s", str(path), "--prefect-server"])
+    assert manager.settings.prefect_server is True
+
+
 def test_settings_file_reaches_the_gui(monkeypatch, clean_logging):
     from flim.core.settings import AppSettings, save_settings
 

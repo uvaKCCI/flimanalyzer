@@ -263,23 +263,44 @@ def check_workflow_file(path: str | os.PathLike) -> WorkflowCheck:
     return check
 
 
-def workflow_path(user_path: Iterable[str | os.PathLike] = ()) -> list[Path]:
+def workflow_path(
+    user_path: Iterable[str | os.PathLike] = (),
+    folders: Iterable[str | os.PathLike] = (),
+) -> list[Path]:
     """Return the folders searched for workflow files, in order.
 
     Args:
         user_path: The `workflow_paths` of the user settings file.
+        folders: The folders given with `-w`/`--workflow-path`.
 
     Returns:
-        The folders of `FLIM_WORKFLOW_PATH` if it is set (separated by `os.pathsep`),
-        otherwise `user_path` if it is not empty, otherwise the folder `workflows` in
-        the platform's settings folder. `~` is expanded.
+        `folders` if not empty; otherwise the folders of `FLIM_WORKFLOW_PATH` if it is
+        set (separated by `os.pathsep`); otherwise `user_path` if it is not empty;
+        otherwise the folder `workflows` in the platform's settings folder. `~` is
+        expanded.
     """
-    value = os.environ.get(WORKFLOW_PATH_VAR)
-    if value:
-        folders = [Path(p) for p in value.split(os.pathsep) if p]
-    else:
-        folders = [Path(p) for p in user_path] or [default_workflow_dir()]
-    return [f.expanduser() for f in folders]
+    chosen = [Path(p) for p in folders]
+    if not chosen:
+        value = os.environ.get(WORKFLOW_PATH_VAR)
+        if value:
+            chosen = [Path(p) for p in value.split(os.pathsep) if p]
+        else:
+            chosen = [Path(p) for p in user_path] or [default_workflow_dir()]
+    return [f.expanduser() for f in chosen]
+
+
+def is_workflow_file(name: str | os.PathLike) -> bool:
+    """Return whether a `--run` argument names a workflow file rather than a tool.
+
+    Args:
+        name: The argument.
+
+    Returns:
+        True if it contains a folder separator or ends with `.json` (any case).
+    """
+    text = str(name)
+    separators = {"/", os.sep} | ({os.altsep} if os.altsep else set())
+    return text.lower().endswith(".json") or any(s in text for s in separators)
 
 
 def default_workflow_dir() -> Path:
@@ -294,7 +315,7 @@ def default_workflow_dir() -> Path:
 def find_workflow_file(
     name: str | os.PathLike, search_path: Iterable[Path] = ()
 ) -> Path:
-    """Resolve the argument of `--workflow`: a path, or a file name in the search path.
+    """Resolve a workflow file given to `--run`: a path, or a file name in the search path.
 
     Args:
         name: The path of a file (`~` is expanded), or a file name, with or without

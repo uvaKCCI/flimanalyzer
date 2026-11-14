@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Command-line entry point of flimanalyzer: starts the GUI or batch mode.
 
-Parses the arguments and starts the GUI; with `--batch` or `--dry-run`, runs batch
-mode (`flim.batch`) instead.
+Parses the arguments and starts the GUI; with `--batch`, runs batch mode
+(`flim.batch`) instead.
 """
 
 import logging
@@ -14,7 +14,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 from flim._version import __version__
 from flim.core import logs
-from flim.core.cli import add_settings_options, command_line_changes, settings_file
+from flim.core.cli import (
+    add_file_options,
+    add_log_option,
+    add_settings_options,
+    command_line_changes,
+    log_level,
+    settings_file,
+)
 from flim.core.execution import ExecutionOptions
 from flim.core.prefect_server import PrefectServerError, use_prefect_server
 from flim.core.settingsmgr import (
@@ -33,7 +40,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
 _startup_app = None  # the GUI app, if created for a dialog before the main window
 
 
@@ -41,46 +47,22 @@ def build_parser() -> argparse.ArgumentParser:
     """Create the argument parser of flimanalyzer.
 
     Returns:
-        The parser, with the input files, the shared app settings options
-        (`flim.core.cli`) and the log level.
+        The parser, with the shared options of the files, the runs and the workflow
+        folders, of the app settings and of the log level (`flim.core.cli`).
     """
     parser = argparse.ArgumentParser(
         prog="flimanalyzer",
         formatter_class=argparse.RawTextHelpFormatter,
         epilog="flimanalyzer --batch ARGS runs flimbatch ARGS (batch mode, no GUI).",
     )
-    parser.add_argument(
-        "-i",
-        "--input",
-        nargs="+",
-        help="data files or folders: opened, each in its own window, or read for\n"
-        "--run and --workflow",
+    add_file_options(
+        parser,
+        input_help="data files or folders: opened, each in its own window, or read for\n"
+        "--run",
+        run_help="its dialog (or, for a workflow file, its steps) is shown first",
     )
-    parser.add_argument(
-        "-x", "--exclude", nargs="+", default=[], help="files not to read (names)"
-    )
-    parser.add_argument(
-        "-r", "--run", action="append", default=[], metavar="NAME",
-        help="tool or workflow to run on the files, also a workflow file by its name;\n"
-        "its dialog (or, for a workflow file, its steps) is shown first",
-    )  # fmt: skip
-    parser.add_argument(
-        "-w", "--workflow", action="append", default=[], metavar="FILE",
-        help="workflow file to run on the files: a path, or a file name in the\n"
-        "workflow search path",
-    )  # fmt: skip
-    parser.add_argument(
-        "--dry-run", action="store_true",
-        help="check the runs against the first rows of the files and exit (as flimbatch)",
-    )  # fmt: skip
     add_settings_options(parser)
-    parser.add_argument(
-        "-l",
-        "--log",
-        choices=LOG_LEVELS,
-        default="info",
-        help="logging level",
-    )
+    add_log_option(parser)
     return parser
 
 
@@ -100,7 +82,7 @@ def interactive_run(
     fa: FLIMAnalyzer,
     files: Optional[Sequence[str]] = None,
     settings_manager: Optional["SettingsManager"] = None,
-    runs: Sequence[tuple[str, str]] = (),
+    runs: Sequence[str] = (),
     exclude: Sequence[str] = (),
 ) -> None:
     """Open the main window and run the GUI until it is closed.
@@ -115,8 +97,8 @@ def interactive_run(
             read for the runs; None for none.
         settings_manager: The settings manager of the session; None for the GUI
             app's default.
-        runs: The `--run` and `--workflow` arguments, as (`run` or `workflow`, name)
-            pairs, run on the files at startup instead of opening them.
+        runs: The `--run` arguments, run on the files at startup in this order
+            instead of opening them.
         exclude: The file names of `-x`, not read.
 
     Raises:
@@ -253,7 +235,7 @@ def open_log(
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    """Run flimanalyzer: start the GUI, or batch mode with `--batch` or `--dry-run`.
+    """Run flimanalyzer: start the GUI, or batch mode with `--batch`.
 
     In batch mode, the arguments without `--batch` go to `flim.batch.main`. For the
     GUI, the tools and workflows are registered, the settings of the session are
@@ -270,16 +252,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             installed.
     """
     argv = sys.argv[1:] if argv is None else list(argv)
-    if "--batch" in argv or "--dry-run" in argv:  # flim.batch.main, without the GUI
+    if "--batch" in argv:  # flim.batch.main, without the GUI
         from flim import batch
 
-        if "--batch" in argv:
-            argv.remove("--batch")
+        argv.remove("--batch")
         sys.exit(batch.main(argv))
 
     parser = build_parser()
     args = parser.parse_args(argv)
-    memory = init_logger(args.log.upper())
+    memory = init_logger(log_level(args))
     logger.info(f"FLIMAnalyzer version {__version__}")
     logger.debug(args)
     import flim.tools  # noqa: F401  (registers the tools: settings files are checked)
@@ -317,9 +298,13 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     fa = FLIMAnalyzer(execution=execution)
     try:
         with use_prefect_server(start=manager.settings.prefect_server):
-            runs = [("run", n) for n in args.run] + [("workflow", n) for n in args.workflow]
+            manager.workflow_folders = [Path(p) for p in args.workflow_path]
             interactive_run(
-                fa, files=args.input, settings_manager=manager, runs=runs, exclude=args.exclude
+                fa,
+                files=args.input,
+                settings_manager=manager,
+                runs=args.run,
+                exclude=args.exclude,
             )
     except PrefectServerError as err:
         logger.error(err)

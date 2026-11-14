@@ -6,9 +6,12 @@ from pathlib import Path
 import pytest
 
 from flim.core.cli import (
+    add_file_options,
+    add_log_option,
     add_settings_options,
     command_line_changes,
     executor_settings,
+    log_level,
     settings_file,
 )
 
@@ -141,6 +144,47 @@ def test_deprecated_allow_guesses_means_no_strict():
     args.allow_guesses = True  # flimbatch's deprecated option
     changes, notes = command_line_changes(args)
     assert changes == {"strict": False} and "use --no-strict" in notes[0]
+
+
+@pytest.mark.parametrize("strict", ["--strict", "--no-strict"])
+def test_allow_guesses_with_strict_is_an_error(strict):
+    args = parse(strict)
+    args.allow_guesses = True
+    with pytest.raises(ValueError, match="give only --no-strict"):
+        command_line_changes(args)
+
+
+@pytest.mark.parametrize(
+    "option, value", [("--prefect-server", True), ("--no-prefect-server", False)]
+)
+def test_prefect_server_both_ways(option, value):
+    assert command_line_changes(parse(option))[0] == {"prefect_server": value}
+
+
+def parse_files(*argv):
+    parser = argparse.ArgumentParser()
+    add_file_options(parser)
+    add_log_option(parser)
+    return parser.parse_args(list(argv))
+
+
+def test_files_options_take_several_values_and_repeat():
+    args = parse_files("-i", "a.txt", "-i", "b.txt", "c.txt", "-x", "d.txt", "-x", "e.txt",
+                       "-w", "wf1", "-w", "wf2", "wf3", "-r", "Summarize", "-r", "x.json")
+    assert args.input == ["a.txt", "b.txt", "c.txt"]
+    assert args.exclude == ["d.txt", "e.txt"]
+    assert args.workflow_path == ["wf1", "wf2", "wf3"]
+    assert args.run == ["Summarize", "x.json"]  # in the order given
+
+
+@pytest.mark.parametrize("option", ["-l", "--log-level", "--log"])
+def test_log_level_option_names(option):
+    assert log_level(parse_files(option, "debug")) == "DEBUG"
+
+
+def test_log_level_defaults_to_info():
+    args = parse_files()
+    assert args.log_level is None and log_level(args) == "INFO"
 
 
 def test_output_can_be_required():

@@ -153,7 +153,7 @@ class FLIMAnalyzerApp(wx.App):
         flimanalyzer: Optional[FLIMAnalyzer] = None,
         settings_manager: Optional[SettingsManager] = None,
         files: Optional[Iterable[str | os.PathLike]] = None,
-        runs: Iterable[tuple[str, str]] = (),
+        runs: Iterable[str] = (),
         exclude: Iterable[str] = (),
     ) -> None:
         """Create the app; also discovers the tools and dialogs of other packages.
@@ -165,8 +165,8 @@ class FLIMAnalyzerApp(wx.App):
             settings_manager: The SettingsManager of this session. Defaults to one with
                 the built-in defaults and the user settings file.
             files: Data files to open at startup, each in its own data window.
-            runs: ("run", name) or ("workflow", file) to run on the files at startup
-                (`--run`, `--workflow`) instead of opening them.
+            runs: The `--run` arguments, run on the files at startup in this order
+                instead of opening them.
             exclude: File names not to read (`-x`).
         """
         self.flimanalyzer = flimanalyzer
@@ -232,9 +232,9 @@ class FLIMAnalyzerApp(wx.App):
                 user_file=UserSettingsFile(user_settings_path())
             )
         # the workflow files, registered by name like tools: in the Workflow menu
-        from flim.core.workflowfile import register_workflow_files, workflow_path
+        from flim.core.workflowfile import register_workflow_files
 
-        search_path = workflow_path(self.settings_manager.settings.workflow_paths)
+        search_path = self.settings_manager.workflow_search_path()
         for message in register_workflow_files(search_path):
             self.settings_manager.notices.append(message)
         self.frame = AppFrame(self.flimanalyzer, self.settings_manager)
@@ -262,7 +262,7 @@ class FLIMAnalyzerApp(wx.App):
             wx.CallAfter(self.open_files, self.files)
 
     def run_at_start(self) -> None:
-        """Run the `--run` and `--workflow` given at startup on the `-i` files.
+        """Run the `--run` arguments given at startup on the `-i` files, in order.
 
         A workflow file runs after its steps are shown and confirmed; Import Tables
         opens its dialog; a tool or code-defined workflow opens its dialog after the
@@ -271,13 +271,12 @@ class FLIMAnalyzerApp(wx.App):
         not resolve is reported and skipped.
         """
         from flim.batch import BatchError, read_settings, resolve_run
-        from flim.core.workflowfile import workflow_path
         from flim.tools.readers import ImportTables
 
-        search_path = workflow_path(self.settings_manager.settings.workflow_paths)
-        for kind, name in self.runs:
+        search_path = self.settings_manager.workflow_search_path()
+        for name in self.runs:
             try:
-                tool = resolve_run(name, kind, search_path)
+                tool = resolve_run(name, search_path)
             except BatchError as err:
                 wx.MessageBox(str(err), "FLIMAnalyzer", wx.OK | wx.ICON_ERROR)
                 continue
