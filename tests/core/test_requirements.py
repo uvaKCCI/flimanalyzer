@@ -117,6 +117,22 @@ def test_all_features_are_counted_in_the_table(tool):
     assert not [i for i in tool.validate(config, [enough]) if i.field == "features"]
 
 
+@pytest.mark.parametrize("tool", NEEDS_FEATURES, ids=lambda t: t.name)
+def test_all_features_are_not_counted_without_a_complete_schema(tool):
+    from pydantic import ValidationError
+
+    try:
+        config = tool.config_class(features="all")
+    except ValidationError:
+        pytest.skip("this tool has no 'All features'")
+    # an unknown input (no schema), or a schema that doesn't list all columns: the
+    # number of features is not known before the run, so it is not checked
+    few = TableSchema.from_frame(_table(features=0))
+    incomplete = few.model_copy(update={"complete": False})
+    for schemas in ([None], [incomplete]):
+        assert not [i for i in tool.validate(config, schemas) if i.field == "features"]
+
+
 @pytest.mark.parametrize("tool", NEEDS_GROUPING, ids=lambda t: t.name)
 def test_too_few_grouping_columns_is_an_error(tool):
     schema = TableSchema.from_frame(_table())

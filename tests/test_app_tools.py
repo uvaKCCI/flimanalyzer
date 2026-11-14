@@ -207,6 +207,25 @@ def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):
     assert set(results["Table: Filtered"]["Treatment"]) == {"Ctrl"}
 
 
+def test_a_tools_warnings_are_shown_after_its_run(frame, monkeypatch, prefect_harness):
+    # Calculate warns when a calculation replaces an input column
+    from flim.configs.data import ExpressionCalculation
+
+    def change(dialog):
+        replace_x = ExpressionCalculation(name="x", expression="y * 2")
+        dialog.fields.editors["calculations"].set([replace_x])
+
+    shown = []
+    monkeypatch.setattr(wx, "MessageBox", lambda message, title, *a, **k: shown.append((title, message)))
+    answer_dialog(monkeypatch, change)
+    frame.run_tool(tools.get("Calculate"))
+    (results,) = frame.shown
+    assert list(results["Table: Calculated"]["x"]) == list(results["Table: Calculated"]["y"] * 2)
+    assert len(shown) == 1
+    title, message = shown[0]
+    assert title == "Calculate: warning" and "x: the input column is replaced" in message
+
+
 def test_documentation_of_this_version():
     from flim.gui.app import docs_url
 
