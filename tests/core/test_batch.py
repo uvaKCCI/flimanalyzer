@@ -384,6 +384,47 @@ def test_one_folder_per_call_with_a_folder_per_run(data_dir, settings, tmp_path,
     assert sorted(p.name for p in second.iterdir() if p.is_dir()) == ["02-Summarize"]
 
 
+UNSAVED = {
+    "name": "unsaved",
+    "steps": [
+        {"id": "1", "tool": "Concatenate", "config": {"add_input": False}},
+        {"id": "2", "tool": "Sort", "config": {"features": ["FLIRR"]}},
+    ],
+}
+
+
+def test_a_workflow_that_saves_nothing_is_refused_and_a_leaf_warned(data_dir, tmp_path, capsys):
+    path = tmp_path / "unsaved.json"
+    path.write_text(json.dumps(UNSAVED))
+    assert main(["-i", str(data_dir), "--dry-run", "--run", str(path)]) == 1
+    captured = capsys.readouterr()
+    assert ("flimbatch: warning: step 2, tool 'Sort': output.save=false and no later step"
+            " uses its outputs: its results are not kept") in captured.err  # fmt: skip
+    assert "unsaved: no step saves its outputs" in captured.err and "--save-all" in captured.err
+    out = tmp_path / "out"
+    assert main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]) == 1
+    assert not list(out.rglob("*.txt"))  # refused before it ran
+
+
+@pytest.mark.parametrize("how", ["option", "variable"])
+def test_save_all_saves_every_step(data_dir, tmp_path, monkeypatch, capsys, how):
+    path = tmp_path / "unsaved.json"
+    path.write_text(json.dumps(UNSAVED))
+    out = tmp_path / "out"
+    argv = ["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]
+    monkeypatch.delenv("FLIM_SAVE_ALL", raising=False)
+    if how == "option":
+        argv.append("--save-all")
+    else:
+        monkeypatch.setenv("FLIM_SAVE_ALL", "true")
+    assert main(argv) == 0
+    assert "warning" not in capsys.readouterr().err  # nothing goes unsaved
+    run = run_dir(out)
+    assert sorted(p.name for p in run.iterdir() if p.is_dir()) == ["01-Concatenate", "02-Sort"]
+    source = "--save-all" if how == "option" else "FLIM_SAVE_ALL"
+    assert f"every step saves all its outputs ({source})" in (run / "run_summary.txt").read_text()
+
+
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):
     first, second, third = sorted(data_dir.glob("*.txt"))[:3]
     code = main(["-i", str(first), "-i", str(second), str(third),

@@ -81,6 +81,7 @@ class Workflow(Tool[ConfigT]):
         settings_record: Sequence[str] = (),
         save_formats: Sequence[Any] = (),
         run_dir: Optional[str | os.PathLike] = None,
+        notes: Sequence[str] = (),
     ) -> "FlowRun":
         """Run the workflow as a Prefect flow; see `flim.core.runner.run_flow`.
 
@@ -106,6 +107,7 @@ class Workflow(Tool[ConfigT]):
             save_formats: The formats all steps save their results in.
             run_dir: The run's folder, used as it is; None: a folder per run below
                 `autosave_dir`.
+            notes: Lines for the run summary, besides the guessed columns.
 
         Returns:
             The run: its task graph, results and state.
@@ -123,7 +125,7 @@ class Workflow(Tool[ConfigT]):
         if report.errors:
             raise WorkflowValidationError(report)
         config = report.config
-        notes = [
+        notes = list(notes) + [
             f"{i.step + ': ' if i.step else ''}{i.field}: '{i.old}' -> '{i.suggestion}'"
             " (guessed)"
             for i in report.guesses

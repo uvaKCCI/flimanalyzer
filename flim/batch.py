@@ -64,6 +64,7 @@ logger = logging.getLogger(__name__)
 
 DRY_RUN_ROWS = 20  # rows read of each file for --dry-run (column names and types)
 DRY_RUN_VAR = "FLIM_DRY_RUN"  # true: a dry run, as --dry-run
+SAVE_ALL_VAR = "FLIM_SAVE_ALL"  # true: every step saves, as --save-all
 
 
 class BatchError(Exception):
@@ -172,7 +173,10 @@ def read_settings(read: ReadSettings, exclude: Sequence[str] = ()) -> ReadSettin
 
 
 def check_run(
-    tool: type["Tool"], tables: dict[str, "pd.DataFrame"], settings: AppSettings
+    tool: type["Tool"],
+    tables: dict[str, "pd.DataFrame"],
+    settings: AppSettings,
+    save_all: bool = False,
 ) -> list[str]:
     """Check a run against the tables (or their first rows) without running it.
 
@@ -187,12 +191,14 @@ def check_run(
         tables: The tables by name.
         settings: The session's settings; a tool or workflow is checked with its
             settings from them.
+        save_all: Whether every step saves (`--save-all`); without it, a workflow
+            file none of whose steps saves is an error (see `save_issues`).
 
     Returns:
         The errors, each with the tool and the table; empty if there are none.
     """
     from flim.core.workflow import Workflow
-    from flim.core.workflowfile import check_steps
+    from flim.core.workflowfile import check_steps, save_issues
 
     names = [
         f"the inputs '{a}' and '{b}' get the same folder name" for a, b in same_names(tables)
@@ -200,7 +206,8 @@ def check_run(
     schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
     definition = getattr(tool, "definition", None)
     if definition is not None:
-        return names + check_steps(definition, schemas)
+        unsaved = [] if save_all else save_issues(definition)[1]
+        return names + unsaved + check_steps(definition, schemas)
     required = [spec for spec in tool.inputs if not spec.optional]
     if len(required) > 1 and not issubclass(tool, Workflow):
         return names + [f"{tool.name} needs {len(required)} input tables; use a workflow file"]
@@ -226,6 +233,7 @@ def run_on_tables(
     execution: Optional[ExecutionOptions] = None,
     strict: bool = True,
     settings_record: Sequence[str] = (),
+    save_all: Optional[str] = None,
 ) -> "FlowRun":
     """Run a tool or workflow on the tables read from the files, as one run.
 
@@ -243,6 +251,9 @@ def run_on_tables(
         strict: Workflows defined in code: whether columns not in the data are
             errors. Defaults to True.
         settings_record: The settings files, for the run summary.
+        save_all: What made every step of a workflow file save all its outputs
+            (`--save-all` or `FLIM_SAVE_ALL`), noted in the run summary; None: the
+            steps' `output.save`.
 
     Returns:
         The run.
@@ -256,25 +267,31 @@ def run_on_tables(
     from flim.core.tool import check_requirements
     from flim.core.workflow import Workflow, WorkflowValidationError
 
-    errors = check_run(tool, tables, settings)
+    from flim.core.workflowfile import saving_all, workflow_class
+
+    errors = check_run(tool, tables, settings, save_all=bool(save_all))
     if errors:
         raise BatchError(f"{tool.name}:\n" + "\n".join(errors))
     execution = execution or ExecutionOptions()
+    notes = [f"every step saves all its outputs ({save_all})"] if save_all else []
     if getattr(tool, "definition", None) is None and not issubclass(tool, Workflow):
         tool = tool_workflow(tool, settings)
     definition = getattr(tool, "definition", None)
     if definition is not None:  # a workflow file, or a tool as one
+        if save_all:
+            tool = workflow_class(saving_all(definition), getattr(tool, "path", None))
         return tool().run_flow(
             tables,
             task_runner=execution.task_runner(),
             run_dir=run_dir,  # the steps' `save` decides what is written
             settings_record=settings_record,
             save_formats=definition.output.formats,
+            notes=notes,
         )
     # a workflow defined in code: checked per table, then all tables in one run
     config = settings.tools.config(tool)
     entry = settings.tools.entry(tool)
-    configs, notes = {}, []
+    configs = {}
     for name, table in tables.items():
         inputs = [table] * len(tool.inputs)
         try:
@@ -360,6 +377,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="read the first rows of the files, check the runs against them, run\n"
         "nothing; also FLIM_DRY_RUN=true",
     )
+    parser.add_argument(
+        "--save-all",
+        action="store_true",
+        help="every step of a workflow file saves all its outputs, whatever its\n"
+        "output.save; also FLIM_SAVE_ALL=true",
+    )
     parser.add_argument("--allow-guesses", action="store_true", help=argparse.SUPPRESS)
     add_log_option(parser)
     return parser
@@ -409,9 +432,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         level = log_level(args)
         dry_run = dry_run_source(args)
+        save_all = flag_source(args.save_all, "--save-all", SAVE_ALL_VAR)
     except ValueError as err:
         parser.error(str(err))
     args.dry_run = dry_run is not None
+    args.save_all = save_all  # what turned it on, or None
     if not args.output and not args.dry_run:
         parser.error("the following arguments are required: -o/--output")
     # the console as before; the log file opens once the output folder is known
@@ -427,6 +452,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             print(f"flimbatch: dry run (set by {dry_run}): nothing was run", file=sys.stderr)
 
 
+def flag_source(given: bool, option: str, variable: str) -> Optional[str]:
+    """Return what turned an on/off option on: the option, its variable, or None.
+
+    Args:
+        given: Whether the option was given on the command line.
+        option: The option, e.g. `--dry-run`.
+        variable: Its environment variable, e.g. `FLIM_DRY_RUN`.
+
+    Returns:
+        `option` if given, else `variable` if it is set to true, else None.
+
+    Raises:
+        ValueError: If the variable is not a boolean (e.g. `true`, `false`, `1`, `0`).
+    """
+    from pydantic import TypeAdapter, ValidationError
+
+    if given:
+        return option
+    value = os.environ.get(variable, "").strip()
+    if not value:
+        return None
+    try:
+        return variable if TypeAdapter(bool).validate_python(value) else None
+    except ValidationError:
+        raise ValueError(
+            f"Invalid environment variable: {variable}={value}; use true or false"
+        ) from None
+
+
 def dry_run_source(args: argparse.Namespace) -> Optional[str]:
     """Return what makes this a dry run: `--dry-run`, `FLIM_DRY_RUN`, or None.
 
@@ -434,25 +488,12 @@ def dry_run_source(args: argparse.Namespace) -> Optional[str]:
         args: The parsed arguments.
 
     Returns:
-        `--dry-run` if given, else `FLIM_DRY_RUN` if it is set to true, else None.
+        See `flag_source`.
 
     Raises:
-        ValueError: If `FLIM_DRY_RUN` is not a boolean (e.g. `true`, `false`, `1`,
-            `0`).
+        ValueError: If `FLIM_DRY_RUN` is not a boolean.
     """
-    from pydantic import TypeAdapter, ValidationError
-
-    if args.dry_run:
-        return "--dry-run"
-    value = os.environ.get(DRY_RUN_VAR, "").strip()
-    if not value:
-        return None
-    try:
-        return DRY_RUN_VAR if TypeAdapter(bool).validate_python(value) else None
-    except ValidationError:
-        raise ValueError(
-            f"Invalid environment variable: {DRY_RUN_VAR}={value}; use true or false"
-        ) from None
+    return flag_source(args.dry_run, "--dry-run", DRY_RUN_VAR)
 
 
 def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
@@ -468,7 +509,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.prefect_server import checked_prefect_server, use_prefect_server
-    from flim.core.workflowfile import register_workflow_files, workflow_path
+    from flim.core.workflowfile import register_workflow_files, save_issues, workflow_path
 
     discover(TOOLS_GROUP)  # registers the tools of other installed packages
     try:
@@ -501,6 +542,11 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         for message in ignored_settings(runs, settings, output):
             _warn(message)
         runs = [file_run(tool, settings) for tool in runs]
+        if not args.save_all:  # results a workflow file's run would not keep
+            for tool, _ in runs:
+                definition = getattr(tool, "definition", None)
+                for message in save_issues(definition)[0] if definition is not None else []:
+                    _warn(message)
         if args.dry_run:
             return _dry_run(runs, args, settings)
         execution = ExecutionOptions(
@@ -528,7 +574,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
                 with checked_prefect_server():
                     run = run_on_tables(
                         tool, tables, settings, call_dir / f"run-{number}", execution, strict,
-                        manager.record(),
+                        manager.record(), save_all=args.save_all,
                     )  # fmt: skip
                 if run.failed or run.state != "completed":
                     failed.append(f"{tool.name}: {', '.join(run.failed) or run.state}")
@@ -669,7 +715,7 @@ def _dry_run(
     errors = 0
     for tool, read in runs:
         tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
-        problems = check_run(tool, tables, settings)
+        problems = check_run(tool, tables, settings, save_all=bool(args.save_all))
         if problems:
             errors += len(problems)
             print(f"{tool.name}: {len(problems)} problem(s)", file=sys.stderr)

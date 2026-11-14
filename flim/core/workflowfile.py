@@ -932,6 +932,48 @@ def leaf_steps(definition: WorkflowDefinition) -> list[WorkflowStep]:
     return [s for s in definition.steps if s.id not in used]
 
 
+def save_issues(definition: WorkflowDefinition) -> tuple[list[str], list[str]]:
+    """Return what a batch run would not keep of a workflow file's results.
+
+    Args:
+        definition: The workflow.
+
+    Returns:
+        The warnings: a step whose outputs no later step uses and that doesn't save
+        them (its work reaches no one); and the errors: none of the steps saves
+        anything (the run would leave only its summary).
+    """
+    warnings = [
+        f"step {step.id}, tool '{step.tool}': output.save=false and no later step uses"
+        " its outputs: its results are not kept"
+        for step in leaf_steps(definition)
+        if not step.output.save
+    ]
+    errors = []
+    if not any(step.output.save for step in definition.steps):
+        errors.append(
+            f"{definition.name}: no step saves its outputs; mark the steps to keep with"
+            ' "output": {"save": true}, or run with --save-all'
+        )
+    return warnings, errors
+
+
+def saving_all(definition: WorkflowDefinition) -> WorkflowDefinition:
+    """Return a workflow whose steps all save all their outputs (`--save-all`).
+
+    Args:
+        definition: The workflow.
+
+    Returns:
+        A copy with `output.save` true in every step.
+    """
+    steps = [
+        step.model_copy(update={"output": step.output.model_copy(update={"save": True})})
+        for step in definition.steps
+    ]
+    return definition.model_copy(update={"steps": steps})
+
+
 def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
     """Return how many result windows a run would open, by kind (table, plot, image).
 
