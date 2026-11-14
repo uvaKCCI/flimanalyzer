@@ -295,6 +295,14 @@ class AppSettings(_Settings):
         title="Prefect server",
         description="Use or start a local Prefect server for the runs.",
     )
+    server_timeout: float = Field(
+        default=60.0,
+        gt=0,
+        title="Server timeout",
+        description="Seconds to wait for the Prefect server, also for one started for"
+        " the runs, and for a Dask cluster to answer. Below 60, a local Prefect server"
+        " that is started may not be ready in time.",
+    )
     log: LogSettings = Field(
         default_factory=LogSettings,
         title="Log folder",

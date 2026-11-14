@@ -182,9 +182,23 @@ def test_log_level_option_names(option):
     assert log_level(parse_files(option, "debug")) == "DEBUG"
 
 
-def test_log_level_defaults_to_info():
+def test_log_level_defaults_to_info(monkeypatch):
+    monkeypatch.delenv("FLIM_LOG_LEVEL", raising=False)
     args = parse_files()
     assert args.log_level is None and log_level(args) == "INFO"
+
+
+def test_log_level_from_the_environment(monkeypatch):
+    monkeypatch.setenv("FLIM_LOG_LEVEL", "Warning")
+    assert log_level(parse_files()) == "WARNING"
+    assert log_level(parse_files("-l", "debug")) == "DEBUG"  # the option wins
+    monkeypatch.setenv("FLIM_LOG_LEVEL", "loud")
+    with pytest.raises(ValueError, match="FLIM_LOG_LEVEL=loud; use one of debug"):
+        log_level(parse_files())
+
+
+def test_server_timeout_option():
+    assert command_line_changes(parse("--server-timeout", "90"))[0] == {"server_timeout": 90}
 
 
 def test_output_can_be_required():

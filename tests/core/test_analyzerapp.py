@@ -129,6 +129,31 @@ def test_prefect_server_option_turns_on_what_a_settings_file_turned_off(
     assert manager.settings.prefect_server is True
 
 
+def test_invalid_log_level_variable_stops_the_start(monkeypatch, clean_logging, capsys):
+    monkeypatch.setenv("FLIM_LOG_LEVEL", "loud")
+    with pytest.raises(SystemExit) as exit_:
+        analyzerapp.main([])
+    assert exit_.value.code == 2 and "FLIM_LOG_LEVEL=loud" in capsys.readouterr().err
+
+
+def test_server_timeout_reaches_the_prefect_server_and_the_executor(monkeypatch, clean_logging):
+    import contextlib
+
+    used = {}
+    monkeypatch.setattr(
+        analyzerapp,
+        "use_prefect_server",
+        lambda **kw: used.update(kw) or contextlib.nullcontext(),
+    )
+    started = {}
+    monkeypatch.setattr(
+        analyzerapp, "interactive_run", lambda fa, **_: started.update(fa=fa)
+    )
+    analyzerapp.main(["--server-timeout", "90"])
+    assert used["timeout"] == 90
+    assert started["fa"].execution.server_timeout == 90
+
+
 def test_settings_file_reaches_the_gui(monkeypatch, clean_logging):
     from flim.core.settings import AppSettings, save_settings
 

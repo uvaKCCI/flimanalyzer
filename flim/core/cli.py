@@ -1,6 +1,7 @@
 """Command-line options shared by flimanalyzer and flimbatch: files, settings, log level."""
 
 import argparse
+import os
 from typing import Any, Optional
 
 from pydantic import TypeAdapter, ValidationError
@@ -27,6 +28,7 @@ EXECUTOR_HELP = """where and how tasks run:
                      an existing Dask cluster
 other keys are further Dask arguments, e.g. threads_per_worker=2"""
 LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
+LOG_LEVEL_VAR = "FLIM_LOG_LEVEL"
 
 
 def add_file_options(
@@ -76,20 +78,34 @@ def add_log_option(parser: argparse.ArgumentParser) -> None:
     """
     parser.add_argument(
         "-l", "--log-level", "--log", dest="log_level", choices=LOG_LEVELS, default=None,
-        help="logging level (default: info)",
+        help="logging level, also FLIM_LOG_LEVEL (default: info)",
     )  # fmt: skip
 
 
 def log_level(args: argparse.Namespace) -> str:
-    """Return the log level given with `-l`, upper case; `INFO` if none is given.
+    """Return the log level: `-l`, else `FLIM_LOG_LEVEL`, else `info`; upper case.
 
     Args:
         args: The parsed arguments (`add_log_option`).
 
     Returns:
         The log level, e.g. `INFO`.
+
+    Raises:
+        ValueError: If `FLIM_LOG_LEVEL` is not a log level; the message names the
+            levels.
     """
-    return (args.log_level or "info").upper()
+    if args.log_level:
+        return args.log_level.upper()
+    value = os.environ.get(LOG_LEVEL_VAR, "").strip()
+    if not value:
+        return "INFO"
+    if value.lower() not in LOG_LEVELS:
+        raise ValueError(
+            f"Invalid environment variable: {LOG_LEVEL_VAR}={value}; use one of"
+            f" {', '.join(LOG_LEVELS)}"
+        )
+    return value.upper()
 
 
 def add_settings_options(
@@ -124,6 +140,11 @@ def add_settings_options(
         help="use or start a local Prefect server (--prefect-server), or a temporary"
         " one\nfor each run (--no-prefect-server)",
     )
+    parser.add_argument(
+        "--server-timeout", type=float, metavar="SECONDS",
+        help="how long to wait for the Prefect server (also one started for the runs)\n"
+        "and a Dask cluster (default: 60)",
+    )  # fmt: skip
     parser.add_argument("--log-dir", metavar="DIR", help="folder of the log files")
     parser.add_argument("--cache-dir", metavar="DIR", help="cache folder")
     parser.add_argument(
@@ -268,6 +289,8 @@ def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list
         changes["execution"], notes = executor_settings(args.executor, args.execargs)
     if args.prefect_server is not None:
         changes["prefect_server"] = args.prefect_server
+    if args.server_timeout is not None:
+        changes["server_timeout"] = args.server_timeout
     if args.log_dir is not None:
         changes["log"] = {"dir": args.log_dir}
     if args.cache_dir is not None:

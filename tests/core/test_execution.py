@@ -122,3 +122,16 @@ def test_dask_task_runners():
         execution=DaskClusterExecutorSettings(address="tcp://h:8786")
     ).task_runner()
     assert remote.address == "tcp://h:8786"
+    assert remote.client_kwargs["timeout"] == 60  # the default server_timeout
+    remote = ExecutionOptions(
+        execution=DaskClusterExecutorSettings(address="tcp://h:8786"), server_timeout=7
+    ).task_runner()
+    assert remote.client_kwargs["timeout"] == 7
+    # a timeout in the executor's own client_kwargs wins
+    remote = ExecutionOptions(
+        execution=DaskClusterExecutorSettings(
+            address="tcp://h:8786", kwargs={"client_kwargs": {"timeout": 3}}
+        ),
+        server_timeout=7,
+    ).task_runner()
+    assert remote.client_kwargs["timeout"] == 3

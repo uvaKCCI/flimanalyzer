@@ -260,7 +260,11 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     parser = build_parser()
     args = parser.parse_args(argv)
-    memory = init_logger(log_level(args))
+    try:
+        level = log_level(args)
+    except ValueError as err:
+        parser.error(str(err))
+    memory = init_logger(level)
     logger.info(f"FLIMAnalyzer version {__version__}")
     logger.debug(args)
     import flim.tools  # noqa: F401  (registers the tools: settings files are checked)
@@ -283,7 +287,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             choose=choose_settings,
             pick=pick_app_settings,
         )
-        execution = ExecutionOptions(execution=manager.settings.execution)
+        execution = ExecutionOptions(
+            execution=manager.settings.execution,
+            server_timeout=manager.settings.server_timeout,
+        )
         execution.check_available()
     except (FileNotFoundError, ValueError, RuntimeError) as err:
         logger.error(err)
@@ -297,7 +304,9 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         logger.warning(note)
     fa = FLIMAnalyzer(execution=execution)
     try:
-        with use_prefect_server(start=manager.settings.prefect_server):
+        with use_prefect_server(
+            start=manager.settings.prefect_server, timeout=manager.settings.server_timeout
+        ):
             manager.workflow_folders = [Path(p) for p in args.workflow_path]
             interactive_run(
                 fa,

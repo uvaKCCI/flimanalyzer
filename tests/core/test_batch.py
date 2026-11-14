@@ -236,6 +236,50 @@ def test_runs_run_in_the_order_given(data_dir, workflow_folder, capsys):
     assert code == 0 and out.index("Import: OK") < out.index("per treatment: OK")
 
 
+@pytest.mark.parametrize("value, source", [("true", "FLIM_DRY_RUN"), (None, "--dry-run")])
+def test_a_dry_run_says_so_first_and_last(data_dir, monkeypatch, capsys, value, source):
+    monkeypatch.delenv("FLIM_DRY_RUN", raising=False)
+    argv = ["-i", str(data_dir), "--run", "Import"]
+    if value is None:
+        argv.append("--dry-run")
+    else:
+        monkeypatch.setenv("FLIM_DRY_RUN", value)
+    assert main(argv) == 0
+    captured = capsys.readouterr()
+    lines = captured.err.strip().splitlines()
+    assert lines[0] == f"flimbatch: dry run (set by {source}): nothing is run"
+    assert lines[-1] == f"flimbatch: dry run (set by {source}): nothing was run"
+    assert "Import: OK" in captured.out
+
+
+def test_dry_run_variable_false_or_invalid(data_dir, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FLIM_DRY_RUN", "false")  # not a dry run: -o is needed
+    with pytest.raises(SystemExit):
+        main(["-i", str(data_dir), "--run", "Import"])
+    assert "-o/--output" in capsys.readouterr().err
+    monkeypatch.setenv("FLIM_DRY_RUN", "maybe")
+    with pytest.raises(SystemExit) as exit_:
+        main(["-i", str(data_dir), "--run", "Import"])
+    assert exit_.value.code == 2
+    assert "FLIM_DRY_RUN=maybe; use true or false" in capsys.readouterr().err
+
+
+def test_server_timeout_reaches_the_prefect_server(data_dir, tmp_path, monkeypatch):
+    import contextlib
+
+    import flim.core.prefect_server as prefect_server
+
+    used = {}
+    monkeypatch.setattr(
+        prefect_server,
+        "use_prefect_server",
+        lambda **kw: used.update(kw) or contextlib.nullcontext(),
+    )
+    code = main(["-i", str(data_dir), "-o", str(tmp_path / "out"), "--run", "Import",
+                 "--server-timeout", "90"])  # fmt: skip
+    assert code == 0 and used == {"start": True, "timeout": 90}
+
+
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):
     first, second, third = sorted(data_dir.glob("*.txt"))[:3]
     code = main(["-i", str(first), "-i", str(second), str(third),

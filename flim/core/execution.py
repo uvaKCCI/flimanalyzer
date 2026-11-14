@@ -71,13 +71,16 @@ class ExecutionOptions(BaseConfig):
     """The executor of a run and the run's own options.
 
     Besides the executor (`execution`): whether, where and in which formats the run
-    saves its results (`autosave`), the task tags and the device policy.
+    saves its results (`autosave`), the task tags, the device policy, and how many
+    seconds the client waits for a Dask cluster (`server_timeout`, from the app
+    setting of the same name).
     """
 
     execution: ExecutorSettings = Field(default_factory=LocalExecutorSettings)
     autosave: AutosaveConfig = Field(default_factory=AutosaveConfig)
     task_tags: list[str] = []
     device_policy: Literal["prefer", "cpu-only"] = "prefer"
+    server_timeout: float = Field(default=60.0, gt=0)  # seconds, for a Dask cluster
 
     @model_validator(mode="after")
     def _check_autosave(self) -> Self:
@@ -167,7 +170,8 @@ class ExecutionOptions(BaseConfig):
         `address`.
 
         Returns:
-            The task runner.
+            The task runner. The client of `dask` waits `server_timeout` seconds for the
+            cluster, unless `kwargs` set `client_kwargs` with a `timeout`.
 
         Raises:
             RuntimeError: If a Dask executor is selected and `prefect_dask` is not
@@ -182,7 +186,10 @@ class ExecutionOptions(BaseConfig):
         from prefect_dask import DaskTaskRunner
 
         if isinstance(settings, DaskClusterExecutorSettings):
-            return DaskTaskRunner(address=settings.address, **settings.kwargs)
+            kwargs = dict(settings.kwargs)
+            # how long the client waits for the cluster; a client_kwargs timeout wins
+            client_kwargs = {"timeout": self.server_timeout, **kwargs.pop("client_kwargs", {})}
+            return DaskTaskRunner(address=settings.address, client_kwargs=client_kwargs, **kwargs)
         cluster_kwargs = {"processes": settings.scheduler == "processes"}
         if settings.workers is not None:
             cluster_kwargs["n_workers"] = settings.workers

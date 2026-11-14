@@ -14,8 +14,9 @@
    settings from the settings file; a workflow file's steps carry their own. The
    results are saved in `<output>/<name>/`.
 
-With `--dry-run` nothing runs: the first rows of each file are read and every run
-is checked against them. The exit code is 0 if every run completed without failed
+With `--dry-run` (or `FLIM_DRY_RUN=true`) nothing runs: the first rows of each file
+are read and every run is checked against them; the first and the last line of the
+output say that it is a dry run and what made it one. The exit code is 0 if every run completed without failed
 tasks (with `--dry-run`: if no check found an error), 1 otherwise. wxPython is not
 imported.
 """
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DRY_RUN_ROWS = 20  # rows read of each file for --dry-run (column names and types)
+DRY_RUN_VAR = "FLIM_DRY_RUN"  # true: a dry run, as --dry-run
 
 
 class BatchError(Exception):
@@ -308,7 +310,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="read the first rows of the files, check the runs against them, run nothing",
+        help="read the first rows of the files, check the runs against them, run\n"
+        "nothing; also FLIM_DRY_RUN=true",
     )
     parser.add_argument("--allow-guesses", action="store_true", help=argparse.SUPPRESS)
     add_log_option(parser)
@@ -342,7 +345,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     Raises:
         SystemExit: If the arguments are invalid, or no `--run` is given, or `-o`
-            is missing without `--dry-run` (exit code 2, from `argparse`).
+            is missing without `--dry-run`, or `FLIM_LOG_LEVEL` or `FLIM_DRY_RUN` is
+            invalid (exit code 2, from `argparse`).
     """
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -351,11 +355,64 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "give --run NAME (e.g. --run Import to join the files"
             " into one table with the FLIM features)"
         )
+    try:
+        level = log_level(args)
+        dry_run = dry_run_source(args)
+    except ValueError as err:
+        parser.error(str(err))
+    args.dry_run = dry_run is not None
     if not args.output and not args.dry_run:
         parser.error("the following arguments are required: -o/--output")
     # the console as before; the log file opens once the output folder is known
-    memory = logs.begin(log_level(args))
-    logging.getLogger().addHandler(logs.console_handler(log_level(args)))
+    memory = logs.begin(level)
+    logging.getLogger().addHandler(logs.console_handler(level))
+    if dry_run:  # first and last line: a variable left set by mistake is seen
+        print(f"flimbatch: dry run (set by {dry_run}): nothing is run", file=sys.stderr)
+    try:
+        return _session(args, memory)
+    finally:
+        if dry_run:
+            print(f"flimbatch: dry run (set by {dry_run}): nothing was run", file=sys.stderr)
+
+
+def dry_run_source(args: argparse.Namespace) -> Optional[str]:
+    """Return what makes this a dry run: `--dry-run`, `FLIM_DRY_RUN`, or None.
+
+    Args:
+        args: The parsed arguments.
+
+    Returns:
+        `--dry-run` if given, else `FLIM_DRY_RUN` if it is set to true, else None.
+
+    Raises:
+        ValueError: If `FLIM_DRY_RUN` is not a boolean (e.g. `true`, `false`, `1`,
+            `0`).
+    """
+    from pydantic import TypeAdapter, ValidationError
+
+    if args.dry_run:
+        return "--dry-run"
+    value = os.environ.get(DRY_RUN_VAR, "").strip()
+    if not value:
+        return None
+    try:
+        return DRY_RUN_VAR if TypeAdapter(bool).validate_python(value) else None
+    except ValidationError:
+        raise ValueError(
+            f"Invalid environment variable: {DRY_RUN_VAR}={value}; use true or false"
+        ) from None
+
+
+def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
+    """Read the settings and the files, and run or check the runs (see `main`).
+
+    Args:
+        args: The parsed arguments; `dry_run` also set by `FLIM_DRY_RUN`.
+        memory: The handler that keeps the log records until the log file opens.
+
+    Returns:
+        The exit code of `main`.
+    """
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.prefect_server import checked_prefect_server, use_prefect_server
@@ -388,7 +445,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         runs = [file_run(tool, settings) for tool in runs]
         if args.dry_run:
             return _dry_run(runs, args, settings)
-        execution = ExecutionOptions(execution=settings.execution)
+        execution = ExecutionOptions(
+            execution=settings.execution, server_timeout=settings.server_timeout
+        )
         execution.check_available()
         output = canonical_folder(args.output)
         if problem := folder_problem(output):
@@ -402,7 +461,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         logger.info(f"Log file: {log_file}")
         strict = True if settings.strict is None else settings.strict
         failed = []
-        with use_prefect_server(start=settings.prefect_server):
+        with use_prefect_server(start=settings.prefect_server, timeout=settings.server_timeout):
             for tool, read in runs:
                 tables = _read(args.input, read_settings(read, args.exclude))
                 with checked_prefect_server():

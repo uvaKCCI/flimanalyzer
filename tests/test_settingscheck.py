@@ -226,8 +226,8 @@ def test_settings_viewer_shows_each_setting(frame):
         table = viewer.table
         assert table.GetColumnCount() == len(COLUMNS)
         titles = [table.GetItemText(i, 0) for i in range(table.GetItemCount())]
-        assert titles == ["Results folder", "Executor", "Prefect server", "Log folder",
-                          "Workflows: missing columns"]
+        assert titles == ["Results folder", "Executor", "Prefect server", "Server timeout",
+                          "Log folder", "Workflows: missing columns"]
         assert table.GetItemText(1, 1) == "local, workers: automatic"
         assert table.GetItemText(1, 2) == "built-in default"
         assert "User settings file:" in viewer.files.GetLabel()

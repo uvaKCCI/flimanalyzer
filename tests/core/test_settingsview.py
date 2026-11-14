@@ -23,6 +23,8 @@ def test_defaults():
     assert all(row.origin == "built-in default" for row in shown.values())
     assert shown["execution"].change.startswith("-e, FLIM_EXECUTION")
     assert shown["prefect_server"].change == "--prefect-server, --no-prefect-server, FLIM_PREFECT_SERVER"
+    assert shown["server_timeout"].value == "60 s"
+    assert shown["server_timeout"].change == "--server-timeout, FLIM_SERVER_TIMEOUT"
 
 
 def test_each_setting_names_its_layer(tmp_path, monkeypatch):

@@ -49,6 +49,7 @@ ENV_NAMES = {
     "results_dir": "FLIM_RESULTS_DIR",
     "execution": "FLIM_EXECUTION",
     "prefect_server": "FLIM_PREFECT_SERVER",
+    "server_timeout": "FLIM_SERVER_TIMEOUT",
     "log": "FLIM_LOG_DIR",
     "cache": "FLIM_CACHE_DIR",
     "strict": "FLIM_STRICT",
@@ -57,6 +58,7 @@ OPTION_NAMES = {
     "results_dir": "-o",
     "execution": "-e",
     "prefect_server": "--prefect-server, --no-prefect-server",
+    "server_timeout": "--server-timeout",
     "log": "--log-dir",
     "cache": "--cache-dir",
     "strict": "--strict, --no-strict",
@@ -614,6 +616,7 @@ class EnvSettings(BaseSettings):
     results_dir: Optional[Path] = None
     execution: Optional[ExecutorSettings] = None
     prefect_server: Optional[bool] = None
+    server_timeout: Optional[float] = None
     log_dir: Optional[Path] = None
     cache_dir: Optional[Path] = None
     strict: Optional[bool] = None
@@ -640,7 +643,7 @@ def environment_changes() -> dict:
     values = env.model_dump(mode="json", exclude_none=True)
     changes = {
         key: values[key]
-        for key in ("results_dir", "execution", "prefect_server", "strict")
+        for key in ("results_dir", "execution", "prefect_server", "server_timeout", "strict")
         if key in values
     }
     if "log_dir" in values:
