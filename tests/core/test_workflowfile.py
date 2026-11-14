@@ -492,3 +492,103 @@ def test_tags_and_menu_groups():
     assert workflow_group(WorkflowDefinition(name="a", tags=["Plot"], steps=steps), groups) == "Workflow Files"
     for path in BUILT_IN.glob("*.json"):  # all built-in files: data workflows for import
         assert check_workflow_file(path).definition.tags == [IMPORT_TAG], path.name
+
+
+# --- mappable output: a step's output as a list of parts ---
+
+
+def _two_feature_tables():
+    return {
+        "a.txt": pd.DataFrame({"FOV": pd.Categorical(["1", "2"]), "t1": [1.0, 3.0], "t2": [2.0, 4.0]}),
+        "b.txt": pd.DataFrame({"FOV": pd.Categorical(["1", "2"]), "t1": [5.0, 7.0], "t2": [6.0, 8.0]}),
+    }
+
+
+SUMMARY_PARTS = {"grouping": ["FOV"], "features": ["t1", "t2"], "aggs": ["mean"],
+                 "single_table": False}  # fmt: skip
+
+
+def _saved_files(run):
+    return sorted(
+        str(p.relative_to(run.autosave_dir)) for p in run.autosave_dir.rglob("*.txt")
+        if p.is_file() and p.name != "run_summary.txt"
+    )
+
+
+def test_a_mappable_step_saves_each_part(prefect_harness, tmp_path):
+    definition = {"name": "parts", "steps": [
+        {"id": "1", "tool": "Summarize", "config": SUMMARY_PARTS, "output": {"save": True}},
+    ]}  # fmt: skip
+    run = _run(definition, _two_feature_tables(), autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    assert _saved_files(run) == [
+        "a.txt/t1/Table_Summary_t1.txt", "a.txt/t2/Table_Summary_t2.txt",
+        "b.txt/t1/Table_Summary_t1.txt", "b.txt/t2/Table_Summary_t2.txt",
+    ]  # fmt: skip
+
+
+def test_one_feature_is_still_a_part(prefect_harness, tmp_path):
+    config = {**SUMMARY_PARTS, "features": ["t1"]}
+    definition = {"name": "one part", "steps": [
+        {"id": "1", "tool": "Summarize", "config": config, "output": {"save": True}},
+    ]}  # fmt: skip
+    run = _run(definition, {"a.txt": _two_feature_tables()["a.txt"]}, autosave_dir=tmp_path)
+    assert _saved_files(run) == ["a.txt/t1/Table_Summary_t1.txt"]
+
+
+def test_a_later_step_maps_over_the_parts(prefect_harness, tmp_path):
+    definition = {"name": "map", "steps": [
+        {"id": "1", "tool": "Summarize", "config": SUMMARY_PARTS},
+        {"id": "2", "tool": "Sort", "inputs": ["1.1"], "output": {"save": True}},
+    ]}  # fmt: skip
+    workflow = workflow_class(WorkflowDefinition.model_validate(definition))()
+    run = workflow.run_flow(_two_feature_tables(), autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    assert _saved_files(run) == [
+        "a.txt/t1/Table_Sorted.txt", "a.txt/t2/Table_Sorted.txt",
+        "b.txt/t1/Table_Sorted.txt", "b.txt/t2/Table_Sorted.txt",
+    ]  # fmt: skip
+    # the GUI gets the leaves by label
+    assert sorted(workflow.leaves["2"]) == ["a.txt / t1", "a.txt / t2", "b.txt / t1", "b.txt / t2"]
+
+
+def test_a_join_keeps_the_parts(prefect_harness, tmp_path):
+    definition = {"name": "join", "steps": [
+        {"id": "1", "tool": "Summarize", "config": SUMMARY_PARTS},
+        {"id": "2", "tool": "Concatenate", "config": {"add_input": False}, "output": {"save": True}},
+    ]}  # fmt: skip
+    run = _run(definition, _two_feature_tables(), autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    assert _saved_files(run) == ["t1/Table_Concatenated.txt", "t2/Table_Concatenated.txt"]
+
+
+def test_features_all_gives_a_part_per_feature_of_the_input(prefect_harness, tmp_path):
+    config = {**SUMMARY_PARTS, "features": "all"}
+    definition = {"name": "all", "steps": [
+        {"id": "1", "tool": "Summarize", "config": config, "output": {"save": True}},
+    ]}  # fmt: skip
+    run = _run(definition, {"a.txt": _two_feature_tables()["a.txt"]}, autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    assert _saved_files(run) == ["a.txt/t1/Table_Summary_t1.txt", "a.txt/t2/Table_Summary_t2.txt"]
+
+
+def test_parts_of_two_steps_cant_be_combined(tmp_path):
+    data = {"name": "two", "steps": [
+        {"id": "1", "tool": "Summarize", "config": SUMMARY_PARTS},
+        {"id": "2", "tool": "KS-Statistics", "inputs": ["input"], "config": {"features": ["t1"]}},
+        {"id": "3", "tool": "Merge", "inputs": ["1.1", "2.1"]},
+    ]}  # fmt: skip
+    workflow = workflow_class(WorkflowDefinition.model_validate(data))
+    assert any("combines the parts of different steps" in i.message for i in workflow.structure_issues())
+
+
+def test_window_counts_count_the_parts():
+    from flim.core.schema import TableSchema
+    from flim.core.workflowfile import window_counts
+
+    definition = WorkflowDefinition.model_validate({"name": "w", "steps": [
+        {"id": "1", "tool": "Summarize", "config": SUMMARY_PARTS},
+        {"id": "2", "tool": "Sort", "inputs": ["1.1"]},
+    ]})  # fmt: skip
+    schemas = {n: TableSchema.from_frame(t) for n, t in _two_feature_tables().items()}
+    assert window_counts(definition, schemas) == {"table": 4}  # 2 inputs x 2 parts, 1 table each

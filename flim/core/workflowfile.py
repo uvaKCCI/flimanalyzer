@@ -473,6 +473,135 @@ def _shapes(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
     return shapes, errors
 
 
+INPUT_DIM = "input"  # the dimension of the run's tables, before a step joins them
+
+
+def _mappable(tool: Any, step: WorkflowStep) -> bool:
+    """Return whether a step's output is a list of parts (`Tool.mappable_output`)."""
+    try:
+        return bool(tool.mappable_output(tool.config_class.model_validate(step.config)))
+    except Exception:  # invalid settings: reported by the checks
+        return False
+
+
+def _dims(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
+    """Return each step's dimensions, the labels that key its outputs, and errors.
+
+    The run's tables have one dimension, the input. A step that takes many tables
+    (e.g. Concatenate) joins the input dimension; a step whose output is mappable
+    adds a dimension of its own, its parts (`part <step id>`). Any other step maps
+    over the dimensions of its source with the most; its other sources must have a
+    leading part of those (they are passed whole to each call). Two sources with
+    the parts of different steps are an error.
+
+    Args:
+        definition: The workflow.
+
+    Returns:
+        Step id -> its dimensions (a tuple, e.g. `("input", "part 2")`); and the
+        errors.
+    """
+    from flim.core.registry import tools
+
+    dims, errors, previous = {INPUT: (INPUT_DIM,)}, [], INPUT
+    for step in definition.steps:
+        references = step.inputs or [previous]
+        sources = [dims.get(parse_reference(r)[0], (INPUT_DIM,)) for r in references]
+        tool = tools.get(step.tool) if step.tool in tools else None
+        if tool is not None and tool.inputs and tool.inputs[0].many:
+            own = tuple(d for d in sources[0] if d != INPUT_DIM)
+        else:
+            own = max(sources, key=len)
+            parts = {d for s in sources for d in s if d != INPUT_DIM}
+            if any(s != own[: len(s)] for s in sources) and len(parts) > 1:
+                errors.append(
+                    f"step {step.id}: combines the parts of different steps; use the"
+                    " parts of one step"
+                )
+        if tool is not None and _mappable(tool, step):
+            own = own + (f"part {step.id}",)
+        dims[step.id] = own
+        previous = step.id
+    return dims, errors
+
+
+def part_configs(tool: Any, config: Any, schema: Any = None) -> list:
+    """Return the configs of a mappable step's parts (`Tool.map_configs`).
+
+    With `features: all`, the features are taken from the schema of the step's
+    input (the columns of the role `feature`), so that there is one part per
+    feature; if the schema isn't complete, there is one part with all features.
+
+    Args:
+        tool: The tool class.
+        config: The step's config.
+        schema: The `TableSchema` of the step's (first) input; None if not known.
+
+    Returns:
+        The configs, one per part.
+    """
+    if getattr(config, "features", None) == "all" and schema is not None and schema.complete:
+        features = schema.by_role("feature")
+        if features:
+            config = config.model_copy(update={"features": features})
+    return tool().map_configs(config)
+
+
+def _step_schemas(definition: WorkflowDefinition, schemas: dict) -> dict:
+    """Return each step's outputs' schemas, worked out from the run's tables.
+
+    As `check_steps` does, from the first table's schema; a mappable step's from its
+    first part's config (each part has the outputs of one part).
+
+    Args:
+        definition: The workflow.
+        schemas: The run's tables' schemas (TableSchema) by name.
+
+    Returns:
+        Step id -> its outputs' schemas, in order (`INPUT` -> the first table's).
+    """
+    from flim.core.registry import tools
+    from flim.core.schema import TableSchema
+
+    first = next(iter(schemas.values()), None)
+    known, previous = {INPUT: [first]}, INPUT
+    for step in definition.steps:
+        tool = tools.get(step.tool) if step.tool in tools else None
+        if tool is None:
+            known[step.id] = []
+            continue
+        inputs = []
+        for reference in step.inputs or [previous]:
+            source, number = parse_reference(reference)
+            outputs = known.get(source) or []
+            inputs.append(outputs[number - 1] if number <= len(outputs) else None)
+        if tool.inputs and tool.inputs[0].many:
+            source = (step.inputs or [previous])[0]
+            many = schemas if source == INPUT else {"Input": inputs[0]}
+            inputs = [None if None in many.values() else many]
+        try:
+            config = tool.config_class.model_validate(step.config)
+            if _mappable(tool, step):
+                config = part_configs(tool, config, inputs[0] if inputs else None)[0]
+            specs = list(tool.output_schema(config, inputs).values())
+        except Exception:  # the outputs can't be worked out
+            specs = []
+        known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
+        previous = step.id
+    return known
+
+
+def _leaf(results: dict) -> Any:
+    """Return a leaf step's outputs as the GUI takes them.
+
+    One output (no dimension) as it is; else a dict by label, the keys' labels
+    joined with ` / ` (e.g. `a.txt / FLIRR`).
+    """
+    if list(results) == [()]:
+        return results[()]
+    return {" / ".join(str(k) for k in key): value for key, value in results.items()}
+
+
 def _saved(step: WorkflowStep) -> Union[bool, list[int]]:
     """A step's `save` as the runner takes it: True, False or output numbers."""
     save = step.output.save
@@ -494,6 +623,7 @@ def _file_workflow_base() -> type["Workflow"]:
     from flim.core.config import Issue, TaskConfig
     from flim.core.registry import tools
     from flim.core.runner import Nth
+    from flim.core.schema import TableSchema
     from flim.core.types import InputSpec, TableType
     from flim.core.validation import ValidationReport
     from flim.core.workflow import Workflow, workflow_input
@@ -519,8 +649,9 @@ def _file_workflow_base() -> type["Workflow"]:
 
         @classmethod
         def structure_issues(cls) -> list[Issue]:
-            """Return the errors of steps whose shapes don't fit (see `_shapes`)."""
-            return [Issue(None, e) for e in _shapes(cls.definition)[1]]
+            """Return the errors of steps whose shapes don't fit (`_shapes`, `_dims`)."""
+            errors = _shapes(cls.definition)[1] + _dims(cls.definition)[1]
+            return [Issue(None, e) for e in errors]
 
         def resolve(
             self,
@@ -548,45 +679,82 @@ def _file_workflow_base() -> type["Workflow"]:
             """
             if not isinstance(tables, dict):
                 tables = {"Input": tables}
-            shapes, _ = _shapes(self.definition)
+            dims, _ = _dims(self.definition)
+            # tables read by an earlier task (Import Tables) aren't known yet: unknown
+            schemas = _step_schemas(
+                self.definition,
+                {
+                    n: TableSchema.from_frame(t) if hasattr(t, "columns") else TableSchema.unknown()
+                    for n, t in tables.items()
+                },
+            )
+            # per step: its outputs keyed by labels, one per dimension (`_dims`), e.g.
+            # ("a.txt",), ("a.txt", "FLIRR"), ("FLIRR",) after a join, or ()
             outputs = {
-                INPUT: {name: workflow_input(t, name, save=False) for name, t in tables.items()}
+                INPUT: {(name,): workflow_input(t, name, save=False) for name, t in tables.items()}
             }
             previous = INPUT
             for step in self.definition.steps:
                 tool_class = tools.get(step.tool)
                 step_config = tool_class.config_class.model_validate(step.config)
-                sources = []
-                for reference in step.inputs or [previous]:
+                references = step.inputs or [previous]
+                sources = []  # (dimensions, outputs by key) per input
+                for reference in references:
                     source, number = parse_reference(reference)
-                    value = outputs[source]
                     pick = (lambda v: v) if source == INPUT else (lambda v, n=number: v[Nth(n)])
-                    if isinstance(value, dict):
-                        sources.append({k: pick(v) for k, v in value.items()})
-                    else:
-                        sources.append(pick(value))
+                    sources.append(
+                        (dims[source], {k: pick(v) for k, v in outputs[source].items()})
+                    )
+                mappable = _mappable(tool_class, step)
+                configs = [step_config]
+                if mappable:
+                    first = references[0]
+                    source, number = parse_reference(first)
+                    known = schemas.get(source) or []
+                    schema = known[number - 1] if number <= len(known) else None
+                    configs = part_configs(tool_class, step_config, schema)
 
-                def call(inputs: list[Any], tags: list[str]) -> Any:
+                def call(inputs: list[Any], config: Any, key: tuple) -> Any:
                     tool = tool_class()
                     tool._save = _saved(step)
                     tool._formats = step.output.formats  # None: the workflow's (the run's)
                     tool._processing = step.processing
-                    return tool(*inputs, config=step_config, task_tags=tags)
+                    tags = [str(k) for k in key] or [step.id]  # the results' folders
+                    return tool(*inputs, config=config, task_tags=tags)
 
+                def run(inputs: list[Any], key: tuple, results: dict) -> None:
+                    if not mappable:
+                        results[key] = call(inputs, step_config, key)
+                        return
+                    for config in configs:  # one call per part, keyed by its name
+                        part = tool_class.output_prefix(config) or "all"
+                        results[key + (part,)] = call(inputs, config, key + (part,))
+
+                results: dict = {}
                 if tool_class.inputs and tool_class.inputs[0].many:
-                    (source,) = sources
-                    tables_in = source if isinstance(source, dict) else {"Input": source}
-                    outputs[step.id] = call([tables_in], [step.id])
-                elif shapes[step.id] == MAPPED:
-                    names = list(sources[0])
-                    outputs[step.id] = {
-                        name: call([s[name] for s in sources], [name]) for name in names
-                    }
+                    # joins the input dimension; the parts, if any, stay
+                    (source_dims, values) = sources[0]
+                    at = source_dims.index(INPUT_DIM) if INPUT_DIM in source_dims else None
+                    groups: dict = {}
+                    for key, value in values.items():
+                        rest = key[:at] + key[at + 1 :] if at is not None else key
+                        label = key[at] if at is not None else "Input"
+                        groups.setdefault(rest, {})[label] = value
+                    for rest, tables_in in groups.items():
+                        run([tables_in], rest, results)
                 else:
-                    outputs[step.id] = call(sources, [step.id])
+                    # maps over the keys of the source with the most dimensions; the
+                    # other sources are passed whole (by the leading part of the key)
+                    widest = max(sources, key=lambda s: len(s[0]))
+                    for key in widest[1]:
+                        inputs = [values[key[: len(d)]] for d, values in sources]
+                        run(inputs, key, results)
+                outputs[step.id] = results
                 previous = step.id
             # the results to show: the outputs no later step uses
-            self.leaves = {step.id: outputs[step.id] for step in leaf_steps(self.definition)}
+            self.leaves = {
+                step.id: _leaf(outputs[step.id]) for step in leaf_steps(self.definition)
+            }
 
     FileWorkflow = _FileWorkflow
     return FileWorkflow
@@ -770,7 +938,7 @@ def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
     """Return how many result windows a run would open, by kind (table, plot, image).
 
     The windows are the leaf steps' outputs, once per table for steps that run per
-    table. The outputs are worked out from the tables' schemas (see `check_steps`);
+    table, and once per part below a mappable step (`Tool.mappable_output`). The outputs are worked out from the tables' schemas (see `check_steps`);
     an output whose kind is not known counts as a table.
 
     Args:
@@ -783,7 +951,8 @@ def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
     from flim.core.registry import tools
     from flim.core.schema import TableSchema
 
-    shapes, _ = _shapes(definition)
+    dims, _ = _dims(definition)
+    parts: dict = {}  # mappable step -> its number of parts
     first = next(iter(schemas.values()), None)
     known, previous = {INPUT: [(first, "table")]}, INPUT
     for step in definition.steps:
@@ -798,6 +967,10 @@ def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
             source = (step.inputs or [previous])[0]
             many = schemas if source == INPUT else {"Input": inputs[0]}
             inputs = [None if None in many.values() else many]
+        if _mappable(tool, step):
+            configs = part_configs(tool, config, inputs[0] if inputs else None)
+            parts[step.id] = len(configs)
+            config = configs[0]  # each part has the outputs of one part
         try:
             specs = list(tool.output_schema(config, inputs).values())
         except Exception:
@@ -809,7 +982,10 @@ def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
         previous = step.id
     counts: dict = {}
     for step in leaf_steps(definition):
-        times = len(schemas) if shapes[step.id] == MAPPED else 1
+        times = len(schemas) if INPUT_DIM in dims[step.id] else 1
+        for dim in dims[step.id]:
+            if dim != INPUT_DIM:
+                times *= parts.get(dim.removeprefix("part "), 1)
         for _, kind in known[step.id]:
             counts[kind] = counts.get(kind, 0) + times
     return counts
