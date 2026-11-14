@@ -871,7 +871,8 @@ def register_generic_dialogs() -> None:
 
     Explicitly, one config class each: registering says the tool can be fully
     configured in the GUI (see `flim.gui.configdialog.shown_in_gui`). Filter and
-    Separate Categories register dialogs of their own.
+    Separate Categories register dialogs of their own; Collect Files none (its inputs
+    are files, which the GUI has no windows for).
     """
     from flim import configs
     from flim.gui.configdialog import ConfigDialog, register_dialog

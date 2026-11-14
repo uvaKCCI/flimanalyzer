@@ -182,6 +182,9 @@ class Tool(Generic[ConfigT]):
     # submenus (`["Analysis", "Autoencoder"]`); None or empty: in no menu and not in
     # the tool panel (still runnable by name and as a workflow step)
     category: ClassVar[Union[str, list[str], None]] = None
+    # more Prefect tags of the tool's tasks, besides its name and former names (so
+    # that concurrency limits set on them apply), e.g. a workflow's names on its step
+    extra_tags: ClassVar[tuple[str, ...]] = ()
     description: ClassVar[str] = ""
     icon: ClassVar[Optional[str]] = None  # resource name; the GUI loads the bitmap
     api_version: ClassVar[int] = API_VERSION

@@ -554,8 +554,9 @@ def ignored_settings(
 def run_names(search_path: Sequence[Path]) -> list[str]:
     """Return the lines of `--list`: what `--run` takes, by kind.
 
-    Tools by category and workflows defined in code, by name; workflow files by the
-    name in them, with their file; tool files in the search path by file name (they
+    Tools by category, workflows defined in code, and the tools and workflows in no
+    menu (`category` empty), by name; workflow files by the name in them, with their
+    file; tool files in the search path by file name (they
     are run by path or file name). The tools and workflows of other installed
     packages are included; workflow files must be registered before.
 
@@ -583,6 +584,8 @@ def run_names(search_path: Sequence[Path]) -> list[str]:
         if names:
             lines.append(f"  {category}: {', '.join(names)}")
     lines += ["", "Workflows:"] + (sorted(code) or ["  none"])
+    hidden = [f"  {cls.name}" for cls in tools.hidden()]
+    lines += ["", "Not in the menus (by name or as a workflow step):"] + (hidden or ["  none"])
     lines += ["", "Workflow files (by name, or by path or file name):"] + (files or ["  none"])
     tool_files = [p for p in workflow_files(search_path) if _is_tool_file(p)]
     lines += ["", "Tool files (by path or file name):"]

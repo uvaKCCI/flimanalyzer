@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from flim.gui.configdialog import shown_in_gui  # noqa: E402
 
 
 @pytest.fixture
@@ -135,7 +136,7 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
         # files only as favorites
         in_menus = [
             t for category, group in tools.by_category().items() if category != "File"
-            for t in group if getattr(t, "definition", None) is None
+            for t in group if getattr(t, "definition", None) is None and shown_in_gui(t)
         ]
         assert n_tools == 2 + len(in_menus) + 2
     finally:

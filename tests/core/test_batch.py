@@ -345,7 +345,9 @@ def test_list_shows_what_run_takes(workflow_folder, capsys):
     assert main(["--list", "-w", str(workflow_folder)]) == 0  # no -i, -o or --run needed
     out = capsys.readouterr().out
     assert "  Analysis: " in out and "Summarize" in out
-    assert "Workflows:\n  Basic FLIRR Analysis" in out
+    workflows = out.split("Workflows:\n")[1].split("\n\n")[0]
+    assert "  Basic FLIRR Analysis" in workflows and "  Autoencoder Train" in workflows
+    assert "Not in the menus (by name or as a workflow step):\n  Autoencoder Train Model" in out
     assert f"  per treatment  ({workflow_folder / 'per-treatment.json'})" in out
     assert "  Import  (built-in)" in out
     assert f"Tool files (by path or file name):\n  summarize.json  ({workflow_folder})" in out

@@ -4,6 +4,7 @@ from flim.configs.analysis import (
     AEAugmentConfig,
     AERunConfig,
     AETrainConfig,
+    AETrainWorkflowConfig,
     CategorizerConfig,
     GMMConfig,
     KMeansConfig,
@@ -16,6 +17,7 @@ from flim.configs.analysis import (
 )
 from flim.configs.data import (
     CategoryOrderConfig,
+    CollectFilesConfig,
     ConcatConfig,
     FilterConfig,
     MergeConfig,

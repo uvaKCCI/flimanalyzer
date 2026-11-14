@@ -45,7 +45,7 @@ def test_one_figure_tools_are_not_mappable(name):
 
 
 def test_autoencoder_parts():
-    train = tools.get("Autoencoder: Train")
+    train = tools.get("Autoencoder Train Model")
     config = train.config_class(batch_sizes=[32, 64], learning_rates=[0.001], weight_decays=[0])
     assert train.mappable_output(config)
     assert [train.output_prefix(c) for c in train().map_configs(config)] == [

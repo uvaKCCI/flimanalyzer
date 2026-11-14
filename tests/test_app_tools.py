@@ -7,6 +7,7 @@ import pytest
 wx = pytest.importorskip("wx")
 
 from flim.core.registry import tools  # noqa: E402
+from flim.gui.configdialog import shown_in_gui  # noqa: E402
 
 
 @pytest.fixture
@@ -86,7 +87,8 @@ def test_menus_and_tool_panel_from_the_registry(frame):
     ]
     data_menu = menubar.GetMenu(titles.index("Data"))
     assert [i.GetItemLabelText() for i in data_menu.GetMenuItems()] == [
-        t.name for t in tools.by_category()["Data"] if getattr(t, "definition", None) is None
+        t.name for t in tools.by_category()["Data"]
+        if getattr(t, "definition", None) is None and shown_in_gui(t)
     ]
     assert "Import" not in [i.GetItemLabelText() for i in data_menu.GetMenuItems()]
 

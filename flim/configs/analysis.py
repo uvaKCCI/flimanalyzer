@@ -513,7 +513,7 @@ PositiveInt = Annotated[int, Field(ge=1)]
 
 
 class AETrainConfig(AutoencoderConfig):
-    """Config of Autoencoder: Train: the model, the training settings and the split."""
+    """Config of Autoencoder Train Model: the model, the training settings and the split."""
 
     min_features = 2
     legacy_keys = {
@@ -659,3 +659,12 @@ class AEAugmentConfig(_ModelFilesConfig):
         title="Random seed",
         description="The same noise, and so the same copies, on every run; empty: random.",
     )
+
+
+class AETrainWorkflowConfig(AETrainConfig):
+    """Config of the Autoencoder Train workflow: as Autoencoder Train Model's.
+
+    A class of its own (no fields of its own), so that the workflow and its training
+    step each have their config class; the workflow trains one model per combination
+    of batch size, learning rate and weight decay.
+    """

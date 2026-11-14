@@ -20,7 +20,13 @@ from flim.configs import (  # noqa: E402
 from flim.core.execution import ExecutionOptions  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
 
-TOOLS = [t for group in tools.by_category().values() for t in group]
+from flim.gui.configdialog import shown_in_gui  # noqa: E402
+
+# the tools the GUI offers (a category and a registered dialog)
+TOOLS = [
+    t for group in tools.by_category().values() for t in group
+    if shown_in_gui(t)
+]
 
 
 @pytest.fixture

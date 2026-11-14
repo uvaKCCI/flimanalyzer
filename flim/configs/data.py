@@ -83,6 +83,12 @@ class CategoryOrderConfig(DataTaskConfig):
         }
 
 
+class CollectFilesConfig(DataTaskConfig):
+    """Config of Collect Files: no settings of its own."""
+
+    hidden_fields = frozenset({"grouping", "features"})
+
+
 class ConcatConfig(DataTaskConfig, ProtectedNamesConfig):
     """Config of Concatenate: the direction and the columns that are appended."""
 

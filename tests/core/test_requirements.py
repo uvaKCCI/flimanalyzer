@@ -27,6 +27,7 @@ EXPECTED = {
     "Drop Columns": (0, 0),
     "Filter": (0, 0),
     "Fuse Categories": (0, 2),
+    "Collect Files": (0, 0),  # files, not tables
     "Merge": (0, 0),
     "Order Category Values": (0, 0),
     "Pivot": (1, 0),
@@ -37,9 +38,10 @@ EXPECTED = {
     "Split": (0, 1),  # 0.6 required a column with a config check, now min_grouping
     "Unpivot": (1, 0),
     # analysis
-    "Autoencoder: Augment Data": (1, 1),
-    "Autoencoder: Run": (1, 0),  # grouping is hidden: the tool does not group
-    "Autoencoder: Train": (2, 0),
+    "Autoencoder Augment Data": (1, 1),
+    "Autoencoder Run": (1, 0),  # grouping is hidden: the tool does not group
+    "Autoencoder Train": (2, 0),  # a workflow: one Autoencoder Train Model per combination
+    "Autoencoder Train Model": (2, 0),  # its step, in no menu
     "Categorize Data": (0, 0),  # each rule names its feature
     "Gaussian Mixed Model": (1, 0),
     "K-Means": (1, 0),
@@ -67,7 +69,7 @@ EXPECTED = {
     "FLIM Feature Analysis": (1, 0),
 }
 
-ALL = [t for ts in tools.by_category().values() for t in ts]
+ALL = [t for ts in tools.by_category().values() for t in ts] + tools.hidden()
 
 
 def _table(features=3):

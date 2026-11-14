@@ -295,3 +295,28 @@ def test_saved_model_handles_missing_values_as_training_did(needs_torch, data, t
     assert [name for name, _ in pipeline.steps][:2] == ["minmaxscaler", "simpleimputer"]
     row = data[FEATURES].iloc[[0]].to_numpy(dtype=np.float32)  # its first feature missing
     assert pipeline[:-1].transform(row)[0, 0] == 0.0
+
+
+# --- the Autoencoder Train workflow ---
+
+
+def test_the_workflow_trains_each_combination_and_collects_the_model_files(
+    needs_torch, prefect_harness, data, tmp_path
+):
+    import flim.workflow  # noqa: F401  (registers the workflows)
+    from flim.configs import AETrainWorkflowConfig
+
+    workflow = tools.get("Autoencoder: Train")  # the former name of the tool
+    assert workflow.name == "Autoencoder Train"
+    config = AETrainWorkflowConfig(**train_config(batch_sizes=[16, 32]).model_dump(exclude={"classname"}))
+    run = workflow().run_flow(data, config=config, autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    labels = {a["label"]: a for _, a in run.graph.nodes(data=True) if "tool" in a}
+    trainings = [l for l in labels if l.startswith("Autoencoder Train Model")]
+    assert len(trainings) == 2 and any(l.startswith("Collect Files") for l in labels)
+    (files,) = [p for p in tmp_path.rglob("Table_Files.txt")]
+    table = pd.read_csv(files, sep="\t")
+    assert list(table.columns) == ["Input", "File"]
+    expected = {"-".join(str(v) for v in c) for c in combinations(config)}
+    assert set(table["Input"]) == expected and len(expected) == 2
+    assert all(str(f).endswith(".model") for f in table["File"])

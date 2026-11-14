@@ -32,13 +32,17 @@ def test_category_paths():
     assert category_path(Hidden) == [] and category_path(object()) == []
 
 
+# FLIMAnalyzer's tools with a category but not in the GUI, on purpose
+NOT_IN_GUI = {"Collect Files"}  # its inputs are files: the GUI has no windows for them
+
+
 def test_every_tool_of_flimanalyzer_with_a_category_has_a_registered_dialog():
-    missing = [
+    missing = {
         t.name for t in tools._tools.values()
         if category_path(t) and getattr(t, "definition", None) is None
         and t.__module__.split(".")[0] == "flim" and not has_dialog(t.config_class)
-    ]  # fmt: skip
-    assert missing == []
+    }  # fmt: skip
+    assert missing == NOT_IN_GUI
 
 
 class PluginConfig(TaskConfig):

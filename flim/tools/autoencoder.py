@@ -139,8 +139,10 @@ def _skip_gpu_check_on_cpu(
 class AETraining(Tool[AETrainConfig]):
     """Trains autoencoder models of the features and saves them to files."""
 
-    name = "Autoencoder: Train"
-    category = "Analysis"
+    name = "Autoencoder Train Model"
+    category = None  # a step of the Autoencoder Train workflow, not in the menus
+    # a concurrency limit set on the workflow's names limits the trainings
+    extra_tags = ("Autoencoder Train", "Autoencoder: Train")
     description = (
         "Trains and saves autoencoder models of the selected features, one per"
         " combination of batch size, learning rate and weight decay. Training and"
@@ -639,7 +641,8 @@ class _ModelTool:
 class RunAE(_ModelTool, Tool[AERunConfig]):
     """Runs trained autoencoder models on the features."""
 
-    name = "Autoencoder: Run"
+    name = "Autoencoder Run"
+    former_names = ("Autoencoder: Run",)
     category = "Analysis"
     description = "Runs trained autoencoder models on the selected features."
     icon = "aerun.png"
@@ -771,7 +774,8 @@ class RunAE(_ModelTool, Tool[AERunConfig]):
 class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
     """Creates simulated copies of the data with trained autoencoder models."""
 
-    name = "Autoencoder: Augment Data"
+    name = "Autoencoder Augment Data"
+    former_names = ("Autoencoder: Augment Data",)
     category = "Analysis"
     description = (
         "Creates simulated copies of the data with trained autoencoder models,"

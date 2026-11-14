@@ -218,7 +218,7 @@ def test_autoencoder_training_stops_within_an_epoch(tmp_path):
     # models would be saved in the results folder; the cancelled training saves none
     run = run_flow("ae cancel", build, autosave_dir=str(tmp_path), cancel_token=token)
     assert time.monotonic() - start < 30
-    assert run.cancelled == ["Autoencoder: Train"]
+    assert run.cancelled == ["Autoencoder Train Model"]
     assert not list(tmp_path.rglob("*.model"))
 
 

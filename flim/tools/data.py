@@ -17,6 +17,7 @@ from flim.configs.data import (
     SourceFromPathConfig,
     ScaleConfig,
     CategoryOrderConfig,
+    CollectFilesConfig,
     ConcatConfig,
     FilterConfig,
     MergeConfig,
@@ -30,7 +31,7 @@ from flim.core.columns import free_names, make_room, unique_name  # noqa: F401  
 from flim.core.config import Issue
 from flim.core.registry import register_tool
 from flim.core.tool import Tool
-from flim.core.types import InputSpec, OutputSpec, TableType
+from flim.core.types import FileType, InputSpec, OutputSpec, TableType
 from flim.tools.common import (
     categories_first,
     category_columns,
@@ -111,6 +112,38 @@ def _row_mismatch(first: pd.DataFrame, other: pd.DataFrame) -> Optional[str]:
 
 INPUT = "Input"  # Concatenate's column: the table each row came from
 SOURCE = "Source"  # each row's origin, a URI (flim.core.reader.SOURCE)
+
+
+@register_tool
+class CollectFiles(Tool[CollectFilesConfig]):
+    """Collects the files of several inputs into one table, a row per file."""
+
+    name = "Collect Files"
+    category = "Data"
+    description = (
+        "Collects the files of several inputs (e.g. the models of each training) into"
+        " one table: a row per file, with the input it came from."
+    )
+    inputs = (InputSpec("files", FileType, many=True),)
+    outputs = (OutputSpec("Files", TableType),)
+
+    def run(self, files: dict[str, Any], *, config: CollectFilesConfig) -> dict[str, Any]:
+        """Return one table of the files, in the order of the inputs.
+
+        Args:
+            files: The files by input name; each a path or a list of paths (None for
+                an input without files).
+            config: The settings (none of its own).
+
+        Returns:
+            `Files`: a table with the columns `Input` (the input's name) and `File`
+            (the path).
+        """
+        rows = []
+        for name, value in files.items():
+            paths = value if isinstance(value, (list, tuple)) else [value]
+            rows += [{INPUT: name, "File": str(path)} for path in paths if path is not None]
+        return {"Files": pd.DataFrame(rows, columns=[INPUT, "File"])}
 
 
 @register_tool
