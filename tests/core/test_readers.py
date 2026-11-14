@@ -50,7 +50,7 @@ def test_import_tables_runs_a_workflow_on_the_tables(prefect_harness, files, tmp
 
     path = tmp_path / "join.json"
     path.write_text(json.dumps({
-        "name": "join", "tags": ["import"],
+        "name": "join", "category": ["File", "Import"],
         "steps": [{"id": "1", "tool": "Concatenate", "config": {"add_input": False}}],
     }))  # fmt: skip
     workflow = ImportTables()

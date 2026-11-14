@@ -865,3 +865,61 @@ class RenameGroupsDlg(wx.Dialog):
 
 
 # Feature-level analysis customization
+
+def register_generic_dialogs() -> None:
+    """Register the generic `ConfigDialog` for FLIMAnalyzer's tools that use it.
+
+    Explicitly, one config class each: registering says the tool can be fully
+    configured in the GUI (see `flim.gui.configdialog.shown_in_gui`). Filter and
+    Separate Categories register dialogs of their own.
+    """
+    from flim import configs
+    from flim.gui.configdialog import ConfigDialog, register_dialog
+
+    names = (
+        "AEAugmentConfig",
+        "AEFeatureConfig",
+        "AERunConfig",
+        "AETrainConfig",
+        "AETuneConfig",
+        "BarPlotConfig",
+        "BasicFLIRRConfig",
+        "BoxPlotConfig",
+        "CalculateConfig",
+        "CategorizerConfig",
+        "CategoryOrderConfig",
+        "ConcatConfig",
+        "DropColumnsConfig",
+        "FLIRRPlotConfig",
+        "FuseCategoriesConfig",
+        "GMMConfig",
+        "HeatmapConfig",
+        "HistogramConfig",
+        "ImportTablesConfig",
+        "KDEConfig",
+        "KMeansConfig",
+        "KSStatsConfig",
+        "LinePlotConfig",
+        "MergeConfig",
+        "PCAConfig",
+        "PairPlotConfig",
+        "PivotConfig",
+        "RandomForestConfig",
+        "RelativeChangeConfig",
+        "RenameColumnsConfig",
+        "ScaleConfig",
+        "ScatterPlotConfig",
+        "SeriesAnalysisConfig",
+        "SortConfig",
+        "SourceFromPathConfig",
+        "SplitConfig",
+        "SummaryConfig",
+        "SwarmPlotConfig",
+        "TableReaderConfig",
+        "UnpivotConfig",
+        "ViolinPlotConfig",
+    )
+    register_dialog(*(getattr(configs, name) for name in names))(ConfigDialog)
+
+
+register_generic_dialogs()

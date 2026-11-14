@@ -34,7 +34,6 @@ class TableReader(Tool[TableReaderConfig]):
         " the columns Source, Directory and File first."
     )
     icon = "fileopen.png"
-    in_menus = False  # File > Open Tables...
     inputs = (InputSpec("file", FileType, description="A data file."),)
     outputs = (OutputSpec("Table", TableType),)
 
@@ -99,7 +98,6 @@ class ImportTables(Workflow[ImportTablesConfig]):
         " example one that joins them and takes categories from the file names."
     )
     icon = "import.png"
-    in_menus = False  # File > Import Tables...
     inputs = (InputSpec("files", FileType, many=True, description="Data files and folders."),)
 
     @classmethod

@@ -134,8 +134,8 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
         # Open and Import, the tools of the menus, Prefect Server and Last Run; workflow
         # files only as favorites
         in_menus = [
-            t for group in tools.by_category().values() for t in group
-            if t.in_menus and getattr(t, "definition", None) is None
+            t for category, group in tools.by_category().items() if category != "File"
+            for t in group if getattr(t, "definition", None) is None
         ]
         assert n_tools == 2 + len(in_menus) + 2
     finally:

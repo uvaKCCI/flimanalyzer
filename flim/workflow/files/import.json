@@ -2,7 +2,7 @@
   "schema_version": 1,
   "name": "Import",
   "description": "Renames and drops the channels' columns, joins the tables into one and calculates the FLIM features (as FLIMAnalyzer 0.6's import did with the default filename parser).",
-  "tags": ["import"],
+  "category": ["File", "Import"],
   "steps": [
     {
       "id": "1",

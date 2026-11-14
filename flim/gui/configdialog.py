@@ -8,6 +8,7 @@ is edited and marks problems at their fields (errors keep OK disabled).
 """
 
 import logging
+import warnings
 import json
 import os
 from pathlib import Path
@@ -102,6 +103,60 @@ def register_dialog(
         return dialog
 
     return register
+
+
+def has_dialog(config_class: type) -> bool:
+    """Return whether a dialog is registered for a config class or one of its bases.
+
+    Registering (`register_dialog`), also of the generic `ConfigDialog`, says that the
+    tool can be fully configured in the GUI. The shared bases of all configs don't
+    count.
+
+    Args:
+        config_class: The config class of a tool.
+
+    Returns:
+        True if a dialog is registered for the class or a base of it.
+    """
+    from pydantic import BaseModel
+
+    from flim.core.config import BaseConfig, TaskConfig
+
+    shared = {TaskConfig, BaseConfig, BaseModel, object}
+    return any(base in _DIALOGS for base in config_class.__mro__ if base not in shared)
+
+
+_warned: set = set()  # tools of other packages warned about (once each)
+
+
+def shown_in_gui(tool: type["Tool"]) -> bool:
+    """Return whether the GUI offers a tool in its menus and tool panel.
+
+    A workflow file always (it is configured by its file); a tool or workflow only
+    with a registered dialog (`has_dialog`). A tool of another package without one is
+    still shown in this version, with a `DeprecationWarning` (from 0.8.0 it isn't).
+    Where a tool is shown also depends on its `category`.
+
+    Args:
+        tool: The tool or workflow class.
+
+    Returns:
+        True if the GUI offers it.
+    """
+    if getattr(tool, "definition", None) is not None or has_dialog(tool.config_class):
+        return True
+    if tool.__module__.split(".")[0] == "flim":
+        return False  # FLIMAnalyzer's own: not configurable in the GUI yet
+    if tool.name not in _warned:
+        _warned.add(tool.name)
+        message = (
+            f"{tool.name}: no dialog registered for {tool.config_class.__name__};"
+            " shown with the generic dialog until 0.8.0, then hidden. Register one with"
+            " flim.gui.configdialog.register_dialog (also ConfigDialog itself)."
+        )
+        warnings.warn(message, DeprecationWarning, stacklevel=2)
+        logger.warning(message)
+    return True
 
 
 def dialog_class(config_class: type) -> type["ConfigDialog"]:

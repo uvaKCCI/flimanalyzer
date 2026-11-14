@@ -18,6 +18,22 @@ API_VERSION = 1  # tools declaring another api_version are not registered
 # menu and tool panel order; categories not listed here follow, sorted by name
 CATEGORY_ORDER = ("File", "Image", "Data", "Analysis", "Plot", "Workflow")
 
+
+def category_path(tool: Any) -> list[str]:
+    """Return where the GUI shows a tool: its menu and submenus, from its `category`.
+
+    Args:
+        tool: The tool or workflow class.
+
+    Returns:
+        `[menu, submenu, ...]`; `["Analysis"]` for the category `"Analysis"`; empty
+        for None or an empty category (in no menu).
+    """
+    category = getattr(tool, "category", None)
+    if not category:
+        return []
+    return [category] if isinstance(category, str) else [str(c) for c in category]
+
 TOOLS_GROUP = "flimanalyzer.tools"
 GUI_GROUP = "flimanalyzer.gui"
 
@@ -53,13 +69,14 @@ class ToolRegistry:
             The class.
 
         Raises:
-            ValueError: If the class has no `name`, `category` or `config_class`,
+            ValueError: If the class has no `name` or `config_class` (`category` may be
+                empty: in no menu, see `category_path`),
                 declares another `api_version`, has a `short_name` longer than
                 `SHORT_NAME_LENGTH` characters, or another class is registered under
                 its name, or one of its names (name, former names, short name)
                 equals one of another class's names, ignoring case.
         """
-        for attr in ("name", "category", "config_class"):
+        for attr in ("name", "config_class"):
             if not getattr(cls, attr, None):
                 raise ValueError(f"{cls.__qualname__} has no {attr}")
         api = getattr(cls, "api_version", API_VERSION)
@@ -138,19 +155,30 @@ class ToolRegistry:
         The categories of `CATEGORY_ORDER` come first, in that order; the others
         follow, sorted by name.
         """
-        present = {cls.category for cls in self._tools.values()}
+        present = {path[0] for path in map(category_path, self._tools.values()) if path}
         known = [c for c in CATEGORY_ORDER if c in present]
         return known + sorted(present - set(CATEGORY_ORDER))
 
     def by_category(self) -> dict[str, list[type["Tool"]]]:
-        """Return the tools grouped by category (menu order), each sorted by name."""
+        """Return the tools grouped by menu (the first entry of their category).
+
+        Menus in menu order, each sorted by name; tools without a category (see
+        `hidden`) are left out.
+        """
         return {
             category: sorted(
-                (cls for cls in self._tools.values() if cls.category == category),
+                (cls for cls in self._tools.values() if category_path(cls)[:1] == [category]),
                 key=lambda cls: cls.name,
             )
             for category in self.categories()
         }
+
+    def hidden(self) -> list[type["Tool"]]:
+        """Return the tools without a category, sorted by name: in no menu, runnable by name."""
+        return sorted(
+            (cls for cls in self._tools.values() if not category_path(cls)),
+            key=lambda cls: cls.name,
+        )
 
     def for_config(self, config: Any) -> Optional[type["Tool"]]:
         """Return the tool for a config class or instance.

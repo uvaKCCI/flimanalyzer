@@ -366,7 +366,7 @@ def test_old_import_settings_become_an_equivalent_workflow(prefect_harness, raw_
     settings_file = write(tmp_path, v1, "old.json")
     check = check_settings_file(settings_file)
     assert check.import_workflow["name"] == "Import (old)"
-    assert check.import_workflow["tags"] == ["import"] and "read" not in check.import_workflow
+    assert check.import_workflow["category"] == ["File", "Import"] and "read" not in check.import_workflow
     assert check.import_read == {}  # the default delimiter, no files left out
     path = write(tmp_path, check.import_workflow, "old-import.json")
     result = check_workflow_file(path)
@@ -474,24 +474,23 @@ def test_each_run_records_app_execution_and_inputs_and_sends_its_logs_to_prefect
     assert any("summarizing for the test" in log.message for log in logs)
 
 
-def test_tags_and_menu_groups():
-    from flim.core.workflowfile import (
-        BUILT_IN, IMPORT_TAG, WorkflowDefinition, check_workflow_file, panel_group,
-        workflow_group,
-    )
+def test_category_places_a_workflow_file():
+    from flim.core.registry import category_path
+    from flim.core.workflowfile import BUILT_IN, IMPORT_CATEGORY, import_workflows
 
     steps = [{"id": "1", "tool": "Sort"}]
-    assert WorkflowDefinition(name="a", steps=steps).tags == []
-    assert workflow_group(WorkflowDefinition(name="a", steps=steps)) == "Workflow Files"
-    assert workflow_group(WorkflowDefinition(name="a", tags=["summaries", "x"], steps=steps)) == "Summaries"
-    groups = ["File", "Data", "Plot", "Workflow"]
-    tagged = WorkflowDefinition(name="a", tags=["file", "import"], steps=steps)
-    assert workflow_group(tagged, groups) == "Import"  # group names are passed over
-    assert panel_group(tagged, groups) == "File"
-    assert panel_group(WorkflowDefinition(name="a", tags=["x"], steps=steps), groups) is None
-    assert workflow_group(WorkflowDefinition(name="a", tags=["Plot"], steps=steps), groups) == "Workflow Files"
-    for path in BUILT_IN.glob("*.json"):  # all built-in files: data workflows for import
-        assert check_workflow_file(path).definition.tags == [IMPORT_TAG], path.name
+    plain = workflow_class(WorkflowDefinition(name="plain", steps=steps))
+    assert category_path(plain) == ["Workflow"]  # no category: the Workflow menu
+    nested = workflow_class(
+        WorkflowDefinition(name="nested", category=["Workflow", "Summaries"], steps=steps)
+    )
+    assert category_path(nested) == ["Workflow", "Summaries"]
+    hidden = workflow_class(WorkflowDefinition(name="hidden", category=[], steps=steps))
+    assert category_path(hidden) == []
+    for path in BUILT_IN.glob("*.json"):  # all built-in files: offered by Import Tables
+        assert check_workflow_file(path).definition.category == IMPORT_CATEGORY, path.name
+    register_workflow_files()
+    assert [t.name for t in import_workflows()] == ["Import"]
 
 
 # --- mappable output: a step's output as a list of parts ---

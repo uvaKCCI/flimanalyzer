@@ -29,8 +29,11 @@ def test_register_and_lookup():
 
 def test_missing_attributes():
     reg = ToolRegistry()
-    with pytest.raises(ValueError, match="category"):
-        reg.register(type("T", (), {"name": "T", "config_class": TaskConfig}))
+    with pytest.raises(ValueError, match="name"):
+        reg.register(type("T", (), {"config_class": TaskConfig}))
+    # no category: allowed, in no menu
+    reg.register(type("T", (), {"name": "T", "config_class": TaskConfig}))
+    assert [t.name for t in reg.hidden()] == ["T"]
 
 
 def test_name_conflict():

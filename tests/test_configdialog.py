@@ -270,6 +270,7 @@ def test_registered_dialog_and_open(wxapp, table, monkeypatch):
 
     from flim.configs import SortConfig
 
+    before = configdialog._DIALOGS.get(SortConfig)  # Sort's own registration
     configdialog.register_dialog(SortConfig)(SortDialog)
     try:
         assert configdialog.dialog_class(SortConfig) is SortDialog
@@ -290,7 +291,10 @@ def test_registered_dialog_and_open(wxapp, table, monkeypatch):
             is None
         )
     finally:
-        configdialog._DIALOGS.pop(SortConfig)
+        if before is None:
+            configdialog._DIALOGS.pop(SortConfig)
+        else:
+            configdialog._DIALOGS[SortConfig] = before
 
 
 def test_registered_field_editor(dialog):

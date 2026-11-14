@@ -17,7 +17,7 @@ import sys
 import threading
 import typing
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Sequence, TypeVar, Union
 
 from flim.core.config import Issue, TaskConfig, column_references, requirement_issues
 from flim.core.registry import API_VERSION
@@ -178,14 +178,14 @@ class Tool(Generic[ConfigT]):
     # writes ("Source (before Import)"); at most SHORT_NAME_LENGTH characters; empty:
     # the name
     short_name: ClassVar[str] = ""
-    category: ClassVar[str] = ""
+    # where the GUI shows the tool: a menu (`"Analysis"`), or a list of a menu and its
+    # submenus (`["Analysis", "Autoencoder"]`); None or empty: in no menu and not in
+    # the tool panel (still runnable by name and as a workflow step)
+    category: ClassVar[Union[str, list[str], None]] = None
     description: ClassVar[str] = ""
     icon: ClassVar[Optional[str]] = None  # resource name; the GUI loads the bitmap
     api_version: ClassVar[int] = API_VERSION
     graph_kind: ClassVar[str] = "tool"  # node style in the workflow graph
-    # False: not in the tool menus and the tool panel (e.g. Import, run from the
-    # File menu)
-    in_menus: ClassVar[bool] = True
     # True if the whole task draws with pyplot (see pyplot_lock)
     draws_figures: ClassVar[bool] = False
     inputs: ClassVar[tuple[InputSpec, ...]] = (InputSpec("data", TableType),)

@@ -661,16 +661,16 @@ def test_focus_makes_a_window_the_current_one(frame, flim_data):
     assert frame.window_zorder == [second.item_id, first.item_id]
 
 
-def _file_workflow(name, tags=()):
+def _file_workflow(name, category=None):
     from flim.core.workflowfile import WorkflowDefinition, workflow_class
 
     definition = WorkflowDefinition(
-        name=name, tags=list(tags), steps=[{"id": "1", "tool": "Sort", "inputs": ["input"]}]
+        name=name, category=category, steps=[{"id": "1", "tool": "Sort", "inputs": ["input"]}]
     )
     return workflow_class(definition)
 
 
-def test_import_offers_the_import_tagged_workflows(wxapp, monkeypatch):
+def test_import_offers_the_workflows_in_file_import(wxapp, monkeypatch):
     from flim.core.registry import tools
     from flim.core.workflowfile import import_workflows
     from flim.gui.dialogs.readers import NONE, OTHER, WorkflowEditor
@@ -678,11 +678,14 @@ def test_import_offers_the_import_tagged_workflows(wxapp, monkeypatch):
     monkeypatch.setattr(tools, "_tools", dict(tools._tools))  # restored afterwards
     for name in [n for n, t in tools._tools.items() if getattr(t, "definition", None)]:
         tools.unregister(name)  # workflow files other tests registered
-    for tool in (_file_workflow("A", ["import"]), _file_workflow("B"), _file_workflow("C", ["plots"])):
+    for tool in (
+        _file_workflow("A", ["File", "Import"]), _file_workflow("B"),
+        _file_workflow("C", ["Workflow", "Plots"]),
+    ):  # fmt: skip
         tools.register(tool)
     assert [t.name for t in import_workflows()] == ["A"]
     tools.unregister("A")
-    assert [t.name for t in import_workflows()] == ["B", "C"]  # none tagged: all
+    assert [t.name for t in import_workflows()] == ["B", "C"]  # none in File > Import: all
     # the dialog's choice: none, the workflows, any other file
     frame = wx.Frame(None)
     try:
@@ -727,7 +730,7 @@ def test_import_without_a_workflow_opens_the_tables(frame, monkeypatch, tmp_path
     assert not any(w.is_modified() for w in windows.values())  # as read from the files
 
 
-def test_workflow_menu_groups_workflow_files_by_tag(wxapp, monkeypatch):
+def test_category_places_workflow_files_in_the_menus(wxapp, monkeypatch):
     from flim.core.registry import tools
     from flim.core.tools import FLIMAnalyzer
     from flim.gui.app import AppFrame
@@ -735,50 +738,44 @@ def test_workflow_menu_groups_workflow_files_by_tag(wxapp, monkeypatch):
     saved = dict(tools._tools)
     try:
         for tool in (
-            _file_workflow("Tagged", ["import"]),
-            _file_workflow("Untagged"),
-            _file_workflow("Reader", ["File", "import"]),  # a tool panel group
-            _file_workflow("Plotter", ["plots", "plot"]),
+            _file_workflow("Importer", ["File", "Import"]),
+            _file_workflow("Plain"),  # no category: the Workflow menu
+            _file_workflow("Summarizer", ["Workflow", "Summaries"]),
+            _file_workflow("Plotter", ["Plot", "Plots"]),
+            _file_workflow("Hidden", []),  # in no menu
         ):
             tools.register(tool)
         frame = AppFrame(FLIMAnalyzer())
         menubar = frame.GetMenuBar()
-        menu = menubar.GetMenu(menubar.FindMenu("Workflow"))
-        items = [i for i in menu.GetMenuItems() if not i.IsSeparator()]
-        labels = [i.GetItemLabelText() for i in items]
-        # the code-defined workflows first, then a submenu per first tag
-        assert labels[0] == "Basic FLIRR Analysis"
-        assert labels[-1] == "Run Workflow File..."
-        submenus = {i.GetItemLabelText(): i.GetSubMenu() for i in items if i.GetSubMenu()}
-        assert set(submenus) >= {"Import", "Workflow Files"}
-        assert all(i.GetSubMenu() for i in items[labels.index("Import"):-1])  # below the others
-        # other tests may have registered the built-in files (tagged import) too
-        assert "Tagged" in [i.GetItemLabelText() for i in submenus["Import"].GetMenuItems()]
-        untagged = [i.GetItemLabelText() for i in submenus["Workflow Files"].GetMenuItems()]
-        assert "Untagged" in untagged and "Tagged" not in untagged
-        # the tool panel shows workflow files only as favorites
-        buttons = [n for names in _panel_groups(frame).values() for n in names]
-        assert "Basic FLIRR Analysis" in buttons
-        assert "Tagged" not in buttons and "Untagged" not in buttons
-        # a tag naming a menu puts the file in that menu, the next tag names its submenu
-        assert "File" not in submenus and "Plots" not in submenus
-        assert "Reader" not in [i.GetItemLabelText() for i in submenus["Import"].GetMenuItems()]
+
+        def labels(menu):
+            return [i.GetItemLabelText() for i in menu.GetMenuItems() if not i.IsSeparator()]
 
         def submenu(menu_name, label):
             menu = menubar.GetMenu(menubar.FindMenu(menu_name))
             (item,) = [i for i in menu.GetMenuItems() if i.GetItemLabelText() == label]
-            return [i.GetItemLabelText() for i in item.GetSubMenu().GetMenuItems()]
+            return labels(item.GetSubMenu())
 
-        assert "Reader" in submenu("File", "Import")
+        workflow = labels(menubar.GetMenu(menubar.FindMenu("Workflow")))
+        assert workflow[0] == "Basic FLIRR Analysis" and workflow[-1] == "Run Workflow File..."
+        assert "Plain" in workflow  # directly in the menu, below the code-defined workflows
+        assert submenu("Workflow", "Summaries") == ["Summarizer"]
+        assert submenu("Plot", "Plots") == ["Plotter"]
+        assert "Importer" in submenu("File", "Import")
         file_labels = [i.GetItemLabelText() for i in menubar.GetMenu(0).GetMenuItems()]
         assert file_labels.index("Import") == file_labels.index("Import Tables...") + 1
-        assert submenu("Plot", "Plots") == ["Plotter"]
-        # as favorites, in the group a tag names, else in Workflow
-        frame.set_favorites(["Tagged", "Plotter", "Reader", "Sort"])
+        everywhere = [
+            label for i in range(menubar.GetMenuCount()) for label in labels(menubar.GetMenu(i))
+        ]
+        assert "Hidden" not in everywhere
+        # the tool panel shows workflow files only as favorites, in their menu's group
+        buttons = [n for names in _panel_groups(frame).values() for n in names]
+        assert "Basic FLIRR Analysis" in buttons and "Plain" not in buttons
+        frame.set_favorites(["Plain", "Plotter", "Importer", "Sort", "Hidden"])
         groups = _panel_groups(frame)
-        assert groups["File"] == ["Open Tables", "Import Tables", "Reader"]
-        assert groups["Workflow"] == ["Tagged"] and groups["Plot"] == ["Plotter"]
-        assert groups["Data"] == ["Sort"]
+        assert groups["File"] == ["Open Tables", "Import Tables", "Importer"]
+        assert groups["Workflow"] == ["Plain"] and groups["Plot"] == ["Plotter"]
+        assert groups["Data"] == ["Sort"] and "Hidden" not in str(groups)
         frame.Destroy()
     finally:
         tools._tools.clear()

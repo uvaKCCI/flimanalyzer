@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 WORKFLOW_SCHEMA_VERSION = 1
 INPUT = "input"  # the reference to the run's tables
-IMPORT_TAG = "import"  # the tag of the workflows File > Import Tables... offers
+IMPORT_CATEGORY = ["File", "Import"]  # the workflows File > Import Tables... offers
 BUILT_IN = Path(__file__).resolve().parent.parent / "workflow" / "files"
 WORKFLOW_PATH_VAR = "FLIM_WORKFLOW_PATH"
 
@@ -119,49 +119,15 @@ class WorkflowDefinition(BaseModel):
     schema_version: int = WORKFLOW_SCHEMA_VERSION
     name: str
     description: str = ""
-    tags: list[str] = Field(
-        default=[],
-        description="Words that group the workflow. File > Import Tables... lists the"
-        " workflows tagged 'import'; a tag naming a menu (file, data, analysis, plot,"
-        " workflow) puts the workflow in that menu, else in Workflow; the next tag names"
-        " its submenu.",
+    category: Union[str, list[str], None] = Field(
+        default=None,
+        description="Where the GUI shows the workflow: a menu, or a list of a menu and"
+        " its submenus, e.g. ['Workflow', 'Summaries']; [] for no menu. None: the"
+        " Workflow menu. File > Import Tables... offers the workflows in"
+        " ['File', 'Import'].",
     )
     output: WorkflowOutput = Field(default_factory=WorkflowOutput)
     steps: list[WorkflowStep] = Field(min_length=1)
-
-
-def panel_group(definition: WorkflowDefinition, groups: Iterable[str]) -> Optional[str]:
-    """Return the tool panel group a workflow file's tags name, or None.
-
-    Args:
-        definition: The workflow.
-        groups: The group names, e.g. `File` and the tool categories.
-
-    Returns:
-        The first group named by a tag (case is ignored), or None if no tag names
-        one.
-    """
-    by_name = {g.lower(): g for g in groups}
-    return next((by_name[t.lower()] for t in definition.tags if t.lower() in by_name), None)
-
-
-def workflow_group(definition: WorkflowDefinition, groups: Iterable[str] = ()) -> str:
-    """Return the label of a workflow file's submenu in the Workflow menu.
-
-    Args:
-        definition: The workflow.
-        groups: Tags to pass over because they name a tool panel group (see
-            `panel_group`).
-
-    Returns:
-        The first other tag, with a capital first letter, or `Workflow Files` if
-        there is none.
-    """
-    skip = {g.lower() for g in groups}
-    tag = next((t for t in definition.tags if t.lower() not in skip), None)
-    if tag is None:
-        return "Workflow Files"
-    return tag[:1].upper() + tag[1:]
 
 
 def parse_reference(reference: str) -> tuple[str, int]:
@@ -782,6 +748,8 @@ def workflow_class(
             "description": definition.description or f"Workflow file {getattr(path, 'name', '')}",
             "definition": definition,
             "path": path,
+            # None: the Workflow menu (a file written by hand is not hidden silently)
+            "category": definition.category if definition.category is not None else "Workflow",
             "__module__": __name__,
         },
     )
@@ -817,17 +785,16 @@ def import_workflows() -> list[type["Workflow"]]:
     """Return the workflows Import Tables offers.
 
     Returns:
-        The registered workflow files tagged `import`, or all of them if none is
-        tagged, sorted by name.
+        The registered workflow files in File > Import (`IMPORT_CATEGORY`), or all of
+        them if none is, sorted by name.
     """
-    from flim.core.registry import tools
+    from flim.core.registry import category_path, tools
 
     base = _file_workflow_base()
     files = sorted(
-        (t for group in tools.by_category().values() for t in group if issubclass(t, base)),
-        key=lambda t: t.name,
+        (t for t in tools._tools.values() if issubclass(t, base)), key=lambda t: t.name
     )
-    return [t for t in files if IMPORT_TAG in t.definition.tags] or files
+    return [t for t in files if category_path(t) == IMPORT_CATEGORY] or files
 
 
 def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
@@ -1130,6 +1097,6 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         "schema_version": WORKFLOW_SCHEMA_VERSION,
         "name": name,
         "description": "Imports as the import settings of a FLIMAnalyzer 0.6 settings file did.",
-        "tags": [IMPORT_TAG],
+        "category": IMPORT_CATEGORY,
         "steps": steps,
     }

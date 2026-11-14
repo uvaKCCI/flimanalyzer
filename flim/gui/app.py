@@ -43,10 +43,9 @@ from flim.core.graph import WorkflowGraph
 from flim.core.tool import Tool
 from flim.core.tools import FLIMAnalyzer
 from flim.core.workflow import Workflow
-from flim.core.workflowfile import panel_group, workflow_group
-from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
+from flim.core.registry import GUI_GROUP, TOOLS_GROUP, category_path, discover, tools
 from flim.core.runner import CancelToken, FlowRun, run_flow
-from flim.gui.configdialog import open_config_dialog
+from flim.gui.configdialog import open_config_dialog, shown_in_gui
 from flim.gui.icons import icon_bitmap, tool_bitmap
 from flim.gui.macos import set_bundle_name, set_display_name
 from flim.gui.plotframe import PlotFrame
@@ -363,7 +362,7 @@ class AppFrame(wx.Frame):
         self._tool_buttons = {}  # category -> its (name, bitmap, handler) tuples
         self._file_workflow_names = set()  # shown in the tool panel only as favorites
         self._panel_groups = {}  # tool or workflow name -> its tool panel group
-        # menu -> submenu -> its workflow files' (name, handler) tuples
+        # menu -> submenu path (the rest of a category) -> its (name, handler) items
         self._menu_workflows = {}
         self._file_buttons = [
             (
@@ -418,15 +417,16 @@ class AppFrame(wx.Frame):
 
         menubar.Append(filemenu, "&File")
         # the File tools (readers) are File > Open Tables... and Import Tables...
+        self._collect_tools("File")  # its readers have fixed entries
         menus = {
             category: self._create_tool_menu(category)
             for category in tools.categories()
             if category != "File"
         }
-        # workflow files in the menus and submenus their tags name, File's below Import...
-        self._add_workflow_submenus(filemenu, "File", position=2)
+        # submenus and workflow files, from their category; File's below Import...
+        self._add_submenus(filemenu, "File", position=2)
         for category, menu in menus.items():
-            self._add_workflow_submenus(menu, category)
+            self._add_submenus(menu, category)
             if category == "Workflow":
                 menu.AppendSeparator()
                 item = menu.Append(
@@ -519,50 +519,90 @@ class AppFrame(wx.Frame):
             start = end
         self.toolpanel.SetSizer(panel_sizer)
 
+    def _collect_tools(self, category: str) -> list:
+        """Keep a menu's tools for the menus and the tool panel; return its own items.
+
+        A tool shown in the GUI (`shown_in_gui`) gets a tool panel button in the
+        menu's group. Tools in a submenu (the rest of their `category`) and workflow
+        files are kept for `_add_submenus`; the others are returned, as (name,
+        handler) items of the menu itself. File's readers have fixed entries.
+
+        Args:
+            category: The menu.
+
+        Returns:
+            The menu's own items.
+        """
+        items, buttons = [], []
+        for tool in tools.by_category().get(category, []):
+            if not shown_in_gui(tool):
+                continue
+            definition = getattr(tool, "definition", None)
+            rest = tuple(category_path(tool)[1:])
+            if category == "File" and definition is None and not rest:
+                continue  # File > Open Tables... and Import Tables...
+            handler = lambda event, tool=tool: self.run_tool(tool)
+            buttons.append((tool.name, tool_bitmap(tool), handler))
+            self._panel_groups[tool.name] = category
+            if definition is not None:
+                self._file_workflow_names.add(tool.name)
+            if rest or definition is not None:
+                self._menu_workflows.setdefault(category, {}).setdefault(rest, []).append(
+                    (tool.name, handler)
+                )
+            else:
+                items.append((tool.name, handler))
+        self._tool_buttons[category] = buttons
+        return items
+
     def _create_tool_menu(self, category: str) -> wx.Menu:
         """Return the menu of a tool category and keep its tools' buttons."""
         menu = wx.Menu()
-        buttons = []
-        groups = self.panel_group_names()
-        for tool in tools.by_category()[category]:
-            if not tool.in_menus:
-                continue
-            handler = lambda event, tool=tool: self.run_tool(tool)
-            buttons.append((tool.name, tool_bitmap(tool), handler))
-            definition = getattr(tool, "definition", None)
-            if definition is None:
-                self._panel_groups[tool.name] = category
-                item = menu.Append(wx.ID_ANY, tool.name)
-                self.Bind(wx.EVT_MENU, handler, item)
-                continue
-            where = panel_group(definition, groups) or category
-            self._panel_groups[tool.name] = where
-            self._file_workflow_names.add(tool.name)
-            submenu = workflow_group(definition, groups)
-            self._menu_workflows.setdefault(where, {}).setdefault(submenu, []).append(
-                (tool.name, handler)
-            )
-        self._tool_buttons[category] = buttons
+        for name, handler in self._collect_tools(category):
+            item = menu.Append(wx.ID_ANY, name)
+            self.Bind(wx.EVT_MENU, handler, item)
         return menu
 
-    def _add_workflow_submenus(
-        self, menu: wx.Menu, label: str, position: Optional[int] = None
-    ) -> None:
-        """Add a menu's workflow files, one submenu per tag, in alphabetical order."""
-        submenus = self._menu_workflows.get(label, {})
-        if not submenus:
+    def _add_submenus(self, menu: wx.Menu, label: str, position: Optional[int] = None) -> None:
+        """Add a menu's submenus (from its tools' `category`) and its workflow files.
+
+        Workflow files without a submenu are listed in the menu itself, below its
+        tools; submenus are in alphabetical order.
+
+        Args:
+            menu: The menu.
+            label: The menu's name, the first entry of its tools' `category`.
+            position: Where to insert the submenus; None: at the end.
+        """
+        entries = self._menu_workflows.get(label, {})
+        if not entries:
             return
-        if position is None and menu.GetMenuItemCount():
-            menu.AppendSeparator()
-        for i, name in enumerate(sorted(submenus, key=str.lower)):
-            submenu = wx.Menu()
-            for tool_name, handler in submenus[name]:
-                item = submenu.Append(wx.ID_ANY, tool_name)
+        tree: dict = {}  # submenu name -> its tree; None -> the items at that level
+        for rest, items in entries.items():
+            node = tree
+            for name in rest:
+                node = node.setdefault(name, {})
+            node.setdefault(None, []).extend(items)
+
+        def fill(target: wx.Menu, node: dict) -> None:
+            for name, handler in sorted(node.get(None, []), key=lambda i: i[0].lower()):
+                item = target.Append(wx.ID_ANY, name)
                 self.Bind(wx.EVT_MENU, handler, item)
-            if position is None:
-                menu.AppendSubMenu(submenu, name)
-            else:
-                menu.Insert(position + i, wx.MenuItem(menu, wx.ID_ANY, name, subMenu=submenu))
+            for name in sorted((k for k in node if k is not None), key=str.lower):
+                submenu = wx.Menu()
+                fill(submenu, node[name])
+                target.AppendSubMenu(submenu, name)
+
+        if position is None:
+            if menu.GetMenuItemCount():
+                menu.AppendSeparator()
+            fill(menu, tree)
+            return
+        holder = wx.Menu()  # built aside, then inserted at the position
+        fill(holder, tree)
+        for i, item in enumerate(list(holder.GetMenuItems())):
+            holder.Remove(item)
+            menu.Insert(position + i, item)
 
     @staticmethod
     def panel_group_names() -> list[str]:
@@ -575,8 +615,7 @@ class AppFrame(wx.Frame):
         Monitor holds the entries of `monitor_entries`, as the Monitor menu does.
 
         With favorites (`favorites` setting), the groups hold only them, in their
-        order: a tool in its category's group, a workflow file in the group its tags
-        name (see `panel_group`), else in its category's group; groups without
+        order, each in the group of its menu (the first entry of its category); groups without
         favorites are left out (File is always shown). Without favorites, the groups
         hold all tools without the workflow files (they are in the menus).
         """
@@ -586,9 +625,8 @@ class AppFrame(wx.Frame):
         favorites = self.favorite_buttons()
         groups = {"File": list(self._file_buttons)}
         for category, buttons in self._tool_buttons.items():
-            groups[category] = (
-                [] if favorites else [b for b in buttons if b[0] not in self._file_workflow_names]
-            )
+            shown = [] if favorites else [b for b in buttons if b[0] not in self._file_workflow_names]
+            groups[category] = groups.get(category, []) + shown  # File: after its fixed buttons
         for button in favorites:
             groups.setdefault(self._panel_groups[button[0]], []).append(button)
         for label, buttons in groups.items():
