@@ -105,8 +105,9 @@ def test_run_a_tool_on_each_file(data_dir, settings, tmp_path, monkeypatch):
     text = run_summary.read_text()
     assert "User settings file: not read" in text
     assert f"App settings file: {path} (schema version 2)" in text
-    (log,) = out.glob("flimbatch_*.log")  # the log goes with the results
+    log = run_dir(out).parent / "flimbatch.log"  # the call's log, with its results
     assert "Read 8 file(s)" in log.read_text()
+    assert not list(out.glob("*.log"))  # not in -o itself
 
 
 def test_a_workflow_file_joins_the_files(data_dir, settings, tmp_path):
@@ -423,6 +424,20 @@ def test_save_all_saves_every_step(data_dir, tmp_path, monkeypatch, capsys, how)
     assert sorted(p.name for p in run.iterdir() if p.is_dir()) == ["01-Concatenate", "02-Sort"]
     source = "--save-all" if how == "option" else "FLIM_SAVE_ALL"
     assert f"every step saves all its outputs ({source})" in (run / "run_summary.txt").read_text()
+
+
+def test_with_a_log_folder_the_log_is_named_after_the_call(data_dir, settings, tmp_path, monkeypatch):
+    settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["FLIRR"], aggs=["mean"]))
+    path = _settings_file(settings, tmp_path)
+    logs = tmp_path / "logs"
+    monkeypatch.setenv("FLIM_LOG_DIR", str(logs))
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Summarize",
+                 "--no-prefect-server"])  # fmt: skip
+    assert code == 0
+    (log,) = logs.glob("flimbatch_*.log")  # with the start time and the process ID
+    assert run_dir(out).parent.name.replace("_", "T", 1) in log.name
+    assert not (run_dir(out).parent / "flimbatch.log").exists()
 
 
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):

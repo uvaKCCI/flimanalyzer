@@ -65,6 +65,7 @@ logger = logging.getLogger(__name__)
 DRY_RUN_ROWS = 20  # rows read of each file for --dry-run (column names and types)
 DRY_RUN_VAR = "FLIM_DRY_RUN"  # true: a dry run, as --dry-run
 SAVE_ALL_VAR = "FLIM_SAVE_ALL"  # true: every step saves, as --save-all
+CALL_LOG = "flimbatch.log"  # a call's log, in its results folder
 
 
 class BatchError(Exception):
@@ -557,17 +558,25 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         if problem := folder_problem(output):
             raise BatchError(f"--output: {problem}")
         os.makedirs(output, exist_ok=True)
-        # the log goes with the results, unless a log folder is set
-        log_dir = settings.log.dir.expanduser() if settings.log.dir else output
-        log_file, notice = logs.open_log_file("flimbatch", log_dir, memory)
+        # one folder per call, named after its start; a folder per --run inside
+        start = datetime.datetime.now()
+        call_dir = unique_run_folder(output, start.strftime("%Y-%m-%d_%H-%M-%S"))
+        # the call's log goes with its results, unless a log folder is set (there it
+        # is named after the call's start and the process, the folder being shared)
+        if settings.log.dir:
+            log_file, notice = logs.open_log_file(
+                "flimbatch", settings.log.dir.expanduser(), memory, start=start
+            )
+        else:
+            log_file, notice = logs.open_log_file(
+                "flimbatch", call_dir, memory, start=start, name=CALL_LOG
+            )
         if notice:
             print(f"flimbatch: warning: {notice}", file=sys.stderr)
         logger.info(f"Log file: {log_file}")
+        logger.info(f"Results: {call_dir}")
         strict = True if settings.strict is None else settings.strict
         failed = []
-        # one folder per call, named after its start; a folder per --run inside
-        call_dir = unique_run_folder(output, datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-        logger.info(f"Results: {call_dir}")
         with use_prefect_server(start=settings.prefect_server, timeout=settings.server_timeout):
             for number, (tool, read) in enumerate(runs, 1):
                 tables = _read(args.input, read_settings(read, args.exclude))

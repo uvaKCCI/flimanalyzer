@@ -85,6 +85,7 @@ def open_log_file(
     memory: Optional[logging.handlers.MemoryHandler] = None,
     *,
     start: Optional[datetime.datetime] = None,
+    name: Optional[str] = None,
 ) -> tuple[Path, Optional[str]]:
     """Open the session's log file and write the records kept in memory to it.
 
@@ -97,6 +98,8 @@ def open_log_file(
         memory: The handler returned by `begin`; it is removed after its records are
             written.
         start: The session's start time. Defaults to now.
+        name: The file's name; None for one with the program, the start time and
+            the process ID (`log_file_name`), e.g. in a shared log folder.
 
     Returns:
         The log file, and a message for the user if the temporary folder is used
@@ -105,7 +108,7 @@ def open_log_file(
     Raises:
         OSError: If the log file cannot be opened in the temporary folder either.
     """
-    name = log_file_name(program, start or datetime.datetime.now(), os.getpid())
+    name = name or log_file_name(program, start or datetime.datetime.now(), os.getpid())
     notice = None
     try:
         handler = _file_handler(Path(folder), name)
