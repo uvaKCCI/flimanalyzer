@@ -65,22 +65,23 @@ def test_invalid_log_level(clean_logging):
 # --- main ---
 
 
-def test_batch_hands_over_to_flimbatch(monkeypatch):
-    import flim.batch
+def test_batch_hands_over_to_flimbatch_with_a_deprecation_warning(monkeypatch, capsys):
+    import flim.batchcmd
 
     seen = []
-    monkeypatch.setattr(flim.batch, "main", lambda argv: seen.append(argv) or 3)
+    monkeypatch.setattr(flim.batchcmd, "main", lambda argv: seen.append(argv) or 3)
     monkeypatch.setattr(sys, "argv", ["flimanalyzer", "--batch", "-i", "x", "-o", "y"])
     with pytest.raises(SystemExit) as exit_:
         analyzerapp.main()
     assert exit_.value.code == 3
     assert seen == [["-i", "x", "-o", "y"]]
+    assert "--batch is deprecated and is removed in 0.8.0" in capsys.readouterr().err
 
 
 def test_dry_run_is_not_an_option_of_the_gui(monkeypatch, capsys):
-    import flim.batch
+    import flim.batchcmd
 
-    monkeypatch.setattr(flim.batch, "main", lambda argv: pytest.fail("batch mode started"))
+    monkeypatch.setattr(flim.batchcmd, "main", lambda argv: pytest.fail("batch mode started"))
     with pytest.raises(SystemExit) as exit_:
         analyzerapp.main(["-i", "x", "--run", "Import", "--dry-run"])
     assert exit_.value.code == 2
@@ -88,10 +89,10 @@ def test_dry_run_is_not_an_option_of_the_gui(monkeypatch, capsys):
 
 
 def test_batch_dry_run_still_reaches_flimbatch(monkeypatch):
-    import flim.batch
+    import flim.batchcmd
 
     seen = []
-    monkeypatch.setattr(flim.batch, "main", lambda argv: seen.append(argv) or 0)
+    monkeypatch.setattr(flim.batchcmd, "main", lambda argv: seen.append(argv) or 0)
     with pytest.raises(SystemExit):
         analyzerapp.main(["--batch", "-i", "x", "--run", "Import", "--dry-run"])
     assert seen == [["-i", "x", "--run", "Import", "--dry-run"]]
@@ -352,9 +353,9 @@ def test_runs_as_a_module(monkeypatch):
     # python -m flim.analyzerapp runs main(), like the flimanalyzer command
     import runpy
 
-    import flim.batch
+    import flim.batchcmd
 
-    monkeypatch.setattr(flim.batch, "main", lambda argv: 0)
+    monkeypatch.setattr(flim.batchcmd, "main", lambda argv: 0)
     monkeypatch.setattr(sys, "argv", ["flimanalyzer", "--batch"])
     with pytest.raises(SystemExit) as exit_:
         runpy.run_module("flim.analyzerapp", run_name="__main__")

@@ -115,8 +115,8 @@ print("debug record written:", "a debug record" in path.read_text())
 
 
 def test_the_terminal_shows_the_time_as_the_gui_does():
-    record = logging.LogRecord("flim.batch", logging.INFO, __file__, 1, "Read 8 file(s)", None, None)
+    record = logging.LogRecord("flim.batchcmd", logging.INFO, __file__, 1, "Read 8 file(s)", None, None)
     text = logs.console_handler("INFO").format(record)
     time_, level, rest = text.split(" | ")
     assert len(time_) == len("08:29:03.614") and time_[2] == ":" and time_[8] == "."
-    assert level == "INFO   " and rest == "flim.batch - Read 8 file(s)"
+    assert level == "INFO   " and rest == "flim.batchcmd - Read 8 file(s)"

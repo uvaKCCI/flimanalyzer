@@ -92,8 +92,8 @@ docs = [
 flimanalyzer = "flim.analyzerapp:main"
 
 [project.scripts]
-# without the GUI: import and run tools or workflows (flim/batch.py)
-flimbatch = "flim.batch:main"
+# without the GUI: import and run tools or workflows (flim/batchcmd.py)
+flimbatch = "flim.batchcmd:main"
 
 [project.urls]
 Homepage = "https://github.com/uvaKCCI/flimanalyzer"

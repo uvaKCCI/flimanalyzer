@@ -303,3 +303,32 @@ def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list
     if args.strict is not None:
         changes["strict"] = args.strict
     return changes, notes
+
+
+def flag_source(given: bool, option: str, variable: str) -> Optional[str]:
+    """Return what turned an on/off option on: the option, its variable, or None.
+
+    Args:
+        given: Whether the option was given on the command line.
+        option: The option, e.g. `--dry-run`.
+        variable: Its environment variable, e.g. `FLIM_DRY_RUN`.
+
+    Returns:
+        `option` if given, else `variable` if it is set to true, else None.
+
+    Raises:
+        ValueError: If the variable is not a boolean (e.g. `true`, `false`, `1`, `0`).
+    """
+    from pydantic import TypeAdapter, ValidationError
+
+    if given:
+        return option
+    value = os.environ.get(variable, "").strip()
+    if not value:
+        return None
+    try:
+        return variable if TypeAdapter(bool).validate_python(value) else None
+    except ValidationError:
+        raise ValueError(
+            f"Invalid environment variable: {variable}={value}; use true or false"
+        ) from None

@@ -190,7 +190,7 @@ def console_handler(level: str) -> logging.Handler:
     """Return a handler that writes records to standard error, as the GUI's terminal.
 
     The format is that of Prefect's console handler (`CONSOLE_FORMAT`), e.g.
-    `08:29:03.614 | INFO    | flim.batch - Read 8 file(s)`.
+    `08:29:03.614 | INFO    | flim.batchcmd - Read 8 file(s)`.
 
     Args:
         level: The log level, e.g. `INFO`.

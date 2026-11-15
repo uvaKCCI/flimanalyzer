@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 """Command-line entry point of flimanalyzer: starts the GUI or batch mode.
 
-Parses the arguments and starts the GUI; with `--batch`, runs batch mode
-(`flim.batch`) instead.
+Parses the arguments and starts the GUI; with `--batch` (deprecated), runs flimbatch
+(`flim.batchcmd`) instead.
 """
 
 import logging
@@ -54,7 +54,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="flimanalyzer",
         formatter_class=argparse.RawTextHelpFormatter,
-        epilog="flimanalyzer --batch ARGS runs flimbatch ARGS (batch mode, no GUI).",
+        epilog="flimanalyzer --batch ARGS runs flimbatch ARGS (batch mode, no GUI);"
+        " deprecated, removed in 0.8.0: use flimbatch ARGS.",
     )
     add_file_options(
         parser,
@@ -236,9 +237,10 @@ def open_log(
 
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
-    """Run flimanalyzer: start the GUI, or batch mode with `--batch`.
+    """Run flimanalyzer: start the GUI, or flimbatch with `--batch`.
 
-    In batch mode, the arguments without `--batch` go to `flim.batch.main`. For the
+    With `--batch`, the other arguments go to `flim.batchcmd.main`, after a warning:
+    `--batch` is deprecated in 0.7.0 and removed in 0.8.0 (use `flimbatch`). For the
     GUI, the tools and workflows are registered, the settings of the session are
     read (with the dialogs of `choose_settings` and `pick_app_settings` where
     needed), the log file is opened, and the main window runs until it is closed.
@@ -247,17 +249,22 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         argv: The arguments; defaults to `sys.argv[1:]`.
 
     Raises:
-        SystemExit: In batch mode, with the exit code of `flim.batch.main`; with
+        SystemExit: With `--batch`, with the exit code of `flim.batchcmd.main`; with
             exit code 2 if the arguments or the settings are invalid; and with a
             message if the Prefect server cannot be used or wxPython is not
             installed.
     """
     argv = sys.argv[1:] if argv is None else list(argv)
-    if "--batch" in argv:  # flim.batch.main, without the GUI
-        from flim import batch
+    if "--batch" in argv:  # flimbatch, without the GUI
+        from flim import batchcmd
 
+        print(
+            "flimanalyzer: warning: --batch is deprecated and is removed in 0.8.0;"
+            " use flimbatch with the same arguments",
+            file=sys.stderr,
+        )
         argv.remove("--batch")
-        sys.exit(batch.main(argv))
+        sys.exit(batchcmd.main(argv))
 
     parser = build_parser()
     args = parser.parse_args(argv)

@@ -1,4 +1,4 @@
-"""Batch mode (flim.batch): read files and run tools or workflows without the GUI."""
+"""flimbatch (flim.batchcmd): read files and run tools or workflows without the GUI."""
 
 import logging
 import tempfile
@@ -11,7 +11,7 @@ import flim.tools  # noqa: F401  (registers the tools)
 import flim.workflow  # noqa: F401  (registers the workflows)
 import json
 
-from flim.batch import main
+from flim.batchcmd import main
 from flim.configs import SummaryConfig
 from flim.configs.workflow import BasicFLIRRConfig
 from flim.core.registry import tools
@@ -598,3 +598,16 @@ def test_dask_local_starts_one_cluster_for_all_runs(data_dir, settings, tmp_path
         (line,) = [s for s in text.splitlines() if "executor dask-local" in s]
         notes.append(line)
     assert notes[0] == notes[1]  # the same cluster, at the same address
+
+
+def test_the_old_module_still_works_with_a_deprecation_warning():
+    import importlib
+    import sys
+
+    sys.modules.pop("flim.batch", None)
+    with pytest.warns(DeprecationWarning, match="flim.batch is deprecated and is removed in 0.8.0"):
+        old = importlib.import_module("flim.batch")
+    from flim.batchcmd import main as new_main
+    from flim.core.batchrun import resolve_run
+
+    assert old.main is new_main and old.resolve_run is resolve_run

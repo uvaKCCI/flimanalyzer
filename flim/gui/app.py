@@ -269,7 +269,7 @@ class FLIMAnalyzerApp(wx.App):
         `-x` files; Import Tables reads them with its own settings. A name that does
         not resolve is reported and skipped.
         """
-        from flim.batch import BatchError, read_settings, resolve_run
+        from flim.core.batchrun import BatchError, read_settings, resolve_run
         from flim.tools.readers import ImportTables
 
         search_path = self.settings_manager.workflow_search_path()
@@ -299,7 +299,7 @@ class FLIMAnalyzerApp(wx.App):
         Args:
             files: Paths of files or folders.
         """
-        from flim.batch import read_settings
+        from flim.core.batchrun import read_settings
 
         self.frame.open_data_files(files, read_settings(self.frame.reader_settings(), self.exclude))
 
