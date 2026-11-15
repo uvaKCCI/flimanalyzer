@@ -36,7 +36,12 @@ from flim.core.filtering import WindowFilters, window_filters, window_settings, 
 from flim.tools.data import Filter
 from flim.core.types import TableType
 from flim.core.settings import AppSettings, tool_settings
-from flim.core.settingsmgr import SettingsManager, UserSettingsFile, user_settings_path
+from flim.core.settingsmgr import (
+    SettingsManager,
+    UserSettingsFile,
+    app_settings_path,
+    user_settings_path,
+)
 from flim.core.reader import LEFT_OUT, ReadSettings, read_tables
 from flim.core.schema import TableSchema
 from flim.core.paths import canonical_folder, resolved_folder, with_extension
@@ -1002,6 +1007,7 @@ class AppFrame(wx.Frame):
                 default_folder=self.settings.resolved_results_dir(),
                 keep_relative=self.settings.results_dir is not None,
                 on_make_default=self.make_default_folder,
+                **self.settings_folders(),
             )  # fmt: skip
             if result is None:
                 return None
@@ -1126,6 +1132,18 @@ class AppFrame(wx.Frame):
             tool = workflow_class(validation.definition, Path(path))
         if tool is not None and self.confirm_workflow(tool, title):
             self.run_workflow_on_tables(tool, {title: TableType.snapshot(table)})
+
+    def settings_folders(self) -> dict:
+        """Return the folders a tool dialog's `Save Settings...` uses, as its arguments.
+
+        Returns:
+            `workflow_folder`: the first folder of the workflow search path;
+            `app_settings_folders`: the app settings search path.
+        """
+        return {
+            "workflow_folder": self.settings_manager.workflow_search_path()[0],
+            "app_settings_folders": app_settings_path(self.settings.appsettings_path),
+        }
 
     def run_workflow_on_tables(
         self,
@@ -1264,19 +1282,19 @@ class AppFrame(wx.Frame):
 
         The sections it does not have (e.g. other tools') stay as they are; the
         windows' shared filters are updated from it. If some settings cannot be used,
-        the user chooses what to do (`flim.gui.settingsvalidation.choose_settings`).
+        a box says why (`flim.gui.settingsvalidation.show_problems`) and nothing is
+        applied.
         Afterwards the GUI offers to import the workflow the file names, if any.
 
         Args:
             path: The settings file.
         """
         from flim.core.settings import validate_settings_file
-        from flim.gui.settingsvalidation import choose_settings
+        from flim.gui.settingsvalidation import show_problems
 
         validation = validate_settings_file(path)
         if validation.problems:
-            validation = choose_settings(validation, self)
-        if validation is None:
+            show_problems(validation, self, outcome="Nothing is imported.", title="Import Settings")
             return
         self.settings_manager.apply(validation)
         self.refresh_window_filters()
@@ -1432,6 +1450,7 @@ class AppFrame(wx.Frame):
             default_folder=self.settings.resolved_results_dir(),
             keep_relative=self.settings.results_dir is not None,
             on_make_default=self.make_default_folder,
+            **self.settings_folders(),
         )
         if result is None:
             return

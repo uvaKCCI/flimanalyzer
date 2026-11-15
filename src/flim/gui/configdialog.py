@@ -85,6 +85,8 @@ class ProcessingBox(BaseModel):
     )
 
 
+USE_WORKFLOW_FOLDER = "Use Workflow Folder"
+SAVE_HERE = "Save Here"
 _DIALOGS: dict = {}
 _settings_manager: Optional["SettingsManager"] = None  # the session's (see bind_presets)
 
@@ -312,6 +314,8 @@ class ConfigDialog(wx.Dialog):
         default_folder: Union[str, os.PathLike, None] = None,
         on_make_default: Optional[Callable[[Path], Any]] = None,
         keep_relative: bool = True,
+        workflow_folder: Union[str, os.PathLike, None] = None,
+        app_settings_folders: Sequence[Union[str, os.PathLike]] = (),
     ) -> None:
         """Build the dialog and show the config, its inputs and output options.
 
@@ -340,6 +344,11 @@ class ConfigDialog(wx.Dialog):
                 relative to it. False when the default folder is only the start
                 folder (no `results_dir` set), which can differ from one session to
                 the next: folders are then kept as full paths. Defaults to True.
+            workflow_folder: The folder `Save Settings...` starts in: the first folder
+                of the workflow search path, where tool and workflow files are found
+                by name. Defaults to None: the file dialog's own start folder.
+            app_settings_folders: The folders of the app settings search path; saving
+                a new tool file into one of them asks first. Defaults to none.
         """
         super().__init__(
             parent,
@@ -357,6 +366,8 @@ class ConfigDialog(wx.Dialog):
         self.default_folder = Path(default_folder) if default_folder else None
         self.on_make_default = on_make_default
         self.keep_relative = keep_relative
+        self.workflow_folder = Path(workflow_folder) if workflow_folder else None
+        self.app_settings_folders = [Path(f) for f in app_settings_folders]
         self.issues: list[Issue] = []
         self._schema_cache: dict[str, TableSchema] = {}
 
@@ -985,16 +996,60 @@ class ConfigDialog(wx.Dialog):
                 self.load_settings(dialog.GetPath())
 
     def _on_save_settings(self, event: wx.CommandEvent) -> None:
-        """Ask for a settings file and save the tool's settings in it."""
+        """Ask for a settings file and save the tool's settings in it.
+
+        The file dialog starts in the workflow folder. A new file in a folder of the
+        app settings search path is saved only after a question (`_settings_folder`).
+        """
+        start = ""
+        if self.workflow_folder is not None:
+            self.workflow_folder.mkdir(parents=True, exist_ok=True)
+            start = str(self.workflow_folder)
         # no overwrite prompt: an existing file is updated, not replaced
         with wx.FileDialog(
             self,
             f"Save Settings: {self.tool.name}",
+            defaultDir=start,
             wildcard="JSON files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE,
         ) as dialog:
-            if dialog.ShowModal() == wx.ID_OK:
-                self.save_settings(with_extension(dialog.GetPath(), ".json"))
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            path = Path(with_extension(dialog.GetPath(), ".json"))
+        path = self._settings_folder(path)
+        if path is not None:
+            self.save_settings(path)
+
+    def _settings_folder(self, path: Path) -> Optional[Path]:
+        """Return where to save a tool file; ask first for a new one among app settings.
+
+        App settings files and tool or workflow files are kept apart: a new file in a
+        folder of the app settings search path is moved to the workflow folder, saved
+        there anyway, or not saved, as the user chooses. An existing file is updated
+        where it is (e.g. the tool's section of an app settings file).
+
+        Args:
+            path: The file chosen.
+
+        Returns:
+            The file to save to; None if the user cancels.
+        """
+        folders = {f.expanduser().resolve() for f in self.app_settings_folders}
+        if path.exists() or path.parent.resolve() not in folders or self.workflow_folder is None:
+            return path
+        message = (
+            "This folder is for app settings files. Save tool and workflow settings in"
+            f" the workflow folder: {self.workflow_folder}"
+        )
+        with wx.MessageDialog(
+            self, message, "Save Settings", wx.YES_NO | wx.CANCEL | wx.ICON_WARNING
+        ) as dialog:
+            dialog.SetYesNoCancelLabels(USE_WORKFLOW_FOLDER, SAVE_HERE, "Cancel")
+            answer = dialog.ShowModal()
+        if answer == wx.ID_YES:
+            self.workflow_folder.mkdir(parents=True, exist_ok=True)
+            return self.workflow_folder / path.name
+        return path if answer == wx.ID_NO else None
 
     def _tool_entry(
         self, path: Union[str, os.PathLike]
@@ -1002,16 +1057,16 @@ class ConfigDialog(wx.Dialog):
         """Return the tool's settings in a file.
 
         The file is a config alone or a settings file with a section of the tool.
-        If some of the tool's settings in a settings file cannot be used, the user
-        chooses what to do (`flim.gui.settingsvalidation.choose_settings`), possibly
-        another file; `_loaded_from` is set to the file used.
+        If some of the tool's settings in a settings file cannot be used, a box says
+        why (`flim.gui.settingsvalidation.show_problems`) and nothing is loaded;
+        `_loaded_from` is set to the file.
 
         Returns:
-            The ToolSettings, None if the file has none for the tool, or False if the
-            user chose not to use a file.
+            The ToolSettings, None if the file has none for the tool, or False if
+            some of the tool's settings in it cannot be used.
         """
         from flim.core.settings import ToolSettingsMap, validate_settings_file
-        from flim.gui.settingsvalidation import choose_settings
+        from flim.gui.settingsvalidation import show_problems
 
         self._loaded_from = path
         with open(path) as f:
@@ -1020,9 +1075,8 @@ class ConfigDialog(wx.Dialog):
             return read_tool_settings(path, self.tool)
         validation = validate_settings_file(path)
         if validation.tool_problems(self.tool):
-            validation = choose_settings(validation, self, problems=lambda c: c.tool_problems(self.tool))
-            if validation is None:
-                return False
+            show_problems(validation, self, outcome="Nothing is loaded.", title="Load Settings")
+            return False
         self._loaded_from = validation.path
         return ToolSettingsMap.model_validate(validation.sections.get("tools", {})).entry(self.tool)
 

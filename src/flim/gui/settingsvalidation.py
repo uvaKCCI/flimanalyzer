@@ -1,8 +1,9 @@
-"""The choice the GUI offers when some settings of a settings file cannot be used."""
+"""The GUI's dialogs about settings files: their problems, and the choice at startup."""
 
 import logging
 from pathlib import Path
-from typing import Callable, Optional
+from collections.abc import Sequence
+from typing import Optional
 
 import wx
 
@@ -11,109 +12,42 @@ from flim.core.settingsmgr import Pick, SettingsManager, file_description
 from flim.core.settings import (
     SETTINGS_VERSION,
     SettingsValidation,
-    validate_settings_file,
-    save_sections,
 )
 
 logger = logging.getLogger(__name__)
 
-USE = "Use the settings that can be used; skip the others"
-SKIP_FILE = "Skip loading app settings file"
-UPDATE = "Update the file to the current version; remove the settings that can't be used"
-OTHER = "Choose another file..."
 LISTED = 8  # items listed per kind of finding in the dialog; the log lists all
 REWRITE = "Update the file to the current version and add the settings"
 SAVE_OTHER = "Save to another file..."
 
 
-def _options(validation: SettingsValidation) -> list[str]:
-    """Return the options for a validated file; an unreadable file offers fewer."""
-    return [SKIP_FILE, OTHER] if validation.error else [USE, SKIP_FILE, UPDATE, OTHER]
-
-
-def _confirm_update(validation: SettingsValidation, parent: Optional[wx.Window]) -> bool:
-    """Ask whether to replace the file with its usable settings; True for Yes."""
-    message = (
-        f"Replace {validation.path} with the settings that can be used, in the current"
-        " version?\n\nThe settings listed as unknown or invalid are removed from the"
-        " file. This cannot be undone."
-    )
-    with wx.MessageDialog(
-        parent, message, "Update Settings File", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_WARNING
-    ) as dialog:
-        return dialog.ShowModal() == wx.ID_YES
-
-
-def _other_file(parent: Optional[wx.Window]) -> Optional[str]:
-    """Ask for another settings file to open; None if cancelled."""
-    with wx.FileDialog(
-        parent,
-        "Choose a Settings File",
-        wildcard="JSON files (*.json)|*.json|All files|*",
-        style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
-    ) as dialog:
-        return dialog.GetPath() if dialog.ShowModal() == wx.ID_OK else None
-
-
-def choose_settings(
+def show_problems(
     validation: SettingsValidation,
     parent: Optional[wx.Window] = None,
-    problems: Optional[Callable[[SettingsValidation], bool]] = None,
-) -> Optional[SettingsValidation]:
-    """Ask the user how to use a settings file some of whose settings cannot be used.
+    outcome: str = "The file is not used.",
+    title: str = "Settings File",
+) -> None:
+    """Show why a settings file can't be used, before it is refused.
 
-    The dialog lists what cannot be used and what was converted, and offers to use
-    the settings that can be used, not to use the file, to update the file to the
-    current version (after a confirmation), or to choose another file. Another file
-    is validated in the same way; if it has problems, the dialog is shown again.
-    Closing the dialog with Cancel does not use the file.
+    A file that can't be used at all (it can't be read, isn't a settings file, or is
+    of a newer version) is an error; a file with settings that can't be used
+    (unknown or invalid) is a warning that lists them. Either way the file is not
+    used: every setting of a file must be usable, as in flimbatch. The log lists all
+    problems.
 
     Args:
         validation: The result of `validate_settings_file`.
         parent: The parent window; None for none.
-        problems: A function of a validation that returns whether it has problems that
-            need the user's choice. Defaults to `SettingsValidation.problems`.
-
-    Returns:
-        The validation whose sections to use (of this or another file), or None to use
-        no file.
+        outcome: What happens next, e.g. that nothing is loaded.
+        title: The box's title.
     """
-    problems = problems or (lambda c: c.problems)
-    while True:
-        logger.warning(validation.summary())
-        options = _options(validation)
-        with wx.SingleChoiceDialog(
-            parent,
-            validation.summary(limit=LISTED) + "\n\nWhat should FLIMAnalyzer do?",
-            "Settings File",
-            options,
-        ) as dialog:
-            choice = options[dialog.GetSelection()] if dialog.ShowModal() == wx.ID_OK else SKIP_FILE
-        if choice == USE:
-            return validation
-        if choice == SKIP_FILE:
-            logger.info(f"{validation.path} not used")
-            return None
-        if choice == UPDATE:
-            if not _confirm_update(validation, parent):
-                continue
-            try:
-                save_sections(validation.sections, validation.path)
-            except OSError as err:
-                wx.MessageBox(
-                    f"Could not update {validation.path}:\n{err}",
-                    "Update Settings File",
-                    wx.OK | wx.ICON_ERROR,
-                )
-                continue
-            logger.info(f"{validation.path} updated to the current version")
-            return validate_settings_file(validation.path)
-        path = _other_file(parent)
-        if path is None:
-            continue
-        validation = validate_settings_file(path)
-        if not problems(validation):
-            return validation
+    logger.warning(validation.summary())
+    icon = wx.ICON_ERROR if validation.error else wx.ICON_WARNING
+    message = (
+        f"{validation.summary(limit=LISTED)}\n\n{outcome} flimsettings app --validate"
+        f" {validation.path} lists every problem."
+    )
+    wx.MessageBox(message, title, wx.OK | icon, parent)
 
 
 def needs_rewrite(validation: SettingsValidation) -> bool:
@@ -168,6 +102,7 @@ SKIP = "Skip App Settings"
 STARTUP_COLUMNS = ("Default", "File", "Description", "Folder")
 DEFAULT_MARK = "\u2713"  # check mark
 MAKE_DEFAULT = "Make Default"
+BROWSE = "Browse..."
 CLEAR_DEFAULT = "Clear Default"
 
 
@@ -179,7 +114,8 @@ class StartupSettingsDialog(wx.Dialog):
     starts without a file (`Skip App Settings`, also Esc). `Make Default` makes the
     selected file the default, `Clear Default` clears it; the check mark in the
     Default column shows the default at once, and the change applies with either
-    button.
+    button. `Browse...` adds a file from another folder to the list and selects it;
+    a folder outside the search path can be added to it (`added_folder`).
     """
 
     def __init__(
@@ -188,6 +124,7 @@ class StartupSettingsDialog(wx.Dialog):
         files: list[Path],
         default: Optional[Path],
         warning: Optional[str] = None,
+        search_path: Sequence[Path] = (),
     ) -> None:
         """Create the dialog.
 
@@ -197,12 +134,16 @@ class StartupSettingsDialog(wx.Dialog):
             default: The default app settings file, selected, and listed first if not
                 in `files`; None if none is set.
             warning: A message shown in red above the list; None for none.
+            search_path: The app settings search path; `Browse...` offers to add a
+                file's folder that is not in it. Defaults to none.
         """
         super().__init__(parent, title="App Settings File")
         self.files = list(files)
         if default is not None and default not in self.files:
             self.files.insert(0, default)
         self.default = default  # changed by Make Default and Clear Default
+        self.search_path = [Path(f).expanduser().resolve() for f in search_path]
+        self.added_folder: Optional[Path] = None  # Browse...: added to the search path
         self.table = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_SINGLE_SEL)
         for i, title in enumerate(STARTUP_COLUMNS):
             self.table.InsertColumn(i, title)
@@ -214,6 +155,8 @@ class StartupSettingsDialog(wx.Dialog):
         self.make_default.Bind(wx.EVT_BUTTON, self._on_make_default)
         self.clear = wx.Button(self, label=CLEAR_DEFAULT)
         self.clear.Bind(wx.EVT_BUTTON, self._on_clear)
+        self.browse = wx.Button(self, label=BROWSE)
+        self.browse.Bind(wx.EVT_BUTTON, self._on_browse)
         # the Cancel id: Esc and closing the window skip too
         self.skip = wx.Button(self, wx.ID_CANCEL, SKIP)
         self.ok = wx.Button(self, wx.ID_OK)
@@ -241,6 +184,8 @@ class StartupSettingsDialog(wx.Dialog):
         row = wx.BoxSizer(wx.HORIZONTAL)
         row.Add(self.make_default, 0, wx.RIGHT, 8)
         row.Add(self.clear, 0)
+        row.AddStretchSpacer()
+        row.Add(self.browse, 0)
         sizer.Add(row, 0, wx.EXPAND | wx.ALL, 8)
         sizer.Add(buttons, 0, wx.EXPAND | wx.ALL, 8)
         self.SetSizerAndFit(sizer)
@@ -313,6 +258,38 @@ class StartupSettingsDialog(wx.Dialog):
         """Clear the default."""
         self._set_default(None)
 
+    def _on_browse(self, event: wx.CommandEvent) -> None:
+        """Add a file from another folder to the list and select it."""
+        with wx.FileDialog(
+            self,
+            "Choose an App Settings File",
+            wildcard="JSON files (*.json)|*.json|All files|*",
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
+        ) as dialog:
+            if dialog.ShowModal() != wx.ID_OK:
+                return
+            path = Path(dialog.GetPath())
+        self.add_file(path)
+        folder = path.parent.resolve()
+        if folder not in self.search_path and folder != self.added_folder:
+            question = (
+                f"Add this folder to your app settings search path?\n\n{folder}\n\n"
+                "The GUI then lists its files when it starts, and -s finds them by name."
+            )
+            with wx.MessageDialog(
+                self, question, "App Settings File", wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION
+            ) as dialog:
+                if dialog.ShowModal() == wx.ID_YES:
+                    self.added_folder = folder
+
+    def add_file(self, path: Path) -> None:
+        """Add a file to the list, if it is not listed, and select it."""
+        if path not in self.files:
+            self.files.append(path)
+            self._fill()
+        self.select(self.files.index(path))
+        self.ok.SetDefault()
+
     def result(self, answer: int) -> Pick:
         """Return the choice for the button the dialog ended with.
 
@@ -325,7 +302,7 @@ class StartupSettingsDialog(wx.Dialog):
             changes made in the dialog, with either button.
         """
         chosen = self.selected()
-        return Pick(chosen if answer == wx.ID_OK else None, self.default)
+        return Pick(chosen if answer == wx.ID_OK else None, self.default, self.added_folder)
 
 
 def pick_app_settings(
@@ -333,6 +310,7 @@ def pick_app_settings(
     default: Optional[Path] = None,
     warning: Optional[str] = None,
     parent: Optional[wx.Window] = None,
+    search_path: Sequence[Path] = (),
 ) -> Pick:
     """Ask which app settings file to start with (`StartupSettingsDialog`).
 
@@ -342,12 +320,13 @@ def pick_app_settings(
         warning: A message to show above the list, e.g. that a default was cleared;
             None for none.
         parent: The parent window; None for none.
+        search_path: The app settings search path, for `Browse...`.
 
     Returns:
-        The file to start with (None for `Skip App Settings`) and the default from
-        now on.
+        The file to start with (None for `Skip App Settings`), the default from
+        now on, and a folder to add to the search path (`Browse...`), if any.
     """
-    dialog = StartupSettingsDialog(parent, files, default, warning)
+    dialog = StartupSettingsDialog(parent, files, default, warning, search_path)
     try:
         picked = dialog.result(dialog.ShowModal())
     finally:

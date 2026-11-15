@@ -128,30 +128,30 @@ def interactive_run(
     app.MainLoop()
 
 
-def choose_settings(validation: "SettingsValidation") -> Optional["SettingsValidation"]:
-    """Ask how to use an app settings file some of whose settings cannot be used.
+def refuse_settings(validation: "SettingsValidation") -> None:
+    """Say why an app settings file is not used, before the main window opens.
 
-    The dialog (`flim.gui.settingsvalidation.choose_settings`) is shown before the main
-    window opens.
+    The box is `flim.gui.settingsvalidation.show_problems`; the start dialog follows.
 
     Args:
         validation: The result of `validate_settings_file`.
 
-    Returns:
-        The validation whose sections to use, or None to use no file.
-
     Raises:
-        ValueError: If wxPython is not installed (no dialog can be shown); the
-            message lists the problems.
+        ValueError: If wxPython is not installed (no box can be shown); the message
+            lists the problems.
     """
     try:
         import wx  # noqa: F401
     except ImportError:
         raise ValueError(validation.summary()) from None
-    from flim.gui.settingsvalidation import choose_settings as ask
+    from flim.gui.settingsvalidation import show_problems
 
     _gui_app()
-    return ask(validation)
+    show_problems(
+        validation,
+        outcome="The file is not used; choose another app settings file, or none.",
+        title="App Settings File",
+    )
 
 
 def _gui_app() -> None:
@@ -171,6 +171,7 @@ def pick_app_settings(
     files: list[Path],
     default: Optional[Path] = None,
     warning: Optional[str] = None,
+    search_path: Sequence[Path] = (),
 ) -> "Pick":
     """Ask which app settings file to start with, before the main window opens.
 
@@ -180,6 +181,7 @@ def pick_app_settings(
         files: The files in the app settings search path.
         default: The default app settings file, preselected; None if none is set.
         warning: A message to show with the question; None for none.
+        search_path: The app settings search path, for `Browse...`.
 
     Returns:
         The file to start with and the default from now on; without wxPython, the
@@ -194,7 +196,7 @@ def pick_app_settings(
     from flim.gui.settingsvalidation import pick_app_settings as ask
 
     _gui_app()
-    return ask(files, default, warning)
+    return ask(files, default, warning, search_path=search_path)
 
 
 def init_logger(loglevel: str) -> "logging.handlers.MemoryHandler":
@@ -242,7 +244,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     With `--batch`, the other arguments go to `flim.batchcmd.main`, after a warning:
     `--batch` is deprecated in 0.7.0 and removed in 0.8.0 (use `flimbatch`). For the
     GUI, the tools and workflows are registered, the settings of the session are
-    read (with the dialogs of `choose_settings` and `pick_app_settings` where
+    read (with the dialogs of `refuse_settings` and `pick_app_settings` where
     needed), the log file is opened, and the main window runs until it is closed.
 
     Args:
@@ -292,7 +294,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             name,
             changes,
             user_file=UserSettingsFile(user_settings_path()),
-            choose=choose_settings,
+            refuse=refuse_settings,
             pick=pick_app_settings,
         )
         set_char_replacements(manager.settings.char_replacements)  # file names

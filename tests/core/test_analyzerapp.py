@@ -216,15 +216,15 @@ def test_command_line_options_set_the_session_settings(monkeypatch, clean_loggin
     assert started["fa"].execution.execution.workers == 3
 
 
-def _start(monkeypatch, argv, choose=None):
+def _start(monkeypatch, argv, refuse=None):
     started = {}
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
         lambda fa, files=None, settings_manager=None, **_: started.update(manager=settings_manager),
     )
-    if choose is not None:
-        monkeypatch.setattr(analyzerapp, "choose_settings", choose)
+    if refuse is not None:
+        monkeypatch.setattr(analyzerapp, "refuse_settings", refuse)
     _no_server(monkeypatch)
     analyzerapp.main(argv)
     return started["manager"]
@@ -252,14 +252,14 @@ def test_defaults_json_is_not_read_with_s(monkeypatch, clean_logging, capsys):
     assert "defaults.json" not in capsys.readouterr().err
 
 
-def test_file_with_problems_asks_before_the_gui_opens(monkeypatch, clean_logging):
+def test_file_with_problems_is_refused_before_the_gui_opens(monkeypatch, clean_logging):
     import json
 
     path = clean_logging / "cells.json"
     path.write_text(json.dumps({"schema_version": 2, "execution": {"executor": "ray"}}))
-    asked = []
-    manager = _start(monkeypatch, ["-s", str(path)], lambda validation: asked.append(validation))
-    assert [c.path for c in asked] == [path] and manager.source is None
+    refused = []
+    manager = _start(monkeypatch, ["-s", str(path)], refused.append)
+    assert [c.path for c in refused] == [path] and manager.source is None
 
 
 def test_unreadable_user_settings_file_is_reported(
@@ -284,7 +284,7 @@ def test_startup_choice_of_app_settings_file(monkeypatch, clean_logging, tmp_pat
     monkeypatch.setattr(
         analyzerapp,
         "pick_app_settings",
-        lambda files, default, warning: offered.append(files) or Pick(files[0], default),
+        lambda files, default, warning, search_path=(): offered.append(files) or Pick(files[0], default),
     )
     manager = _start(monkeypatch, [])
     assert offered == [[folder / "cells.json"]] and manager.source == folder / "cells.json"

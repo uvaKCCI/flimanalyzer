@@ -34,15 +34,16 @@ from typing import TYPE_CHECKING, Optional, Sequence
 from flim.core.batchrun import BatchError
 from flim.core.cli import DRY_RUN_VAR, LOG_LEVEL_VAR, LOG_LEVELS, SAVE_ALL_VAR, flag_source
 from flim.core.registry import TOOLS_GROUP, discover, tools
+from flim.core.settings import settings_kind
 from flim.core.settingsmgr import (
     APP_SETTINGS_PATH_VAR,
     ENV_NAMES,
     OPTION_NAMES,
     USER_SETTINGS_VAR,
     UserSettingsFile,
+    app_settings_files,
     app_settings_path,
     environment_changes,
-    list_app_settings,
     session_settings,
     user_settings_path,
 )
@@ -310,7 +311,7 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
             f"No {kind} file '{name}' at this path, in the workflow search path or built in"
         ) from None
     data = json.loads(path.read_text())
-    found = _file_kind(data)
+    found = settings_kind(data)
     if found != kind:
         names = {"tool": "a tool file", "workflow": "a workflow file", "app": "an app settings file"}
         command = f"{found} --{args.action} {name}"
@@ -320,37 +321,6 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
         what = f"{names[found]}, not" if found in names else "not"
         raise BatchError(f"{path}: {what} a {kind} file{hint}")
     return path, data
-
-
-def _file_kind(data: object) -> Optional[str]:
-    """Return the kind of a settings file's data: `tool`, `workflow`, `app` or None.
-
-    The kinds are tested in this order, and the first match is returned (tool and
-    workflow files also have `schema_version`):
-
-    1. `tool`: a tool file (`schema_version` and `tool`, see `is_tool_file`).
-    2. `workflow`: has `steps`.
-    3. `app`: has `schema_version`, `tools` or a key of `AppSettings`; also an app
-       settings file of an older version, which has other keys too.
-
-    Args:
-        data: The data read from the file.
-
-    Returns:
-        The kind, or None for other data (e.g. not a JSON object, or a config alone
-        with `classname`).
-    """
-    from flim.core.settings import AppSettings, is_tool_file
-
-    if not isinstance(data, dict) or "classname" in data:  # a config alone is none
-        return None
-    if is_tool_file(data):
-        return "tool"
-    if "steps" in data:
-        return "workflow"
-    if set(data) & ({"schema_version", "tools"} | set(AppSettings.model_fields)):
-        return "app"  # also of older versions, which have other sections too
-    return None
 
 
 class _Defaults(Exception):
@@ -429,9 +399,16 @@ def _workflow_validate(args: argparse.Namespace) -> int:
 def _app_list(args: argparse.Namespace) -> int:
     """Print the app settings files in the search path."""
     search_path = app_settings_path()
-    files = list_app_settings(search_path)
+    files, others = app_settings_files(search_path)
     lines = ["App settings files (-s NAME or -s FILE):"]
     lines += [f"  {p.stem}  ({p.parent})" for p in files] or ["  none"]
+    if others:
+        lines += [
+            "",
+            f"Other JSON files in these folders, not listed: {len(others)} (tool or"
+            " workflow files, or not readable as JSON; flimsettings tool --list lists"
+            " tool files in the workflow search path)",
+        ]
     lines += ["", "App settings search path:"] + [f"  {f}" for f in search_path]
     print("\n".join(lines))
     return 0

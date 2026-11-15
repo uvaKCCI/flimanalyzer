@@ -891,6 +891,35 @@ def is_tool_file(data: Any) -> bool:
     return isinstance(data, dict) and "tool" in data and "tools" not in data
 
 
+def settings_kind(data: object) -> Optional[str]:
+    """Return the kind of a settings file's data: `tool`, `workflow`, `app` or None.
+
+    The kinds are tested in this order, and the first match is returned (tool and
+    workflow files also have `schema_version`):
+
+    1. `tool`: a tool file (`schema_version` and `tool`, see `is_tool_file`).
+    2. `workflow`: has `steps`.
+    3. `app`: has `schema_version`, `tools` or a key of `AppSettings`; also an app
+       settings file of an older version, which has other keys too.
+
+    Args:
+        data: The data read from the file.
+
+    Returns:
+        The kind, or None for other data (e.g. not a JSON object, or a config alone
+        with `classname`).
+    """
+    if not isinstance(data, dict) or "classname" in data:  # a config alone is none
+        return None
+    if is_tool_file(data):
+        return "tool"
+    if "steps" in data:
+        return "workflow"
+    if set(data) & ({"schema_version", "tools"} | set(AppSettings.model_fields)):
+        return "app"  # also of older versions, which have other sections too
+    return None
+
+
 def tool_file_settings(data: dict) -> dict:
     """Return a tool file's data as settings data with that one tool's section.
 

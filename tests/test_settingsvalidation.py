@@ -1,5 +1,6 @@
-"""The choice the GUI offers when some settings of a settings file cannot be used
-(flim.gui.settingsvalidation), in File > Load Settings... and in tool dialogs."""
+"""The GUI's dialogs about settings files (flim.gui.settingsvalidation): the box that
+says why a file is not used, in Settings > Import Settings... and in tool dialogs; the
+questions before a tool's settings are saved into an older file; the start dialog."""
 
 import json
 from pathlib import Path
@@ -61,52 +62,32 @@ def answers(monkeypatch, wxapp):
             return self.choices.index(self.answer)
 
     monkeypatch.setattr(settingsvalidation.wx, "SingleChoiceDialog", Choice)
-    monkeypatch.setattr(settingsvalidation, "_confirm_update", lambda validation, parent: queue.pop(0))
-    monkeypatch.setattr(settingsvalidation, "_other_file", lambda parent: queue.pop(0))
     monkeypatch.setattr(settingsvalidation, "_save_file", lambda parent: queue.pop(0))
     return queue, offered
 
 
-def test_use_what_can_be_used(tmp_path, answers):
-    queue, offered = answers
-    queue.append(settingsvalidation.USE)
-    validation = validate_settings_file(write(tmp_path, MIXED))
-    assert settingsvalidation.choose_settings(validation) is validation
-    message, options = offered[0]
-    assert "bogus_section" in message and "working_dir to results_dir" in message
-    assert options == [settingsvalidation.USE, settingsvalidation.SKIP_FILE, settingsvalidation.UPDATE,
-                       settingsvalidation.OTHER]
+@pytest.fixture
+def boxes(monkeypatch, wxapp):
+    """The message boxes shown (message, title, style), answered with OK."""
+    shown = []
+    monkeypatch.setattr(
+        settingsvalidation.wx, "MessageBox", lambda message, title, style, parent=None: shown.append((message, title, style))
+    )
+    return shown
 
 
-@pytest.mark.parametrize("answer", [settingsvalidation.SKIP_FILE, None])  # None: Cancel
-def test_dont_use_the_file(tmp_path, answers, answer):
-    queue, _ = answers
-    queue.append(answer)
-    assert settingsvalidation.choose_settings(validate_settings_file(write(tmp_path, MIXED))) is None
-
-
-def test_update_the_file_after_confirmation(tmp_path, answers):
-    queue, offered = answers
+def test_a_file_with_settings_that_cant_be_used_is_a_warning(tmp_path, boxes):
     path = write(tmp_path, MIXED)
-    queue += [settingsvalidation.UPDATE, False, settingsvalidation.UPDATE, True]
-    validation = settingsvalidation.choose_settings(validate_settings_file(path))
-    assert len(offered) == 2  # not confirmed: asked again
-    data = json.loads(path.read_text())
-    assert data == {"schema_version": 2, "results_dir": "res", "tools": {}}
-    assert validation.path == path and not validation.problems and validation.converted == []
+    settingsvalidation.show_problems(validate_settings_file(path), outcome="Nothing is loaded.")
+    ((message, title, style),) = boxes
+    assert "bogus_section" in message and "Nothing is loaded." in message
+    assert f"flimsettings app --validate {path} lists every problem" in message
+    assert style & wx.ICON_WARNING and not style & wx.ICON_ERROR
 
 
-def test_another_file_is_validated_the_same_way(tmp_path, answers):
-    queue, offered = answers
-    broken = write(tmp_path, "{not json", "broken.json")
-    clean = write(tmp_path, CLEAN, "clean.json")
-    queue += [settingsvalidation.OTHER, str(broken), settingsvalidation.OTHER, None,
-              settingsvalidation.OTHER, str(clean)]
-    validation = settingsvalidation.choose_settings(validate_settings_file(write(tmp_path, MIXED)))
-    assert validation.path == clean
-    # the broken file offers no settings to use or keep
-    assert offered[1][1] == [settingsvalidation.SKIP_FILE, settingsvalidation.OTHER]
-    assert len(offered) == 3  # file dialog cancelled: asked again
+def test_a_file_that_cant_be_used_is_an_error(tmp_path, boxes):
+    settingsvalidation.show_problems(validate_settings_file(write(tmp_path, "{not json")))
+    assert boxes[0][2] & wx.ICON_ERROR
 
 
 # --- where the GUI reads settings files ---
@@ -126,55 +107,25 @@ def frame(wxapp, monkeypatch, tmp_path):
     frame.Destroy()
 
 
-def test_load_settings_asks_for_a_file_with_problems(frame, tmp_path, answers):
-    queue, offered = answers
-    queue.append(settingsvalidation.USE)
-    path = write(tmp_path, MIXED)
-    frame.load_settings(path)
-    assert len(offered) == 1
-    assert frame.settings.results_dir == Path("res")
-    assert frame.settings_manager.source == path
-
-
-def test_load_settings_without_problems_does_not_ask(frame, tmp_path, answers):
-    _, offered = answers
-    frame.load_settings(write(tmp_path, CLEAN))
-    assert offered == [] and frame.settings.results_dir == Path("other")
-
-
-def test_load_settings_not_used(frame, tmp_path, answers):
-    queue, _ = answers
-    queue.append(settingsvalidation.SKIP_FILE)
+def test_import_settings_refuses_a_file_with_problems(frame, tmp_path, boxes):
     frame.load_settings(write(tmp_path, MIXED))
+    assert len(boxes) == 1 and "Nothing is imported." in boxes[0][0]
     assert frame.settings.results_dir is None and frame.settings_manager.source is None
 
 
-def test_tool_dialog_asks_only_for_its_own_problems(dialog, tmp_path, answers):
-    queue, offered = answers
+def test_import_settings_without_problems_shows_nothing(frame, tmp_path, boxes):
+    frame.load_settings(write(tmp_path, CLEAN))
+    assert boxes == [] and frame.settings.results_dir == Path("other")
+
+
+def test_tool_dialog_refuses_only_for_its_own_problems(dialog, tmp_path, boxes):
     path = write(tmp_path, MIXED)
     # K-Means has no settings in the file: the problems of other sections don't matter
     assert not dialog("K-Means").load_settings(str(path))
-    assert offered == []
-    queue.append(settingsvalidation.SKIP_FILE)
+    assert boxes == []
     d = dialog("Summarize")
     assert not d.load_settings(str(path))
-    assert len(offered) == 1
-
-
-def test_tool_dialog_uses_another_file(dialog, tmp_path, answers):
-    from flim.core.settings import save_sections
-
-    queue, _ = answers
-    other = tmp_path / "other.json"
-    save_sections(
-        {"tools": {"Summarize": {"config": {"aggs": ["count"]}, "autosave": {"enabled": False}}}},
-        other,
-    )
-    queue += [settingsvalidation.OTHER, str(other)]
-    d = dialog("Summarize")
-    assert d.load_settings(str(write(tmp_path, MIXED)))
-    assert d.result().config.aggs == ["count"]
-    assert "other.json" in d.settings_message.GetLabel()
+    assert len(boxes) == 1 and "Nothing is loaded." in boxes[0][0]
 
 
 # --- a tool dialog's Save Settings... ---
@@ -392,3 +343,26 @@ def test_user_settings_file_starts_with_the_version_and_description(tmp_path):
     path.write_text(json.dumps({"tools": {}, "description": "mine", "schema_version": 2}))
     UserSettingsFile(path).merge({"results_dir": "/data"})
     assert list(json.loads(path.read_text()))[:2] == ["schema_version", "description"]
+
+
+@pytest.mark.parametrize("answer, added", [(wx.ID_YES, True), (wx.ID_NO, False)])
+def test_startup_dialog_browses_for_a_file_and_offers_its_folder(wxapp, tmp_path, monkeypatch, answer, added):
+    listed, other = tmp_path / "appsettings", tmp_path / "course"
+    listed.mkdir()
+    other.mkdir()
+    a, course = listed / "a.json", other / "course.json"
+    d = settingsvalidation.StartupSettingsDialog(None, [a], None, search_path=[listed])
+    try:
+        monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(course))
+        asked = []
+        monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(dlg.GetMessage()) or answer)
+        d._on_browse(None)
+        assert d.files == [a, course] and d.selected() == course and d.ok.IsEnabled()
+        assert str(other.resolve()) in asked[0]
+        assert d.result(wx.ID_OK) == settingsvalidation.Pick(course, None, other.resolve() if added else None)
+        monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(a))
+        d._on_browse(None)  # a file in the search path: listed once, no question
+        assert d.files == [a, course] and d.selected() == a and len(asked) == 1
+    finally:
+        d.Destroy()

@@ -265,9 +265,9 @@ def test_find_app_settings(monkeypatch, tmp_path):
     lab, mine = tmp_path / "lab", tmp_path / "mine"
     lab.mkdir()
     mine.mkdir()
-    (lab / "flirr.json").write_text("{}")
-    (lab / "shared.json").write_text("{}")
-    (mine / "shared.json").write_text("{}")
+    for path in (lab / "flirr.json", lab / "shared.json", mine / "shared.json"):
+        path.write_text('{"schema_version": 2}')
+    (mine / "summary.json").write_text('{"schema_version": 2, "tool": "Summarize"}')  # a tool file
     here = tmp_path / "here.json"
     here.write_text("{}")
     path = [lab, mine]
@@ -283,7 +283,7 @@ def test_find_app_settings(monkeypatch, tmp_path):
         lab / "flirr.json",
         lab / "shared.json",
         mine / "shared.json",
-    ]
+    ]  # not the tool file
 
 
 def test_environment_changes(monkeypatch):

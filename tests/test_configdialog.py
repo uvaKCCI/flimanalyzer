@@ -654,3 +654,42 @@ def test_separate_delimiters_as_characters(wxapp):
         assert editor.control.GetValue() == '["::", "-"]' and editor.get() == ["::", "-"]
     finally:
         frame.Destroy()
+
+
+@pytest.mark.parametrize(
+    "answer, saved_in",
+    [(wx.ID_YES, "workflows"), (wx.ID_NO, "appsettings"), (wx.ID_CANCEL, None)],
+)
+def test_save_settings_keeps_tool_files_apart_from_app_settings(dialog, monkeypatch, tmp_path, answer, saved_in):
+    workflows, appsettings = tmp_path / "workflows", tmp_path / "appsettings"
+    appsettings.mkdir()
+    d = dialog("Summarize", workflow_folder=workflows, app_settings_folders=[appsettings])
+    started = {}
+
+    def show(file_dialog):
+        started["folder"] = file_dialog.GetDirectory()
+        return wx.ID_OK
+
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", show)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(appsettings / "summary.json"))
+    asked = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(dlg.GetMessage()) or answer)
+    d._on_save_settings(None)
+    assert started["folder"] == str(workflows)  # the file dialog starts in the workflow folder
+    assert "This folder is for app settings files" in asked[0]
+    saved = [p.parent.name for p in tmp_path.rglob("summary.json")]
+    assert saved == ([saved_in] if saved_in else [])
+
+
+def test_save_settings_updates_an_existing_app_settings_file_without_asking(dialog, monkeypatch, tmp_path):
+    appsettings = tmp_path / "appsettings"
+    appsettings.mkdir()
+    lab = appsettings / "lab.json"
+    lab.write_text('{"schema_version": 2}')
+    d = dialog("Summarize", workflow_folder=tmp_path / "workflows", app_settings_folders=[appsettings])
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(lab))
+    asked = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(1) or wx.ID_YES)
+    d._on_save_settings(None)
+    assert asked == [] and "Summarize" in lab.read_text()

@@ -118,31 +118,55 @@ def test_session_unknown_keys_alone_are_logged(tmp_path, caplog):
     assert "ignoring unknown keys bogus" in caplog.text
 
 
-def test_session_asks_only_for_files_with_problems(tmp_path):
-    asked = []
-
-    def choose(validation):
-        asked.append(validation)
-        return validation
-
-    session_settings(str(DATA / "settings_v1.json"), choose=choose)
-    assert asked == []
+def test_session_refuses_files_with_problems(tmp_path):
+    refused = []
+    session_settings(str(DATA / "settings_v1.json"), refuse=refused.append)
+    assert refused == []
     path = write(tmp_path, MIXED)
-    manager = session_settings(str(path), choose=choose)
-    assert [c.path for c in asked] == [path]
-    assert manager.settings.results_dir == Path("res") and manager.source == path
-    assert "import" not in manager.settings.to_json()
-
-
-def test_session_choice_of_no_file(tmp_path):
-    manager = session_settings(str(write(tmp_path, MIXED)), choose=lambda validation: None)
+    manager = session_settings(str(path), refuse=refused.append)
+    assert [c.path for c in refused] == [path]
     assert manager.source is None and manager.settings.results_dir is None
 
 
-def test_session_choice_of_another_file(tmp_path):
-    other = validate_settings_file(DATA / "settings_v1.json")
-    manager = session_settings(str(write(tmp_path, MIXED)), choose=lambda validation: other)
-    assert manager.source == DATA / "settings_v1.json"
+def test_a_refused_file_returns_to_the_start_dialog(tmp_path, monkeypatch):
+    folder = tmp_path / "appsettings"
+    folder.mkdir()
+    bad = write(folder, MIXED, "bad.json")
+    good = write(folder, {"schema_version": 2, "results_dir": "res"}, "good.json")
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
+    answers = [bad, good]
+    picked, refused = [], []
+
+    def pick(files, default, warning, search_path):
+        picked.append(files)
+        return Pick(answers.pop(0), default)
+
+    manager = session_settings(pick=pick, refuse=refused.append)
+    assert [c.path for c in refused] == [bad] and len(picked) == 2
+    assert manager.source == good
+    # -s with a file with problems: the start dialog follows
+    answers = [good]
+    manager = session_settings(str(bad), pick=pick, refuse=refused.append)
+    assert manager.source == good
+
+
+def test_a_browsed_folder_is_added_to_the_search_path(tmp_path, monkeypatch):
+    from flim.core.settingsmgr import UserSettingsFile
+
+    monkeypatch.delenv("FLIM_APP_SETTINGS_PATH", raising=False)
+    default = tmp_path / "default"
+    default.mkdir()
+    write(default, {"schema_version": 2}, "lab.json")
+    monkeypatch.setattr("flim.core.settingsmgr.default_app_settings_dir", lambda: default)
+    other = tmp_path / "other"
+    other.mkdir()
+    chosen = write(other, {"schema_version": 2}, "course.json")
+    user = UserSettingsFile(tmp_path / "user.json")
+    manager = session_settings(
+        user_file=user, pick=lambda files, d, w, path: Pick(chosen, d, other)
+    )
+    assert manager.source == chosen
+    assert [Path(p) for p in manager.settings.appsettings_path] == [default, other.resolve()]
 
 
 def test_start_folder_settings(monkeypatch, tmp_path):
@@ -178,7 +202,7 @@ def test_pick_is_asked_only_with_files_and_without_a_file_given(tmp_path, monkey
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(folder))
     offered = []
 
-    def pick(files, default, warning):
+    def pick(files, default, warning, search_path):
         offered.append((files, default, warning))
         return Pick(files[0], default)
 
@@ -198,19 +222,19 @@ def test_pick_is_asked_only_with_files_and_without_a_file_given(tmp_path, monkey
 def test_pick_of_no_file(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
     write(tmp_path, {"schema_version": 2, "results_dir": "r"}, "cells.json")
-    manager = session_settings(pick=lambda files, default, warning: Pick(None, None))
+    manager = session_settings(pick=lambda files, default, warning, search_path: Pick(None, None))
     assert manager.source is None and manager.settings.results_dir is None
 
 
 def test_picked_file_is_validated_like_s(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
     path = write(tmp_path, MIXED, "cells.json")
-    asked = []
-    session_settings(
-        pick=lambda files, default, warning: Pick(files[0], default),
-        choose=lambda c: asked.append(c),
+    refused, answers = [], [path, None]  # then Skip App Settings
+    manager = session_settings(
+        pick=lambda files, default, warning, search_path: Pick(answers.pop(0), default),
+        refuse=refused.append,
     )
-    assert [c.path for c in asked] == [path]
+    assert [c.path for c in refused] == [path] and manager.source is None
 
 
 def _user(tmp_path, **sections):
@@ -229,7 +253,7 @@ def test_default_is_offered_and_kept_or_changed(tmp_path, monkeypatch):
     user = _user(tmp_path, default_app_settings=str(default))
     offered = []
 
-    def pick(files, given, warning):
+    def pick(files, given, warning, search_path):
         offered.append((files, given))
         return Pick(given, given)  # Enter: the preselected default
 
@@ -237,7 +261,7 @@ def test_default_is_offered_and_kept_or_changed(tmp_path, monkeypatch):
     assert offered == [([other], default)] and manager.source == default
     # the user makes another file the default
     manager = session_settings(
-        user_file=user, pick=lambda files, given, warning: Pick(other, other)
+        user_file=user, pick=lambda files, given, warning, search_path: Pick(other, other)
     )
     assert SettingsManager(user_file=user).settings.default_app_settings == other
     assert manager.record()[1] == f"Default app settings file: {other}"

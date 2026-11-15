@@ -64,14 +64,15 @@ The app settings search path is, in this order:
 
 ### Choosing an app settings file at startup
 
-If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI asks which app settings file to start with. The table lists the `.json` files in the folders of the app settings search path, and your default app settings file if you have set one, with their folders; the default has a check mark. `OK` starts with the selected file, and `Skip App Settings` (or Esc) starts without one. With a default, its row is selected, so pressing Enter starts with it; without one, no row is selected and Enter skips. If there are no files and no default, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`. The `Description` column shows each file's `description`.
+If you start the GUI without `-s`, and there is no `defaults.json` in the start folder, the GUI asks which app settings file to start with. The table lists the app settings files in the folders of the app settings search path, and your default app settings file if you have set one, with their folders. Tool and workflow files in these folders are not listed; the default has a check mark. `OK` starts with the selected file, and `Skip App Settings` (or Esc) starts without one. With a default, its row is selected, so pressing Enter starts with it; without one, no row is selected and Enter skips. If there are no files and no default, the GUI starts without asking. `flimbatch` never asks: it uses only the file given with `-s`. The `Description` column shows each file's `description`.
 
 * `Make Default` makes the selected file your default from now on.
 * `Clear Default` removes the default.
+* `Browse...` adds a file from another folder to the table and selects it. If its folder is not in the app settings search path, the GUI asks whether to add it. The folder is then saved in the user settings file (`appsettings_path`), and the GUI lists its files at the next start.
 
 The check mark moves at once. The change applies whether you then start with a file or skip; selecting a file alone doesn't change the default.
 
-The default is saved in the user settings file (`default_app_settings`). If it no longer exists or can't be read, the GUI says so and removes it as the default. The chosen file is checked like a file given with `-s` (see [Settings files from older versions](#settings-files-from-older-versions)).
+The default is saved in the user settings file (`default_app_settings`). If it no longer exists or can't be read, the GUI says so and removes it as the default. The chosen file is validated like a file given with `-s` (see [Settings files from older versions](#settings-files-from-older-versions)). If it can't be used, the GUI says why, and after `OK` it asks again.
 
 ### `defaults.json` (deprecated)
 
@@ -116,7 +117,7 @@ You can import settings files from this and older FLIMAnalyzer versions, includi
 
 ## Settings files from older versions
 
-Each time FLIMAnalyzer reads a settings file, it validates the file and converts its settings to the current format in memory. Reading a file doesn't change it. The check sorts the settings into:
+Each time FLIMAnalyzer reads a settings file, it validates the file and converts its settings to the current format in memory. Reading a file doesn't change it. The validation sorts the settings into:
 
 * settings converted to the current format, for example `working_dir`, which is now `results_dir`;
 * settings removed because they are no longer used, for example `display`;
@@ -126,24 +127,18 @@ Each time FLIMAnalyzer reads a settings file, it validates the file and converts
 
 A file can't be used at all if it can't be read, isn't a settings file, or comes from a newer FLIMAnalyzer version.
 
-If all settings can be used, the GUI uses the file and writes the result of the validation to the log. If some can't be used, the GUI lists them and asks what to do:
+If all settings can be used, the GUI uses the file and writes the result of the validation to the log. If some can't be used (unknown settings or invalid values), or the file can't be used at all, the GUI doesn't use the file. A message lists the problems: a warning for settings that can't be used, an error for a file that can't be used at all. `flimsettings app --validate FILE` lists all problems of a file.
 
-* `Use the settings that can be used; skip the others`
-* `Skip loading app settings file`
-* `Update the file to the current version; remove the settings that can't be used`: after a confirmation, the file is replaced by its usable settings in the current format. The removed settings can't be recovered.
-* `Choose another file...`: the other file is validated in the same way.
+* At the start (`-s`, `defaults.json` or the file chosen in the start dialog): after `OK`, the GUI asks again which app settings file to start with (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). If there are no files to choose from, it starts without one.
+* `File` > `Import Settings...` and a tool dialog's `Load Settings...`: nothing is loaded. Choose another file with the same command. In a tool dialog, only the tool's own settings count.
 
-`Cancel` doesn't use the file. A file that can't be used at all offers only the last two choices.
-
-The GUI asks this when it starts with `-s` (or with `defaults.json`), in `File` > `Import Settings...`, and in a tool dialog's `Load Settings...`. In a tool dialog, it asks only if the tool's own settings have problems.
-
-`flimbatch` doesn't ask. It uses a settings file only if every setting in it can be used and validated: it stops with an error that lists them if the file can't be used, or has invalid values, unknown settings or settings of tools that aren't installed. This way its results never depend on settings that were skipped, or on which tools are installed.
+`flimbatch` uses a settings file only if every setting in it can be used and validated: it stops with an error that lists them if the file can't be used, or has invalid values, unknown settings or settings of tools that aren't installed. This way its results never depend on settings that were skipped, or on which tools are installed.
 
 ## The settings of a tool
 
 Every tool's dialog has two buttons for its own settings:
 
-* `Save Settings...` adds the tool's current settings to a settings file, or updates them there. Everything else in the file is kept, so the settings of several tools can be collected in one file, or added to a file saved with `Export Settings...`. If the file is from an older version or has settings that can't be used, the dialog lists them and asks first: update the file to the current version (the settings that can't be used are removed), or save to another file. `Cancel` saves nothing.
+* `Save Settings...` adds the tool's current settings to a settings file, or updates them there. The file dialog starts in the workflow folder, the first folder of the workflow search path: there, `flimbatch --run NAME` finds the file by name. A new file in an app settings folder is saved only after a question, because app settings files are kept apart from tool and workflow files: `Use Workflow Folder` saves it in the workflow folder, `Save Here` in the chosen folder. Everything else in the file is kept, so the settings of several tools can be collected in one file, or added to a file saved with `Export Settings...`. If the file is from an older version or has settings that can't be used, the dialog lists them and asks first: update the file to the current version (the settings that can't be used are removed), or save to another file. `Cancel` saves nothing.
 * `Load Settings...` reads the tool's settings from a settings file. The file can be one saved with `Save Settings...` or `Export Settings...`. If the file has no settings for the tool, the dialog says so.
 
 The tool's settings also include whether its results are saved, and to which folder.

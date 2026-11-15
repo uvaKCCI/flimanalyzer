@@ -32,6 +32,7 @@ from flim.core.settings import (
     known_data,
     merge_sections,
     migrate,
+    settings_kind,
     tool_settings,
     update_settings,
 )
@@ -589,6 +590,30 @@ def find_app_settings(name: str | os.PathLike, search_path: Sequence[Path]) -> P
     raise ValueError(f"App settings file '{name}' is ambiguous: {found}")
 
 
+def app_settings_files(search_path: Sequence[Path]) -> tuple[list[Path], list[Path]]:
+    """Return the app settings files in the folders of a search path, and the others.
+
+    Each `.json` file is read: an app settings file (`settings_kind`, also of an
+    older version) is listed; tool files, workflow files and files that can't be
+    read as JSON are the others.
+
+    Args:
+        search_path: The folders to list, from `app_settings_path`.
+
+    Returns:
+        The app settings files and the other `.json` files, each sorted by name
+        within a folder, in the order of the folders.
+    """
+    found, others = [], []
+    for path in (p for f in search_path if f.is_dir() for p in sorted(f.glob("*.json"))):
+        try:
+            kind = settings_kind(json.loads(path.read_text()))
+        except (OSError, ValueError):
+            kind = None
+        (found if kind == "app" else others).append(path)
+    return found, others
+
+
 def list_app_settings(search_path: Sequence[Path]) -> list[Path]:
     """Return the app settings files in the folders of a search path.
 
@@ -596,10 +621,10 @@ def list_app_settings(search_path: Sequence[Path]) -> list[Path]:
         search_path: The folders to list, from `app_settings_path`.
 
     Returns:
-        The `.json` files of each existing folder, sorted by name within a folder, in
-        the order of the folders.
+        The app settings files (see `app_settings_files`), sorted by name within a
+        folder, in the order of the folders.
     """
-    return [p for f in search_path if f.is_dir() for p in sorted(f.glob("*.json"))]
+    return app_settings_files(search_path)[0]
 
 
 # --- the environment ---
@@ -701,7 +726,7 @@ def strict_choice(validation: SettingsValidation, *, complete: bool = False) -> 
 
 # decides which validated settings file to use: the validation given, another file's
 # validation, or None for none
-Choice = Callable[[SettingsValidation], Optional[SettingsValidation]]
+Refusal = Callable[[SettingsValidation], None]
 
 
 @dataclass
@@ -711,10 +736,13 @@ class Pick:
     Attributes:
         file: The file to start with; None for none.
         default: The default app settings file from now on; None for none.
+        added_folder: A folder to add to the app settings search path (the file's,
+            chosen with `Browse...`); None for none.
     """
 
     file: Optional[Path]
     default: Optional[Path]
+    added_folder: Optional[Path] = None
 
 
 def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[str]]:
@@ -754,7 +782,7 @@ def session_settings(
     *,
     user_file: Optional[UserSettingsFile] = None,
     base: Optional[AppSettings] = None,
-    choose: Optional[Choice] = None,
+    refuse: Optional[Refusal] = None,
     complete: bool = False,
     pick: Optional[Callable[..., "Pick"]] = None,
 ) -> SettingsManager:
@@ -772,14 +800,16 @@ def session_settings(
         user_file: The user settings file; None in flimbatch, whose runs do not depend
             on settings changed in the GUI.
         base: The lowest layer. Defaults to the built-in defaults.
-        choose: Called if some settings of the app settings file cannot be used;
-            returns the validation whose sections to use, or None to use no file. Without
-            it, such a file is refused (`strict_choice`).
+        refuse: Called with the validation of an app settings file that can't be
+            used or has settings that can't be used (`SettingsValidation.problems`),
+            to say why it is not used; the session then asks `pick` again (or starts
+            without a file). Without it, such a file is an error (`strict_choice`).
         complete: Refuse an app settings file unless all its settings can be used
             and validated (see `strict_choice`); for flimbatch.
         pick: Called without `settings_file` if the app settings search path has
             files (`list_app_settings`) or a default app settings file is set, as
-            `pick(files, default, warning)`; returns a `Pick`. A default that does
+            `pick(files, default, warning, search_path)`; returns a `Pick`. Its
+            `added_folder` is added to `appsettings_path` in the user settings file. A default that does
             not exist or cannot be read is cleared in the user settings file first,
             and `warning` says so (also added to the manager's notices if `pick` is
             not called).
@@ -790,36 +820,45 @@ def session_settings(
 
     Raises:
         FileNotFoundError: If `settings_file` matches no file.
-        ValueError: If `settings_file` is ambiguous, or without `choose` cannot be
+        ValueError: If `settings_file` is ambiguous, or without `refuse` cannot be
             used or has invalid values, or if an environment variable or a
             command-line value is invalid.
     """
     manager = SettingsManager(base, user_file)
     search_path = app_settings_path(manager.settings.appsettings_path)
-    if not settings_file and pick is not None:
-        default, warning = _usable_default(manager)
-        files = list_app_settings(search_path)
-        if files or default:
-            picked = pick(files, default, warning)
-            if picked.default != default:
-                manager.update({"default_app_settings": picked.default})
-            settings_file = picked.file
-        elif warning:
-            manager.notices.append(warning)
-    if settings_file:
+    while True:
+        if not settings_file and pick is not None:
+            default, warning = _usable_default(manager)
+            files = list_app_settings(search_path)
+            if files or default:
+                picked = pick(files, default, warning, search_path)
+                if picked.default != default:
+                    manager.update({"default_app_settings": picked.default})
+                if picked.added_folder is not None and manager.add_to_search_path(
+                    picked.added_folder
+                ):
+                    search_path = app_settings_path(manager.settings.appsettings_path)
+                settings_file = picked.file
+            elif warning:
+                manager.notices.append(warning)
+        if not settings_file:
+            break
         validation = validate_app_settings(find_app_settings(settings_file, search_path))
-        if choose and validation.problems:
-            chosen = choose(validation)
-        else:
-            chosen = strict_choice(validation, complete=complete)
-        if chosen is not None:
-            manager.apply(chosen)
-            _keep_user_choices(manager, user_file)
-            if chosen.user_only:
-                manager.notices.append(
-                    f"{chosen.path}: not used, read only from the user settings file:"
-                    f" {', '.join(chosen.user_only)}"
-                )
+        if refuse and validation.problems:
+            refuse(validation)  # not used; the start dialog again, if there is one
+            settings_file = None
+            if pick is None:
+                break
+            continue
+        chosen = strict_choice(validation, complete=complete)
+        manager.apply(chosen)
+        _keep_user_choices(manager, user_file)
+        if chosen.user_only:
+            manager.notices.append(
+                f"{chosen.path}: not used, read only from the user settings file:"
+                f" {', '.join(chosen.user_only)}"
+            )
+        break
     for changes, names, layer in (
         (environment_changes(), ENV_NAMES, "environment"),
         (command_line or {}, OPTION_NAMES, "command line"),

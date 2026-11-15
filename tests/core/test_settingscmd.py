@@ -166,10 +166,12 @@ def test_workflow_validate_includes_the_save_rules(folder, capsys):
 
 
 def test_app_list_shows_the_files_in_the_search_path(tmp_path, monkeypatch, capsys):
-    (tmp_path / "lab.json").write_text("{}")
+    (tmp_path / "lab.json").write_text('{"schema_version": 2}')
+    (tmp_path / "summary.json").write_text(json.dumps(TOOL_FILE))  # not listed
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
     code, out, _ = run(capsys, "app", "--list")
-    assert code == 0 and f"  lab  ({tmp_path})" in out
+    assert code == 0 and f"  lab  ({tmp_path})" in out and "summary" not in out.split("Other")[0]
+    assert "Other JSON files in these folders, not listed: 1" in out
     assert f"App settings search path:\n  {tmp_path}" in out
 
 
