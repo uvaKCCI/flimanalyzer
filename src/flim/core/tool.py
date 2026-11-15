@@ -164,6 +164,10 @@ class RunContext:
         )
 
 
+# tools already warned about for declaring no output types (see Tool.output_kinds)
+_UNDECLARED: set[type] = set()
+
+
 class Tool(Generic[ConfigT]):
     """Base of all tools.
 
@@ -194,6 +198,9 @@ class Tool(Generic[ConfigT]):
     inputs: ClassVar[tuple[InputSpec, ...]] = (InputSpec("data", TableType),)
     # outputs whose names don't depend on config or input; see output_schema
     outputs: ClassVar[tuple[OutputSpec, ...]] = ()
+    # the types of all outputs, also of those whose names depend on the settings
+    # (e.g. Summarize: one table per feature); fixed by the tool, see output_kinds
+    output_types: ClassVar[tuple[type[DataType], ...]] = ()
     config_class: ClassVar[type[TaskConfig]]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -209,6 +216,40 @@ class Tool(Generic[ConfigT]):
     def __init__(self) -> None:
         """Create the tool with a default run context."""
         self.context = RunContext()
+
+    @classmethod
+    def output_kinds(cls) -> list[str]:
+        """Return the kinds of output the tool makes, e.g. `["table"]`.
+
+        The kinds are a fixed property of the tool, whatever its settings: those of
+        `outputs` and `output_types`, in that order. They bound the tool's
+        `output.formats`: the GUI offers formats for these kinds only, and the checks
+        of tool and workflow files refuse formats of other kinds. A tool that
+        declares neither (a plugin tool written for an earlier version) makes any
+        kind: a `DeprecationWarning` is given once, and `output_types` is required
+        from 0.8.0.
+
+        Returns:
+            The kinds without repeats; for a tool that declares none, all kinds with
+            save options.
+        """
+        kinds = [o.type.kind for o in cls.outputs] + [t.kind for t in cls.output_types]
+        if kinds:
+            return list(dict.fromkeys(kinds))
+        if cls not in _UNDECLARED:
+            import warnings
+
+            _UNDECLARED.add(cls)
+            warnings.warn(
+                f"{cls.name} ({cls.__module__}.{cls.__qualname__}) declares no output"
+                " types: set output_types (e.g. (TableType,)); tools without them are"
+                " not accepted from FLIMAnalyzer 0.8.0",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        from flim.core.saving import save_options_classes
+
+        return sorted(save_options_classes(), key=lambda k: (k != "table", k))
 
     @classmethod
     def short(cls) -> str:

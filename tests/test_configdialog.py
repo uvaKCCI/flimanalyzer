@@ -414,18 +414,19 @@ def test_save_formats_of_the_tool_outputs(dialog, tmp_path):
     kmeans = dialog("K-Means")
     assert kmeans.save_kinds() == ["table"]  # its only declared output
     assert list(kmeans.formats.editors) == ["table_formats"]
-    # outputs known only when it runs: all kinds
+    # output names that depend on the settings: the kinds from output_types
+    assert dialog("Summarize").save_kinds() == ["table"]
     d = dialog("Box Plot")
-    assert d.save_kinds() == ["table", "plot"]
+    assert d.save_kinds() == ["plot"]
+    assert dialog("Heatmap").save_kinds() == ["plot", "table"]
     d.autosave.SetValue(True)
     d.folder.SetPath(str(tmp_path))
     d.formats.editors["plot_formats"].set(["png", "svg"])
     d.formats.editors["plot_dpi"].set(150)
     d.validate()
     formats = d.result().execution.autosave.formats
-    assert formats == [
-        TableSaveOptions(), PlotSaveOptions(dpi=150), PlotSaveOptions(format="svg")
-    ]
+    assert formats == [PlotSaveOptions(dpi=150), PlotSaveOptions(format="svg")]
+    assert TableSaveOptions not in {type(f) for f in formats}
 
 
 def test_a_kind_without_format_is_an_error(dialog, tmp_path):

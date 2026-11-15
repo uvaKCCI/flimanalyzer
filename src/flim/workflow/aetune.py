@@ -22,6 +22,7 @@ from flim.configs.workflow import AETuneConfig
 from flim.core.registry import register_tool
 from flim.core.runner import TaskOutput, select
 from flim.core.workflow import Workflow, workflow_input
+from flim.core.types import TableType
 from flim.tools.autoencoder import AEAugment, AETraining
 from flim.tools.data import Concat, Filter, Unpivot
 from flim.tools.plot import KDE, BarPlot, Heatmap, LinePlot
@@ -183,6 +184,7 @@ class AETune(Workflow[AETuneConfig]):
     """Trains autoencoders with each combination of settings, then augments the data."""
 
     name = "FLIM Data Augmentation Tuning"
+    output_types = (TableType,)
     description = (
         "Trains an autoencoder for each combination of batch size, learning rate and"
         " weight decay, then augments the data with each model."

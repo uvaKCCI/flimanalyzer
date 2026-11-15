@@ -71,6 +71,7 @@ class Summarize(Tool[SummaryConfig]):
     """Statistics of features per group: count, min, max, mean, median and others."""
 
     name = "Summarize"
+    output_types = (TableType,)
     category = "Analysis"
     description = (
         "Calculates counts, min, max, mean, median (50th percentile), 25th percentile,"
@@ -165,6 +166,7 @@ class KSStats(Tool[KSStatsConfig]):
     """Two-sample Kolmogorov-Smirnov tests between values of a category column."""
 
     name = "KS-Statistics"
+    output_types = (TableType,)
     category = "Analysis"
     description = (
         "Two-sample Kolmogorov-Smirnov tests between the values of the comparison"

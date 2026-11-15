@@ -570,6 +570,7 @@ class Split(Tool[SplitConfig]):
     """Splits a table into one table per combination of category values."""
 
     name = "Split"
+    output_types = (TableType,)
     category = "Data"
     description = (
         "Splits the table into one table for each combination of the values of the"

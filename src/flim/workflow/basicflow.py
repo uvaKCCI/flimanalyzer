@@ -14,6 +14,7 @@ from flim.configs import (
 from flim.configs.workflow import BasicFLIRRConfig
 from flim.core.registry import register_tool
 from flim.core.workflow import Workflow, workflow_input
+from flim.core.types import PlotType, TableType
 from flim.tools.common import ordered_values
 from flim.tools.plot import KDE, LinePlot, PairPlot, ScatterPlot, flirr_columns
 from flim.tools.statistics import RelativeChange, Summarize
@@ -27,6 +28,7 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
     """Summaries, relative changes and plots of the FLIRR features of one table."""
 
     name = "Basic FLIRR Analysis"
+    output_types = (TableType, PlotType)
     description = (
         "Summaries and relative changes of the features, grouped by the first grouping"
         " column, with KDE, line, pair and scatter plots."

@@ -19,7 +19,7 @@ from flim.configs.analysis import (
 from flim.core.config import Issue
 from flim.core.registry import register_tool
 from flim.core.tool import Tool, pyplot_lock
-from flim.core.types import OutputSpec, TableType
+from flim.core.types import OutputSpec, PlotType, TableType
 from flim.core.columns import free_names
 from flim.tools.common import categories_first, category_columns, selected_features
 
@@ -97,6 +97,7 @@ class PCAnalysis(Tool[PCAConfig]):
     """Principal component analysis (scikit-learn) of the features."""
 
     name = "PCA"
+    output_types = (TableType,)
     category = "Analysis"
     description = (
         "Principal component analysis of the features, standardized by default."
@@ -252,6 +253,7 @@ class GaussianMixedModel(Tool[GMMConfig]):
     """Gaussian mixture model clustering (scikit-learn) of the rows."""
 
     name = "Gaussian Mixed Model"
+    output_types = (TableType,)
     category = "Analysis"
     description = (
         "Gaussian mixture model clustering (EM or variational Bayesian), with BIC"
@@ -350,6 +352,7 @@ class RandomForest(Tool[RandomForestConfig]):
     """Random forest classifier (scikit-learn) that predicts a category column."""
 
     name = "Random Forest"
+    output_types = (TableType, PlotType)
     category = "Analysis"
     description = (
         "Trains a random forest to predict the target category from the features"
@@ -449,6 +452,7 @@ class Categorizer(Tool[CategorizerConfig]):
     """A new category column from rules on ranges of feature values."""
 
     name = "Categorize Data"
+    output_types = (TableType,)
     category = "Analysis"
     description = (
         "Adds a category column: rows whose feature value lies in a rule's range"

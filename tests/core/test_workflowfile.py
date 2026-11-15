@@ -212,7 +212,7 @@ def test_a_step_classname_must_be_its_tools(tmp_path):
     ]}  # fmt: skip
     check = check_workflow_file(write(tmp_path, data))
     assert len(check.errors) == 1
-    assert "step 2" in check.errors[0].lower() and "is not the class of 'Sort'" in check.errors[0]
+    assert "step 02" in check.errors[0].lower() and "is not the class of 'Sort'" in check.errors[0]
 
 
 def test_a_tool_file_is_not_a_workflow_file_unless_asked(tmp_path):
@@ -609,3 +609,28 @@ def test_step_folders_sort_by_id():
     assert step_folder(definition.steps[-1], width) == "123-Order Category Values"
     small = WorkflowDefinition.model_validate({"name": "w", "steps": [{"id": "1", "tool": "Sort"}]})
     assert step_folder(small.steps[0], id_width(small)) == "01-Sort"
+
+
+
+def test_formats_of_kinds_the_tools_dont_make_are_errors(tmp_path):
+    import json
+
+    from flim.core.workflowfile import check_workflow_file, step_kinds
+
+    path = tmp_path / "w.json"
+    path.write_text(json.dumps({
+        "name": "w",
+        "output": {"formats": [{"kind": "table", "format": "csv"}, {"kind": "plot", "format": "png"}]},
+        "steps": [
+            {"id": "1", "tool": "Summarize", "output": {"save": True,
+             "formats": [{"kind": "plot", "format": "svg"}]}},
+            {"id": "2", "tool": "Sort", "output": {"save": True}},
+        ],
+    }))  # fmt: skip
+    check = check_workflow_file(path)
+    assert check.definition is None
+    assert ("step 01 (Summarize): output.formats: a format of kind 'plot', which Summarize"
+            " doesn't make (it makes: table)") in check.errors  # fmt: skip
+    assert ("output.formats: a format of kind 'plot', which no step makes (the steps"
+            " make: table)") in check.errors  # fmt: skip
+    assert len(check.errors) == 2  # the workflow-level table format is fine

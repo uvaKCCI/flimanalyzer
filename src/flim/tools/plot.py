@@ -690,6 +690,7 @@ class BoxPlot(_CategoricalPlot, Tool[BoxPlotConfig]):
     """Box plots of the features, grouped by up to 4 category columns."""
 
     name = "Box Plot"
+    output_types = (PlotType,)
     description = "Box plots of the features, grouped by up to 4 category columns."
     icon = "boxplot.png"
     kind = "box"
@@ -700,6 +701,7 @@ class SwarmPlot(_CategoricalPlot, Tool[SwarmPlotConfig]):
     """Swarm plots of the features, grouped by up to 4 category columns."""
 
     name = "Swarm Plot"
+    output_types = (PlotType,)
     description = "Swarm plots of the features, grouped by up to 4 category columns."
     icon = "swarmplot.png"
     kind = "swarm"
@@ -782,6 +784,7 @@ class ViolinPlot(_CategoricalPlot, Tool[ViolinPlotConfig]):
     """Violin plots of the features, grouped by up to 4 category columns."""
 
     name = "Violin Plot"
+    output_types = (PlotType,)
     description = "Violin plots of the features, grouped by up to 4 category columns."
     icon = "violinplot.png"
     kind = "violin"
@@ -1058,6 +1061,7 @@ class BarPlot(_Plot, Tool[BarPlotConfig]):
     """Bar plots of the features' means, grouped by the category columns."""
 
     name = "Bar Plot"
+    output_types = (PlotType,)
     description = "Mean bar plots of the features, grouped by the category columns."
     icon = "barplot.png"
 
@@ -1159,6 +1163,7 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
     """Line plots of the features along the first grouping column."""
 
     name = "Line Plot"
+    output_types = (PlotType,)
     description = (
         "Line plots of the features along the first grouping column; further grouping"
         " columns set hue, style, columns and rows."
@@ -1399,6 +1404,7 @@ class KDE(_Plot, Tool[KDEConfig]):
     """Kernel density estimates of the features, one curve per group."""
 
     name = "KDE"
+    output_types = (PlotType,)
     description = "Kernel density estimates of the features, one curve per group."
     icon = "kde.png"
 
@@ -1467,6 +1473,7 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
     """Histograms of the features in percent of the measurements."""
 
     name = "Frequency Histogram"
+    output_types = (PlotType,)
     description = (
         "Histograms of the features in percent of the measurements (per group, unless"
         " stacked), optionally with the binned values as a table."
@@ -1657,6 +1664,7 @@ class Heatmap(_Plot, Tool[HeatmapConfig]):
     """Correlation heatmap of the features, with the correlation table."""
 
     name = "Heatmap"
+    output_types = (PlotType, TableType)
     description = "Correlation heatmap of the features, with the correlation table."
     icon = "heatmap.png"
 
@@ -1731,6 +1739,7 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
     """A grid of scatter plots of feature pairs, with distributions on the diagonal."""
 
     name = "Pair Plot"
+    output_types = (PlotType,)
     description = (
         "A grid of scatter plots of feature pairs, colored by the first grouping"
         " column, with histograms or KDEs on the diagonal."
@@ -1862,6 +1871,7 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
     """A scatter plot for each pair of features, colored by group."""
 
     name = "Scatter Plot"
+    output_types = (PlotType,)
     description = "A scatter plot for each pair of features, colored by group."
     icon = "scatter.png"
 
@@ -2068,6 +2078,7 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
     """One figure of FAD a1 %, NAD(P)H a2 % and FLIRR plots, colored by group."""
 
     name = "FLIRR Plot"
+    output_types = (PlotType,)
     description = (
         "FAD a1% vs NAD(P)H a2% scatter, their KDEs, FLIRR KDE, FLIRR along the first"
         " grouping column and FLIRR mean bars."

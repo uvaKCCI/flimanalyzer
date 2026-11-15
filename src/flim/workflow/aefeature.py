@@ -21,7 +21,7 @@ from flim.configs import (
 from flim.configs.workflow import AEFeatureConfig
 from flim.core.registry import register_tool
 from flim.core.runner import TaskOutput
-from flim.core.types import InputSpec, TableType
+from flim.core.types import InputSpec, PlotType, TableType
 from flim.core.workflow import Workflow, workflow_input
 from flim.tools.autoencoder import RunAE
 from flim.tools.common import ordered_values
@@ -37,6 +37,7 @@ class AEFeature(Workflow[AEFeatureConfig]):
     """Trains autoencoders and compares their first feature with FLIRR and PCA."""
 
     name = "FLIM Feature Analysis"
+    output_types = (TableType, PlotType)
     description = (
         "Trains an autoencoder for each combination of batch size, learning rate and"
         " weight decay on the training data, runs the models of the last epoch on the"

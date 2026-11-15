@@ -548,20 +548,13 @@ class ConfigDialog(wx.Dialog):
         """Return the kinds of output the dialog offers formats for, e.g. `table`.
 
         Returns:
-            The kinds of the tool's declared outputs that have save options, in the
-            order of the outputs. If there are none (e.g. workflows, whose outputs
-            are known only when they run): all kinds with save options, `table`
-            first, the others sorted.
+            The kinds the tool makes (`Tool.output_kinds`; a workflow file's: its
+            steps') that have save options, in that order.
         """
         from flim.core.saving import save_options_classes
 
         classes = save_options_classes()
-        kinds = []
-        for output in self.tool.outputs:
-            kind = output.type.kind
-            if kind in classes and kind not in kinds:
-                kinds.append(kind)
-        return kinds or sorted(classes, key=lambda k: (k != "table", k))
+        return [kind for kind in self.tool.output_kinds() if kind in classes]
 
     def _execution_controls(self) -> wx.BoxSizer:
         """Build `Save results` and, below it, the folder and the formats controls.

@@ -173,8 +173,9 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
     """Check a workflow's steps; the problems are added to `check`.
 
     Checks that the ids are unique and not `input`, that the inputs refer to earlier
-    steps, that the tools exist and their settings are valid, and that `save` names
-    outputs of its own step.
+    steps, that the tools exist and their settings are valid, that `save` names
+    outputs of its own step, and that `output.formats` has only kinds the step's
+    tool makes (at workflow level: kinds some step makes, see `step_kinds`).
 
     Args:
         definition: The workflow.
@@ -183,8 +184,9 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
     from flim.core.registry import tools
 
     seen = []
+    width = id_width(definition)
     for number, step in enumerate(definition.steps, 1):
-        where = f"step {step.id}"
+        where = f"step {int(step.id):0{width}d}"
         if step.id in seen or step.id == INPUT:
             check.errors.append(f"{where}: the id '{step.id}' is used twice or reserved")
         inputs = step.inputs or ([seen[-1]] if seen else [INPUT])
@@ -217,6 +219,14 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
                 f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in err.errors()
             )
             check.errors.append(f"{where} ({step.tool}): settings not valid: {reasons}")
+        kinds = tool.output_kinds()
+        for options in step.output.formats or []:  # None: not set
+            if options.kind not in kinds:
+                check.errors.append(
+                    f"{where} ({step.tool}): output.formats: a format of kind"
+                    f" '{options.kind}', which {step.tool} doesn't make (it makes:"
+                    f" {', '.join(kinds)})"
+                )
         save = step.output.save
         for reference in save if isinstance(save, list) else []:
             try:
@@ -226,6 +236,14 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
                 continue
             if source != step.id:
                 check.errors.append(f"{where}: output.save: '{reference}' is not this step's")
+    if all(step.tool in tools for step in definition.steps):
+        kinds = step_kinds(definition)
+        for options in definition.output.formats or []:
+            if options.kind not in kinds:
+                check.errors.append(
+                    f"output.formats: a format of kind '{options.kind}', which no step"
+                    f" makes (the steps make: {', '.join(kinds)})"
+                )
 
 
 def check_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) -> WorkflowCheck:
@@ -794,9 +812,26 @@ def workflow_class(
             "path": path,
             # None: the Workflow menu (a file written by hand is not hidden silently)
             "category": definition.category if definition.category is not None else "Workflow",
+            "output_kinds": classmethod(lambda cls: step_kinds(cls.definition)),
             "__module__": __name__,
         },
     )
+
+
+def step_kinds(definition: WorkflowDefinition) -> list[str]:
+    """Return the kinds of output a workflow's steps make: the union of their tools'.
+
+    Args:
+        definition: The workflow.
+
+    Returns:
+        The kinds without repeats, in the order of the steps; steps whose tool is
+        not registered are passed over.
+    """
+    from flim.core.registry import tools
+
+    kinds = [k for s in definition.steps if s.tool in tools for k in tools.get(s.tool).output_kinds()]
+    return list(dict.fromkeys(kinds))
 
 
 def resolve_workflow(reference: str) -> type["Workflow"]:

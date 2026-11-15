@@ -91,6 +91,7 @@ class ImportTables(Workflow[ImportTablesConfig]):
     """
 
     name = "Import Tables"
+    output_types = (TableType,)
     short_name = "ImportTab"
     category = "File"
     description = (

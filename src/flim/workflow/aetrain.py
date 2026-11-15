@@ -5,6 +5,7 @@ import pandas as pd
 from flim.configs import AETrainConfig, AETrainWorkflowConfig, CollectFilesConfig
 from flim.core.registry import register_tool
 from flim.core.workflow import Workflow
+from flim.core.types import FileType, PlotType, TableType
 from flim.tools.autoencoder import AETraining
 from flim.tools.data import CollectFiles
 
@@ -14,6 +15,7 @@ class AETrain(Workflow[AETrainWorkflowConfig]):
     """Trains autoencoder models, one per combination of settings, and lists their files."""
 
     name = "Autoencoder Train"
+    output_types = (TableType, PlotType, FileType)
     former_names = ("Autoencoder: Train",)
     category = "Analysis"
     description = (
