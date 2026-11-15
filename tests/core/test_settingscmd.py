@@ -179,7 +179,7 @@ def test_app_show_uses_the_default_app_settings_file_for_the_gui(
     monkeypatch.setenv("FLIM_USER_SETTINGS", str(user))
     code, out, _ = run(capsys, "app", "--show")
     assert f"App settings file of flimanalyzer: {app} (the default app settings file)" in out
-    assert "App settings file of flimbatch: none" in out
+    assert "App settings file of flimbatch: none, set at runtime with -s <FILE>" in out
     assert "      flimanalyzer: 9 s  (from default app settings file)" in out
 
 

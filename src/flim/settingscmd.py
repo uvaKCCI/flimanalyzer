@@ -474,7 +474,9 @@ def _app_show(args: argparse.Namespace) -> int:
         "",
     ]
     for command, manager in managers.items():
-        source = "refused, see above" if manager is None else (manager.source or "none")
+        source = "refused, see above" if manager is None else (
+            manager.source or "none, set at runtime with -s <FILE>"
+        )
         how = gui_how if command == GUI and gui_how != "-s" and manager else ""
         lines.append(f"App settings file of {command}: {source}" + (f" ({how})" if how else ""))
     lines += [f"User settings file (flimanalyzer only): {user_settings_path()}", ""]
