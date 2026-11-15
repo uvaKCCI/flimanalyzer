@@ -217,6 +217,8 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         # no user settings file: batch results don't depend on settings changed in the GUI
         # every setting of the file must be usable: results don't depend on ignored
         # settings or on which tools are installed
+        # the built-in workflow files first: a settings file may have their sections
+        register_workflow_files()
         manager = session_settings(name, changes, complete=True)
         settings = manager.settings
         for notice in manager.notices:  # e.g. keys of the user settings file only

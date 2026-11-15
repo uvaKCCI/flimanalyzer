@@ -876,7 +876,28 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
         data = MIGRATIONS[version](data, changes=changes)
         version += 1
         data["schema_version"] = version
-    return _moved_presets(data, changes if changes is not None else Changes())
+    changes = changes if changes is not None else Changes()
+    return _removed_settings(_moved_presets(data, changes), changes)
+
+
+def _removed_settings(data: dict, changes: Changes) -> dict:
+    """Drop the app settings that FLIMAnalyzer wrote and no longer has.
+
+    `strict` (whether workflows guess missing columns) is a setting of tool and
+    workflow files now (`processing.strict`); an app settings file with it is
+    otherwise refused for an unknown setting.
+
+    Args:
+        data: Settings data of the current version.
+        changes: Records the dropped keys.
+
+    Returns:
+        The data without these settings.
+    """
+    if "strict" in data:
+        data = {k: v for k, v in data.items() if k != "strict"}
+        changes.dropped.append("strict (now processing.strict of tool and workflow files)")
+    return data
 
 
 def is_tool_file(data: Any) -> bool:

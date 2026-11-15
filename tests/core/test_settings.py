@@ -413,3 +413,14 @@ def test_validate_app_settings_refuses_tool_and_workflow_files(tmp_path):
     app = tmp_path / "app.json"
     app.write_text(json.dumps({"schema_version": 2, "strict": True}))
     assert validate_app_settings(app).error is None
+
+
+def test_the_removed_app_setting_strict_is_dropped_not_unknown(tmp_path):
+    """0.7 development builds wrote `strict` into app settings files."""
+    from flim.core.settings import validate_settings_file
+
+    path = tmp_path / "lab.json"
+    path.write_text('{"schema_version": 2, "strict": true}')
+    validation = validate_settings_file(path)
+    assert not validation.problems and "strict" not in validation.sections
+    assert validation.dropped == ["strict (now processing.strict of tool and workflow files)"]

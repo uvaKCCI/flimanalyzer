@@ -647,3 +647,11 @@ def test_flimbatch_draws_without_windows():
     env = {k: v for k, v in __import__("os").environ.items() if k != "MPLBACKEND"}
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
     assert out.stdout.strip().splitlines()[-1].lower() == "agg"
+
+
+def test_a_settings_file_with_a_built_in_workflow_files_section_is_accepted(data_dir, tmp_path, capsys):
+    """The built-in workflow files are registered before the settings are read."""
+    path = tmp_path / "lab.json"
+    path.write_text(json.dumps({"schema_version": 2, "tools": {"Import": {"output": {"save": True}}}}))
+    argv = ["-i", str(data_dir), "-s", str(path), "--run", "Import", *DRY_RUN, "--no-prefect-server"]
+    assert main(argv) == 0, capsys.readouterr().err

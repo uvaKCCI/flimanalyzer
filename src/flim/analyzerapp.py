@@ -281,7 +281,12 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.registry import TOOLS_GROUP, discover
 
+    from flim.core.workflowfile import register_workflow_files
+
     discover(TOOLS_GROUP)  # the tools of other installed packages
+    # the built-in workflow files: a settings file may have their sections; the
+    # files of the workflow search path are registered with the settings
+    register_workflow_files()
     try:
         name, notes = settings_file(args)
         changes, more = command_line_changes(args)
