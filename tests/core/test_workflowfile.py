@@ -25,7 +25,7 @@ GOOD = {
     "schema_version": 1,
     "name": "calc and aggregate",
     "steps": [
-        {"id": 1, "tool": "Calculate", "processing": "allow_partial"},
+        {"id": 1, "tool": "Calculate", "processing": {"skippable": {"calculations": "some"}}},
         {"id": "2", "tool": "Summarize", "inputs": ["1.1"], "config": {"aggs": ["mean"]}, "output": {"save": True}},
         {"id": "3", "tool": "Sort", "output": {"save": ["3.1"]}},  # no inputs: step 2's output 1
     ],
@@ -38,8 +38,9 @@ def test_a_valid_file(tmp_path):
     definition = check.definition
     assert definition.name == "calc and aggregate"
     assert [s.id for s in definition.steps] == ["1", "2", "3"]  # numbers as text
-    assert definition.steps[0].processing == "allow_partial"
-    assert definition.steps[1].processing == "require_all"  # the default
+    assert definition.rules(definition.steps[0]).skip("calculations") == "some"
+    assert definition.rules(definition.steps[1]).skip("features") == "none"  # the default
+    assert definition.rules(definition.steps[1]).is_strict("features[0]")  # the default
 
 
 @pytest.mark.parametrize(
@@ -52,6 +53,11 @@ def test_a_valid_file(tmp_path):
         (lambda d: d["steps"][1].update(config={"aggs": ["bogus"]}), "settings not valid"),
         (lambda d: d["steps"][2].update(output={"save": ["2.1"]}), "is not this step's"),
         (lambda d: d["steps"][0].update(processing="lenient"), "processing"),
+        (lambda d: d["steps"][0].update(processing={"skippable": {"calculations": "most"}}), "processing"),
+        (lambda d: d["steps"][1].update(processing={"skippable": {"aggs": "some"}}), "Summarize can't skip entries of 'aggs'"),
+        (lambda d: d["steps"][1].update(processing={"strict": {"colour": False}}), "Summarize has no field 'colour'"),
+        (lambda d: d["steps"][1].update(config={"features": ["a"]}, processing={"skippable": {"features": "some"}, "required": {"features": ["b"]}}), "processing.required.features: 'b' is not an entry of features"),
+        (lambda d: d.update(processing={"skippable": {"drop": "all"}}), "processing.skippable: no step's tool can skip entries of 'drop'"),
         (lambda d: d["steps"][0].update(colour="red"), "colour"),
         (lambda d: d.update(steps=[]), "steps"),
         (lambda d: d.pop("name"), "name"),
@@ -238,24 +244,59 @@ def test_a_step_description_and_no_output_names(tmp_path):
     assert check_workflow_file(write(tmp_path, data)).errors
 
 
-def test_processing(prefect_harness):
-    missing = {"kind": "expression", "name": "x", "expression": "gone * 2"}
-    for processing, state in (("require_all", "failed"), ("allow_partial", "completed"), ("allow_none", "completed")):
-        calcs = [missing] if processing == "allow_none" else [CALC, missing]
-        definition = {
-            "name": f"processing {processing}",
-            "steps": [{"id": "1", "tool": "Calculate", "processing": processing, "config": {"calculations": calcs}}],
-        }
-        run = _run(definition, {"a.txt": _tables()["a.txt"]})
-        statuses = {a["status"] for _, a in run.graph.nodes(data=True) if "tool" in a and a["label"].startswith("Calculate")}
-        assert statuses == {state}, (processing, statuses)
-    # allow_partial needs at least one part applied
+def _calculate_status(processing, calcs):
+    """Run Calculate as a one-step workflow file; return its tasks' statuses."""
     definition = {
-        "name": "nothing applies",
-        "steps": [{"id": "1", "tool": "Calculate", "processing": "allow_partial", "config": {"calculations": [missing]}}],
+        "name": "processing",
+        "steps": [{"id": "1", "tool": "Calculate", "processing": processing, "config": {"calculations": calcs}}],
     }
     run = _run(definition, {"a.txt": _tables()["a.txt"]})
-    assert "failed" in {a["status"] for _, a in run.graph.nodes(data=True) if "tool" in a}
+    return {a["status"] for _, a in run.graph.nodes(data=True) if "tool" in a and a["label"].startswith("Calculate")}
+
+
+def test_processing_skippable(prefect_harness):
+    missing = {"kind": "expression", "name": "x", "expression": "gone * 2"}
+    for skippable, calcs, state in (
+        (None, [CALC, missing], "failed"),  # none, the default
+        ("some", [CALC, missing], "completed"),
+        ("some", [missing], "failed"),  # some needs at least one applied
+        ("all", [missing], "completed"),
+    ):
+        processing = {"skippable": {"calculations": skippable}} if skippable else {}
+        assert _calculate_status(processing, calcs) == {state}, (skippable, calcs)
+
+
+def test_processing_required_entries_are_never_skipped(prefect_harness):
+    missing = {"kind": "expression", "name": "x", "expression": "gone * 2"}
+    processing = {"skippable": {"calculations": "all"}, "required": {"calculations": [missing]}}
+    assert _calculate_status(processing, [CALC, missing]) == {"failed"}
+
+
+def test_processing_required_names_a_rule_by_some_of_its_fields(tmp_path):
+    step = {"id": "1", "tool": "Calculate", "config": {"calculations": [CALC]},
+            "processing": {"skippable": {"calculations": "all"}, "required": {"calculations": [{"name": CALC["name"]}]}}}  # fmt: skip
+    assert not check_workflow_file(write(tmp_path, {"name": "w", "steps": [step]})).errors
+    step["processing"]["required"] = {"calculations": [{"name": "other"}]}
+    errors = check_workflow_file(write(tmp_path, {"name": "w", "steps": [step]})).errors
+    assert any("{'name': 'other'} is not an entry of calculations" in e for e in errors)
+
+
+def test_processing_merges_per_key_step_over_workflow():
+    definition = WorkflowDefinition.model_validate({
+        "name": "merged",
+        "processing": {"strict": False, "skippable": {"calculations": "all", "features": "some"}},
+        "steps": [{"id": "1", "tool": "Calculate", "processing": {"strict": {"features": True}, "skippable": {"calculations": "none"}}}],
+    })  # fmt: skip
+    rules = definition.rules(definition.steps[0])
+    assert rules.skip("calculations") == "none" and rules.skip("features") == "some"
+    assert rules.is_strict("features[1]") and not rules.is_strict("grouping[0]")
+
+
+def test_processing_strict_false_for_a_field_never_guessed_is_a_warning(tmp_path):
+    data = {"name": "w", "steps": [{"id": "1", "tool": "Drop Columns", "processing": {"strict": {"drop": False}}}]}
+    check = check_workflow_file(write(tmp_path, data))
+    assert not check.errors
+    assert "step 01 (Drop Columns): processing.strict.drop: Drop Columns never guesses drop; it stays strict" in check.warnings
 
 
 def test_mixing_per_table_and_single_is_an_error():

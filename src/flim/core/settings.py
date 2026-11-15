@@ -50,7 +50,7 @@ from pydantic import (
 )
 
 from flim import __version__
-from flim.core.config import TaskConfig
+from flim.core.config import Processing, TaskConfig
 from flim.core.paths import DEFAULT_CHAR_REPLACEMENTS, NAME_CHARS
 from flim.core.saving import AutosaveConfig, Formats
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
@@ -109,17 +109,21 @@ class ToolOutput(_Settings):
 
 
 class ToolSettings(_Settings):
-    """A tool's settings: its config, its `output` section and legacy parameters.
+    """A tool's settings: its config, its `output` and `processing` sections and
+    legacy parameters.
 
     Attributes:
         config: The tool's config as JSON, with `classname`; None if none is saved.
         output: Whether, where and in which formats the tool saves its results.
+        processing: How a run treats input that doesn't match the settings
+            (`flim.core.config.Processing`); written only if set.
         legacy: The plugin parameters of a FLIMAnalyzer 0.5 settings file that no
             config class was found for; None otherwise. It is written only if set.
     """
 
     config: Optional[dict] = None
     output: ToolOutput = Field(default_factory=ToolOutput)
+    processing: Processing = Field(default_factory=Processing)
     legacy: Optional[dict] = None  # plugin parameters no config class was found for
 
     @model_validator(mode="before")
@@ -144,12 +148,18 @@ class ToolSettings(_Settings):
 
     @model_serializer(mode="wrap")
     def _serialize(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """Serialize the settings, leaving out `legacy` if it is not set."""
+        """Serialize the settings, leaving out `legacy` and `processing` if not set."""
         # `legacy` is written only if set: it is used only for 0.5 settings of tools
         # of other packages
         data = handler(self)
         if data.get("legacy") is None:
             data.pop("legacy", None)
+        if self.processing.is_empty():
+            data.pop("processing", None)
+        elif isinstance(data.get("processing"), dict):  # only the fields set
+            data["processing"] = {
+                k: v for k, v in data["processing"].items() if v not in (None, {})
+            }
         return data
 
 
@@ -1352,13 +1362,16 @@ def tool_file_data(tool: "type[Tool]", entry: ToolSettings) -> dict:
         entry: The tool's settings.
 
     Returns:
-        `{"schema_version", "tool", "config", "output": {"save", "formats"}}`, the shape
-        of a workflow step; without `output.results_dir`, a setting of the computer.
+        `{"schema_version", "tool", "config", "output": {"save", "formats"}}` and
+        `processing` if set, the shape of a workflow step; without
+        `output.results_dir`, a setting of the computer.
     """
     section = entry.model_dump(mode="json")
     section["output"].pop("results_dir", None)
     data = {"schema_version": SETTINGS_VERSION, "tool": tool.name}
     data.update({k: section[k] for k in ("config", "output") if k in section})
+    if "processing" in section:
+        data["processing"] = section["processing"]
     return data
 
 

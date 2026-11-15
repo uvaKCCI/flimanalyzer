@@ -6,7 +6,8 @@ file alone decides what a run does::
     {"schema_version": 1, "name": "calc and aggregate", "tags": ["summaries"],
      "output": {"formats": [{"kind": "table", "format": "csv"}]},
      "steps": [
-       {"id": "1", "tool": "Calculate", "config": {...}, "processing": "allow_partial"},
+       {"id": "1", "tool": "Calculate", "config": {...},
+        "processing": {"skippable": {"calculations": "some"}}},
        {"id": "2", "tool": "Summarize", "inputs": ["1"], "config": {...},
         "description": "Summary per cell",
         "output": {"save": true, "formats": [{"kind": "plot", "format": "svg"}]}}
@@ -20,9 +21,12 @@ from 1 in the order its tool returns them. A step's `output` says what is saved:
 `save` saves its outputs (`true`) or some of them (`["2.1"]`), in its `formats`, else
 the workflow's `output.formats` (a kind not listed in its default format). A step's
 `description` is a note for readers. A step's `config` may leave out `classname`
-(`tool` names the tool); a `classname` of another tool is an error. `processing`
-says how much of its settings a step must apply to the data: `require_all`
-(default), `allow_partial` (at least one part) or `allow_none`.
+(`tool` names the tool); a `classname` of another tool is an error. A step's
+`processing` (`flim.core.config.Processing`) says how it treats input that doesn't
+match its settings: `strict` (columns not in the input are errors, or guessed),
+`skippable` (per field: whether entries that don't apply may be skipped) and
+`required` (the entries that have to apply). The workflow's `processing` applies to
+every step; a step's fields take precedence, per key.
 
 Workflow files are registered by their `name` like tools: the built-in files (in
 `flim/workflow/files`) and those in the folders of the `workflow_paths` setting.
@@ -35,11 +39,12 @@ import os
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from flim import __version__
+from flim.core.config import Processing, ProcessingRules
 from flim.core.saving import Formats
 
 if TYPE_CHECKING:
@@ -95,10 +100,10 @@ class WorkflowStep(BaseModel):
     description: str = Field(default="", description="A note for readers.")
     config: dict = Field(default={}, description="The tool's settings; {}: its defaults.")
     output: StepOutput = Field(default_factory=StepOutput)
-    processing: Literal["require_all", "allow_partial", "allow_none"] = Field(
-        default="require_all",
-        description="require_all: every part of the settings must apply;"
-        " allow_partial: at least one; allow_none: the table may pass unchanged.",
+    processing: Processing = Field(
+        default_factory=Processing,
+        description="How the step treats input that doesn't match its settings;"
+        " over the workflow's, per key.",
     )
 
     @field_validator("id", mode="before")
@@ -127,7 +132,16 @@ class WorkflowDefinition(BaseModel):
         " ['File', 'Import'].",
     )
     output: WorkflowOutput = Field(default_factory=WorkflowOutput)
+    processing: Processing = Field(
+        default_factory=Processing,
+        description="How the steps treat input that doesn't match their settings;"
+        " a step's own fields take precedence, per key.",
+    )
     steps: list[WorkflowStep] = Field(min_length=1)
+
+    def rules(self, step: WorkflowStep) -> ProcessingRules:
+        """Return a step's `processing`, merged over the workflow's."""
+        return ProcessingRules.of(self.processing, step.processing)
 
 
 def parse_reference(reference: str) -> tuple[str, int]:
@@ -169,13 +183,81 @@ class WorkflowCheck:
     warnings: list = field(default_factory=list)
 
 
+def _has_field(model: Any, path: str) -> bool:
+    """Return whether a config class has a field at a dotted path, e.g. `training.grouping`."""
+    from pydantic import BaseModel
+
+    for name in path.split("."):
+        fields = getattr(model, "model_fields", {})
+        if name not in fields:
+            return False
+        annotation = fields[name].annotation
+        model = annotation if isinstance(annotation, type) and issubclass(annotation, BaseModel) else None
+    return True
+
+
+def processing_issues(
+    tool: Any, processing: Processing, config: Any, where: str
+) -> tuple[list[str], list[str]]:
+    """Check a step's `processing` against its tool and settings.
+
+    `strict` may name any field of the tool's config; `skippable` and `required` only
+    the fields the tool declares (`Tool.skippable_fields`); each `required` entry has
+    to be in the field's value (not checked for `features: all`). `strict: false` for
+    a field the tool never guesses (`Tool.never_guessed`) is a warning.
+
+    Args:
+        tool: The tool class.
+        processing: The step's `processing`.
+        config: The step's validated config; None if it isn't valid.
+        where: The step, for the messages, e.g. `step 02 (Summarize)`.
+
+    Returns:
+        The warnings and the errors.
+    """
+    from flim.core.tool import is_listed
+
+    warnings, errors = [], []
+    strict = processing.strict if isinstance(processing.strict, dict) else {}
+    for key, value in strict.items():
+        if not _has_field(tool.config_class, key):
+            errors.append(f"{where}: processing.strict: {tool.name} has no field '{key}'")
+        elif value is False and key.split(".")[0] in tool.never_guessed:
+            warnings.append(
+                f"{where}: processing.strict.{key}: {tool.name} never guesses {key};"
+                " it stays strict"
+            )
+    can_skip = ", ".join(tool.skippable_fields)
+    for group in ("skippable", "required"):
+        for key in getattr(processing, group):
+            if key not in tool.skippable_fields:
+                errors.append(
+                    f"{where}: processing.{group}: {tool.name} can't skip entries of"
+                    f" '{key}' (it can skip entries of: {can_skip})"
+                )
+    for key, entries in processing.required.items():
+        value = getattr(config, key, None) if key in tool.skippable_fields else None
+        if value is None or value == "all":
+            continue
+        present = list(value) if isinstance(value, (list, tuple, dict, set)) else [value]
+        for entry in entries:
+            if not any(is_listed(p, [entry]) for p in present):
+                errors.append(
+                    f"{where}: processing.required.{key}: {entry!r} is not an entry of"
+                    f" {key}"
+                )
+    return warnings, errors
+
+
 def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> None:
     """Check a workflow's steps; the problems are added to `check`.
 
     Checks that the ids are unique and not `input`, that the inputs refer to earlier
     steps, that the tools exist and their settings are valid, that `save` names
-    outputs of its own step, and that `output.formats` has only kinds the step's
-    tool makes (at workflow level: kinds some step makes, see `step_kinds`).
+    outputs of its own step, that `output.formats` has only kinds the step's tool
+    makes (at workflow level: kinds some step makes, see `step_kinds`), and that
+    `processing` names fields of the step's tool (`processing_issues`; at workflow
+    level: fields of some step's tool).
 
     Args:
         definition: The workflow.
@@ -212,13 +294,19 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
                 f"{where}: config.classname '{classname}' is not the class of"
                 f" '{step.tool}' ({expected})"
             )
+        config = None
         try:
-            tool.config_class.model_validate(step.config)
+            config = tool.config_class.model_validate(step.config)
         except ValidationError as err:
             reasons = "; ".join(
                 f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in err.errors()
             )
             check.errors.append(f"{where} ({step.tool}): settings not valid: {reasons}")
+        warnings, errors = processing_issues(
+            tool, step.processing, config, f"{where} ({step.tool})"
+        )
+        check.warnings.extend(warnings)
+        check.errors.extend(errors)
         kinds = tool.output_kinds()
         for options in step.output.formats or []:  # None: not set
             if options.kind not in kinds:
@@ -237,6 +325,17 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
             if source != step.id:
                 check.errors.append(f"{where}: output.save: '{reference}' is not this step's")
     if all(step.tool in tools for step in definition.steps):
+        used = [tools.get(step.tool) for step in definition.steps]
+        strict = definition.processing.strict
+        for key in strict if isinstance(strict, dict) else {}:
+            if not any(_has_field(t.config_class, key) for t in used):
+                check.errors.append(f"processing.strict: no step's tool has a field '{key}'")
+        for group in ("skippable", "required"):
+            for key in getattr(definition.processing, group):
+                if not any(key in t.skippable_fields for t in used):
+                    check.errors.append(
+                        f"processing.{group}: no step's tool can skip entries of '{key}'"
+                    )
         kinds = step_kinds(definition)
         for options in definition.output.formats or []:
             if options.kind not in kinds:
@@ -322,7 +421,7 @@ def tool_file_workflow(data: dict, check: WorkflowCheck) -> dict:
     `--run <tool>` does: a tool file with `save: false` gets a warning in `check`.
 
     Args:
-        data: The tool file's data (`tool`, `config`, `output`).
+        data: The tool file's data (`tool`, `config`, `output`, `processing`).
         check: Receives the warning.
 
     Returns:
@@ -336,8 +435,11 @@ def tool_file_workflow(data: dict, check: WorkflowCheck) -> dict:
     return {
         "schema_version": WORKFLOW_SCHEMA_VERSION,
         "name": tool,
-        "steps": [{"id": "1", "tool": tool, "config": data.get("config") or {}, "output": output}],
-    }
+        "steps": [{
+            "id": "1", "tool": tool, "config": data.get("config") or {}, "output": output,
+            "processing": data.get("processing") or {},
+        }],
+    }  # fmt: skip
 
 
 def workflow_path(
@@ -745,7 +847,7 @@ def _file_workflow_base() -> type["Workflow"]:
                     tool = tool_class()
                     tool._save = _saved(step)
                     tool._formats = step.output.formats  # None: the workflow's (the run's)
-                    tool._processing = step.processing
+                    tool._processing = self.definition.rules(step)
                     # the results' folders: the step's, then its input and part
                     tags = [step_folder(step, width)] + [str(k) for k in key]
                     return tool(*inputs, config=config, task_tags=tags)
@@ -1108,13 +1210,14 @@ def too_many_windows(counts: dict, limits: dict) -> list[str]:
 def describe_steps(definition: WorkflowDefinition) -> str:
     """Return the steps of a workflow as text, for showing it before it runs.
 
-    One line per step, e.g. `2. Drop Columns (may apply nothing)`; a step that saves
+    One line per step, e.g. `2. Drop Columns (may skip all drop)`; a step that saves
     its outputs is marked `saved`.
     """
-    notes = {"allow_partial": "may apply only some settings", "allow_none": "may apply nothing"}
+    notes = {"some": "may skip some {}", "all": "may skip all {}"}
     lines = []
     for number, step in enumerate(definition.steps, 1):
-        extra = [notes[step.processing]] if step.processing in notes else []
+        skippable = definition.rules(step).skippable
+        extra = [notes[m].format(f) for f, m in skippable.items() if m in notes]
         if step.output.save:
             extra.append("saved")
         lines.append(f"{number}. {step.tool}" + (f" ({', '.join(extra)})" if extra else ""))
@@ -1200,8 +1303,8 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         presets = {p["name"]: p["settings"]["patterns"] for p in separate_presets()}
         patterns = list(presets.get(preset, []))
     steps = [
-        {"tool": "Rename Columns", "processing": "allow_none", "config": settings("Rename Columns", RenameColumnsConfig)},
-        {"tool": "Drop Columns", "processing": "allow_none", "config": settings("Drop Columns", DropColumnsConfig)},
+        {"tool": "Rename Columns", "processing": {"skippable": {"replacements": "all"}}, "config": settings("Rename Columns", RenameColumnsConfig)},
+        {"tool": "Drop Columns", "processing": {"skippable": {"drop": "all"}}, "config": settings("Drop Columns", DropColumnsConfig)},
         {"tool": "Concatenate", "config": settings("", ConcatConfig) | {"add_input": False}},
     ]
     if patterns:
@@ -1219,7 +1322,7 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         fuse = FuseCategoriesConfig(grouping=list(pair)).model_dump(mode="json")
         fuse.pop("version", None)
         steps.append({"tool": "Fuse Categories", "config": fuse})
-    steps.append({"tool": "Calculate", "processing": "allow_none", "output": {"save": True},
+    steps.append({"tool": "Calculate", "processing": {"skippable": {"calculations": "all"}}, "output": {"save": True},
                   "config": settings("Calculate", CalculateConfig)})  # fmt: skip
     for number, step in enumerate(steps, 1):
         step["id"] = str(number)

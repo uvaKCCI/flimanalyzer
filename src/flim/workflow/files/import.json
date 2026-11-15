@@ -7,7 +7,11 @@
     {
       "id": "1",
       "tool": "Rename Columns",
-      "processing": "allow_none",
+      "processing": {
+        "skippable": {
+          "replacements": "all"
+        }
+      },
       "config": {
         "grouping": [],
         "features": [],
@@ -35,7 +39,11 @@
     {
       "id": "2",
       "tool": "Drop Columns",
-      "processing": "allow_none",
+      "processing": {
+        "skippable": {
+          "drop": "all"
+        }
+      },
       "config": {
         "grouping": [],
         "features": [],
@@ -80,7 +88,11 @@
     {
       "id": "4",
       "tool": "Calculate",
-      "processing": "allow_none",
+      "processing": {
+        "skippable": {
+          "calculations": "all"
+        }
+      },
       "output": {"save": true},
       "config": {
         "grouping": [],

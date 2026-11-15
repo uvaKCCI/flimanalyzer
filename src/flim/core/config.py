@@ -8,6 +8,7 @@ import copy
 import logging
 import typing
 from collections.abc import Iterator, Sequence
+import dataclasses
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -452,3 +453,118 @@ def part_feature(config: Any) -> str:
     if isinstance(features, (list, dict)) and len(features) == 1:
         return str(next(iter(features)))
     return ""
+
+
+# --- processing: how a step treats input that doesn't match its settings ---
+
+Skippable = Literal["none", "some", "all"]
+
+
+class Processing(BaseModel):
+    """How a step processes input that doesn't match its settings.
+
+    The `processing` group of a workflow step, of a workflow file (for all its
+    steps) and of a tool file. Every field is optional; the layers are merged per
+    key, a step's over the workflow's (`ProcessingRules.of`). Field keys are config
+    field paths as the checks report them, e.g. `features` or `training.grouping`.
+
+    Attributes:
+        strict: Whether columns the settings name that are not in the input are
+            errors (True) or replaced by the closest column of the same role
+            (False): one value for every field, or a value per field (fields not
+            listed are strict); None: not set (strict).
+        skippable: Per field: `none` (every entry has to apply), `some` (entries
+            may be skipped while at least one applies) or `all` (every entry may be
+            skipped); fields not listed are `none`. Only the fields the tool
+            declares (`Tool.skippable_fields`).
+        required: Per skippable field: the entries that have to apply although the
+            field is skippable (list elements, or keys of dict fields; a rule, e.g.
+            a calculation, by some of its fields, e.g. `{"name": "FLIRR"}`).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    strict: Union[bool, dict[str, bool], None] = Field(
+        default=None,
+        description="Columns not in the input: errors (true) or replaced by the"
+        " closest column of the same role (false); a value for every field, or per"
+        " field. Not set: strict.",
+    )
+    skippable: dict[str, Skippable] = Field(
+        default={},
+        description="Per field: none (every entry has to apply), some (at least one),"
+        " all (every entry may be skipped). Not listed: none.",
+    )
+    required: dict[str, list[Any]] = Field(
+        default={},
+        description="Per skippable field: the entries that have to apply.",
+    )
+
+    def is_empty(self) -> bool:
+        """Return whether no field is set."""
+        return self.strict is None and not self.skippable and not self.required
+
+
+def _covers(key: str, path: str) -> bool:
+    """Return whether a field key covers a path: the field itself or a part of it."""
+    return path == key or path.startswith((key + "[", key + "."))
+
+
+@dataclass(frozen=True)
+class ProcessingRules:
+    """The merged `processing` of a step: what applies to each field.
+
+    Attributes:
+        strict: The value for fields without one of their own.
+        strict_fields: Field key -> its own `strict`.
+        skippable: Field key -> `none`, `some` or `all`.
+        required: Field key -> the entries that have to apply.
+    """
+
+    strict: bool = True
+    strict_fields: dict = dataclasses.field(default_factory=dict)
+    skippable: dict = dataclasses.field(default_factory=dict)
+    required: dict = dataclasses.field(default_factory=dict)
+
+    @classmethod
+    def of(cls, *layers: Optional[Processing]) -> "ProcessingRules":
+        """Merge `processing` layers per key, the later over the earlier.
+
+        A single `strict` value replaces every field's value of the earlier layers;
+        a dict replaces the values of the fields it lists.
+
+        Args:
+            *layers: The layers, lowest first, e.g. the workflow's, then the step's;
+                None for a layer that isn't set.
+
+        Returns:
+            The rules.
+        """
+        strict, fields, skippable, required = True, {}, {}, {}
+        for layer in layers:
+            if layer is None:
+                continue
+            if isinstance(layer.strict, bool):
+                strict, fields = layer.strict, {}
+            elif isinstance(layer.strict, dict):
+                fields = {**fields, **layer.strict}
+            skippable = {**skippable, **layer.skippable}
+            required = {**required, **layer.required}
+        return cls(strict, fields, skippable, required)
+
+    def is_strict(self, path: str) -> bool:
+        """Return whether a field's missing columns are errors, else guessed.
+
+        Args:
+            path: The field's path, e.g. `features[2]`; the longest key that covers
+                it decides.
+
+        Returns:
+            The field's own value, else the value for every field.
+        """
+        keys = [k for k in self.strict_fields if _covers(k, path)]
+        return self.strict_fields[max(keys, key=len)] if keys else self.strict
+
+    def skip(self, field: str) -> str:
+        """Return a field's `skippable`: `none`, `some` or `all`."""
+        return self.skippable.get(field, "none")

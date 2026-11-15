@@ -1,6 +1,7 @@
 """Data tools: reorder, combine, filter and reshape tables."""
 
 import logging
+import re
 from collections.abc import Callable, Iterator, Sequence
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -293,6 +294,7 @@ class Filter(Tool[FilterConfig]):
     )
     icon = "filter.png"
     outputs = (OutputSpec("Filtered", TableType),)
+    skippable_fields = ("grouping", "features", "filters")
 
     def run(self, data: pd.DataFrame, *, config: FilterConfig) -> dict[str, Any]:
         """Keep the rows that every top-level filter keeps.
@@ -319,7 +321,8 @@ class Filter(Tool[FilterConfig]):
         # parts: a filter on a column the table doesn't have keeps all rows
         self.applied(len(outcome.dropped) - len(outcome.notes))
         for path, note in outcome.notes.items():
-            self.skip(f"{path}: {note}")
+            index = int(re.match(r"filters\[(\d+)\]", path).group(1))
+            self.skip(f"{path}: {note}", entry=config.filters[index])
         line = leaf_counts(outcome)
         if line:
             logger.info(f"{self.name}: {line}")
@@ -1082,6 +1085,8 @@ class RenameColumns(Tool[RenameColumnsConfig]):
         "Replaces parts of the column names, in order, e.g. 'Exc1_-Ch1-_' with 'trp '."
     )
     outputs = (OutputSpec("Renamed", TableType),)
+    skippable_fields = ("grouping", "features", "replacements")
+    never_guessed = ("replacements",)
 
     @classmethod
     def example(
@@ -1132,12 +1137,12 @@ class RenameColumns(Tool[RenameColumnsConfig]):
 
         pairs = [(r.part, r.new) for r in config.replacements]
         names = renamed_columns(data.columns, pairs)
-        # parts: a replacement whose part occurs in no column name is skipped
-        for part, _ in pairs:
-            if any(part in str(c) for c in data.columns):
+        # entries: a replacement whose part occurs in no column name is skipped
+        for replacement in config.replacements:
+            if any(replacement.part in str(c) for c in data.columns):
                 self.applied()
             else:
-                self.skip(f"no column name contains '{part}'")
+                self.skip(f"no column name contains '{replacement.part}'", entry=replacement)
         if len(set(names)) < len(names):
             duplicates = sorted({n for n in names if names.count(n) > 1})
             raise ValueError(
@@ -1160,6 +1165,8 @@ class DropColumns(Tool[DropColumnsConfig]):
         " also a column with an empty header."
     )
     outputs = (OutputSpec("Columns Dropped", TableType),)
+    skippable_fields = ("grouping", "features", "drop")
+    never_guessed = ("drop",)
 
     @classmethod
     def example(
@@ -1200,12 +1207,12 @@ class DropColumns(Tool[DropColumnsConfig]):
 
         rules = [(r.text, r.match) for r in config.drop]
         dropped = columns_to_drop(data.columns, rules)
-        # parts: a rule that matches no column is skipped
-        for text, match in rules:
-            if columns_to_drop(data.columns, [(text, match)], drop_empty=False):
+        # entries: a rule that matches no column is skipped
+        for rule in config.drop:
+            if columns_to_drop(data.columns, [(rule.text, rule.match)], drop_empty=False):
                 self.applied()
             else:
-                self.skip(f"no column name {match} '{text}'")
+                self.skip(f"no column name {rule.match} '{rule.text}'", entry=rule)
         return {"Columns Dropped": data.drop(columns=dropped)}
 
 
@@ -1222,6 +1229,7 @@ class Calculate(Tool[CalculateConfig]):
         " ratio."
     )
     outputs = (OutputSpec("Calculated", TableType),)
+    skippable_fields = ("grouping", "features", "calculations")
 
     @classmethod
     def dialog_config(cls, config: CalculateConfig) -> CalculateConfig:
@@ -1320,8 +1328,9 @@ class Calculate(Tool[CalculateConfig]):
 
         outcome = calculate(data, config.calculations)
         self.applied(len(outcome.calculated))
+        entries = {c.name: c for c in config.calculations}
         for name, reason in outcome.skipped.items():
-            self.skip(f"{name} skipped: {reason}", warn=True)  # as since it was added
+            self.skip(f"{name} skipped: {reason}", warn=True, entry=entries.get(name))
         for name in outcome.replaced:
             self.warn(f"{name}: the input column is replaced")
         return {"Calculated": outcome.data}

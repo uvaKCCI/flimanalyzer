@@ -287,8 +287,8 @@ def run_on_tables(
 def tool_workflow(tool: type["Tool"], settings: AppSettings) -> type["Tool"]:
     """Return a tool as a workflow of one step, `1`, as `--run <tool>` runs it.
 
-    The step has the tool's settings from `settings` (else its defaults) and always
-    saves, in the tool's formats; its results go into the folder `01-<tool>`.
+    The step has the tool's settings from `settings` (else its defaults), with their
+    `processing`, and always saves, in the tool's formats; its results go into the folder `01-<tool>`.
 
     Args:
         tool: The tool class.
@@ -305,7 +305,8 @@ def tool_workflow(tool: type["Tool"], settings: AppSettings) -> type["Tool"]:
     definition = WorkflowDefinition.model_validate({
         "name": tool.name,
         "steps": [{"id": "1", "tool": tool.name, "config": config,
-                   "output": {"save": True, "formats": formats}}],
+                   "output": {"save": True, "formats": formats},
+                   "processing": entry.processing.model_dump() if entry else {}}],
     })  # fmt: skip
     return workflow_class(definition)
 

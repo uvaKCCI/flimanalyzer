@@ -19,6 +19,8 @@ import typing
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Sequence, TypeVar, Union
 
+from pydantic import BaseModel
+
 from flim.core.config import Issue, TaskConfig, column_references, requirement_issues
 from flim.core.registry import API_VERSION
 from flim.core.schema import TableSchema
@@ -126,8 +128,8 @@ class RunContext:
     output_dir: Optional[Path] = None
     # warnings of this run (Tool.warn): the task's message in the run summary
     warnings: list = field(default_factory=list)
-    # parts of the settings applied and skipped (Tool.applied, Tool.skip), for a
-    # workflow file step's `processing`
+    # entries of the settings applied and skipped (Tool.applied, Tool.skip), for a
+    # workflow file step's `processing`; skipped: (field, entry, why) per entry
     applied: int = 0
     skipped: list = field(default_factory=list)
 
@@ -201,6 +203,12 @@ class Tool(Generic[ConfigT]):
     # the types of all outputs, also of those whose names depend on the settings
     # (e.g. Summarize: one table per feature); fixed by the tool, see output_kinds
     output_types: ClassVar[tuple[type[DataType], ...]] = ()
+    # config fields whose entries `processing.skippable` may let a step skip: the
+    # column lists of the base config (the runner removes their missing entries) and
+    # the rule lists a tool counts itself (`applied`, `skip`)
+    skippable_fields: ClassVar[tuple[str, ...]] = ("grouping", "features")
+    # config fields whose missing columns are never guessed: always strict
+    never_guessed: ClassVar[tuple[str, ...]] = ()
     config_class: ClassVar[type[TaskConfig]]
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -409,10 +417,12 @@ class Tool(Generic[ConfigT]):
         if context is not None:
             context.applied += count
 
-    def skip(self, message: str, warn: bool = False) -> None:
-        """Report a part of the settings that does not apply to the data.
+    def skip(
+        self, message: str, warn: bool = False, field: str = "", entry: Any = None
+    ) -> None:
+        """Report an entry of the settings that does not apply to the data.
 
-        For example a calculation whose columns are missing. The part is recorded as
+        For example a calculation whose columns are missing. The entry is recorded as
         skipped for a workflow file step's `processing`. In a workflow file step, or
         with `warn`, it is a warning in the run summary; otherwise it is only logged
         (e.g. the default filters on channels many data sets don't have).
@@ -421,6 +431,10 @@ class Tool(Generic[ConfigT]):
             message: What was skipped and why.
             warn: Whether to report it as a warning outside a workflow file step too.
                 Defaults to False.
+            field: The config field of the entry, one of `skippable_fields`; empty
+                for the tool's rule list (its last skippable field).
+            entry: The entry (a list element, or a dict key), for
+                `processing.required`; None if not known.
         """
         if warn or getattr(self, "_processing", None) is not None:
             self.warn(message)
@@ -428,32 +442,48 @@ class Tool(Generic[ConfigT]):
             logger.info(f"{self.name}: {message}")
         context = getattr(self, "context", None)
         if context is not None:
-            context.skipped.append(message)
+            context.skipped.append((field or self.skippable_fields[-1], entry, message))
 
     def check_processing(self) -> None:
         """Fail the run if a workflow file step's `processing` doesn't allow the skips.
 
-        `require_all` allows no skipped part, `allow_partial` needs at least one
-        applied part (if any were skipped), `allow_none` allows anything. Does nothing
-        outside a workflow file step or if nothing was skipped.
+        Per field with skipped entries: `none` (the default) allows no skipped entry,
+        `some` needs at least one applied entry, `all` allows any; an entry listed in
+        `processing.required` is never skipped. Does nothing outside a workflow file
+        step or if nothing was skipped.
 
         Raises:
-            ValueError: If the step's processing doesn't allow what was skipped.
+            ValueError: If the step's `processing` doesn't allow what was skipped.
         """
-        processing = getattr(self, "_processing", None)
+        rules = getattr(self, "_processing", None)
         context = getattr(self, "context", None)
-        if processing is None or context is None or not context.skipped:
+        if rules is None or context is None or not context.skipped:
             return
-        skipped = len(context.skipped)
-        if processing == "require_all":
-            raise ValueError(
-                f"{self.name}: {skipped} part(s) of the settings don't apply"
-                " (processing: require_all): " + "; ".join(context.skipped)
-            )
-        if processing == "allow_partial" and context.applied == 0:
-            raise ValueError(
-                f"{self.name}: none of the settings apply (processing: allow_partial)"
-            )
+        by_field: dict[str, list] = {}
+        for field_name, entry, message in context.skipped:
+            by_field.setdefault(field_name, []).append((entry, message))
+        for field_name, skipped in by_field.items():
+            required = rules.required.get(field_name, [])
+            missing = [m for e, m in skipped if e is not None and is_listed(e, required)]
+            if missing:
+                raise ValueError(
+                    f"{self.name}: required entries of {field_name} don't apply"
+                    f" (processing.required): {'; '.join(missing)}"
+                )
+            mode = rules.skip(field_name)
+            if mode == "none":
+                raise ValueError(
+                    f"{self.name}: {len(skipped)} entries of {field_name} don't apply:"
+                    f" {'; '.join(m for _, m in skipped)}. Set"
+                    f' processing.skippable.{field_name} to "some" or "all" to skip'
+                    " them"
+                )
+            if mode == "some" and context.applied == 0:
+                raise ValueError(
+                    f"{self.name}: no entry of {field_name} applies"
+                    f' (processing.skippable.{field_name} is "some": at least one has to'
+                    " apply)"
+                )
 
     def warn(self, message: str) -> None:
         """Report a warning of this run.
@@ -684,6 +714,29 @@ class Tool(Generic[ConfigT]):
             elif column.role != role:
                 issues.append(Issue(path, f"'{name}' is not a {role} column"))
         return issues
+
+
+def is_listed(entry: Any, entries: Sequence[Any]) -> bool:
+    """Return whether an entry of a config field is one of `entries`.
+
+    An entry equals a listed entry, or, for a model (e.g. a calculation), a listed
+    dict whose items it has: `{"name": "FLIRR"}` lists the calculation `FLIRR`.
+
+    Args:
+        entry: A list element or dict key of a config field.
+        entries: The listed entries, as in a settings file.
+
+    Returns:
+        Whether it is listed.
+    """
+    as_json = entry.model_dump(mode="json") if isinstance(entry, BaseModel) else None
+    for listed in entries:
+        if listed == entry:
+            return True
+        if isinstance(as_json, dict) and isinstance(listed, dict) and listed:
+            if all(k in as_json and as_json[k] == v for k, v in listed.items()):
+                return True
+    return False
 
 
 def check_requirements(name: str, config: TaskConfig, inputs: Sequence[Any]) -> None:
