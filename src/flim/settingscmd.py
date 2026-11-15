@@ -247,7 +247,7 @@ def _workflow_list(args: argparse.Namespace) -> int:
         kind = _kind(cls)
         if kind == "workflow":
             menu = " > ".join(category_path(cls)) or "not in the menus"
-            code.append(f"  {cls.name}  ({menu})")
+            code.append(f"  {cls.name}  (built-in, {menu})")
         elif kind == "file":
             where = "built-in" if Path(cls.path).parent == BUILT_IN else str(cls.path)
             files.append(f"  {cls.name}  ({where})")

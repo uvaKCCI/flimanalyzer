@@ -82,7 +82,7 @@ def test_tool_list_shows_tools_by_menu_hidden_tools_and_tool_files(folder, capsy
 def test_workflow_list_shows_workflows_in_code_and_workflow_files(folder, capsys):
     code, out, _ = run(capsys, "workflow", "--list", "-w", str(folder))
     assert code == 0
-    assert "  Autoencoder Train  (Analysis)" in out
+    assert "  Autoencoder Train  (built-in, Analysis)" in out
     assert "  Import  (built-in)" in out
     assert f"  per treatment  ({folder / 'per-treatment.json'})" in out
     assert "summarize.json" not in out  # a tool file
