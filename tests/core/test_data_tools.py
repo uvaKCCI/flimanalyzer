@@ -530,12 +530,18 @@ def test_separate_warns_in_the_run_summary(prefect_harness):
     assert any("have not 2 parts" in (m or "") for m in messages)
 
 
+
+def _cells_of(table):
+    """An example table as its header and rows of values."""
+    return [list(table.columns)] + table.astype(object).where(table.notna(), None).values.tolist()
+
 def test_fuse_example_and_data_validation():
     from flim.configs import FuseCategoriesConfig
     from flim.tools.data import FuseCategories
 
     config = FuseCategoriesConfig(grouping=["FOV", "Cell"])
-    assert FuseCategories.example(config, [_cells()]) == "FOV 1, Cell 1 → FOV:Cell 1:1"
+    example = FuseCategories.example(config, [_cells()])
+    assert _cells_of(example)[:2] == [["FOV", "Cell", "\u2192 FOV:Cell"], ["1", "1", "1:1"]]
     assert FuseCategories.validate_data(config, [_cells()]) == []
     data = _cells()
     data["Time"] = pd.Categorical(["0:30", "1:00", "0:30"])
@@ -554,9 +560,10 @@ def test_separate_example_and_data_validation():
         column="File", delimiters=["-", "_"], names=["", "Treatment", "Cell"],
         part="file name without extension",
     )
-    assert SeparateCategories.example(config, [data]) == (
-        "/d/Results-ko_01.txt → Treatment ko, Cell 01"
-    )
+    example = SeparateCategories.example(config, [data])
+    assert _cells_of(example)[:2] == [
+        [config.column, "\u2192 Treatment", "\u2192 Cell"], [data[config.column].iloc[0], "ko", "01"]
+    ]
     (issue,) = SeparateCategories.validate_data(config, [data])
     assert issue.field == "names" and "'Results-wt'" in issue.message
     bad = SeparateCategoriesConfig(
@@ -578,10 +585,9 @@ def test_rename_columns_in_order_and_unique():
     config = RenameColumnsConfig(
         replacements=[Replacement(part="_t1", new=" y"), Replacement(part=" y", new=" z")]
     )
-    assert RenameColumns.example(config, [data]) == "Exc1_-Ch1-_t1 \u2192 Exc1_-Ch1- z (and 1 more)"
-    assert RenameColumns.example(RenameColumnsConfig(), [data]) == (
-        "Exc1_-Ch1-_t1 \u2192 trp t1 (and 1 more)"
-    )
+    example = RenameColumns.example(config, [data])
+    assert _cells_of(example)[:2] == [["Column", "\u2192 New name"], ["Exc1_-Ch1-_t1", "Exc1_-Ch1- z"]]
+    assert _cells_of(RenameColumns.example(RenameColumnsConfig(), [data]))[1] == ["Exc1_-Ch1-_t1", "trp t1"]
     clash = RenameColumnsConfig(replacements=[Replacement(part="Exc2_-Ch3-_", new="Exc1_-Ch1-_")])
     with pytest.raises(ValueError, match="not unique"):
         RenameColumns().run(data, config=clash)
@@ -606,7 +612,9 @@ def test_drop_columns_match_modes():
     assert kept(("t1", "starts with")) == ["Exc1_t1", "sd t1"]
     assert kept(("t1", "ends with")) == ["t1 sd"]
     assert kept(("t1", "is")) == ["Exc1_t1", "t1 sd", "sd t1"]
-    assert DropColumns.example(DropColumnsConfig(), [data]) == "drops Exc1_t1, (empty header)"
+    assert _cells_of(DropColumns.example(DropColumnsConfig(), [data])) == [
+        ["Dropped column"], ["Exc1_t1"], ["(empty header)"]
+    ]
 
 
 def test_separate_by_template():
@@ -622,9 +630,9 @@ def test_separate_by_template():
     assert list(table["FOV"])[:2] == ["a", "b"] and list(table["Cell"])[:2] == ["1", "12"]
     assert table["Treatment"].isna().iloc[2]  # x.txt doesn't fit
     # the dialog's example line: the first row
-    assert SeparateCategories.example(config, [data]) == (
-        "file:///d/Results-a-ctrl_1.txt → FOV a, Treatment ctrl, Cell 1"
-    )
+    example = SeparateCategories.example(config, [data])
+    assert _cells_of(example)[1][1:] == ["a", "ctrl", "1"]
+    assert example.columns[1:].tolist() == ["\u2192 FOV", "\u2192 Treatment", "\u2192 Cell"]
     (issue,) = SeparateCategories.validate_data(config, [data])
     assert issue.field == "template" and "don't fit" in issue.message
     # {} skips a part; a template without names is an error
@@ -664,3 +672,40 @@ def test_concat_side_by_side_pairs_rows_by_position():
     (table,) = Concat()({"A": a.iloc[[0, 2, 4]], "B": b.iloc[[1, 3, 5]]}, config=config).values()
     assert len(table) == 3 and list(table.index) == [0, 1, 2]
     assert list(table["x"]) == [1.0, 3.0, 5.0] and list(table["y"]) == [20.0, 40.0, 60.0]
+
+
+def _flim_table():
+    return pd.DataFrame({
+        "Treatment": pd.Categorical(["ctrl", "ctrl", "dox", "dox"]),
+        "FOV": pd.Categorical(["1", "2", "1", "2"]),
+        "FLIRR": [0.4, 0.5, 0.6, 0.7],
+        "FAD a1[%]": [70.0, 72.0, 75.0, 77.0],
+    })  # fmt: skip
+
+
+def test_reshaping_examples_show_the_result_rows():
+    from flim.tools.data import Pivot, Unpivot
+
+    example = Unpivot.example(Unpivot.config_class(features="all"), [_flim_table()])
+    assert example.attrs["caption"] == "the first 2 rows become 4 rows"
+    assert all(c.startswith("→ ") for c in example.columns)  # all made by the tool
+    example = Pivot.example(Pivot.config_class(grouping=["Treatment"], features="all"), [_flim_table()])
+    assert example.attrs["caption"].startswith("the result has 2 rows")
+    assert example.columns[0] == "→ FOV"
+
+
+def test_scale_example_shows_features_before_and_after():
+    from flim.tools.data import Scale
+
+    example = Scale.example(Scale.config_class(features=["FLIRR"]), [_flim_table()])
+    assert list(example.columns) == ["FLIRR", "→ FLIRR / standardized"]
+    assert example.iloc[:, 1].mean() == pytest.approx(0)
+
+
+def test_categorize_example_shows_a_row_per_category():
+    from flim.configs.analysis import CategoryRule
+    from flim.tools.ml import Categorizer
+
+    config = Categorizer.config_class(name="Level", rules=[CategoryRule(value="high", feature="FLIRR", min=0.55, max=1)])
+    example = Categorizer.example(config, [_flim_table()])
+    assert _cells_of(example) == [["FLIRR", "→ Level"], [0.4, config.default], [0.6, "high"]]

@@ -15,7 +15,7 @@ The `Drop Columns` tool removes columns by their names, for example all columns 
 
     Use `Add Row` and `Remove Rows` to change the list. A column is dropped if it matches any row.
 
-    Below the settings, the dialog shows the columns that would be dropped, for example `Example: drops Exc1_-Ch1-_t1, Exc1_-Ch1-_t2, Exc1_-Ch1-_a1`, followed by how many more columns are dropped.
+    Below the settings, the dialog shows the columns that would be dropped in a small table, for example `Exc1_-Ch1-_t1`. Above the table, it says how many more columns are dropped.
 
 3. Click `OK`.
 

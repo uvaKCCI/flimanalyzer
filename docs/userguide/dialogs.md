@@ -91,9 +91,11 @@ The dialog validates the settings while you change them:
 * A field with an error is marked with an error sign. Hover the mouse over the sign to see the message. In lists and tables, the sign is in the row with the error.
 * A warning sign marks a setting that works but may not be what you want, for example a column that a workflow guessed (see [Workflows](/userguide/workflows.md#validating-the-settings)).
 * Messages that are not about a single field, for example about the folder under `Save results`, are shown in red text above the `Output` section.
-* Some tools also validate the values of the table, not only its columns, for example `Separate Categories`: values that can't be separated as set are a warning at the field. These tools also show an example from the first row below the `Settings` section.
+* Some tools also validate the values of the table, not only its columns, for example `Separate Categories`: values that can't be separated as set are a warning at the field.
 
 `OK` stays disabled while there are errors. Fix them, and `OK` becomes available.
+
+Some tools show an example below the `Settings` section: a small table with a few rows of the selected table, and the columns the tool makes from them, marked `→`, for example `→ FOV:Cell`. It changes as you change the settings, so you can check the result before you run the tool. These tools are `Fuse Categories`, `Separate Categories`, `Rename Columns`, `Drop Columns`, `Calculate`, `Directory/File to Source`, `Pivot`, `Unpivot`, `Scale` and `Categorize Data`.
 
 Most tools need at least one feature selected under `Features`; `PCA`, `Scatter Plot`, `Series Analysis`, `Autoencoder: Train` and the workflow `FLIM Data Augmentation Tuning` need two. Some also need a grouping column, for example `FLIRR Plot`. Until enough are selected, `Features` (or `Grouping`) is marked with an error. `Summarize` needs at least one statistic.
 

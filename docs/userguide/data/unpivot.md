@@ -18,6 +18,8 @@ Column headers made by tools can have several lines, one per *level*. Pivoting t
 
     A column with fewer header lines than the others, for example `FLIRR` next to `FLIRR` / `standardized` after [Scale](/userguide/analysis/scale.md) with `Keep original` checked, counts as having empty last lines. In the new category column, its rows get the value of `Label for a missing line` (default `none`; for example `original`). The dialog warns which columns have fewer lines. With `Category column` `Scaling mode` and the label `original`, the table has one `FLIRR` column and `Scaling mode` `original` or `standardized`.
 
+    Below the settings, the dialog shows the rows that the table's first two rows become, in a small table.
+
 5. Click `OK`.
 
 For example, unpivoting the level `Treatment` of the columns `FLIRR` / `ctrl`, `FLIRR` / `Dox15`, `t1` / `ctrl` and `t1` / `Dox15` gives a category column `Treatment` (`ctrl`, `Dox15`) and the value columns `FLIRR` and `t1`: the table before pivoting. Unpivoting the level `Feature` instead gives a category column `Feature` (`FLIRR`, `t1`) and the value columns `ctrl` and `Dox15`.

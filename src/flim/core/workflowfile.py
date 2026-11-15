@@ -818,7 +818,7 @@ def _file_workflow_base() -> type["Workflow"]:
     if "FileWorkflow" in globals():
         return FileWorkflow
     from flim.configs.workflow import WorkflowConfig
-    from flim.core.config import Issue, TaskConfig
+    from flim.core.config import Issue
     from flim.core.registry import tools
     from flim.core.runner import Nth
     from flim.core.schema import TableSchema

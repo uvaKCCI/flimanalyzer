@@ -29,7 +29,7 @@ from flim.core.execution import ExecutionOptions
 from flim.core.paths import canonical_folder, folder_problem, resolved_folder, stored_folder, with_extension
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.settings import read_tool_settings, tool_settings, write_tool_settings
-from flim.gui.editors import FieldErrors, FieldsPanel
+from flim.gui.editors import ExampleView, FieldErrors, FieldsPanel
 from flim.gui.formats import FormatsBox
 
 if TYPE_CHECKING:
@@ -416,10 +416,9 @@ class ConfigDialog(wx.Dialog):
             buttons.Add(self.processing_fields, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
         settings_box.Add(buttons, 0, wx.EXPAND | wx.TOP, 4)
         sizer.Add(settings_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
-        # what the tool does with the first row (Tool.example), if it shows that
-        self.example = wx.StaticText(self, label="")
-        self.example.Hide()
-        sizer.Add(self.example, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        # what the tool does with the input (Tool.example), if it shows that
+        self.example = ExampleView(self)
+        sizer.Add(self.example, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
 
         self.status = wx.StaticText(self, label="")
         self.status.SetForegroundColour(wx.Colour(180, 0, 0))
@@ -461,11 +460,11 @@ class ConfigDialog(wx.Dialog):
         return [t for t in tables if isinstance(t, pd.DataFrame)]
 
     def data_issues(self, config: Optional[TaskConfig]) -> list[Issue]:
-        """Show the tool's example line and validate the config against the input data.
+        """Show the tool's example and validate the config against the input data.
 
-        The example line comes from `Tool.example`, the validation from
+        The example comes from `Tool.example`, the validation from
         `Tool.validate_data`, both with the selected tables. An exception in them is
-        logged, not shown; the example line is then hidden.
+        logged, not shown; the example is then hidden.
 
         Args:
             config: The edited config; None if it is not valid.
@@ -485,12 +484,15 @@ class ConfigDialog(wx.Dialog):
             self._show_example(None)
             return []
 
-    def _show_example(self, line: Optional[str]) -> None:
-        """Show the example line below the settings; hide it if `line` is empty."""
+    def _show_example(self, example: Any) -> None:
+        """Show the tool's example below the settings: a table, a line, or nothing.
+
+        The dialog fits its contents when the example's height changes.
+        """
         if not hasattr(self, "example"):
             return
-        self.example.SetLabel(f"Example: {line}" if line else "")
-        self.example.Show(bool(line))
+        if self.example.show(example) and hasattr(self, "scroll"):
+            self._fit()
 
     def output_field_names(self) -> list[str]:
         """Return the names of the config's fields shown in the Output section.

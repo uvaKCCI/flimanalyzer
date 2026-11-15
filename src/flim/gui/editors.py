@@ -6,12 +6,14 @@ editors offer the columns of the input tables (`set_schema`).
 """
 
 import json
+import math
 import os
 import typing
 from collections.abc import Collection, Iterable, Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+import pandas as pd
 import wx
 import wx.grid
 from pydantic import BaseModel
@@ -2515,3 +2517,85 @@ _ART = {"error": wx.ART_ERROR, "warning": wx.ART_WARNING, "guessed": wx.ART_WARN
 def _marker_bitmap(severity: str) -> wx.Bitmap:
     """Return the 16-pixel marker icon of a severity."""
     return wx.ArtProvider.GetBitmap(_ART[severity], wx.ART_MENU, (16, 16))
+
+
+class ExampleView(wx.Panel):
+    """What a tool does with the input, below its settings (`Tool.example`).
+
+    A table (a `pd.DataFrame` from `flim.core.tool.example_table`) is shown under
+    `Example:` and its caption, as a read-only list with a column per table column
+    (the columns the tool makes are marked `→`); a line is shown as `Example: ...`.
+    """
+
+    def __init__(self, parent: wx.Window) -> None:
+        """Create the view, hidden until it shows an example.
+
+        Args:
+            parent: The parent window.
+        """
+        super().__init__(parent)
+        self.label = wx.StaticText(self, label="")
+        self.table = wx.ListCtrl(self, style=wx.LC_REPORT | wx.LC_HRULES | wx.LC_VRULES)
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.label, 0, wx.BOTTOM, 2)
+        sizer.Add(self.table, 0, wx.EXPAND)
+        self.SetSizer(sizer)
+        self.Hide()
+
+    def show(self, example: Any) -> bool:
+        """Show an example table or line; hide the view for None or an empty line.
+
+        Args:
+            example: A `pd.DataFrame`, a line, or None.
+
+        Returns:
+            Whether the view's height changed (the dialog then fits its contents).
+        """
+        before = self.GetBestSize().height if self.IsShown() else 0
+        if isinstance(example, pd.DataFrame):
+            caption = example.attrs.get("caption", "")
+            self.label.SetLabel(f"Example ({caption}):" if caption else "Example:")
+            self._fill(example)
+            self.table.Show()
+            self.Show()
+        elif example:
+            self.label.SetLabel(f"Example: {example}")
+            self.table.Hide()
+            self.Show()
+        else:
+            self.Hide()
+        self.Layout()
+        return (self.GetBestSize().height if self.IsShown() else 0) != before
+
+    def rows(self) -> list[list[str]]:
+        """Return the shown table's cells as text, row by row (the header first)."""
+        count = self.table.GetColumnCount()
+        header = [self.table.GetColumn(c).GetText() for c in range(count)]
+        cells = [
+            [self.table.GetItemText(r, c) for c in range(count)]
+            for r in range(self.table.GetItemCount())
+        ]
+        return [header] + cells
+
+    def _fill(self, table: pd.DataFrame) -> None:
+        """Fill the list with the table: its columns, its rows, as high as its rows."""
+        self.table.ClearAll()
+        for index, name in enumerate(table.columns):
+            self.table.InsertColumn(index, str(name))
+        for values in table.itertuples(index=False):
+            row = self.table.InsertItem(self.table.GetItemCount(), _cell(values[0]))
+            for column, value in enumerate(values[1:], 1):
+                self.table.SetItem(row, column, _cell(value))
+        for index in range(len(table.columns)):
+            self.table.SetColumnWidth(index, wx.LIST_AUTOSIZE_USEHEADER)
+        line = self.table.GetCharHeight() + 8
+        self.table.SetMinSize((-1, line * (len(table) + 1) + 6))
+
+
+def _cell(value: Any) -> str:
+    """Return a value of an example table as text: floats with 4 significant digits."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return ""
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    return str(value)

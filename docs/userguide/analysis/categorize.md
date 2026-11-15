@@ -31,6 +31,8 @@ The `Categorize Data` tool adds a new category column. The value each row gets d
 
     Rows with other FLIRR values get the default value, `unassigned`.
 
+    Below the settings, the dialog shows one row for each category that the rules give: the features the rules use, and the new column, marked `→`.
+
 4. Click `OK`.
 
 5. The results are shown in a new table window, `Table: Categorized`. The new category column comes after the other category columns.

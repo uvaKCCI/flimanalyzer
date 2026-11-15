@@ -3,7 +3,7 @@
 import logging
 import re
 from collections.abc import Callable, Iterator, Sequence
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -487,6 +487,26 @@ class Pivot(Tool[PivotConfig]):
     icon = "pivot.png"
     outputs = (OutputSpec("Pivoted", TableType),)
 
+    @classmethod
+    def example(
+        cls, config: PivotConfig, tables: Sequence[Any]
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the first rows of the pivoted first table.
+
+        None without a table with rows, or if the settings don't apply to it (shown
+        as issues).
+        """
+        from flim.core.tool import preview
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None or table.empty or not config.grouping:
+            return None
+        try:
+            (result,) = preview(cls, config, table).values()
+        except (ValueError, KeyError):
+            return None
+        return _reshaped_example(result, f"the result has {len(result)} rows")
+
     def run(self, data: pd.DataFrame, *, config: PivotConfig) -> dict[str, Any]:
         """Turn the values of the grouping columns into columns.
 
@@ -615,6 +635,28 @@ class Split(Tool[SplitConfig]):
         }
 
 
+def _reshaped_example(result: pd.DataFrame, caption: str) -> pd.DataFrame:
+    """Return the first rows and columns of a reshaped table as an example.
+
+    The category columns come first; of the others, at most `EXAMPLE_COLUMNS`.
+
+    Args:
+        result: The reshaped table.
+        caption: What the rows are, e.g. `the first 2 rows become 8 rows`.
+
+    Returns:
+        The example (`flim.core.tool.example_table`), all its columns made by the tool.
+    """
+    from flim.core.tool import EXAMPLE_COLUMNS, EXAMPLE_ROWS, example_table
+
+    categories = [c for c in result.columns if c in category_columns(result)]
+    others = [c for c in result.columns if c not in categories]
+    shown = result[categories + others[:EXAMPLE_COLUMNS]].head(EXAMPLE_ROWS)
+    more = len(others) - EXAMPLE_COLUMNS
+    note = f"; {more} more columns" if more > 0 else ""
+    return example_table(pd.DataFrame(), shown, caption + note)
+
+
 @register_tool
 class Unpivot(Tool[UnpivotConfig]):
     """Moves one line of the column headers into a category column."""
@@ -675,6 +717,28 @@ class Unpivot(Tool[UnpivotConfig]):
                 "warning",
             )
         ]
+
+    @classmethod
+    def example(
+        cls, config: UnpivotConfig, tables: Sequence[Any]
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the rows the first two rows of the first table become.
+
+        None without a table with rows, or if the settings don't apply to it (shown
+        as issues).
+        """
+        from flim.core.tool import preview
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None or table.empty:
+            return None
+        rows = table.head(2)
+        try:
+            result = preview(cls, config, rows)["Unpivoted"]
+        except (ValueError, KeyError):
+            return None
+        caption = f"the first {len(rows)} rows become {len(result)} rows"
+        return _reshaped_example(result, caption)
 
     def run(self, data: pd.DataFrame, *, config: UnpivotConfig) -> dict[str, Any]:
         """Move one line of the selected columns' headers into a category column.
@@ -765,6 +829,38 @@ class Scale(Tool[ScaleConfig]):
     )
     outputs = (OutputSpec("Scaled", TableType),)
 
+    @classmethod
+    def example(
+        cls, config: ScaleConfig, tables: Sequence[Any]
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the first rows of a few features before and after scaling.
+
+        The whole first table is scaled (the statistics are of all its rows, or of
+        each group's); at most `EXAMPLE_COLUMNS` features are shown. None without a
+        table with rows or features, or if the settings don't apply to it.
+        """
+        from flim.core.tool import EXAMPLE_COLUMNS, EXAMPLE_ROWS, example_table, preview
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None or table.empty:
+            return None
+        features = selected_features(table, config.features)
+        if not features:
+            return None
+        try:
+            result = preview(cls, config, table)["Scaled"]
+        except (ValueError, KeyError):
+            return None
+        shown = features[:EXAMPLE_COLUMNS]
+        new = [c for c in result.columns if c not in table.columns]
+        made = new[: len(shown)] if new else shown  # replaced in place without new ones
+        more = len(features) - len(shown)
+        return example_table(
+            table[shown].head(EXAMPLE_ROWS),
+            result[made].head(EXAMPLE_ROWS),
+            f"{more} more features" if more > 0 else "",
+        )
+
     def run(self, data: pd.DataFrame, *, config: ScaleConfig) -> dict[str, Any]:
         """Scale the selected features, over the whole table or within each group.
 
@@ -852,26 +948,25 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
     @classmethod
     def example(
         cls, config: FuseCategoriesConfig, tables: Sequence[Any]
-    ) -> Optional[str]:
-        """Return the fusion of the first row that has values in all the columns.
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the fusion of a few rows with different values in the columns.
 
-        For example `FOV 1, Cell 2 → FOV:Cell 1:2`. None if fewer than two columns
-        are selected, the first table lacks one of them, or no row has values in all
-        of them.
+        The columns next to the fused column (`example_table`). None if fewer than
+        two columns are selected, the first table lacks one of them, or no row has
+        values in all of them.
         """
         from flim.core.categories import fuse
+        from flim.core.tool import distinct_rows, example_table
 
         columns = list(config.grouping)
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if len(columns) < 2 or table is None or not set(columns) <= set(table.columns):
             return None
-        rows = table[columns].dropna()
+        rows = distinct_rows(table, columns)
         if rows.empty:
             return None
-        first = rows.iloc[[0]]
-        ((name, values),) = fuse(first, columns, config.delimiter, config.name).columns.items()
-        parts = ", ".join(f"{c} {first[c].iloc[0]}" for c in columns)
-        return f"{parts} \u2192 {name} {values[0]}"
+        fused = fuse(rows, columns, config.delimiter, config.name).columns
+        return example_table(rows[columns], pd.DataFrame(fused))
 
     @classmethod
     def validate_data(
@@ -977,27 +1072,27 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
     @classmethod
     def example(
         cls, config: SeparateCategoriesConfig, tables: Sequence[Any]
-    ) -> Optional[str]:
-        """Return how the column's first value is separated.
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return how a few different values of the column are separated.
 
-        For example `1:2 → FOV 1, Cell 2`. An invalid setting (e.g. a pattern)
-        shows its error message after the arrow. None if no table has the column,
-        the column has no values, or the mode's settings are empty.
+        The column next to the new columns (`example_table`). An invalid setting
+        (e.g. a pattern) gives a line with the first value and the error message.
+        None if no table has the column, the column has no values, or the mode's
+        settings are empty.
         """
+        from flim.core.tool import distinct_rows, example_table
+
         table = cls._table(config, tables) if config.column else None
         if table is None or cls._incomplete(config):
             return None
-        values = table[config.column].dropna()
-        if values.empty:
+        rows = distinct_rows(table, [config.column])
+        if rows.empty:
             return None
-        first = table.loc[[values.index[0]]]
         try:
-            result = cls._separated(config, first)
+            result = cls._separated(config, rows)
         except ValueError as err:  # e.g. an invalid pattern: shown as an issue
-            return f"{values.iloc[0]} \u2192 {err}"
-        parts = [f"{n} {v[0]}" for n, v in result.columns.items() if not pd.isna(v[0])]
-        shown = ", ".join(parts) if parts else "not separated"
-        return f"{values.iloc[0]} \u2192 {shown}"
+            return f"{rows[config.column].iloc[0]} \u2192 {err}"
+        return example_table(rows[[config.column]], pd.DataFrame(result.columns))
 
     @classmethod
     def validate_data(
@@ -1091,28 +1186,33 @@ class RenameColumns(Tool[RenameColumnsConfig]):
     @classmethod
     def example(
         cls, config: RenameColumnsConfig, tables: Sequence[Any]
-    ) -> Optional[str]:
-        """Return the first column of the first table that is renamed.
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the columns of the first table that are renamed, and their new names.
 
-        For example `Exc1_-Ch1-_t1 → trp t1 (and 3 more)`; `no column name changes`
-        if no name changes; None without a table.
+        At most `EXAMPLE_ROWS` columns; the caption says how many more are renamed.
+        `no column name changes` if no name changes; None without a table.
         """
         from flim.core.columns import renamed_columns
+        from flim.core.tool import EXAMPLE_ROWS, example_table
 
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if table is None:
             return None
         pairs = [(r.part, r.new) for r in config.replacements]
         changed = [
-            (old, new)
+            (str(old), new)
             for old, new in zip(table.columns, renamed_columns(table.columns, pairs))
             if str(old) != new
         ]
         if not changed:
             return "no column name changes"
-        old, new = changed[0]
-        more = f" (and {len(changed) - 1} more)" if len(changed) > 1 else ""
-        return f"{old} \u2192 {new}{more}"
+        shown = changed[:EXAMPLE_ROWS]
+        more = len(changed) - len(shown)
+        return example_table(
+            pd.DataFrame({"Column": [o for o, _ in shown]}),
+            pd.DataFrame({"New name": [n for _, n in shown]}),
+            f"and {more} more columns" if more else "",
+        )
 
     def run(
         self, data: pd.DataFrame, *, config: RenameColumnsConfig
@@ -1171,13 +1271,14 @@ class DropColumns(Tool[DropColumnsConfig]):
     @classmethod
     def example(
         cls, config: DropColumnsConfig, tables: Sequence[Any]
-    ) -> Optional[str]:
-        """Return the columns of the first table that are dropped, e.g. `drops a, b`.
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the columns of the first table that are dropped.
 
-        At most three are named, then the number of the others; `no columns
-        dropped` if none is dropped; None without a table.
+        At most `EXAMPLE_ROWS` columns; the caption says how many more are dropped.
+        `no columns dropped` if none is dropped; None without a table.
         """
         from flim.core.columns import columns_to_drop
+        from flim.core.tool import EXAMPLE_ROWS, example_table
 
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if table is None:
@@ -1186,8 +1287,12 @@ class DropColumns(Tool[DropColumnsConfig]):
         if not dropped:
             return "no columns dropped"
         dropped = [n if n.strip() else "(empty header)" for n in dropped]
-        shown = ", ".join(dropped[:3]) + (f" and {len(dropped) - 3} more" if len(dropped) > 3 else "")
-        return f"drops {shown}"
+        more = len(dropped) - EXAMPLE_ROWS
+        return example_table(
+            pd.DataFrame({"Dropped column": dropped[:EXAMPLE_ROWS]}),
+            pd.DataFrame(),
+            f"and {more} more columns" if more > 0 else "",
+        )
 
     def run(self, data: pd.DataFrame, *, config: DropColumnsConfig) -> dict[str, Any]:
         """Drop the columns that a rule matches, and columns with an empty header.
@@ -1214,6 +1319,46 @@ class DropColumns(Tool[DropColumnsConfig]):
             else:
                 self.skip(f"no column name {rule.match} '{rule.text}'", entry=rule)
         return {"Columns Dropped": data.drop(columns=dropped)}
+
+
+def calculation_example(
+    calculations: Sequence[Any], rows: pd.DataFrame, most: int
+) -> Union[str, pd.DataFrame]:
+    """Return calculated columns for a few rows, next to the columns they use.
+
+    Args:
+        calculations: The calculations (`CalculationEntry`), in order.
+        rows: The rows to calculate.
+        most: The most calculated columns shown; the caption says how many more.
+
+    Returns:
+        The table (`flim.core.tool.example_table`); `nothing calculated` if no kept
+        column is calculated.
+
+    Raises:
+        ValueError: If a calculation is not valid (see `flim.core.calculate.calculate`).
+    """
+    from flim.core.calculate import calculate, needed_columns
+    from flim.core.tool import example_table
+
+    outcome = calculate(rows, list(calculations))
+    made = [n for n in outcome.calculated if n in outcome.data.columns]
+    if not made:
+        return "nothing calculated"
+    used: list = []
+    for calculation in calculations:
+        if calculation.enabled and calculation.name in made[:most]:
+            try:
+                names = needed_columns(calculation, rows.columns)
+            except ValueError:
+                names = []
+            used += [n for n in names if n in rows.columns and n not in used]
+    more = len(made) - most
+    return example_table(
+        rows[used],
+        outcome.data[made[:most]],
+        f"and {more} more calculated columns" if more > 0 else "",
+    )
 
 
 @register_tool
@@ -1286,28 +1431,27 @@ class Calculate(Tool[CalculateConfig]):
         return cls._issues([p for p in problems if p[2] == "warning"])
 
     @classmethod
-    def example(cls, config: CalculateConfig, tables: Sequence[Any]) -> Optional[str]:
-        """Return the first calculated value for the first row, e.g. `FLIRR = 0.4521`.
+    def example(
+        cls, config: CalculateConfig, tables: Sequence[Any]
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the calculated columns for the first rows, next to the columns used.
 
-        `nothing calculated` if no kept column is calculated; None without a table
-        or row, or if the calculation raises a ValueError.
+        At most `EXAMPLE_COLUMNS` calculated columns, and the columns they use; the
+        caption says how many more are calculated. `nothing calculated` if no kept
+        column is calculated; None without a table or row, or if the calculation
+        raises a ValueError.
         """
-        from flim.core.calculate import calculate
+        from flim.core.tool import EXAMPLE_COLUMNS, EXAMPLE_ROWS
 
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if table is None or table.empty:
             return None
         try:
-            outcome = calculate(table.iloc[:1], config.calculations)
+            return calculation_example(
+                config.calculations, table.head(EXAMPLE_ROWS), EXAMPLE_COLUMNS
+            )
         except ValueError:
             return None  # shown as an issue
-        shown = [n for n in outcome.calculated if n in outcome.data.columns]
-        if not shown:
-            return "nothing calculated"
-        value = outcome.data[shown[0]].iloc[0]
-        text = f"{value:.4g}" if isinstance(value, float) else str(value)
-        more = f" (and {len(shown) - 1} more)" if len(shown) > 1 else ""
-        return f"{shown[0]} = {text}{more}"
 
     def run(self, data: pd.DataFrame, *, config: CalculateConfig) -> dict[str, Any]:
         """Calculate the new columns, in order; later ones may use earlier ones.
@@ -1415,22 +1559,24 @@ class SourceFromPath(Tool[SourceFromPathConfig]):
     @classmethod
     def example(
         cls, config: SourceFromPathConfig, tables: Sequence[Any]
-    ) -> Optional[str]:
-        """Return the first row's directory and file and their URI, shortened.
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return the `Source` of a few rows with different files, next to the columns.
 
-        For example `/data + a.txt → file:///data/a.txt`. None without a table with
-        rows and both columns, or if the first row lacks one of the values.
+        Long values are shortened in the middle (`shortened`). None without a table
+        with rows and both columns, or if no row has both values.
         """
         from flim.core.paths import path_uri
+        from flim.core.tool import distinct_rows, example_table
 
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if table is None or not {"Directory", "File"} <= set(table.columns) or table.empty:
             return None
-        directory, file = table["Directory"].iloc[0], table["File"].iloc[0]
-        if pd.isna(directory) or pd.isna(file):
+        rows = distinct_rows(table, ["Directory", "File"])
+        if rows.empty:
             return None
-        uri = path_uri(str(directory), str(file))
-        return f"{shortened(str(directory))} + {shortened(str(file))} \u2192 {shortened(uri)}"
+        uris = [path_uri(str(d), str(f)) for d, f in zip(rows["Directory"], rows["File"])]
+        before = rows[["Directory", "File"]].map(lambda v: shortened(str(v)))
+        return example_table(before, pd.DataFrame({"Source": [shortened(u) for u in uris]}))
 
     def run(
         self, data: pd.DataFrame, *, config: SourceFromPathConfig

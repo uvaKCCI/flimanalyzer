@@ -27,6 +27,8 @@ from flim.core.schema import TableSchema
 from flim.core.types import DataType, InputSpec, OutputSpec, TableType
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from flim.core.runner import TaskOutput
 
 logger = logging.getLogger(__name__)
@@ -526,6 +528,8 @@ class Tool(Generic[ConfigT]):
         Args:
             message: The warning.
         """
+        if getattr(self, "_quiet", False):  # an example for the dialog (`preview`)
+            return
         logger.warning(f"{self.name}: {message}")
         context = getattr(self, "context", None)
         if context is not None:
@@ -621,17 +625,21 @@ class Tool(Generic[ConfigT]):
         return outputs
 
     @classmethod
-    def example(cls, config: ConfigT, tables: Sequence[Any]) -> Optional[str]:
-        """Return one line that shows what the tool does with the input's first row.
+    def example(
+        cls, config: ConfigT, tables: Sequence[Any]
+    ) -> Union[str, "pd.DataFrame", None]:
+        """Return an example of what the tool does with the input, for its dialog.
 
-        The dialog shows it, e.g. `FOV 1, Cell 2 -> FOV:Cell 1:2`.
+        A table of a few rows: the input columns next to the columns the tool makes
+        (see `example_table`), e.g. `FOV`, `Cell` and `→ FOV:Cell`; or one line,
+        e.g. `no columns dropped` or why the settings give no result.
 
         Args:
             config: The config.
             tables: The selected input tables (DataFrames).
 
         Returns:
-            The line; None if the tool shows none (the default).
+            The table or the line; None if the tool shows none (the default).
         """
         return None
 
@@ -808,3 +816,82 @@ def _unknown(output: OutputSpec) -> OutputSpec:
     if output.type is TableType:
         return replace(output, schema=TableSchema.unknown())
     return output
+
+
+# --- examples for the dialogs (`Tool.example`) ---
+
+EXAMPLE_ROWS = 4  # the rows of an example table
+EXAMPLE_COLUMNS = 3  # the input columns of an example table, e.g. features
+MADE = "\u2192 "  # marks a column the tool makes, e.g. `→ FOV:Cell`
+
+
+def example_table(
+    before: "pd.DataFrame", after: "pd.DataFrame", caption: str = ""
+) -> "pd.DataFrame":
+    """Return an example: input columns next to the columns a tool makes from them.
+
+    The rows are paired by position. The columns the tool makes are marked with
+    `MADE`, e.g. `→ FOV:Cell`; the lines of column labels with several header
+    lines are joined with ` / `, e.g. `FLIRR / ctrl`.
+
+    Args:
+        before: The input rows, with the columns the tool reads; may have no
+            columns (e.g. a reshaping tool, whose rows don't pair).
+        after: The columns the tool makes, for the same rows.
+        caption: A note shown above the table, e.g. which rows are shown; empty for
+            none.
+
+    Returns:
+        The table; its `attrs["caption"]` holds the caption.
+    """
+    import pandas as pd
+
+    def labels(table: pd.DataFrame, mark: str = "") -> list[str]:
+        return [
+            mark + (" / ".join(map(str, c)) if isinstance(c, tuple) else str(c)).replace("\n", " / ")
+            for c in table.columns
+        ]
+
+    before = before.reset_index(drop=True)
+    after = after.reset_index(drop=True)
+    table = pd.concat(
+        [before.set_axis(labels(before), axis=1), after.set_axis(labels(after, MADE), axis=1)],
+        axis=1,
+    )
+    table.attrs["caption"] = caption
+    return table
+
+
+def distinct_rows(
+    table: "pd.DataFrame", columns: Sequence[Any], count: int = EXAMPLE_ROWS
+) -> "pd.DataFrame":
+    """Return the first rows of a table with distinct values in some columns.
+
+    Rows with a missing value in one of the columns are left out.
+
+    Args:
+        table: The table.
+        columns: The columns whose values differ from row to row.
+        count: The most rows returned. Defaults to `EXAMPLE_ROWS`.
+
+    Returns:
+        The rows, in the table's order.
+    """
+    columns = list(columns)
+    return table.dropna(subset=columns).drop_duplicates(subset=columns).head(count)
+
+
+def preview(tool: type[Tool], config: TaskConfig, *inputs: Any) -> dict[str, Any]:
+    """Run a tool for an example: its warnings are neither logged nor reported.
+
+    Args:
+        tool: The tool class.
+        config: The config.
+        *inputs: The inputs.
+
+    Returns:
+        The results of `Tool.run`.
+    """
+    instance = tool()
+    instance._quiet = True
+    return instance.run(*inputs, config=config)

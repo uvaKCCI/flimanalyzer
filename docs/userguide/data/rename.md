@@ -17,7 +17,7 @@ The `Rename Columns` tool replaces parts of the column names, for example `Exc1_
 
     Use `Add Row` and `Remove Rows` to change the list. The rows apply from top to bottom: each row applies to the names the rows above it produced. A row needs a `Part`.
 
-    Below the settings, the dialog shows an example from the table, for example `Example: Exc1_-Ch1-_t1 → trp t1`, followed by how many more columns are renamed.
+    Below the settings, the dialog shows the columns that are renamed in a small table, each next to its new name (`→ New name`), for example `Exc1_-Ch1-_t1` and `trp t1`. Above the table, it says how many more columns are renamed.
 
 3. Click `OK`.
 

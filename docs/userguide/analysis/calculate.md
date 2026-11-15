@@ -24,7 +24,7 @@ The `Calculate` tool adds new columns calculated from others, for example the me
     - `Keep` (default checked): unchecked makes a helper column. Later calculations can use it, but it is not in the result.
     - `Description`: a note for yourself.
 
-    Below the fields, the editor shows the result for the table's first row, for example `Example: FLIRR = 0.42`, or what is wrong, for example `skipped: 'FAD tn' (did you mean 'FAD tm'?) not in the table or calculated before`. `OK` is enabled only when the calculation can be made on the table.
+    Below the fields, the editor shows the result for the table's first rows in a small table: the columns the calculation uses, and the calculated column, marked `→`, for example `→ FLIRR`. Otherwise it shows what is wrong, for example `skipped: 'FAD tn' (did you mean 'FAD tm'?) not in the table or calculated before`. `OK` is enabled only when the calculation can be made on the table.
 
 3. Click `OK`.
 

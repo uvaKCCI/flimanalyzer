@@ -25,6 +25,7 @@ from flim.core.schema import TableSchema
 from flim.gui.editors import (
     CategoriesEditor,
     Editor,
+    ExampleView,
     FieldErrors,
     FieldsPanel,
     _RowIssues,
@@ -289,10 +290,10 @@ class CalculationDialog(wx.Dialog):
         sizer.Add(row, 0, wx.ALL, 8)
         self.body = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.body, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
-        self.example = wx.StaticText(self, label="")
+        self.example = ExampleView(self)
         self.message = wx.StaticText(self, label="")
         self.message.SetForegroundColour(wx.Colour(180, 0, 0))
-        sizer.Add(self.example, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
+        sizer.Add(self.example, 0, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
         sizer.Add(self.message, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
         sizer.Add(self.CreateButtonSizer(wx.OK | wx.CANCEL), 0, wx.EXPAND | wx.ALL, 8)
         self.SetSizer(sizer)
@@ -331,20 +332,23 @@ class CalculationDialog(wx.Dialog):
         """Validate the calculation and show the result.
 
         The problems are shown below the fields. A used, named calculation without
-        problems shows its value for the first row of the first non-empty input
-        table. OK is enabled only without errors.
+        problems shows its values for the first rows of the first non-empty input
+        table, next to the columns it uses (`calculation_example`). OK is enabled
+        only without errors.
 
         Returns:
             True if there are no errors.
         """
-        from flim.core.calculate import calculate, validate_calculations
+        from flim.core.calculate import validate_calculations
+        from flim.core.tool import EXAMPLE_ROWS
+        from flim.tools.data import calculation_example
 
         ok = self.FindWindowById(wx.ID_OK)
         try:
             calculation = self.calculation()
         except (FieldErrors, ValidationError, ValueError) as err:
             text = "; ".join(err.errors.values()) if isinstance(err, FieldErrors) else str(err)
-            self._show("", text, ok, False)
+            self._show(None, text, ok, False)
             return False
         problems = [p for p in validate_calculations([calculation], self.columns) if p[0] == 0]
         # a column the table doesn't have: the calculation can't be made on it
@@ -353,7 +357,7 @@ class CalculationDialog(wx.Dialog):
             if severity == "error" or m.startswith("skipped")
         ]  # fmt: skip
         warnings = [m for _, _, severity, m in problems if m not in errors]
-        example = ""
+        example = None
         table = next((t for t in self.tables if isinstance(t, pd.DataFrame) and len(t)), None)
         if not calculation.enabled:
             warnings.append("Not used: Use is unchecked")
@@ -361,20 +365,17 @@ class CalculationDialog(wx.Dialog):
             # as kept, so that a helper column shows its example too
             shown = calculation.model_copy(update={"keep": True})
             try:
-                values = calculate(table.iloc[:1], [shown]).data
-                value = values[calculation.name].iloc[0]
-                text = f"{value:.4g}" if isinstance(value, float) else str(value)
-                example = f"Example: {calculation.name} = {text}"
+                example = calculation_example([shown], table.head(EXAMPLE_ROWS), 1)
             except (ValueError, KeyError, TypeError) as err:
                 errors.append(f"{calculation.name}: {err}")
         self._show(example, "\n".join(errors + warnings), ok, not errors)
         return not errors
 
     def _show(
-        self, example: str, message: str, ok: Optional[wx.Window], enabled: bool
+        self, example: Any, message: str, ok: Optional[wx.Window], enabled: bool
     ) -> None:
-        """Show the example and message lines; enable or disable OK."""
-        self.example.SetLabel(example)
+        """Show the example (a table, a line or None) and the message; enable OK."""
+        self.example.show(example)
         self.message.SetLabel(message)
         self.message.Wrap(460)
         if ok is not None:

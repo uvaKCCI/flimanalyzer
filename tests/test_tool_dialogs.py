@@ -691,7 +691,8 @@ def test_source_dialog_shows_the_rename_only_for_a_source_column(dialog):
     d = dialog("Directory/File to Source", data_choices={"Table: plain": plain})
     d.validate()
     assert not d.fields.editors["clash_name"].control.IsShown()  # nothing to rename
-    assert SourceFromPath.example(d.current_config()[0], [plain]) == "/d + a.txt \u2192 file:///d/a.txt"
+    example = SourceFromPath.example(d.current_config()[0], [plain])
+    assert example.iloc[0].tolist() == ["/d", "a.txt", "file:///d/a.txt"]
     taken = plain.assign(Source=["mine"])
     d = dialog("Directory/File to Source", data_choices={"Table: taken": taken})
     d.validate()
@@ -752,7 +753,7 @@ def test_calculation_editor_shows_only_the_kinds_fields(wxapp, table):
         assert set(d.fields.editors) == {"enabled", "name", "keep", "description", "expression"}
         d.fields.editors["name"].control.SetValue("ratio")
         d.fields.editors["expression"].control.SetValue("t1 / t2")  # no backticks needed
-        assert d.validate() and d.example.GetLabel().startswith("Example: ratio = ")
+        assert d.validate() and d.example.rows()[0] == ["t1", "t2", "\u2192 ratio"]  # used, made
         d.fields.editors["expression"].control.SetValue("t1 / t22")
         assert not d.validate()  # OK disabled
         assert "'t22' (did you mean 't2'?)" in d.message.GetLabel()
@@ -816,7 +817,7 @@ def test_calculation_editor_example_without_use_or_keep(wxapp, table):
         d.fields.editors["enabled"].set(True)
         d.fields.editors["name"].control.SetValue("helper")
         d.fields.editors["keep"].set(False)  # a helper column: its example is shown
-        assert d.validate() and d.example.GetLabel().startswith("Example: helper = ")
+        assert d.validate() and d.example.rows()[0][-1] == "\u2192 helper"
     finally:
         d.Destroy()
 

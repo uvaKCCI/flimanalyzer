@@ -15,7 +15,7 @@ The `Separate Categories` tool separates one category or text column into severa
     - `Part`: which part of the values to separate: the whole `value`, or, for a path, its `file name`, with or without its extension.
     - `Keep the original column` (checked by default): unchecked, the separated column is removed.
 
-    Below the settings, the dialog shows an example from the first row, for example `Example: file:///data/Results-ko_01.txt → Treatment ko, Cell 01`. The example shows the value as it is in the column, also when `Part` separates only its file name. The dialog also warns about values that can't be separated as set.
+    Below the settings, the dialog shows an example in a small table: a few different values of the column, and the new columns, marked `→`. For example, `file:///data/Results-ko_01.txt` next to `→ Treatment` `ko` and `→ Cell` `01`. The table shows the value as it is in the column, also when `Part` separates only its file name. If a setting is not valid, for example a pattern, the example names the error. The dialog also warns about values that can't be separated as set.
 
 3. Click `OK`.
 

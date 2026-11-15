@@ -13,7 +13,7 @@ The `Directory/File to Source` tool adds the `Source` column (each row's file as
     - `Keep Directory and File` (checked by default): unchecked, the two columns are removed.
     - `Rename existing columns as` (default `{name} (before {tool})`), shown only if the table already has a `Source` column: that column is renamed, for example to `Source (before Add Source)` (`Add Source` is the tool's short name). The dialog warns about this.
 
-    Below the settings, the dialog shows what the tool makes of the first row, for example `/data/9SR + Results-a.txt → file:///data/9SR/Results-a.txt`.
+    Below the settings, the dialog shows what the tool makes of a few rows, in a small table: `Directory`, `File` and the new column `→ Source`, for example `file:///data/9SR/Results-a.txt`. Long values are shortened in the middle.
 
 3. Click `OK`.
 

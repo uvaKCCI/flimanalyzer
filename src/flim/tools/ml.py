@@ -460,6 +460,31 @@ class Categorizer(Tool[CategorizerConfig]):
     )
     icon = "categorize.png"
 
+    @classmethod
+    def example(
+        cls, config: CategorizerConfig, tables: Sequence[Any]
+    ) -> Union[str, pd.DataFrame, None]:
+        """Return a row for each category the rules give, with the features they use.
+
+        The whole first table is categorized; the first row of each category is
+        shown, at most `EXAMPLE_ROWS`. None without a table with rows or rules, or if
+        the settings don't apply to it.
+        """
+        from flim.core.tool import EXAMPLE_COLUMNS, EXAMPLE_ROWS, example_table, preview
+
+        table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
+        if table is None or table.empty or not config.rules:
+            return None
+        try:
+            result = preview(cls, config, table)["Categorized"]
+        except (ValueError, KeyError):
+            return None
+        used = list(dict.fromkeys(r.feature for r in config.rules if r.feature in table.columns))
+        rows = result.drop_duplicates(subset=[config.name]).head(EXAMPLE_ROWS)
+        return example_table(
+            table.loc[rows.index, used[:EXAMPLE_COLUMNS]], rows[[config.name]]
+        )
+
     def run(self, data: pd.DataFrame, *, config: CategorizerConfig) -> dict[str, Any]:
         """Add a category column whose values come from the first rule each row meets.
 

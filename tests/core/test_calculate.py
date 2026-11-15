@@ -156,7 +156,9 @@ def test_calculate_tool(data):
     )
     (table,) = Calculate()(data, config=config).values()
     assert "ratio" in table.columns and "trp" not in table.columns
-    assert Calculate.example(config, [data]) == "ratio = 2"
+    example = Calculate.example(config, [data])
+    assert list(example.columns) == ["FAD tm", "NAD(P)H tm", "\u2192 ratio"]
+    assert example["\u2192 ratio"].iloc[0] == 2
     (issue,) = Calculate.validate_data(config, [data])
     assert (issue.field, issue.severity) == ("calculations[1].expression", "warning")
     bad = CalculateConfig(calculations=[Expr(name="x", expression="1 +")])

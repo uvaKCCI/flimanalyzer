@@ -537,16 +537,17 @@ def test_dialog_shows_the_example_and_the_data_validation(dialog):
     from flim.configs import FuseCategoriesConfig
 
     d = dialog("Fuse Categories", FuseCategoriesConfig(grouping=["Treatment", "FOV"]))
-    assert d.example.IsShown()
-    assert d.example.GetLabel().startswith("Example: Treatment ")
-    assert "→ Treatment:FOV " in d.example.GetLabel()
+    assert d.example.IsShown() and d.example.table.IsShown()
+    header, first, *_ = d.example.rows()
+    assert header == ["Treatment", "FOV", "→ Treatment:FOV"]
+    assert first[2] == f"{first[0]}:{first[1]}"
     d.fields.editors["delimiter"].set("r")  # occurs in "Drug"
     issues = d.validate()
     assert any(i.field == "delimiter" and i.severity == "warning" for i in issues)
     assert d.ok_button.IsEnabled()  # a warning: the tool can still run
 
 
-def test_no_example_line_for_other_tools(dialog):
+def test_no_example_for_other_tools(dialog):
     assert not dialog("K-Means").example.IsShown()
 
 
@@ -693,3 +694,22 @@ def test_save_settings_updates_an_existing_app_settings_file_without_asking(dial
     monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(1) or wx.ID_YES)
     d._on_save_settings(None)
     assert asked == [] and "Summarize" in lab.read_text()
+
+
+def test_an_example_table_fits_a_small_screen(dialog, monkeypatch):
+    class SmallDisplay:
+        GetFromWindow = staticmethod(lambda window: 0)
+
+        def __init__(self, index=0):
+            pass
+
+        def GetClientArea(self):
+            return wx.Rect(0, 0, 1366, 718)
+
+    monkeypatch.setattr(wx, "Display", SmallDisplay)
+    from flim.configs import FuseCategoriesConfig
+
+    d = dialog("Fuse Categories", FuseCategoriesConfig(grouping=["Treatment", "FOV"]))
+    assert d.example.table.IsShown()
+    assert d.GetSize().height <= 718
+    assert d.ok_button.GetRect().GetBottom() <= d.GetClientSize().height

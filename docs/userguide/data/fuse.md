@@ -15,7 +15,7 @@ The `Fuse Categories` tool joins two or more category columns into one, for exam
     - `New column`: the new column's name. Empty: the column names joined by the delimiter, for example `FOV:Cell`.
     - `Keep the original columns` (checked by default): unchecked, the fused columns are removed.
 
-    Below the settings, the dialog shows an example from the first row, for example `Example: FOV 1, Cell 2 → FOV:Cell 1:2`.
+    Below the settings, the dialog shows an example in a small table: a few rows with different values, the columns to fuse, and the new column, marked `→`. For example, `FOV` `1` and `Cell` `2` next to `→ FOV:Cell` `1:2`.
 
 3. Click `OK`.
 

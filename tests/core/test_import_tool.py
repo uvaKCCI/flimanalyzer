@@ -184,6 +184,6 @@ def test_source_example_shortens_long_paths():
     long = "/data/" + "very long folder name/" * 5 + "9SR"
     table = pd.DataFrame({"Directory": [long], "File": ["Results-a.txt"]})
     example = SourceFromPath.example(SourceFromPathConfig(), [table])
-    directory, rest = example.split(" + ")
+    directory, file, source = example.iloc[0]
     assert len(directory) == 40 and directory.startswith("/data/") and directory.endswith("9SR")
-    assert "…" in directory and rest.startswith("Results-a.txt → file:///data/")
+    assert "…" in directory and file == "Results-a.txt" and source.startswith("file:///data/")
