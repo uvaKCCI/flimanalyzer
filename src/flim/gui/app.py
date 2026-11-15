@@ -1044,7 +1044,7 @@ class AppFrame(wx.Frame):
         Returns:
             The FlowRun, or None if the run did not start or did not end normally.
         """
-        from flim.core.workflowfile import check_steps, too_many_windows, window_counts
+        from flim.core.workflowfile import validate_steps, too_many_windows, window_counts
 
         workflow = importer.chosen_workflow(config)
         heads = self.read_files(
@@ -1055,7 +1055,7 @@ class AppFrame(wx.Frame):
         schemas = {name: TableSchema.from_frame(t) for name, t in heads.items()}
         name = workflow.name if workflow is not None else importer.name
         if workflow is not None:
-            errors = check_steps(workflow.definition, schemas)
+            errors = validate_steps(workflow.definition, schemas)
             if errors:
                 wx.MessageBox("\n".join(errors), name, wx.OK | wx.ICON_ERROR)
                 return None
@@ -1148,10 +1148,10 @@ class AppFrame(wx.Frame):
         Returns:
             The FlowRun, or None if the run did not start or did not end normally.
         """
-        from flim.core.workflowfile import check_steps, too_many_windows, window_counts
+        from flim.core.workflowfile import validate_steps, too_many_windows, window_counts
 
         schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
-        errors = check_steps(tool.definition, schemas)
+        errors = validate_steps(tool.definition, schemas)
         if errors:
             wx.MessageBox("\n".join(errors), tool.name, wx.OK | wx.ICON_ERROR)
             return None

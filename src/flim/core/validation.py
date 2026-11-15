@@ -433,3 +433,120 @@ class DefaultWorkflowValidator:
         if issues and share is not None:
             share()  # the guesses into the steps' bound fields
         return config, issues
+
+
+# --- workflow file steps: their `processing` applied before they run ---
+
+# the fields whose missing entries are removed before a tool runs (`processing.skippable`)
+REMOVED_ENTRIES = ("grouping", "features")
+_MISSING = re.compile(r"Column '(.*)' is not in the input")
+
+
+@dataclass
+class StepResolution:
+    """A step's settings with its `processing` applied to its inputs.
+
+    Attributes:
+        config: The config the step runs with: guesses replaced, skipped entries
+            removed.
+        guessed: The replaced columns, e.g. `features[0]: 'FAD a1' -> 'FAD a1%'`.
+        skipped: The removed entries, e.g. `features: 'FLIRR' (not in the input)`.
+        errors: The problems that stop the step.
+    """
+
+    config: TaskConfig
+    guessed: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+
+
+def _field_of(path: str) -> str:
+    """Return the top-level field of a path, e.g. `features` of `features[2]`."""
+    return re.split(r"[\[.]", path, maxsplit=1)[0]
+
+
+def resolve_step(
+    tool: type["Tool"], config: TaskConfig, inputs: Sequence[Any], rules: Any
+) -> StepResolution:
+    """Apply a workflow file step's `processing` to its settings for its inputs.
+
+    Per column that the settings name and the inputs lack: replaced by the closest
+    column of the same role if the field isn't strict and the tool guesses it
+    (`Tool.never_guessed`); else, in `grouping` or `features`, removed if the field
+    is skippable and the entry isn't required; else an error. A missing column in a
+    rule list the tool counts itself (e.g. Filter's `filters`) is left to the tool
+    if the field is skippable. After removals, `grouping` and `features` keep at
+    least the tool's minimum (`min_grouping`, `min_features`), and at least one
+    entry if skippable is `some`. Nothing is checked if an input is unknown.
+
+    Args:
+        tool: The tool class.
+        config: The step's config (not changed).
+        inputs: The schemas of the step's inputs (a dict of them for an input with
+            `many=True`); None for an unknown one.
+        rules: The step's merged `processing` (`ProcessingRules`).
+
+    Returns:
+        The resolution.
+    """
+    from flim.core.tool import _flat_schemas, is_listed
+
+    result = StepResolution(config)
+    schemas = _flat_schemas(inputs)
+    if not schemas or any(s is None or not s.complete for s in schemas):
+        return result
+    columns = {c.name: c.role for s in schemas for c in s.columns}
+    roles = {path: role for path, _, role in column_references(config)}
+    removed: dict[str, list[str]] = {}
+    for issue in tool.validate(config, inputs):
+        if issue.severity != "error":
+            continue
+        path = issue.field or ""
+        top = _field_of(path)
+        missing = _MISSING.match(issue.message)
+        if missing is None:
+            if not (top in REMOVED_ENTRIES and issue.message.startswith("Select at least")):
+                result.errors.append(f"{path}: {issue.message}" if path else issue.message)
+            continue  # minimums: checked after the removals
+        name = missing.group(1)
+        if not rules.is_strict(path) and top not in tool.never_guessed:
+            candidates = [c for c, r in columns.items() if r == roles.get(path)]
+            guess, _ = guess_column(name, candidates)
+            if guess is not None:
+                config = replace_at(config, path, guess)
+                result.guessed.append(f"{path}: '{name}' -> '{guess}'")
+                continue
+        mode = rules.skip(top)
+        direct = re.fullmatch(rf"{top}\[[^\]]+\]", path) is not None
+        if top in REMOVED_ENTRIES and direct and mode != "none":
+            if is_listed(name, rules.required.get(top, [])):
+                result.errors.append(f"{path}: Column '{name}' is not in the input (required)")
+            else:
+                removed.setdefault(top, []).append(name)
+            continue
+        if top in tool.skippable_fields and top not in REMOVED_ENTRIES and mode != "none":
+            continue  # the tool skips the entry (Tool.skip)
+        result.errors.append(f"{path}: {issue.message}")
+    for top, names in removed.items():
+        value = getattr(config, top)
+        if isinstance(value, dict):
+            kept: Any = {k: v for k, v in value.items() if k not in names}
+        else:
+            kept = [v for v in value if v not in names]
+        config = config.model_copy(update={top: kept})
+        result.skipped += [f"{top}: '{n}' (not in the input)" for n in names]
+    for top in REMOVED_ENTRIES:
+        value = getattr(config, top, None)
+        if value is None or value == "all":
+            continue
+        least = config.min_features if top == "features" else config.min_grouping
+        if rules.skip(top) == "some":
+            least = max(least, 1)
+        if len(value) < least:
+            present = ", ".join(map(str, value)) or "none"
+            result.errors.append(
+                f"{top}: {len(value)} entries apply ({present}); {tool.name} needs at"
+                f" least {least}"
+            )
+    result.config = config
+    return result

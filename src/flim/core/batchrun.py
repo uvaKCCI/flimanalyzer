@@ -156,7 +156,7 @@ def check_run(
         The errors, each with the tool and the table; empty if there are none.
     """
     from flim.core.workflow import Workflow
-    from flim.core.workflowfile import check_steps, save_issues
+    from flim.core.workflowfile import validate_steps, save_issues
 
     names = [
         f"the inputs '{a}' and '{b}' get the same folder name" for a, b in same_names(tables)
@@ -165,7 +165,7 @@ def check_run(
     definition = getattr(tool, "definition", None)
     if definition is not None:
         unsaved = [] if save_all else save_issues(definition)[1]
-        return names + unsaved + check_steps(definition, schemas)
+        return names + unsaved + validate_steps(definition, schemas)
     required = [spec for spec in tool.inputs if not spec.optional]
     if len(required) > 1 and not issubclass(tool, Workflow):
         return names + [f"{tool.name} needs {len(required)} input tables; use a workflow file"]

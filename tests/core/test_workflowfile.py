@@ -11,8 +11,10 @@ from flim.core.workflowfile import (
     check_workflow_file,
     find_workflow_file,
     parse_reference,
+    validate_steps,
     workflow_path,
 )
+from flim.core.schema import TableSchema
 
 
 def write(tmp_path, data, name="wf.json"):
@@ -675,3 +677,58 @@ def test_formats_of_kinds_the_tools_dont_make_are_errors(tmp_path):
     assert ("output.formats: a format of kind 'plot', which no step makes (the steps"
             " make: table)") in check.errors  # fmt: skip
     assert len(check.errors) == 2  # the workflow-level table format is fine
+
+
+# --- processing applied to grouping and features ---
+
+
+def _summarize(features, processing=None, grouping=("FOV",)):
+    """A workflow file of one Summarize step."""
+    step = {"id": "1", "tool": "Summarize", "config": {"grouping": list(grouping), "features": features, "aggs": ["mean"]}}
+    if processing:
+        step["processing"] = processing
+    return WorkflowDefinition.model_validate({"name": "summary", "steps": [step]})
+
+
+def _errors(definition):
+    schemas = {n: TableSchema.from_frame(t) for n, t in _tables().items()}
+    return validate_steps(definition, schemas)
+
+
+def test_a_missing_feature_is_an_error_by_default():
+    assert _errors(_summarize(["t1", "gone"])) == ["step 1 (Summarize): features[1]: Column 'gone' is not in the input"]
+
+
+def test_skippable_some_removes_missing_features_and_needs_one():
+    assert _errors(_summarize(["t1", "gone"], {"skippable": {"features": "some"}})) == []
+    errors = _errors(_summarize(["gone"], {"skippable": {"features": "some"}}))
+    assert errors == ["step 1 (Summarize): features: 0 entries apply (none); Summarize needs at least 1"]
+
+
+def test_a_required_feature_is_never_removed():
+    processing = {"skippable": {"features": "all"}, "required": {"features": ["gone"]}}
+    errors = _errors(_summarize(["t1", "gone"], processing))
+    assert errors == ["step 1 (Summarize): features[1]: Column 'gone' is not in the input (required)"]
+
+
+def test_the_minimum_of_the_tool_applies_after_skipping():
+    # Scatter Plot needs two features
+    definition = WorkflowDefinition.model_validate({"name": "s", "steps": [{
+        "id": "1", "tool": "Scatter Plot", "config": {"features": ["t1", "gone"]},
+        "processing": {"skippable": {"features": "all"}},
+    }]})  # fmt: skip
+    assert any("features: 1 entries apply (t1); Scatter Plot needs at least 2" in e for e in _errors(definition))
+
+
+def test_strict_false_guesses_a_missing_column():
+    assert _errors(_summarize(["T1"])) != []
+    assert _errors(_summarize(["T1"], {"strict": False})) == []
+    assert _errors(_summarize(["T1"], {"strict": {"grouping": False}})) != []  # features strict
+
+
+def test_a_run_skips_missing_features_and_reports_them(prefect_harness):
+    definition = _summarize(["t1", "gone"], {"skippable": {"features": "some"}}).model_dump()
+    run = _run(definition, {"a.txt": _tables()["a.txt"]})
+    assert run.state == "completed"
+    messages = " ".join(str(a.get("message") or "") for _, a in run.graph.nodes(data=True))
+    assert "skipped features: 'gone' (not in the input)" in messages

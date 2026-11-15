@@ -649,7 +649,7 @@ def part_configs(tool: Any, config: Any, schema: Any = None) -> list:
 def _step_schemas(definition: WorkflowDefinition, schemas: dict) -> dict:
     """Return each step's outputs' schemas, worked out from the run's tables.
 
-    As `check_steps` does, from the first table's schema; a mappable step's from its
+    As `validate_steps` does, from the first table's schema; a mappable step's from its
     first part's config (each part has the outputs of one part).
 
     Args:
@@ -753,7 +753,7 @@ def _file_workflow_base() -> type["Workflow"]:
     from flim.core.runner import Nth
     from flim.core.schema import TableSchema
     from flim.core.types import InputSpec, TableType
-    from flim.core.validation import ValidationReport
+    from flim.core.validation import ValidationReport, resolve_step
     from flim.core.workflow import Workflow, workflow_input
 
     class FileWorkflowConfig(WorkflowConfig):
@@ -836,11 +836,20 @@ def _file_workflow_base() -> type["Workflow"]:
                     )
                 mappable = _mappable(tool_class, step)
                 configs = [step_config]
+                notes: list[str] = []
                 if mappable:
                     first = references[0]
                     source, number = parse_reference(first)
                     known = schemas.get(source) or []
                     schema = known[number - 1] if number <= len(known) else None
+                    # missing entries guessed or removed before the parts are made
+                    resolution = resolve_step(
+                        tool_class, step_config, [schema], self.definition.rules(step)
+                    )
+                    if not resolution.errors:
+                        step_config = resolution.config
+                        notes = [f"{g} (guessed)" for g in resolution.guessed]
+                        notes += [f"skipped {e}" for e in resolution.skipped]
                     configs = part_configs(tool_class, step_config, schema)
 
                 def call(inputs: list[Any], config: Any, key: tuple) -> Any:
@@ -848,6 +857,7 @@ def _file_workflow_base() -> type["Workflow"]:
                     tool._save = _saved(step)
                     tool._formats = step.output.formats  # None: the workflow's (the run's)
                     tool._processing = self.definition.rules(step)
+                    tool._notes = notes  # applied before the run, reported by the run
                     # the results' folders: the step's, then its input and part
                     tags = [step_folder(step, width)] + [str(k) for k in key]
                     return tool(*inputs, config=config, task_tags=tags)
@@ -1025,12 +1035,13 @@ def _is_tool_file(path: Path) -> bool:
         return False
 
 
-def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
+def validate_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
     """Check a workflow's steps against the tables it would run on, without running it.
 
     Each step's settings are checked against the columns it gets, as far as they are
-    known (each step's outputs are worked out from its inputs, see
-    `Tool.output_schema`).
+    known, with the step's `processing` applied (`flim.core.validation.resolve_step`:
+    guesses and skipped entries are not errors); each step's outputs are worked out
+    from its inputs and resolved settings (see `Tool.output_schema`).
 
     Args:
         definition: The workflow.
@@ -1042,6 +1053,7 @@ def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
     """
     from flim.core.registry import tools
     from flim.core.schema import TableSchema
+    from flim.core.validation import resolve_step
 
     shapes, errors = _shapes(definition)
     first = next(iter(schemas.values()), None)
@@ -1059,10 +1071,9 @@ def check_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
             source = (step.inputs or [previous])[0]
             many = schemas if source == INPUT else {"Input": inputs[0]}
             inputs = [None if None in many.values() else many]
-        for issue in tool.validate(config, inputs):
-            if issue.severity == "error":
-                where = f"{issue.field}: " if issue.field else ""
-                errors.append(f"step {step.id} ({step.tool}): {where}{issue.message}")
+        resolution = resolve_step(tool, config, inputs, definition.rules(step))
+        errors += [f"step {step.id} ({step.tool}): {e}" for e in resolution.errors]
+        config = resolution.config
         try:
             specs = list(tool.output_schema(config, inputs).values())
         except Exception:  # the outputs can't be worked out: not checked further
@@ -1137,7 +1148,7 @@ def window_counts(definition: WorkflowDefinition, schemas: dict) -> dict:
     """Return how many result windows a run would open, by kind (table, plot, image).
 
     The windows are the leaf steps' outputs, once per table for steps that run per
-    table, and once per part below a mappable step (`Tool.mappable_output`). The outputs are worked out from the tables' schemas (see `check_steps`);
+    table, and once per part below a mappable step (`Tool.mappable_output`). The outputs are worked out from the tables' schemas (see `validate_steps`);
     an output whose kind is not known counts as a table.
 
     Args:

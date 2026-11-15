@@ -63,7 +63,7 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
   "tags": ["summaries"],
   "autosave": {"formats": [{"kind": "table", "format": "csv"}]},
   "steps": [
-    {"id": "1", "tool": "Calculate", "processing": "allow_partial", "config": { ... }},
+    {"id": "1", "tool": "Calculate", "processing": {"skippable": {"calculations": "some"}}, "config": { ... }},
     {"id": "2", "tool": "Concatenate", "config": {"add_input": false}},
     {"id": "3", "tool": "Summarize", "config": { ... }, "save": true}
   ]
@@ -84,11 +84,14 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
     * `config`: the tool's settings: the `config` part of the tool's section in a settings file's `tools` section, without `autosave` (see [Settings](/userguide/settings)); `{}` uses the tool's defaults.
     * `outputs` (optional): names for the step's outputs, by number, for example `{"1": "Table: Summary"}`. FLIMAnalyzer reads them but doesn't use them.
     * `save` (default `false`): `true` saves the step's outputs, or a list such as `["3.1"]` saves some of them. Only these are saved.
-    * `processing`: how much of its settings a step must apply to the data. `require_all` (the default): every part, or the step fails. `allow_partial`: what applies is done and the rest is skipped with a warning, but at least one part must apply. `allow_none`: the step may apply nothing, and the table passes on unchanged. Parts are, for example, Rename Columns' replacements, Drop Columns' rules, Calculate's calculations and Filter's filters. The run summary lists what each step skipped.
+    * `processing` (optional): how the step treats data that doesn't match its settings. A `processing` section at the top of the file applies to every step; a step's own fields take precedence, field by field.
+        * `strict`: `true` (the default): a column that the settings name and the data doesn't have is an error. `false`: it is replaced by the closest column of the same role, and the run summary lists the replacement. One value for all fields, or one value per field, for example `{"features": false}`.
+        * `skippable`: per field, which of its entries the step may skip if they don't apply to the data: `"none"` (the default): no entry, or the step fails. `"some"`: entries may be skipped if at least one applies. `"all"`: all entries may be skipped, and the table passes on unchanged. Only some fields have entries that can be skipped: `grouping` and `features`, Rename Columns' `replacements`, Drop Columns' `drop`, Calculate's `calculations` and Filter's `filters`. For example `{"calculations": "some"}`. The run summary lists what each step skipped.
+        * `required`: per field, the entries that must apply although the field is skippable, for example `{"calculations": [{"name": "FLIRR"}]}` (a calculation by its name) or `{"features": ["FLIRR"]}`. Each entry must be in the step's settings.
 
 A run starts from its tables, for example the tables read from the files, one per file. Each step runs once per table, in parallel, until a step that takes several tables, such as `Concatenate`, joins them into one; the steps after it run once. Without such a step, every table runs through all steps on its own. A step can't combine tables per file with a joined table; `Merge` gets two single tables.
 
-Before a run, the file is checked: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid. Columns that a step's settings name and the data doesn't have are always errors in workflow files; they are not replaced by the closest match.
+Before a run, the file is checked: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid. Columns that a step's settings name and the data doesn't have are errors, unless the step's `processing` allows guesses (`strict`) or skipped entries (`skippable`).
 
 **The built-in workflow file.** `Import` processes the tables as `File` > `Import...` did up to FLIMAnalyzer 0.6 with the default filename parser: it renames and drops the channels' columns, joins the tables and calculates the FLIM features. It is tagged `import`: `File` > `Import Tables...` lists it, and it is in `Workflow` > `Import`. To take categories from the file names in the same run, copy it from FLIMAnalyzer's folder `flim/workflow/files` into your workflows folder, give it another `name` and add a Separate Categories step with the patterns of a preset (see [Separate Categories](/userguide/data/separate.md#presets)).
 

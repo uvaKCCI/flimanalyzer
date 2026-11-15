@@ -368,7 +368,8 @@ class Tool(Generic[ConfigT]):
         resources. Tools that draw figures hold `pyplot_lock` while they run; result
         figures are then removed from pyplot's registry. Afterwards the parts of the
         settings that were skipped are checked against the step's `processing` (see
-        `check_processing`).
+        `check_processing`). In a workflow file step, the step's `processing` is
+        applied to the config first (`_resolve`).
 
         Args:
             inputs: The inputs, passed to `run` in this order.
@@ -381,8 +382,9 @@ class Tool(Generic[ConfigT]):
         Raises:
             TypeError: If `config` is not an instance of the tool's config class.
             ValueError: If the config selects fewer features or grouping columns than
-                the tool needs, or if the step's `processing` does not allow the
-                skipped parts.
+                the tool needs, if a column it names is missing and the step's
+                `processing` neither guesses nor skips it, or if the step's
+                `processing` does not allow the skipped entries.
         """
         config = self.config_class() if config is None else config
         if not isinstance(config, self.config_class):
@@ -390,12 +392,14 @@ class Tool(Generic[ConfigT]):
                 f"{self.name} needs a {self.config_class.__name__},"
                 f" not a {type(config).__name__}"
             )
-        check_requirements(self.name, config, inputs)
         self.context = RunContext.for_config(
             config,
             cancel_token=getattr(self, "_cancel_token", None),
             output_dir=getattr(self, "_output_dir", None),
         )
+        if getattr(self, "_processing", None) is not None:
+            config = self._resolve(config, inputs)
+        check_requirements(self.name, config, inputs)
         with pyplot_lock if self.draws_figures else contextlib.nullcontext():
             results = self.display_names(self.run(*inputs, config=config))
         self.check_processing()
@@ -403,6 +407,34 @@ class Tool(Generic[ConfigT]):
         if config.prefix:
             results = {f"{config.prefix}{k}": v for k, v in results.items()}
         return results
+
+    def _resolve(self, config: ConfigT, inputs: Sequence[Any]) -> ConfigT:
+        """Apply a workflow file step's `processing` to the config for the inputs.
+
+        See `flim.core.validation.resolve_step`. The guesses and the skipped
+        entries, also those applied before the run (`_notes`), are warnings of the
+        run.
+
+        Raises:
+            ValueError: If a column the config names is not in the inputs and the
+                step's `processing` neither guesses nor skips it, or if fewer
+                entries apply than the tool needs.
+        """
+        from flim.core.validation import resolve_step
+
+        def schema(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {k: schema(v) for k, v in value.items()}
+            return TableSchema.from_frame(value) if hasattr(value, "columns") else None
+
+        resolution = resolve_step(type(self), config, [schema(i) for i in inputs], self._processing)
+        if resolution.errors:
+            raise ValueError(f"{self.name}: " + "; ".join(resolution.errors))
+        for note in list(getattr(self, "_notes", ())) + [
+            f"{g} (guessed)" for g in resolution.guessed
+        ] + [f"skipped {s}" for s in resolution.skipped]:
+            self.warn(note)
+        return resolution.config
 
     def applied(self, count: int = 1) -> None:
         """Report parts of the settings that were applied to the data.
