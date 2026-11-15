@@ -317,7 +317,8 @@ def ignored_settings(
 
     A tool given to `--run` runs as a workflow of one step, `01`, with its settings
     from the settings file. flimbatch saves only under `-o` and always saves, so the
-    tool's `output.results_dir` and an `output.save` of false are not used. Workflow files have no such settings.
+    tool's `output.results_dir` and an `output.save` of false are not used. Workflow
+    files have no such settings.
 
     Args:
         runs: The tools and workflows of `--run`.
@@ -325,8 +326,8 @@ def ignored_settings(
         output: The folder of `-o`; None if not given (a dry run).
 
     Returns:
-        The messages, e.g. `step 01, tool 'Summarize': output.results_dir=summaries
-        superseded by -o /data/results`.
+        The messages, one per setting. For example
+        `step 01, tool 'Summarize': output.results_dir=summaries superseded by -o /data/results`.
     """
     target = f"-o {output}" if output else "-o"
     messages = []

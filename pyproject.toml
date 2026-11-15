@@ -92,7 +92,7 @@ docs = [
 flimanalyzer = "flim.analyzerapp:main"
 
 [project.scripts]
-# without the GUI: import and run tools or workflows (flim/batchcmd.py)
+# without the GUI: import and run tools or workflows (src/flim/batchcmd.py)
 flimbatch = "flim.batchcmd:main"
 
 [project.urls]
@@ -144,7 +144,7 @@ method = "minor-release"
 
 [tool.versioningit.write]
 method = { module = "write_version_info", value = "write_version_info"}
-path = "flim/_version.py"
+path = "src/flim/_version.py"
 
 [tool.versioningit.format]
 distance = "{next_version}.dev{distance}+{vcs}{rev}"
@@ -153,14 +153,14 @@ distance-dirty = "{next_version}.dev{distance}+{vcs}{rev}.d{build_date:%Y%m%d}"
 
 [tool.hatch.build]
 # _version.py is generated at build time and gitignored, so include it explicitly
-artifacts = ["flim/_version.py"]
+artifacts = ["src/flim/_version.py"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["flim"]
+packages = ["src/flim"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "/flim",
+    "/src",
     "/tests",
     "/README.md",
     "/LICENSE",

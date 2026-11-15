@@ -13,7 +13,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(".."))
+sys.path.insert(0, os.path.abspath("../src"))
 
 # The docs are built without installing flimanalyzer's heavy and GUI dependencies
 # (see the "docs" dependency group in pyproject.toml); autodoc imports these as mocks.
@@ -32,9 +32,9 @@ import sklearn  # noqa: E402,F401
 
 import types
 
-# flim/_version.py is written when flimanalyzer is installed; the docs import flim from
+# src/flim/_version.py is written when flimanalyzer is installed; the docs import flim from
 # the source tree (Read the Docs sets READTHEDOCS_VERSION, e.g. the tag)
-if not os.path.exists(os.path.join(os.path.dirname(__file__), "..", "flim", "_version.py")):
+if not os.path.exists(os.path.join(os.path.dirname(__file__), "..", "src", "flim", "_version.py")):
     _version = types.ModuleType("flim._version")
     _version.__version__ = os.environ.get("READTHEDOCS_VERSION", "dev")
     sys.modules["flim._version"] = _version
@@ -161,6 +161,6 @@ html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
 # the program icon, drawn by scripts/make_icons.py
-html_logo = "../flim/resources/flimanalyzer.png"
-html_favicon = "../flim/resources/flimanalyzer.ico"
+html_logo = "../src/flim/resources/flimanalyzer.png"
+html_favicon = "../src/flim/resources/flimanalyzer.ico"
 

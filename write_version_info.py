@@ -20,12 +20,12 @@ def write_version_info(
             including version, build_date, etc.
         params (dict[str, Any]): Parameters from pyproject configuration.
             Expected key: "path" – relative path to the target module file,
-            defaulting to "flim/_version.py".
+            defaulting to "src/flim/_version.py".
 
     Returns:
         None
     """
-    path = Path(project_dir) / params.get("path", "flim/_version.py")
+    path = Path(project_dir) / params.get("path", "src/flim/_version.py")
 
     try:
         git_hash = check_output(["git", "rev-parse", "HEAD"]).decode().strip()

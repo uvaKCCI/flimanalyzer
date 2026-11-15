@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-FLIM = Path(__file__).resolve().parent.parent / "flim"
+FLIM = Path(__file__).resolve().parent.parent / "src" / "flim"
 SOURCES = sorted(p for p in FLIM.rglob("*.py") if "__pycache__" not in p.parts)
 
 

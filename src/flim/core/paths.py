@@ -63,8 +63,8 @@ def path_name(name: object, replacements: Optional[Mapping[str, str]] = None) ->
             (`set_char_replacements`).
 
     Returns:
-        The name, e.g. `Summary_NAD_P_H_a2_pcent` for `Summary: NAD(P)H a2[%]`; `_`
-        if nothing is left.
+        The name, or `_` if nothing is left. For example
+        `Summary_NAD_P_H_a2_pcent` for `Summary: NAD(P)H a2[%]`.
     """
     text = str(name)
     for old, new in (_replacements if replacements is None else replacements).items():

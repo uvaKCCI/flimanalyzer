@@ -1,4 +1,4 @@
-"""Draws the tool icons in flim/resources.
+"""Draws the tool icons in src/flim/resources.
 
 All icons share one flat style: 32x32 RGBA on a transparent background, and 64x64
 as `name@2x.png` for high-resolution screens, drawn at 8x and downsampled, with the same axes, line weights and colour palette.
@@ -8,7 +8,7 @@ green and magenta, never red and green; blue is used for single data series and
 processing steps, gray for a third group. There is no red or orange.
 
 Usage:
-    uv run python scripts/make_icons.py [outdir]   # default: flim/resources
+    uv run python scripts/make_icons.py [outdir]   # default: src/flim/resources
 """
 
 import math
@@ -1009,4 +1009,4 @@ def main(outdir):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "flim" / "resources")
+    main(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "src" / "flim" / "resources")

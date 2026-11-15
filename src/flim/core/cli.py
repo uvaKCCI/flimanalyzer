@@ -143,7 +143,7 @@ def add_settings_options(
     parser.add_argument(
         "--server-timeout", type=float, metavar="SECONDS",
         help="how long to wait for Prefect server responses (and Dask cluster\n"
-        "responses, if used; default: 60)",
+        "responses, if used)",
     )  # fmt: skip
     parser.add_argument("--log-dir", metavar="DIR", help="folder of the log files")
     parser.add_argument("--cache-dir", metavar="DIR", help="cache folder")

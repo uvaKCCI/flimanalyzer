@@ -870,9 +870,10 @@ def tool_file_settings(data: dict) -> dict:
         data: The data read from a file.
 
     Returns:
-        For a tool file, `{"schema_version": ..., "tools": {<tool>: {...}}}` with the
-        file's other keys (`config`, `output`, and any others, which are then
-        reported as unknown) in the section; any other data unchanged.
+        For a tool file, settings data with the tool's section, as
+        `{"schema_version": ..., "tools": {<tool>: {...}}}`, with the file's other
+        keys (`config`, `output`, and any others, which are then reported as
+        unknown) in the section; any other data unchanged.
     """
     if not is_tool_file(data):
         return data

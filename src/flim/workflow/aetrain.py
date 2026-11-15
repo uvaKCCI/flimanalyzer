@@ -28,6 +28,7 @@ class AETrain(Workflow[AETrainWorkflowConfig]):
         """Call the workflow's steps on the table.
 
         The steps are:
+
         - Autoencoder Train Model, once per combination of batch size, learning rate
           and weight decay (`map_configs`); each call is tagged with its combination
           (`output_prefix`, e.g. `32-0.001-0.0`), which names its results folder.
