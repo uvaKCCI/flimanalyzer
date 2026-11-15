@@ -1,22 +1,22 @@
-"""The flimsettings command: lists, shows and checks settings without the GUI.
+"""The flimsettings command: lists, shows and validates settings without the GUI.
 
 `flimsettings OBJECT ACTION`, one action per call:
 
 - `tool`: `--list` (tools by name, and tool files in the workflow search path),
-  `--show FILE` (prints a tool file), `--check FILE` (checks a tool file).
+  `--show FILE` (prints a tool file), `--validate FILE` (validates a tool file).
 - `workflow`: `--list` (workflows defined in code, and workflow files),
-  `--show FILE` (prints a workflow file), `--check FILE` (checks a workflow file).
+  `--show FILE` (prints a workflow file), `--validate FILE` (validates a workflow file).
 
 A FILE is a path, or a file name in the workflow search path; a file of another kind
 is an error. `--show` only reads.
 - `app`: `--list` (the app settings files in the search path), `--show` (the app
-  settings as flimbatch uses them, and where each value comes from), `--check FILE`
+  settings as flimbatch uses them, and where each value comes from), `--validate FILE`
   (an app settings file).
 - `user`: `--show` (the user settings file).
 - `env`: `--list` (the `FLIM_*` variables FLIMAnalyzer reads), `--show` (those that
   are set, with unknown names and invalid values).
 
-The output goes to standard output, and problems go to standard error. The exit code is 1 if a check finds a problem, 2 for
+The output goes to standard output, and problems go to standard error. The exit code is 1 if a validation finds a problem, 2 for
 invalid arguments, 0 otherwise. Only `FLIM_*` variables are shown, never others
 (e.g. Prefect's). wxPython is not imported.
 """
@@ -99,7 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog=PROG,
-        description="Lists, shows and checks FLIMAnalyzer settings: of tools, workflows,"
+        description="Lists, shows and validates FLIMAnalyzer settings: of tools, workflows,"
         " the app, the user and the environment.",
     )
     objects = parser.add_subparsers(dest="object", required=True, metavar="OBJECT")
@@ -112,7 +112,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub, actions = add("tool", "tools and tool files")
     actions.add_argument("--list", action="store_true", help="tools by name, and tool files")
     actions.add_argument("--show", metavar="FILE", help=f"print a tool file: {file_help}")
-    actions.add_argument("--check", metavar="FILE", help=f"check a tool file: {file_help}")
+    actions.add_argument("--validate", metavar="FILE", help=f"validate a tool file: {file_help}")
     _add_workflow_path(sub)
 
     sub, actions = add("workflow", "workflows and workflow files")
@@ -120,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--list", action="store_true", help="workflows defined in code, and workflow files"
     )
     actions.add_argument("--show", metavar="FILE", help=f"print a workflow file: {file_help}")
-    actions.add_argument("--check", metavar="FILE", help=f"check a workflow file: {file_help}")
+    actions.add_argument("--validate", metavar="FILE", help=f"validate a workflow file: {file_help}")
     _add_workflow_path(sub)
 
     sub, actions = add("app", "app settings")
@@ -131,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--show", action="store_true",
         help="the app settings as flimbatch uses them, and where each value comes from",
     )  # fmt: skip
-    actions.add_argument("--check", metavar="FILE", help="check an app settings file")
+    actions.add_argument("--validate", metavar="FILE", help="validate an app settings file")
     _add_settings_file(sub)
 
     sub, actions = add("user", "the user settings file (settings changed in the GUI)")
@@ -171,14 +171,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         argv: The arguments; defaults to `sys.argv[1:]`.
 
     Returns:
-        The exit code: 1 if a check found a problem or the action cannot be done, 0
+        The exit code: 1 if a validation found a problem or the action cannot be done, 0
         otherwise.
 
     Raises:
         SystemExit: If the arguments are invalid (exit code 2, from `argparse`).
     """
     args = build_parser().parse_args(argv)
-    args.action = next(a for a in ("list", "show", "check") if getattr(args, a, None))
+    args.action = next(a for a in ("list", "show", "validate") if getattr(args, a, None))
     handler = globals()[f"_{args.object}_{args.action}"]
     try:
         return handler(args)
@@ -258,7 +258,7 @@ def _workflow_list(args: argparse.Namespace) -> int:
 
 
 def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
-    """Return a tool or workflow file given to `--show` or `--check`, and its data.
+    """Return a tool or workflow file given to `--show` or `--validate`, and its data.
 
     Args:
         name: A path, or a file name (with or without `.json`) in the workflow search
@@ -342,7 +342,7 @@ def _workflow_show(args: argparse.Namespace) -> int:
 
 
 def _report(name: str, errors: Sequence[str], warnings: Sequence[str], ok: str) -> int:
-    """Print a check's warnings and errors, or `ok`; return the exit code."""
+    """Print a validation's warnings and errors, or `ok`; return the exit code."""
     for message in warnings:
         _warn(message)
     if errors:
@@ -352,20 +352,20 @@ def _report(name: str, errors: Sequence[str], warnings: Sequence[str], ok: str) 
     return 0
 
 
-def _tool_check(args: argparse.Namespace) -> int:
-    """Check a tool file as flimbatch checks it before a run."""
+def _tool_validate(args: argparse.Namespace) -> int:
+    """Validate a tool file as flimbatch validates it before a run."""
     from flim.core.workflowfile import check_workflow_file
 
-    path, data = _file(args.check, args, "tool")
+    path, data = _file(args.validate, args, "tool")
     check = check_workflow_file(path, tool_files=True)
     return _report(str(path), check.errors, check.warnings, f"{path}: a valid tool file of {data['tool']}")
 
 
-def _workflow_check(args: argparse.Namespace) -> int:
-    """Check a workflow file as flimbatch checks it before a run (also `save_issues`)."""
+def _workflow_validate(args: argparse.Namespace) -> int:
+    """Validate a workflow file as flimbatch validates it before a run (also `save_issues`)."""
     from flim.core.workflowfile import check_workflow_file, save_issues
 
-    path, _ = _file(args.check, args, "workflow")
+    path, _ = _file(args.validate, args, "workflow")
     check = check_workflow_file(path)
     warnings, errors = list(check.warnings), list(check.errors)
     if check.definition is not None:
@@ -414,21 +414,21 @@ def _app_show(args: argparse.Namespace) -> int:
     return 0
 
 
-def _app_check(args: argparse.Namespace) -> int:
-    """Check an app settings file, as the GUI and flimbatch read it."""
+def _app_validate(args: argparse.Namespace) -> int:
+    """Validate an app settings file, as the GUI and flimbatch read it."""
     import flim.tools  # noqa: F401  (registers the tools: their settings are checked)
     import flim.workflow  # noqa: F401
-    from flim.core.settings import check_settings_file
+    from flim.core.settings import check_app_settings
 
     discover(TOOLS_GROUP)
-    check = check_settings_file(args.check)
+    check = check_app_settings(args.validate)
     print(check.summary())
     if check.error or check.invalid:
-        print(f"{PROG}: {args.check}: cannot be used", file=sys.stderr)
+        print(f"{PROG}: {args.validate}: cannot be used", file=sys.stderr)
         return 1
     if check.unknown or check.not_checked:
         print(
-            f"{PROG}: {args.check}: the GUI uses it without the settings listed;"
+            f"{PROG}: {args.validate}: the GUI uses it without the settings listed;"
             " flimbatch refuses it (all settings must be usable and checked)",
             file=sys.stderr,
         )

@@ -1250,6 +1250,40 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
     return check
 
 
+def check_app_settings(path: str | os.PathLike) -> SettingsCheck:
+    """Check an app settings file, as `check_settings_file`; refuse tool and workflow files.
+
+    A tool file or a workflow file holds the settings of a run, not app settings: it
+    is given to `--run` (flimbatch) or loaded in a tool's dialog (GUI).
+
+    Args:
+        path: The file.
+
+    Returns:
+        The result; for a tool or workflow file, with `error` saying what it is.
+    """
+    check = check_settings_file(path)
+    if check.error is not None:
+        return check
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError) as err:
+        check.error = str(err)
+        return check
+    if is_tool_file(data):
+        check.error = (
+            f"a tool file (the settings of {data['tool']}), not an app settings file;"
+            " flimbatch runs it with --run, the GUI loads it in the tool's dialog"
+        )
+    elif "steps" in data:
+        check.error = "a workflow file, not an app settings file; flimbatch runs it with --run"
+    else:
+        return check
+    check.sections = {}
+    return check
+
+
 def save_sections(sections: dict, path: str | os.PathLike) -> None:
     """Write settings sections, in the current version, to a file.
 

@@ -27,6 +27,7 @@ from flim.core.settings import (
     USER_FILE_ONLY,
     AppSettings,
     SettingsCheck,
+    check_app_settings,
     check_settings_file,
     known_data,
     merge_sections,
@@ -734,7 +735,7 @@ def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[
     if not default.is_file():
         reason = "it does not exist"
     else:
-        error = check_settings_file(default).error
+        error = check_app_settings(default).error
         if error is None:
             return default, None
         reason = error
@@ -806,7 +807,7 @@ def session_settings(
         elif warning:
             manager.notices.append(warning)
     if settings_file:
-        check = check_settings_file(find_app_settings(settings_file, search_path))
+        check = check_app_settings(find_app_settings(settings_file, search_path))
         if choose and check.problems:
             chosen = choose(check)
         else:

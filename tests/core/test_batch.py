@@ -595,3 +595,28 @@ def test_the_old_module_still_works_with_a_deprecation_warning():
     from flim.core.batchrun import resolve_run
 
     assert old.main is new_main and old.resolve_run is resolve_run
+
+
+def test_a_tool_or_workflow_file_given_to_s_is_refused(data_dir, workflow_folder, tmp_path, capsys):
+    tool_file = tmp_path / "boxplot.json"
+    tool_file.write_text(json.dumps({"schema_version": 2, "tool": "Box Plot", "config": {}}))
+    assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(tool_file), "--run", "Summarize"]) == 1
+    err = capsys.readouterr().err
+    assert (f"{tool_file} cannot be used: a tool file (the settings of Box Plot), not an app"
+            " settings file; flimbatch runs it with --run") in err  # fmt: skip
+    workflow = workflow_folder / "per-treatment.json"
+    assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(workflow), "--run", "Summarize"]) == 1
+    assert "a workflow file, not an app settings file" in capsys.readouterr().err
+
+
+def test_run_by_name_with_settings_from_s(data_dir, settings, tmp_path, capsys):
+    """Deprecated: the tool's section is used with a warning; without one, an error."""
+    empty = _settings_file(settings, tmp_path)
+    assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(empty), "--run", "Summarize"]) == 1
+    assert (f"--run Summarize: the app settings file {empty} has no settings of Summarize;"
+            " give the tool's settings as a tool file") in capsys.readouterr().err  # fmt: skip
+    settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["FLIRR"], aggs=["mean"]))
+    path = _settings_file(settings, tmp_path)
+    assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "--run", "Summarize"]) == 0
+    assert (f"--run Summarize: taking the tool's settings from the app settings file {path}"
+            " is deprecated and is removed in 0.8.0") in capsys.readouterr().err  # fmt: skip

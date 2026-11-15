@@ -310,6 +310,50 @@ def tool_workflow(tool: type["Tool"], settings: AppSettings) -> type["Tool"]:
     return workflow_class(definition)
 
 
+def settings_file_issues(
+    runs: Sequence[type["Tool"]], settings: AppSettings, source: Optional[str | os.PathLike]
+) -> tuple[list[str], list[str]]:
+    """Return the problems of tools run by name that take their settings from `-s`.
+
+    A tool or a workflow defined in code given to `--run` by name takes its settings
+    from the app settings file's `tools` section. That is deprecated (removed in
+    0.8.0): a tool file states the tool and its settings together. A file without a
+    section for the tool is an error, since the run would otherwise take the tool's
+    defaults without saying so. Workflow and tool files given to `--run` carry their
+    own settings and are not affected; without an app settings file, a tool takes
+    its defaults.
+
+    Args:
+        runs: The tools and workflows of `--run`.
+        settings: The session's settings.
+        source: The app settings file (`-s`); None if none is given.
+
+    Returns:
+        The warnings (a section is used, deprecated) and the errors (no section).
+    """
+    warnings, errors = [], []
+    if source is None:
+        return warnings, errors
+    advice = (
+        "give the tool's settings as a tool file (the GUI writes one with Save Settings"
+        " in the tool's dialog)"
+    )
+    for tool in runs:
+        if getattr(tool, "definition", None) is not None:  # a workflow or tool file
+            continue
+        if settings.tools.entry(tool) is None:
+            errors.append(
+                f"--run {tool.name}: the app settings file {source} has no settings of"
+                f" {tool.name}; {advice}"
+            )
+        else:
+            warnings.append(
+                f"--run {tool.name}: taking the tool's settings from the app settings file"
+                f" {source} is deprecated and is removed in 0.8.0; {advice}"
+            )
+    return warnings, errors
+
+
 def ignored_settings(
     runs: Sequence[type["Tool"]], settings: AppSettings, output: Optional[str | os.PathLike]
 ) -> list[str]:

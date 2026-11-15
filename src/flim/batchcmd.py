@@ -47,6 +47,7 @@ from flim.core.batchrun import (
     read_settings,
     resolve_run,
     run_on_tables,
+    settings_file_issues,
 )
 from flim.core.cli import (
     DRY_RUN_VAR,
@@ -223,6 +224,11 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         for message in register_workflow_files(search_path):
             print(f"flimbatch: warning: {message}", file=sys.stderr)
         runs = [resolve_run(n, search_path, warn=_warn) for n in args.run]
+        warnings, errors = settings_file_issues(runs, settings, manager.source)
+        for message in warnings:
+            _warn(message)
+        if errors:
+            raise BatchError("\n".join(errors))
         output = canonical_folder(args.output) if args.output else None
         for message in ignored_settings(runs, settings, output):
             _warn(message)

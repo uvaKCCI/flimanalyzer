@@ -397,3 +397,19 @@ def test_export_leaves_out_unknown_keys_and_migration_drops_development_keys(tmp
     exported = json.loads(path.read_text())
     assert "newer_setting" not in exported and "newer_switch" not in exported["filters"]
     assert exported["filters"]["use"] is True
+
+
+def test_check_app_settings_refuses_tool_and_workflow_files(tmp_path):
+    from flim.core.settings import check_app_settings
+
+    tool_file = tmp_path / "tool.json"
+    tool_file.write_text(json.dumps({"schema_version": 2, "tool": "Summarize", "config": {}}))
+    check = check_app_settings(tool_file)
+    assert check.error.startswith("a tool file (the settings of Summarize), not an app settings")
+    assert check.sections == {}
+    workflow = tmp_path / "workflow.json"
+    workflow.write_text(json.dumps({"name": "w", "steps": [{"id": "1", "tool": "Sort"}]}))
+    assert check_app_settings(workflow).error.startswith("a workflow file, not an app settings")
+    app = tmp_path / "app.json"
+    app.write_text(json.dumps({"schema_version": 2, "strict": True}))
+    assert check_app_settings(app).error is None

@@ -110,7 +110,7 @@ def test_show_refuses_a_file_of_another_kind_and_names_the_command(folder, tmp_p
     assert f"{app}: an app settings file, not a workflow file (flimsettings app --show -s {app})" in err
     columns = tmp_path / "columns.json"
     columns.write_text(json.dumps({"FLIRR": 1}))
-    code, _, err = run(capsys, "tool", "--check", str(columns))
+    code, _, err = run(capsys, "tool", "--validate", str(columns))
     assert code == 1 and f"{columns}: not a tool file\n" in err
 
 
@@ -120,23 +120,23 @@ def test_a_missing_file_names_the_kind_and_where_it_was_searched(folder, capsys)
     assert "No tool file 'nothere' at this path, in the workflow search path or built in" in err
 
 
-def test_tool_check(folder, capsys):
-    code, out, err = run(capsys, "tool", "--check", str(folder / "summarize.json"))
+def test_tool_validate(folder, capsys):
+    code, out, err = run(capsys, "tool", "--validate", str(folder / "summarize.json"))
     assert code == 0 and "a valid tool file of Summarize" in out
     assert "output.save=false applies in the GUI only" in err
     bad = folder / "bad.json"
     bad.write_text(json.dumps({**TOOL_FILE, "config": {"aggs": ["nonsense"]}}))
-    code, out, err = run(capsys, "tool", "--check", str(bad))
+    code, out, err = run(capsys, "tool", "--validate", str(bad))
     assert code == 1 and not out and "aggs" in err
 
 
-def test_workflow_check_includes_the_save_rules(folder, capsys):
-    code, out, _ = run(capsys, "workflow", "--check", str(folder / "per-treatment.json"))
+def test_workflow_validate_includes_the_save_rules(folder, capsys):
+    code, out, _ = run(capsys, "workflow", "--validate", str(folder / "per-treatment.json"))
     assert code == 0 and "a valid workflow file (per treatment)" in out
     unsaved = folder / "unsaved.json"
     steps = [{**s, "output": {"save": False}} for s in WORKFLOW["steps"]]
     unsaved.write_text(json.dumps({**WORKFLOW, "steps": steps}))
-    code, out, err = run(capsys, "workflow", "--check", str(unsaved))
+    code, out, err = run(capsys, "workflow", "--validate", str(unsaved))
     assert code == 1 and not out and "no step saves its outputs" in err
 
 
@@ -159,14 +159,14 @@ def test_app_show_names_where_each_value_comes_from(clean_env, monkeypatch, caps
     assert "  Executor: local" in out
 
 
-def test_app_check(tmp_path, capsys):
+def test_app_validate(tmp_path, capsys):
     good = tmp_path / "good.json"
     save_settings(AppSettings.default(), good)
-    code, out, _ = run(capsys, "app", "--check", str(good))
+    code, out, _ = run(capsys, "app", "--validate", str(good))
     assert code == 0 and "schema version" in out
     unknown = tmp_path / "unknown.json"
     unknown.write_text(json.dumps({"schema_version": 2, "colour": "red"}))
-    code, out, err = run(capsys, "app", "--check", str(unknown))
+    code, out, err = run(capsys, "app", "--validate", str(unknown))
     assert code == 1 and "colour" in out and "flimbatch refuses it" in err
 
 
@@ -218,7 +218,7 @@ def test_env_show_reports_unknown_names_and_invalid_values(clean_env, monkeypatc
     "argv",
     [
         ["tool"],  # no action
-        ["tool", "--list", "--check", "x.json"],  # two actions
+        ["tool", "--list", "--validate", "x.json"],  # two actions
         ["tool", "--show", "x.json", "-s", "lab.json"],  # -s belongs to app --show
         ["user", "--list"],
         ["nothing", "--list"],
