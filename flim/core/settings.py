@@ -353,8 +353,8 @@ class AppSettings(_Settings):
         default=60.0,
         gt=0,
         title="Server timeout",
-        description="Seconds to wait for the Prefect server, also for one started for"
-        " the runs, and for a Dask cluster to answer. Below 60, a local Prefect server"
+        description="Seconds to wait for Prefect server responses (and Dask cluster"
+        " responses, if used). Below 60, a local Prefect server"
         " that is started may not be ready in time.",
     )
     log: LogSettings = Field(
