@@ -208,7 +208,7 @@ class ExecutionOptions(BaseConfig):
 
         if isinstance(settings, DaskClusterExecutorSettings):
             kwargs = dict(settings.kwargs)
-            # how long the client waits for the cluster; a client_kwargs timeout wins
+            # how long the client waits for the cluster; a timeout in client_kwargs takes precedence
             client_kwargs = {"timeout": self.server_timeout, **kwargs.pop("client_kwargs", {})}
             return DaskTaskRunner(address=settings.address, client_kwargs=client_kwargs, **kwargs)
         return DaskTaskRunner(cluster_kwargs=self._cluster_kwargs())

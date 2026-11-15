@@ -27,7 +27,6 @@ import argparse
 import datetime
 import logging
 import os
-from pathlib import Path
 import sys
 from typing import TYPE_CHECKING, Optional, Sequence
 
@@ -38,7 +37,7 @@ from flim.core.paths import (
     set_char_replacements,
     unique_run_folder,
 )
-from flim.core.registry import TOOLS_GROUP, discover, tools
+from flim.core.registry import TOOLS_GROUP, discover
 from flim.core import logs
 from flim.core.batchrun import (
     BatchError,
@@ -50,6 +49,8 @@ from flim.core.batchrun import (
     run_on_tables,
 )
 from flim.core.cli import (
+    DRY_RUN_VAR,
+    SAVE_ALL_VAR,
     add_file_options,
     add_log_option,
     add_settings_options,
@@ -70,8 +71,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DRY_RUN_ROWS = 20  # rows read of each file for --dry-run (column names and types)
-DRY_RUN_VAR = "FLIM_DRY_RUN"  # true: a dry run, as --dry-run
-SAVE_ALL_VAR = "FLIM_SAVE_ALL"  # true: every step saves, as --save-all
 CALL_LOG = "flimbatch.log"  # a call's log, in its results folder
 
 
@@ -88,14 +87,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Reads FLIM data files and runs tools or workflows on them.",
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    add_file_options(parser)  # -i is required unless --list (checked in main)
+    add_file_options(parser, input_required=True)
     add_settings_options(parser)
-    parser.add_argument(
-        "--list",
-        action="store_true",
-        help="list what --run takes: tools and workflows by name, and the workflow\n"
-        "and tool files in the workflow search path (see -w); then exit",
-    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -145,10 +138,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.list:
-        return _list(args)
-    if not args.input:
-        parser.error("the following arguments are required: -i/--input")
     if not args.run:
         parser.error(
             "give --run NAME (e.g. --run Import to join the files"
@@ -292,63 +281,6 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
     if failed:
         print("flimbatch: failed tasks\n" + "\n".join(failed), file=sys.stderr)
         return 1
-    return 0
-
-
-def run_names(search_path: Sequence[Path]) -> list[str]:
-    """Return the lines of `--list`: what `--run` takes, by kind.
-
-    Tools by category, workflows defined in code, and the tools and workflows in no
-    menu (`category` empty), by name; workflow files by the name in them, with their
-    file; tool files in the search path by file name (they
-    are run by path or file name). The tools and workflows of other installed
-    packages are included; workflow files must be registered before.
-
-    Args:
-        search_path: The folders searched for workflow files.
-
-    Returns:
-        The lines, with a heading per kind.
-    """
-    from flim.core.workflow import Workflow
-    from flim.core.workflowfile import BUILT_IN, _is_tool_file, workflow_files
-
-    lines = ["Tools and workflows that --run takes by name (quote names with spaces):"]
-    code, files = [], []
-    for category, group in tools.by_category().items():
-        names = []
-        for cls in group:
-            if getattr(cls, "definition", None) is not None:
-                where = "built-in" if Path(cls.path).parent == BUILT_IN else str(cls.path)
-                files.append(f"  {cls.name}  ({where})")
-            elif issubclass(cls, Workflow):
-                code.append(f"  {cls.name}")
-            else:
-                names.append(cls.name)
-        if names:
-            lines.append(f"  {category}: {', '.join(names)}")
-    lines += ["", "Workflows:"] + (sorted(code) or ["  none"])
-    hidden = [f"  {cls.name}" for cls in tools.hidden()]
-    lines += ["", "Not in the menus (by name or as a workflow step):"] + (hidden or ["  none"])
-    lines += ["", "Workflow files (by name, or by path or file name):"] + (files or ["  none"])
-    tool_files = [p for p in workflow_files(search_path) if _is_tool_file(p)]
-    lines += ["", "Tool files (by path or file name):"]
-    lines += [f"  {p.name}  ({p.parent})" for p in tool_files] or ["  none"]
-    lines += ["", "Workflow search path:"] + [f"  {f}" for f in search_path]
-    return lines
-
-
-def _list(args: argparse.Namespace) -> int:
-    """Print what `--run` takes (`run_names`) and return exit code 0."""
-    import flim.tools  # noqa: F401  (registers the tools)
-    import flim.workflow  # noqa: F401  (registers the workflows)
-    from flim.core.workflowfile import register_workflow_files, workflow_path
-
-    discover(TOOLS_GROUP)  # the tools of other installed packages
-    search_path = workflow_path(folders=args.workflow_path)
-    for message in register_workflow_files(search_path):
-        _warn(message)
-    print("\n".join(run_names(search_path)))
     return 0
 
 

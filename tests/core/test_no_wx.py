@@ -13,6 +13,7 @@ CORE_MODULES = [
     "flim.core.tool",
     "flim.tools",
     "flim.batchcmd",
+    "flim.settingscmd",
 ]
 # every module of these packages (not subpackages)
 CORE_PACKAGES = [

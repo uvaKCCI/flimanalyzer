@@ -191,7 +191,7 @@ def test_log_level_defaults_to_info(monkeypatch):
 def test_log_level_from_the_environment(monkeypatch):
     monkeypatch.setenv("FLIM_LOG_LEVEL", "Warning")
     assert log_level(parse_files()) == "WARNING"
-    assert log_level(parse_files("-l", "debug")) == "DEBUG"  # the option wins
+    assert log_level(parse_files("-l", "debug")) == "DEBUG"  # the option takes precedence over the variable
     monkeypatch.setenv("FLIM_LOG_LEVEL", "loud")
     with pytest.raises(ValueError, match="FLIM_LOG_LEVEL=loud; use one of debug"):
         log_level(parse_files())

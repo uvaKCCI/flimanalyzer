@@ -271,7 +271,7 @@ def test_find_app_settings(monkeypatch, tmp_path):
     here = tmp_path / "here.json"
     here.write_text("{}")
     path = [lab, mine]
-    assert find_app_settings(here, path) == here  # a path as given wins
+    assert find_app_settings(here, path) == here  # a path as given takes precedence
     assert find_app_settings("flirr", path) == lab / "flirr.json"  # .json added
     assert find_app_settings("flirr.json", path) == lab / "flirr.json"
     with pytest.raises(ValueError, match="ambiguous") as err:
@@ -376,7 +376,7 @@ def test_adding_has_no_effect_with_the_environment_variable(tmp_path, monkeypatc
 
 
 def test_favorites_of_the_user_settings_file_win(tmp_path, monkeypatch):
-    """An app settings file presets the favorites; the user's own choice wins."""
+    """An app settings file presets the favorites; the user's own choice takes precedence."""
     folder = tmp_path / "appsettings"
     folder.mkdir()
     course = AppSettings.default()

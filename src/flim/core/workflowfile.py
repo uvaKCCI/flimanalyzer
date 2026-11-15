@@ -281,6 +281,22 @@ def check_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) ->
     return check
 
 
+def tool_save_warning(tool: str) -> str:
+    """Return the warning for a tool run by flimbatch whose settings have `save: false`.
+
+    Args:
+        tool: The tool's name.
+
+    Returns:
+        The warning, e.g. `step 01, tool 'Summarize': output.save=false applies in the
+        GUI only; flimbatch always saves the results of a tool run`.
+    """
+    return (
+        f"step 01, tool '{tool}': output.save=false applies in the GUI only; flimbatch"
+        " always saves the results of a tool run"
+    )
+
+
 def tool_file_workflow(data: dict, check: WorkflowCheck) -> dict:
     """Return a tool file's data as a workflow file of one step, `1`.
 
@@ -297,10 +313,7 @@ def tool_file_workflow(data: dict, check: WorkflowCheck) -> dict:
     tool = str(data["tool"])
     output = dict(data.get("output") or {})
     if output.get("save") is False:
-        check.warnings.append(
-            f"step 01, tool '{tool}': output.save=false ignored: saving is always on;"
-            " the step's save decides"
-        )
+        check.warnings.append(tool_save_warning(tool))
     output["save"] = True
     return {
         "schema_version": WORKFLOW_SCHEMA_VERSION,
@@ -943,19 +956,28 @@ def save_issues(definition: WorkflowDefinition) -> tuple[list[str], list[str]]:
         them (its work reaches no one); and the errors: none of the steps saves
         anything (the run would leave only its summary).
     """
+    width = id_width(definition)
     warnings = [
-        f"step {step.id}, tool '{step.tool}': output.save=false and no later step uses"
-        " its outputs: its results are not kept"
+        f"step {int(step.id):0{width}d}, tool '{step.tool}': {_save_setting(step)} and no"
+        " later step uses its outputs; its results are not saved"
         for step in leaf_steps(definition)
         if not step.output.save
     ]
     errors = []
     if not any(step.output.save for step in definition.steps):
         errors.append(
-            f"{definition.name}: no step saves its outputs; mark the steps to keep with"
-            ' "output": {"save": true}, or run with --save-all'
+            f"workflow '{definition.name}': no step saves its outputs; set"
+            ' "output": {"save": true} on the steps whose results are to be kept, or run'
+            " flimbatch with --save-all"
         )
     return warnings, errors
+
+
+def _save_setting(step: WorkflowStep) -> str:
+    """Return a step's `output.save` as set in the file, or that it is not set."""
+    if "output" in step.model_fields_set and "save" in step.output.model_fields_set:
+        return "output.save=false"
+    return "output.save not set (default: false)"
 
 
 def saving_all(definition: WorkflowDefinition) -> WorkflowDefinition:

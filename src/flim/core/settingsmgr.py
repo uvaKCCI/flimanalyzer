@@ -43,7 +43,8 @@ logger = logging.getLogger(__name__)
 APP_NAME = "FLIMAnalyzer"
 LOCK_TIMEOUT = 10  # seconds to wait for another instance writing the user settings file
 APP_SETTINGS_PATH_VAR = "FLIM_APP_SETTINGS_PATH"
-# user choices that an app settings file only presets: the user settings file wins
+USER_SETTINGS_VAR = "FLIM_USER_SETTINGS"  # the user settings file
+# user choices that an app settings file only presets: the user settings file takes precedence
 USER_CHOICES = ("favorites",)
 # the environment variables and command-line options of the app settings
 ENV_NAMES = {
@@ -76,8 +77,8 @@ def user_settings_path() -> Path:
         `$XDG_CONFIG_HOME/FLIMAnalyzer`, by default `~/.config/FLIMAnalyzer`;
         Windows: `%LOCALAPPDATA%\FLIMAnalyzer`).
     """
-    if os.environ.get("FLIM_USER_SETTINGS"):
-        return Path(os.environ["FLIM_USER_SETTINGS"]).expanduser()
+    if os.environ.get(USER_SETTINGS_VAR):
+        return Path(os.environ[USER_SETTINGS_VAR]).expanduser()
     from platformdirs import user_config_dir
 
     return Path(user_config_dir(APP_NAME, appauthor=False)) / "usersettings.json"

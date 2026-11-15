@@ -343,8 +343,7 @@ def ignored_settings(
                 f"{where}: output.results_dir={entry.output.results_dir} superseded by {target}"
             )
         if not entry.output.save:
-            messages.append(
-                f"{where}: output.save=false ignored: saving is always on; the step's"
-                " save decides"
-            )
+            from flim.core.workflowfile import tool_save_warning
+
+            messages.append(tool_save_warning(tool.name))
     return messages

@@ -94,6 +94,8 @@ flimanalyzer = "flim.analyzerapp:main"
 [project.scripts]
 # without the GUI: import and run tools or workflows (src/flim/batchcmd.py)
 flimbatch = "flim.batchcmd:main"
+# without the GUI: list, show and check settings (src/flim/settingscmd.py)
+flimsettings = "flim.settingscmd:main"
 
 [project.urls]
 Homepage = "https://github.com/uvaKCCI/flimanalyzer"

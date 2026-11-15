@@ -1310,6 +1310,24 @@ def read_tool_settings(
     return ToolSettingsMap.model_validate(tools).entry(tool)
 
 
+def tool_file_data(tool: "type[Tool]", entry: ToolSettings) -> dict:
+    """Return a tool's settings as the content of a tool file.
+
+    Args:
+        tool: The tool class.
+        entry: The tool's settings.
+
+    Returns:
+        `{"schema_version", "tool", "config", "output": {"save", "formats"}}`, the shape
+        of a workflow step; without `output.results_dir`, a setting of the computer.
+    """
+    section = entry.model_dump(mode="json")
+    section["output"].pop("results_dir", None)
+    data = {"schema_version": SETTINGS_VERSION, "tool": tool.name}
+    data.update({k: section[k] for k in ("config", "output") if k in section})
+    return data
+
+
 def write_tool_settings(
     path: str | os.PathLike, tool: "type[Tool]", entry: ToolSettings
 ) -> None:
@@ -1340,10 +1358,7 @@ def write_tool_settings(
         if not isinstance(existing, dict) or "classname" in existing:
             raise ValueError(f"{path} is not a settings file")
     if existing is None or is_tool_file(existing):
-        section = entry.model_dump(mode="json")
-        section["output"].pop("results_dir", None)  # a setting of this computer
-        data = {"schema_version": SETTINGS_VERSION, "tool": tool.name}
-        data.update({k: section[k] for k in ("config", "output") if k in section})
+        data = tool_file_data(tool, entry)
     else:
         data = migrate(existing)
         tools = data.setdefault("tools", {})

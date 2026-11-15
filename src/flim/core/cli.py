@@ -29,6 +29,8 @@ EXECUTOR_HELP = """where and how tasks run:
 other keys are further Dask arguments, e.g. threads_per_worker=2"""
 LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
 LOG_LEVEL_VAR = "FLIM_LOG_LEVEL"
+DRY_RUN_VAR = "FLIM_DRY_RUN"  # flimbatch: true for a dry run, as --dry-run
+SAVE_ALL_VAR = "FLIM_SAVE_ALL"  # flimbatch: true: every step saves, as --save-all
 
 
 def add_file_options(

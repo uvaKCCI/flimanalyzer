@@ -262,8 +262,8 @@ def test_tool_settings_flimbatch_doesnt_use_are_warned(data_dir, settings, tmp_p
 
     where = "flimbatch: warning: step 01, tool 'Summarize'"
     assert f"{where}: output.results_dir=summaries superseded by -o {canonical_folder(out)}" in err
-    assert (f"{where}: output.save=false ignored: saving is always on; the step's save"
-            " decides") in err  # fmt: skip
+    assert (f"{where}: output.save=false applies in the GUI only; flimbatch always saves"
+            " the results of a tool run") in err  # fmt: skip
     assert list(out.rglob("Table_Summary*"))  # saved under -o all the same
 
 
@@ -281,8 +281,8 @@ def test_run_takes_a_tool_file_as_a_workflow_of_one_step(
                  "--run", "summarize.json", "--no-prefect-server"])  # fmt: skip
     captured = capsys.readouterr()
     assert code == 0, captured.err
-    assert ("flimbatch: warning: step 01, tool 'Summarize': output.save=false ignored:"
-            " saving is always on; the step's save decides") in captured.err  # fmt: skip
+    assert ("flimbatch: warning: step 01, tool 'Summarize': output.save=false applies in"
+            " the GUI only; flimbatch always saves the results of a tool run") in captured.err  # fmt: skip
     assert list(run_dir(out).rglob("Table_Summary*"))  # saved anyway
     # in the workflow folder, the tool file is not a workflow: no message about it
     assert "summarize.json: not loaded" not in captured.err
@@ -350,23 +350,7 @@ def test_inputs_with_the_same_folder_name_stop_the_run(tmp_path, capsys):
     assert "the inputs 'a b.txt' and 'a_b.txt' get the same folder name" in capsys.readouterr().err
 
 
-def test_list_shows_what_run_takes(workflow_folder, capsys):
-    (workflow_folder / "summarize.json").write_text(json.dumps(
-        {"schema_version": 2, "tool": "Summarize", "config": {}}
-    ))  # fmt: skip
-    assert main(["--list", "-w", str(workflow_folder)]) == 0  # no -i, -o or --run needed
-    out = capsys.readouterr().out
-    assert "  Analysis: " in out and "Summarize" in out
-    workflows = out.split("Workflows:\n")[1].split("\n\n")[0]
-    assert "  Basic FLIRR Analysis" in workflows and "  Autoencoder Train" in workflows
-    assert "Not in the menus (by name or as a workflow step):\n  Autoencoder Train Model" in out
-    assert f"  per treatment  ({workflow_folder / 'per-treatment.json'})" in out
-    assert "  Import  (built-in)" in out
-    assert f"Tool files (by path or file name):\n  summarize.json  ({workflow_folder})" in out
-    assert f"Workflow search path:\n  {workflow_folder}" in out
-
-
-def test_input_is_required_without_list(capsys):
+def test_input_is_required(capsys):
     with pytest.raises(SystemExit):
         main(["--run", "Import", "-o", "out"])
     assert "required: -i/--input" in capsys.readouterr().err
@@ -404,9 +388,9 @@ def test_a_workflow_that_saves_nothing_is_refused_and_a_leaf_warned(data_dir, tm
     path.write_text(json.dumps(UNSAVED))
     assert main(["-i", str(data_dir), *DRY_RUN, "--run", str(path)]) == 1
     captured = capsys.readouterr()
-    assert ("flimbatch: warning: step 2, tool 'Sort': output.save=false and no later step"
-            " uses its outputs: its results are not kept") in captured.err  # fmt: skip
-    assert "unsaved: no step saves its outputs" in captured.err and "--save-all" in captured.err
+    assert ("flimbatch: warning: step 02, tool 'Sort': output.save not set (default: false)"
+            " and no later step uses its outputs; its results are not saved") in captured.err  # fmt: skip
+    assert "workflow 'unsaved': no step saves its outputs" in captured.err and "--save-all" in captured.err
     out = tmp_path / "out"
     assert main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]) == 1
     assert not list(out.rglob("*.txt"))  # refused before it ran
