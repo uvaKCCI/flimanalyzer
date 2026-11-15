@@ -120,10 +120,24 @@ def test_a_missing_file_names_the_kind_and_where_it_was_searched(folder, capsys)
     assert "No tool file 'nothere' at this path, in the workflow search path or built in" in err
 
 
-def test_show_refuses_the_name_of_a_tool_or_of_a_workflow_defined_in_code(folder, capsys):
-    code, out, err = run(capsys, "workflow", "--show", "Basic FLIRR Analysis")
+def test_show_prints_the_default_settings_of_a_tool_or_a_workflow_defined_in_code(
+    folder, capsys
+):
+    code, out, _ = run(capsys, "workflow", "--show", "Basic FLIRR Analysis")
+    data = json.loads(out)
+    assert code == 0 and data["tool"] == "Basic FLIRR Analysis" and "config" in data
+    assert "results_dir" not in data["output"]
+    code, out, _ = run(capsys, "tool", "--show", "Summarize")
+    assert code == 0 and json.loads(out)["tool"] == "Summarize"
+
+
+def test_a_name_of_another_kind_or_with_validate_is_an_error(folder, capsys):
+    code, out, err = run(capsys, "workflow", "--show", "Summarize")
     assert code == 1 and not out
-    assert "'Basic FLIRR Analysis' is a workflow defined in code, not a workflow file" in err
+    assert (
+        "'Summarize' is a tool, not a workflow file; flimsettings tool --show 'Summarize'"
+        " prints its default settings" in err
+    )
     code, _, err = run(capsys, "tool", "--validate", "Summarize")
     assert code == 1 and "'Summarize' is a tool, not a tool file; --validate takes a file" in err
 

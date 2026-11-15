@@ -3,12 +3,15 @@
 `flimsettings OBJECT ACTION`, one action per call:
 
 - `tool`: `--list` (tools by name, and tool files in the workflow search path),
-  `--show FILE` (prints a tool file), `--validate FILE` (validates a tool file).
+  `--show FILE|NAME` (prints a tool file, or a tool's default settings as a tool
+  file), `--validate FILE` (validates a tool file).
 - `workflow`: `--list` (workflows defined in code, and workflow files),
-  `--show FILE` (prints a workflow file), `--validate FILE` (validates a workflow file).
+  `--show FILE|NAME` (prints a workflow file, or the default settings of a workflow
+  defined in code as a tool file), `--validate FILE` (validates a workflow file).
 
 A FILE is a path, or a file name in the workflow search path; a file of another kind
-is an error. `--show` only reads.
+is an error. A file takes precedence over a tool or workflow of the same name.
+`--show` only reads.
 - `app`: `--list` (the app settings files in the search path), `--show` (the app
   settings of flimanalyzer and of flimbatch, and where each value comes from), `--validate FILE`
   (an app settings file).
@@ -112,7 +115,10 @@ def build_parser() -> argparse.ArgumentParser:
     file_help = "a path, or a file name in the workflow search path (see -w)"
     sub, actions = add("tool", "tools and tool files")
     actions.add_argument("--list", action="store_true", help="tools by name, and tool files")
-    actions.add_argument("--show", metavar="FILE", help=f"print a tool file: {file_help}")
+    actions.add_argument(
+        "--show", metavar="FILE|NAME",
+        help=f"print a tool file ({file_help}), or a tool's default settings as a tool file",
+    )  # fmt: skip
     actions.add_argument("--validate", metavar="FILE", help=f"validate a tool file: {file_help}")
     _add_workflow_path(sub)
 
@@ -120,7 +126,11 @@ def build_parser() -> argparse.ArgumentParser:
     actions.add_argument(
         "--list", action="store_true", help="workflows defined in code, and workflow files"
     )
-    actions.add_argument("--show", metavar="FILE", help=f"print a workflow file: {file_help}")
+    actions.add_argument(
+        "--show", metavar="FILE|NAME",
+        help=f"print a workflow file ({file_help}), or the default settings of a workflow"
+        " defined in code as a tool file",
+    )  # fmt: skip
     actions.add_argument("--validate", metavar="FILE", help=f"validate a workflow file: {file_help}")
     _add_workflow_path(sub)
 
@@ -273,7 +283,11 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
 
     Raises:
         BatchError: If the file is not of the kind required, or if the name is the
-            name of a tool or of a workflow defined in code.
+            name of a tool or of a workflow defined in code (except for `--show` of
+            the same kind).
+        _Defaults: If there is no such file, the action is `--show` and the name is
+            the name of a tool (`tool`) or of a workflow defined in code
+            (`workflow`).
         FileNotFoundError: If there is no such file.
         ValueError: If the file is not JSON.
     """
@@ -289,10 +303,13 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
             found = ""
         if found in ("tool", "workflow"):
             what = "a tool" if found == "tool" else "a workflow defined in code"
-            raise BatchError(
-                f"'{name}' is {what}, not a {kind} file; --{args.action} takes a file. "
-                f"flimsettings {kind} --list lists the {kind} files"
-            ) from None
+            if found == kind and args.action == "show":
+                raise _Defaults(tools.get(name)) from None
+            if args.action == "show":
+                hint = f"flimsettings {found} --show '{name}' prints its default settings"
+            else:
+                hint = f"--validate takes a file; flimsettings {kind} --list lists the {kind} files"
+            raise BatchError(f"'{name}' is {what}, not a {kind} file; {hint}") from None
         raise FileNotFoundError(
             f"No {kind} file '{name}' at this path, in the workflow search path or built in"
         ) from None
@@ -340,18 +357,39 @@ def _file_kind(data: object) -> Optional[str]:
     return None
 
 
-def _tool_show(args: argparse.Namespace) -> int:
-    """Print a tool file as it is; the file is only read."""
-    path, _ = _file(args.show, args, "tool")
+class _Defaults(Exception):
+    """Raised by `_file` for `--show` with the name of a tool or a workflow defined in code."""
+
+    def __init__(self, tool: type["Tool"]) -> None:
+        super().__init__(tool.name)
+        self.tool = tool
+
+
+def _show(args: argparse.Namespace, kind: str) -> int:
+    """Print a tool or workflow file as it is (the file is only read), or the default
+    settings of a tool or of a workflow defined in code, as a tool file."""
+    from flim.core.settings import tool_file_data, tool_settings
+
+    try:
+        path, _ = _file(args.show, args, kind)
+    except _Defaults as defaults:
+        tool = defaults.tool
+        data = tool_file_data(tool, tool_settings(tool.config_class()))
+        print(json.dumps(data, indent=2))
+        return 0
     print(path.read_text().rstrip())
     return 0
+
+
+def _tool_show(args: argparse.Namespace) -> int:
+    """Print a tool file as it is, or a tool's default settings as a tool file."""
+    return _show(args, "tool")
 
 
 def _workflow_show(args: argparse.Namespace) -> int:
-    """Print a workflow file as it is; the file is only read."""
-    path, _ = _file(args.show, args, "workflow")
-    print(path.read_text().rstrip())
-    return 0
+    """Print a workflow file as it is, or the default settings of a workflow defined in
+    code as a tool file."""
+    return _show(args, "workflow")
 
 
 def _report(name: str, errors: Sequence[str], warnings: Sequence[str], ok: str) -> int:
