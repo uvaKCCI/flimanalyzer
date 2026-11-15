@@ -621,3 +621,21 @@ def test_run_by_name_with_settings_from_s(data_dir, settings, tmp_path, capsys):
     assert (f"--run Summarize: taking the tool's settings from the app settings file {path}"
             " is deprecated and is removed in 0.8.0") in capsys.readouterr().err  # fmt: skip
 
+
+def test_flimbatch_draws_without_windows():
+    """Plots are drawn in worker threads: macOS' default backend would fail there."""
+    import subprocess
+    import sys
+
+    code = (
+        "import matplotlib\n"
+        "from flim.batchcmd import main\n"
+        "try:\n"
+        "    main(['--help'])\n"
+        "except SystemExit:\n"
+        "    pass\n"
+        "print(matplotlib.get_backend())\n"
+    )
+    env = {k: v for k, v in __import__("os").environ.items() if k != "MPLBACKEND"}
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True)
+    assert out.stdout.strip().splitlines()[-1].lower() == "agg"

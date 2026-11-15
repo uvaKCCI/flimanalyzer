@@ -30,6 +30,7 @@ import os
 import sys
 from typing import TYPE_CHECKING, Optional, Sequence
 
+import matplotlib
 
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import (
@@ -138,6 +139,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             is missing without `--dry-run`, or `FLIM_LOG_LEVEL` or `FLIM_DRY_RUN` is
             invalid (exit code 2, from `argparse`).
     """
+    # tools draw their figures in worker threads, into files: a backend without
+    # windows (macOS' default backend fails outside the main thread)
+    matplotlib.use("Agg")
     parser = build_parser()
     args = parser.parse_args(argv)
     if not args.run:
