@@ -12,7 +12,7 @@ from flim.configs.data import RangeFilterNode as Range
 from flim.core.filtering import (
     WindowFilters,
     apply_filters,
-    check,
+    validate_filters,
     label,
     window_filters,
     window_ranges,
@@ -90,7 +90,7 @@ def test_expressions_must_be_allowed_conditions(data):
         apply_filters(data, [Expression(expression="t1.to_csv(1)")])
 
 
-def test_check(data):
+def test_validate_filters(data):
     filters = [
         Expression(expression="1 +"),
         Expression(expression="gone > 1"),
@@ -98,7 +98,7 @@ def test_check(data):
         Range(column="t1", low=5),  # no overlap with the one before
         Group(kind="any", filters=[Range(column="t1", high=2), Range(column="t1", low=5)]),
     ]
-    problems = [(path, severity) for path, severity, _ in check(filters, list(data.columns))]
+    problems = [(path, severity) for path, severity, _ in validate_filters(filters, list(data.columns))]
     assert problems == [
         ("filters[0].expression", "error"),
         ("filters[1].expression", "warning"),

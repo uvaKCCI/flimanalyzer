@@ -26,9 +26,9 @@ from flim.core.settings import (
     SETTINGS_VERSION,
     USER_FILE_ONLY,
     AppSettings,
-    SettingsCheck,
-    check_app_settings,
-    check_settings_file,
+    SettingsValidation,
+    validate_app_settings,
+    validate_settings_file,
     known_data,
     merge_sections,
     migrate,
@@ -230,7 +230,7 @@ class SettingsManager:
         origins: The layer that set each setting, e.g. `user settings file`;
             settings not listed have their built-in defaults.
         source: The app settings file of this session; None if there is none.
-        check: The check of that file; None if there is none.
+        validation: The validation of that file; None if there is none.
         notices: Messages for the user about the settings files, e.g. a renamed
             user settings file.
     """
@@ -265,7 +265,7 @@ class SettingsManager:
         self._settings = settings
         self._version = 0
         self.source: Optional[Path] = None  # the app settings file of this session
-        self.check: Optional[SettingsCheck] = None  # the check of that file
+        self.validation: Optional[SettingsValidation] = None  # the validation of that file
         # the folders of -w/--workflow-path, for this session only
         self.workflow_folders: list[Path] = []
         # messages for the user about the settings files, e.g. a renamed user file
@@ -395,25 +395,25 @@ class SettingsManager:
             ValueError: If the file cannot be used or has invalid values (see
                 `strict_choice`); the settings are then unchanged.
         """
-        return self.apply(strict_choice(check_settings_file(path)))
+        return self.apply(strict_choice(validate_settings_file(path)))
 
-    def apply(self, check: SettingsCheck) -> AppSettings:
-        """Apply the usable sections of a checked settings file for this session.
+    def apply(self, validation: SettingsValidation) -> AppSettings:
+        """Apply the usable sections of a validated settings file for this session.
 
-        The sections are not written to the user settings file. The check is logged,
+        The sections are not written to the user settings file. The validation is logged,
         and the file becomes the manager's `source`.
 
         Args:
-            check: The result of `check_settings_file`.
+            validation: The result of `validate_settings_file`.
 
         Returns:
             A copy of the new settings.
         """
-        logger.info(check.summary())
-        settings = self.update(check.sections, keep=False)
-        self.source = check.path
-        self.check = check
-        self.origins.update(dict.fromkeys(_sections(check.sections), "app settings file"))
+        logger.info(validation.summary())
+        settings = self.update(validation.sections, keep=False)
+        self.source = validation.path
+        self.validation = validation
+        self.origins.update(dict.fromkeys(_sections(validation.sections), "app settings file"))
         return settings
 
     def search_path_addition(self, folder: str | os.PathLike) -> Optional[list[Path]]:
@@ -458,24 +458,24 @@ class SettingsManager:
 
         Returns:
             Lines naming the user settings file and the app settings file, with the
-            app settings file's schema version, the keys its check converted, removed
-            and did not use, and the tools it did not check.
+            app settings file's schema version, the keys its validation converted, removed
+            and did not use, and the tools it did not validate.
         """
         user = self._user_file.path if self._user_file is not None else "not read"
         lines = [f"User settings file: {user}"]
         if self._settings.default_app_settings:
             lines.append(f"Default app settings file: {self._settings.default_app_settings}")
-        check = self.check
-        if check is None:
+        validation = self.validation
+        if validation is None:
             return lines + ["App settings file: none"]
-        lines.append(f"App settings file: {check.path} (schema version {check.version})")
+        lines.append(f"App settings file: {validation.path} (schema version {validation.version})")
         for label, items in (
-            ("converted", check.converted),
-            ("removed by the conversion", check.dropped),
-            ("not used (unknown)", check.unknown),
-            ("not used (invalid)", check.invalid),
-            ("not checked (tool not installed)", check.not_checked),
-            ("not used (user settings file only)", check.user_only),
+            ("converted", validation.converted),
+            ("removed by the conversion", validation.dropped),
+            ("not used (unknown)", validation.unknown),
+            ("not used (invalid)", validation.invalid),
+            ("not validated (tool not installed)", validation.not_validated),
+            ("not used (user settings file only)", validation.user_only),
         ):
             if items:
                 lines.append(f"  {label}: {'; '.join(items)}")
@@ -668,40 +668,40 @@ def _completed(changes: dict, current: AppSettings) -> dict:
 # --- the settings of a session ---
 
 
-def strict_choice(check: SettingsCheck, *, complete: bool = False) -> SettingsCheck:
-    """Accept a checked settings file only if all its values can be used.
+def strict_choice(validation: SettingsValidation, *, complete: bool = False) -> SettingsValidation:
+    """Accept a validated settings file only if all its values can be used.
 
     Unknown keys are logged and not used, unless `complete`.
 
     Args:
-        check: The result of `check_settings_file`.
+        validation: The result of `validate_settings_file`.
         complete: Also refuse unknown keys and settings of tools that are not
             installed (flimbatch: the run must not depend on settings that are
             ignored or on which tools are installed). Defaults to False.
 
     Returns:
-        `check`.
+        `validation`.
 
     Raises:
         ValueError: If the file cannot be used or has invalid values, or with
             `complete` unknown keys or settings of tools that are not installed; the
             message lists them.
     """
-    if check.error or check.invalid:
-        raise ValueError(check.summary())
-    if complete and (check.unknown or check.not_checked):
+    if validation.error or validation.invalid:
+        raise ValueError(validation.summary())
+    if complete and (validation.unknown or validation.not_validated):
         raise ValueError(
-            check.summary() + "\nOnly a settings file whose settings can all be used"
-            " and checked is accepted."
+            validation.summary() + "\nOnly a settings file whose settings can all be used"
+            " and validated is accepted."
         )
-    if check.unknown:
-        logger.warning(f"{check.path}: ignoring unknown keys {', '.join(check.unknown)}")
-    return check
+    if validation.unknown:
+        logger.warning(f"{validation.path}: ignoring unknown keys {', '.join(validation.unknown)}")
+    return validation
 
 
-# decides which checked settings file to use: the check given, another file's
-# check, or None for none
-Choice = Callable[[SettingsCheck], Optional[SettingsCheck]]
+# decides which validated settings file to use: the validation given, another file's
+# validation, or None for none
+Choice = Callable[[SettingsValidation], Optional[SettingsValidation]]
 
 
 @dataclass
@@ -720,7 +720,7 @@ class Pick:
 def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[str]]:
     """Return the default app settings file if it exists and can be read.
 
-    A default that does not exist or cannot be read (see `check_settings_file`) is
+    A default that does not exist or cannot be read (see `validate_settings_file`) is
     cleared in the user settings file.
 
     Args:
@@ -735,7 +735,7 @@ def _usable_default(manager: SettingsManager) -> tuple[Optional[Path], Optional[
     if not default.is_file():
         reason = "it does not exist"
     else:
-        error = check_app_settings(default).error
+        error = validate_app_settings(default).error
         if error is None:
             return default, None
         reason = error
@@ -773,10 +773,10 @@ def session_settings(
             on settings changed in the GUI.
         base: The lowest layer. Defaults to the built-in defaults.
         choose: Called if some settings of the app settings file cannot be used;
-            returns the check whose sections to use, or None to use no file. Without
+            returns the validation whose sections to use, or None to use no file. Without
             it, such a file is refused (`strict_choice`).
         complete: Refuse an app settings file unless all its settings can be used
-            and checked (see `strict_choice`); for flimbatch.
+            and validated (see `strict_choice`); for flimbatch.
         pick: Called without `settings_file` if the app settings search path has
             files (`list_app_settings`) or a default app settings file is set, as
             `pick(files, default, warning)`; returns a `Pick`. A default that does
@@ -807,11 +807,11 @@ def session_settings(
         elif warning:
             manager.notices.append(warning)
     if settings_file:
-        check = check_app_settings(find_app_settings(settings_file, search_path))
-        if choose and check.problems:
-            chosen = choose(check)
+        validation = validate_app_settings(find_app_settings(settings_file, search_path))
+        if choose and validation.problems:
+            chosen = choose(validation)
         else:
-            chosen = strict_choice(check, complete=complete)
+            chosen = strict_choice(validation, complete=complete)
         if chosen is not None:
             manager.apply(chosen)
             _keep_user_choices(manager, user_file)

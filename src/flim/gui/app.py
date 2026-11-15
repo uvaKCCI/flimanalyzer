@@ -81,7 +81,7 @@ logger = logging.getLogger(__name__)
 # marks menu entries and buttons that open a page in the web browser
 EXTERNAL = " \u2197"
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
-CHECK_ROWS = 20  # the rows of each file Import Tables checks its run against
+VALIDATION_ROWS = 20  # the rows of each file Import Tables validates its run against
 # macOS lists the open windows in the Window menu itself (wxWidgets makes the menu
 # titled Window the system's window menu), so the GUI adds entries elsewhere only
 NATIVE_WINDOW_LIST = wx.Platform == "__WXMAC__"
@@ -250,11 +250,11 @@ class FLIMAnalyzerApp(wx.App):
                 "FLIMAnalyzer",
                 wx.OK | wx.ICON_WARNING,
             )
-        check = self.settings_manager.check  # the app settings file of this session
-        if getattr(check, "import_workflow", None):
-            from flim.gui.settingscheck import offer_import_workflow
+        validation = self.settings_manager.validation  # the app settings file of this session
+        if getattr(validation, "import_workflow", None):
+            from flim.gui.settingsvalidation import offer_import_workflow
 
-            wx.CallAfter(offer_import_workflow, check, self.frame, self.settings_manager)
+            wx.CallAfter(offer_import_workflow, validation, self.frame, self.settings_manager)
         if self.runs:
             wx.CallAfter(self.run_at_start)
         elif self.files:
@@ -913,7 +913,7 @@ class AppFrame(wx.Frame):
         )
 
     def ask_workflow_file(self, title: str) -> Optional[type[Workflow]]:
-        """Ask for a workflow file and check it.
+        """Ask for a workflow file and validate it.
 
         Args:
             title: The title of the file dialog and of the error message.
@@ -922,7 +922,7 @@ class AppFrame(wx.Frame):
             The file's workflow (a tool class), or None if no file was chosen or the
             file has errors (they are shown).
         """
-        from flim.core.workflowfile import check_workflow_file, workflow_class
+        from flim.core.workflowfile import validate_workflow_file, workflow_class
 
         with wx.FileDialog(
             self, title, wildcard="Workflow files (*.json)|*.json|All files|*",
@@ -931,11 +931,11 @@ class AppFrame(wx.Frame):
             if dialog.ShowModal() != wx.ID_OK:
                 return None
             path = dialog.GetPath()
-        check = check_workflow_file(path)
-        if check.errors:
-            wx.MessageBox("\n".join(check.errors), title, wx.OK | wx.ICON_ERROR)
+        validation = validate_workflow_file(path)
+        if validation.errors:
+            wx.MessageBox("\n".join(validation.errors), title, wx.OK | wx.ICON_ERROR)
             return None
-        return workflow_class(check.definition, Path(path))
+        return workflow_class(validation.definition, Path(path))
 
     def confirm_workflow(self, tool: type[Workflow], what: str) -> bool:
         """Show a workflow file's description and steps and ask whether to run it.
@@ -1026,9 +1026,9 @@ class AppFrame(wx.Frame):
         config: ImportTablesConfig,
         folder: str | os.PathLike,
     ) -> Optional[FlowRun]:
-        """Check an Import Tables run, run it, and open windows for its results.
+        """Validate an Import Tables run, run it, and open windows for its results.
 
-        The run is checked against the files' first rows (`CHECK_ROWS`): the
+        The run is validated against the files' first rows (`VALIDATION_ROWS`): the
         workflow's steps against the columns, and the number of windows against
         `max_windows`. Problems are shown and the run does not start. Afterwards a
         window opens for each result no later step uses, or, without a workflow, for
@@ -1048,7 +1048,7 @@ class AppFrame(wx.Frame):
 
         workflow = importer.chosen_workflow(config)
         heads = self.read_files(
-            paths, config.read_settings(), title=importer.name, nrows=CHECK_ROWS
+            paths, config.read_settings(), title=importer.name, nrows=VALIDATION_ROWS
         )
         if not heads:
             return None
@@ -1109,7 +1109,7 @@ class AppFrame(wx.Frame):
         Args:
             path: The workflow file; None to choose it in a file dialog.
         """
-        from flim.core.workflowfile import check_workflow_file, workflow_class
+        from flim.core.workflowfile import validate_workflow_file, workflow_class
 
         title, table = self.get_currentdata()
         if table is None:
@@ -1118,11 +1118,11 @@ class AppFrame(wx.Frame):
         if path is None:
             tool = self.ask_workflow_file("Run Workflow File")
         else:
-            check = check_workflow_file(path)
-            if check.errors:
-                wx.MessageBox("\n".join(check.errors), "Run Workflow File", wx.OK | wx.ICON_ERROR)
+            validation = validate_workflow_file(path)
+            if validation.errors:
+                wx.MessageBox("\n".join(validation.errors), "Run Workflow File", wx.OK | wx.ICON_ERROR)
                 return
-            tool = workflow_class(check.definition, Path(path))
+            tool = workflow_class(validation.definition, Path(path))
         if tool is not None and self.confirm_workflow(tool, title):
             self.run_workflow_on_tables(tool, {title: TableType.snapshot(table)})
 
@@ -1134,7 +1134,7 @@ class AppFrame(wx.Frame):
     ) -> Optional[FlowRun]:
         """Run a workflow file's workflow on tables and open windows for its results.
 
-        The run is checked first: its steps against the tables' columns, and the
+        The run is validated first: its steps against the tables' columns, and the
         number of windows against `max_windows`; problems are shown and the run does
         not start. The steps' `save` decides what is saved. Windows open for the
         results no later step uses (leaf outputs), and the run summary is shown.
@@ -1263,25 +1263,25 @@ class AppFrame(wx.Frame):
 
         The sections it does not have (e.g. other tools') stay as they are; the
         windows' shared filters are updated from it. If some settings cannot be used,
-        the user chooses what to do (`flim.gui.settingscheck.choose_settings`).
+        the user chooses what to do (`flim.gui.settingsvalidation.choose_settings`).
         Afterwards the GUI offers to import the workflow the file names, if any.
 
         Args:
             path: The settings file.
         """
-        from flim.core.settings import check_settings_file
-        from flim.gui.settingscheck import choose_settings
+        from flim.core.settings import validate_settings_file
+        from flim.gui.settingsvalidation import choose_settings
 
-        check = check_settings_file(path)
-        if check.problems:
-            check = choose_settings(check, self)
-        if check is None:
+        validation = validate_settings_file(path)
+        if validation.problems:
+            validation = choose_settings(validation, self)
+        if validation is None:
             return
-        self.settings_manager.apply(check)
+        self.settings_manager.apply(validation)
         self.refresh_window_filters()
-        from flim.gui.settingscheck import offer_import_workflow
+        from flim.gui.settingsvalidation import offer_import_workflow
 
-        offer_import_workflow(check, self, self.settings_manager)
+        offer_import_workflow(validation, self, self.settings_manager)
 
     def OnViewSettings(self, event: wx.CommandEvent) -> None:
         """File > Settings...: show the settings and where they come from."""

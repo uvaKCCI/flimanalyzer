@@ -530,7 +530,7 @@ def test_separate_warns_in_the_run_summary(prefect_harness):
     assert any("have not 2 parts" in (m or "") for m in messages)
 
 
-def test_fuse_example_and_data_checks():
+def test_fuse_example_and_data_validation():
     from flim.configs import FuseCategoriesConfig
     from flim.tools.data import FuseCategories
 
@@ -544,7 +544,7 @@ def test_fuse_example_and_data_checks():
     assert FuseCategories.example(FuseCategoriesConfig(grouping=["FOV"]), [data]) is None
 
 
-def test_separate_example_and_data_checks():
+def test_separate_example_and_data_validation():
     from flim.configs import SeparateCategoriesConfig
     from flim.configs.data import CategoryPattern
     from flim.tools.data import SeparateCategories

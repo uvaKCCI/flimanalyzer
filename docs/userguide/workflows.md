@@ -12,9 +12,9 @@ Each run gets its own folder: `<folder>/<workflow name>/<date and time>/`, where
 
 The folder also gets a file `run_summary.txt`. It lists when the workflow ran, the settings files used (the user settings file and the app settings file, with the settings converted or not used when it was read), and, for each step, its status, the resources it used (for example GPU or CPU) and its message. A completed step has a message only if its tool reported a warning (see [The run summary](#the-run-summary)).
 
-## Checking the settings
+## Validating the settings
 
-Before the workflow runs, the dialog checks its settings against the selected data. A workflow may need a column that is not in the data, for example `FAD a1%` when the data has `FAD a1[%]`. The dialog then uses the closest matching column and marks the field with a warning sign. Hover the mouse over the sign to see which column is used. The run summary lists these columns under "Notes". If no column is a close match, the field is marked with an error sign, and the workflow can't run until you choose a column.
+Before the workflow runs, the dialog validates its settings against the selected data. A workflow may need a column that is not in the data, for example `FAD a1%` when the data has `FAD a1[%]`. The dialog then uses the closest matching column and marks the field with a warning sign. Hover the mouse over the sign to see which column is used. The run summary lists these columns under "Notes". If no column is a close match, the field is marked with an error sign, and the workflow can't run until you choose a column.
 
 The `Strict` setting of each workflow sets whether a missing column is guessed or is an error:
 
@@ -91,7 +91,7 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
 
 A run starts from its tables, for example the tables read from the files, one per file. Each step runs once per table, in parallel, until a step that takes several tables, such as `Concatenate`, joins them into one; the steps after it run once. Without such a step, every table runs through all steps on its own. A step can't combine tables per file with a joined table; `Merge` gets two single tables.
 
-Before a run, the file is checked: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid. Columns that a step's settings name and the data doesn't have are errors, unless the step's `processing` allows guesses (`strict`) or skipped entries (`skippable`).
+Before a run, the file is validated: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid. Columns that a step's settings name and the data doesn't have are errors, unless the step's `processing` allows guesses (`strict`) or skipped entries (`skippable`).
 
 **The built-in workflow file.** `Import` processes the tables as `File` > `Import...` did up to FLIMAnalyzer 0.6 with the default filename parser: it renames and drops the channels' columns, joins the tables and calculates the FLIM features. It is tagged `import`: `File` > `Import Tables...` lists it, and it is in `Workflow` > `Import`. To take categories from the file names in the same run, copy it from FLIMAnalyzer's folder `flim/workflow/files` into your workflows folder, give it another `name` and add a Separate Categories step with the patterns of a preset (see [Separate Categories](/userguide/data/separate.md#presets)).
 
@@ -111,7 +111,7 @@ There are three ways to run a workflow file in the GUI:
 * The workflow's own entry in the menus, in the submenu its tags name (see `tags` above). Its dialog lists the open tables under `Tables`: check the tables to run it on. `Save results` is checked and can't be unchecked. The folder and the formats start with the default results folder and the formats of the file's `autosave` section; the run saves in the folder and the formats you choose there. The dialog doesn't keep them for the next time.
 * `Workflow` > `Run Workflow File...`: choose a workflow file. It runs on the table of the current window, with the rows that window shows. FLIMAnalyzer first shows the workflow's description and steps; click `Run`. The results are saved in the default results folder, in the formats of the file's `autosave` section.
 
-Before the run, every step is checked against the columns of the tables. If a step names a column that the tables don't have, the run doesn't start, and a message lists the problems. If the run would open more windows than the app setting `max_windows` allows (see [Settings](/userguide/settings.md#layout-of-a-settings-file)), it doesn't start either; the message suggests running it with `flimbatch`, or adding a step that joins the tables, for example `Concatenate`.
+Before the run, every step is validated against the columns of the tables. If a step names a column that the tables don't have, the run doesn't start, and a message lists the problems. If the run would open more windows than the app setting `max_windows` allows (see [Settings](/userguide/settings.md#layout-of-a-settings-file)), it doesn't start either; the message suggests running it with `flimbatch`, or adding a step that joins the tables, for example `Concatenate`.
 
 ## Results of a workflow file
 
@@ -133,7 +133,7 @@ Settings:
 * `Reference value`: the value of the first grouping column that the relative changes refer to, for example `ctrl`. Empty (default): the first value of that column, in the order of its categories (see [Order Category Values](/userguide/data/order)).
 * `Scatter x (FAD a1 %)` and `Scatter y (NAD(P)H a2 %)`: the columns of the scatter plot. Empty (default): found by their names (FAD, a1 and % for x; NAD, a2 and % for y). Without them, there is no scatter plot.
 * `Features`: the features to analyze. By default, the FAD and NAD(P)H amplitudes (a1, a2, a1%, a2%), lifetimes (t1, t2) and photons.
-* `Strict`: see [Checking the settings](#checking-the-settings).
+* `Strict`: see [Validating the settings](#validating-the-settings).
 
 The workflow uses the grouping in these steps:
 
@@ -164,7 +164,7 @@ Settings:
 * `Resources`: the device and threads of the training and augmentation (see [Resources](/userguide/dialogs.md#resources)).
 * `Training`: the settings of [Autoencoder: Train](/userguide/analysis/aetrain), without those the workflow sets. Defaults: 6 epochs, learning rates 1e-5 and 2e-5, weight decays 1e-7 and 1e-8, batch sizes 128 and 64 (8 models), `Rescale output to the data's units` on, a checkpoint every 2 epochs, and the architecture `AE Simulator 1-6`.
 * `Augment`: the settings of [Autoencoder: Augment Data](/userguide/analysis/aeaugment), without those the workflow sets. Defaults: 4 copies, `Add noise` off.
-* `Strict`: see [Checking the settings](#checking-the-settings).
+* `Strict`: see [Validating the settings](#validating-the-settings).
 
 ## FLIM Feature Analysis
 

@@ -231,7 +231,7 @@ def _feature_names(config: PlotConfig, inputs: Sequence[Any]) -> list[str]:
 
 
 def plot_count_issues(field: str, n: int, what: str) -> list[Issue]:
-    """Check the number of plots or tiles a config draws.
+    """Validate the number of plots or tiles a config draws.
 
     Each plot or tile takes time to draw: for example, scatter plots of all pairs of
     50 features are 1,225 plots.
@@ -1558,8 +1558,8 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
 
     @classmethod
     def validate(cls, config: HistogramConfig, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config; the number of features is checked by `Tool.validate`."""
-        # too few features: min_features, checked by Tool.validate
+        """Validate the config; the number of features is validated by `Tool.validate`."""
+        # too few features: min_features, validated by Tool.validate
         return super().validate(config, inputs)
 
     @staticmethod
@@ -1847,7 +1847,7 @@ class PairPlot(_Plot, Tool[PairPlotConfig]):
 
     @classmethod
     def validate(cls, config: PairPlotConfig, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config: features for the columns and rows, and the panel count.
+        """Validate the config: features for the columns and rows, and the panel count.
 
         No columns (`x_vars`, unless all features are selected) or no rows (`y_vars`,
         unless `symmetric`) are errors; many panels are a warning, too many an error
@@ -2000,7 +2000,7 @@ class ScatterPlot(_Plot, Tool[ScatterPlotConfig]):
 
     @classmethod
     def validate(cls, config: ScatterPlotConfig, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config; many feature pairs (plots) are a warning or an error.
+        """Validate the config; many feature pairs (plots) are a warning or an error.
 
         See `plot_count_issues`.
         """
@@ -2203,7 +2203,7 @@ class FLIRRPlot(_Plot, Tool[FLIRRPlotConfig]):
 
     @classmethod
     def validate(cls, config: FLIRRPlotConfig, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config: each FLIRR, FAD a1 % and NAD(P)H a2 % column is found.
+        """Validate the config: each FLIRR, FAD a1 % and NAD(P)H a2 % column is found.
 
         A column not given and not found by name among the input's features is an
         error, if the input schema is complete.

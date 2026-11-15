@@ -203,11 +203,11 @@ def test_export_writes_all_settings(tmp_path):
     assert "appsettings_path" not in data
     assert all("legacy" not in entry for entry in data["tools"].values())
     # the exported file gives the same settings, and none of them is reported
-    from flim.core.settings import check_settings_file
+    from flim.core.settings import validate_settings_file
 
-    check = check_settings_file(out)
-    assert not check.problems and check.not_checked == []
-    assert SettingsManager().apply(check).tools.config(KMEANS).n_clusters == 2
+    validation = validate_settings_file(out)
+    assert not validation.problems and validation.not_validated == []
+    assert SettingsManager().apply(validation).tools.config(KMEANS).n_clusters == 2
 
 
 def test_legacy_is_written_only_if_set(tmp_path):

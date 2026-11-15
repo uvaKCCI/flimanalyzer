@@ -258,7 +258,7 @@ def test_file_with_problems_asks_before_the_gui_opens(monkeypatch, clean_logging
     path = clean_logging / "cells.json"
     path.write_text(json.dumps({"schema_version": 2, "execution": {"executor": "ray"}}))
     asked = []
-    manager = _start(monkeypatch, ["-s", str(path)], lambda check: asked.append(check))
+    manager = _start(monkeypatch, ["-s", str(path)], lambda validation: asked.append(validation))
     assert [c.path for c in asked] == [path] and manager.source is None
 
 

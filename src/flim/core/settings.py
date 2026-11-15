@@ -792,7 +792,7 @@ class Changes:
     converted: list[str] = field(default_factory=list)
     dropped: list[str] = field(default_factory=list)
     # the `import` section of a file of FLIMAnalyzer 0.6 (version 1), dropped: it can
-    # be saved as a workflow file (SettingsCheck.import_workflow)
+    # be saved as a workflow file (SettingsValidation.import_workflow)
     import_section: Optional[dict] = None
 
 
@@ -1039,12 +1039,12 @@ def load_settings(
     return update_settings(settings or AppSettings.default(), data)
 
 
-# --- checking a settings file before it is used ---
+# --- validating a settings file before it is used ---
 
 
 @dataclass
-class SettingsCheck:
-    """The result of checking a settings file.
+class SettingsValidation:
+    """The result of validating a settings file.
 
     It lists what the file's migration converted and dropped, which keys cannot be
     used, and the sections that can.
@@ -1059,7 +1059,7 @@ class SettingsCheck:
         unknown: Keys the current version does not have.
         invalid: Invalid values, as `key: reason`; the section (or the tool's
             settings) holding one is not used.
-        not_checked: Tools whose settings cannot be checked because the tool is not
+        not_validated: Tools whose settings cannot be validated because the tool is not
             installed; their settings are kept.
         user_only: Keys read only from the user settings file (`USER_FILE_ONLY`)
             that have a value; not used from this file, without stopping its use.
@@ -1079,7 +1079,7 @@ class SettingsCheck:
     dropped: list[str] = field(default_factory=list)
     unknown: list[str] = field(default_factory=list)
     invalid: list[str] = field(default_factory=list)
-    not_checked: list[str] = field(default_factory=list)
+    not_validated: list[str] = field(default_factory=list)
     user_only: list[str] = field(default_factory=list)
     sections: dict = field(default_factory=dict)
     # a workflow file (its content) that imports as the file's 0.6 import settings
@@ -1128,7 +1128,7 @@ class SettingsCheck:
             ("Settings that cannot be used (invalid values)", self.invalid),
             ("Converted to the current version", self.converted),
             ("Removed by the conversion (no longer used)", self.dropped),
-            ("Not checked (tool not installed)", self.not_checked),
+            ("Not validated (tool not installed)", self.not_validated),
             ("Not used (read only from the user settings file)", self.user_only),
         ):
             if not items:
@@ -1187,8 +1187,8 @@ def _remove_invalid(data: dict, invalid: list[str]) -> AppSettings:
                     data.pop(loc[0], None)
 
 
-def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
-    """Check a settings file of any version before it is used; the file is only read.
+def validate_settings_file(path: str | os.PathLike) -> SettingsValidation:
+    """Validate a settings file of any version before it is used; the file is only read.
 
     The file is migrated to the current version and validated. Each tool's settings
     are validated with the tool's config class if the tool is installed. Errors of
@@ -1201,39 +1201,39 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
         The result; `sections` holds what can be used.
     """
     path = Path(path)
-    check = SettingsCheck(path)
+    validation = SettingsValidation(path)
     changes = Changes()
     try:
         with open(path) as f:
             data = json.load(f)
         if not isinstance(data, dict) or "classname" in data:
             raise ValueError("not a settings file")
-        check.version = version_of(data)
+        validation.version = version_of(data)
         data = migrate(data, changes)
     except (OSError, ValueError) as err:  # incl. json.JSONDecodeError
-        check.error = str(err)
-        return check
-    check.converted, check.dropped = changes.converted, changes.dropped
+        validation.error = str(err)
+        return validation
+    validation.converted, validation.dropped = changes.converted, changes.dropped
     if changes.import_section is not None:
         from flim.core.workflowfile import import_read_settings, import_workflow_data
 
-        check.import_workflow = import_workflow_data(
+        validation.import_workflow = import_workflow_data(
             changes.import_section, data.get("tools") or {}, f"Import ({path.stem})"
         )
-        check.import_read = import_read_settings(changes.import_section)
+        validation.import_read = import_read_settings(changes.import_section)
     data.pop("schema_version", None)
     # an empty value (e.g. `[]` written by save_settings) carries nothing: not reported
-    check.user_only = [key for key in USER_FILE_ONLY if data.get(key) not in (None, [], "")]
+    validation.user_only = [key for key in USER_FILE_ONLY if data.get(key) not in (None, [], "")]
     for key in USER_FILE_ONLY:
         data.pop(key, None)
     if "tools" in data and not isinstance(data["tools"], dict):
-        check.invalid.append("tools: not a mapping of tool names to settings")
+        validation.invalid.append("tools: not a mapping of tool names to settings")
         data.pop("tools")
-    settings = _remove_invalid(data, check.invalid)
+    settings = _remove_invalid(data, validation.invalid)
     for name, entry in settings.tools.entries.items():
         tool = _registered(name)
         if tool is None:
-            check.not_checked.append(f"tools.{name}")
+            validation.not_validated.append(f"tools.{name}")
             continue
         try:
             if entry.config is not None:
@@ -1244,10 +1244,10 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
             reason = "; ".join(
                 f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in err.errors()
             ) if isinstance(err, ValidationError) else str(err)
-            check.invalid.append(f"tools.{name}.config: {reason}")
+            validation.invalid.append(f"tools.{name}.config: {reason}")
             data["tools"].pop(name, None)
-    settings = _remove_invalid(data, check.invalid)
-    check.unknown = _extra_keys(settings) + [
+    settings = _remove_invalid(data, validation.invalid)
+    validation.unknown = _extra_keys(settings) + [
         key
         for name, entry in settings.tools.entries.items()
         for key in _extra_keys(entry, f"tools.{name}.")
@@ -1256,12 +1256,12 @@ def check_settings_file(path: str | os.PathLike) -> SettingsCheck:
     _drop_extra_keys(settings, known)
     for name, entry in settings.tools.entries.items():
         _drop_extra_keys(entry, known["tools"][name])
-    check.sections = {key: known[key] for key in data if key in known}
-    return check
+    validation.sections = {key: known[key] for key in data if key in known}
+    return validation
 
 
-def check_app_settings(path: str | os.PathLike) -> SettingsCheck:
-    """Check an app settings file, as `check_settings_file`; refuse tool and workflow files.
+def validate_app_settings(path: str | os.PathLike) -> SettingsValidation:
+    """Validate an app settings file, as `validate_settings_file`; refuse tool and workflow files.
 
     A tool file or a workflow file holds the settings of a run, not app settings: it
     is given to `--run` (flimbatch) or loaded in a tool's dialog (GUI).
@@ -1272,33 +1272,33 @@ def check_app_settings(path: str | os.PathLike) -> SettingsCheck:
     Returns:
         The result; for a tool or workflow file, with `error` saying what it is.
     """
-    check = check_settings_file(path)
-    if check.error is not None:
-        return check
+    validation = validate_settings_file(path)
+    if validation.error is not None:
+        return validation
     try:
         with open(path) as f:
             data = json.load(f)
     except (OSError, ValueError) as err:
-        check.error = str(err)
-        return check
+        validation.error = str(err)
+        return validation
     if is_tool_file(data):
-        check.error = (
+        validation.error = (
             f"a tool file (the settings of {data['tool']}), not an app settings file;"
             " flimbatch runs it with --run, the GUI loads it in the tool's dialog"
         )
     elif "steps" in data:
-        check.error = "a workflow file, not an app settings file; flimbatch runs it with --run"
+        validation.error = "a workflow file, not an app settings file; flimbatch runs it with --run"
     else:
-        return check
-    check.sections = {}
-    return check
+        return validation
+    validation.sections = {}
+    return validation
 
 
 def save_sections(sections: dict, path: str | os.PathLike) -> None:
     """Write settings sections, in the current version, to a file.
 
     Args:
-        sections: Sections in the current version, e.g. `SettingsCheck.sections`.
+        sections: Sections in the current version, e.g. `SettingsValidation.sections`.
         path: The file; it is replaced if it exists.
     """
     with open(path, "w") as f:
@@ -1327,7 +1327,7 @@ def read_tool_settings(
     The file may be of an older version, and the section may be under one of the
     tool's former names; a tool file of another tool has no settings of `tool`. A
     file with only a config (with `classname`) is returned as the config, without
-    checking that it is a config of `tool`.
+    validating that it is a config of `tool`.
 
     Args:
         path: The settings file, or a config file.

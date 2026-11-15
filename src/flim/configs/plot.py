@@ -333,7 +333,7 @@ class HistogramRange(BaseConfig):
     bins: int = Field(default=DEFAULT_BINS, ge=1, title="Bins")
 
     @model_validator(mode="after")
-    def _check_range(self) -> Self:
+    def _validate_range(self) -> Self:
         """Reject a range whose `min` is not smaller than its `max`."""
         if self.min is not None and self.max is not None and self.min >= self.max:
             raise ValueError(f"min ({self.min}) >= max ({self.max})")

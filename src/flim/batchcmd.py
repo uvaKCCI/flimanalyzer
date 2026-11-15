@@ -17,9 +17,9 @@
    `<id>-<tool>` (e.g. `01-Summarize`), then per table and part.
 
 With `--dry-run` (or `FLIM_DRY_RUN=true`) nothing runs: the first rows of each file
-are read and every run is checked against them; the first and the last line of the
+are read and every run is validated against them; the first and the last line of the
 output say that it is a dry run and what made it one. The exit code is 0 if every run completed without failed
-tasks (with `--dry-run`: if no check found an error), 1 otherwise. wxPython is not
+tasks (with `--dry-run`: if the validation found no error), 1 otherwise. wxPython is not
 imported.
 """
 
@@ -29,6 +29,7 @@ import logging
 import os
 import sys
 from typing import TYPE_CHECKING, Optional, Sequence
+
 
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import (
@@ -41,7 +42,7 @@ from flim.core.registry import TOOLS_GROUP, discover
 from flim.core import logs
 from flim.core.batchrun import (
     BatchError,
-    check_run,
+    validate_run,
     file_run,
     ignored_settings,
     read_settings,
@@ -93,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="read the first rows of the files, check the runs against them, run\n"
+        help="read the first rows of the files, validate the runs against them, run\n"
         "nothing; also FLIM_DRY_RUN=true",
     )
     parser.add_argument(
@@ -130,7 +131,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     Returns:
         The exit code: 0 if every run completed without failed tasks (with
-        `--dry-run`: if no check found an error), 1 otherwise.
+        `--dry-run`: if the validation found no error), 1 otherwise.
 
     Raises:
         SystemExit: If the arguments are invalid, or no `--run` is given, or `-o`
@@ -152,7 +153,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         parser.error(str(err))
     args.dry_run = dry_run is not None
     args.save_all = save_all  # what turned it on, or None
-    if not args.output:  # also for a dry run: it checks the folder, and logs there
+    if not args.output:  # also for a dry run: it validates the folder, and logs there
         parser.error("the following arguments are required: -o/--output")
     # the console as before; the log file opens once the output folder is known
     memory = logs.begin(level)
@@ -183,7 +184,7 @@ def dry_run_source(args: argparse.Namespace) -> Optional[str]:
 
 
 def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
-    """Read the settings and the files, and run or check the runs (see `main`).
+    """Read the settings and the files, and run or validate the runs (see `main`).
 
     Args:
         args: The parsed arguments; `dry_run` also set by `FLIM_DRY_RUN`.
@@ -211,7 +212,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         for notice in manager.notices:  # e.g. keys of the user settings file only
             _warn(notice)
         set_char_replacements(settings.char_replacements)  # file and folder names
-        if getattr(manager.check, "import_workflow", None):
+        if getattr(manager.validation, "import_workflow", None):
             print(
                 "flimbatch: warning: the settings file's import settings (FLIMAnalyzer"
                 " 0.6) are not used; to keep them, open the file in the GUI (File >"
@@ -318,7 +319,7 @@ def _dry_run(
     settings: AppSettings,
     memory: Optional["logging.Handler"] = None,
 ) -> int:
-    """Check the environment and every run against the first rows of the files; run nothing.
+    """Validate the environment and every run against the first rows of the files; run nothing.
 
     The environment: the output folder (reachable and writable; the dry run's log is
     written there, or into the log folder setting), the executor (its packages, and a
@@ -334,7 +335,7 @@ def _dry_run(
             for no log file.
 
     Returns:
-        0 if no check found a problem, else 1.
+        0 if the validation found no problem, else 1.
     """
     from flim.core.prefect_server import server_status
 
@@ -378,7 +379,7 @@ def _dry_run(
     report("Prefect server", None if ok else found, found)
     for tool, read in runs:
         tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
-        problems = check_run(tool, tables, settings, save_all=bool(args.save_all))
+        problems = validate_run(tool, tables, settings, save_all=bool(args.save_all))
         if problems:
             errors += len(problems)
             print(f"{tool.name}: {len(problems)} problem(s)", file=sys.stderr)

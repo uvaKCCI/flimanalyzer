@@ -368,7 +368,7 @@ def requirement_issues(
 
     The minimums are the config's `min_features` and `min_grouping`. "All features"
     is counted against the input schemas (the distinct feature columns of the known
-    and complete ones), and not checked if none of them is known and complete.
+    and complete ones), and not validated if none of them is known and complete.
 
     Args:
         config: The config.
@@ -466,7 +466,7 @@ class Processing(BaseModel):
     The `processing` group of a workflow step, of a workflow file (for all its
     steps) and of a tool file. Every field is optional; the layers are merged per
     key, a step's over the workflow's (`ProcessingRules.of`). Field keys are config
-    field paths as the checks report them, e.g. `features` or `training.grouping`.
+    field paths as the validation reports them, e.g. `features` or `training.grouping`.
 
     Attributes:
         strict: Whether columns the settings name that are not in the input are

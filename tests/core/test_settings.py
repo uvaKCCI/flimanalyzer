@@ -215,31 +215,31 @@ def test_a_tool_section_in_a_settings_file(tmp_path):
 
 
 def test_a_tool_file_is_read_as_a_settings_file_with_one_tool(tmp_path):
-    from flim.core.settings import check_settings_file
+    from flim.core.settings import validate_settings_file
 
     path = tmp_path / "summarize.json"
     path.write_text(json.dumps({
         "schema_version": 2, "tool": "Summarize", "config": {"aggs": ["mean"]},
         "output": {"save": True, "formats": [{"kind": "table", "format": "csv"}]},
     }))  # fmt: skip
-    check = check_settings_file(path)
-    assert check.error is None and not check.invalid and not check.unknown
-    section = check.sections["tools"]["Summarize"]
+    validation = validate_settings_file(path)
+    assert validation.error is None and not validation.invalid and not validation.unknown
+    section = validation.sections["tools"]["Summarize"]
     assert section["config"]["aggs"] == ["mean"] and section["output"]["save"] is True
 
 
 def test_keys_of_the_user_settings_file_only_are_not_used(tmp_path):
-    from flim.core.settings import USER_FILE_ONLY, check_settings_file
+    from flim.core.settings import USER_FILE_ONLY, validate_settings_file
 
     path = tmp_path / "app.json"
     data = {"schema_version": 2, "results_dir": "res", "workflow_paths": ["/wf"],
             "last_run_url": "http://x", "default_app_settings": "/a.json",
             "appsettings_path": ["/as"]}  # fmt: skip
     path.write_text(json.dumps(data))
-    check = check_settings_file(path)
-    assert check.user_only == list(USER_FILE_ONLY) and not check.problems
-    assert set(check.sections) == {"results_dir"}
-    assert "Not used (read only from the user settings file):" in check.summary()
+    validation = validate_settings_file(path)
+    assert validation.user_only == list(USER_FILE_ONLY) and not validation.problems
+    assert set(validation.sections) == {"results_dir"}
+    assert "Not used (read only from the user settings file):" in validation.summary()
 
 
 def test_char_replacements_add_to_the_defaults_and_refuse_other_characters():
@@ -340,7 +340,7 @@ def test_import_of_version_1_is_dropped_for_a_workflow_file():
 def test_order_category_values_keeps_its_former_name(tmp_path):
     from flim.configs import CategoryOrderConfig
     from flim.core.settings import AppSettings, load_settings, save_settings
-    from flim.core.workflowfile import check_workflow_file
+    from flim.core.workflowfile import validate_workflow_file
 
     tool = tools.get("Order Categories")  # e.g. flimbatch --run "Order Categories"
     assert tool is tools.get("Order Category Values")
@@ -355,7 +355,7 @@ def test_order_category_values_keeps_its_former_name(tmp_path):
     # a workflow file step that names the former name
     wf = tmp_path / "wf.json"
     wf.write_text(json.dumps({"schema_version": 1, "name": "old", "steps": [{"id": "1", "tool": "Order Categories"}]}))
-    result = check_workflow_file(wf)
+    result = validate_workflow_file(wf)
     assert result.errors == [] and result.definition.steps[0].tool in ("Order Categories", "Order Category Values")
 
 
@@ -399,17 +399,17 @@ def test_export_leaves_out_unknown_keys_and_migration_drops_development_keys(tmp
     assert exported["filters"]["use"] is True
 
 
-def test_check_app_settings_refuses_tool_and_workflow_files(tmp_path):
-    from flim.core.settings import check_app_settings
+def test_validate_app_settings_refuses_tool_and_workflow_files(tmp_path):
+    from flim.core.settings import validate_app_settings
 
     tool_file = tmp_path / "tool.json"
     tool_file.write_text(json.dumps({"schema_version": 2, "tool": "Summarize", "config": {}}))
-    check = check_app_settings(tool_file)
-    assert check.error.startswith("a tool file (the settings of Summarize), not an app settings")
-    assert check.sections == {}
+    validation = validate_app_settings(tool_file)
+    assert validation.error.startswith("a tool file (the settings of Summarize), not an app settings")
+    assert validation.sections == {}
     workflow = tmp_path / "workflow.json"
     workflow.write_text(json.dumps({"name": "w", "steps": [{"id": "1", "tool": "Sort"}]}))
-    assert check_app_settings(workflow).error.startswith("a workflow file, not an app settings")
+    assert validate_app_settings(workflow).error.startswith("a workflow file, not an app settings")
     app = tmp_path / "app.json"
     app.write_text(json.dumps({"schema_version": 2, "strict": True}))
-    assert check_app_settings(app).error is None
+    assert validate_app_settings(app).error is None

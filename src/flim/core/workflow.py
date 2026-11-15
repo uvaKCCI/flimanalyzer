@@ -13,7 +13,7 @@ import pandas as pd
 
 from flim.core.config import Issue, TaskConfig, requirement_issues
 from flim.core.schema import TableSchema
-from flim.core.tool import ConfigT, Tool, check_requirements
+from flim.core.tool import ConfigT, Tool, validate_requirements
 from flim.core.types import OutputSpec
 from flim.core.validation import DefaultWorkflowValidator, ValidationReport
 
@@ -43,13 +43,13 @@ class WorkflowValidationError(ValueError):
 class Workflow(Tool[ConfigT]):
     """A tool whose run is a Prefect flow of other tools; subclasses implement `build`.
 
-    The class attribute `validator` checks the config and its steps against the
+    The class attribute `validator` validates the config and its steps against the
     inputs before a run (see `resolve` and `validate`).
     """
 
     category: ClassVar[str] = "Workflow"
     icon: ClassVar[Optional[str]] = "workflow.png"
-    # checks the config and its steps against the inputs; replaceable, e.g. by one
+    # validates the config and its steps against the inputs; replaceable, e.g. by one
     # with lab-specific naming rules (see flim.core.validation.WorkflowValidator)
     validator: ClassVar = DefaultWorkflowValidator()
 
@@ -120,7 +120,7 @@ class Workflow(Tool[ConfigT]):
         from flim.core.runner import run_flow
 
         config = self.config_class() if config is None else config
-        check_requirements(self.name, config, inputs)
+        validate_requirements(self.name, config, inputs)
         report = self.resolve(config, inputs, strict)
         if report.errors:
             raise WorkflowValidationError(report)
@@ -187,7 +187,7 @@ class Workflow(Tool[ConfigT]):
     def validate(
         cls, config: ConfigT, inputs: Sequence[Any], strict: Optional[bool] = None
     ) -> list[Issue]:
-        """Check the config and its steps against the input schemas.
+        """Validate the config and its steps against the input schemas.
 
         Args:
             config: The workflow's config.

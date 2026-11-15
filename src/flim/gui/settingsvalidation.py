@@ -10,8 +10,8 @@ from flim.core.paths import with_extension
 from flim.core.settingsmgr import Pick, SettingsManager, file_description
 from flim.core.settings import (
     SETTINGS_VERSION,
-    SettingsCheck,
-    check_settings_file,
+    SettingsValidation,
+    validate_settings_file,
     save_sections,
 )
 
@@ -26,15 +26,15 @@ REWRITE = "Update the file to the current version and add the settings"
 SAVE_OTHER = "Save to another file..."
 
 
-def _options(check: SettingsCheck) -> list[str]:
-    """Return the options for a checked file; an unreadable file offers fewer."""
-    return [IGNORE, OTHER] if check.error else [USE, IGNORE, UPDATE, OTHER]
+def _options(validation: SettingsValidation) -> list[str]:
+    """Return the options for a validated file; an unreadable file offers fewer."""
+    return [IGNORE, OTHER] if validation.error else [USE, IGNORE, UPDATE, OTHER]
 
 
-def _confirm_update(check: SettingsCheck, parent: Optional[wx.Window]) -> bool:
+def _confirm_update(validation: SettingsValidation, parent: Optional[wx.Window]) -> bool:
     """Ask whether to replace the file with its usable settings; True for Yes."""
     message = (
-        f"Replace {check.path} with the settings that can be used, in the current"
+        f"Replace {validation.path} with the settings that can be used, in the current"
         " version?\n\nThe settings listed as unknown or invalid are removed from the"
         " file. This cannot be undone."
     )
@@ -56,84 +56,84 @@ def _other_file(parent: Optional[wx.Window]) -> Optional[str]:
 
 
 def choose_settings(
-    check: SettingsCheck,
+    validation: SettingsValidation,
     parent: Optional[wx.Window] = None,
-    problems: Optional[Callable[[SettingsCheck], bool]] = None,
-) -> Optional[SettingsCheck]:
+    problems: Optional[Callable[[SettingsValidation], bool]] = None,
+) -> Optional[SettingsValidation]:
     """Ask the user how to use a settings file some of whose settings cannot be used.
 
     The dialog lists what cannot be used and what was converted, and offers to use
     the settings that can be used, not to use the file, to update the file to the
     current version (after a confirmation), or to choose another file. Another file
-    is checked in the same way; if it has problems, the dialog is shown again.
+    is validated in the same way; if it has problems, the dialog is shown again.
     Closing the dialog with Cancel does not use the file.
 
     Args:
-        check: The result of `check_settings_file`.
+        validation: The result of `validate_settings_file`.
         parent: The parent window; None for none.
-        problems: A function of a check that returns whether it has problems that
-            need the user's choice. Defaults to `SettingsCheck.problems`.
+        problems: A function of a validation that returns whether it has problems that
+            need the user's choice. Defaults to `SettingsValidation.problems`.
 
     Returns:
-        The check whose sections to use (of this or another file), or None to use
+        The validation whose sections to use (of this or another file), or None to use
         no file.
     """
     problems = problems or (lambda c: c.problems)
     while True:
-        logger.warning(check.summary())
-        options = _options(check)
+        logger.warning(validation.summary())
+        options = _options(validation)
         with wx.SingleChoiceDialog(
             parent,
-            check.summary(limit=LISTED) + "\n\nWhat should FLIMAnalyzer do?",
+            validation.summary(limit=LISTED) + "\n\nWhat should FLIMAnalyzer do?",
             "Settings File",
             options,
         ) as dialog:
             choice = options[dialog.GetSelection()] if dialog.ShowModal() == wx.ID_OK else IGNORE
         if choice == USE:
-            return check
+            return validation
         if choice == IGNORE:
-            logger.info(f"{check.path} not used")
+            logger.info(f"{validation.path} not used")
             return None
         if choice == UPDATE:
-            if not _confirm_update(check, parent):
+            if not _confirm_update(validation, parent):
                 continue
             try:
-                save_sections(check.sections, check.path)
+                save_sections(validation.sections, validation.path)
             except OSError as err:
                 wx.MessageBox(
-                    f"Could not update {check.path}:\n{err}",
+                    f"Could not update {validation.path}:\n{err}",
                     "Update Settings File",
                     wx.OK | wx.ICON_ERROR,
                 )
                 continue
-            logger.info(f"{check.path} updated to the current version")
-            return check_settings_file(check.path)
+            logger.info(f"{validation.path} updated to the current version")
+            return validate_settings_file(validation.path)
         path = _other_file(parent)
         if path is None:
             continue
-        check = check_settings_file(path)
-        if not problems(check):
-            return check
+        validation = validate_settings_file(path)
+        if not problems(validation):
+            return validation
 
 
-def needs_rewrite(check: SettingsCheck) -> bool:
-    """Return whether adding settings to a checked file rewrites more than they.
+def needs_rewrite(validation: SettingsValidation) -> bool:
+    """Return whether adding settings to a validated file rewrites more than they.
 
     That is the case if the file can be read and is of an older version or has
     settings that cannot be used.
     """
-    return check.error is None and (
-        check.version < SETTINGS_VERSION or bool(check.unknown or check.invalid)
+    return validation.error is None and (
+        validation.version < SETTINGS_VERSION or bool(validation.unknown or validation.invalid)
     )
 
 
 def confirm_rewrite(
-    check: SettingsCheck, parent: Optional[wx.Window] = None
+    validation: SettingsValidation, parent: Optional[wx.Window] = None
 ) -> Optional[str]:
     """Ask before settings are added to a file that would be rewritten.
 
     Args:
-        check: The result of `check_settings_file` for the file.
+        validation: The result of `validate_settings_file` for the file.
         parent: The parent window; None for none.
 
     Returns:
@@ -141,7 +141,7 @@ def confirm_rewrite(
         (Cancel, or no other file chosen).
     """
     message = (
-        check.summary(limit=LISTED)
+        validation.summary(limit=LISTED)
         + "\n\nAdding the settings rewrites the file in the current version; the"
         " settings that can't be used are removed."
     )
@@ -357,21 +357,21 @@ def pick_app_settings(
 
 
 def offer_import_workflow(
-    check: SettingsCheck,
+    validation: SettingsValidation,
     parent: Optional[wx.Window],
     settings_manager: SettingsManager,
 ) -> Optional[Path]:
     """Offer to save the import settings of a FLIMAnalyzer 0.6 file as a workflow file.
 
-    If the file has such settings (`SettingsCheck.import_workflow`), the user is asked
+    If the file has such settings (`SettingsValidation.import_workflow`), the user is asked
     whether to save them as a workflow file, and where; the dialog opens in the first
     folder of the workflow search path, which is created if needed. Nothing is
     applied otherwise. The saved file is registered as a tool if no tool of its name
     is registered, and Import Tables' settings are set to run it and to read the
-    files as the 0.6 settings did (`SettingsCheck.import_read`).
+    files as the 0.6 settings did (`SettingsValidation.import_read`).
 
     Args:
-        check: The result of `check_settings_file`.
+        validation: The result of `validate_settings_file`.
         parent: The parent window; None for none.
         settings_manager: The session's settings manager, for the workflow search
             path and Import Tables' settings.
@@ -382,13 +382,13 @@ def offer_import_workflow(
     import json
 
     from flim.core.registry import tools
-    from flim.core.workflowfile import check_workflow_file, workflow_class
+    from flim.core.workflowfile import validate_workflow_file, workflow_class
 
-    data = getattr(check, "import_workflow", None)
+    data = getattr(validation, "import_workflow", None)
     if not data:
         return None
     question = (
-        f"{check.path.name} has import settings of FLIMAnalyzer 0.6 (delimiter,"
+        f"{validation.path.name} has import settings of FLIMAnalyzer 0.6 (delimiter,"
         " filename parser, renamed, dropped and calculated columns). FLIMAnalyzer now"
         " imports with workflow files, so these settings are not used.\n\nSave them as"
         " a workflow file, to run with File > Import Tables...?"
@@ -401,14 +401,14 @@ def offer_import_workflow(
     folder.mkdir(parents=True, exist_ok=True)
     with wx.FileDialog(
         parent, "Save as Workflow File", defaultDir=str(folder),
-        defaultFile=f"{check.path.stem}-import.json", wildcard="Workflow files (*.json)|*.json|All files|*",
+        defaultFile=f"{validation.path.stem}-import.json", wildcard="Workflow files (*.json)|*.json|All files|*",
         style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
     ) as dialog:  # fmt: skip
         if dialog.ShowModal() != wx.ID_OK:
             return None
         path = Path(with_extension(dialog.GetPath(), ".json"))
     path.write_text(json.dumps(data, indent=2) + "\n")
-    result = check_workflow_file(path)
+    result = validate_workflow_file(path)
     if result.definition is not None and result.definition.name not in tools:
         tools.register(workflow_class(result.definition, path))
     if result.definition is not None:
@@ -417,7 +417,7 @@ def offer_import_workflow(
         settings = settings_manager.settings
         current = settings.tools.config(ImportTables)
         config = type(current).model_validate({
-            **current.model_dump(), **getattr(check, "import_read", {}),
+            **current.model_dump(), **getattr(validation, "import_read", {}),
             "workflow": result.definition.name,
         })  # fmt: skip
         entry = settings.tools.entry(ImportTables)

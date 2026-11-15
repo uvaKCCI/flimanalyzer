@@ -107,7 +107,7 @@ Which GPU can be used depends on the PyTorch build that was installed (see [Inst
     uv run flimbatch -i data/ -o results/ -s settings.json \
         --run Summarize --run "Basic FLIRR Analysis"
 
-Each tool's or workflow's results are saved in `results/<name>/`; a workflow file saves the steps it marks to save. `--dry-run` checks the runs against the files without running them. A workflow column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error. `--no-strict` uses the closest column instead and lists it in the run summary. In a workflow file, such a column is always an error. The exit code is 1 if a check or task failed. Run `flimbatch --help` for all options.
+Each tool's or workflow's results are saved in `results/<name>/`; a workflow file saves the steps it marks to save. `--dry-run` validates the runs against the files without running them. A workflow column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error. `--no-strict` uses the closest column instead and lists it in the run summary. In a workflow file, such a column is always an error. The exit code is 1 if a check or task failed. Run `flimbatch --help` for all options.
 
 `flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
 

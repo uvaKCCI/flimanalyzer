@@ -149,15 +149,15 @@ def apply_filters(data: pd.DataFrame, filters: Sequence["FilterNode"]) -> Outcom
     return outcome
 
 
-def check(
+def validate_filters(
     filters: Sequence["FilterNode"],
     columns: Optional[Collection[str]] = None,
     path: str = "filters",
     kind: str = "all",
 ) -> list[tuple[str, str, str]]:
-    """Check a filter list before using it.
+    """Validate a filter list before using it.
 
-    Nodes that are not enabled are not checked; groups are checked with their
+    Nodes that are not enabled are not validated; groups are validated with their
     nodes.
 
     Args:
@@ -180,7 +180,7 @@ def check(
         if not node.enabled:
             continue
         if node.kind in ("all", "any", "not"):
-            problems += check(node.filters, columns, f"{where}.filters", node.kind)
+            problems += validate_filters(node.filters, columns, f"{where}.filters", node.kind)
             continue
         if node.kind == "expression":
             try:

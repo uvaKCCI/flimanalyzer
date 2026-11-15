@@ -85,7 +85,7 @@ class ExecutionOptions(BaseConfig):
     server_timeout: float = Field(default=60.0, gt=0)  # seconds, for a Dask cluster
 
     @model_validator(mode="after")
-    def _check_autosave(self) -> Self:
+    def _validate_autosave(self) -> Self:
         """Reject autosave without a results folder."""
         if self.autosave.enabled and self.autosave.results_dir is None:
             raise ValueError("autosave needs a results_dir")

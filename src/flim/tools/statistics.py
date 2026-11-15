@@ -292,7 +292,7 @@ class KSStats(Tool[KSStatsConfig]):
 
     @classmethod
     def validate(cls, config: KSStatsConfig, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config: the comparison column needs at least two values."""
+        """Validate the config: the comparison column needs at least two values."""
         issues = super().validate(config, inputs)
         schema = inputs[0]
         column = schema.column(config.comparison) if schema is not None else None
@@ -381,7 +381,7 @@ class RelativeChange(Tool[RelativeChangeConfig]):
     def validate(
         cls, config: RelativeChangeConfig, inputs: Sequence[Any]
     ) -> list[Issue]:
-        """Check the config; a reference value the column doesn't have is an error."""
+        """Validate the config; a reference value the column doesn't have is an error."""
         issues = super().validate(config, inputs)
         schema = inputs[0]
         column = schema.column(config.reference_group) if schema is not None else None
@@ -507,5 +507,5 @@ class SeriesAnalysis(Tool[SeriesAnalysisConfig]):
     def validate(
         cls, config: SeriesAnalysisConfig, inputs: Sequence[Any]
     ) -> list[Issue]:
-        """Check the config; the number of features is checked by `Tool.validate`."""
+        """Validate the config; the number of features is validated by `Tool.validate`."""
         return super().validate(config, inputs)

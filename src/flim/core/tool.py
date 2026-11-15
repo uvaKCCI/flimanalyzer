@@ -231,8 +231,8 @@ class Tool(Generic[ConfigT]):
 
         The kinds are a fixed property of the tool, whatever its settings: those of
         `outputs` and `output_types`, in that order. They bound the tool's
-        `output.formats`: the GUI offers formats for these kinds only, and the checks
-        of tool and workflow files refuse formats of other kinds. A tool that
+        `output.formats`: the GUI offers formats for these kinds only, and the validation
+        of tool and workflow files refuses formats of other kinds. A tool that
         declares neither (a plugin tool written for an earlier version) makes any
         kind: a `DeprecationWarning` is given once, and `output_types` is required
         from 0.8.0.
@@ -363,12 +363,12 @@ class Tool(Generic[ConfigT]):
     ) -> dict[str, Any]:
         """Run the tool as one task.
 
-        Uses the default config if `config` is None, checks the config's type and
+        Uses the default config if `config` is None, validates the config's type and
         the number of features and grouping columns it selects, and resolves the
         resources. Tools that draw figures hold `pyplot_lock` while they run; result
         figures are then removed from pyplot's registry. Afterwards the parts of the
-        settings that were skipped are checked against the step's `processing` (see
-        `check_processing`). In a workflow file step, the step's `processing` is
+        settings that were skipped are validated against the step's `processing` (see
+        `validate_processing`). In a workflow file step, the step's `processing` is
         applied to the config first (`_resolve`).
 
         Args:
@@ -399,10 +399,10 @@ class Tool(Generic[ConfigT]):
         )
         if getattr(self, "_processing", None) is not None:
             config = self._resolve(config, inputs)
-        check_requirements(self.name, config, inputs)
+        validate_requirements(self.name, config, inputs)
         with pyplot_lock if self.draws_figures else contextlib.nullcontext():
             results = self.display_names(self.run(*inputs, config=config))
-        self.check_processing()
+        self.validate_processing()
         release_figures(results)
         if config.prefix:
             results = {f"{config.prefix}{k}": v for k, v in results.items()}
@@ -476,7 +476,7 @@ class Tool(Generic[ConfigT]):
         if context is not None:
             context.skipped.append((field or self.skippable_fields[-1], entry, message))
 
-    def check_processing(self) -> None:
+    def validate_processing(self) -> None:
         """Fail the run if a workflow file step's `processing` doesn't allow the skips.
 
         Per field with skipped entries: `none` (the default) allows no skipped entry,
@@ -695,9 +695,9 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def validate_data(cls, config: ConfigT, tables: Sequence[Any]) -> list[Issue]:
-        """Check the config against the input tables' values, for the dialog.
+        """Validate the config against the input tables' values, for the dialog.
 
-        `validate` checks it against their columns; the run makes the same checks.
+        `validate` validates it against their columns; the run makes the same validations.
 
         Args:
             config: The config.
@@ -710,10 +710,10 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def validate(cls, config: ConfigT, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config against the input schemas.
+        """Validate the config against the input schemas.
 
-        Checks the number of features and grouping columns it selects, and that the
-        columns it names exist and have the right role. The columns are not checked
+        Validates the number of features and grouping columns it selects, and that the
+        columns it names exist and have the right role. The columns are not validated
         if an input schema is unknown or incomplete. A text column named as a feature
         is a warning.
 
@@ -771,8 +771,8 @@ def is_listed(entry: Any, entries: Sequence[Any]) -> bool:
     return False
 
 
-def check_requirements(name: str, config: TaskConfig, inputs: Sequence[Any]) -> None:
-    """Check that the config selects enough features and grouping columns.
+def validate_requirements(name: str, config: TaskConfig, inputs: Sequence[Any]) -> None:
+    """Validate that the config selects enough features and grouping columns.
 
     Args:
         name: The tool's name, for the message.

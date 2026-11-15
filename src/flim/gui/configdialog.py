@@ -3,7 +3,7 @@
 `open_config_dialog(parent, tool, config, data_choices=...)` shows the dialog
 registered for the tool's config class (`register_dialog`) or the generic
 `ConfigDialog`. The dialog lets the user pick the input tables, edit the config and
-choose whether results are saved; it checks the config against the inputs while it
+choose whether results are saved; it validates the config against the inputs while it
 is edited and marks problems at their fields (errors keep OK disabled).
 """
 
@@ -277,7 +277,7 @@ class ConfigDialog(wx.Dialog):
     The dialog has three sections: Input (the input tables, shown only if there are
     `data_choices`), Settings (the editors of the config's fields) and Output (the
     fields of the `output` section, whether and where the results are saved, and
-    the formats). Each change is checked (`validate`); OK is enabled only while
+    the formats). Each change is validated (`validate`); OK is enabled only while
     there are no errors.
     """
 
@@ -312,7 +312,7 @@ class ConfigDialog(wx.Dialog):
                 None: the default options.
             autosave_locked: Whether `Save results` is checked and cannot be
                 unchecked (workflows). Defaults to False.
-            strict: For workflows: the `strict` of the checks of a config whose
+            strict: For workflows: the `strict` of the validation of a config whose
                 `strict` is None. Defaults to None.
             default_folder: The GUI's default results folder. Defaults to None: no
                 `Use the default folder` and `Make Default Folder`.
@@ -422,9 +422,9 @@ class ConfigDialog(wx.Dialog):
         return [t for t in tables if isinstance(t, pd.DataFrame)]
 
     def data_issues(self, config: Optional[TaskConfig]) -> list[Issue]:
-        """Show the tool's example line and check the config against the input data.
+        """Show the tool's example line and validate the config against the input data.
 
-        The example line comes from `Tool.example`, the checks from
+        The example line comes from `Tool.example`, the validation from
         `Tool.validate_data`, both with the selected tables. An exception in them is
         logged, not shown; the example line is then hidden.
 
@@ -432,7 +432,7 @@ class ConfigDialog(wx.Dialog):
             config: The edited config; None if it is not valid.
 
         Returns:
-            The issues; empty if `config` is None or the checks raised an exception.
+            The issues; empty if `config` is None or the validation raised an exception.
         """
         if config is None:
             self._show_example(None)
@@ -442,7 +442,7 @@ class ConfigDialog(wx.Dialog):
             self._show_example(self.tool.example(config, tables))
             return list(self.tool.validate_data(config, tables))
         except Exception:
-            logger.exception(f"{self.tool.name}: the checks of the data failed")
+            logger.exception(f"{self.tool.name}: the validation of the data failed")
             self._show_example(None)
             return []
 
@@ -836,12 +836,12 @@ class ConfigDialog(wx.Dialog):
                 schemas.append(self._schema(names) if names else None)
         return schemas
 
-    # --- checking ---
+    # --- validation ---
 
     def current_config(self) -> tuple[Optional[TaskConfig], list[Issue]]:
         """Return the edited config and its issues.
 
-        The values of the editors are validated by the config class, then checked
+        The values of the editors are validated by the config class, then validated
         by the tool against the input schemas (`Tool.validate`; for workflows with
         the dialog's `strict`).
 
@@ -867,7 +867,7 @@ class ConfigDialog(wx.Dialog):
         return config, list(issues)
 
     def execution_issues(self) -> list[Issue]:
-        """Check the output controls and the inputs; mark the format fields.
+        """Validate the output controls and the inputs; mark the format fields.
 
         The output controls are enabled as `Save results` and the folder allow.
 
@@ -894,7 +894,7 @@ class ConfigDialog(wx.Dialog):
         return issues
 
     def validate(self) -> list[Issue]:
-        """Check the edited config, the input data and the execution options.
+        """Validate the edited config, the input data and the execution options.
 
         Fields that do not apply to the input tables are hidden. The issues of a
         field are marked at it, the other issues are shown below the settings. OK is
@@ -974,28 +974,28 @@ class ConfigDialog(wx.Dialog):
 
         The file is a config alone or a settings file with a section of the tool.
         If some of the tool's settings in a settings file cannot be used, the user
-        chooses what to do (`flim.gui.settingscheck.choose_settings`), possibly
+        chooses what to do (`flim.gui.settingsvalidation.choose_settings`), possibly
         another file; `_loaded_from` is set to the file used.
 
         Returns:
             The ToolSettings, None if the file has none for the tool, or False if the
             user chose not to use a file.
         """
-        from flim.core.settings import ToolSettingsMap, check_settings_file
-        from flim.gui.settingscheck import choose_settings
+        from flim.core.settings import ToolSettingsMap, validate_settings_file
+        from flim.gui.settingsvalidation import choose_settings
 
         self._loaded_from = path
         with open(path) as f:
             data = json.load(f)
         if isinstance(data, dict) and "classname" in data:  # a config alone
             return read_tool_settings(path, self.tool)
-        check = check_settings_file(path)
-        if check.tool_problems(self.tool):
-            check = choose_settings(check, self, problems=lambda c: c.tool_problems(self.tool))
-            if check is None:
+        validation = validate_settings_file(path)
+        if validation.tool_problems(self.tool):
+            validation = choose_settings(validation, self, problems=lambda c: c.tool_problems(self.tool))
+            if validation is None:
                 return False
-        self._loaded_from = check.path
-        return ToolSettingsMap.model_validate(check.sections.get("tools", {})).entry(self.tool)
+        self._loaded_from = validation.path
+        return ToolSettingsMap.model_validate(validation.sections.get("tools", {})).entry(self.tool)
 
     def load_settings(self, path: Union[str, os.PathLike]) -> bool:
         """Show the tool's settings from a file in the dialog.
@@ -1066,8 +1066,8 @@ class ConfigDialog(wx.Dialog):
             True if the settings were saved; False if they are not valid, the user
             cancelled or the file cannot be written (with a message).
         """
-        from flim.core.settings import check_settings_file, save_sections
-        from flim.gui.settingscheck import REWRITE, confirm_rewrite, needs_rewrite
+        from flim.core.settings import validate_settings_file, save_sections
+        from flim.gui.settingsvalidation import REWRITE, confirm_rewrite, needs_rewrite
 
         self.commit_edits()
         config, issues = self.current_config()
@@ -1076,15 +1076,15 @@ class ConfigDialog(wx.Dialog):
             return False
         entry = tool_settings(config, self._autosave(stored=True))
         while os.path.exists(path):
-            check = check_settings_file(path)
-            if not needs_rewrite(check):
+            validation = validate_settings_file(path)
+            if not needs_rewrite(validation):
                 break
-            answer = confirm_rewrite(check, self)
+            answer = confirm_rewrite(validation, self)
             if answer is None:
                 self.settings_message.SetLabel("Not saved")
                 return False
             if answer == REWRITE:
-                sections = dict(check.sections)
+                sections = dict(validation.sections)
                 tools = {
                     name: value
                     for name, value in sections.get("tools", {}).items()
@@ -1113,7 +1113,7 @@ class ConfigDialog(wx.Dialog):
     def _on_ok(self, event: wx.CommandEvent) -> None:
         """Close the dialog if the config, with pending cell edits, has no errors."""
         # a table cell still being edited keeps its text in the cell editor (clicking
-        # OK does not end the edit on all platforms): take it, then check again
+        # OK does not end the edit on all platforms): take it, then validate again
         if self.commit_edits():
             self.validate()
         if self.ok_button.IsEnabled():

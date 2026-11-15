@@ -117,28 +117,28 @@ You can import settings files from this and older FLIMAnalyzer versions, includi
 
 ## Settings files from older versions
 
-Each time FLIMAnalyzer reads a settings file, it checks the file and converts its settings to the current format in memory. Reading a file doesn't change it. The check sorts the settings into:
+Each time FLIMAnalyzer reads a settings file, it validates the file and converts its settings to the current format in memory. Reading a file doesn't change it. The check sorts the settings into:
 
 * settings converted to the current format, for example `working_dir`, which is now `results_dir`;
 * settings removed because they are no longer used, for example `display`;
 * unknown settings, which this version doesn't have, for example a misspelled name;
 * invalid values, for example an executor that doesn't exist. The section with the invalid value, or the tool's settings, is not used;
-* the settings of tools that aren't installed, which can't be checked. They are kept.
+* the settings of tools that aren't installed, which can't be validated. They are kept.
 
 A file can't be used at all if it can't be read, isn't a settings file, or comes from a newer FLIMAnalyzer version.
 
-If all settings can be used, the GUI uses the file and writes the result of the check to the log. If some can't be used, the GUI lists them and asks what to do:
+If all settings can be used, the GUI uses the file and writes the result of the validation to the log. If some can't be used, the GUI lists them and asks what to do:
 
 * `Use the settings that can be used; skip the others`
 * `Don't use this file`
 * `Update the file to the current version; remove the settings that can't be used`: after a confirmation, the file is replaced by its usable settings in the current format. The removed settings can't be recovered.
-* `Choose another file...`: the other file is checked in the same way.
+* `Choose another file...`: the other file is validated in the same way.
 
 `Cancel` doesn't use the file. A file that can't be used at all offers only the last two choices.
 
 The GUI asks this when it starts with `-s` (or with `defaults.json`), in `File` > `Import Settings...`, and in a tool dialog's `Load Settings...`. In a tool dialog, it asks only if the tool's own settings have problems.
 
-`flimbatch` doesn't ask. It uses a settings file only if every setting in it can be used and checked: it stops with an error that lists them if the file can't be used, or has invalid values, unknown settings or settings of tools that aren't installed. This way its results never depend on settings that were skipped, or on which tools are installed.
+`flimbatch` doesn't ask. It uses a settings file only if every setting in it can be used and validated: it stops with an error that lists them if the file can't be used, or has invalid values, unknown settings or settings of tools that aren't installed. This way its results never depend on settings that were skipped, or on which tools are installed.
 
 ## The settings of a tool
 

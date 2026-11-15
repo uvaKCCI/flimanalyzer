@@ -3,13 +3,13 @@
 The default validator (`DefaultWorkflowValidator`) does a dry run of the
 workflow's `build`: on
 sample tables made from the input schemas, with every tool call traced instead of run.
-Each step's config is checked against the schemas of its inputs (`Tool.validate`),
+Each step's config is validated against the schemas of its inputs (`Tool.validate`),
 and its output schemas (`Tool.output_schema`) are passed to the steps that use them.
 
 Columns the workflow config names that are not in the input are replaced by a guess
 (the closest column of the same role) unless the validation is strict; the run then
 uses the resolved config. Steps whose inputs are not known before the run (e.g. the
-models a training step saves) are not checked.
+models a training step saves) are not validated.
 """
 
 import ast
@@ -36,7 +36,7 @@ _TRACER: contextvars.ContextVar = contextvars.ContextVar("flim_tracer", default=
 
 @dataclass
 class StepReport:
-    """The check of one step (tool call) of a workflow in a dry run.
+    """The validation of one step (tool call) of a workflow in a dry run.
 
     Attributes:
         name: The tool's name, with the step's tags.
@@ -63,7 +63,7 @@ class ValidationReport:
     Attributes:
         config: The workflow config, with the guesses applied.
         issues: The issues of the workflow and its steps.
-        steps: The checked steps; empty if an input is unknown.
+        steps: The validated steps; empty if an input is unknown.
     """
 
     config: TaskConfig  # the workflow config, with the guesses applied
@@ -91,7 +91,7 @@ class WorkflowValidator(Protocol):
         inputs: list[Optional[TableSchema]],
         strict: bool,
     ) -> ValidationReport:
-        """Check a workflow config against the schemas of the input tables.
+        """Validate a workflow config against the schemas of the input tables.
 
         Args:
             workflow: The workflow class.
@@ -262,9 +262,9 @@ class Tracer:
         config: Optional[TaskConfig],
         task_tags: Optional[Union[str, Sequence[str]]] = None,
     ) -> Any:
-        """Check a tool call and record it as a step, instead of running it.
+        """Validate a tool call and record it as a step, instead of running it.
 
-        The config is checked against the input schemas (`Tool.validate`); the
+        The config is validated against the input schemas (`Tool.validate`); the
         output schemas (`Tool.output_schema`) are empty if they can't be derived
         before the run.
 
@@ -308,10 +308,10 @@ def current_tracer() -> Optional[Tracer]:
 
 
 class DefaultWorkflowValidator:
-    """Guesses missing columns of the workflow config, then checks each step.
+    """Guesses missing columns of the workflow config, then validates each step.
 
     Missing columns are guessed unless the validation is strict; the steps are
-    checked in a dry run of the workflow.
+    validated in a dry run of the workflow.
     """
 
     def validate(
@@ -321,10 +321,10 @@ class DefaultWorkflowValidator:
         inputs: list[Optional[TableSchema]],
         strict: bool,
     ) -> ValidationReport:
-        """Check a workflow config against the schemas of the input tables.
+        """Validate a workflow config against the schemas of the input tables.
 
         Columns are resolved only if all known input schemas are complete; the
-        steps are checked only if every input is known and complete. An error while
+        steps are validated only if every input is known and complete. An error while
         the workflow is built is reported as an issue. A step's issue about a
         column that is already reported for the workflow config, or the same issue
         again (steps that run per feature), is left out.
@@ -348,7 +348,7 @@ class DefaultWorkflowValidator:
         if any(s is None or not s.complete for s in schemas) or len(schemas) < len(
             workflow.inputs
         ):
-            return report  # steps are not checked while an input is unknown
+            return report  # steps are not validated while an input is unknown
         samples = [s.sample() for s in schemas]
         tracer = Tracer({id(t): s for t, s in zip(samples, schemas)})
         token = _TRACER.set(tracer)
@@ -384,7 +384,7 @@ class DefaultWorkflowValidator:
     ) -> tuple[TaskConfig, list[Issue]]:
         """Replace the columns a config names that the inputs lack by guesses.
 
-        Fields that the workflow copies into its steps (`bound_fields`) are checked
+        Fields that the workflow copies into its steps (`bound_fields`) are validated
         at the workflow's level only. A column that is in the input with another
         role is an error. If there are issues, the config's `_share_fields` (if
         any) is called, which copies the guesses into the steps' bound fields.
@@ -398,7 +398,7 @@ class DefaultWorkflowValidator:
             The config with the guesses applied, and the issues: guesses and errors.
         """
         columns = {c.name: c.role for s in schemas for c in s.columns}
-        # fields the workflow copies into its steps are checked once, at the top
+        # fields the workflow copies into its steps are validated once, at the top
         bound = {
             f"{step}.{name}"
             for step, names in getattr(config, "bound_fields", {}).items()
@@ -477,7 +477,7 @@ def resolve_step(
     rule list the tool counts itself (e.g. Filter's `filters`) is left to the tool
     if the field is skippable. After removals, `grouping` and `features` keep at
     least the tool's minimum (`min_grouping`, `min_features`), and at least one
-    entry if skippable is `some`. Nothing is checked if an input is unknown.
+    entry if skippable is `some`. Nothing is validated if an input is unknown.
 
     Args:
         tool: The tool class.
@@ -507,7 +507,7 @@ def resolve_step(
         if missing is None:
             if not (top in REMOVED_ENTRIES and issue.message.startswith("Select at least")):
                 result.errors.append(f"{path}: {issue.message}" if path else issue.message)
-            continue  # minimums: checked after the removals
+            continue  # minimums: validated after the removals
         name = missing.group(1)
         if not rules.is_strict(path) and top not in tool.never_guessed:
             candidates = [c for c, r in columns.items() if r == roles.get(path)]

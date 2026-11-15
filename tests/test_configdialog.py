@@ -533,7 +533,7 @@ def test_pca_random_seed_is_hidden(dialog):
     assert "random_seed" in dialog("K-Means").fields.editors  # used there
 
 
-def test_dialog_shows_the_example_and_the_data_checks(dialog):
+def test_dialog_shows_the_example_and_the_data_validation(dialog):
     from flim.configs import FuseCategoriesConfig
 
     d = dialog("Fuse Categories", FuseCategoriesConfig(grouping=["Treatment", "FOV"]))

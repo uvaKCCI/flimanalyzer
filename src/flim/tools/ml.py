@@ -440,7 +440,7 @@ class RandomForest(Tool[RandomForestConfig]):
     def validate(
         cls, config: RandomForestConfig, inputs: Sequence[Any]
     ) -> list[Issue]:
-        """Check the config; a missing target column is an error."""
+        """Validate the config; a missing target column is an error."""
         issues = super().validate(config, inputs)
         if config.target is None:
             issues.append(Issue("target", "Select the category column to predict"))

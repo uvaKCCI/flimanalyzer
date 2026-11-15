@@ -167,8 +167,8 @@ def parse_reference(reference: str) -> tuple[str, int]:
 
 
 @dataclass
-class WorkflowCheck:
-    """The result of `check_workflow_file`.
+class WorkflowValidation:
+    """The result of `validate_workflow_file`.
 
     Attributes:
         path: The file.
@@ -199,11 +199,11 @@ def _has_field(model: Any, path: str) -> bool:
 def processing_issues(
     tool: Any, processing: Processing, config: Any, where: str
 ) -> tuple[list[str], list[str]]:
-    """Check a step's `processing` against its tool and settings.
+    """Validate a step's `processing` against its tool and settings.
 
     `strict` may name any field of the tool's config; `skippable` and `required` only
     the fields the tool declares (`Tool.skippable_fields`); each `required` entry has
-    to be in the field's value (not checked for `features: all`). `strict: false` for
+    to be in the field's value (not validated for `features: all`). `strict: false` for
     a field the tool never guesses (`Tool.never_guessed`) is a warning.
 
     Args:
@@ -249,10 +249,10 @@ def processing_issues(
     return warnings, errors
 
 
-def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> None:
-    """Check a workflow's steps; the problems are added to `check`.
+def validate_definition(definition: WorkflowDefinition, validation: WorkflowValidation) -> None:
+    """Validate a workflow's steps; the problems are added to `validation`.
 
-    Checks that the ids are unique and not `input`, that the inputs refer to earlier
+    Validates that the ids are unique and not `input`, that the inputs refer to earlier
     steps, that the tools exist and their settings are valid, that `save` names
     outputs of its own step, that `output.formats` has only kinds the step's tool
     makes (at workflow level: kinds some step makes, see `step_kinds`), and that
@@ -261,7 +261,7 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
 
     Args:
         definition: The workflow.
-        check: The check that collects the errors.
+        validation: The validation that collects the errors.
     """
     from flim.core.registry import tools
 
@@ -270,27 +270,27 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
     for number, step in enumerate(definition.steps, 1):
         where = f"step {int(step.id):0{width}d}"
         if step.id in seen or step.id == INPUT:
-            check.errors.append(f"{where}: the id '{step.id}' is used twice or reserved")
+            validation.errors.append(f"{where}: the id '{step.id}' is used twice or reserved")
         inputs = step.inputs or ([seen[-1]] if seen else [INPUT])
         for reference in inputs:
             try:
                 source, _ = parse_reference(reference)
             except ValueError as err:
-                check.errors.append(f"{where}: {err}")
+                validation.errors.append(f"{where}: {err}")
                 continue
             if source != INPUT and source not in seen:
-                check.errors.append(
+                validation.errors.append(
                     f"{where}: '{reference}' is not an output of an earlier step"
                 )
         seen.append(step.id)
         if step.tool not in tools:
-            check.errors.append(f"{where}: no tool or workflow named '{step.tool}'")
+            validation.errors.append(f"{where}: no tool or workflow named '{step.tool}'")
             continue
         tool = tools.get(step.tool)
         classname = step.config.get("classname")
         expected = f"{tool.__module__}.{tool.__qualname__}"
         if classname is not None and classname != expected:
-            check.errors.append(
+            validation.errors.append(
                 f"{where}: config.classname '{classname}' is not the class of"
                 f" '{step.tool}' ({expected})"
             )
@@ -301,16 +301,16 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
             reasons = "; ".join(
                 f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in err.errors()
             )
-            check.errors.append(f"{where} ({step.tool}): settings not valid: {reasons}")
+            validation.errors.append(f"{where} ({step.tool}): settings not valid: {reasons}")
         warnings, errors = processing_issues(
             tool, step.processing, config, f"{where} ({step.tool})"
         )
-        check.warnings.extend(warnings)
-        check.errors.extend(errors)
+        validation.warnings.extend(warnings)
+        validation.errors.extend(errors)
         kinds = tool.output_kinds()
         for options in step.output.formats or []:  # None: not set
             if options.kind not in kinds:
-                check.errors.append(
+                validation.errors.append(
                     f"{where} ({step.tool}): output.formats: a format of kind"
                     f" '{options.kind}', which {step.tool} doesn't make (it makes:"
                     f" {', '.join(kinds)})"
@@ -320,33 +320,33 @@ def check_definition(definition: WorkflowDefinition, check: WorkflowCheck) -> No
             try:
                 source, _ = parse_reference(reference)
             except ValueError as err:
-                check.errors.append(f"{where}: output.save: {err}")
+                validation.errors.append(f"{where}: output.save: {err}")
                 continue
             if source != step.id:
-                check.errors.append(f"{where}: output.save: '{reference}' is not this step's")
+                validation.errors.append(f"{where}: output.save: '{reference}' is not this step's")
     if all(step.tool in tools for step in definition.steps):
         used = [tools.get(step.tool) for step in definition.steps]
         strict = definition.processing.strict
         for key in strict if isinstance(strict, dict) else {}:
             if not any(_has_field(t.config_class, key) for t in used):
-                check.errors.append(f"processing.strict: no step's tool has a field '{key}'")
+                validation.errors.append(f"processing.strict: no step's tool has a field '{key}'")
         for group in ("skippable", "required"):
             for key in getattr(definition.processing, group):
                 if not any(key in t.skippable_fields for t in used):
-                    check.errors.append(
+                    validation.errors.append(
                         f"processing.{group}: no step's tool can skip entries of '{key}'"
                     )
         kinds = step_kinds(definition)
         for options in definition.output.formats or []:
             if options.kind not in kinds:
-                check.errors.append(
+                validation.errors.append(
                     f"output.formats: a format of kind '{options.kind}', which no step"
                     f" makes (the steps make: {', '.join(kinds)})"
                 )
 
 
-def check_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) -> WorkflowCheck:
-    """Read and check a workflow file, or with `tool_files` also a tool file.
+def validate_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) -> WorkflowValidation:
+    """Read and validate a workflow file, or with `tool_files` also a tool file.
 
     Args:
         path: The file.
@@ -355,47 +355,47 @@ def check_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) ->
             `tool_file_workflow`). Defaults to False.
 
     Returns:
-        The check: the definition if there are no errors, else the errors.
+        The validation: the definition if there are no errors, else the errors.
     """
     from flim.core.settings import is_tool_file
 
     path = Path(path)
-    check = WorkflowCheck(path=path)
+    validation = WorkflowValidation(path=path)
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError) as err:
-        check.errors.append(f"{path.name}: can't be read ({err})")
-        return check
+        validation.errors.append(f"{path.name}: can't be read ({err})")
+        return validation
     if is_tool_file(data):
         if not tool_files:
-            check.errors.append(
+            validation.errors.append(
                 f"{path.name}: a tool file (the settings of {data['tool']}), not a"
                 " workflow file"
             )
-            return check
-        data = tool_file_workflow(data, check)
+            return validation
+        data = tool_file_workflow(data, validation)
     version = data.get("schema_version", WORKFLOW_SCHEMA_VERSION) if isinstance(data, dict) else None
     if not isinstance(version, int):
-        check.errors.append(f"{path.name}: not a workflow file")
-        return check
+        validation.errors.append(f"{path.name}: not a workflow file")
+        return validation
     if version > WORKFLOW_SCHEMA_VERSION:
-        check.errors.append(
+        validation.errors.append(
             f"{path.name}: workflow file schema version {version} is not supported by"
             f" the installed FLIMAnalyzer {__version__} (up to schema version"
             f" {WORKFLOW_SCHEMA_VERSION}). Upgrade FLIMAnalyzer."
         )
-        return check
+        return validation
     try:
         definition = WorkflowDefinition.model_validate(data)
     except ValidationError as err:
         for e in err.errors():
             where = ".".join(str(p) for p in e["loc"])
-            check.errors.append(f"{path.name}: {where}: {e['msg']}")
-        return check
-    check_definition(definition, check)
-    if not check.errors:
-        check.definition = definition
-    return check
+            validation.errors.append(f"{path.name}: {where}: {e['msg']}")
+        return validation
+    validate_definition(definition, validation)
+    if not validation.errors:
+        validation.definition = definition
+    return validation
 
 
 def tool_save_warning(tool: str) -> str:
@@ -414,15 +414,15 @@ def tool_save_warning(tool: str) -> str:
     )
 
 
-def tool_file_workflow(data: dict, check: WorkflowCheck) -> dict:
+def tool_file_workflow(data: dict, validation: WorkflowValidation) -> dict:
     """Return a tool file's data as a workflow file of one step, `1`.
 
     The workflow is named after the tool, and the step always saves its outputs, as
-    `--run <tool>` does: a tool file with `save: false` gets a warning in `check`.
+    `--run <tool>` does: a tool file with `save: false` gets a warning in `validation`.
 
     Args:
         data: The tool file's data (`tool`, `config`, `output`, `processing`).
-        check: Receives the warning.
+        validation: Receives the warning.
 
     Returns:
         The workflow file's data.
@@ -430,7 +430,7 @@ def tool_file_workflow(data: dict, check: WorkflowCheck) -> dict:
     tool = str(data["tool"])
     output = dict(data.get("output") or {})
     if output.get("save") is False:
-        check.warnings.append(tool_save_warning(tool))
+        validation.warnings.append(tool_save_warning(tool))
     output["save"] = True
     return {
         "schema_version": WORKFLOW_SCHEMA_VERSION,
@@ -579,7 +579,7 @@ def _mappable(tool: Any, step: WorkflowStep) -> bool:
     """Return whether a step's output is a list of parts (`Tool.mappable_output`)."""
     try:
         return bool(tool.mappable_output(tool.config_class.model_validate(step.config)))
-    except Exception:  # invalid settings: reported by the checks
+    except Exception:  # invalid settings: reported by the validation
         return False
 
 
@@ -963,10 +963,10 @@ def resolve_workflow(reference: str) -> type["Workflow"]:
     from flim.core.workflow import Workflow
 
     if reference.lower().endswith(".json"):
-        check = check_workflow_file(reference)
-        if check.errors:
-            raise ValueError(f"{reference}: " + "; ".join(check.errors))
-        return workflow_class(check.definition, Path(reference))
+        validation = validate_workflow_file(reference)
+        if validation.errors:
+            raise ValueError(f"{reference}: " + "; ".join(validation.errors))
+        return workflow_class(validation.definition, Path(reference))
     if reference not in tools or not issubclass(tools.get(reference), Workflow):
         raise ValueError(f"No workflow named '{reference}'")
     return tools.get(reference)
@@ -1009,15 +1009,15 @@ def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
     for path in workflow_files(search_path):
         if _is_tool_file(path):
             continue
-        check = check_workflow_file(path)
-        if check.errors:
-            messages.append(f"{path}: not loaded: {'; '.join(check.errors)}")
+        validation = validate_workflow_file(path)
+        if validation.errors:
+            messages.append(f"{path}: not loaded: {'; '.join(validation.errors)}")
             continue
-        name = check.definition.name
+        name = validation.definition.name
         if name in tools and issubclass(tools.get(name), base) and tools.get(name).path == path:
             tools.unregister(name)  # read again, e.g. after the file changed
         try:
-            tools.register(workflow_class(check.definition, path))
+            tools.register(workflow_class(validation.definition, path))
         except ValueError as err:
             messages.append(f"{path}: not loaded: {err}")
     for message in messages:
@@ -1036,9 +1036,9 @@ def _is_tool_file(path: Path) -> bool:
 
 
 def validate_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
-    """Check a workflow's steps against the tables it would run on, without running it.
+    """Validate a workflow's steps against the tables it would run on, without running it.
 
-    Each step's settings are checked against the columns it gets, as far as they are
+    Each step's settings are validated against the columns it gets, as far as they are
     known, with the step's `processing` applied (`flim.core.validation.resolve_step`:
     guesses and skipped entries are not errors); each step's outputs are worked out
     from its inputs and resolved settings (see `Tool.output_schema`).
@@ -1076,7 +1076,7 @@ def validate_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
         config = resolution.config
         try:
             specs = list(tool.output_schema(config, inputs).values())
-        except Exception:  # the outputs can't be worked out: not checked further
+        except Exception:  # the outputs can't be worked out: not validated further
             specs = []
         known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
         previous = step.id

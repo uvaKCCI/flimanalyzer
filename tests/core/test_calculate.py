@@ -8,7 +8,7 @@ import pytest
 from flim.configs import CalculateConfig
 from flim.configs.data import ExpressionCalculation as Expr
 from flim.configs.data import FunctionCalculation as Func
-from flim.core.calculate import calculate, check, expression_columns, register_function
+from flim.core.calculate import calculate, validate_calculations, expression_columns, register_function
 from flim.tools.data import Calculate
 
 
@@ -112,7 +112,7 @@ def test_registered_functions():
     assert list(table["b"]) == [3.0, 6.0]
 
 
-def test_check(data):
+def test_validate_calculations(data):
     calculations = [
         Expr(name="", expression="1"),
         Expr(name="a", expression="1 +"),
@@ -123,7 +123,7 @@ def test_check(data):
         Expr(name="e", expression="`FAD tm` * 2"),
         Expr(name="e", expression="`FAD tm` * 3"),
     ]
-    problems = {(i, field, severity) for i, field, severity, _ in check(calculations, data.columns)}
+    problems = {(i, field, severity) for i, field, severity, _ in validate_calculations(calculations, data.columns)}
     assert problems == {
         (0, "name", "error"),
         (1, "expression", "error"),
@@ -134,7 +134,7 @@ def test_check(data):
         (7, "name", "error"),  # twice
     }
     # without the table's columns: only what doesn't depend on them
-    assert {p[0] for p in check(calculations)} == {0, 1, 2, 3, 7}
+    assert {p[0] for p in validate_calculations(calculations)} == {0, 1, 2, 3, 7}
 
 
 def test_default_calculations_are_imports():
@@ -144,7 +144,7 @@ def test_default_calculations_are_imports():
     assert [(c.name, c.function, c.args) for c in calculations] == [
         (n, f, list(a)) for n, f, a in DEFAULT_CALCULATIONS
     ]
-    assert check(calculations) == []
+    assert validate_calculations(calculations) == []
 
 
 def test_calculate_tool(data):
@@ -197,14 +197,14 @@ def test_column_names_without_backticks(data):
     # a column calculated in a row above, typed without backticks too
     calculations = [Expr(name="r x", expression="FAD tm * 2"), Expr(name="y", expression="r x + 1")]
     assert list(calculate(data, calculations).data["y"]) == [4001.0, 1.0, 2001.0]
-    assert check(calculations, data.columns) == []
+    assert validate_calculations(calculations, data.columns) == []
 
 
 def test_hints_for_missing_columns(data):
-    problems = check([Expr(name="x", expression="FAD tn * 2")], data.columns)
+    problems = validate_calculations([Expr(name="x", expression="FAD tn * 2")], data.columns)
     (_, _, severity, message) = problems[0]
     assert severity == "error" and "backticks" in message  # 'FAD tn' is not a name
-    problems = check([Expr(name="x", expression="`FAD tn` * 2")], data.columns)
+    problems = validate_calculations([Expr(name="x", expression="`FAD tn` * 2")], data.columns)
     assert "did you mean 'FAD tm'?" in problems[0][3]
 
 

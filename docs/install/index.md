@@ -101,14 +101,14 @@ Run `flimanalyzer --help` for all command-line options.
 | `-x`, `--exclude` | files not to read (names) |
 | `-r`, `--run` | tool or workflow to run on the `-i` files at startup, also a workflow file by its name: a workflow file's steps are shown, then it runs; a tool's dialog opens with the files' tables |
 | `-w`, `--workflow` | workflow file to run on the `-i` files at startup: a path, or a file name in the workflow search path (see [Workflow files](/userguide/workflows.md#workflow-files)) |
-| `--dry-run` | check the runs against the first rows of the `-i` files, report, and exit without opening the GUI, as `flimbatch --dry-run` does (see [Batch Mode](/userguide/batch.md#checking-a-run-first)). It runs batch mode, so it reads no user settings file. |
+| `--dry-run` | validate the runs against the first rows of the `-i` files, report, and exit without opening the GUI, as `flimbatch --dry-run` does (see [Batch Mode](/userguide/batch.md#validating-a-run-first)). It runs batch mode, so it reads no user settings file. |
 | `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings search path, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
 | `-o`, `--output` | results folder: the folder under `Save results` for tools that have no folder of their own |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4` (see [Concurrent and Distributed Execution](/userguide/execution)) |
 | `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |
 | `--log-dir` | log folder (`log` > `dir`; see [Log files](#log-files)) |
 | `--cache-dir` | sets the cache folder setting (`cache` > `dir`) |
-| `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. Default: the closest columns are used, and the dialog shows them before the run (see [Workflows](/userguide/workflows.md#checking-the-settings)). |
+| `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. Default: the closest columns are used, and the dialog shows them before the run (see [Workflows](/userguide/workflows.md#validating-the-settings)). |
 | `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
 | `--batch` | runs [batch mode](/userguide/batch) instead of the GUI: `flimanalyzer --batch ...` does the same as `flimbatch ...` |
 

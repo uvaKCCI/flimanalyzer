@@ -61,7 +61,7 @@ def test_import_tables_runs_a_workflow_on_the_tables(prefect_harness, files, tmp
     assert step == "1" and len(table) == 4 and workflow.definition.name == "join"
 
 
-def test_import_tables_checks_the_workflow():
+def test_import_tables_validates_the_workflow():
     (issue,) = ImportTables.validate(ImportTablesConfig(workflow="no such workflow"), [])
     assert issue.field == "workflow" and "No workflow named" in issue.message
     assert ImportTables.validate(ImportTablesConfig(), []) == []

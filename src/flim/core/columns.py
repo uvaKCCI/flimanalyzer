@@ -126,7 +126,7 @@ def unique_name(name: str, default: str, existing: Container[str]) -> str:
     return name
 
 
-def check_template(template: str) -> str:
+def validate_template(template: str) -> str:
     """Return a rename template if it uses only `{name}`, `{tool}` and `{table}`.
 
     Args:

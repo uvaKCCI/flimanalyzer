@@ -7,7 +7,7 @@ column names with spaces or other characters in backticks, e.g.::
     `NAD(P)H a1[%]` * `NAD(P)H t1` / 100
 
 Before it is evaluated, an expression is
-parsed and checked (`expression_columns`): only these elements are allowed, no
+parsed and validated (`expression_columns`): only these elements are allowed, no
 attribute access, no other calls, no assignments, so a settings or workflow file
 cannot run other code.
 
@@ -259,7 +259,7 @@ class Outcome:
 
 
 def evaluate(data: pd.DataFrame, expression: str) -> pd.Series:
-    """Evaluate an expression on a table, after checking it (`expression_columns`).
+    """Evaluate an expression on a table, after validating it (`expression_columns`).
 
     Args:
         data: The table.
@@ -272,7 +272,7 @@ def evaluate(data: pd.DataFrame, expression: str) -> pd.Series:
         ValueError: If the expression is not allowed.
     """
     expression = quote_columns(expression, data.columns)
-    expression_columns(expression)  # checked before pandas sees it
+    expression_columns(expression)  # validated before pandas sees it
     result = data.eval(expression, engine="python", local_dict={}, global_dict={})
     if not isinstance(result, pd.Series):  # e.g. a number
         result = pd.Series(result, index=data.index)
@@ -378,17 +378,17 @@ def _hint(message: str, expression: str, columns: Optional[Iterable[Any]]) -> st
     )
 
 
-def check(
+def validate_calculations(
     calculations: Iterable["Calculation"], columns: Optional[Collection[Any]] = None
 ) -> list[tuple[int, str, str, str]]:
-    """Check calculations before running them.
+    """Validate calculations before running them.
 
-    Calculations that are not `enabled` are not checked.
+    Calculations that are not `enabled` are not validated.
 
     Args:
         calculations: The calculations.
         columns: The input table's column names; None if unknown (the columns used
-            are then not checked).
+            are then not validated).
 
     Returns:
         (index, field, severity, message) per problem: `error` for calculations that

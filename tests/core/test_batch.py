@@ -435,7 +435,7 @@ def test_a_dry_run_needs_an_output_folder(data_dir, capsys):
     assert "required: -o/--output" in capsys.readouterr().err
 
 
-def test_a_dry_run_checks_the_environment_and_logs_into_the_output_folder(
+def test_a_dry_run_validates_the_environment_and_logs_into_the_output_folder(
     data_dir, tmp_path, monkeypatch, capsys
 ):
     monkeypatch.delenv("FLIM_LOG_DIR", raising=False)
@@ -472,7 +472,7 @@ def test_input_and_exclude_can_be_repeated(data_dir, capsys):
     assert code == 0 and "Import: OK (1 file(s))" in capsys.readouterr().out
 
 
-def test_dry_run_checks_and_runs_nothing(data_dir, settings, tmp_path, capsys):
+def test_dry_run_validates_and_runs_nothing(data_dir, settings, tmp_path, capsys):
     settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["gone"], aggs=["mean"]))
     path = _settings_file(settings, tmp_path)
     assert main(["-i", str(data_dir), *DRY_RUN, "--run", "Import"]) == 0
@@ -489,7 +489,7 @@ def test_dry_run_checks_and_runs_nothing(data_dir, settings, tmp_path, capsys):
         ({"tools": {"Other Plugin": {"config": {}}}}, "Other Plugin"),  # not installed
     ],
 )
-def test_settings_that_cannot_be_used_or_checked_stop_the_run(
+def test_settings_that_cannot_be_used_or_validated_stop_the_run(
     data_dir, settings, tmp_path, capsys, extra, listed
 ):
     path = _settings_file(settings, tmp_path)
@@ -620,3 +620,4 @@ def test_run_by_name_with_settings_from_s(data_dir, settings, tmp_path, capsys):
     assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "--run", "Summarize"]) == 0
     assert (f"--run Summarize: taking the tool's settings from the app settings file {path}"
             " is deprecated and is removed in 0.8.0") in capsys.readouterr().err  # fmt: skip
+

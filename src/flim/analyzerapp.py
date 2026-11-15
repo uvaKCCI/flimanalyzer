@@ -36,7 +36,7 @@ from flim.core.tools import FLIMAnalyzer
 if TYPE_CHECKING:
     import logging.handlers
 
-    from flim.core.settings import LogSettings, SettingsCheck
+    from flim.core.settings import LogSettings, SettingsValidation
     from flim.core.settingsmgr import Pick, SettingsManager
 
 logger = logging.getLogger(__name__)
@@ -128,17 +128,17 @@ def interactive_run(
     app.MainLoop()
 
 
-def choose_settings(check: "SettingsCheck") -> Optional["SettingsCheck"]:
+def choose_settings(validation: "SettingsValidation") -> Optional["SettingsValidation"]:
     """Ask how to use an app settings file some of whose settings cannot be used.
 
-    The dialog (`flim.gui.settingscheck.choose_settings`) is shown before the main
+    The dialog (`flim.gui.settingsvalidation.choose_settings`) is shown before the main
     window opens.
 
     Args:
-        check: The result of `check_settings_file`.
+        validation: The result of `validate_settings_file`.
 
     Returns:
-        The check whose sections to use, or None to use no file.
+        The validation whose sections to use, or None to use no file.
 
     Raises:
         ValueError: If wxPython is not installed (no dialog can be shown); the
@@ -147,11 +147,11 @@ def choose_settings(check: "SettingsCheck") -> Optional["SettingsCheck"]:
     try:
         import wx  # noqa: F401
     except ImportError:
-        raise ValueError(check.summary()) from None
-    from flim.gui.settingscheck import choose_settings as ask
+        raise ValueError(validation.summary()) from None
+    from flim.gui.settingsvalidation import choose_settings as ask
 
     _gui_app()
-    return ask(check)
+    return ask(validation)
 
 
 def _gui_app() -> None:
@@ -174,7 +174,7 @@ def pick_app_settings(
 ) -> "Pick":
     """Ask which app settings file to start with, before the main window opens.
 
-    The dialog is `flim.gui.settingscheck.pick_app_settings`.
+    The dialog is `flim.gui.settingsvalidation.pick_app_settings`.
 
     Args:
         files: The files in the app settings search path.
@@ -191,7 +191,7 @@ def pick_app_settings(
         import wx  # noqa: F401
     except ImportError:
         return Pick(default, default)
-    from flim.gui.settingscheck import pick_app_settings as ask
+    from flim.gui.settingsvalidation import pick_app_settings as ask
 
     _gui_app()
     return ask(files, default, warning)
@@ -275,7 +275,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     memory = init_logger(level)
     logger.info(f"FLIMAnalyzer version {__version__}")
     logger.debug(args)
-    import flim.tools  # noqa: F401  (registers the tools: settings files are checked)
+    import flim.tools  # noqa: F401  (registers the tools: settings files are validated)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.registry import TOOLS_GROUP, discover
 

@@ -1,5 +1,5 @@
 """The choice the GUI offers when some settings of a settings file cannot be used
-(flim.gui.settingscheck), in File > Load Settings... and in tool dialogs."""
+(flim.gui.settingsvalidation), in File > Load Settings... and in tool dialogs."""
 
 import json
 from pathlib import Path
@@ -9,8 +9,8 @@ import pytest
 wx = pytest.importorskip("wx")
 
 import flim.tools  # noqa: E402, F401  (registers the tools: tool settings are checked)
-from flim.core.settings import check_settings_file  # noqa: E402
-from flim.gui import settingscheck  # noqa: E402
+from flim.core.settings import validate_settings_file  # noqa: E402
+from flim.gui import settingsvalidation  # noqa: E402
 
 MIXED = {
     "schema_version": 1,
@@ -60,52 +60,52 @@ def answers(monkeypatch, wxapp):
         def GetSelection(self):
             return self.choices.index(self.answer)
 
-    monkeypatch.setattr(settingscheck.wx, "SingleChoiceDialog", Choice)
-    monkeypatch.setattr(settingscheck, "_confirm_update", lambda check, parent: queue.pop(0))
-    monkeypatch.setattr(settingscheck, "_other_file", lambda parent: queue.pop(0))
-    monkeypatch.setattr(settingscheck, "_save_file", lambda parent: queue.pop(0))
+    monkeypatch.setattr(settingsvalidation.wx, "SingleChoiceDialog", Choice)
+    monkeypatch.setattr(settingsvalidation, "_confirm_update", lambda validation, parent: queue.pop(0))
+    monkeypatch.setattr(settingsvalidation, "_other_file", lambda parent: queue.pop(0))
+    monkeypatch.setattr(settingsvalidation, "_save_file", lambda parent: queue.pop(0))
     return queue, offered
 
 
 def test_use_what_can_be_used(tmp_path, answers):
     queue, offered = answers
-    queue.append(settingscheck.USE)
-    check = check_settings_file(write(tmp_path, MIXED))
-    assert settingscheck.choose_settings(check) is check
+    queue.append(settingsvalidation.USE)
+    validation = validate_settings_file(write(tmp_path, MIXED))
+    assert settingsvalidation.choose_settings(validation) is validation
     message, options = offered[0]
     assert "bogus_section" in message and "working_dir to results_dir" in message
-    assert options == [settingscheck.USE, settingscheck.IGNORE, settingscheck.UPDATE,
-                       settingscheck.OTHER]
+    assert options == [settingsvalidation.USE, settingsvalidation.IGNORE, settingsvalidation.UPDATE,
+                       settingsvalidation.OTHER]
 
 
-@pytest.mark.parametrize("answer", [settingscheck.IGNORE, None])  # None: Cancel
+@pytest.mark.parametrize("answer", [settingsvalidation.IGNORE, None])  # None: Cancel
 def test_dont_use_the_file(tmp_path, answers, answer):
     queue, _ = answers
     queue.append(answer)
-    assert settingscheck.choose_settings(check_settings_file(write(tmp_path, MIXED))) is None
+    assert settingsvalidation.choose_settings(validate_settings_file(write(tmp_path, MIXED))) is None
 
 
 def test_update_the_file_after_confirmation(tmp_path, answers):
     queue, offered = answers
     path = write(tmp_path, MIXED)
-    queue += [settingscheck.UPDATE, False, settingscheck.UPDATE, True]
-    check = settingscheck.choose_settings(check_settings_file(path))
+    queue += [settingsvalidation.UPDATE, False, settingsvalidation.UPDATE, True]
+    validation = settingsvalidation.choose_settings(validate_settings_file(path))
     assert len(offered) == 2  # not confirmed: asked again
     data = json.loads(path.read_text())
     assert data == {"schema_version": 2, "results_dir": "res", "tools": {}}
-    assert check.path == path and not check.problems and check.converted == []
+    assert validation.path == path and not validation.problems and validation.converted == []
 
 
-def test_another_file_is_checked_the_same_way(tmp_path, answers):
+def test_another_file_is_validated_the_same_way(tmp_path, answers):
     queue, offered = answers
     broken = write(tmp_path, "{not json", "broken.json")
     clean = write(tmp_path, CLEAN, "clean.json")
-    queue += [settingscheck.OTHER, str(broken), settingscheck.OTHER, None,
-              settingscheck.OTHER, str(clean)]
-    check = settingscheck.choose_settings(check_settings_file(write(tmp_path, MIXED)))
-    assert check.path == clean
+    queue += [settingsvalidation.OTHER, str(broken), settingsvalidation.OTHER, None,
+              settingsvalidation.OTHER, str(clean)]
+    validation = settingsvalidation.choose_settings(validate_settings_file(write(tmp_path, MIXED)))
+    assert validation.path == clean
     # the broken file offers no settings to use or keep
-    assert offered[1][1] == [settingscheck.IGNORE, settingscheck.OTHER]
+    assert offered[1][1] == [settingsvalidation.IGNORE, settingsvalidation.OTHER]
     assert len(offered) == 3  # file dialog cancelled: asked again
 
 
@@ -128,7 +128,7 @@ def frame(wxapp, monkeypatch, tmp_path):
 
 def test_load_settings_asks_for_a_file_with_problems(frame, tmp_path, answers):
     queue, offered = answers
-    queue.append(settingscheck.USE)
+    queue.append(settingsvalidation.USE)
     path = write(tmp_path, MIXED)
     frame.load_settings(path)
     assert len(offered) == 1
@@ -144,7 +144,7 @@ def test_load_settings_without_problems_does_not_ask(frame, tmp_path, answers):
 
 def test_load_settings_not_used(frame, tmp_path, answers):
     queue, _ = answers
-    queue.append(settingscheck.IGNORE)
+    queue.append(settingsvalidation.IGNORE)
     frame.load_settings(write(tmp_path, MIXED))
     assert frame.settings.results_dir is None and frame.settings_manager.source is None
 
@@ -155,7 +155,7 @@ def test_tool_dialog_asks_only_for_its_own_problems(dialog, tmp_path, answers):
     # K-Means has no settings in the file: the problems of other sections don't matter
     assert not dialog("K-Means").load_settings(str(path))
     assert offered == []
-    queue.append(settingscheck.IGNORE)
+    queue.append(settingsvalidation.IGNORE)
     d = dialog("Summarize")
     assert not d.load_settings(str(path))
     assert len(offered) == 1
@@ -170,7 +170,7 @@ def test_tool_dialog_uses_another_file(dialog, tmp_path, answers):
         {"tools": {"Summarize": {"config": {"aggs": ["count"]}, "autosave": {"enabled": False}}}},
         other,
     )
-    queue += [settingscheck.OTHER, str(other)]
+    queue += [settingsvalidation.OTHER, str(other)]
     d = dialog("Summarize")
     assert d.load_settings(str(write(tmp_path, MIXED)))
     assert d.result().config.aggs == ["count"]
@@ -189,7 +189,7 @@ def test_tool_save_asks_before_rewriting_an_older_file(dialog, tmp_path, answers
     d = dialog("Summarize")
     assert not d.save_settings(str(path))
     assert json.loads(path.read_text()) == OLD
-    queue.append(settingscheck.REWRITE)
+    queue.append(settingsvalidation.REWRITE)
     assert d.save_settings(str(path))
     data = json.loads(path.read_text())
     assert data["schema_version"] == 2 and data["results_dir"] == "res"
@@ -201,7 +201,7 @@ def test_tool_save_to_another_file(dialog, tmp_path, answers):
     queue, _ = answers
     path = write(tmp_path, OLD)
     other = tmp_path / "other.json"
-    queue += [settingscheck.SAVE_OTHER, str(other)]
+    queue += [settingsvalidation.SAVE_OTHER, str(other)]
     assert dialog("Summarize").save_settings(str(path))
     assert json.loads(path.read_text()) == OLD
     assert json.loads(other.read_text())["tool"] == "Summarize"  # a new file: a tool file
@@ -241,7 +241,7 @@ def test_file_menu_has_settings(frame):
 
 
 def _startup_dialog(files, default=None, warning=None):
-    return settingscheck.StartupSettingsDialog(None, files, default, warning)
+    return settingsvalidation.StartupSettingsDialog(None, files, default, warning)
 
 
 def test_startup_dialog_preselects_the_default(wxapp, tmp_path):
@@ -250,12 +250,12 @@ def test_startup_dialog_preselects_the_default(wxapp, tmp_path):
     try:
         # columns: Default, File, Description, Folder
         assert d.table.GetItemCount() == 2 and d.table.GetColumnCount() == 4
-        assert d.rows()[1] == (settingscheck.DEFAULT_MARK, "b.json", "", str(tmp_path))
+        assert d.rows()[1] == (settingsvalidation.DEFAULT_MARK, "b.json", "", str(tmp_path))
         assert d.selected() == b and d.ok.IsEnabled()
         assert d.GetDefaultItem() is d.ok  # Enter: start with the default
         assert not d.make_default.IsEnabled()  # already the default
-        assert d.result(wx.ID_OK) == settingscheck.Pick(b, b)
-        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, b)  # skipped
+        assert d.result(wx.ID_OK) == settingsvalidation.Pick(b, b)
+        assert d.result(wx.ID_CANCEL) == settingsvalidation.Pick(None, b)  # skipped
     finally:
         d.Destroy()
 
@@ -266,11 +266,11 @@ def test_startup_dialog_without_default_selects_nothing(wxapp, tmp_path):
     try:
         assert d.selected() is None and not d.ok.IsEnabled()
         assert d.GetDefaultItem() is d.skip  # Enter: skip
-        assert d.skip.GetLabel() == settingscheck.SKIP and d.skip.GetId() == wx.ID_CANCEL
+        assert d.skip.GetLabel() == settingsvalidation.SKIP and d.skip.GetId() == wx.ID_CANCEL
         assert not d.make_default.IsEnabled() and not d.clear.IsEnabled()
-        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, None)
+        assert d.result(wx.ID_CANCEL) == settingsvalidation.Pick(None, None)
         d.select(0)
-        assert d.ok.IsEnabled() and d.result(wx.ID_OK) == settingscheck.Pick(a, None)
+        assert d.ok.IsEnabled() and d.result(wx.ID_OK) == settingsvalidation.Pick(a, None)
     finally:
         d.Destroy()
 
@@ -281,14 +281,14 @@ def test_startup_dialog_makes_another_file_the_default(wxapp, tmp_path):
     try:
         d.select(0)
         assert d.selected() == a and d.make_default.IsEnabled()
-        assert d.result(wx.ID_OK) == settingscheck.Pick(a, b)  # selecting: unchanged
+        assert d.result(wx.ID_OK) == settingsvalidation.Pick(a, b)  # selecting: unchanged
         d._on_make_default(None)
         assert [d.table.GetItemText(i, 0) for i in range(2)] == [
-            settingscheck.DEFAULT_MARK, ""
+            settingsvalidation.DEFAULT_MARK, ""
         ]  # the check mark moves at once
         assert not d.make_default.IsEnabled() and d.selected() == a
-        assert d.result(wx.ID_OK) == settingscheck.Pick(a, a)
-        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, a)  # also when skipped
+        assert d.result(wx.ID_OK) == settingsvalidation.Pick(a, a)
+        assert d.result(wx.ID_CANCEL) == settingsvalidation.Pick(None, a)  # also when skipped
     finally:
         d.Destroy()
 
@@ -299,8 +299,8 @@ def test_startup_dialog_clears_the_default(wxapp, tmp_path):
     try:
         d._on_clear(None)
         assert not d.clear.IsEnabled() and d.table.GetItemText(1, 0) == ""
-        assert d.result(wx.ID_OK) == settingscheck.Pick(b, None)
-        assert d.result(wx.ID_CANCEL) == settingscheck.Pick(None, None)  # also skipped
+        assert d.result(wx.ID_OK) == settingsvalidation.Pick(b, None)
+        assert d.result(wx.ID_CANCEL) == settingsvalidation.Pick(None, None)  # also skipped
     finally:
         d.Destroy()
 
@@ -342,23 +342,23 @@ def test_old_import_settings_are_offered_as_a_workflow_file(wxapp, tmp_path, mon
     import json
 
     from flim.core.registry import tools
-    from flim.core.settings import check_settings_file
+    from flim.core.settings import validate_settings_file
     from flim.core.settingsmgr import SettingsManager
-    from flim.gui.settingscheck import offer_import_workflow
+    from flim.gui.settingsvalidation import offer_import_workflow
 
     data = json.loads((Path(__file__).parent / "core" / "data" / "settings_v1.json").read_text())
     path = tmp_path / "lab.json"
     path.write_text(json.dumps(data))
-    check = check_settings_file(path)
+    validation = validate_settings_file(path)
     manager = SettingsManager()
     manager.update({"workflow_paths": [str(tmp_path / "workflows")]})
     monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_NO)
-    assert offer_import_workflow(check, None, manager) is None  # Don't Save: nothing written
+    assert offer_import_workflow(validation, None, manager) is None  # Don't Save: nothing written
     monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
     monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
     monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "workflows" / "lab-import.json"))
     try:
-        saved = offer_import_workflow(check, None, manager)
+        saved = offer_import_workflow(validation, None, manager)
         assert saved == tmp_path / "workflows" / "lab-import.json" and saved.exists()
         assert "Import (lab)" in tools  # offered by File > Import Tables... at once
         from flim.tools.readers import ImportTables
@@ -377,7 +377,7 @@ def test_startup_dialog_shows_the_descriptions(wxapp, tmp_path):
     b.write_text("not json")
     d = _startup_dialog([a, b], default=None)
     try:
-        column = settingscheck.STARTUP_COLUMNS.index("Description")
+        column = settingsvalidation.STARTUP_COLUMNS.index("Description")
         assert [d.table.GetItemText(i, column) for i in range(2)] == ["Course 2026", ""]
     finally:
         d.Destroy()

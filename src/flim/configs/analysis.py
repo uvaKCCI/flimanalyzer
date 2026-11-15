@@ -349,7 +349,7 @@ class CategoryRule(BaseConfig):
     max: float = Field(title="Max")
 
     @model_validator(mode="after")
-    def _check_range(self) -> Self:
+    def _validate_range(self) -> Self:
         """Reject a range whose `min` is not smaller than its `max`."""
         if self.min >= self.max:
             raise ValueError(f"'{self.value}': min ({self.min}) >= max ({self.max})")
@@ -415,7 +415,7 @@ class CategorizerConfig(AnalysisConfig):
 
     @field_validator("rules")
     @classmethod
-    def _check_overlaps(cls, rules: list[CategoryRule]) -> list[CategoryRule]:
+    def _validate_overlaps(cls, rules: list[CategoryRule]) -> list[CategoryRule]:
         """Reject rules of the same feature whose ranges overlap."""
         for i, a in enumerate(rules):
             for b in rules[i + 1 :]:

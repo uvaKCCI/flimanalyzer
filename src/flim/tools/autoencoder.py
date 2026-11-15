@@ -590,8 +590,8 @@ class AETraining(Tool[AETrainConfig]):
 
     @classmethod
     def validate(cls, config: AETrainConfig, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config; the number of features is checked by `Tool.validate`."""
-        # too few features: min_features, checked by Tool.validate
+        """Validate the config; the number of features is validated by `Tool.validate`."""
+        # too few features: min_features, validated by Tool.validate
         return super().validate(config, inputs)
 
 
@@ -630,11 +630,11 @@ class _ModelTool:
     def validate(
         cls, config: Union[AERunConfig, AEAugmentConfig], inputs: Sequence[Any]
     ) -> list[Issue]:
-        """Check the config; no model file is an error."""
+        """Validate the config; no model file is an error."""
         issues = super().validate(config, inputs)
         if not config.model_files:
             issues.append(Issue("model_files", "Select at least one model file"))
-        # too few features: min_features, checked by Tool.validate
+        # too few features: min_features, validated by Tool.validate
         return issues
 
 
@@ -941,6 +941,6 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
     def validate(
         cls, config: AEAugmentConfig, inputs: Sequence[Any]
     ) -> list[Issue]:
-        """Check the config; `Tool.validate` checks the number of grouping columns."""
-        # too few grouping columns: min_grouping, checked by Tool.validate
+        """Validate the config; `Tool.validate` validates the number of grouping columns."""
+        # too few grouping columns: min_grouping, validated by Tool.validate
         return super().validate(config, inputs)

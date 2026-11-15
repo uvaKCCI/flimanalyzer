@@ -69,7 +69,7 @@ Most tools also have an `All features` check box above the list. With it, the to
 * `Pair Plot` and `FLIRR Plot`: they have their own fields for the columns to plot.
 * The workflows: they have their own list of features.
 
-If the settings name features that the selected table doesn't have, a note above the list names them. They are checked again when you choose a table that has them.
+If the settings name features that the selected table doesn't have, a note above the list names them. They are validated again when you choose a table that has them.
 
 ## Resources
 
@@ -86,12 +86,12 @@ The other tools have no `Resources` section; they use one thread on the CPU.
 
 Hover the mouse over the name of a field to see a short help text.
 
-The dialog checks the settings while you change them:
+The dialog validates the settings while you change them:
 
 * A field with an error is marked with an error sign. Hover the mouse over the sign to see the message. In lists and tables, the sign is in the row with the error.
-* A warning sign marks a setting that works but may not be what you want, for example a column that a workflow guessed (see [Workflows](/userguide/workflows.md#checking-the-settings)).
+* A warning sign marks a setting that works but may not be what you want, for example a column that a workflow guessed (see [Workflows](/userguide/workflows.md#validating-the-settings)).
 * Messages that are not about a single field, for example about the folder under `Save results`, are shown in red text above the `Output` section.
-* Some tools also check the values of the table, not only its columns, for example `Separate Categories`: values that can't be separated as set are a warning at the field. These tools also show an example from the first row below the `Settings` section.
+* Some tools also validate the values of the table, not only its columns, for example `Separate Categories`: values that can't be separated as set are a warning at the field. These tools also show an example from the first row below the `Settings` section.
 
 `OK` stays disabled while there are errors. Fix them, and `OK` becomes available.
 

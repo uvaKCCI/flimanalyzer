@@ -1,4 +1,4 @@
-"""Checking a settings file before it is used (flim.core.settings.check_settings_file)
+"""Checking a settings file before it is used (flim.core.settings.validate_settings_file)
 and the app settings file of a session (flim.core.settingsmgr)."""
 
 import json
@@ -10,7 +10,7 @@ import flim.tools  # noqa: F401  (registers the tools: tool settings are checked
 from flim.core.registry import tools
 from flim.core.settings import (
     SETTINGS_VERSION,
-    check_settings_file,
+    validate_settings_file,
     load_settings,
     save_sections,
 )
@@ -37,22 +37,22 @@ def write(tmp_path, content, name="settings.json"):
     return path
 
 
-def test_check_sorts_the_keys(tmp_path):
-    check = check_settings_file(write(tmp_path, MIXED))
-    assert check.version == 1 and check.error is None and check.problems
-    assert check.converted == ["working_dir to results_dir"]
-    assert check.dropped[0] == "display (histogram ranges)"
-    assert check.dropped[1].startswith("import (filename parser defaultparser)")
-    assert check.unknown == ["bogus_section"]
-    assert [i.split(":")[0] for i in check.invalid] == ["execution", "tools.Summarize.config"]
-    assert check.not_checked == ["tools.Other Plugin"]
+def test_validation_sorts_the_keys(tmp_path):
+    validation = validate_settings_file(write(tmp_path, MIXED))
+    assert validation.version == 1 and validation.error is None and validation.problems
+    assert validation.converted == ["working_dir to results_dir"]
+    assert validation.dropped[0] == "display (histogram ranges)"
+    assert validation.dropped[1].startswith("import (filename parser defaultparser)")
+    assert validation.unknown == ["bogus_section"]
+    assert [i.split(":")[0] for i in validation.invalid] == ["execution", "tools.Summarize.config"]
+    assert validation.not_validated == ["tools.Other Plugin"]
     # usable: without unknown keys and without the sections with invalid values
-    assert set(check.sections) == {"results_dir", "tools"}
-    assert list(check.sections["tools"]) == ["Other Plugin"]
-    text = check.summary()
+    assert set(validation.sections) == {"results_dir", "tools"}
+    assert list(validation.sections["tools"]) == ["Other Plugin"]
+    text = validation.summary()
     for line in ("schema version 1", "bogus_section", "working_dir to results_dir"):
         assert line in text
-    assert "and 1 more" in check.summary(limit=1)
+    assert "and 1 more" in validation.summary(limit=1)
 
 
 @pytest.mark.parametrize(
@@ -65,42 +65,42 @@ def test_check_sorts_the_keys(tmp_path):
     ],
 )
 def test_files_that_cannot_be_used(tmp_path, content, message):
-    check = check_settings_file(write(tmp_path, content))
-    assert check.problems and message in check.error and check.sections == {}
-    assert check.summary().endswith(check.error)
+    validation = validate_settings_file(write(tmp_path, content))
+    assert validation.problems and message in validation.error and validation.sections == {}
+    assert validation.summary().endswith(validation.error)
 
 
 def test_missing_file(tmp_path):
-    assert "No such file" in check_settings_file(tmp_path / "gone.json").error
+    assert "No such file" in validate_settings_file(tmp_path / "gone.json").error
 
 
 def test_the_file_is_only_read(tmp_path):
     path = write(tmp_path, MIXED)
     before = path.read_text()
-    check_settings_file(path)
+    validate_settings_file(path)
     assert path.read_text() == before
 
 
 @pytest.mark.parametrize("name", ["settings_v0.json", "settings_v1.json"])
 def test_files_of_earlier_versions_have_no_problems(name):
-    check = check_settings_file(DATA / name)
-    assert not check.problems and check.converted
+    validation = validate_settings_file(DATA / name)
+    assert not validation.problems and validation.converted
     assert session_settings(str(DATA / name)).settings == load_settings(DATA / name)
 
 
 def test_updated_file_has_nothing_left_to_convert(tmp_path):
     path = write(tmp_path, MIXED)
-    save_sections(check_settings_file(path).sections, path)
-    check = check_settings_file(path)
-    assert check.version == SETTINGS_VERSION and not check.problems
-    assert check.converted == check.dropped == []
+    save_sections(validate_settings_file(path).sections, path)
+    validation = validate_settings_file(path)
+    assert validation.version == SETTINGS_VERSION and not validation.problems
+    assert validation.converted == validation.dropped == []
     assert json.loads(path.read_text())["results_dir"] == "res"
 
 
 def test_tool_problems(tmp_path):
-    check = check_settings_file(write(tmp_path, MIXED))
-    assert check.tool_problems(tools.get("Summarize"))
-    assert not check.tool_problems(tools.get("K-Means"))  # problems elsewhere only
+    validation = validate_settings_file(write(tmp_path, MIXED))
+    assert validation.tool_problems(tools.get("Summarize"))
+    assert not validation.tool_problems(tools.get("K-Means"))  # problems elsewhere only
 
 
 # --- the app settings file of a session ---
@@ -121,9 +121,9 @@ def test_session_unknown_keys_alone_are_logged(tmp_path, caplog):
 def test_session_asks_only_for_files_with_problems(tmp_path):
     asked = []
 
-    def choose(check):
-        asked.append(check)
-        return check
+    def choose(validation):
+        asked.append(validation)
+        return validation
 
     session_settings(str(DATA / "settings_v1.json"), choose=choose)
     assert asked == []
@@ -135,13 +135,13 @@ def test_session_asks_only_for_files_with_problems(tmp_path):
 
 
 def test_session_choice_of_no_file(tmp_path):
-    manager = session_settings(str(write(tmp_path, MIXED)), choose=lambda check: None)
+    manager = session_settings(str(write(tmp_path, MIXED)), choose=lambda validation: None)
     assert manager.source is None and manager.settings.results_dir is None
 
 
 def test_session_choice_of_another_file(tmp_path):
-    other = check_settings_file(DATA / "settings_v1.json")
-    manager = session_settings(str(write(tmp_path, MIXED)), choose=lambda check: other)
+    other = validate_settings_file(DATA / "settings_v1.json")
+    manager = session_settings(str(write(tmp_path, MIXED)), choose=lambda validation: other)
     assert manager.source == DATA / "settings_v1.json"
 
 
@@ -202,7 +202,7 @@ def test_pick_of_no_file(tmp_path, monkeypatch):
     assert manager.source is None and manager.settings.results_dir is None
 
 
-def test_picked_file_is_checked_like_s(tmp_path, monkeypatch):
+def test_picked_file_is_validated_like_s(tmp_path, monkeypatch):
     monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path))
     path = write(tmp_path, MIXED, "cells.json")
     asked = []

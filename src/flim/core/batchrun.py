@@ -1,7 +1,7 @@
 """Running tools and workflows on tables outside the GUI, as flimbatch does.
 
 Resolves what a run names (a tool, a workflow defined in code, a workflow file or a
-tool file), checks a run against the tables before it starts, and runs it into its
+tool file), validates a run against the tables before it starts, and runs it into its
 folder. Used by the commands and the GUI; prints nothing.
 """
 
@@ -45,7 +45,7 @@ def resolve_run(
     Args:
         name: The argument of `--run`.
         search_path: The folders searched for workflow files.
-        warn: Called with each warning of the file's check, e.g. a tool file with
+        warn: Called with each warning of the file's validation, e.g. a tool file with
             `save: false`. Defaults to logging it.
 
     Returns:
@@ -56,7 +56,7 @@ def resolve_run(
             errors.
     """
     from flim.core.workflowfile import (
-        check_workflow_file,
+        validate_workflow_file,
         find_workflow_file,
         is_workflow_file,
         workflow_class,
@@ -73,12 +73,12 @@ def resolve_run(
         path = find_workflow_file(name, search_path)
     except FileNotFoundError as err:
         raise BatchError(str(err)) from None
-    check = check_workflow_file(path, tool_files=True)  # a tool file: one step
-    if check.errors:
-        raise BatchError(f"{path}:\n" + "\n".join(check.errors))
-    for message in check.warnings:
+    validation = validate_workflow_file(path, tool_files=True)  # a tool file: one step
+    if validation.errors:
+        raise BatchError(f"{path}:\n" + "\n".join(validation.errors))
+    for message in validation.warnings:
         warn(message)
-    return workflow_class(check.definition, path)
+    return workflow_class(validation.definition, path)
 
 
 def file_run(
@@ -130,24 +130,24 @@ def read_settings(read: ReadSettings, exclude: Sequence[str] = ()) -> ReadSettin
     return read.model_copy(update={"exclude": list(read.exclude) + list(exclude)})
 
 
-def check_run(
+def validate_run(
     tool: type["Tool"],
     tables: dict[str, "pd.DataFrame"],
     settings: AppSettings,
     save_all: bool = False,
 ) -> list[str]:
-    """Check a run against the tables (or their first rows) without running it.
+    """Validate a run against the tables (or their first rows) without running it.
 
     Two tables whose names become the same folder name (`path_name`) are an error.
-    A workflow file's steps are checked against the tables' columns. A tool that
-    takes many tables is checked once on all of them, any other tool or workflow on
+    A workflow file's steps are validated against the tables' columns. A tool that
+    takes many tables is validated once on all of them, any other tool or workflow on
     each table. A tool (not a workflow) that needs more than one input table is an
     error.
 
     Args:
         tool: The tool or workflow class.
         tables: The tables by name.
-        settings: The session's settings; a tool or workflow is checked with its
+        settings: The session's settings; a tool or workflow is validated with its
             settings from them.
         save_all: Whether every step saves (`--save-all`); without it, a workflow
             file none of whose steps saves is an error (see `save_issues`).
@@ -220,16 +220,16 @@ def run_on_tables(
 
     Raises:
         BatchError: If the run's settings don't fit the tables, or two tables' names
-            become the same folder name (see `check_run`), or a workflow defined in
+            become the same folder name (see `validate_run`), or a workflow defined in
             code has errors for a table.
     """
     from flim.core.runner import run_flow, tag_prefix
-    from flim.core.tool import check_requirements
+    from flim.core.tool import validate_requirements
     from flim.core.workflow import Workflow, WorkflowValidationError
 
     from flim.core.workflowfile import saving_all, workflow_class
 
-    errors = check_run(tool, tables, settings, save_all=bool(save_all))
+    errors = validate_run(tool, tables, settings, save_all=bool(save_all))
     if errors:
         raise BatchError(f"{tool.name}:\n" + "\n".join(errors))
     execution = execution or ExecutionOptions()
@@ -248,14 +248,14 @@ def run_on_tables(
             save_formats=definition.output.formats,
             notes=notes,
         )
-    # a workflow defined in code: checked per table, then all tables in one run
+    # a workflow defined in code: validated per table, then all tables in one run
     config = settings.tools.config(tool)
     entry = settings.tools.entry(tool)
     configs = {}
     for name, table in tables.items():
         inputs = [table] * len(tool.inputs)
         try:
-            check_requirements(tool.name, config, inputs)
+            validate_requirements(tool.name, config, inputs)
         except ValueError as err:
             raise BatchError(f"{tool.name} on {name}: {err}") from None
         report = tool().resolve(config, inputs, strict)

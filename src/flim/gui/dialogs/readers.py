@@ -49,8 +49,8 @@ class WorkflowEditor(Editor):
         self.changed(event)
 
     def _ask_file(self) -> Optional[str]:
-        """Ask for a workflow file and check it; None if cancelled or it has errors."""
-        from flim.core.workflowfile import check_workflow_file
+        """Ask for a workflow file and validate it; None if cancelled or it has errors."""
+        from flim.core.workflowfile import validate_workflow_file
 
         with wx.FileDialog(
             self.control, "Workflow file", wildcard="Workflow files (*.json)|*.json|All files|*",
@@ -59,9 +59,9 @@ class WorkflowEditor(Editor):
             if dialog.ShowModal() != wx.ID_OK:
                 return None
             path = dialog.GetPath()
-        check = check_workflow_file(path)
-        if check.errors:
-            wx.MessageBox("\n".join(check.errors), "Workflow file", wx.OK | wx.ICON_ERROR)
+        validation = validate_workflow_file(path)
+        if validation.errors:
+            wx.MessageBox("\n".join(validation.errors), "Workflow file", wx.OK | wx.ICON_ERROR)
             return None
         return path
 

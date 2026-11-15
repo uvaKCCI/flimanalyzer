@@ -20,15 +20,15 @@ Tools that need two tables, such as `Merge`, can't run with `--run`; use them in
 
 `flimbatch` needs at least one `--run` or `--workflow`. To read the files into one table, run the built-in `Import` workflow: `--run Import`. It also renames the channels' columns and drops the other channels' columns, and it calculates the FLIM features (see [Import Tables](/userguide/data/load.md#import-tables)).
 
-## Checking a run first
+## Validating a run first
 
-With `--dry-run`, `flimbatch` reads only the first rows of each file, checks every run against them (the tools' settings and, for a workflow file, every step against the columns it gets), reports what it found and runs nothing. `-o` is not needed. The exit code is 0 if no check found an error, else 1.
+With `--dry-run`, `flimbatch` reads only the first rows of each file, validates every run against them (the tools' settings and, for a workflow file, every step against the columns it gets), reports what it found and runs nothing. `-o` is not needed. The exit code is 0 if no check found an error, else 1.
 
-When it finishes, `flimbatch` returns the exit code 0 if everything ran, and 1 if a check or a step failed. Scripts can test this code to see whether the run worked.
+When it finishes, `flimbatch` returns the exit code 0 if everything ran, and 1 if a validation or a step failed. Scripts can test this code to see whether the run worked.
 
 ## Missing columns
 
-Before a workflow runs, its settings are checked against the data (see [Workflows](/userguide/workflows)). A workflow may need a column that the data doesn't have, for example `FAD a1%` when the data has `FAD a1[%]`. In batch mode, this is an error. With `--no-strict`, the closest matching column is used instead, and the run summary lists it under "Notes". This holds when the workflow's `Strict` setting is `Automatic` (the default). With `Strict`: `Yes`, a missing column is always an error; with `Strict`: `No`, it is always guessed (see [Checking the settings](/userguide/workflows.md#checking-the-settings)). `--no-strict` and `Strict` don't apply to workflow files: in a workflow file, a missing column is always an error.
+Before a workflow runs, its settings are validated against the data (see [Workflows](/userguide/workflows)). A workflow may need a column that the data doesn't have, for example `FAD a1%` when the data has `FAD a1[%]`. In batch mode, this is an error. With `--no-strict`, the closest matching column is used instead, and the run summary lists it under "Notes". This holds when the workflow's `Strict` setting is `Automatic` (the default). With `Strict`: `Yes`, a missing column is always an error; with `Strict`: `No`, it is always guessed (see [Validating the settings](/userguide/workflows.md#validating-the-settings)). `--no-strict` and `Strict` don't apply to workflow files: in a workflow file, a missing column is always an error.
 
 ## Options
 
@@ -40,7 +40,7 @@ Before a workflow runs, its settings are checked against the data (see [Workflow
 | `-s`, `--settings` | app settings file: a path, or the name of a file in the app settings search path, with or without `.json` |
 | `-r`, `--run` | tool or workflow to run, also a workflow file by the name in it; repeat for several |
 | `-w`, `--workflow` | workflow file to run: a path, or a file name in the workflow search path (see [Workflow files](/userguide/workflows.md#workflow-files)); repeat for several |
-| `--dry-run` | check the runs against the first rows of the files; run nothing |
+| `--dry-run` | validate the runs against the first rows of the files; run nothing |
 | `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`, the default in batch mode), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4`. An unknown name is an error. |
 | `--no-prefect-server` | don't start a local Prefect server if none is found; a temporary one is used instead (see [Prefect server](/install/index.md#prefect-server)). |

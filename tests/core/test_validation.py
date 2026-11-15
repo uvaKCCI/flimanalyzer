@@ -131,7 +131,7 @@ class SummaryPivot(Workflow[StepsConfig]):
         Pivot()(summary, config=PivotConfig(grouping=config.pivot_by))
 
 
-def test_steps_are_checked_against_earlier_outputs(data):
+def test_steps_are_validated_against_earlier_outputs(data):
     # FOV is in the input, but not in the summary (grouped by Treatment only)
     report = SummaryPivot().resolve(StepsConfig(), [data])
     (error,) = report.errors
@@ -146,7 +146,7 @@ def test_steps_are_checked_against_earlier_outputs(data):
     assert [i.step for i in issues] == ["Pivot"]
 
 
-def test_unknown_inputs_are_not_checked():
+def test_unknown_inputs_are_not_validated():
     report = SummaryPivot().resolve(StepsConfig(), [None])
     assert report.issues == [] and report.steps == []
 

@@ -8,7 +8,7 @@ import pytest
 import flim.tools  # noqa: F401  (registers the tools)
 from flim.core.workflowfile import (
     WORKFLOW_SCHEMA_VERSION,
-    check_workflow_file,
+    validate_workflow_file,
     find_workflow_file,
     parse_reference,
     validate_steps,
@@ -35,9 +35,9 @@ GOOD = {
 
 
 def test_a_valid_file(tmp_path):
-    check = check_workflow_file(write(tmp_path, GOOD))
-    assert check.errors == []
-    definition = check.definition
+    validation = validate_workflow_file(write(tmp_path, GOOD))
+    assert validation.errors == []
+    definition = validation.definition
     assert definition.name == "calc and aggregate"
     assert [s.id for s in definition.steps] == ["1", "2", "3"]  # numbers as text
     assert definition.rules(definition.steps[0]).skip("calculations") == "some"
@@ -68,17 +68,17 @@ def test_a_valid_file(tmp_path):
 def test_errors(tmp_path, change, message):
     data = json.loads(json.dumps(GOOD))
     change(data)
-    check = check_workflow_file(write(tmp_path, data))
-    assert check.definition is None
-    assert any(message in e for e in check.errors), check.errors
+    validation = validate_workflow_file(write(tmp_path, data))
+    assert validation.definition is None
+    assert any(message in e for e in validation.errors), validation.errors
 
 
 def test_unreadable_and_newer_files(tmp_path):
     bad = tmp_path / "bad.json"
     bad.write_text("{")
-    assert "can't be read" in check_workflow_file(bad).errors[0]
+    assert "can't be read" in validate_workflow_file(bad).errors[0]
     newer = write(tmp_path, {**GOOD, "schema_version": WORKFLOW_SCHEMA_VERSION + 1})
-    error = check_workflow_file(newer).errors[0]
+    error = validate_workflow_file(newer).errors[0]
     newest = WORKFLOW_SCHEMA_VERSION
     assert (f"workflow file schema version {newest + 1} is not supported by the installed"
             " FLIMAnalyzer") in error  # fmt: skip
@@ -218,32 +218,32 @@ def test_a_step_classname_must_be_its_tools(tmp_path):
         {"id": "1", "tool": "Summarize", "config": {"classname": own}},
         {"id": "2", "tool": "Sort", "config": {"classname": own}},
     ]}  # fmt: skip
-    check = check_workflow_file(write(tmp_path, data))
-    assert len(check.errors) == 1
-    assert "step 02" in check.errors[0].lower() and "is not the class of 'Sort'" in check.errors[0]
+    validation = validate_workflow_file(write(tmp_path, data))
+    assert len(validation.errors) == 1
+    assert "step 02" in validation.errors[0].lower() and "is not the class of 'Sort'" in validation.errors[0]
 
 
 def test_a_tool_file_is_not_a_workflow_file_unless_asked(tmp_path):
     path = write(tmp_path, {"schema_version": 2, "tool": "Sort", "config": {}}, "sort.json")
-    check = check_workflow_file(path)
-    assert check.errors == ["sort.json: a tool file (the settings of Sort), not a workflow file"]
-    check = check_workflow_file(path, tool_files=True)
-    assert check.errors == [] and check.definition.name == "Sort"
-    (step,) = check.definition.steps
+    validation = validate_workflow_file(path)
+    assert validation.errors == ["sort.json: a tool file (the settings of Sort), not a workflow file"]
+    validation = validate_workflow_file(path, tool_files=True)
+    assert validation.errors == [] and validation.definition.name == "Sort"
+    (step,) = validation.definition.steps
     assert (step.id, step.tool, step.output.save) == ("1", "Sort", True)
 
 
 @pytest.mark.parametrize("bad", ["a", "0", "-1", "1.5", True])
 def test_step_ids_are_whole_numbers_from_1(tmp_path, bad):
     data = {"name": "ids", "steps": [{"id": bad, "tool": "Sort"}]}
-    assert "is not a whole number from 1" in " ".join(check_workflow_file(write(tmp_path, data)).errors)
+    assert "is not a whole number from 1" in " ".join(validate_workflow_file(write(tmp_path, data)).errors)
 
 
 def test_a_step_description_and_no_output_names(tmp_path):
     data = {"name": "notes", "steps": [{"id": "1", "tool": "Sort", "description": "by FOV"}]}
-    assert check_workflow_file(write(tmp_path, data)).definition.steps[0].description == "by FOV"
+    assert validate_workflow_file(write(tmp_path, data)).definition.steps[0].description == "by FOV"
     data["steps"][0]["output"] = {"items": {"1": "sorted"}}  # names of outputs: not a field
-    assert check_workflow_file(write(tmp_path, data)).errors
+    assert validate_workflow_file(write(tmp_path, data)).errors
 
 
 def _calculate_status(processing, calcs):
@@ -277,9 +277,9 @@ def test_processing_required_entries_are_never_skipped(prefect_harness):
 def test_processing_required_names_a_rule_by_some_of_its_fields(tmp_path):
     step = {"id": "1", "tool": "Calculate", "config": {"calculations": [CALC]},
             "processing": {"skippable": {"calculations": "all"}, "required": {"calculations": [{"name": CALC["name"]}]}}}  # fmt: skip
-    assert not check_workflow_file(write(tmp_path, {"name": "w", "steps": [step]})).errors
+    assert not validate_workflow_file(write(tmp_path, {"name": "w", "steps": [step]})).errors
     step["processing"]["required"] = {"calculations": [{"name": "other"}]}
-    errors = check_workflow_file(write(tmp_path, {"name": "w", "steps": [step]})).errors
+    errors = validate_workflow_file(write(tmp_path, {"name": "w", "steps": [step]})).errors
     assert any("{'name': 'other'} is not an entry of calculations" in e for e in errors)
 
 
@@ -296,9 +296,9 @@ def test_processing_merges_per_key_step_over_workflow():
 
 def test_processing_strict_false_for_a_field_never_guessed_is_a_warning(tmp_path):
     data = {"name": "w", "steps": [{"id": "1", "tool": "Drop Columns", "processing": {"strict": {"drop": False}}}]}
-    check = check_workflow_file(write(tmp_path, data))
-    assert not check.errors
-    assert "step 01 (Drop Columns): processing.strict.drop: Drop Columns never guesses drop; it stays strict" in check.warnings
+    validation = validate_workflow_file(write(tmp_path, data))
+    assert not validation.errors
+    assert "step 01 (Drop Columns): processing.strict.drop: Drop Columns never guesses drop; it stays strict" in validation.warnings
 
 
 def test_mixing_per_table_and_single_is_an_error():
@@ -391,9 +391,9 @@ def test_built_in_import_and_presets_match_the_import_of_0_6(prefect_harness, ra
     path = BUILT_IN / "import.json" if preset is None else write_workflow(
         tmp_path / "preset.json", import_with_preset(preset)
     )
-    check = check_workflow_file(path)
-    assert check.errors == []
-    run = workflow_class(check.definition)().run_flow(read_tables([raw_dir]).tables)
+    validation = validate_workflow_file(path)
+    assert validation.errors == []
+    run = workflow_class(validation.definition)().run_flow(read_tables([raw_dir]).tables)
     assert run.state == "completed", run.failed
     (new,) = [v for r in run.results() if isinstance(r, dict) for k, v in r.items() if k == "Table: Calculated"]
     assert_as_in_0_6(new, f"{parser}.txt")
@@ -401,18 +401,18 @@ def test_built_in_import_and_presets_match_the_import_of_0_6(prefect_harness, ra
 
 def test_old_import_settings_become_an_equivalent_workflow(prefect_harness, raw_dir, tmp_path):
     from flim.core.reader import read_tables
-    from flim.core.settings import check_settings_file
+    from flim.core.settings import validate_settings_file
 
     v1 = json.loads((Path(__file__).parent / "data" / "settings_v1.json").read_text())
     v1["import"]["filename_parser"] = {"parser": "fov_treatment_cell_parser", "patterns": []}
     v1["import"]["category_combinations"] = [["FOV", "Treatment"]]
     settings_file = write(tmp_path, v1, "old.json")
-    check = check_settings_file(settings_file)
-    assert check.import_workflow["name"] == "Import (old)"
-    assert check.import_workflow["category"] == ["File", "Import"] and "read" not in check.import_workflow
-    assert check.import_read == {}  # the default delimiter, no files left out
-    path = write(tmp_path, check.import_workflow, "old-import.json")
-    result = check_workflow_file(path)
+    validation = validate_settings_file(settings_file)
+    assert validation.import_workflow["name"] == "Import (old)"
+    assert validation.import_workflow["category"] == ["File", "Import"] and "read" not in validation.import_workflow
+    assert validation.import_read == {}  # the default delimiter, no files left out
+    path = write(tmp_path, validation.import_workflow, "old-import.json")
+    result = validate_workflow_file(path)
     assert result.errors == []
     tools_in_order = [s.tool for s in result.definition.steps]
     assert tools_in_order == [
@@ -531,7 +531,7 @@ def test_category_places_a_workflow_file():
     hidden = workflow_class(WorkflowDefinition(name="hidden", category=[], steps=steps))
     assert category_path(hidden) == []
     for path in BUILT_IN.glob("*.json"):  # all built-in files: offered by Import Tables
-        assert check_workflow_file(path).definition.category == IMPORT_CATEGORY, path.name
+        assert validate_workflow_file(path).definition.category == IMPORT_CATEGORY, path.name
     register_workflow_files()
     assert [t.name for t in import_workflows()] == ["Import"]
 
@@ -658,7 +658,7 @@ def test_step_folders_sort_by_id():
 def test_formats_of_kinds_the_tools_dont_make_are_errors(tmp_path):
     import json
 
-    from flim.core.workflowfile import check_workflow_file, step_kinds
+    from flim.core.workflowfile import validate_workflow_file, step_kinds
 
     path = tmp_path / "w.json"
     path.write_text(json.dumps({
@@ -670,13 +670,13 @@ def test_formats_of_kinds_the_tools_dont_make_are_errors(tmp_path):
             {"id": "2", "tool": "Sort", "output": {"save": True}},
         ],
     }))  # fmt: skip
-    check = check_workflow_file(path)
-    assert check.definition is None
+    validation = validate_workflow_file(path)
+    assert validation.definition is None
     assert ("step 01 (Summarize): output.formats: a format of kind 'plot', which Summarize"
-            " doesn't make (it makes: table)") in check.errors  # fmt: skip
+            " doesn't make (it makes: table)") in validation.errors  # fmt: skip
     assert ("output.formats: a format of kind 'plot', which no step makes (the steps"
-            " make: table)") in check.errors  # fmt: skip
-    assert len(check.errors) == 2  # the workflow-level table format is fine
+            " make: table)") in validation.errors  # fmt: skip
+    assert len(validation.errors) == 2  # the workflow-level table format is fine
 
 
 # --- processing applied to grouping and features ---

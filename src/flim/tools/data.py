@@ -330,14 +330,14 @@ class Filter(Tool[FilterConfig]):
 
     @classmethod
     def validate(cls, config: FilterConfig, inputs: Sequence[Any]) -> list[Issue]:
-        """Check the config against the input schema.
+        """Validate the config against the input schema.
 
         A column of an enabled filter that the input doesn't have is a warning (the
         filter keeps all rows); for a disabled filter it is no issue. The filter tree
-        itself is checked by `flim.core.filtering.check`. A value of an enabled
+        itself is validated by `flim.core.filtering.validate_filters`. A value of an enabled
         category filter that its column doesn't have is a warning.
         """
-        from flim.core.filtering import check
+        from flim.core.filtering import validate_filters
 
         enabled = set(_enabled_paths(config.filters, "filters")) if config.enabled else set()
         issues = []
@@ -353,7 +353,7 @@ class Filter(Tool[FilterConfig]):
         schema = inputs[0] if inputs else None
         complete = schema is not None and schema.complete
         columns = schema.names if complete else None
-        issues += [Issue(f, m, sev) for f, sev, m in check(config.filters, columns)]
+        issues += [Issue(f, m, sev) for f, sev, m in validate_filters(config.filters, columns)]
         if schema is None:
             return issues
         for path, node in _leaves(config.filters, "filters"):
@@ -655,7 +655,7 @@ class Unpivot(Tool[UnpivotConfig]):
         """Warn about selected columns whose headers have fewer lines than others.
 
         Their missing lines count as `missing_label`. Only the first input table is
-        checked.
+        validated.
         """
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if table is None:
@@ -880,7 +880,7 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
         """Warn where the delimiter occurs in the column names or values of a table.
 
         Then separating the fused column back would be ambiguous. Tables without all
-        the selected columns, and fewer than two columns, are not checked.
+        the selected columns, and fewer than two columns, are not validated.
         """
         from flim.core.categories import fuse
 
@@ -955,7 +955,7 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
 
     @staticmethod
     def _incomplete(config: SeparateCategoriesConfig) -> bool:
-        """Return whether the mode's settings are empty (nothing to show or check)."""
+        """Return whether the mode's settings are empty (nothing to show or validate)."""
         return (config.mode == "pattern" and not config.patterns) or (
             config.mode == "template" and not config.template.strip()
         )
@@ -1024,7 +1024,7 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
     def validate(
         cls, config: SeparateCategoriesConfig, schemas: Sequence[Any] = ()
     ) -> list[Issue]:
-        """Check the config: a column, a pattern or a valid template is needed.
+        """Validate the config: a column, a pattern or a valid template is needed.
 
         A column must be selected; the pattern mode needs at least one pattern, the
         template mode a valid template.
@@ -1242,7 +1242,7 @@ class Calculate(Tool[CalculateConfig]):
 
     @classmethod
     def _issues(cls, problems: Sequence[tuple[int, str, str, str]]) -> list[Issue]:
-        """Return `flim.core.calculate.check`'s problems as issues on their fields."""
+        """Return `flim.core.calculate.validate_calculations`'s problems as issues on their fields."""
         return [
             Issue(f"calculations[{i}].{field}", message, severity)
             for i, field, severity, message in problems
@@ -1252,20 +1252,20 @@ class Calculate(Tool[CalculateConfig]):
     def validate(
         cls, config: CalculateConfig, schemas: Sequence[Any] = ()
     ) -> list[Issue]:
-        """Check the config; calculations that can't run are errors.
+        """Validate the config; calculations that can't run are errors.
 
         For example a missing name, a name used twice, an invalid expression, or an
-        unknown function. Columns missing from the input are checked by
+        unknown function. Columns missing from the input are validated by
         `validate_data`.
         """
-        from flim.core.calculate import check
+        from flim.core.calculate import validate_calculations
 
         issues = list(super().validate(config, schemas))
         # with the input's columns, names may be typed without backticks; the columns
-        # used are checked against the tables (validate_data)
+        # used are validated against the tables (validate_data)
         schema = schemas[0] if schemas else None
         columns = schema.names if schema is not None and schema.complete else None
-        problems = check(config.calculations, columns)
+        problems = validate_calculations(config.calculations, columns)
         return issues + cls._issues([p for p in problems if p[2] == "error"])
 
     @classmethod
@@ -1275,14 +1275,14 @@ class Calculate(Tool[CalculateConfig]):
         """Warn about calculations that would be skipped for the first table.
 
         For example a calculation that uses a column that is neither in the table
-        nor calculated before (see `flim.core.calculate.check`).
+        nor calculated before (see `flim.core.calculate.validate_calculations`).
         """
-        from flim.core.calculate import check
+        from flim.core.calculate import validate_calculations
 
         table = next((t for t in tables if isinstance(t, pd.DataFrame)), None)
         if table is None:
             return []
-        problems = check(config.calculations, list(table.columns))
+        problems = validate_calculations(config.calculations, list(table.columns))
         return cls._issues([p for p in problems if p[2] == "warning"])
 
     @classmethod
@@ -1374,7 +1374,7 @@ class SourceFromPath(Tool[SourceFromPathConfig]):
     def validate(
         cls, config: SourceFromPathConfig, inputs: Sequence[Any]
     ) -> list[Issue]:
-        """Check the config; an input without `Directory` or `File` is an error."""
+        """Validate the config; an input without `Directory` or `File` is an error."""
         issues = list(super().validate(config, inputs))
         schema = inputs[0] if inputs else None
         if schema is not None and schema.complete:

@@ -103,7 +103,7 @@ class ImportTables(Workflow[ImportTablesConfig]):
 
     @classmethod
     def workflow_issues(cls, config: ImportTablesConfig) -> list[Issue]:
-        """Check the chosen workflow: it must exist and be a workflow file.
+        """Validate the chosen workflow: it must exist and be a workflow file.
 
         Args:
             config: The config; its `workflow` is a workflow's name or file, or None.
@@ -132,7 +132,7 @@ class ImportTables(Workflow[ImportTablesConfig]):
     ) -> ValidationReport:
         """Return a report with the config unchanged and the workflow's issues.
 
-        The inputs are files, not tables, so no columns are checked or guessed.
+        The inputs are files, not tables, so no columns are validated or guessed.
         """
         return ValidationReport(config=config, issues=self.workflow_issues(config))
 
@@ -143,7 +143,7 @@ class ImportTables(Workflow[ImportTablesConfig]):
         inputs: Sequence[Any],
         strict: Optional[bool] = None,
     ) -> list[Issue]:
-        """Check the config: only the workflow is checked (see `workflow_issues`)."""
+        """Validate the config: only the workflow is validated (see `workflow_issues`)."""
         return cls.workflow_issues(config)
 
     def chosen_workflow(self, config: ImportTablesConfig) -> Optional[type[Workflow]]:

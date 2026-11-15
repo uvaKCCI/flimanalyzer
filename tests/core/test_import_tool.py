@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from flim.configs import ConcatConfig, SourceFromPathConfig
-from flim.core.columns import check_template, make_room
+from flim.core.columns import validate_template, make_room
 from flim.tools.data import Concat, SourceFromPath
 
 PARSER = "fov_treatment_cell_parser"
@@ -73,10 +73,10 @@ def test_templates_and_numbering():
     assert make_room(["t1"], ["Source"], "{name} (old)") == {}
     for bad, message in (("{x}", "not one of"), ("before", "needs {name}"), ("{name", "not a valid")):
         with pytest.raises(ValueError, match=message):
-            check_template(bad)
+            validate_template(bad)
 
 
-def test_short_names_are_checked_by_the_registry():
+def test_short_names_are_validated_by_the_registry():
     from flim.core.registry import ToolRegistry
     from flim.core.tool import Tool
     from flim.configs import SortConfig

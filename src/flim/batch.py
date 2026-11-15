@@ -9,7 +9,7 @@ import warnings
 from flim.batchcmd import main  # noqa: F401
 from flim.core.batchrun import (  # noqa: F401
     BatchError,
-    check_run,
+    validate_run,
     file_run,
     ignored_settings,
     read_settings,

@@ -300,7 +300,7 @@ class CalculationDialog(wx.Dialog):
         self._build(calculation)
 
     def _build(self, calculation: Calculation) -> None:
-        """Replace the fields with those of the calculation's kind, and check it."""
+        """Replace the fields with those of the calculation's kind, and validate it."""
         if self.fields is not None:
             self.fields.Destroy()
         self.fields = FieldsPanel(self, type(calculation), exclude={"kind", "engine"})
@@ -328,7 +328,7 @@ class CalculationDialog(wx.Dialog):
         return model.model_validate(self.fields.values(model()))
 
     def validate(self) -> bool:
-        """Check the calculation and show the result.
+        """Validate the calculation and show the result.
 
         The problems are shown below the fields. A used, named calculation without
         problems shows its value for the first row of the first non-empty input
@@ -337,7 +337,7 @@ class CalculationDialog(wx.Dialog):
         Returns:
             True if there are no errors.
         """
-        from flim.core.calculate import calculate, check
+        from flim.core.calculate import calculate, validate_calculations
 
         ok = self.FindWindowById(wx.ID_OK)
         try:
@@ -346,7 +346,7 @@ class CalculationDialog(wx.Dialog):
             text = "; ".join(err.errors.values()) if isinstance(err, FieldErrors) else str(err)
             self._show("", text, ok, False)
             return False
-        problems = [p for p in check([calculation], self.columns) if p[0] == 0]
+        problems = [p for p in validate_calculations([calculation], self.columns) if p[0] == 0]
         # a column the table doesn't have: the calculation can't be made on it
         errors = [
             m for _, _, severity, m in problems

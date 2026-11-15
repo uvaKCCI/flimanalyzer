@@ -43,10 +43,10 @@ class ProtectedNamesConfig(BaseConfig):
     @field_validator("clash_name")
     @classmethod
     def _template(cls, template: str) -> str:
-        """Check the rename template with `flim.core.columns.check_template`."""
-        from flim.core.columns import check_template
+        """Validate the rename template with `flim.core.columns.validate_template`."""
+        from flim.core.columns import validate_template
 
-        return check_template(template)
+        return validate_template(template)
 
 
 class CategoryOrderConfig(DataTaskConfig):
@@ -172,7 +172,7 @@ class RangeSettings(BaseConfig):
     )
 
     @model_validator(mode="after")
-    def _check_range(self) -> Self:
+    def _validate_range(self) -> Self:
         """Reject a range whose `low` is larger than its `high`."""
         if self.low is not None and self.high is not None and self.low > self.high:
             raise ValueError(f"low ({self.low}) > high ({self.high})")
@@ -203,7 +203,7 @@ class RangeFilterNode(FilterNode):
     )
 
     @model_validator(mode="after")
-    def _check_range(self) -> Self:
+    def _validate_range(self) -> Self:
         """Reject a range whose `low` is larger than its `high`."""
         if self.low is not None and self.high is not None and self.low > self.high:
             raise ValueError(f"low ({self.low}) > high ({self.high})")

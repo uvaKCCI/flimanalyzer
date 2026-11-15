@@ -61,7 +61,7 @@ class SaveAllDialog(wx.Dialog):
         self.validate()
 
     def validate(self) -> list[str]:
-        """Check the folder and the formats, and show the first problem.
+        """Validate the folder and the formats, and show the first problem.
 
         The formats' fields with errors are marked, and OK is enabled only without
         problems.

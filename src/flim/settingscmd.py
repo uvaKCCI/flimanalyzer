@@ -405,25 +405,25 @@ def _report(name: str, errors: Sequence[str], warnings: Sequence[str], ok: str) 
 
 def _tool_validate(args: argparse.Namespace) -> int:
     """Validate a tool file as flimbatch validates it before a run."""
-    from flim.core.workflowfile import check_workflow_file
+    from flim.core.workflowfile import validate_workflow_file
 
     path, data = _file(args.validate, args, "tool")
-    check = check_workflow_file(path, tool_files=True)
-    return _report(str(path), check.errors, check.warnings, f"{path}: a valid tool file of {data['tool']}")
+    validation = validate_workflow_file(path, tool_files=True)
+    return _report(str(path), validation.errors, validation.warnings, f"{path}: a valid tool file of {data['tool']}")
 
 
 def _workflow_validate(args: argparse.Namespace) -> int:
     """Validate a workflow file as flimbatch validates it before a run (also `save_issues`)."""
-    from flim.core.workflowfile import check_workflow_file, save_issues
+    from flim.core.workflowfile import validate_workflow_file, save_issues
 
     path, _ = _file(args.validate, args, "workflow")
-    check = check_workflow_file(path)
-    warnings, errors = list(check.warnings), list(check.errors)
-    if check.definition is not None:
-        more_warnings, more_errors = save_issues(check.definition)
+    validation = validate_workflow_file(path)
+    warnings, errors = list(validation.warnings), list(validation.errors)
+    if validation.definition is not None:
+        more_warnings, more_errors = save_issues(validation.definition)
         warnings += more_warnings
         errors += more_errors
-    name = check.definition.name if check.definition is not None else ""
+    name = validation.definition.name if validation.definition is not None else ""
     return _report(str(path), errors, warnings, f"{path}: a valid workflow file ({name})")
 
 
@@ -460,12 +460,12 @@ def _gui_settings_file(args: argparse.Namespace, user: dict) -> tuple[Optional[s
     `-s FILE` if given; otherwise the user settings file's `default_app_settings`, if
     it exists and can be used (the GUI asks to pick another otherwise).
     """
-    from flim.core.settings import check_app_settings
+    from flim.core.settings import validate_app_settings
 
     if args.settings:
         return args.settings, "-s"
     default = user.get("default_app_settings")
-    if default and Path(default).is_file() and check_app_settings(default).error is None:
+    if default and Path(default).is_file() and validate_app_settings(default).error is None:
         return str(default), "the default app settings file"
     return None, ""
 
@@ -475,7 +475,7 @@ def _managers(args: argparse.Namespace) -> tuple[dict, str]:
 
     Each command's layers: flimanalyzer the built-in defaults, the user settings file,
     its app settings file and the environment; flimbatch the defaults, `-s` (every
-    setting usable and checked) and the environment. Problems are printed.
+    setting usable and validated) and the environment. Problems are printed.
 
     Returns:
         The managers by command, and how the GUI's app settings file is chosen (see
@@ -551,20 +551,20 @@ def _app_show(args: argparse.Namespace) -> int:
 
 def _app_validate(args: argparse.Namespace) -> int:
     """Validate an app settings file, as the GUI and flimbatch read it."""
-    import flim.tools  # noqa: F401  (registers the tools: their settings are checked)
+    import flim.tools  # noqa: F401  (registers the tools: their settings are validated)
     import flim.workflow  # noqa: F401
-    from flim.core.settings import check_app_settings
+    from flim.core.settings import validate_app_settings
 
     discover(TOOLS_GROUP)
-    check = check_app_settings(args.validate)
-    print(check.summary())
-    if check.error or check.invalid:
+    validation = validate_app_settings(args.validate)
+    print(validation.summary())
+    if validation.error or validation.invalid:
         print(f"{PROG}: {args.validate}: cannot be used", file=sys.stderr)
         return 1
-    if check.unknown or check.not_checked:
+    if validation.unknown or validation.not_validated:
         print(
             f"{PROG}: {args.validate}: the GUI uses it without the settings listed;"
-            " flimbatch refuses it (all settings must be usable and checked)",
+            " flimbatch refuses it (all settings must be usable and validated)",
             file=sys.stderr,
         )
         return 1

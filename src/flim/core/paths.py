@@ -1,4 +1,4 @@
-"""Folders for results: one canonical form, a check before a run, and file names.
+"""Folders for results: one canonical form, a validation before a run, and file names.
 
 Every file and folder name FLIMAnalyzer makes (results, step and input folders) is
 made with one rule, `path_name`: the session's character replacements, then only
