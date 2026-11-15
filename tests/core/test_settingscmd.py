@@ -225,8 +225,8 @@ def test_env_list_shows_every_variable_and_the_order_of_precedence(capsys):
     code, out, _ = run(capsys, "env", "--list")
     assert code == 0
     assert "A command-line option takes precedence over its environment variable" in out
-    for name in ENV_VARIABLES:
-        assert f"\n  {name}\n" in out
+    names = [line.strip() for line in out.splitlines() if line.startswith("  FLIM_")]
+    assert names == sorted(ENV_VARIABLES)  # every variable, in alphabetical order
     assert "FLIM_DRY_RUN\n      true: a dry run (--dry-run); read by flimbatch\n" in out
 
 

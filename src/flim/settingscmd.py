@@ -551,7 +551,7 @@ def _env_list(args: argparse.Namespace) -> int:
         "built-in defaults.",
         "",
     ]
-    for name, (what, commands) in ENV_VARIABLES.items():
+    for name, (what, commands) in sorted(ENV_VARIABLES.items()):
         lines += [f"  {name}", f"      {what}; read by {', '.join(commands)}"]
     print("\n".join(lines))
     return 0
