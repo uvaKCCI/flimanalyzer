@@ -456,6 +456,22 @@ class PandasFrame(wx.Frame):
         sizer.Add(toolsizer)
 
         self.SetSizer(sizer)
+        self._fit_side_bar(toolsizer)
+
+    def _fit_side_bar(self, side_bar: wx.Sizer) -> None:
+        """Make the window at least as high as its side bar, within the screen.
+
+        The window starts at the platform's default size, which is lower than the
+        side bar's buttons; the side bar's height is also the window's minimum, so
+        that the buttons can't be cut off. The grid scrolls.
+        """
+        index = wx.Display.GetFromWindow(self)
+        usable = wx.Display(max(index, 0)).GetClientArea()
+        side = side_bar.GetMinSize()
+        height = min(side.height + 10, usable.height)  # 10: the separator's margins
+        self.SetMinClientSize((side.width + 160, height))  # 160: a part of the grid
+        client = self.GetClientSize()
+        self.SetClientSize((client.width, max(client.height, height)))
 
 
     def update_precision(self, precision: int) -> None:

@@ -995,3 +995,12 @@ def test_monitor_menu_has_the_entries_of_the_monitor_group(frame, monkeypatch):
     event = wx.CommandEvent(wx.wxEVT_MENU, frame._monitor_items["Last Run"])
     frame.ProcessEvent(event)  # no run yet: the Last Run message
     assert "No run" in shown[0]
+
+
+def test_the_side_bar_buttons_fit_in_a_new_window(frame, flim_data):
+    window = _open(frame, flim_data)
+    window.Layout()
+    buttons = [c for c in window.GetChildren() if isinstance(c, wx.Button) and c.IsShown()]
+    lowest = max(b.GetRect().GetBottom() for b in buttons)
+    assert lowest <= window.GetClientSize().height
+    assert window.GetMinClientSize().height >= lowest  # can't be shrunk to cut them off
