@@ -139,13 +139,15 @@ class WorkflowDefinition(BaseModel):
     )
     steps: list[WorkflowStep] = Field(min_length=1)
 
-    def rules(self, step: WorkflowStep, override: Optional[Processing] = None) -> ProcessingRules:
+    def rules(
+        self, step: WorkflowStep, override: Union[Processing, Sequence[Processing], None] = None
+    ) -> ProcessingRules:
         """Return a step's `processing`, merged over the workflow's.
 
         Args:
             step: The step.
-            override: A `processing` over the step's, e.g. from the command line;
-                None: none.
+            override: A `processing` over the step's, or several in order, e.g.
+                from the command line; None: none.
 
         Returns:
             The merged rules.
@@ -970,7 +972,7 @@ def _file_workflow_base() -> type["Workflow"]:
 def workflow_class(
     definition: WorkflowDefinition,
     path: Optional[Path] = None,
-    override: Optional[Processing] = None,
+    override: Union[Processing, Sequence[Processing], None] = None,
 ) -> type["Workflow"]:
     """Return a workflow class (a tool) that runs a workflow file's steps.
 
@@ -1108,7 +1110,9 @@ def _is_tool_file(path: Path) -> bool:
 
 
 def validate_steps(
-    definition: WorkflowDefinition, schemas: dict, override: Optional[Processing] = None
+    definition: WorkflowDefinition,
+    schemas: dict,
+    override: Union[Processing, Sequence[Processing], None] = None,
 ) -> list[str]:
     """Validate a workflow's steps against the tables it would run on, without running it.
 
@@ -1190,7 +1194,7 @@ def save_issues(definition: WorkflowDefinition) -> tuple[list[str], list[str]]:
         errors.append(
             f"workflow '{definition.name}': no step saves its outputs; set"
             ' "output": {"save": true} on the steps whose results are to be kept, or run'
-            " flimbatch with --save-all"
+            " flimbatch with --override output.save=true"
         )
     return warnings, errors
 
@@ -1202,19 +1206,159 @@ def _save_setting(step: WorkflowStep) -> str:
     return "output.save not set (default: false)"
 
 
-def saving_all(definition: WorkflowDefinition) -> WorkflowDefinition:
-    """Return a workflow whose steps all save all their outputs (`--save-all`).
+@dataclass(frozen=True)
+class Overrides:
+    """Settings given over every step's, e.g. with `flimbatch --override`.
+
+    They take precedence over the steps' and the workflow's settings (and a tool's
+    or a workflow's defined in code), field by field; see `parse_overrides`.
+
+    Attributes:
+        save: Every step's `output.save`; None: not given.
+        formats: Formats per kind (`SaveOptions`), over each step's of these kinds.
+        processing: `processing` layers over each step's, in the order given (a
+            single `strict` value, then per-field values, are two layers).
+        given: The arguments as given, e.g. `output.save=true`, for the run summary.
+    """
+
+    save: Optional[bool] = None
+    formats: tuple = ()
+    processing: tuple = ()
+    given: tuple = ()
+
+    def formats_over(self, formats: Sequence[Any]) -> list:
+        """Return formats with the kinds of `formats` given here replaced.
+
+        Args:
+            formats: A step's or a tool's formats (`SaveOptions`).
+
+        Returns:
+            The given formats, then those of `formats` of the other kinds.
+        """
+        kinds = {f.kind for f in self.formats}
+        return list(self.formats) + [f for f in formats if f.kind not in kinds]
+
+
+OVERRIDABLE = "output.save, output.formats, processing.strict, processing.skippable.FIELD, processing.required.FIELD"
+
+
+def _bool(value: str, path: str) -> bool:
+    """Return `true` or `false` as a bool."""
+    if value.lower() in ("true", "false"):
+        return value.lower() == "true"
+    raise ValueError(f"--override {path}={value}: use true or false")
+
+
+def _formats(value: str, path: str) -> list:
+    """Return formats from the shorthand `kind:format[,kind:format...]` or JSON."""
+    from pydantic import TypeAdapter
+
+    try:
+        if value.lstrip().startswith(("[", "{")):
+            data = json.loads(value)
+            data = data if isinstance(data, list) else [data]
+        else:
+            data = []
+            for item in value.split(","):
+                kind, _, fmt = item.strip().partition(":")
+                if not fmt:
+                    raise ValueError(f"'{item}' is not kind:format, e.g. table:csv")
+                data.append({"kind": kind.strip(), "format": fmt.strip()})
+        return list(TypeAdapter(Formats).validate_python(data))
+    except (ValueError, ValidationError) as err:
+        reason = "; ".join(e["msg"] for e in err.errors()) if isinstance(err, ValidationError) else str(err)
+        raise ValueError(f"--override {path}={value}: {reason}") from None
+
+
+def parse_overrides(values: Sequence[str]) -> Overrides:
+    """Return the overrides of `GROUP.FIELD=VALUE` arguments, later over earlier.
+
+    Groups and fields:
+
+    - `output.save=true|false`: every step saves its outputs, or none.
+    - `output.formats=table:csv,plot:svg` (or JSON, e.g. `[{"kind": "plot",
+      "format": "png", "dpi": 600}]`): replaces the formats of the kinds named.
+    - `processing.strict=true|false`, `processing.strict.FIELD=true|false`.
+    - `processing.skippable.FIELD=none|some|all`.
+    - `processing.required.FIELD=ENTRY[,ENTRY...]` (or a JSON list).
+
+    Not overridable: `config`, whose fields mean different things per tool, and the
+    fields of a workflow's structure (`id`, `tool`, `inputs`, `description`).
+
+    Args:
+        values: The arguments.
+
+    Returns:
+        The overrides.
+
+    Raises:
+        ValueError: If an argument is not `GROUP.FIELD=VALUE`, names a field that
+            can't be overridden, or has an invalid value; the message names it.
+    """
+    save, formats, given, layers = None, {}, [], []
+    for argument in values:
+        path, sep, value = argument.partition("=")
+        parts = path.strip().split(".")
+        if not sep or not parts[0]:
+            raise ValueError(f"--override {argument}: use GROUP.FIELD=VALUE, e.g. output.save=true")
+        group, field_name, rest = parts[0], (parts[1] if len(parts) > 1 else ""), ".".join(parts[2:])
+        if group == "config":
+            raise ValueError(
+                f"--override {argument}: config can't be overridden (its fields mean"
+                " different things per tool); set it in the tool or workflow file"
+            )
+        if (group, field_name) == ("output", "save") and not rest:
+            save = _bool(value, path)
+        elif (group, field_name) == ("output", "formats") and not rest:
+            formats.update({f.kind: [] for f in _formats(value, path)})
+            for f in _formats(value, path):
+                formats[f.kind].append(f)
+        elif (group, field_name) == ("processing", "strict"):
+            strict = {rest: _bool(value, path)} if rest else _bool(value, path)
+            layers.append(Processing(strict=strict))
+        elif (group, field_name) == ("processing", "skippable") and rest:
+            if value not in ("none", "some", "all"):
+                raise ValueError(f"--override {path}={value}: use none, some or all")
+            layers.append(Processing(skippable={rest: value}))
+        elif (group, field_name) == ("processing", "required") and rest:
+            entries = json.loads(value) if value.lstrip().startswith("[") else value.split(",")
+            entries = [e.strip() if isinstance(e, str) else e for e in entries]
+            layers.append(Processing(required={rest: entries}))
+        else:
+            raise ValueError(f"--override {argument}: can't be overridden; use {OVERRIDABLE}")
+        given.append(argument)
+    return Overrides(
+        save=save,
+        formats=tuple(f for kind in formats.values() for f in kind),
+        processing=tuple(layers),
+        given=tuple(given),
+    )
+
+
+def overridden(definition: WorkflowDefinition, overrides: Overrides) -> WorkflowDefinition:
+    """Return a workflow with the output settings of `overrides` in every step.
+
+    `output.save` replaces each step's; `output.formats` replaces each step's
+    formats of the kinds given. The `processing` of `overrides` is not put into
+    the steps: it is a layer over theirs (`WorkflowDefinition.rules`).
 
     Args:
         definition: The workflow.
+        overrides: The overrides.
 
     Returns:
-        A copy with `output.save` true in every step.
+        A copy with the overridden steps.
     """
-    steps = [
-        step.model_copy(update={"output": step.output.model_copy(update={"save": True})})
-        for step in definition.steps
-    ]
+    if overrides.save is None and not overrides.formats:
+        return definition
+    steps = []
+    for step in definition.steps:
+        update = {}
+        if overrides.save is not None:
+            update["save"] = overrides.save
+        if overrides.formats:
+            update["formats"] = overrides.formats_over(step.output.formats or [])
+        steps.append(step.model_copy(update={"output": step.output.model_copy(update=update)}))
     return definition.model_copy(update={"steps": steps})
 
 
@@ -1484,7 +1628,7 @@ def declared_processing(tool: Any, config: Any, rules: ProcessingRules) -> dict:
 
 def resolve_definition(
     definition: WorkflowDefinition,
-    override: Optional[Processing] = None,
+    override: Union[Processing, Sequence[Processing], None] = None,
     schemas: Optional[dict] = None,
 ) -> WorkflowDefinition:
     """Return a workflow with every setting of every step stated: the resolved file.

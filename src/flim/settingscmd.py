@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Sequence
 
 from flim.core.batchrun import BatchError
-from flim.core.cli import DRY_RUN_VAR, LOG_LEVEL_VAR, LOG_LEVELS, SAVE_ALL_VAR, flag_source
+from flim.core.cli import DRY_RUN_VAR, LOG_LEVEL_VAR, LOG_LEVELS, flag_source
 from flim.core.registry import TOOLS_GROUP, discover, tools
 from flim.core.settings import settings_kind
 from flim.core.settingsmgr import (
@@ -78,7 +78,6 @@ ENV_VARIABLES = {
     ENV_NAMES["cache"]: (f"cache folder ({OPTION_NAMES['cache']})", [GUI, BATCH]),
     LOG_LEVEL_VAR: (f"log level: {', '.join(LOG_LEVELS)} (-l)", [GUI, BATCH]),
     DRY_RUN_VAR: ("true: a dry run (--dry-run)", [BATCH]),
-    SAVE_ALL_VAR: ("true: every workflow step saves all its outputs (--save-all)", [BATCH]),
     WORKFLOW_PATH_VAR: (
         f"folders searched for workflow and tool files, separated by {os.pathsep!r} (-w)",
         [GUI, BATCH, SETTINGS],
@@ -177,10 +176,14 @@ def _add_settings_file(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_workflow_path(parser: argparse.ArgumentParser) -> None:
-    """Add `-w` to a subcommand's parser."""
+    """Add `-w`, and `--override` for `--resolve`, to a subcommand's parser."""
     parser.add_argument(
         "-w", "--workflow-path", action="extend", nargs="+", default=[], metavar="DIR",
         help=f"folders searched for workflow and tool files (also {WORKFLOW_PATH_VAR})",
+    )  # fmt: skip
+    parser.add_argument(
+        "--override", action="append", default=[], metavar="GROUP.FIELD=VALUE",
+        help="with --resolve: a setting over the file's, as with flimbatch --override",
     )  # fmt: skip
 
 
@@ -409,8 +412,9 @@ def _workflow_validate(args: argparse.Namespace) -> int:
 def _tool_resolve(args: argparse.Namespace) -> int:
     """Print a tool file with every setting stated (data-dependent settings excepted)."""
     from flim.core.config import ProcessingRules
-    from flim.core.workflowfile import resolved_tool_data, validate_workflow_file
+    from flim.core.workflowfile import parse_overrides, resolved_tool_data, validate_workflow_file
 
+    overrides = parse_overrides(args.override)
     path, _ = _file(args.resolve, args, "tool")
     validation = validate_workflow_file(path, tool_files=True)
     if validation.errors:
@@ -418,13 +422,15 @@ def _tool_resolve(args: argparse.Namespace) -> int:
     if validation.workflow is not None:  # a workflow defined in code
         tool, entry = validation.workflow, validation.workflow.settings_entry
         config = tool.config_class.model_validate(entry.config or {})
-        data = resolved_tool_data(tool, config, entry.output.formats, ProcessingRules.of(entry.processing))
+        rules = ProcessingRules.of(entry.processing, overrides.processing)
+        data = resolved_tool_data(tool, config, overrides.formats_over(entry.output.formats), rules)
     else:  # a tool, run as a workflow of one step
         definition = validation.definition
         (step,) = definition.steps
         tool = tools.get(step.tool)
         config = tool.config_class.model_validate(step.config)
-        data = resolved_tool_data(tool, config, step.output.formats or [], definition.rules(step))
+        formats = overrides.formats_over(step.output.formats or [])
+        data = resolved_tool_data(tool, config, formats, definition.rules(step, overrides.processing))
     print(json.dumps(data, indent=2))
     return 0
 
@@ -435,13 +441,21 @@ def _workflow_resolve(args: argparse.Namespace) -> int:
     The settings that depend on the data (`features: all`, guessed columns, skipped
     entries) stay as in the file; flimbatch pins them in `resolved.json`.
     """
-    from flim.core.workflowfile import resolve_definition, resolved_data, validate_workflow_file
+    from flim.core.workflowfile import (
+        overridden,
+        parse_overrides,
+        resolve_definition,
+        resolved_data,
+        validate_workflow_file,
+    )
 
+    overrides = parse_overrides(args.override)
     path, _ = _file(args.resolve, args, "workflow")
     validation = validate_workflow_file(path)
     if validation.errors:
         return _report(str(path), validation.errors, validation.warnings, "")
-    print(json.dumps(resolved_data(resolve_definition(validation.definition)), indent=2))
+    definition = overridden(validation.definition, overrides)
+    print(json.dumps(resolved_data(resolve_definition(definition, overrides.processing)), indent=2))
     return 0
 
 
@@ -655,11 +669,10 @@ def _env_show(args: argparse.Namespace) -> int:
     level = os.environ.get(LOG_LEVEL_VAR, "").strip()
     if level and level.lower() not in LOG_LEVELS:
         problems.append(f"Invalid environment variable: {LOG_LEVEL_VAR}={level}")
-    for option, variable in (("--dry-run", DRY_RUN_VAR), ("--save-all", SAVE_ALL_VAR)):
-        try:
-            flag_source(False, option, variable)
-        except ValueError as err:
-            problems.append(str(err))
+    try:
+        flag_source(False, "--dry-run", DRY_RUN_VAR)
+    except ValueError as err:
+        problems.append(str(err))
     if problems:
         print(f"{PROG}: problems:\n" + "\n".join(f"  {p}" for p in problems), file=sys.stderr)
         return 1

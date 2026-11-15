@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
-from flim.core.config import Processing, ProcessingRules
+from flim.core.config import ProcessingRules
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import same_names
 from flim.core.reader import ReadSettings
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
     from flim.core.runner import FlowRun
     from flim.core.tool import Tool
+    from flim.core.workflowfile import Overrides
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +177,7 @@ def validate_run(
     tool: type["Tool"],
     tables: dict[str, "pd.DataFrame"],
     settings: AppSettings,
-    save_all: bool = False,
-    override: Optional[Processing] = None,
+    overrides: Optional["Overrides"] = None,
 ) -> list[str]:
     """Validate a run against the tables (or their first rows) without running it.
 
@@ -193,16 +193,17 @@ def validate_run(
         tables: The tables by name.
         settings: The session's settings; a tool or workflow is validated with its
             settings from them.
-        save_all: Whether every step saves (`--save-all`); without it, a workflow
-            file none of whose steps saves is an error (see `save_issues`).
-        override: A `processing` over the tool's or the steps' (e.g. from the
-            command line); None: none.
+        overrides: Settings over the tool's or the steps' (`flimbatch --override`);
+            None: none. Unless they make every step save, a workflow file none of
+            whose steps saves is an error (see `save_issues`).
 
     Returns:
         The errors, each with the tool and the table; empty if there are none.
     """
     from flim.core.workflow import Workflow
-    from flim.core.workflowfile import validate_steps, save_issues
+    from flim.core.workflowfile import Overrides, overridden, save_issues, validate_steps
+
+    overrides = overrides or Overrides()
 
     names = [
         f"the inputs '{a}' and '{b}' get the same folder name" for a, b in same_names(tables)
@@ -215,10 +216,11 @@ def validate_run(
         tool = tool_workflow(tool, settings)
     definition = getattr(tool, "definition", None)
     if definition is not None:
-        unsaved = [] if save_all else save_issues(definition)[1]
-        return names + unsaved + validate_steps(definition, schemas, override)
+        definition = overridden(definition, overrides)
+        unsaved = save_issues(definition)[1]
+        return names + unsaved + validate_steps(definition, schemas, overrides.processing)
     config, entry = workflow_settings(tool, settings)
-    rules = ProcessingRules.of(entry.processing if entry else None, override)
+    rules = ProcessingRules.of(entry.processing if entry else None, overrides.processing)
     targets = [(name, [schema] * max(1, len(tool.inputs))) for name, schema in schemas.items()]
     errors = names
     for name, inputs in targets:
@@ -235,9 +237,8 @@ def run_on_tables(
     settings: AppSettings,
     run_dir: str | os.PathLike,
     execution: Optional[ExecutionOptions] = None,
-    override: Optional[Processing] = None,
+    overrides: Optional["Overrides"] = None,
     settings_record: Sequence[str] = (),
-    save_all: Optional[str] = None,
     notes: Sequence[str] = (),
 ) -> "FlowRun":
     """Run a tool or workflow on the tables read from the files, as one run.
@@ -256,12 +257,9 @@ def run_on_tables(
         settings: The app settings (the tools' settings and save formats).
         run_dir: The run's folder, e.g. `<output>/<date and time>/run-1`.
         execution: The executor; None for the default `ExecutionOptions`.
-        override: A `processing` over the tool's or the steps' (e.g. from the
-            command line); None: none.
+        overrides: Settings over the tool's or the steps' (`flimbatch --override`),
+            listed in the run summary; None: none.
         settings_record: The settings files, for the run summary.
-        save_all: What made every step of a workflow file save all its outputs
-            (`--save-all` or `FLIM_SAVE_ALL`), noted in the run summary; None: the
-            steps' `output.save`.
         notes: Notes for the run summary, e.g. on the executor.
 
     Returns:
@@ -278,28 +276,29 @@ def run_on_tables(
     from flim.core.workflow import Workflow, WorkflowValidationError
 
     from flim.core.workflowfile import (
+        Overrides,
+        overridden,
         resolve_definition,
         resolved_data,
         resolved_tool_data,
-        saving_all,
         workflow_class,
     )
 
-    errors = validate_run(tool, tables, settings, save_all=bool(save_all), override=override)
+    overrides = overrides or Overrides()
+    errors = validate_run(tool, tables, settings, overrides)
     if errors:
         raise BatchError(f"{tool.name}:\n" + "\n".join(errors))
     execution = execution or ExecutionOptions()
-    notes = list(notes) + ([f"every step saves all its outputs ({save_all})"] if save_all else [])
+    notes = list(notes) + [f"--override {given}" for given in overrides.given]
     if getattr(tool, "definition", None) is None and not issubclass(tool, Workflow):
         tool = tool_workflow(tool, settings)
     definition = getattr(tool, "definition", None)
     if definition is not None:  # a workflow file, or a tool as one
-        if save_all:
-            definition = saving_all(definition)
-        if save_all or override is not None:
-            tool = workflow_class(definition, getattr(tool, "path", None), override)
+        if overrides.given:
+            definition = overridden(definition, overrides)
+            tool = workflow_class(definition, getattr(tool, "path", None), overrides.processing)
         schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
-        resolved = resolve_definition(definition, override, schemas)
+        resolved = resolve_definition(definition, overrides.processing, schemas)
         _write_resolved(run_dir, resolved_data(resolved))
         return tool().run_flow(
             tables,
@@ -311,7 +310,7 @@ def run_on_tables(
         )
     # a workflow defined in code: validated per table, then all tables in one run
     config, entry = workflow_settings(tool, settings)
-    rules = ProcessingRules.of(entry.processing if entry else None, override)
+    rules = ProcessingRules.of(entry.processing if entry else None, overrides.processing)
     configs = {}
     for name, table in tables.items():
         inputs = [table] * len(tool.inputs)
@@ -326,7 +325,7 @@ def run_on_tables(
         notes += resolution_notes(report, f"{name}: ")
 
     first = next(iter(configs.values()), config)
-    formats = entry.output.formats if entry else []
+    formats = overrides.formats_over(entry.output.formats if entry else [])
     _write_resolved(run_dir, resolved_tool_data(tool, first, formats, rules))
 
     def build() -> None:
@@ -341,7 +340,7 @@ def run_on_tables(
         run_dir=run_dir,
         notes=notes,
         settings_record=settings_record,
-        save_formats=entry.output.formats if entry else [],
+        save_formats=formats,
     )
 
 

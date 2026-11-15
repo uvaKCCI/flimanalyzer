@@ -41,6 +41,7 @@ Before a workflow runs, its settings are validated against the data (see [Workfl
 | `-r`, `--run` | tool or workflow to run, also a workflow file by the name in it; repeat for several |
 | `-w`, `--workflow` | workflow file to run: a path, or a file name in the workflow search path (see [Workflow files](/userguide/workflows.md#workflow-files)); repeat for several |
 | `--dry-run` | validate the runs against the first rows of the files; run nothing |
+| `--override GROUP.FIELD=VALUE` | set a setting for every step of every run, over the settings in the files; repeatable. `output.save=true` saves the results of every step. `output.formats=table:csv,plot:svg` saves tables as `.csv` and plots as `.svg` (or as JSON, for options such as `[{"kind": "plot", "format": "png", "dpi": 600}]`); kinds not named keep their formats. `processing.strict=false` uses the closest matching column for a column that is not in the data; `processing.strict.features=false` does so for one setting only. `processing.skippable.features=some` and `processing.required.features=FLIRR` as in a workflow file's `processing` section (see [Workflow files](/userguide/workflows.md#workflow-files)). The settings of the tools themselves (`config`) can't be set this way. The run summary lists the overrides, and `resolved.json` holds the overridden settings, so a rerun of it needs none. |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4`. An unknown name is an error. |
 | `--no-prefect-server` | don't start a local Prefect server if none is found; a temporary one is used instead (see [Prefect server](/install/index.md#prefect-server)). |
 | `--log-dir` | log folder (`log` > `dir`); default: the output folder (see [Log files](/install/index.md#log-files)) |
@@ -54,7 +55,7 @@ These options can also be set with environment variables (see [Environment varia
 | Deprecated | Use instead | Example | Removed in |
 |---|---|---|---|
 | `-c`, `--config FILE` | `-s`, `--settings FILE` | `-c settings.json` → `-s settings.json` | 0.8.0 |
-| `--allow-guesses` | `"processing": {"strict": false}` in the tool or workflow file | | 0.8.0 |
+| `--allow-guesses` | `--override processing.strict=false` | `--allow-guesses` → `--override processing.strict=false` | 0.8.0 |
 | `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` | 1.0.0 |
 | `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `--execargs="num_workers=4"` → `-e local:workers=4` | 0.8.0 |
 

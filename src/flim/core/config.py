@@ -528,7 +528,7 @@ class ProcessingRules:
     required: dict = dataclasses.field(default_factory=dict)
 
     @classmethod
-    def of(cls, *layers: Optional[Processing]) -> "ProcessingRules":
+    def of(cls, *layers: Union[Processing, Sequence[Processing], None]) -> "ProcessingRules":
         """Merge `processing` layers per key, the later over the earlier.
 
         A single `strict` value replaces every field's value of the earlier layers;
@@ -536,13 +536,17 @@ class ProcessingRules:
 
         Args:
             *layers: The layers, lowest first, e.g. the workflow's, then the step's;
-                None for a layer that isn't set.
+                None for a layer that isn't set; a sequence for several layers in
+                order (e.g. the command line's overrides).
 
         Returns:
             The rules.
         """
-        strict, fields, skippable, required = True, {}, {}, {}
+        flat: list = []
         for layer in layers:
+            flat.extend(layer if isinstance(layer, (list, tuple)) else [layer])
+        strict, fields, skippable, required = True, {}, {}, {}
+        for layer in flat:
             if layer is None:
                 continue
             if isinstance(layer.strict, bool):

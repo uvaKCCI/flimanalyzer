@@ -261,12 +261,11 @@ def test_env_show_reports_unknown_names_and_invalid_values(clean_env, monkeypatc
     monkeypatch.setenv("FLIM_EXECUTION__WORKERS", "2")
     assert run(capsys, "env", "--show")[0] == 0
     monkeypatch.setenv("FLIM_DRYRUN", "1")
-    monkeypatch.setenv("FLIM_SAVE_ALL", "maybe")
     monkeypatch.setenv("FLIM_LOG_LEVEL", "loud")
     code, out, err = run(capsys, "env", "--show")
     assert code == 1 and "  FLIM_DRYRUN=1" in out
     assert "FLIM_DRYRUN: FLIMAnalyzer does not read this variable; check the name" in err
-    assert "FLIM_SAVE_ALL=maybe" in err and "FLIM_LOG_LEVEL=loud" in err
+    assert "FLIM_LOG_LEVEL=loud" in err
 
 
 # --- arguments ---
@@ -296,3 +295,11 @@ def test_resolve_prints_every_setting(folder, capsys):
     code, out, _ = run(capsys, "workflow", "--resolve", str(folder / "per-treatment.json"))
     steps = json.loads(out)["steps"]
     assert code == 0 and [s["inputs"] for s in steps] == [["input"], ["1"]]
+
+
+def test_resolve_shows_the_effect_of_overrides(folder, capsys):
+    code, out, _ = run(capsys, "workflow", "--resolve", str(folder / "per-treatment.json"),
+                       "--override", "output.save=true", "--override", "output.formats=table:csv")  # fmt: skip
+    steps = json.loads(out)["steps"]
+    assert code == 0 and all(s["output"]["save"] for s in steps)
+    assert steps[1]["output"]["formats"] == [{"kind": "table", "format": "csv"}]

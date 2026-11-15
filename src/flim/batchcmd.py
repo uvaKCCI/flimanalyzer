@@ -40,6 +40,7 @@ from flim.core.paths import (
     unique_run_folder,
 )
 from flim.core.registry import TOOLS_GROUP, discover
+from flim.core.workflowfile import parse_overrides
 from flim.core import logs
 from flim.core.batchrun import (
     BatchError,
@@ -53,7 +54,6 @@ from flim.core.batchrun import (
 )
 from flim.core.cli import (
     DRY_RUN_VAR,
-    SAVE_ALL_VAR,
     add_file_options,
     add_log_option,
     add_settings_options,
@@ -69,7 +69,6 @@ from flim.core.settingsmgr import session_settings
 if TYPE_CHECKING:
     import pandas as pd
 
-    from flim.core.config import Processing
     from flim.core.tool import Tool
 
 logger = logging.getLogger(__name__)
@@ -100,10 +99,13 @@ def build_parser() -> argparse.ArgumentParser:
         "nothing; also FLIM_DRY_RUN=true",
     )
     parser.add_argument(
-        "--save-all",
-        action="store_true",
-        help="every step of a workflow file saves all its outputs, whatever its\n"
-        "output.save; also FLIM_SAVE_ALL=true",
+        "--override",
+        action="append",
+        default=[],
+        metavar="GROUP.FIELD=VALUE",
+        help="set a field for every step of the runs, over the files' settings, e.g.\n"
+        "output.save=true, output.formats=table:csv,plot:svg,\n"
+        "processing.strict=false, processing.skippable.features=some; repeatable",
     )
     parser.add_argument("--allow-guesses", action="store_true", help=argparse.SUPPRESS)
     add_log_option(parser)
@@ -153,11 +155,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         level = log_level(args)
         dry_run = dry_run_source(args)
-        save_all = flag_source(args.save_all, "--save-all", SAVE_ALL_VAR)
+        # --allow-guesses first: an explicit --override of processing.strict wins
+        given = (["processing.strict=false"] if args.allow_guesses else []) + args.override
+        args.overrides = parse_overrides(given)
     except ValueError as err:
         parser.error(str(err))
     args.dry_run = dry_run is not None
-    args.save_all = save_all  # what turned it on, or None
     if not args.output:  # also for a dry run: it validates the folder, and logs there
         parser.error("the following arguments are required: -o/--output")
     # the console as before; the log file opens once the output folder is known
@@ -209,8 +212,8 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         changes, more = command_line_changes(args)
         if args.allow_guesses:
             notes.append(
-                "--allow-guesses is deprecated and is removed in 0.8.0; set"
-                ' "processing": {"strict": false} in the tool or workflow file'
+                "--allow-guesses is deprecated and is removed in 0.8.0; use"
+                " --override processing.strict=false"
             )
         for note in notes + more:
             print(f"flimbatch: warning: {note}", file=sys.stderr)
@@ -246,7 +249,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         for message in ignored_settings(runs, settings, output):
             _warn(message)
         runs = [file_run(tool, settings) for tool in runs]
-        if not args.save_all:  # results a workflow file's run would not keep
+        if not args.overrides.save:  # results a workflow file's run would not keep
             for tool, _ in runs:
                 definition = getattr(tool, "definition", None)
                 for message in save_issues(definition)[0] if definition is not None else []:
@@ -278,7 +281,6 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
             print(f"flimbatch: warning: {notice}", file=sys.stderr)
         logger.info(f"Log file: {log_file}")
         logger.info(f"Results: {call_dir}")
-        override = _override(args)
         failed = []
         with (
             use_prefect_server(start=settings.prefect_server, timeout=settings.server_timeout),
@@ -288,8 +290,8 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
                 tables = _read(args.input, read_settings(read, args.exclude))
                 with checked_prefect_server():
                     run = run_on_tables(
-                        tool, tables, settings, call_dir / f"run-{number}", execution, override,
-                        manager.record(), save_all=args.save_all, notes=[note] if note else [],
+                        tool, tables, settings, call_dir / f"run-{number}", execution,
+                        args.overrides, manager.record(), notes=[note] if note else [],
                     )  # fmt: skip
                 if run.failed or run.state != "completed":
                     failed.append(f"{tool.name}: {', '.join(run.failed) or run.state}")
@@ -323,16 +325,6 @@ def _read(
         raise BatchError("No data files could be read")
     logger.info(f"Read {len(reading.tables)} file(s)")
     return reading.tables
-
-
-def _override(args: argparse.Namespace) -> Optional["Processing"]:
-    """Return the `processing` over the tools' and steps' that the options give.
-
-    The deprecated `--allow-guesses` gives `{"strict": false}`; None without it.
-    """
-    from flim.core.config import Processing
-
-    return Processing(strict=False) if args.allow_guesses else None
 
 
 def _dry_run(
@@ -401,9 +393,7 @@ def _dry_run(
     report("Prefect server", None if ok else found, found)
     for tool, read in runs:
         tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
-        problems = validate_run(
-            tool, tables, settings, save_all=bool(args.save_all), override=_override(args)
-        )
+        problems = validate_run(tool, tables, settings, args.overrides)
         if problems:
             errors += len(problems)
             print(f"{tool.name}: {len(problems)} problem(s)", file=sys.stderr)

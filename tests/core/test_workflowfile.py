@@ -778,3 +778,21 @@ def test_resolving_with_the_tables_pins_what_depends_on_the_data():
     assert guessed.steps[0].config["features"] == ["t1"]
     everything = resolve_definition(_summarize("all"), schemas=schemas)
     assert everything.steps[0].config["features"] == ["t1"]  # the input's feature columns
+
+
+def test_parse_overrides():
+    from flim.core.workflowfile import parse_overrides
+
+    overrides = parse_overrides([
+        "output.save=true", "output.formats=table:csv", "output.formats=[{\"kind\": \"plot\", \"format\": \"png\", \"dpi\": 600}]",
+        "processing.strict=false", "processing.strict.grouping=true",
+        "processing.skippable.features=some", "processing.required.features=FLIRR,t1",
+    ])  # fmt: skip
+    assert overrides.save is True
+    assert [(f.kind, f.format, getattr(f, "dpi", None)) for f in overrides.formats] == [("table", "csv", None), ("plot", "png", 600)]
+    from flim.core.config import ProcessingRules
+
+    rules = ProcessingRules.of(overrides.processing)
+    assert not rules.is_strict("features[0]") and rules.is_strict("grouping[0]")  # false, but grouping true
+    assert rules.skip("features") == "some" and rules.required == {"features": ["FLIRR", "t1"]}
+    assert overrides.formats_over([*parse_overrides(["output.formats=table:tsv,plot:svg"]).formats])[1].format == "png"

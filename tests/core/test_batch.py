@@ -398,29 +398,44 @@ def test_a_workflow_that_saves_nothing_is_refused_and_a_leaf_warned(data_dir, tm
     captured = capsys.readouterr()
     assert ("flimbatch: warning: step 02, tool 'Sort': output.save not set (default: false)"
             " and no later step uses its outputs; its results are not saved") in captured.err  # fmt: skip
-    assert "workflow 'unsaved': no step saves its outputs" in captured.err and "--save-all" in captured.err
+    assert "workflow 'unsaved': no step saves its outputs" in captured.err and "--override output.save=true" in captured.err
     out = tmp_path / "out"
     assert main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]) == 1
     assert not list(out.rglob("*.txt"))  # refused before it ran
 
 
-@pytest.mark.parametrize("how", ["option", "variable"])
-def test_save_all_saves_every_step(data_dir, tmp_path, monkeypatch, capsys, how):
+def test_override_output_save_saves_every_step(data_dir, tmp_path, capsys):
     path = tmp_path / "unsaved.json"
     path.write_text(json.dumps(UNSAVED))
     out = tmp_path / "out"
-    argv = ["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]
-    monkeypatch.delenv("FLIM_SAVE_ALL", raising=False)
-    if how == "option":
-        argv.append("--save-all")
-    else:
-        monkeypatch.setenv("FLIM_SAVE_ALL", "true")
+    argv = ["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server",
+            "--override", "output.save=true", "--override", "output.formats=table:csv"]  # fmt: skip
     assert main(argv) == 0
     assert "warning" not in capsys.readouterr().err  # nothing goes unsaved
     run = run_dir(out)
     assert sorted(p.name for p in run.iterdir() if p.is_dir()) == ["01-Concatenate", "02-Sort"]
-    source = "--save-all" if how == "option" else "FLIM_SAVE_ALL"
-    assert f"every step saves all its outputs ({source})" in (run / "run_summary.txt").read_text()
+    tables = [p.name for p in run.rglob("*") if p.suffix in (".csv", ".txt") and p.name != "run_summary.txt"]
+    assert tables and all(name.endswith(".csv") for name in tables)  # tables as csv
+    summary = (run / "run_summary.txt").read_text()
+    assert "--override output.save=true" in summary and "--override output.formats=table:csv" in summary
+    resolved = json.loads((run / "resolved.json").read_text())  # a rerun needs no --override
+    assert all(s["output"]["save"] is True for s in resolved["steps"])
+    assert resolved["steps"][1]["output"]["formats"] == [{"kind": "table", "format": "csv"}]
+
+
+@pytest.mark.parametrize(
+    "value, message",
+    [
+        ("config.features=FLIRR", "config can't be overridden"),
+        ("output.save=maybe", "use true or false"),
+        ("output.formats=png", "is not kind:format"),
+        ("tool=Sort", "can't be overridden; use output.save"),
+    ],
+)
+def test_invalid_overrides_are_errors_before_the_run(data_dir, tmp_path, capsys, value, message):
+    with pytest.raises(SystemExit) as exit_:
+        main(["-i", str(data_dir), *DRY_RUN, "--run", "Import", "--override", value])
+    assert exit_.value.code == 2 and message in capsys.readouterr().err
 
 
 def test_with_a_log_folder_the_log_is_named_after_the_call(data_dir, settings, tmp_path, monkeypatch):
