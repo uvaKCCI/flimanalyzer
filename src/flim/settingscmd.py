@@ -10,7 +10,7 @@
 A FILE is a path, or a file name in the workflow search path; a file of another kind
 is an error. `--show` only reads.
 - `app`: `--list` (the app settings files in the search path), `--show` (the app
-  settings as flimbatch uses them, and where each value comes from), `--validate FILE`
+  settings of flimanalyzer and of flimbatch, and where each value comes from), `--validate FILE`
   (an app settings file).
 - `user`: `--show` (the user settings file).
 - `env`: `--list` (the `FLIM_*` variables FLIMAnalyzer reads), `--show` (those that
@@ -36,6 +36,7 @@ from flim.core.settingsmgr import (
     ENV_NAMES,
     OPTION_NAMES,
     USER_SETTINGS_VAR,
+    UserSettingsFile,
     app_settings_path,
     environment_changes,
     list_app_settings,
@@ -129,7 +130,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     actions.add_argument(
         "--show", action="store_true",
-        help="the app settings as flimbatch uses them, and where each value comes from",
+        help="the app settings of flimanalyzer and flimbatch, and where each value comes"
+        " from",
     )  # fmt: skip
     actions.add_argument("--validate", metavar="FILE", help="validate an app settings file")
     _add_settings_file(sub)
@@ -379,14 +381,6 @@ def _workflow_validate(args: argparse.Namespace) -> int:
 # --- app and user settings ---
 
 
-def _settings(args: argparse.Namespace):
-    """Return the settings manager of `-s` (or the defaults) and the environment, as flimbatch."""
-    manager = session_settings(args.settings, {}, complete=True)
-    for notice in manager.notices:
-        _warn(notice)
-    return manager
-
-
 def _app_list(args: argparse.Namespace) -> int:
     """Print the app settings files in the search path."""
     search_path = app_settings_path()
@@ -398,18 +392,108 @@ def _app_list(args: argparse.Namespace) -> int:
     return 0
 
 
+class _ReadOnlyUserFile(UserSettingsFile):
+    """The user settings file, only read: an unreadable file is not renamed."""
+
+    unreadable: Optional[str] = None  # why the file cannot be read; None if it can
+
+    def _set_aside(self, reason: str) -> None:
+        """Record the reason; unlike the GUI, leave the file as it is."""
+        self.unreadable = reason
+
+    def merge(self, changes: dict) -> None:
+        """Write nothing."""
+
+
+def _gui_settings_file(args: argparse.Namespace, user: dict) -> tuple[Optional[str], str]:
+    """Return the app settings file the GUI starts with, and how it is chosen.
+
+    `-s FILE` if given; otherwise the user settings file's `default_app_settings`, if
+    it exists and can be used (the GUI asks to pick another otherwise).
+    """
+    from flim.core.settings import check_app_settings
+
+    if args.settings:
+        return args.settings, "-s"
+    default = user.get("default_app_settings")
+    if default and Path(default).is_file() and check_app_settings(default).error is None:
+        return str(default), "the default app settings file"
+    return None, ""
+
+
+def _managers(args: argparse.Namespace) -> tuple[dict, str]:
+    """Return the settings managers of flimanalyzer and flimbatch (None if refused).
+
+    Each command's layers: flimanalyzer the built-in defaults, the user settings file,
+    its app settings file and the environment; flimbatch the defaults, `-s` (every
+    setting usable and checked) and the environment. Problems are printed.
+
+    Returns:
+        The managers by command, and how the GUI's app settings file is chosen (see
+        `_gui_settings_file`).
+    """
+    user_file = _ReadOnlyUserFile(user_settings_path())
+    user = user_file.read()
+    if user_file.unreadable:
+        _warn(f"{user_file.path}: cannot be read ({user_file.unreadable}); not used")
+    gui_file, how = _gui_settings_file(args, user)
+    managers = {}
+    for command, call in (
+        (GUI, lambda: session_settings(gui_file, {}, user_file=user_file)),
+        (BATCH, lambda: session_settings(args.settings, {}, complete=True)),
+    ):
+        try:
+            managers[command] = call()
+        except (OSError, ValueError) as err:
+            print(f"{PROG}: {command}: {err}", file=sys.stderr)
+            managers[command] = None
+    if managers[GUI] is not None and how == "the default app settings file":
+        managers[GUI].origins = {
+            k: "default app settings file" if v == "app settings file" else v
+            for k, v in managers[GUI].origins.items()
+        }
+    return managers, how
+
+
 def _app_show(args: argparse.Namespace) -> int:
-    """Print the app settings as flimbatch uses them, with where each value comes from."""
+    """Print the app settings of flimanalyzer and flimbatch, and where each value comes from.
+
+    A setting with the same value and origin in both commands takes one line;
+    otherwise each command has its own line. Command-line options are not included.
+    """
     from flim.core.settingsview import overview
 
-    manager = _settings(args)
-    source = manager.source or "none"
+    managers, gui_how = _managers(args)
+    if not any(managers.values()):
+        return 1
+    rows = {c: {r.name: r for r in overview(m)} for c, m in managers.items() if m is not None}
     lines = [
-        f"App settings as flimbatch uses them (app settings file: {source}; the user"
-        " settings file is not read):"
+        "App settings of flimanalyzer and flimbatch, without command-line options.",
+        "Order of precedence, highest first: command line, environment, app settings file",
+        "(-s), user settings file (flimanalyzer only), built-in defaults.",
+        "",
     ]
-    for row in overview(manager):
-        lines += [f"  {row.title}: {row.value}", f"      from {row.origin}; set with {row.change}"]
+    for command, manager in managers.items():
+        source = "refused, see above" if manager is None else (manager.source or "none")
+        how = gui_how if command == GUI and gui_how != "-s" and manager else ""
+        lines.append(f"App settings file of {command}: {source}" + (f" ({how})" if how else ""))
+    lines += [f"User settings file (flimanalyzer only): {user_settings_path()}", ""]
+    width = max(len(GUI), len(BATCH))
+    first = next(iter(rows.values()))
+    for name, row in first.items():
+        shown = {}
+        for command, by_name in rows.items():
+            other = by_name[name]
+            if command == BATCH and name == "results_dir":
+                shown[command] = "not used: flimbatch saves under -o"
+            else:
+                shown[command] = f"{other.value}  (from {other.origin})"
+        lines.append(f"  {row.title}:")
+        if len(set(shown.values())) == 1:
+            lines.append(f"      {next(iter(shown.values()))}")
+        else:
+            lines += [f"      {c + ':':<{width + 1}} {v}" for c, v in shown.items()]
+        lines.append(f"      set with {row.change}")
     print("\n".join(lines))
     return 0
 

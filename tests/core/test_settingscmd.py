@@ -151,12 +151,47 @@ def test_app_list_shows_the_files_in_the_search_path(tmp_path, monkeypatch, caps
     assert f"App settings search path:\n  {tmp_path}" in out
 
 
-def test_app_show_names_where_each_value_comes_from(clean_env, monkeypatch, capsys):
+def test_app_show_shows_both_commands_and_where_each_value_comes_from(
+    clean_env, tmp_path, monkeypatch, capsys
+):
+    user = tmp_path / "usersettings.json"
+    monkeypatch.setenv("FLIM_USER_SETTINGS", str(user))
     monkeypatch.setenv("FLIM_SERVER_TIMEOUT", "5")
     code, out, _ = run(capsys, "app", "--show")
     assert code == 0
-    assert "  Server timeout: 5 s\n      from environment (FLIM_SERVER_TIMEOUT)" in out
-    assert "  Executor: local" in out
+    # the same value and origin in both commands: one line
+    assert "  Server timeout:\n      5 s  (from environment (FLIM_SERVER_TIMEOUT))\n" in out
+    assert "      flimbatch:    not used: flimbatch saves under -o" in out
+    # the user settings file sets a value for the GUI only
+    user.write_text(json.dumps({"schema_version": 2, "strict": True}))
+    code, out, _ = run(capsys, "app", "--show")
+    assert "      flimanalyzer: errors  (from user settings file)" in out
+    assert "      flimbatch:    default: the closest match" in out
+
+
+def test_app_show_uses_the_default_app_settings_file_for_the_gui(
+    clean_env, tmp_path, monkeypatch, capsys
+):
+    app = tmp_path / "lab.json"
+    app.write_text(json.dumps({"schema_version": 2, "server_timeout": 9}))
+    user = tmp_path / "usersettings.json"
+    user.write_text(json.dumps({"schema_version": 2, "default_app_settings": str(app)}))
+    monkeypatch.setenv("FLIM_USER_SETTINGS", str(user))
+    code, out, _ = run(capsys, "app", "--show")
+    assert f"App settings file of flimanalyzer: {app} (the default app settings file)" in out
+    assert "App settings file of flimbatch: none" in out
+    assert "      flimanalyzer: 9 s  (from default app settings file)" in out
+
+
+def test_app_show_leaves_an_unreadable_user_settings_file_as_it_is(
+    clean_env, tmp_path, monkeypatch, capsys
+):
+    user = tmp_path / "usersettings.json"
+    user.write_text("not json")
+    monkeypatch.setenv("FLIM_USER_SETTINGS", str(user))
+    code, _, err = run(capsys, "app", "--show")
+    assert code == 0 and "cannot be read" in err
+    assert user.read_text() == "not json" and not list(tmp_path.glob("*.unreadable*"))
 
 
 def test_app_validate(tmp_path, capsys):
