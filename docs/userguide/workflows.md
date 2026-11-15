@@ -14,13 +14,12 @@ The folder also gets a file `run_summary.txt`. It lists when the workflow ran, t
 
 ## Validating the settings
 
-Before the workflow runs, the dialog validates its settings against the selected data. A workflow may need a column that is not in the data, for example `FAD a1%` when the data has `FAD a1[%]`. The dialog then uses the closest matching column and marks the field with a warning sign. Hover the mouse over the sign to see which column is used. The run summary lists these columns under "Notes". If no column is a close match, the field is marked with an error sign, and the workflow can't run until you choose a column.
+Before the workflow runs, the dialog validates its settings against the selected data. A workflow may need a column that is not in the data, for example `FAD a1%` when the data has `FAD a1[%]`. The `Strict` check box next to `Load Settings...` and `Save Settings...` (`Processing`) sets what happens:
 
-The `Strict` setting of each workflow sets whether a missing column is guessed or is an error:
+* `Strict` on (the default): the field is marked with an error sign, and the workflow can't run until you choose a column.
+* `Strict` off: the dialog uses the closest matching column of the same kind and marks the field with a warning sign. Hover the mouse over the sign to see which column is used. The run summary lists these columns under "Notes". If no column is a close match, the field is marked with an error sign.
 
-* `Automatic` (default): follows the option `--strict` or `--no-strict` (see [Command-line options](/install/index.md#command-line-options)). Without it, missing columns are guessed in the GUI, and are an error in [batch mode](/userguide/batch).
-* `Yes`: always an error, also in the GUI. Choose the column yourself.
-* `No`: always guessed, also in batch mode.
+`Save Settings...` writes the setting into the tool file, as `"processing": {"strict": false}`. In a tool file, you can also set it per field, and let a workflow skip missing features or grouping columns, as in a workflow file's steps (see `processing` under [Workflow files](#workflow-files)). `flimbatch` uses the setting of the tool file it runs (see [Batch Mode](/userguide/batch)).
 
 ## The progress dialog
 
@@ -133,7 +132,7 @@ Settings:
 * `Reference value`: the value of the first grouping column that the relative changes refer to, for example `ctrl`. Empty (default): the first value of that column, in the order of its categories (see [Order Category Values](/userguide/data/order)).
 * `Scatter x (FAD a1 %)` and `Scatter y (NAD(P)H a2 %)`: the columns of the scatter plot. Empty (default): found by their names (FAD, a1 and % for x; NAD, a2 and % for y). Without them, there is no scatter plot.
 * `Features`: the features to analyze. By default, the FAD and NAD(P)H amplitudes (a1, a2, a1%, a2%), lifetimes (t1, t2) and photons.
-* `Strict`: see [Validating the settings](#validating-the-settings).
+* `Strict` (next to the settings buttons): see [Validating the settings](#validating-the-settings).
 
 The workflow uses the grouping in these steps:
 
@@ -164,7 +163,7 @@ Settings:
 * `Resources`: the device and threads of the training and augmentation (see [Resources](/userguide/dialogs.md#resources)).
 * `Training`: the settings of [Autoencoder: Train](/userguide/analysis/aetrain), without those the workflow sets. Defaults: 6 epochs, learning rates 1e-5 and 2e-5, weight decays 1e-7 and 1e-8, batch sizes 128 and 64 (8 models), `Rescale output to the data's units` on, a checkpoint every 2 epochs, and the architecture `AE Simulator 1-6`.
 * `Augment`: the settings of [Autoencoder: Augment Data](/userguide/analysis/aeaugment), without those the workflow sets. Defaults: 4 copies, `Add noise` off.
-* `Strict`: see [Validating the settings](#validating-the-settings).
+* `Strict` (next to the settings buttons): see [Validating the settings](#validating-the-settings).
 
 ## FLIM Feature Analysis
 
@@ -176,7 +175,7 @@ Uses two data tables, chosen under `Training data` and `Data`: training data (fo
 
 Settings:
 
-* `Grouping`, `Features`, `Time series`, `Resources` and `Strict`: as in [FLIM Data Augmentation Tuning](#flim-data-augmentation-tuning).
+* `Grouping`, `Features`, `Time series` and `Resources`, and `Strict` next to the settings buttons: as in [FLIM Data Augmentation Tuning](#flim-data-augmentation-tuning).
 * `Training`: the settings of [Autoencoder: Train](/userguide/analysis/aetrain), without those the workflow sets. The defaults are those of FLIM Data Augmentation Tuning, except the architecture, `AE Dimensionality Reduction 2-10`.
 * `Run`: the settings of [Autoencoder: Run](/userguide/analysis/aerun), without those the workflow sets.
 * `Control`: the value of the time series column used as control. Default: `Ctrl`. The tables of normalized changes are sorted by the changes from this time point to the next. Upper and lower case don't matter.

@@ -126,7 +126,7 @@ def test_only_given_options_become_changes():
     assert command_line_changes(parse()) == ({}, [])
     changes, notes = command_line_changes(
         parse("-o", "out", "--no-prefect-server", "--log-dir", "logs", "--cache-dir",
-              "cache", "--no-strict", "-e", "local:workers=2")
+              "cache", "-e", "local:workers=2")
     )
     assert notes == []
     assert changes == {
@@ -134,24 +134,14 @@ def test_only_given_options_become_changes():
         "prefect_server": False,
         "log": {"dir": "logs"},  # partial: the session settings complete it
         "cache": {"dir": "cache"},  # partial: the session settings complete it
-        "strict": False,
         "execution": {"executor": "local", "workers": 2},
     }
 
 
-def test_deprecated_allow_guesses_means_no_strict():
-    args = parse()
-    args.allow_guesses = True  # flimbatch's deprecated option
-    changes, notes = command_line_changes(args)
-    assert changes == {"strict": False} and "use --no-strict" in notes[0]
-
-
-@pytest.mark.parametrize("strict", ["--strict", "--no-strict"])
-def test_allow_guesses_with_strict_is_an_error(strict):
-    args = parse(strict)
-    args.allow_guesses = True
-    with pytest.raises(ValueError, match="give only --no-strict"):
-        command_line_changes(args)
+def test_no_strict_option():
+    """Strict is a setting of the tool or workflow file (`processing`), not of the app."""
+    with pytest.raises(SystemExit):
+        parse("--no-strict")
 
 
 @pytest.mark.parametrize(
@@ -212,7 +202,7 @@ def test_help_lists_the_executors(capsys):
         parse("--help")
     text = capsys.readouterr().out
     for line in ("local[:workers=N]", "dask-local[:workers=N,scheduler=threads|processes",
-                 "dask:address=URL", "--strict, --no-strict", "--cache-dir DIR"):
+                 "dask:address=URL", "--cache-dir DIR"):
         assert line in text
     assert "--config" not in text and "--execargs" not in text  # deprecated: hidden
 

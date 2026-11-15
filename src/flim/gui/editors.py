@@ -1065,7 +1065,7 @@ class _RowIssues:
         event.Skip()
 
 
-SEVERITIES = ("error", "guessed", "warning")  # first: most severe
+SEVERITIES = ("error", "guessed", "skipped", "warning")  # first: most severe
 
 
 class ModelsEditor(_RowIssues, Editor):
@@ -2509,7 +2509,7 @@ class FieldErrors(Exception):
         self.errors = errors
 
 
-_ART = {"error": wx.ART_ERROR, "warning": wx.ART_WARNING, "guessed": wx.ART_WARNING}
+_ART = {"error": wx.ART_ERROR, "warning": wx.ART_WARNING, "guessed": wx.ART_WARNING, "skipped": wx.ART_WARNING}
 
 
 def _marker_bitmap(severity: str) -> wx.Bitmap:

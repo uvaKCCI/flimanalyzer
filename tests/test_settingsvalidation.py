@@ -74,11 +74,11 @@ def test_use_what_can_be_used(tmp_path, answers):
     assert settingsvalidation.choose_settings(validation) is validation
     message, options = offered[0]
     assert "bogus_section" in message and "working_dir to results_dir" in message
-    assert options == [settingsvalidation.USE, settingsvalidation.IGNORE, settingsvalidation.UPDATE,
+    assert options == [settingsvalidation.USE, settingsvalidation.SKIP_FILE, settingsvalidation.UPDATE,
                        settingsvalidation.OTHER]
 
 
-@pytest.mark.parametrize("answer", [settingsvalidation.IGNORE, None])  # None: Cancel
+@pytest.mark.parametrize("answer", [settingsvalidation.SKIP_FILE, None])  # None: Cancel
 def test_dont_use_the_file(tmp_path, answers, answer):
     queue, _ = answers
     queue.append(answer)
@@ -105,7 +105,7 @@ def test_another_file_is_validated_the_same_way(tmp_path, answers):
     validation = settingsvalidation.choose_settings(validate_settings_file(write(tmp_path, MIXED)))
     assert validation.path == clean
     # the broken file offers no settings to use or keep
-    assert offered[1][1] == [settingsvalidation.IGNORE, settingsvalidation.OTHER]
+    assert offered[1][1] == [settingsvalidation.SKIP_FILE, settingsvalidation.OTHER]
     assert len(offered) == 3  # file dialog cancelled: asked again
 
 
@@ -144,7 +144,7 @@ def test_load_settings_without_problems_does_not_ask(frame, tmp_path, answers):
 
 def test_load_settings_not_used(frame, tmp_path, answers):
     queue, _ = answers
-    queue.append(settingsvalidation.IGNORE)
+    queue.append(settingsvalidation.SKIP_FILE)
     frame.load_settings(write(tmp_path, MIXED))
     assert frame.settings.results_dir is None and frame.settings_manager.source is None
 
@@ -155,7 +155,7 @@ def test_tool_dialog_asks_only_for_its_own_problems(dialog, tmp_path, answers):
     # K-Means has no settings in the file: the problems of other sections don't matter
     assert not dialog("K-Means").load_settings(str(path))
     assert offered == []
-    queue.append(settingsvalidation.IGNORE)
+    queue.append(settingsvalidation.SKIP_FILE)
     d = dialog("Summarize")
     assert not d.load_settings(str(path))
     assert len(offered) == 1
@@ -227,7 +227,7 @@ def test_settings_viewer_shows_each_setting(frame):
         assert table.GetColumnCount() == len(COLUMNS)
         titles = [table.GetItemText(i, 0) for i in range(table.GetItemCount())]
         assert titles == ["Results folder", "Executor", "Prefect server", "Server timeout",
-                          "Log folder", "Workflows: missing columns"]
+                          "Log folder"]
         assert table.GetItemText(1, 1) == "local, workers: automatic"
         assert table.GetItemText(1, 2) == "built-in default"
         assert "User settings file:" in viewer.files.GetLabel()

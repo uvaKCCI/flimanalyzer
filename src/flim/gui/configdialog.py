@@ -13,17 +13,17 @@ import json
 import os
 from pathlib import Path
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Union
 
 import pandas as pd
 import wx
 import wx.grid
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from wx.lib.scrolledpanel import ScrolledPanel
 
-from flim.core.config import Issue, TaskConfig
+from flim.core.config import Issue, Processing, ProcessingRules, TaskConfig
 from flim.core.workflow import Workflow
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import canonical_folder, folder_problem, resolved_folder, stored_folder, with_extension
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-SEVERITY_ORDER = ("error", "guessed", "warning")  # first: most severe
+SEVERITY_ORDER = ("error", "guessed", "skipped", "warning")  # first: most severe
 
 
 @dataclass
@@ -57,6 +57,7 @@ class DialogResult:
             resolved (the default folder if the tool follows it).
         stored_autosave: The autosave settings to store in the tool's settings: no
             results folder if the tool follows the default folder.
+        processing: The tool's `processing`, with the Processing field's `strict`.
     """
 
     config: TaskConfig
@@ -65,6 +66,23 @@ class DialogResult:
     execution: ExecutionOptions  # for the run: the results folder is resolved
     # for the tool's settings: no results folder if the tool follows the default
     stored_autosave: Optional[Any] = None
+    processing: Processing = field(default_factory=Processing)
+
+
+class ProcessingBox(BaseModel):
+    """The Processing field of the dialog of a workflow defined in code.
+
+    It shows the tool's `processing.strict` as one value; `skippable` and `required`
+    are set in tool files only.
+    """
+
+    strict: bool = Field(
+        default=True,
+        title="Strict",
+        description="Columns that the settings name and the data doesn't have are"
+        " errors. Off: they are replaced by the closest column of the same role,"
+        " shown before the run.",
+    )
 
 
 _DIALOGS: dict = {}
@@ -290,7 +308,7 @@ class ConfigDialog(wx.Dialog):
         selected: Optional[list[Union[str, list[str], None]]] = None,
         execution: Optional[ExecutionOptions] = None,
         autosave_locked: bool = False,
-        strict: Optional[bool] = None,
+        processing: Optional[Processing] = None,
         default_folder: Union[str, os.PathLike, None] = None,
         on_make_default: Optional[Callable[[Path], Any]] = None,
         keep_relative: bool = True,
@@ -312,8 +330,8 @@ class ConfigDialog(wx.Dialog):
                 None: the default options.
             autosave_locked: Whether `Save results` is checked and cannot be
                 unchecked (workflows). Defaults to False.
-            strict: For workflows: the `strict` of the validation of a config whose
-                `strict` is None. Defaults to None.
+            processing: The tool's `processing`; a workflow defined in code shows its
+                `strict` next to the Settings buttons (`ProcessingBox`). Defaults to None: not set (strict).
             default_folder: The GUI's default results folder. Defaults to None: no
                 `Use the default folder` and `Make Default Folder`.
             on_make_default: Called with the folder when the user makes it the
@@ -333,7 +351,7 @@ class ConfigDialog(wx.Dialog):
         self.data_choices = dict(data_choices or {})
         self.execution = execution or ExecutionOptions()
         self.autosave_locked = autosave_locked
-        self.strict = strict  # workflows: the default of a config whose strict is None
+        self.processing = processing or Processing()
         # the GUI's default results folder (None: no "Use the default folder"), and
         # what makes a folder the default (SettingsManager)
         self.default_folder = Path(default_folder) if default_folder else None
@@ -375,6 +393,16 @@ class ConfigDialog(wx.Dialog):
             buttons.Add(button, 0, wx.RIGHT, 4)
         self.settings_message = wx.StaticText(self, label="")
         buttons.Add(self.settings_message, 1, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
+        # workflows defined in code: whether missing columns are guessed; in the row
+        # of the buttons, so that the dialog stays as high as before on small screens
+        self.processing_fields = None
+        if issubclass(tool, Workflow) and getattr(tool, "definition", None) is None:
+            label = wx.StaticText(self, label="Processing:")
+            buttons.Add(label, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 8)
+            self.processing_fields = FieldsPanel(self, ProcessingBox)
+            self.processing_fields.on_change = self.validate
+            self._show_processing()
+            buttons.Add(self.processing_fields, 0, wx.ALIGN_CENTER_VERTICAL | wx.LEFT, 4)
         settings_box.Add(buttons, 0, wx.EXPAND | wx.TOP, 4)
         sizer.Add(settings_box, 1, wx.EXPAND | wx.LEFT | wx.RIGHT | wx.TOP, 8)
         # what the tool does with the first row (Tool.example), if it shows that
@@ -843,7 +871,7 @@ class ConfigDialog(wx.Dialog):
 
         The values of the editors are validated by the config class, then validated
         by the tool against the input schemas (`Tool.validate`; for workflows with
-        the dialog's `strict`).
+        the tool's `processing`, see `current_processing`).
 
         Returns:
             The config and the tool's issues; or None and the issues of the editors
@@ -861,7 +889,8 @@ class ConfigDialog(wx.Dialog):
         except ValidationError as err:
             return None, validation_issues(err)
         if issubclass(self.tool, Workflow):
-            issues = self.tool.validate(config, self.input_schemas(), strict=self.strict)
+            rules = ProcessingRules.of(self.current_processing())
+            issues = self.tool.validate(config, self.input_schemas(), rules)
         else:
             issues = self.tool.validate(config, self.input_schemas())
         return config, list(issues)
@@ -1032,6 +1061,9 @@ class ConfigDialog(wx.Dialog):
             return False
         self.config = config
         self.set_values(config)
+        self.processing = entry.processing
+        if self.processing_fields is not None:
+            self._show_processing()
         if not self.autosave_locked:
             self.autosave.SetValue(entry.autosave.enabled)
         if self.use_default is not None:
@@ -1074,7 +1106,7 @@ class ConfigDialog(wx.Dialog):
         if config is None:
             self.settings_message.SetLabel("Not saved: the settings are not valid")
             return False
-        entry = tool_settings(config, self._autosave(stored=True))
+        entry = tool_settings(config, self._autosave(stored=True), self.current_processing())
         while os.path.exists(path):
             validation = validate_settings_file(path)
             if not needs_rewrite(validation):
@@ -1161,6 +1193,26 @@ class ConfigDialog(wx.Dialog):
             enabled=self.autosave.GetValue(), results_dir=folder, formats=formats
         )
 
+    def _show_processing(self) -> None:
+        """Show the `processing` in the Processing field: strict unless set to false."""
+        self._shown_strict = self.processing.strict is not False
+        self.processing_fields.set_values(ProcessingBox(strict=self._shown_strict))
+
+    def current_processing(self) -> Processing:
+        """Return the tool's `processing` with the Processing field's `strict`.
+
+        A `strict` per field (from a tool file) is kept unless the box is changed.
+        """
+        if self.processing_fields is None:
+            return self.processing
+        try:
+            strict = self.processing_fields.values(ProcessingBox())["strict"]
+        except FieldErrors:
+            return self.processing
+        if strict == self._shown_strict:
+            return self.processing
+        return self.processing.model_copy(update={"strict": strict})
+
     def result(self) -> DialogResult:
         """Return the edited config, the selected inputs and the execution options.
 
@@ -1180,6 +1232,7 @@ class ConfigDialog(wx.Dialog):
             input_names=self.selected_names(),
             execution=ExecutionOptions.model_validate(execution.model_dump()),
             stored_autosave=self._autosave(stored=True),
+            processing=self.current_processing(),
         )
 
 

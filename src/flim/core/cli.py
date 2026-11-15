@@ -149,13 +149,6 @@ def add_settings_options(
     )  # fmt: skip
     parser.add_argument("--log-dir", metavar="DIR", help="folder of the log files")
     parser.add_argument("--cache-dir", metavar="DIR", help="cache folder")
-    parser.add_argument(
-        "--strict",
-        action=argparse.BooleanOptionalAction,
-        default=None,
-        help="workflows: columns not in the data are errors (--strict) or replaced by"
-        " the closest match (--no-strict)",
-    )
 
 
 def settings_file(args: argparse.Namespace) -> tuple[Optional[str], list[str]]:
@@ -274,15 +267,13 @@ def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list
     partial sections `{"log": {"dir": ...}}` and `{"cache": {"dir": ...}}`.
 
     Args:
-        args: The parsed arguments (`add_settings_options`; `allow_guesses` of
-            flimbatch's deprecated `--allow-guesses` if present).
+        args: The parsed arguments (`add_settings_options`).
 
     Returns:
         The sections to apply; and the deprecation messages.
 
     Raises:
-        ValueError: If an option has an invalid value (see `executor_settings`), or
-            `--allow-guesses` is given with `--strict` or `--no-strict`.
+        ValueError: If an option has an invalid value (see `executor_settings`).
     """
     changes, notes = {}, []
     if args.output is not None:
@@ -297,13 +288,6 @@ def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list
         changes["log"] = {"dir": args.log_dir}
     if args.cache_dir is not None:
         changes["cache"] = {"dir": args.cache_dir}
-    if getattr(args, "allow_guesses", False):
-        if args.strict is not None:
-            raise ValueError("--allow-guesses and --strict/--no-strict: give only --no-strict")
-        notes.append("--allow-guesses is deprecated and is removed in 0.8.0; use --no-strict")
-        args.strict = False
-    if args.strict is not None:
-        changes["strict"] = args.strict
     return changes, notes
 
 

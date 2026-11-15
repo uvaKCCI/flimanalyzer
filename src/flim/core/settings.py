@@ -128,6 +128,27 @@ class ToolSettings(_Settings):
 
     @model_validator(mode="before")
     @classmethod
+    def _strict(cls, data: Any) -> Any:
+        """Move a workflow config's `strict` (FLIMAnalyzer 0.6) to `processing.strict`.
+
+        `None` (automatic) is dropped: strict is the default. A `processing.strict`
+        that is set takes precedence.
+        """
+        config = data.get("config") if isinstance(data, dict) else None
+        if isinstance(config, dict) and "strict" in config:
+            data = dict(data)
+            config = dict(config)
+            value = config.pop("strict")
+            data["config"] = config
+            processing = dict(data.get("processing") or {})
+            if isinstance(value, bool) and processing.get("strict") is None:
+                processing["strict"] = value
+            if processing:
+                data["processing"] = processing
+        return data
+
+    @model_validator(mode="before")
+    @classmethod
     def _output(cls, data: Any) -> Any:
         """Accept the `autosave` section of earlier 0.7 development builds."""
         if isinstance(data, dict) and isinstance(data.get("autosave"), dict):
@@ -231,7 +252,9 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
 
 
 def tool_settings(
-    config: TaskConfig, autosave: Optional[AutosaveConfig] = None
+    config: TaskConfig,
+    autosave: Optional[AutosaveConfig] = None,
+    processing: Optional[Processing] = None,
 ) -> ToolSettings:
     """Return a tool's settings.
 
@@ -239,6 +262,8 @@ def tool_settings(
         config: The tool's config.
         autosave: Whether, where and in which formats it saves its results; None for
             not saving. Defaults to None.
+        processing: How a run treats input that doesn't match the config; None: not
+            set. Defaults to None.
 
     Returns:
         The settings, with the config as JSON.
@@ -249,6 +274,7 @@ def tool_settings(
         output=ToolOutput(
             save=autosave.enabled, results_dir=autosave.results_dir, formats=autosave.formats
         ),
+        processing=processing or Processing(),
     )
 
 
@@ -373,14 +399,6 @@ class AppSettings(_Settings):
         description="Log folder and how long the GUI keeps its log files.",
     )
     cache: CacheSettings = Field(default_factory=CacheSettings)
-    strict: Optional[bool] = Field(
-        default=None,
-        title="Workflows: missing columns",
-        description="Workflows: columns not in the data are errors (True) or replaced by"
-        " the closest match (False). A workflow's own setting takes precedence. None"
-        " defaults to strict in flimbatch and to guessing, shown before the run, in the"
-        " GUI.",
-    )
     appsettings_path: list[Path] = Field(
         default=[],
         description="Folders searched for app settings files, in order. Empty defaults to"

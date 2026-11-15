@@ -11,11 +11,15 @@ import os
 
 import pandas as pd
 
-from flim.core.config import Issue, TaskConfig, requirement_issues
+from flim.core.config import Issue, ProcessingRules, TaskConfig, requirement_issues
 from flim.core.schema import TableSchema
 from flim.core.tool import ConfigT, Tool, validate_requirements
 from flim.core.types import OutputSpec
-from flim.core.validation import DefaultWorkflowValidator, ValidationReport
+from flim.core.validation import (
+    DefaultWorkflowValidator,
+    ValidationReport,
+    resolution_notes,
+)
 
 if TYPE_CHECKING:
     from prefect.task_runners import TaskRunner
@@ -77,7 +81,7 @@ class Workflow(Tool[ConfigT]):
         on_progress: Optional[Callable[[int, int, str, bool], None]] = None,
         cancel_token: Optional["CancelToken"] = None,
         on_start: Optional[Callable[["FlowRun"], None]] = None,
-        strict: Optional[bool] = None,
+        processing: Optional[ProcessingRules] = None,
         settings_record: Sequence[str] = (),
         save_formats: Sequence[Any] = (),
         run_dir: Optional[str | os.PathLike] = None,
@@ -100,14 +104,15 @@ class Workflow(Tool[ConfigT]):
                 one.
             on_start: Called with the `flim.core.runner.FlowRun` once Prefect has
                 created the flow run, before the first task.
-            strict: The default for a config whose `strict` is None; None: strict
-                (no guesses).
+            processing: How the run treats input that doesn't match the config
+                (the tool's `processing`); None: strict, nothing skipped.
             settings_record: Lines for the run summary naming the settings files
                 used.
             save_formats: The formats all steps save their results in.
             run_dir: The run's folder, used as it is; None: a folder per run below
                 `autosave_dir`.
-            notes: Lines for the run summary, besides the guessed columns.
+            notes: Lines for the run summary, besides the guessed columns and
+                skipped entries.
 
         Returns:
             The run: its task graph, results and state.
@@ -120,16 +125,12 @@ class Workflow(Tool[ConfigT]):
         from flim.core.runner import run_flow
 
         config = self.config_class() if config is None else config
-        validate_requirements(self.name, config, inputs)
-        report = self.resolve(config, inputs, strict)
+        report = self.resolve(config, inputs, processing)
         if report.errors:
             raise WorkflowValidationError(report)
         config = report.config
-        notes = list(notes) + [
-            f"{i.step + ': ' if i.step else ''}{i.field}: '{i.old}' -> '{i.suggestion}'"
-            " (guessed)"
-            for i in report.guesses
-        ]
+        validate_requirements(self.name, config, inputs)  # after skipped entries
+        notes = list(notes) + resolution_notes(report)
         return run_flow(
             self.name,
             lambda: self.build(*inputs, config=config),
@@ -144,32 +145,19 @@ class Workflow(Tool[ConfigT]):
             run_dir=run_dir,
         )
 
-    @classmethod
-    def is_strict(cls, config: TaskConfig, default: Optional[bool] = None) -> bool:
-        """Return whether columns missing from the inputs are errors (else guessed).
-
-        Args:
-            config: The workflow's config.
-            default: The value for a config whose `strict` is None or missing.
-
-        Returns:
-            The config's `strict`, else `default`, else True.
-        """
-        strict = getattr(config, "strict", None)
-        if strict is None:
-            strict = default
-        return True if strict is None else strict
-
     def resolve(
-        self, config: ConfigT, inputs: Sequence[Any], strict: Optional[bool] = None
+        self,
+        config: ConfigT,
+        inputs: Sequence[Any],
+        processing: Optional[ProcessingRules] = None,
     ) -> ValidationReport:
         """Validate the config for the input tables, or their schemas.
 
         Args:
             config: The workflow's config.
             inputs: The input tables (DataFrames) or their schemas (`TableSchema`).
-            strict: The default for a config whose `strict` is None; None: strict
-                (no guesses).
+            processing: How missing columns are treated (the tool's `processing`);
+                None: strict, nothing skipped.
 
         Returns:
             The report of the class's `validator`; its config has the guesses
@@ -180,28 +168,31 @@ class Workflow(Tool[ConfigT]):
             for i in inputs
         ]
         return self.validator.validate(
-            type(self), config, schemas, self.is_strict(config, strict)
+            type(self), config, schemas, processing or ProcessingRules()
         )
 
     @classmethod
     def validate(
-        cls, config: ConfigT, inputs: Sequence[Any], strict: Optional[bool] = None
+        cls,
+        config: ConfigT,
+        inputs: Sequence[Any],
+        processing: Optional[ProcessingRules] = None,
     ) -> list[Issue]:
         """Validate the config and its steps against the input schemas.
 
         Args:
             config: The workflow's config.
             inputs: The schemas of the input tables.
-            strict: The default for a config whose `strict` is None; None defaults to
-                False: columns missing from the inputs are guessed.
+            processing: How missing columns are treated (the tool's `processing`);
+                None: strict, nothing skipped.
 
         Returns:
             The issues of the config (the number of features and grouping columns it
             selects) and of its steps.
         """
-        strict = cls.is_strict(config, False if strict is None else strict)
-        report = cls.validator.validate(cls, config, list(inputs), strict)
-        return requirement_issues(config, list(inputs)) + report.issues
+        rules = processing or ProcessingRules()
+        report = cls.validator.validate(cls, config, list(inputs), rules)
+        return requirement_issues(report.config, list(inputs)) + report.issues
 
     def run(self, *inputs: Any, config: ConfigT) -> dict[str, Any]:
         """Run the flow, without saving, and return its results.

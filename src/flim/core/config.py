@@ -350,12 +350,13 @@ class Issue:
 
     `field` is a path into the config, e.g. `"x_vars[1]"` or
     `"range_filters[0].column"`. A `"guessed"` issue reports a value that was
-    replaced (`old`) by the closest match (`suggestion`) after an upstream change.
+    replaced (`old`) by the closest match (`suggestion`) after an upstream change; a
+    `"skipped"` issue an entry (`old`) left out because the input lacks it.
     """
 
     field: Optional[str]
     message: str
-    severity: Literal["error", "warning", "guessed"] = "error"
+    severity: Literal["error", "warning", "guessed", "skipped"] = "error"
     step: Optional[str] = None  # workflow step, None for a single tool
     old: Any = None
     suggestion: Any = None

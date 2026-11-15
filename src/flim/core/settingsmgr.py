@@ -19,7 +19,7 @@ from filelock import FileLock
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from flim.core.config import TaskConfig
+from flim.core.config import Processing, TaskConfig
 from flim.core.execution import ExecutorSettings
 from flim.core.saving import AutosaveConfig
 from flim.core.settings import (
@@ -55,7 +55,6 @@ ENV_NAMES = {
     "server_timeout": "FLIM_SERVER_TIMEOUT",
     "log": "FLIM_LOG_DIR",
     "cache": "FLIM_CACHE_DIR",
-    "strict": "FLIM_STRICT",
 }
 OPTION_NAMES = {
     "results_dir": "-o",
@@ -64,7 +63,6 @@ OPTION_NAMES = {
     "server_timeout": "--server-timeout",
     "log": "--log-dir",
     "cache": "--cache-dir",
-    "strict": "--strict, --no-strict",
 }
 
 
@@ -349,6 +347,7 @@ class SettingsManager:
         tool: "type[Tool]",
         config: TaskConfig,
         autosave: Optional[AutosaveConfig] = None,
+        processing: Optional[Processing] = None,
     ) -> AppSettings:
         """Set a tool's settings and write them to the user settings file.
 
@@ -360,11 +359,13 @@ class SettingsManager:
             config: The tool's config.
             autosave: Whether, where and in which formats the tool saves its results;
                 None for not saving. Defaults to None.
+            processing: How a run treats input that doesn't match the config; None:
+                not set. Defaults to None.
 
         Returns:
             A copy of the new settings.
         """
-        entry = tool_settings(config, autosave)
+        entry = tool_settings(config, autosave, processing)
         return self.update({"tools": {tool.name: entry.model_dump(mode="json")}})
 
     def set_presets(self, tool: "type[Tool]", presets: list[dict]) -> AppSettings:
@@ -621,7 +622,6 @@ class EnvSettings(BaseSettings):
     server_timeout: Optional[float] = None
     log_dir: Optional[Path] = None
     cache_dir: Optional[Path] = None
-    strict: Optional[bool] = None
 
 
 def environment_changes() -> dict:
@@ -645,7 +645,7 @@ def environment_changes() -> dict:
     values = env.model_dump(mode="json", exclude_none=True)
     changes = {
         key: values[key]
-        for key in ("results_dir", "execution", "prefect_server", "server_timeout", "strict")
+        for key in ("results_dir", "execution", "prefect_server", "server_timeout")
         if key in values
     }
     if "log_dir" in values:

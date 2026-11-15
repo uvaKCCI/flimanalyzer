@@ -108,7 +108,6 @@ Run `flimanalyzer --help` for all command-line options.
 | `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |
 | `--log-dir` | log folder (`log` > `dir`; see [Log files](#log-files)) |
 | `--cache-dir` | sets the cache folder setting (`cache` > `dir`) |
-| `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. Default: the closest columns are used, and the dialog shows them before the run (see [Workflows](/userguide/workflows.md#validating-the-settings)). |
 | `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
 | `--batch` | runs [batch mode](/userguide/batch) instead of the GUI: `flimanalyzer --batch ...` does the same as `flimbatch ...` |
 

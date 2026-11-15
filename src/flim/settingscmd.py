@@ -73,10 +73,6 @@ ENV_VARIABLES = {
     ),
     ENV_NAMES["log"]: (f"folder of the log files ({OPTION_NAMES['log']})", [GUI, BATCH]),
     ENV_NAMES["cache"]: (f"cache folder ({OPTION_NAMES['cache']})", [GUI, BATCH]),
-    ENV_NAMES["strict"]: (
-        f"workflows: columns not in the data are errors ({OPTION_NAMES['strict']})",
-        [GUI, BATCH],
-    ),
     LOG_LEVEL_VAR: (f"log level: {', '.join(LOG_LEVELS)} (-l)", [GUI, BATCH]),
     DRY_RUN_VAR: ("true: a dry run (--dry-run)", [BATCH]),
     SAVE_ALL_VAR: ("true: every workflow step saves all its outputs (--save-all)", [BATCH]),

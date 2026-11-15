@@ -139,9 +139,18 @@ class WorkflowDefinition(BaseModel):
     )
     steps: list[WorkflowStep] = Field(min_length=1)
 
-    def rules(self, step: WorkflowStep) -> ProcessingRules:
-        """Return a step's `processing`, merged over the workflow's."""
-        return ProcessingRules.of(self.processing, step.processing)
+    def rules(self, step: WorkflowStep, override: Optional[Processing] = None) -> ProcessingRules:
+        """Return a step's `processing`, merged over the workflow's.
+
+        Args:
+            step: The step.
+            override: A `processing` over the step's, e.g. from the command line;
+                None: none.
+
+        Returns:
+            The merged rules.
+        """
+        return ProcessingRules.of(self.processing, step.processing, override)
 
 
 def parse_reference(reference: str) -> tuple[str, int]:
@@ -173,12 +182,15 @@ class WorkflowValidation:
     Attributes:
         path: The file.
         definition: The workflow, if the file could be read and has no errors.
+        workflow: For a tool file of a workflow defined in code without errors: the
+            workflow with the file's settings (`settings_workflow`); else None.
         errors: Problems that stop the workflow from running.
         warnings: Problems that don't, e.g. a step with its tool's defaults.
     """
 
     path: Optional[Path]
     definition: Optional[WorkflowDefinition] = None
+    workflow: Any = None
     errors: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
 
@@ -351,13 +363,17 @@ def validate_workflow_file(path: str | os.PathLike, *, tool_files: bool = False)
     Args:
         path: The file.
         tool_files: Also accept a tool file (one tool's settings, written by a tool
-            dialog's `Save Settings...`), as a workflow of one step (see
-            `tool_file_workflow`). Defaults to False.
+            dialog's `Save Settings...`): a tool's as a workflow of one step (see
+            `tool_file_workflow`), a workflow's defined in code as that workflow
+            with the file's settings (see `settings_workflow`). Defaults to False.
 
     Returns:
-        The validation: the definition if there are no errors, else the errors.
+        The validation: the definition (or the workflow) if there are no errors,
+        else the errors.
     """
+    from flim.core.registry import tools
     from flim.core.settings import is_tool_file
+    from flim.core.workflow import Workflow
 
     path = Path(path)
     validation = WorkflowValidation(path=path)
@@ -372,6 +388,10 @@ def validate_workflow_file(path: str | os.PathLike, *, tool_files: bool = False)
                 f"{path.name}: a tool file (the settings of {data['tool']}), not a"
                 " workflow file"
             )
+            return validation
+        tool = tools.get(str(data["tool"])) if str(data["tool"]) in tools else None
+        if tool is not None and issubclass(tool, Workflow) and getattr(tool, "definition", None) is None:
+            _validate_workflow_settings(tool, data, path, validation)
             return validation
         data = tool_file_workflow(data, validation)
     version = data.get("schema_version", WORKFLOW_SCHEMA_VERSION) if isinstance(data, dict) else None
@@ -396,6 +416,56 @@ def validate_workflow_file(path: str | os.PathLike, *, tool_files: bool = False)
     if not validation.errors:
         validation.definition = definition
     return validation
+
+
+def settings_workflow(tool: type["Workflow"], entry: Any, path: Optional[Path] = None) -> type["Workflow"]:
+    """Return a workflow defined in code that runs with the settings of a tool file.
+
+    Args:
+        tool: The workflow class.
+        entry: The file's settings (`flim.core.settings.ToolSettings`).
+        path: The file; None if none.
+
+    Returns:
+        A subclass with the same name, whose `settings_entry` holds the settings;
+        flimbatch takes them in place of the app settings file's.
+    """
+    return type(tool.__name__, (tool,), {"settings_entry": entry, "path": path, "__module__": tool.__module__})
+
+
+def _validate_workflow_settings(
+    tool: type["Workflow"], data: dict, path: Path, validation: WorkflowValidation
+) -> None:
+    """Validate a tool file of a workflow defined in code; set `validation.workflow`.
+
+    The config, the `processing` and the formats are validated as a step's would be.
+    """
+    from flim.core.settings import ToolSettings
+
+    section = {k: v for k, v in data.items() if k not in ("schema_version", "tool")}
+    if (section.get("output") or {}).get("save") is False:
+        validation.warnings.append(tool_save_warning(tool.name))
+    try:
+        entry = ToolSettings.model_validate(section)
+        config = tool.config_class.model_validate(entry.config or {})
+    except ValidationError as err:
+        reasons = "; ".join(
+            f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in err.errors()
+        )
+        validation.errors.append(f"{path.name} ({tool.name}): settings not valid: {reasons}")
+        return
+    warnings, errors = processing_issues(tool, entry.processing, config, tool.name)
+    validation.warnings.extend(warnings)
+    validation.errors.extend(errors)
+    kinds = tool.output_kinds()
+    for options in entry.output.formats:
+        if options.kind not in kinds:
+            validation.errors.append(
+                f"{tool.name}: output.formats: a format of kind '{options.kind}', which"
+                f" {tool.name} doesn't make (it makes: {', '.join(kinds)})"
+            )
+    if not validation.errors:
+        validation.workflow = settings_workflow(tool, entry, path)
 
 
 def tool_save_warning(tool: str) -> str:
@@ -759,21 +829,15 @@ def _file_workflow_base() -> type["Workflow"]:
     class FileWorkflowConfig(WorkflowConfig):
         """A workflow file's run settings: the steps carry their own."""
 
-        hidden_fields = frozenset({"prefix", "strict", "grouping", "features"})
+        hidden_fields = frozenset({"prefix", "grouping", "features"})
 
     class _FileWorkflow(Workflow[FileWorkflowConfig]):
         """A workflow defined by a workflow file (`definition`)."""
 
         definition = None  # WorkflowDefinition, set per file
         path = None  # the file
+        override = None  # Processing over every step's, e.g. flimbatch --allow-guesses
         inputs = (InputSpec("tables", TableType, many=True),)
-
-        @classmethod
-        def is_strict(
-            cls, config: TaskConfig, default: Optional[bool] = None
-        ) -> bool:
-            """Return True: workflow files never guess columns."""
-            return True  # workflow files never guess columns
 
         @classmethod
         def structure_issues(cls) -> list[Issue]:
@@ -785,7 +849,7 @@ def _file_workflow_base() -> type["Workflow"]:
             self,
             config: FileWorkflowConfig,
             inputs: Sequence[Any],
-            strict: Optional[bool] = None,
+            processing: Any = None,
         ) -> ValidationReport:
             """Return a report of the structure errors; the steps are not traced."""
             return ValidationReport(config=config, issues=self.structure_issues())
@@ -795,7 +859,7 @@ def _file_workflow_base() -> type["Workflow"]:
             cls,
             config: FileWorkflowConfig,
             inputs: Sequence[Any],
-            strict: Optional[bool] = None,
+            processing: Any = None,
         ) -> list[Issue]:
             """Return the structure errors (see `structure_issues`)."""
             return cls.structure_issues()
@@ -844,7 +908,10 @@ def _file_workflow_base() -> type["Workflow"]:
                     schema = known[number - 1] if number <= len(known) else None
                     # missing entries guessed or removed before the parts are made
                     resolution = resolve_step(
-                        tool_class, step_config, [schema], self.definition.rules(step)
+                        tool_class,
+                        step_config,
+                        [schema],
+                        self.definition.rules(step, self.override),
                     )
                     if not resolution.errors:
                         step_config = resolution.config
@@ -856,7 +923,7 @@ def _file_workflow_base() -> type["Workflow"]:
                     tool = tool_class()
                     tool._save = _saved(step)
                     tool._formats = step.output.formats  # None: the workflow's (the run's)
-                    tool._processing = self.definition.rules(step)
+                    tool._processing = self.definition.rules(step, self.override)
                     tool._notes = notes  # applied before the run, reported by the run
                     # the results' folders: the step's, then its input and part
                     tags = [step_folder(step, width)] + [str(k) for k in key]
@@ -901,13 +968,17 @@ def _file_workflow_base() -> type["Workflow"]:
 
 
 def workflow_class(
-    definition: WorkflowDefinition, path: Optional[Path] = None
+    definition: WorkflowDefinition,
+    path: Optional[Path] = None,
+    override: Optional[Processing] = None,
 ) -> type["Workflow"]:
     """Return a workflow class (a tool) that runs a workflow file's steps.
 
     Args:
         definition: The workflow.
         path: Its file; None if it has none.
+        override: A `processing` over every step's (e.g. flimbatch's deprecated
+            `--allow-guesses`); None: none.
 
     Returns:
         A new class, named after the workflow, with its name and description.
@@ -922,6 +993,7 @@ def workflow_class(
             "description": definition.description or f"Workflow file {getattr(path, 'name', '')}",
             "definition": definition,
             "path": path,
+            "override": override,
             # None: the Workflow menu (a file written by hand is not hidden silently)
             "category": definition.category if definition.category is not None else "Workflow",
             "output_kinds": classmethod(lambda cls: step_kinds(cls.definition)),
@@ -1035,7 +1107,9 @@ def _is_tool_file(path: Path) -> bool:
         return False
 
 
-def validate_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
+def validate_steps(
+    definition: WorkflowDefinition, schemas: dict, override: Optional[Processing] = None
+) -> list[str]:
     """Validate a workflow's steps against the tables it would run on, without running it.
 
     Each step's settings are validated against the columns it gets, as far as they are
@@ -1071,7 +1145,7 @@ def validate_steps(definition: WorkflowDefinition, schemas: dict) -> list[str]:
             source = (step.inputs or [previous])[0]
             many = schemas if source == INPUT else {"Input": inputs[0]}
             inputs = [None if None in many.values() else many]
-        resolution = resolve_step(tool, config, inputs, definition.rules(step))
+        resolution = resolve_step(tool, config, inputs, definition.rules(step, override))
         errors += [f"step {step.id} ({step.tool}): {e}" for e in resolution.errors]
         config = resolution.config
         try:

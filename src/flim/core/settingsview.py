@@ -8,7 +8,7 @@ from flim.core.settings import START_DIR, AppSettings
 from flim.core.settingsmgr import ENV_NAMES, OPTION_NAMES, SettingsManager
 
 # the app settings the viewer shows, in this order (the cache settings are not shown)
-VIEWED = ("results_dir", "execution", "prefect_server", "server_timeout", "log", "strict")
+VIEWED = ("results_dir", "execution", "prefect_server", "server_timeout", "log")
 
 
 @dataclass
@@ -76,10 +76,6 @@ def _value(name: str, settings: AppSettings) -> str:
         return f"{folder}; logs kept {value.max_age_days} days"
     if name == "server_timeout":
         return f"{value:g} s"
-    if name == "strict":
-        if value is None:
-            return "default: the closest match, shown before the run"
-        return "errors" if value else "the closest match"
     return str(value)
 
 

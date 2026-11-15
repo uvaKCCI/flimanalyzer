@@ -18,7 +18,7 @@ from flim.core.settings import (
 logger = logging.getLogger(__name__)
 
 USE = "Use the settings that can be used; skip the others"
-IGNORE = "Don't use this file"
+SKIP_FILE = "Skip loading app settings file"
 UPDATE = "Update the file to the current version; remove the settings that can't be used"
 OTHER = "Choose another file..."
 LISTED = 8  # items listed per kind of finding in the dialog; the log lists all
@@ -28,7 +28,7 @@ SAVE_OTHER = "Save to another file..."
 
 def _options(validation: SettingsValidation) -> list[str]:
     """Return the options for a validated file; an unreadable file offers fewer."""
-    return [IGNORE, OTHER] if validation.error else [USE, IGNORE, UPDATE, OTHER]
+    return [SKIP_FILE, OTHER] if validation.error else [USE, SKIP_FILE, UPDATE, OTHER]
 
 
 def _confirm_update(validation: SettingsValidation, parent: Optional[wx.Window]) -> bool:
@@ -88,10 +88,10 @@ def choose_settings(
             "Settings File",
             options,
         ) as dialog:
-            choice = options[dialog.GetSelection()] if dialog.ShowModal() == wx.ID_OK else IGNORE
+            choice = options[dialog.GetSelection()] if dialog.ShowModal() == wx.ID_OK else SKIP_FILE
         if choice == USE:
             return validation
-        if choice == IGNORE:
+        if choice == SKIP_FILE:
             logger.info(f"{validation.path} not used")
             return None
         if choice == UPDATE:

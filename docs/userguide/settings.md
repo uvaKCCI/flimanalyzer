@@ -92,7 +92,6 @@ These environment variables set the same settings as the command-line options. T
 | `FLIM_PREFECT_SERVER` | `false` does the same as `--no-prefect-server` |
 | `FLIM_LOG_DIR` | log folder (`log` > `dir`), as `--log-dir` |
 | `FLIM_CACHE_DIR` | cache folder setting, as `--cache-dir` |
-| `FLIM_STRICT` | `true` or `false`, as `--strict` or `--no-strict` |
 | `FLIM_APP_SETTINGS_PATH` | the app settings search path (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder |
 | `FLIM_WORKFLOW_PATH` | the folders searched for workflow files (see [Workflow files](/userguide/workflows.md#workflow-files)), instead of `workflow_paths` and the default folder |
 | `FLIM_USER_SETTINGS` | path of the user settings file (GUI) |
@@ -130,7 +129,7 @@ A file can't be used at all if it can't be read, isn't a settings file, or comes
 If all settings can be used, the GUI uses the file and writes the result of the validation to the log. If some can't be used, the GUI lists them and asks what to do:
 
 * `Use the settings that can be used; skip the others`
-* `Don't use this file`
+* `Skip loading app settings file`
 * `Update the file to the current version; remove the settings that can't be used`: after a confirmation, the file is replaced by its usable settings in the current format. The removed settings can't be recovered.
 * `Choose another file...`: the other file is validated in the same way.
 
@@ -167,7 +166,6 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
   "prefect_server": true,
   "log": {"dir": null, "max_age_days": 30},
   "cache": {"dir": null, "max_size_mb": 2048, "max_age_days": 7},
-  "strict": null,
   "filters": { ... },
   "tools": {
     "Summarize": {"config": { ... }, "autosave": {"enabled": false, "results_dir": null, "formats": []}},
@@ -184,7 +182,6 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
 * `prefect_server`: `false` does the same as `--no-prefect-server`.
 * `log`: the log folder (`dir`) and how many days the GUI keeps its log files (`max_age_days`). If the folder is not set (`null`), the GUI uses the platform's log folder and `flimbatch` its output folder (see [Log files](/install/index.md#log-files)).
 * `cache`: the cache folder setting (`dir`), the maximum cache size in MB (`max_size_mb`) and the maximum age of cached items in days (`max_age_days`).
-* `strict`: workflows: `true` makes columns that are not in the data errors; `false` replaces them by the closest matching column. A workflow's own `Strict` setting takes precedence. If it is not set (`null`), missing columns are guessed in the GUI, where the guesses are shown before the run, and are errors in `flimbatch`.
 * `appsettings_path`: the folders searched for app settings files. It is read only from the user settings file, because it is needed to find an app settings file; in an app settings file it has no effect (see [App settings files](#app-settings-files)).
 * `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it, `appsettings_path`, `workflow_paths` and `last_run_url` out.
 * `last_run_url`: the Prefect page of the last run the GUI started, opened by `Monitor` > `Last Run`. The GUI writes it after each run; it is read from the user settings file.

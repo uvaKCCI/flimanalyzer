@@ -29,6 +29,7 @@ import flim.gui.dialogs
 import flim.resources
 import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.configs.data import ImportTablesConfig
+from flim.core.config import ProcessingRules
 from flim.core.datamgr import DataManager, Item, ItemId
 from flim.core.saving import AutosaveConfig
 from flim.core.filtering import WindowFilters, window_filters, window_settings, with_window_ranges
@@ -1427,7 +1428,7 @@ class AppFrame(wx.Frame):
             data_choices=data_choices,
             execution=execution,
             autosave_locked=is_workflow,  # workflows always save their results
-            strict=self.settings.strict,
+            processing=entry.processing if entry else None,
             default_folder=self.settings.resolved_results_dir(),
             keep_relative=self.settings.results_dir is not None,
             on_make_default=self.make_default_folder,
@@ -1441,7 +1442,7 @@ class AppFrame(wx.Frame):
             return
         # what the tool stores: no folder if it follows the default folder
         stored = result.stored_autosave or result.execution.autosave
-        self.settings_manager.set_tool(tool, result.config, stored)
+        self.settings_manager.set_tool(tool, result.config, stored, result.processing)
         if getattr(tool, "name", None) == Filter.name:
             self.refresh_window_filters()  # the defaults for new tables
 
@@ -1466,8 +1467,8 @@ class AppFrame(wx.Frame):
                     on_progress=on_progress,
                     cancel_token=cancel_token,
                     on_start=on_start,
-                    # the dialog showed the guesses; default: guess (app setting strict)
-                    strict=bool(self.settings.strict),
+                    # the dialog showed the guesses and skipped entries
+                    processing=ProcessingRules.of(result.processing),
                     settings_record=self.settings_manager.record(),
                     save_formats=autosave.formats,
                 )

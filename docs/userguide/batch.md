@@ -28,7 +28,7 @@ When it finishes, `flimbatch` returns the exit code 0 if everything ran, and 1 i
 
 ## Missing columns
 
-Before a workflow runs, its settings are validated against the data (see [Workflows](/userguide/workflows)). A workflow may need a column that the data doesn't have, for example `FAD a1%` when the data has `FAD a1[%]`. In batch mode, this is an error. With `--no-strict`, the closest matching column is used instead, and the run summary lists it under "Notes". This holds when the workflow's `Strict` setting is `Automatic` (the default). With `Strict`: `Yes`, a missing column is always an error; with `Strict`: `No`, it is always guessed (see [Validating the settings](/userguide/workflows.md#validating-the-settings)). `--no-strict` and `Strict` don't apply to workflow files: in a workflow file, a missing column is always an error.
+Before a workflow runs, its settings are validated against the data (see [Workflows](/userguide/workflows)). A workflow may need a column that the data doesn't have, for example `FAD a1%` when the data has `FAD a1[%]`. This is an error, unless the tool file or the workflow file allows guesses or skipped entries in its `processing` section: `"processing": {"strict": false}` uses the closest matching column, and the run summary lists it under "Notes" (see `processing` under [Workflow files](/userguide/workflows.md#workflow-files)).
 
 ## Options
 
@@ -41,7 +41,6 @@ Before a workflow runs, its settings are validated against the data (see [Workfl
 | `-r`, `--run` | tool or workflow to run, also a workflow file by the name in it; repeat for several |
 | `-w`, `--workflow` | workflow file to run: a path, or a file name in the workflow search path (see [Workflow files](/userguide/workflows.md#workflow-files)); repeat for several |
 | `--dry-run` | validate the runs against the first rows of the files; run nothing |
-| `--strict`, `--no-strict` | workflows: columns that are not in the data are errors (`--strict`, the default in batch mode), or are replaced by the closest matching column (`--no-strict`). A workflow's own `Strict` setting takes precedence. |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4`. An unknown name is an error. |
 | `--no-prefect-server` | don't start a local Prefect server if none is found; a temporary one is used instead (see [Prefect server](/install/index.md#prefect-server)). |
 | `--log-dir` | log folder (`log` > `dir`); default: the output folder (see [Log files](/install/index.md#log-files)) |
@@ -55,7 +54,7 @@ These options can also be set with environment variables (see [Environment varia
 | Deprecated | Use instead | Example | Removed in |
 |---|---|---|---|
 | `-c`, `--config FILE` | `-s`, `--settings FILE` | `-c settings.json` → `-s settings.json` | 0.8.0 |
-| `--allow-guesses` | `--no-strict` | `--allow-guesses` → `--no-strict` | 0.8.0 |
+| `--allow-guesses` | `"processing": {"strict": false}` in the tool or workflow file | | 0.8.0 |
 | `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` | 1.0.0 |
 | `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `--execargs="num_workers=4"` → `-e local:workers=4` | 0.8.0 |
 

@@ -7,6 +7,7 @@ validated, hidden in dialogs and not saved.
 """
 
 import copy
+import logging
 from typing import Annotated, Any, ClassVar, Optional, Self
 
 from pydantic import Field, model_validator
@@ -20,6 +21,8 @@ from flim.configs.analysis import (
 )
 from flim.core.config import CategoryColumn, FeatureColumn, TaskConfig, ValueOf
 
+logger = logging.getLogger(__name__)
+
 
 class WorkflowConfig(TaskConfig):
     """Base config of the workflows: the shared fields and the configs of the steps."""
@@ -32,17 +35,22 @@ class WorkflowConfig(TaskConfig):
     # config also has are copied from it; the workflow's code sets the others.
     bound_fields: ClassVar[dict[str, frozenset[str]]] = {}
 
-    # False: step settings naming columns that changed upstream are replaced by the
-    # closest match (and reported); True: they are errors to fix before running.
-    # None: the default given to Workflow.is_strict; strict if that is None too.
-    strict: Optional[bool] = Field(
-        default=None,
-        title="Strict",
-        description=(
-            "Columns that changed upstream are errors to fix; otherwise they are"
-            " replaced by the closest match. Automatic: strict in batch runs only."
-        ),
-    )
+    @model_validator(mode="before")
+    @classmethod
+    def _moved_strict(cls, data: Any) -> Any:
+        """Accept a saved `strict`, which is now the tool's `processing.strict`.
+
+        Tool settings move it to their `processing` when they are read (see
+        `flim.core.settings.ToolSettings`); here it is dropped with a warning.
+        """
+        if isinstance(data, dict) and "strict" in data:
+            data = dict(data)
+            if data.pop("strict") is not None:
+                logger.warning(
+                    f"{cls.__name__}: the setting strict is now processing.strict of the"
+                    " tool's settings; the value in the config is not used"
+                )
+        return data
 
     @model_validator(mode="after")
     def _share_fields(self) -> Self:

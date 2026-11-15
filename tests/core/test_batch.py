@@ -15,7 +15,7 @@ from flim.batchcmd import main
 from flim.configs import SummaryConfig
 from flim.configs.workflow import BasicFLIRRConfig
 from flim.core.registry import tools
-from flim.core.settings import AppSettings, save_settings
+from flim.core.settings import AppSettings, save_settings, tool_file_data
 
 
 pytestmark = pytest.mark.usefixtures("prefect_harness")
@@ -502,7 +502,7 @@ def test_settings_that_cannot_be_used_or_validated_stop_the_run(
     assert not (tmp_path / "out").exists()
 
 
-def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp_path):
+def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp_path, capsys):
     # one file with the category columns, as a table saved by FLIMAnalyzer
     rows = []
     for path in sorted(data_dir.iterdir()):
@@ -523,6 +523,14 @@ def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp
     assert main(args + ["-o", str(tmp_path / "guessed"), "--allow-guesses"]) == 0
     (summary,) = (tmp_path / "guessed").rglob("run_summary.txt")
     assert "'FAD a1%' -> 'FAD a1[%]' (guessed)" in summary.read_text()
+    assert "--allow-guesses is deprecated and is removed in 0.8.0" in capsys.readouterr().err
+    # the same from a tool file whose processing allows guesses
+    tool_file = tmp_path / "flirr.json"
+    entry = settings.tools.entry(tools.get("Basic FLIRR Analysis"))
+    data = tool_file_data(tools.get("Basic FLIRR Analysis"), entry)
+    tool_file.write_text(json.dumps({**data, "processing": {"strict": False}}))
+    argv = ["-i", str(table), "--run", str(tool_file), "--no-prefect-server"]
+    assert main(argv + ["-o", str(tmp_path / "from file")]) == 0
 
 
 def test_unknown_tools_and_missing_files(data_dir, tmp_path, capsys):

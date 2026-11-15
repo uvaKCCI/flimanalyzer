@@ -452,8 +452,8 @@ def test_classname_names_the_registered_tool():
         tools.unregister(DemoTool.name)
 
 
-def test_workflow_strict():
-    assert AETuneConfig().strict is None  # the mode decides: GUI False, batch True
-    cfg = AETuneConfig(strict=True)
-    assert AETuneConfig.model_validate_json(cfg.model_dump_json()).strict is True
-    assert "strict" not in cfg.to_legacy_params()
+def test_workflow_strict_moved_to_processing():
+    """`strict` was a config field in 0.6; it is the tool's `processing.strict` now."""
+    assert "strict" not in AETuneConfig.model_fields
+    assert AETuneConfig.model_validate({"strict": True}) == AETuneConfig()  # accepted, dropped
+    assert "strict" not in AETuneConfig().to_legacy_params()

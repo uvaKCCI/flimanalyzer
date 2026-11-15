@@ -294,14 +294,13 @@ def test_environment_changes(monkeypatch):
     monkeypatch.setenv("FLIM_RESULTS_DIR", "/data/out")
     monkeypatch.setenv("FLIM_CACHE_DIR", "/scratch/cache")
     monkeypatch.setenv("FLIM_PREFECT_SERVER", "false")
-    monkeypatch.setenv("FLIM_STRICT", "true")
     monkeypatch.setenv("FLIM_EXECUTION__EXECUTOR", "dask-local")
     monkeypatch.setenv("FLIM_EXECUTION__WORKERS", "8")
     monkeypatch.setenv("FLIM_SERVER_TIMEOUT", "90")
     changes = environment_changes()
     assert changes["server_timeout"] == 90
     assert changes["results_dir"] == "/data/out" and changes["cache"] == {"dir": "/scratch/cache"}
-    assert changes["prefect_server"] is False and changes["strict"] is True
+    assert changes["prefect_server"] is False and "strict" not in changes
     assert changes["execution"]["executor"] == "dask-local"
     assert changes["execution"]["workers"] == 8
     monkeypatch.setenv("FLIM_EXECUTION__EXECUTOR", "dask")  # no address

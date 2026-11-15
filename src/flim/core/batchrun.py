@@ -7,14 +7,15 @@ folder. Used by the commands and the GUI; prints nothing.
 
 import logging
 import os
-from typing import TYPE_CHECKING, Callable, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
+from flim.core.config import Processing, ProcessingRules
 from flim.core.execution import ExecutionOptions
 from flim.core.paths import same_names
 from flim.core.reader import ReadSettings
 from flim.core.registry import tools
 from flim.core.schema import TableSchema
-from flim.core.settings import AppSettings
+from flim.core.settings import AppSettings, ToolSettings
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -27,6 +28,27 @@ logger = logging.getLogger(__name__)
 
 class BatchError(Exception):
     """A batch step that cannot be done, with the reason for the user."""
+
+
+def workflow_settings(
+    tool: type["Tool"], settings: AppSettings
+) -> tuple[Any, Optional[ToolSettings]]:
+    """Return the config and the settings a workflow defined in code runs with.
+
+    Those of its tool file (`settings_entry`, see
+    `flim.core.workflowfile.settings_workflow`), else those in `settings`.
+
+    Args:
+        tool: The workflow class.
+        settings: The session's settings.
+
+    Returns:
+        The config, and the tool's settings (None if none are stored).
+    """
+    entry = getattr(tool, "settings_entry", None)
+    if entry is None:
+        return settings.tools.config(tool), settings.tools.entry(tool)
+    return tool.config_class.model_validate(entry.config or {}), entry
 
 
 def resolve_run(
@@ -78,6 +100,8 @@ def resolve_run(
         raise BatchError(f"{path}:\n" + "\n".join(validation.errors))
     for message in validation.warnings:
         warn(message)
+    if validation.workflow is not None:  # a tool file of a workflow defined in code
+        return validation.workflow
     return workflow_class(validation.definition, path)
 
 
@@ -135,14 +159,16 @@ def validate_run(
     tables: dict[str, "pd.DataFrame"],
     settings: AppSettings,
     save_all: bool = False,
+    override: Optional[Processing] = None,
 ) -> list[str]:
     """Validate a run against the tables (or their first rows) without running it.
 
     Two tables whose names become the same folder name (`path_name`) are an error.
-    A workflow file's steps are validated against the tables' columns. A tool that
-    takes many tables is validated once on all of them, any other tool or workflow on
-    each table. A tool (not a workflow) that needs more than one input table is an
-    error.
+    A workflow file's steps are validated against the tables' columns, and so is a
+    tool, as the workflow of one step it runs as (`tool_workflow`); a tool (not a
+    workflow) that needs more than one input table is an error. A workflow defined
+    in code is validated on each table, with its `processing`. Missing columns are
+    errors unless the `processing` guesses or skips them.
 
     Args:
         tool: The tool or workflow class.
@@ -151,6 +177,8 @@ def validate_run(
             settings from them.
         save_all: Whether every step saves (`--save-all`); without it, a workflow
             file none of whose steps saves is an error (see `save_issues`).
+        override: A `processing` over the tool's or the steps' (e.g. from the
+            command line); None: none.
 
     Returns:
         The errors, each with the tool and the table; empty if there are none.
@@ -162,21 +190,21 @@ def validate_run(
         f"the inputs '{a}' and '{b}' get the same folder name" for a, b in same_names(tables)
     ]
     schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
+    required = [spec for spec in tool.inputs if not spec.optional]
+    if getattr(tool, "definition", None) is None and not issubclass(tool, Workflow):
+        if len(required) > 1:
+            return names + [f"{tool.name} needs {len(required)} input tables; use a workflow file"]
+        tool = tool_workflow(tool, settings)
     definition = getattr(tool, "definition", None)
     if definition is not None:
         unsaved = [] if save_all else save_issues(definition)[1]
-        return names + unsaved + validate_steps(definition, schemas)
-    required = [spec for spec in tool.inputs if not spec.optional]
-    if len(required) > 1 and not issubclass(tool, Workflow):
-        return names + [f"{tool.name} needs {len(required)} input tables; use a workflow file"]
-    config = settings.tools.config(tool)
-    if tool.inputs and tool.inputs[0].many:
-        checks = [("all tables", [schemas])]
-    else:
-        checks = [(name, [schema] * max(1, len(tool.inputs))) for name, schema in schemas.items()]
+        return names + unsaved + validate_steps(definition, schemas, override)
+    config, entry = workflow_settings(tool, settings)
+    rules = ProcessingRules.of(entry.processing if entry else None, override)
+    targets = [(name, [schema] * max(1, len(tool.inputs))) for name, schema in schemas.items()]
     errors = names
-    for name, inputs in checks:
-        for issue in tool.validate(config, inputs):
+    for name, inputs in targets:
+        for issue in tool.validate(config, inputs, rules):
             if issue.severity == "error":
                 where = f"{issue.field}: " if issue.field else ""
                 errors.append(f"{tool.name} on {name}: {where}{issue.message}")
@@ -189,7 +217,7 @@ def run_on_tables(
     settings: AppSettings,
     run_dir: str | os.PathLike,
     execution: Optional[ExecutionOptions] = None,
-    strict: bool = True,
+    override: Optional[Processing] = None,
     settings_record: Sequence[str] = (),
     save_all: Optional[str] = None,
     notes: Sequence[str] = (),
@@ -207,8 +235,8 @@ def run_on_tables(
         settings: The app settings (the tools' settings and save formats).
         run_dir: The run's folder, e.g. `<output>/<date and time>/run-1`.
         execution: The executor; None for the default `ExecutionOptions`.
-        strict: Workflows defined in code: whether columns not in the data are
-            errors. Defaults to True.
+        override: A `processing` over the tool's or the steps' (e.g. from the
+            command line); None: none.
         settings_record: The settings files, for the run summary.
         save_all: What made every step of a workflow file save all its outputs
             (`--save-all` or `FLIM_SAVE_ALL`), noted in the run summary; None: the
@@ -225,11 +253,12 @@ def run_on_tables(
     """
     from flim.core.runner import run_flow, tag_prefix
     from flim.core.tool import validate_requirements
+    from flim.core.validation import resolution_notes
     from flim.core.workflow import Workflow, WorkflowValidationError
 
     from flim.core.workflowfile import saving_all, workflow_class
 
-    errors = validate_run(tool, tables, settings, save_all=bool(save_all))
+    errors = validate_run(tool, tables, settings, save_all=bool(save_all), override=override)
     if errors:
         raise BatchError(f"{tool.name}:\n" + "\n".join(errors))
     execution = execution or ExecutionOptions()
@@ -239,7 +268,9 @@ def run_on_tables(
     definition = getattr(tool, "definition", None)
     if definition is not None:  # a workflow file, or a tool as one
         if save_all:
-            tool = workflow_class(saving_all(definition), getattr(tool, "path", None))
+            definition = saving_all(definition)
+        if save_all or override is not None:
+            tool = workflow_class(definition, getattr(tool, "path", None), override)
         return tool().run_flow(
             tables,
             task_runner=execution.task_runner(),
@@ -249,24 +280,20 @@ def run_on_tables(
             notes=notes,
         )
     # a workflow defined in code: validated per table, then all tables in one run
-    config = settings.tools.config(tool)
-    entry = settings.tools.entry(tool)
+    config, entry = workflow_settings(tool, settings)
+    rules = ProcessingRules.of(entry.processing if entry else None, override)
     configs = {}
     for name, table in tables.items():
         inputs = [table] * len(tool.inputs)
-        try:
-            validate_requirements(tool.name, config, inputs)
-        except ValueError as err:
-            raise BatchError(f"{tool.name} on {name}: {err}") from None
-        report = tool().resolve(config, inputs, strict)
+        report = tool().resolve(config, inputs, rules)
         if report.errors:
             raise BatchError(f"{tool.name} on {name}:\n{WorkflowValidationError(report)}")
+        try:
+            validate_requirements(tool.name, report.config, inputs)  # after skipped entries
+        except ValueError as err:
+            raise BatchError(f"{tool.name} on {name}: {err}") from None
         configs[name] = report.config
-        notes += [
-            f"{name}: {i.step + ': ' if i.step else ''}{i.field}: '{i.old}' ->"
-            f" '{i.suggestion}' (guessed)"
-            for i in report.guesses
-        ]
+        notes += resolution_notes(report, f"{name}: ")
 
     def build() -> None:
         for name, table in tables.items():
@@ -340,8 +367,8 @@ def settings_file_issues(
         " in the tool's dialog)"
     )
     for tool in runs:
-        if getattr(tool, "definition", None) is not None:  # a workflow or tool file
-            continue
+        if getattr(tool, "definition", None) is not None or hasattr(tool, "settings_entry"):
+            continue  # a workflow or tool file
         if settings.tools.entry(tool) is None:
             errors.append(
                 f"--run {tool.name}: the app settings file {source} has no settings of"
@@ -377,8 +404,8 @@ def ignored_settings(
     target = f"-o {output}" if output else "-o"
     messages = []
     for tool in runs:
-        if getattr(tool, "definition", None) is not None:  # a workflow or tool file
-            continue
+        if getattr(tool, "definition", None) is not None or hasattr(tool, "settings_entry"):
+            continue  # a workflow or tool file
         entry = settings.tools.entry(tool)
         if entry is None:
             continue

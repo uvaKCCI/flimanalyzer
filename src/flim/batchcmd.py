@@ -69,6 +69,7 @@ from flim.core.settingsmgr import session_settings
 if TYPE_CHECKING:
     import pandas as pd
 
+    from flim.core.config import Processing
     from flim.core.tool import Tool
 
 logger = logging.getLogger(__name__)
@@ -206,6 +207,11 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
     try:
         name, notes = settings_file(args)
         changes, more = command_line_changes(args)
+        if args.allow_guesses:
+            notes.append(
+                "--allow-guesses is deprecated and is removed in 0.8.0; set"
+                ' "processing": {"strict": false} in the tool or workflow file'
+            )
         for note in notes + more:
             print(f"flimbatch: warning: {note}", file=sys.stderr)
         # no user settings file: batch results don't depend on settings changed in the GUI
@@ -270,7 +276,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
             print(f"flimbatch: warning: {notice}", file=sys.stderr)
         logger.info(f"Log file: {log_file}")
         logger.info(f"Results: {call_dir}")
-        strict = True if settings.strict is None else settings.strict
+        override = _override(args)
         failed = []
         with (
             use_prefect_server(start=settings.prefect_server, timeout=settings.server_timeout),
@@ -280,7 +286,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
                 tables = _read(args.input, read_settings(read, args.exclude))
                 with checked_prefect_server():
                     run = run_on_tables(
-                        tool, tables, settings, call_dir / f"run-{number}", execution, strict,
+                        tool, tables, settings, call_dir / f"run-{number}", execution, override,
                         manager.record(), save_all=args.save_all, notes=[note] if note else [],
                     )  # fmt: skip
                 if run.failed or run.state != "completed":
@@ -315,6 +321,16 @@ def _read(
         raise BatchError("No data files could be read")
     logger.info(f"Read {len(reading.tables)} file(s)")
     return reading.tables
+
+
+def _override(args: argparse.Namespace) -> Optional["Processing"]:
+    """Return the `processing` over the tools' and steps' that the options give.
+
+    The deprecated `--allow-guesses` gives `{"strict": false}`; None without it.
+    """
+    from flim.core.config import Processing
+
+    return Processing(strict=False) if args.allow_guesses else None
 
 
 def _dry_run(
@@ -383,7 +399,9 @@ def _dry_run(
     report("Prefect server", None if ok else found, found)
     for tool, read in runs:
         tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
-        problems = validate_run(tool, tables, settings, save_all=bool(args.save_all))
+        problems = validate_run(
+            tool, tables, settings, save_all=bool(args.save_all), override=_override(args)
+        )
         if problems:
             errors += len(problems)
             print(f"{tool.name}: {len(problems)} problem(s)", file=sys.stderr)

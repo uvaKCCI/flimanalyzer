@@ -31,7 +31,7 @@ def test_each_setting_names_its_layer(tmp_path, monkeypatch):
     user = tmp_path / "user.json"
     user.write_text(json.dumps({"schema_version": 2, "log": {"dir": "logs"}}))
     app = tmp_path / "cells.json"
-    app.write_text(json.dumps({"schema_version": 2, "strict": True,
+    app.write_text(json.dumps({"schema_version": 2,
                                "execution": {"executor": "dask-local", "workers": 8}}))
     monkeypatch.setenv("FLIM_PREFECT_SERVER", "false")
 
@@ -50,8 +50,7 @@ def test_each_setting_names_its_layer(tmp_path, monkeypatch):
     assert shown["prefect_server"].value == "no: a temporary server for each run"
     assert shown["execution"].origin == "app settings file"
     assert shown["execution"].value == "dask-local, 8 workers, scheduler: threads"
-    assert shown["strict"].origin == "app settings file"
-    assert shown["strict"].value == "errors"
+    assert "strict" not in shown  # a setting of tool and workflow files
     assert shown["log"].origin == "user settings file"
     assert shown["log"].value == "logs; logs kept 30 days"
 

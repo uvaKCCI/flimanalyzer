@@ -185,10 +185,9 @@ def test_app_show_shows_both_commands_and_where_each_value_comes_from(
     assert "  Server timeout:\n      5 s  (from environment (FLIM_SERVER_TIMEOUT))\n" in out
     assert "      flimbatch:    not used: flimbatch saves under -o" in out
     # the user settings file sets a value for the GUI only
-    user.write_text(json.dumps({"schema_version": 2, "strict": True}))
+    user.write_text(json.dumps({"schema_version": 2, "log": {"dir": "logs"}}))
     code, out, _ = run(capsys, "app", "--show")
-    assert "      flimanalyzer: errors  (from user settings file)" in out
-    assert "      flimbatch:    default: the closest match" in out
+    assert "      flimanalyzer: logs; logs kept 30 days  (from user settings file)" in out
 
 
 def test_app_show_uses_the_default_app_settings_file_for_the_gui(

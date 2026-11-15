@@ -7,8 +7,8 @@ Each step's config is validated against the schemas of its inputs (`Tool.validat
 and its output schemas (`Tool.output_schema`) are passed to the steps that use them.
 
 Columns the workflow config names that are not in the input are replaced by a guess
-(the closest column of the same role) unless the validation is strict; the run then
-uses the resolved config. Steps whose inputs are not known before the run (e.g. the
+(the closest column of the same role) where the tool's `processing` isn't strict, or
+removed where it lets the field skip them; the run then uses the resolved config. Steps whose inputs are not known before the run (e.g. the
 models a training step saves) are not validated.
 """
 
@@ -28,6 +28,7 @@ from flim.core.runner import TaskOutput
 from flim.core.schema import TableSchema
 
 if TYPE_CHECKING:
+    from flim.core.config import ProcessingRules
     from flim.core.tool import Tool
     from flim.core.workflow import Workflow
 
@@ -80,6 +81,30 @@ class ValidationReport:
         """Return the issues of severity `guessed`: replaced columns."""
         return [i for i in self.issues if i.severity == "guessed"]
 
+    @property
+    def skipped(self) -> list[Issue]:
+        """Return the issues of severity `skipped`: removed entries."""
+        return [i for i in self.issues if i.severity == "skipped"]
+
+
+def resolution_notes(report: ValidationReport, prefix: str = "") -> list[str]:
+    """Return the run summary's lines for a report's guesses and skipped entries.
+
+    Args:
+        report: The report.
+        prefix: Text before each line, e.g. the table's name and `: `.
+
+    Returns:
+        E.g. `features[0]: 'FAD a1' -> 'FAD a1%' (guessed)` and
+        `features[2]: 'FLIRR' (skipped, not in the input)`.
+    """
+    def where(issue: Issue) -> str:
+        return f"{prefix}{issue.step + ': ' if issue.step else ''}{issue.field}"
+
+    return [f"{where(i)}: '{i.old}' -> '{i.suggestion}' (guessed)" for i in report.guesses] + [
+        f"{where(i)}: '{i.old}' (skipped, not in the input)" for i in report.skipped
+    ]
+
 
 class WorkflowValidator(Protocol):
     """The interface of a workflow's validator (`Workflow.validator`)."""
@@ -89,7 +114,7 @@ class WorkflowValidator(Protocol):
         workflow: type["Workflow"],
         config: TaskConfig,
         inputs: list[Optional[TableSchema]],
-        strict: bool,
+        processing: "ProcessingRules",
     ) -> ValidationReport:
         """Validate a workflow config against the schemas of the input tables.
 
@@ -97,8 +122,8 @@ class WorkflowValidator(Protocol):
             workflow: The workflow class.
             config: The workflow's config.
             inputs: The schemas of the input tables; None for an unknown one.
-            strict: Report columns missing from the inputs as errors instead of
-                replacing them by guesses.
+            processing: How columns missing from the inputs are treated (the
+                tool's `processing`): errors, guesses or skipped entries.
 
         Returns:
             The report, with the config the run uses.
@@ -107,6 +132,15 @@ class WorkflowValidator(Protocol):
 
 
 # --- guesses ---
+
+# the fields whose missing entries are removed before a tool runs (`processing.skippable`)
+REMOVED_ENTRIES = ("grouping", "features")
+_MISSING = re.compile(r"Column '(.*)' is not in the input")
+
+
+def _field_of(path: str) -> str:
+    """Return the top-level field of a path, e.g. `features` of `features[2]`."""
+    return re.split(r"[\[.]", path, maxsplit=1)[0]
 
 
 def _key(name: str) -> str:
@@ -310,8 +344,8 @@ def current_tracer() -> Optional[Tracer]:
 class DefaultWorkflowValidator:
     """Guesses missing columns of the workflow config, then validates each step.
 
-    Missing columns are guessed unless the validation is strict; the steps are
-    validated in a dry run of the workflow.
+    Missing columns are guessed or skipped as the tool's `processing` allows; the
+    steps are validated in a dry run of the workflow.
     """
 
     def validate(
@@ -319,7 +353,7 @@ class DefaultWorkflowValidator:
         workflow: type["Workflow"],
         config: TaskConfig,
         inputs: list[Optional[TableSchema]],
-        strict: bool,
+        processing: "ProcessingRules",
     ) -> ValidationReport:
         """Validate a workflow config against the schemas of the input tables.
 
@@ -333,8 +367,8 @@ class DefaultWorkflowValidator:
             workflow: The workflow class.
             config: The workflow's config.
             inputs: The schemas of the input tables; None for an unknown one.
-            strict: Report columns missing from the inputs as errors instead of
-                replacing them by guesses.
+            processing: How columns missing from the inputs are treated (the
+                tool's `processing`): errors, guesses or skipped entries.
 
         Returns:
             The report, with the config the run uses.
@@ -343,7 +377,7 @@ class DefaultWorkflowValidator:
         known = [s for s in schemas if s is not None]
         issues: list[Issue] = []
         if known and all(s.complete for s in known):
-            config, issues = self.resolve_columns(config, known, strict)
+            config, issues = self.resolve_columns(config, known, processing, workflow)
         report = ValidationReport(config, issues)
         if any(s is None or not s.complete for s in schemas) or len(schemas) < len(
             workflow.inputs
@@ -380,23 +414,35 @@ class DefaultWorkflowValidator:
 
     @staticmethod
     def resolve_columns(
-        config: TaskConfig, schemas: list[TableSchema], strict: bool
+        config: TaskConfig,
+        schemas: list[TableSchema],
+        processing: "ProcessingRules",
+        workflow: Optional[type["Workflow"]] = None,
     ) -> tuple[TaskConfig, list[Issue]]:
-        """Replace the columns a config names that the inputs lack by guesses.
+        """Replace or remove the columns a config names that the inputs lack.
 
-        Fields that the workflow copies into its steps (`bound_fields`) are validated
-        at the workflow's level only. A column that is in the input with another
-        role is an error. If there are issues, the config's `_share_fields` (if
-        any) is called, which copies the guesses into the steps' bound fields.
+        Per missing column: replaced by the closest column of the same role if its
+        field isn't strict and the workflow guesses it (`Tool.never_guessed`); else,
+        in `grouping` or `features`, removed if the field is skippable and the entry
+        isn't required; else an error. Fields that the workflow copies into its
+        steps (`bound_fields`) are validated at the workflow's level only. A column
+        that is in the input with another role is an error. If there are issues, the
+        config's `_share_fields` (if any) is called, which copies the guesses and
+        removals into the steps' bound fields.
 
         Args:
-            config: The workflow's config; a guess replaces it with a copy.
+            config: The workflow's config; a change replaces it with a copy.
             schemas: The schemas of the input tables.
-            strict: Report missing columns as errors, without guesses.
+            processing: How missing columns are treated (the tool's `processing`).
+            workflow: The workflow class, for its `never_guessed`; None: none.
 
         Returns:
-            The config with the guesses applied, and the issues: guesses and errors.
+            The config with the guesses and removals applied, and the issues:
+            guesses (`guessed`), removed entries (`skipped`) and errors.
         """
+        from flim.core.tool import is_listed
+
+        never = getattr(workflow, "never_guessed", ())
         columns = {c.name: c.role for s in schemas for c in s.columns}
         # fields the workflow copies into its steps are validated once, at the top
         bound = {
@@ -405,6 +451,7 @@ class DefaultWorkflowValidator:
             for name in names
         }
         issues = []
+        removed: dict[str, list[str]] = {}
         for path, name, role in list(column_references(config)):
             if any(path == b or path.startswith((b + "[", b + ".")) for b in bound):
                 continue
@@ -413,34 +460,50 @@ class DefaultWorkflowValidator:
             if name in columns:
                 issues.append(Issue(path, f"'{name}' is not a {role} column"))
                 continue
-            candidates = [c for c, r in columns.items() if r == role]
-            guess, why = (None, "") if strict else guess_column(name, candidates)
-            if guess is None:
-                reason = f" ({why})" if why else ""
-                issues.append(Issue(path, f"Column '{name}' is not in the input{reason}"))
-                continue
-            config = replace_at(config, path, guess)
-            issues.append(
-                Issue(
-                    path,
-                    f"'{name}' is not in the input: '{guess}' is used",
-                    severity="guessed",
-                    old=name,
-                    suggestion=guess,
-                )
-            )
+            top = _field_of(path)
+            why = ""
+            if not processing.is_strict(path) and top not in never:
+                candidates = [c for c, r in columns.items() if r == role]
+                guess, why = guess_column(name, candidates)
+                if guess is not None:
+                    config = replace_at(config, path, guess)
+                    issues.append(
+                        Issue(
+                            path,
+                            f"'{name}' is not in the input: '{guess}' is used",
+                            severity="guessed",
+                            old=name,
+                            suggestion=guess,
+                        )
+                    )
+                    continue
+            direct = re.fullmatch(rf"{top}\[[^\]]+\]", path) is not None
+            skippable = processing.skip(top) != "none"
+            if top in REMOVED_ENTRIES and direct and skippable:
+                if not is_listed(name, processing.required.get(top, [])):
+                    removed.setdefault(top, []).append(name)
+                    message = f"'{name}' is not in the input: skipped"
+                    issues.append(Issue(path, message, severity="skipped", old=name))
+                    continue
+                why = "required"
+            reason = f" ({why})" if why else ""
+            issues.append(Issue(path, f"Column '{name}' is not in the input{reason}"))
+        for top, names in removed.items():
+            value = getattr(config, top)
+            if isinstance(value, dict):
+                kept: Any = {k: v for k, v in value.items() if k not in names}
+            else:
+                kept = [v for v in value if v not in names]
+            config = config.model_copy(update={top: kept})
+            if processing.skip(top) == "some" and not kept:
+                issues.append(Issue(top, f"No entry of {top} is in the input"))
         share = getattr(config, "_share_fields", None)
         if issues and share is not None:
-            share()  # the guesses into the steps' bound fields
+            share()  # the guesses and removals into the steps' bound fields
         return config, issues
 
 
 # --- workflow file steps: their `processing` applied before they run ---
-
-# the fields whose missing entries are removed before a tool runs (`processing.skippable`)
-REMOVED_ENTRIES = ("grouping", "features")
-_MISSING = re.compile(r"Column '(.*)' is not in the input")
-
 
 @dataclass
 class StepResolution:
@@ -458,11 +521,6 @@ class StepResolution:
     guessed: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
-
-
-def _field_of(path: str) -> str:
-    """Return the top-level field of a path, e.g. `features` of `features[2]`."""
-    return re.split(r"[\[.]", path, maxsplit=1)[0]
 
 
 def resolve_step(
