@@ -120,6 +120,14 @@ def test_a_missing_file_names_the_kind_and_where_it_was_searched(folder, capsys)
     assert "No tool file 'nothere' at this path, in the workflow search path or built in" in err
 
 
+def test_show_refuses_the_name_of_a_tool_or_of_a_workflow_defined_in_code(folder, capsys):
+    code, out, err = run(capsys, "workflow", "--show", "Basic FLIRR Analysis")
+    assert code == 1 and not out
+    assert "'Basic FLIRR Analysis' is a workflow defined in code, not a workflow file" in err
+    code, _, err = run(capsys, "tool", "--validate", "Summarize")
+    assert code == 1 and "'Summarize' is a tool, not a tool file; --validate takes a file" in err
+
+
 def test_tool_validate(folder, capsys):
     code, out, err = run(capsys, "tool", "--validate", str(folder / "summarize.json"))
     assert code == 0 and "a valid tool file of Summarize" in out

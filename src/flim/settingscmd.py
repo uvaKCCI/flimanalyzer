@@ -272,7 +272,8 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
         The file and its data.
 
     Raises:
-        BatchError: If the file is not of the kind required.
+        BatchError: If the file is not of the kind required, or if the name is the
+            name of a tool or of a workflow defined in code.
         FileNotFoundError: If there is no such file.
         ValueError: If the file is not JSON.
     """
@@ -282,6 +283,16 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
     try:  # the built-in workflow files after the search path
         path = find_workflow_file(name, [*search_path, BUILT_IN])
     except FileNotFoundError:
+        try:
+            found = _kind(tools.get(name))
+        except KeyError:
+            found = ""
+        if found in ("tool", "workflow"):
+            what = "a tool" if found == "tool" else "a workflow defined in code"
+            raise BatchError(
+                f"'{name}' is {what}, not a {kind} file; --{args.action} takes a file. "
+                f"flimsettings {kind} --list lists the {kind} files"
+            ) from None
         raise FileNotFoundError(
             f"No {kind} file '{name}' at this path, in the workflow search path or built in"
         ) from None
