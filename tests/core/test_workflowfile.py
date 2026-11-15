@@ -732,3 +732,49 @@ def test_a_run_skips_missing_features_and_reports_them(prefect_harness):
     assert run.state == "completed"
     messages = " ".join(str(a.get("message") or "") for _, a in run.graph.nodes(data=True))
     assert "skipped features: 'gone' (not in the input)" in messages
+
+
+# --- plans and resolved files ---
+
+
+def test_step_formats_per_kind_step_over_workflow_over_default():
+    from flim.core.workflowfile import step_formats
+
+    definition = WorkflowDefinition.model_validate({
+        "name": "formats",
+        "output": {"formats": [{"kind": "table", "format": "csv"}, {"kind": "plot", "format": "pdf"}]},
+        "steps": [
+            {"id": "1", "tool": "Heatmap", "output": {"formats": [{"kind": "plot", "format": "svg"}]}},
+            {"id": "2", "tool": "Summarize"},
+        ],
+    })  # fmt: skip
+    first, second = definition.steps
+    assert {(f.kind, f.format) for f in step_formats(definition, first)} == {("plot", "svg"), ("table", "csv")}
+    assert [(f.kind, f.format) for f in step_formats(definition, second)] == [("table", "csv")]  # no plots: Summarize makes none
+    bare = WorkflowDefinition.model_validate({"name": "bare", "steps": [{"id": "1", "tool": "Summarize"}]})
+    assert [(f.kind, f.format) for f in step_formats(bare, bare.steps[0])] == [("table", "tsv")]  # the default
+
+
+def test_resolving_states_every_setting_and_is_stable():
+    from flim.core.workflowfile import resolve_definition, resolved_data
+
+    definition = _summarize(["t1", "gone"], {"skippable": {"features": "some"}})
+    resolved = resolve_definition(definition)
+    (step,) = resolved_data(resolved)["steps"]
+    assert step["inputs"] == ["input"] and step["config"]["aggs"] == ["mean"]
+    assert "single_table" in step["config"]  # a default, stated
+    assert step["output"]["formats"] == [{"kind": "table", "format": "tsv"}]
+    assert step["processing"] == {"strict": True, "skippable": {"grouping": "none", "features": "some"}}
+    assert resolved_data(resolve_definition(resolved)) == resolved_data(resolved)
+
+
+def test_resolving_with_the_tables_pins_what_depends_on_the_data():
+    from flim.core.workflowfile import resolve_definition
+
+    schemas = {n: TableSchema.from_frame(t) for n, t in _tables().items()}
+    skipped = resolve_definition(_summarize(["t1", "gone"], {"skippable": {"features": "some"}}), schemas=schemas)
+    assert skipped.steps[0].config["features"] == ["t1"]
+    guessed = resolve_definition(_summarize(["T1"], {"strict": False}), schemas=schemas)
+    assert guessed.steps[0].config["features"] == ["t1"]
+    everything = resolve_definition(_summarize("all"), schemas=schemas)
+    assert everything.steps[0].config["features"] == ["t1"]  # the input's feature columns

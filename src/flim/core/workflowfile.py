@@ -1418,3 +1418,192 @@ def import_workflow_data(section: dict, tools_data: dict, name: str) -> dict:
         "category": IMPORT_CATEGORY,
         "steps": steps,
     }
+
+
+# --- plans and resolved files ---
+
+
+def step_formats(
+    definition: WorkflowDefinition, step: WorkflowStep, override: Optional[Formats] = None
+) -> list:
+    """Return the formats a step saves its outputs in, one or more per kind it makes.
+
+    Per kind of output the step's tool makes (`Tool.output_kinds`): the formats of
+    `override` of that kind, else the step's own, else the workflow's, else the
+    kind's default format. Kinds without save options (e.g. files) have none.
+
+    Args:
+        definition: The workflow.
+        step: The step.
+        override: Formats over the step's and the workflow's, e.g. from the command
+            line; None: none.
+
+    Returns:
+        The formats (`SaveOptions`), in the order of the tool's kinds.
+    """
+    from flim.core.registry import tools
+    from flim.core.saving import save_options_classes
+
+    classes = save_options_classes()
+    layers = [override or [], step.output.formats or [], definition.output.formats or []]
+    formats = []
+    for kind in tools.get(step.tool).output_kinds():
+        chosen = next(([f for f in layer if f.kind == kind] for layer in layers if any(f.kind == kind for f in layer)), [])
+        if not chosen and kind in classes:
+            chosen = [classes[kind]()]
+        formats += chosen
+    return formats
+
+
+def declared_processing(tool: Any, config: Any, rules: ProcessingRules) -> dict:
+    """Return a step's merged `processing` with every field stated.
+
+    `strict` as one value, or per field for the fields that name columns if the
+    fields differ; `skippable` for every field the tool can skip; `required` as
+    merged, for those fields.
+
+    Args:
+        tool: The tool class.
+        config: The step's config.
+        rules: The step's merged rules (`WorkflowDefinition.rules`).
+
+    Returns:
+        The `processing` group as data.
+    """
+    from flim.core.config import column_references
+    from flim.core.validation import _field_of
+
+    strict: Any = rules.strict
+    if rules.strict_fields:
+        fields = {_field_of(path) for path, _, _ in column_references(config)}
+        strict = {f: rules.is_strict(f) for f in sorted(fields | set(rules.strict_fields))}
+    skippable = {f: rules.skip(f) for f in tool.skippable_fields}
+    required = {k: list(v) for k, v in rules.required.items() if k in tool.skippable_fields}
+    return {"strict": strict, "skippable": skippable, "required": required}
+
+
+def resolve_definition(
+    definition: WorkflowDefinition,
+    override: Optional[Processing] = None,
+    schemas: Optional[dict] = None,
+) -> WorkflowDefinition:
+    """Return a workflow with every setting of every step stated: the resolved file.
+
+    Each step gets every field of its tool's config, its `output.save`, its formats
+    per kind (`step_formats`), its merged `processing` (`declared_processing`) and
+    its `inputs`; the workflow-level `output` and `processing` are folded into the
+    steps. Resolving a resolved workflow gives the same workflow.
+
+    With the schemas of the run's tables, what depends on the data is pinned too,
+    as the first table's columns give it: columns guessed or entries skipped by a
+    step's `processing` (`flim.core.validation.resolve_step`), and `features: all`
+    as the list of the step's input's feature columns.
+
+    Args:
+        definition: The workflow (a plan).
+        override: A `processing` over every step's; None: none.
+        schemas: The run's tables' schemas (`TableSchema`) by name; None: only the
+            settings, not the data, are resolved.
+
+    Returns:
+        The resolved workflow.
+    """
+    from flim.core.registry import tools
+    from flim.core.schema import TableSchema
+    from flim.core.validation import resolve_step
+
+    first = next(iter((schemas or {}).values()), None)
+    known = {INPUT: [first]}
+    steps, previous = [], INPUT
+    for step in definition.steps:
+        tool = tools.get(step.tool)
+        config = tool.config_class.model_validate(step.config)
+        rules = definition.rules(step, override)
+        references = step.inputs or [previous]
+        inputs = []
+        for reference in references:
+            source, number = parse_reference(reference)
+            outputs = known.get(source) or []
+            inputs.append(outputs[number - 1] if number <= len(outputs) else None)
+        if tool.inputs and tool.inputs[0].many:
+            many = schemas if references[0] == INPUT else {"Input": inputs[0]}
+            inputs = [None if not many or None in many.values() else many]
+        if schemas is not None:
+            resolution = resolve_step(tool, config, inputs, rules)
+            if not resolution.errors:
+                config = resolution.config
+            schema = inputs[0] if inputs and isinstance(inputs[0], TableSchema) else None
+            if getattr(config, "features", None) == "all" and schema is not None and schema.complete:
+                config = config.model_copy(update={"features": schema.by_role("feature")})
+        try:
+            specs = list(tool.output_schema(config, inputs).values())
+        except Exception:  # the outputs can't be worked out
+            specs = []
+        known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
+        steps.append({
+            "id": step.id,
+            "tool": step.tool,
+            "inputs": list(references),
+            "description": step.description,
+            "config": config.model_dump(mode="json"),
+            "output": {
+                "save": step.output.save,
+                "formats": [f.model_dump(mode="json") for f in step_formats(definition, step)],
+            },
+            "processing": declared_processing(tool, config, rules),
+        })  # fmt: skip
+        previous = step.id
+    return WorkflowDefinition.model_validate({
+        "schema_version": WORKFLOW_SCHEMA_VERSION,
+        "name": definition.name,
+        "description": definition.description,
+        "category": definition.category,
+        "steps": steps,
+    })  # fmt: skip
+
+
+def resolved_data(definition: WorkflowDefinition) -> dict:
+    """Return a resolved workflow as the content of its file (`resolved.json`)."""
+    data = definition.model_dump(mode="json", exclude={"output", "processing"})
+    for step in data["steps"]:
+        if not step["processing"]["required"]:
+            del step["processing"]["required"]
+    return data
+
+
+def resolved_tool_data(
+    tool: Any, config: Any, formats: Sequence[Any], rules: ProcessingRules
+) -> dict:
+    """Return a tool's settings with every setting stated, as a tool file's content.
+
+    For a tool, or a workflow defined in code, run on its own: every field of its
+    config, `output.save` (true: flimbatch saves a tool's results), the formats per
+    kind it makes (its own, else the kind's default) and its merged `processing`.
+
+    Args:
+        tool: The tool class.
+        config: The config it runs with.
+        formats: Its own formats (`SaveOptions`); kinds not listed get their default.
+        rules: Its merged `processing`.
+
+    Returns:
+        The tool file's content.
+    """
+    from flim.core.saving import save_options_classes
+    from flim.core.settings import SETTINGS_VERSION
+
+    classes = save_options_classes()
+    stated = []
+    for kind in tool.output_kinds():
+        chosen = [f for f in formats if f.kind == kind]
+        stated += chosen or ([classes[kind]()] if kind in classes else [])
+    processing = declared_processing(tool, config, rules)
+    if not processing["required"]:
+        del processing["required"]
+    return {
+        "schema_version": SETTINGS_VERSION,
+        "tool": tool.name,
+        "config": config.model_dump(mode="json"),
+        "output": {"save": True, "formats": [f.model_dump(mode="json") for f in stated]},
+        "processing": processing,
+    }

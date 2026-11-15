@@ -367,6 +367,14 @@ def test_one_folder_per_call_with_a_folder_per_run(data_dir, settings, tmp_path,
     assert sorted(p.name for p in call.iterdir() if p.is_dir()) == ["run-1", "run-2"]
     first, second = call / "run-1", call / "run-2"
     assert (first / "run_summary.txt").is_file() and (second / "run_summary.txt").is_file()
+    # each run's settings with every setting stated: a workflow file to rerun
+    resolved = json.loads((second / "resolved.json").read_text())
+    assert [s["tool"] for s in resolved["steps"]] == ["Concatenate", "Summarize"]
+    assert resolved["steps"][1]["config"]["features"] == ["FLIRR"]
+    assert json.loads((first / "resolved.json").read_text())["steps"][0]["output"]["save"] is True
+    rerun = tmp_path / "rerun"
+    assert main(["-i", str(data_dir), "-o", str(rerun), "--run", str(second / "resolved.json"),
+                 "--no-prefect-server"]) == 0  # fmt: skip
     # --run Summarize: a workflow of one step, run per file
     inputs = sorted(p.name for p in (first / "01-Summarize").iterdir())
     assert len(inputs) == 8 and inputs[0].endswith(".txt")
@@ -523,6 +531,9 @@ def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp
     assert main(args + ["-o", str(tmp_path / "guessed"), "--allow-guesses"]) == 0
     (summary,) = (tmp_path / "guessed").rglob("run_summary.txt")
     assert "'FAD a1%' -> 'FAD a1[%]' (guessed)" in summary.read_text()
+    (resolved,) = (tmp_path / "guessed").rglob("resolved.json")  # the guesses pinned
+    data = json.loads(resolved.read_text())
+    assert data["tool"] == "Basic FLIRR Analysis" and "FAD a1[%]" in data["config"]["features"]
     assert "--allow-guesses is deprecated and is removed in 0.8.0" in capsys.readouterr().err
     # the same from a tool file whose processing allows guesses
     tool_file = tmp_path / "flirr.json"

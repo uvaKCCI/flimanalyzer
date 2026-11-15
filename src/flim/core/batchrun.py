@@ -7,6 +7,7 @@ folder. Used by the commands and the GUI; prints nothing.
 
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 from flim.core.config import Processing, ProcessingRules
@@ -154,6 +155,23 @@ def read_settings(read: ReadSettings, exclude: Sequence[str] = ()) -> ReadSettin
     return read.model_copy(update={"exclude": list(read.exclude) + list(exclude)})
 
 
+RESOLVED = "resolved.json"  # the run's settings with every setting stated
+
+
+def _write_resolved(run_dir: str | os.PathLike, data: dict) -> None:
+    """Write a run's resolved settings into its folder, as `resolved.json`.
+
+    Args:
+        run_dir: The run's folder; created if needed.
+        data: The resolved workflow or tool file's content.
+    """
+    import json
+
+    folder = Path(run_dir)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / RESOLVED).write_text(json.dumps(data, indent=2) + "\n")
+
+
 def validate_run(
     tool: type["Tool"],
     tables: dict[str, "pd.DataFrame"],
@@ -227,7 +245,10 @@ def run_on_tables(
     A workflow file runs as its steps say. A tool runs as a workflow of one step,
     `1`, with its settings from `settings` and saving on (`tool_workflow`). A workflow
     defined in code runs once per table, all in this run, its results below a folder
-    per table. The results go into `run_dir`, with the run summary.
+    per table. The results go into `run_dir`, with the run summary and the run's
+    settings with every setting stated, `resolved.json` (a workflow file, or for a
+    workflow defined in code a tool file; see
+    `flim.core.workflowfile.resolve_definition`); rerun, it gives the same run.
 
     Args:
         tool: The tool or workflow class.
@@ -256,7 +277,13 @@ def run_on_tables(
     from flim.core.validation import resolution_notes
     from flim.core.workflow import Workflow, WorkflowValidationError
 
-    from flim.core.workflowfile import saving_all, workflow_class
+    from flim.core.workflowfile import (
+        resolve_definition,
+        resolved_data,
+        resolved_tool_data,
+        saving_all,
+        workflow_class,
+    )
 
     errors = validate_run(tool, tables, settings, save_all=bool(save_all), override=override)
     if errors:
@@ -271,6 +298,9 @@ def run_on_tables(
             definition = saving_all(definition)
         if save_all or override is not None:
             tool = workflow_class(definition, getattr(tool, "path", None), override)
+        schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
+        resolved = resolve_definition(definition, override, schemas)
+        _write_resolved(run_dir, resolved_data(resolved))
         return tool().run_flow(
             tables,
             task_runner=execution.task_runner(),
@@ -294,6 +324,10 @@ def run_on_tables(
             raise BatchError(f"{tool.name} on {name}: {err}") from None
         configs[name] = report.config
         notes += resolution_notes(report, f"{name}: ")
+
+    first = next(iter(configs.values()), config)
+    formats = entry.output.formats if entry else []
+    _write_resolved(run_dir, resolved_tool_data(tool, first, formats, rules))
 
     def build() -> None:
         for name, table in tables.items():

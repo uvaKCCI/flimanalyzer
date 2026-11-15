@@ -75,7 +75,7 @@ A workflow file defines a workflow as data: a JSON file that lists its steps, ea
     * `File` > `Import Tables...` lists the workflow files tagged `import` (see [Import Tables](/userguide/data/load.md#import-tables)).
     * A tag that names a menu (`file`, `data`, `analysis`, `plot` or `workflow`; case is ignored) puts the workflow in that menu, and its icon in that group of the tool panel when it is a favorite (see [Menus](/userguide/appmenu)). Without such a tag, it is in the `Workflow` menu and group.
     * In its menu, the workflow is in a submenu named after its first other tag (for example `Import`, or `Summaries` for `"summaries"`); without one, in the submenu `Workflow Files`. The built-in workflow file is in `Workflow` > `Import`.
-* `autosave`: the formats the results are saved in (`formats`, as in the settings, see [Settings](/userguide/settings)).
+* `autosave`: the formats the results are saved in (`formats`, as in the settings, see [Settings](/userguide/settings)). A step's own `output.formats` take precedence for the kinds of result they list; for the other kinds, the workflow's formats apply, and the kind's default format if the workflow lists none.
 * `steps`, each with:
     * `id`: an identifier that never changes, for example a number.
     * `tool`: the tool's name, as in the menus. A step can't be a workflow.

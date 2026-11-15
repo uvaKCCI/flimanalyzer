@@ -286,3 +286,13 @@ def test_invalid_arguments(argv, capsys):
     with pytest.raises(SystemExit) as exit_:
         main(argv)
     assert exit_.value.code == 2
+
+
+def test_resolve_prints_every_setting(folder, capsys):
+    code, out, _ = run(capsys, "tool", "--resolve", str(folder / "summarize.json"))
+    data = json.loads(out)
+    assert code == 0 and data["tool"] == "Summarize" and data["output"]["save"] is True
+    assert data["config"]["features"] == ["FLIRR"] and "aggs" in data["config"]  # defaults stated
+    code, out, _ = run(capsys, "workflow", "--resolve", str(folder / "per-treatment.json"))
+    steps = json.loads(out)["steps"]
+    assert code == 0 and [s["inputs"] for s in steps] == [["input"], ["1"]]

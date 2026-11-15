@@ -4,10 +4,12 @@
 
 - `tool`: `--list` (tools by name, and tool files in the workflow search path),
   `--show FILE|NAME` (prints a tool file, or a tool's default settings as a tool
-  file), `--validate FILE` (validates a tool file).
+  file), `--validate FILE` (validates a tool file), `--resolve FILE` (prints it with
+  every setting stated).
 - `workflow`: `--list` (workflows defined in code, and workflow files),
   `--show FILE|NAME` (prints a workflow file, or the default settings of a workflow
-  defined in code as a tool file), `--validate FILE` (validates a workflow file).
+  defined in code as a tool file), `--validate FILE` (validates a workflow file),
+  `--resolve FILE` (prints it with every setting of every step stated).
 
 A FILE is a path, or a file name in the workflow search path; a file of another kind
 is an error. A file takes precedence over a tool or workflow of the same name.
@@ -117,6 +119,10 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"print a tool file ({file_help}), or a tool's default settings as a tool file",
     )  # fmt: skip
     actions.add_argument("--validate", metavar="FILE", help=f"validate a tool file: {file_help}")
+    actions.add_argument(
+        "--resolve", metavar="FILE",
+        help=f"print a tool file with every setting stated, as flimbatch runs it: {file_help}",
+    )  # fmt: skip
     _add_workflow_path(sub)
 
     sub, actions = add("workflow", "workflows and workflow files")
@@ -129,6 +135,11 @@ def build_parser() -> argparse.ArgumentParser:
         " defined in code as a tool file",
     )  # fmt: skip
     actions.add_argument("--validate", metavar="FILE", help=f"validate a workflow file: {file_help}")
+    actions.add_argument(
+        "--resolve", metavar="FILE",
+        help="print a workflow file with every setting of every step stated, as flimbatch"
+        f" runs it: {file_help}",
+    )  # fmt: skip
     _add_workflow_path(sub)
 
     sub, actions = add("app", "app settings")
@@ -187,7 +198,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         SystemExit: If the arguments are invalid (exit code 2, from `argparse`).
     """
     args = build_parser().parse_args(argv)
-    args.action = next(a for a in ("list", "show", "validate") if getattr(args, a, None))
+    args.action = next(
+        a for a in ("list", "show", "validate", "resolve") if getattr(args, a, None)
+    )
     handler = globals()[f"_{args.object}_{args.action}"]
     try:
         return handler(args)
@@ -391,6 +404,45 @@ def _workflow_validate(args: argparse.Namespace) -> int:
         errors += more_errors
     name = validation.definition.name if validation.definition is not None else ""
     return _report(str(path), errors, warnings, f"{path}: a valid workflow file ({name})")
+
+
+def _tool_resolve(args: argparse.Namespace) -> int:
+    """Print a tool file with every setting stated (data-dependent settings excepted)."""
+    from flim.core.config import ProcessingRules
+    from flim.core.workflowfile import resolved_tool_data, validate_workflow_file
+
+    path, _ = _file(args.resolve, args, "tool")
+    validation = validate_workflow_file(path, tool_files=True)
+    if validation.errors:
+        return _report(str(path), validation.errors, validation.warnings, "")
+    if validation.workflow is not None:  # a workflow defined in code
+        tool, entry = validation.workflow, validation.workflow.settings_entry
+        config = tool.config_class.model_validate(entry.config or {})
+        data = resolved_tool_data(tool, config, entry.output.formats, ProcessingRules.of(entry.processing))
+    else:  # a tool, run as a workflow of one step
+        definition = validation.definition
+        (step,) = definition.steps
+        tool = tools.get(step.tool)
+        config = tool.config_class.model_validate(step.config)
+        data = resolved_tool_data(tool, config, step.output.formats or [], definition.rules(step))
+    print(json.dumps(data, indent=2))
+    return 0
+
+
+def _workflow_resolve(args: argparse.Namespace) -> int:
+    """Print a workflow file with every setting of every step stated.
+
+    The settings that depend on the data (`features: all`, guessed columns, skipped
+    entries) stay as in the file; flimbatch pins them in `resolved.json`.
+    """
+    from flim.core.workflowfile import resolve_definition, resolved_data, validate_workflow_file
+
+    path, _ = _file(args.resolve, args, "workflow")
+    validation = validate_workflow_file(path)
+    if validation.errors:
+        return _report(str(path), validation.errors, validation.warnings, "")
+    print(json.dumps(resolved_data(resolve_definition(validation.definition)), indent=2))
+    return 0
 
 
 # --- app and user settings ---

@@ -743,6 +743,9 @@ class FlowRun:
         autosave = None
         save = getattr(tool, "_save", None)  # a workflow file's step: True, False, [n]
         formats = getattr(tool, "_formats", None)  # a workflow file's step: its own
+        if formats:  # per kind: the step's own, else the run's (the workflow's)
+            own = {f.kind for f in formats}
+            formats = list(formats) + [f for f in self.save_formats if f.kind not in own]
         if self.autosave_dir and save is not False:
             autosave = {
                 "directory": self.autosave_dir.joinpath(
