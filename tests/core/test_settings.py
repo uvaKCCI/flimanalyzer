@@ -505,3 +505,39 @@ def test_sections_merge_whole_or_per_key():
     assert set(merged["presets"]) == {"Calculate", "Filter"}  # per tool
     assert merged["execution"] == {"executor": "local"}  # whole: one executor
     assert merged["char_replacements"] == {"/": "-"}  # whole: one table
+
+
+@pytest.mark.parametrize("writer", ["save_settings", "save_sections", "export", "write_tool_settings"])
+def test_a_settings_file_is_replaced_in_one_step(tmp_path, monkeypatch, writer):
+    """If writing fails, the file is left as it was, and no temporary file is left."""
+    import flim.core.settings as settings_module
+    from flim.core.settings import save_sections, write_tool_settings
+    from flim.core.settingsmgr import SettingsManager
+
+    path = tmp_path / "lab.json"
+    original = json.dumps({"schema_version": 2, "server_timeout": 9})
+    path.write_text(original)
+    path.chmod(0o640)
+
+    def failing_dump(data, f, **kwargs):
+        f.write('{"schema_version": ')  # a part, then the failure
+        raise OSError("disk full")
+
+    real_dump = json.dump
+    monkeypatch.setattr(settings_module.json, "dump", failing_dump)
+    calls = {
+        "save_settings": lambda: save_settings(AppSettings.default(), path),
+        "save_sections": lambda: save_sections({"server_timeout": 5}, path),
+        "export": lambda: SettingsManager().export(path),
+        "write_tool_settings": lambda: write_tool_settings(
+            path, tools.get("Summarize"), tool_settings(SummaryConfig())
+        ),
+    }
+    with pytest.raises(OSError, match="disk full"):
+        calls[writer]()
+    assert path.read_text() == original
+    assert [p.name for p in tmp_path.iterdir()] == ["lab.json"]
+    monkeypatch.setattr(settings_module.json, "dump", real_dump)
+    calls[writer]()  # written, with the permissions of the file it replaces
+    assert json.loads(path.read_text())["schema_version"] == 2
+    assert path.stat().st_mode & 0o777 == 0o640

@@ -9,7 +9,6 @@ combines all settings layers into the settings of a session (`session_settings`)
 import json
 import logging
 import os
-import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +35,7 @@ from flim.core.settings import (
     tool_settings,
     update_settings,
     version_of,
+    write_json,
 )
 
 if TYPE_CHECKING:
@@ -202,16 +202,7 @@ class UserSettingsFile:
             data = merge_sections(current, changes)
             data["schema_version"] = SETTINGS_VERSION
             data = _ordered(data)
-            fd, tmp = tempfile.mkstemp(
-                dir=self.path.parent, prefix=".settings-", suffix=".json"
-            )
-            try:
-                with os.fdopen(fd, "w") as f:
-                    json.dump(data, f, indent=2, default=str)
-                os.replace(tmp, self.path)  # atomic: readers get either the old or the new file
-            except BaseException:
-                os.unlink(tmp)
-                raise
+            write_json(self.path, data)  # readers get either the old or the new file
 
 
 def _ordered(data: dict) -> dict:
@@ -515,7 +506,8 @@ class SettingsManager:
         The file starts with `schema_version` and, if there is one, `description`.
 
         Args:
-            path: The file; it is replaced if it exists.
+            path: The file; it is replaced if it exists, in one step (see
+                `flim.core.settings.write_json`).
             description: The file's description; None or empty for none.
         """
         from flim.core.registry import tools as registry
@@ -539,8 +531,7 @@ class SettingsManager:
         for key in USER_FILE_ONLY:  # one user's, on one computer
             data.pop(key, None)
         data["tools"] = dict(sorted(data["tools"].items()))
-        with open(path, "w") as f:
-            json.dump(data, f, indent=2, default=str)
+        write_json(path, data)
 
 
 # --- app settings files and their search path ---

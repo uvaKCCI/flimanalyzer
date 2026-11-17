@@ -1385,15 +1385,48 @@ def validate_app_settings(path: str | os.PathLike) -> SettingsValidation:
     return validation
 
 
+def write_json(path: str | os.PathLike, data: Any, *, newline: bool = False) -> None:
+    """Write data as JSON to a file in one step: readers get the old or the new file.
+
+    The data is written to a temporary file in the same folder, which then replaces
+    the file (`os.replace`). The new file keeps the permissions of the file it
+    replaces. If writing fails, the file is left unchanged and the temporary file is
+    removed.
+
+    Args:
+        path: The file; it is replaced if it exists. Its folder must exist.
+        data: The data; values JSON doesn't know are written as texts.
+        newline: End the file with a line break. Defaults to False.
+
+    Raises:
+        OSError: If the file can't be written.
+    """
+    import shutil
+    import uuid
+
+    path = Path(path)
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        with open(tmp, "x") as f:  # permissions as for a new file (umask)
+            json.dump(data, f, indent=2, default=str)
+            if newline:
+                f.write("\n")
+        if path.exists():
+            shutil.copymode(path, tmp)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
 def save_sections(sections: dict, path: str | os.PathLike) -> None:
     """Write settings sections, in the current version, to a file.
 
     Args:
         sections: Sections in the current version, e.g. `SettingsValidation.sections`.
-        path: The file; it is replaced if it exists.
+        path: The file; it is replaced if it exists, in one step (`write_json`).
     """
-    with open(path, "w") as f:
-        json.dump({"schema_version": SETTINGS_VERSION, **sections}, f, indent=2, default=str)
+    write_json(path, {"schema_version": SETTINGS_VERSION, **sections})
 
 
 def backup_path(path: str | os.PathLike, version: int) -> Path:
@@ -1446,7 +1479,7 @@ def update_settings_file(path: str | os.PathLike) -> Path:
         name = str(data["tool"])
         section = validation.sections.get("tools", {}).get(name, {})
         content = {"schema_version": SETTINGS_VERSION, "tool": name, **section}
-        path.write_text(json.dumps(content, indent=2, default=str) + "\n")
+        write_json(path, content, newline=True)
     else:
         save_sections(validation.sections, path)
     return backup
@@ -1457,10 +1490,9 @@ def save_settings(settings: AppSettings, path: str | os.PathLike) -> None:
 
     Args:
         settings: The settings.
-        path: The file; it is replaced if it exists.
+        path: The file; it is replaced if it exists, in one step (`write_json`).
     """
-    with open(path, "w") as f:
-        json.dump(settings.to_json(), f, indent=2, default=str)
+    write_json(path, settings.to_json())
 
 
 # --- the settings of one tool (in a FLIMAnalyzer settings file, or alone) ---
@@ -1535,7 +1567,8 @@ def write_tool_settings(
     sections under its former names are removed.
 
     Args:
-        path: The file; created if it does not exist.
+        path: The file; created if it does not exist, else replaced in one step
+            (`write_json`).
         tool: The tool class.
         entry: The tool's settings.
 
@@ -1559,5 +1592,4 @@ def write_tool_settings(
         for name in getattr(tool, "former_names", ()):
             tools.pop(name, None)
         tools[tool.name] = entry.model_dump(mode="json")
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+    write_json(path, data)  # in one step: an existing file's other sections are kept
