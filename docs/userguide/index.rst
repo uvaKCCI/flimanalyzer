@@ -15,6 +15,8 @@ User Guide
     plots/index
     workflows
     settings
+    flimsettings
     batch
     execution
+    upgrading
 
