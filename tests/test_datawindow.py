@@ -1066,3 +1066,33 @@ def test_save_on_close_saves_all_rows(frame, monkeypatch, flim_data):
     window.close_and_destroy(None)  # the save is cancelled: the window stays open
     assert saved == [len(flim_data)]
     window.modified = False
+
+
+def test_save_asks_before_replacing_the_file_with_the_added_extension(frame, monkeypatch, tmp_path, flim_data):
+    """`cells` replaced an existing `cells.txt` without asking."""
+    from flim.gui.dialogs import save_dataframe
+
+    window = _open(frame, flim_data)
+    (tmp_path / "cells.txt").write_text("keep")
+    _answer_file_dialog(monkeypatch, tmp_path / "cells")
+    monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: 0)
+    asked = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(dlg.GetMessage()) or wx.ID_NO)
+    assert save_dataframe(window, "Save", window.data, "cells.txt") is None
+    assert "cells.txt already exists" in asked[0]
+    assert (tmp_path / "cells.txt").read_text() == "keep"
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
+    assert save_dataframe(window, "Save", window.data, "cells.txt") == str(tmp_path / "cells.txt")
+    assert pd.read_csv(tmp_path / "cells.txt", sep="\\t").shape[0] == len(flim_data)
+
+
+def test_save_uses_the_format_of_a_typed_extension(frame, monkeypatch, tmp_path, flim_data):
+    """`x.csv` with the tab-separated filter was saved as `x.csv.txt`."""
+    from flim.gui.dialogs import save_dataframe
+
+    window = _open(frame, flim_data)
+    _answer_file_dialog(monkeypatch, tmp_path / "x.csv")
+    monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: 0)  # tab-separated
+    path = save_dataframe(window, "Save", window.data, "x.txt", saveindex=False)
+    assert path == str(tmp_path / "x.csv")
+    assert pd.read_csv(path, sep=",").shape == flim_data.shape

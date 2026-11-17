@@ -94,7 +94,14 @@ def _ask_path(
     filename: str,
     options_class: type["SaveOptions"],
 ) -> Optional[tuple[str, "SaveOptions"]]:
-    """Ask where to save, and in which format; return path and options, or None."""
+    """Ask where to save, and in which format; return path and options, or None.
+
+    A file name that ends with the extension of one of the offered formats is saved
+    in that format, also if another filter is chosen; otherwise the chosen filter's
+    format applies and its extension is added. If adding the extension gives the
+    name of a file that exists, the user is asked whether to replace it: the file
+    dialog asked only about the name without the extension.
+    """
     wildcard, formats = _wildcard(options_class)
     with wx.FileDialog(
         parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
@@ -104,9 +111,20 @@ def _ask_path(
             return None
         fmt = formats[max(dialog.GetFilterIndex(), 0)]
         path = dialog.GetPath()
+    typed = [f for f in formats if path.lower().endswith(options_class.extensions[f])]
+    if typed:
+        return path, options_class(format=typed[0])
     options = options_class(format=fmt)
-    if not path.lower().endswith(options.extension):
-        path += options.extension
+    path += options.extension
+    if os.path.exists(path):
+        with wx.MessageDialog(
+            parent,
+            f"{os.path.basename(path)} already exists.\n\nReplace it?",
+            title,
+            wx.YES_NO | wx.ICON_WARNING,
+        ) as confirm:
+            if confirm.ShowModal() != wx.ID_YES:
+                return None
     return path, options
 
 
