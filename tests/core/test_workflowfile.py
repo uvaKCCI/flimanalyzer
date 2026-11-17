@@ -827,3 +827,9 @@ def test_override_scopes_are_validated_against_the_runs():
     assert "has no step 5" in problems("run-1.steps.5.output.save=true")
     assert "is a workflow defined in code; it has no steps" in problems("steps.1.output.save=true", runs=[BasicFLIRR])
     assert problems("steps.2.output.save=true", runs=runs[:1]) == ""  # one run: no prefix needed
+
+
+def test_a_step_that_is_a_workflow_is_an_error_of_the_file(tmp_path):
+    data = {"name": "w", "steps": [{"id": "1", "tool": "Basic FLIRR Analysis"}]}
+    errors = validate_workflow_file(write(tmp_path, data)).errors
+    assert errors == ["step 01 (Basic FLIRR Analysis): a step can't be a workflow"]

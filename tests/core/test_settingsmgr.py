@@ -419,3 +419,10 @@ def test_presets_are_merged_per_tool(tmp_path):
     assert [p["name"] for p in manager.settings.tool_presets(Filter)] == ["lab"]
     saved = json.loads(user.read_text())["presets"]
     assert [p["name"] for p in saved["Calculate"]] == ["new"]
+
+
+def test_an_invalid_executor_field_in_the_environment_is_named(monkeypatch):
+    monkeypatch.setenv("FLIM_EXECUTION__EXECUTOR", "local")
+    monkeypatch.setenv("FLIM_EXECUTION__WORKERS", "four")
+    with pytest.raises(ValueError, match="FLIM_EXECUTION__WORKERS=four: Input should be a valid integer"):
+        environment_changes()

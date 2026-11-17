@@ -684,10 +684,17 @@ def environment_changes() -> dict:
     try:
         env = EnvSettings()
     except ValidationError as err:
-        names = sorted(
-            {"FLIM_" + "__".join(str(p) for p in e["loc"][:2]).upper() for e in err.errors()}
-        )
-        raise ValueError(f"Invalid environment variable: {', '.join(names)}") from None
+        problems = []
+        for e in err.errors():
+            # `execution` is a union: its second part names the executor, not a field
+            parts = [str(p) for p in e["loc"]]
+            if parts[0] == "execution" and len(parts) > 2:
+                parts = [parts[0], *parts[2:]]
+            name = "FLIM_" + "__".join(parts).upper()
+            value = os.environ.get(name)
+            shown = f"{name}={value}" if value is not None else name
+            problems.append(f"{shown}: {e['msg']}")
+        raise ValueError(f"Invalid environment variable: {'; '.join(sorted(set(problems)))}") from None
     values = env.model_dump(mode="json", exclude_none=True)
     changes = {
         key: values[key]

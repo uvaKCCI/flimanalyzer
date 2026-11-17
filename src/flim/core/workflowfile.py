@@ -281,6 +281,7 @@ def validate_definition(definition: WorkflowDefinition, validation: WorkflowVali
         validation: The validation that collects the errors.
     """
     from flim.core.registry import tools
+    from flim.core.workflow import Workflow
 
     seen = []
     width = id_width(definition)
@@ -304,6 +305,9 @@ def validate_definition(definition: WorkflowDefinition, validation: WorkflowVali
             validation.errors.append(f"{where}: no tool or workflow named '{step.tool}'")
             continue
         tool = tools.get(step.tool)
+        if issubclass(tool, Workflow):
+            validation.errors.append(f"{where} ({step.tool}): a step can't be a workflow")
+            continue
         classname = step.config.get("classname")
         expected = f"{tool.__module__}.{tool.__qualname__}"
         if classname is not None and classname != expected:
