@@ -56,7 +56,7 @@ While a tool runs with `Save results` checked, the progress dialog shows the res
 
 ## Loading and saving settings
 
-`Load Settings...` reads the tool's settings from a settings file, and `Save Settings...` adds the tool's current settings to a settings file. The settings include whether the results are saved, and to which folder. See [The settings of a tool](/userguide/settings.md#the-settings-of-a-tool).
+`Load Settings...` reads the tool's settings from a tool file or a settings file. `Save Settings...` saves the tool's current settings as a tool file, or adds them to an existing settings file. The settings include whether the results are saved, to which folder and in which formats; a tool file has no folder. See [The settings of a tool](/userguide/settings.md#the-settings-of-a-tool).
 
 ## Features
 
@@ -64,10 +64,10 @@ Many tools have a `Features` list with the numeric columns of the table. Check t
 
 Most tools also have an `All features` check box above the list. With it, the tool uses all numeric columns of the table, also with another table that has other columns. While it is checked, the list shows all features checked and can't be changed. Some tools don't offer `All features`:
 
-* `Autoencoder: Train`.
+* `Autoencoder Train`.
 * `Frequency Histogram`: it has a table with a row for each feature instead of the list.
 * `Pair Plot` and `FLIRR Plot`: they have their own fields for the columns to plot.
-* The workflows: they have their own list of features.
+* The other workflows: they have their own list of features.
 
 If the settings name features that the selected table doesn't have, a note above the list names them. They are validated again when you choose a table that has them.
 
@@ -78,7 +78,7 @@ Some tools have a `Resources` section. It is collapsed; click `Resources` to ope
 ![](/images/dialogs/tool-dialog.png)
 
 * `Threads`: how many threads the tool uses for its calculations. `-1` (the default) uses all CPU cores available to the tool. `0` is not allowed. `K-Means`, `Random Forest`, the autoencoder tools and the autoencoder workflows have this setting.
-* `Device`: which processor does the calculations, for example a GPU. The autoencoder tools (`Autoencoder: Train`, `Autoencoder: Run`, `Autoencoder: Augment Data`) and the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis` have this setting. See [Using a GPU](/install/index.md#using-a-gpu).
+* `Device`: which processor does the calculations, for example a GPU. The autoencoder tools (`Autoencoder Run`, `Autoencoder Augment Data`) and the workflows `Autoencoder Train`, `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis` have this setting. See [Using a GPU](/install/index.md#using-a-gpu).
 
 The other tools have no `Resources` section; they use one thread on the CPU.
 
@@ -97,7 +97,7 @@ The dialog validates the settings while you change them:
 
 Some tools show an example below the `Settings` section: a small table with a few rows of the selected table, and the columns the tool makes from them, marked `→`, for example `→ FOV:Cell`. It changes as you change the settings, so you can check the result before you run the tool. These tools are `Fuse Categories`, `Separate Categories`, `Rename Columns`, `Drop Columns`, `Calculate`, `Directory/File to Source`, `Pivot`, `Unpivot`, `Scale` and `Categorize Data`.
 
-Most tools need at least one feature selected under `Features`; `PCA`, `Scatter Plot`, `Series Analysis`, `Autoencoder: Train` and the workflow `FLIM Data Augmentation Tuning` need two. Some also need a grouping column, for example `FLIRR Plot`. Until enough are selected, `Features` (or `Grouping`) is marked with an error. `Summarize` needs at least one statistic.
+Most tools need at least one feature selected under `Features`; `PCA`, `Scatter Plot`, `Series Analysis`, the workflow `Autoencoder Train` and the workflow `FLIM Data Augmentation Tuning` need two. Some also need a grouping column, for example `FLIRR Plot`. Until enough are selected, `Features` (or `Grouping`) is marked with an error. `Summarize` needs at least one statistic.
 
 ## Hidden settings
 

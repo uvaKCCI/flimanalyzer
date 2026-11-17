@@ -1,8 +1,8 @@
-# Autoencoder: Run
+# Autoencoder Run
 
-The `Autoencoder: Run` tool applies models saved by [Autoencoder: Train](/userguide/analysis/aetrain) to a table. For each row, it gives the encoded values and the reconstructed features. The tool can run on a GPU, see [Using a GPU](/install/index.md#using-a-gpu).
+The `Autoencoder Run` tool applies models saved by [Autoencoder Train](/userguide/analysis/aetrain) to a table. For each row, it gives the encoded values and the reconstructed features. The tool can run on a GPU, see [Using a GPU](/install/index.md#using-a-gpu).
 
-**Menu Access:** `Analysis` > `Autoencoder: Run`
+**Menu Access:** `Analysis` > `Autoencoder Run`
 
 **Tool panel icon:** ![](/images/analysis/aerun.png)
 
@@ -10,10 +10,10 @@ The `Autoencoder: Run` tool applies models saved by [Autoencoder: Train](/usergu
 
 1. Go to the `Window` menu and select one of the data tables. This brings the selected table window to the front. The dialog's `Data` choice starts with this table; you can choose another one there (see [Choosing the data](/userguide/dialogs.md#choosing-the-data)).
 
-2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Autoencoder: Run` menu.
+2. Start the tool by clicking on its icon in the tool panel or via the `Analysis` > `Autoencoder Run` menu.
 
-3. In the `Configuration: Autoencoder: Run` dialog, set:
-    - `Model files`: the `.model` files saved by `Autoencoder: Train`. Use `Add...` to add files and `Remove` to remove the selected ones. Select at least one. Each model gives its own results.
+3. In the `Configuration: Autoencoder Run` dialog, set:
+    - `Model files`: the `.model` files saved by `Autoencoder Train`. Use `Add...` to add files and `Remove` to remove the selected ones. Select at least one. Each model gives its own results.
     - `Features`: the same features the models were trained on. They are used in the order of the table's columns. `All features` uses all numeric columns of the table (see [Features](/userguide/dialogs.md#features)).
     - `Device` and `Threads`, in the `Resources` section: see [Resources](/userguide/dialogs.md#resources).
 

@@ -410,7 +410,7 @@ class AppSettings(_Settings):
         description="Text replaced in the names of the files and folders FLIMAnalyzer"
         " writes, in order, before every other character than ASCII letters, digits,"
         " -, _ and . becomes _. A file adds entries to the defaults or overrides single"
-        " ones.",
+        " ones; the table of a later settings layer replaces that of an earlier one.",
     )
     max_windows: dict[str, int] = Field(
         default={"table": 10, "plot": 10, "image": 4},

@@ -120,7 +120,7 @@ class CollectFiles(Tool[CollectFilesConfig]):
     """Collects the files of several inputs into one table, a row per file."""
 
     name = "Collect Files"
-    category = "Data"
+    category = None  # in no menu: its inputs are files, which the GUI has no windows for
     description = (
         "Collects the files of several inputs (e.g. the models of each training) into"
         " one table: a row per file, with the input it came from."

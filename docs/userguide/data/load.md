@@ -21,11 +21,11 @@ The files are read with the settings of the `Open Tables` tool (see [Read settin
 
 1. Go to `File` > `Import Tables...` or click the `Import Tables` icon.
 2. Choose one or more data files and click `Open`.
-3. The `Import Tables` dialog shows how the files are read (see [Read settings](#read-settings)) and, under `Workflow`, the workflow to run on the tables. The dialog keeps your choices for the next time. The list shows the workflow files tagged `import` (all workflow files if none is tagged, see [Workflow files](/userguide/workflows.md#workflow-files)):
+3. The `Import Tables` dialog shows how the files are read (see [Read settings](#read-settings)) and, under `Workflow`, the workflow to run on the tables. The dialog keeps your choices for the next time. The list shows the workflow files with the category `["File", "Import"]`, the workflow files of `File` > `Import` (all workflow files if none has this category, see [Workflow files](/userguide/workflows.md#workflow-files)):
     - `None (open the tables)`, the first entry and the default: no workflow; each table opens in a window, as with `Open Tables`.
     - `Import`: renames the channels' columns (for example `Exc1_-Ch2-_t1` to `NAD(P)H t1`, see [Rename Columns](rename.md)), drops the other channels' columns ([Drop Columns](drop.md)), joins the tables into one and adds the calculated FLIM features ([Calculate](/userguide/analysis/calculate.md)). This is what `Import...` did up to FLIMAnalyzer 0.6 with the default settings. `Import` saves the joined table with the calculated features (see [Results of a workflow file](/userguide/workflows.md#results-of-a-workflow-file)). Files without these channels' columns, for example files of one channel with columns such as `_t1`, are joined as they are; the run summary lists the calculations that were skipped.
     - Your own workflow files, for example a copy of `Import` with a Separate Categories step that takes categories from the file names (see [Workflow files](/userguide/workflows.md#workflow-files)).
-    - `Other Workflow File...`, the last entry: choose any workflow file, also one without the tag `import` or outside the workflow search path.
+    - `Other Workflow File...`, the last entry: choose any workflow file, also one with another category or outside the workflow search path.
 4. Click `OK`. With a workflow, FLIMAnalyzer shows its steps; click `Run`.
 5. The files are read, one task per file, and the workflow runs on the tables. A window opens for each result that no later step of the workflow uses, for example the joined table of `Import`. Results that the workflow saves open as saved; the run summary shows where.
 
@@ -33,7 +33,7 @@ The files are read with the settings of the `Open Tables` tool (see [Read settin
 
 Before the run, the workflow's steps are validated against the first 20 rows of each file. If a run would open more windows than the app setting `max_windows` allows (by default 10 tables, 10 plots and 4 images), for example a workflow without a step that joins the tables run on 300 files, it doesn't start, and a message suggests running it with `flimbatch` or choosing a workflow that joins the tables, for example with `Concatenate`.
 
-To run a workflow file on a table that is already open, for example after reshaping it with the table tools, use `Workflow` > `Run Workflow File...`. The workflow files found in the workflow search path are also listed in the menus, in the menu and submenu their tags name (the built-in ones in `Workflow` > `Import`, files without tags in `Workflow` > `Workflow Files`, see [Workflow files](/userguide/workflows.md#workflow-files)); there they run on the tables you select in their dialog.
+To run a workflow file on a table that is already open, for example after reshaping it with the table tools, use `Workflow` > `Run Workflow File...`. The workflow files found in the workflow search path are also listed in the menus, in the menu and submenu that their `category` names (the built-in `Import` in `File` > `Import`, files without `category` in the `Workflow` menu, see [Workflow files](/userguide/workflows.md#workflow-files)); there they run on the tables you select in their dialog.
 
 ## Read settings
 

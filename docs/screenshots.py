@@ -304,7 +304,7 @@ SHOTS = {
     "analysis/pairplot-results.png": ("plot", {"tool": "Pair Plot", "config": PAIRPLOT}),
     # tool dialogs, autoencoders, single figure, plot window, runs
     "dialogs/tool-dialog.png": ("dialog", {"tool": "K-Means", "config": KMEANS, "setup": "expand_resources"}),
-    "analysis/aetrain-config.png": ("dialog", {"tool": "Autoencoder: Train"}),
+    "analysis/aetrain-config.png": ("dialog", {"tool": "Autoencoder Train"}),
     "analysis/boxplot-config-single.png": ("dialog", {"tool": "Box Plot", "config": BOX_SINGLE}),
     "analysis/boxplot-result-single.png": ("plot", {"tool": "Box Plot", "config": BOX_SINGLE}),
     "analysis/plotwindow.png": ("plotwindow", {"tool": "Box Plot", "config": BOX[0]}),

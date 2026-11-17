@@ -17,7 +17,7 @@ The settings come from several layers. Each layer changes only the settings it h
 Within a section, a higher layer changes:
 
 * each entry on its own in `tools` and `presets` (per tool), `max_windows` (per kind of window), and `log` and `cache` (per setting). For example, an app settings file with presets for `Filter` keeps your saved presets for `Calculate`, and one that sets only `log.dir` keeps your `log.max_age_days`.
-* the whole section in `execution` (one executor with its options), `filters` (one set of filters) and `char_replacements` (one table), and in all single settings.
+* the whole section in `execution` (one executor with its options), `filters` (one set of filters) and `char_replacements` (one table), and in all single settings. The built-in replacements of `char_replacements` are added to the table of each layer; an entry for the same text replaces the built-in one.
 
 `flimbatch` does not read the user settings file, so its results don't depend on settings changed in the GUI.
 
@@ -25,7 +25,7 @@ Within a section, a higher layer changes:
 
 **Menu Access:** `File` > `Settings...` (on macOS: `FLIMAnalyzer` > `Settings...`)
 
-The dialog lists the app settings of this session: the results folder, the executor, the Prefect server, the log folder and how workflows handle missing columns. For each setting it shows:
+The dialog lists the app settings of this session: the results folder, the executor, the Prefect server, the server timeout and the log folder. For each setting it shows:
 
 * its value;
 * where the value comes from: the built-in default, the user settings file, the app settings file, an environment variable or a command-line option;
@@ -85,29 +85,32 @@ Before 0.7.0, the GUI read `defaults.json` in the folder it was started from. Th
 
 ## Environment variables
 
-These environment variables set the same settings as the command-line options. They are read by the GUI and by `flimbatch`.
+These environment variables set the same settings as the command-line options. They are read by the GUI and by `flimbatch`, except where the table says otherwise. `flimsettings env --list` lists them, with the commands that read each one (see [flimsettings](/userguide/flimsettings)).
 
 | Variable | |
 |---|---|
-| `FLIM_RESULTS_DIR` | results folder, as `-o` |
+| `FLIM_RESULTS_DIR` | results folder, as `-o` (GUI only: `flimbatch` needs `-o`) |
 | `FLIM_EXECUTION__EXECUTOR` | executor: `local`, `dask-local` or `dask`, as `-e` |
 | `FLIM_EXECUTION__WORKERS` | number of workers of the executor |
 | `FLIM_EXECUTION__SCHEDULER` | `threads` or `processes` (`dask-local`) |
 | `FLIM_EXECUTION__ADDRESS` | address of the Dask cluster (`dask`) |
 | `FLIM_EXECUTION` | the executor settings as JSON, instead of the four variables above, for example `{"executor": "dask-local", "workers": 8}` |
 | `FLIM_PREFECT_SERVER` | `false` does the same as `--no-prefect-server` |
+| `FLIM_SERVER_TIMEOUT` | how many seconds to wait for responses of the Prefect server, and of the Dask cluster if one is used, as `--server-timeout` |
 | `FLIM_LOG_DIR` | log folder (`log` > `dir`), as `--log-dir` |
 | `FLIM_CACHE_DIR` | cache folder setting, as `--cache-dir` |
-| `FLIM_APP_SETTINGS_PATH` | the app settings search path (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder |
-| `FLIM_WORKFLOW_PATH` | the folders searched for workflow files (see [Workflow files](/userguide/workflows.md#workflow-files)), instead of `workflow_paths` and the default folder |
-| `FLIM_USER_SETTINGS` | path of the user settings file (GUI) |
+| `FLIM_LOG_LEVEL` | logging level, as `-l` (`--log-level`) |
+| `FLIM_DRY_RUN` | `true` does the same as `--dry-run` (`flimbatch` only) |
+| `FLIM_APP_SETTINGS_PATH` | the app settings search path (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder; also read by `flimsettings` |
+| `FLIM_WORKFLOW_PATH` | the workflow search path: the folders searched for workflow files and tool files, instead of `workflow_paths` of the user settings file and the default folder; `-w` replaces it (see [Where workflow files are found](/userguide/workflows.md#where-workflow-files-are-found)); also read by `flimsettings` |
+| `FLIM_USER_SETTINGS` | path of the user settings file (GUI and `flimsettings`) |
 
 For example, on macOS and Linux:
 
 ```
 export FLIM_EXECUTION__EXECUTOR=dask-local
 export FLIM_EXECUTION__WORKERS=8
-flimbatch -i data/ -o results/ -s settings.json --run Summarize
+flimbatch -i data/ -o results/ --run summarize.json
 ```
 
 ## Saving and loading all settings
@@ -143,12 +146,12 @@ If all settings can be used, the GUI uses the file and writes the result of the 
 
 Every tool's dialog has two buttons for its own settings:
 
-* `Save Settings...` adds the tool's current settings to a settings file, or updates them there. The file dialog starts in the workflow folder, the first folder of the workflow search path: there, `flimbatch --run NAME` finds the file by name. A new file in an app settings folder is saved only after a question, because app settings files are kept apart from tool and workflow files: `Use Workflow Folder` saves it in the workflow folder, `Save Here` in the chosen folder. Everything else in the file is kept, so the settings of several tools can be collected in one file, or added to a file saved with `Export Settings...`. If the file is from an older version or has settings that can't be used, the dialog lists them and asks first: update the file to the current version (the settings that can't be used are removed), or save to another file. `Cancel` saves nothing.
+* `Save Settings...` saves the tool's current settings. A new file, or an existing tool file, is written as a tool file: the tool's name, its `config` and `output` sections and, if it is set, its `processing` section, in the form of a step of a workflow file (see [Workflow files](/userguide/workflows.md#workflow-files)), without the folder. In an existing settings file, the tool's section is added or replaced. The file dialog starts in the workflow folder, the first folder of the workflow search path: there, `flimbatch --run FILE` finds the file by its file name. A new file in an app settings folder is saved only after a question, because app settings files are kept apart from tool and workflow files: `Use Workflow Folder` saves it in the workflow folder, `Save Here` in the chosen folder. Everything else in a settings file is kept, so the settings of several tools can be collected in one file, or added to a file saved with `Export Settings...`. If the file is from an older version or has settings that can't be used, the dialog lists them and asks first: update the file to the current version (the settings that can't be used are removed), or save to another file. `Cancel` saves nothing.
 * `Load Settings...` reads the tool's settings from a settings file. The file can be one saved with `Save Settings...` or `Export Settings...`. If the file has no settings for the tool, the dialog says so.
 
-The tool's settings also include whether its results are saved, and to which folder.
+The tool's settings also include whether its results are saved, to which folder and in which formats (its `output` section, see [Layout of a settings file](#layout-of-a-settings-file)). A tool file has no folder, because the folder is a setting of the computer.
 
-The folder is saved as its full path. On Windows, a folder on a mapped network drive (for example `Z:\results`) is saved as its network path (`\\server\share\results`). That way it still works when the drive letter is not available, for example when FLIMAnalyzer was started as administrator. If the folder can't be reached or written to, the dialog marks it and `OK` stays disabled.
+If a results folder is set, a folder inside it is saved relative to it; any other folder is saved as it is (see [Saving results](/userguide/dialogs.md#saving-results)). On Windows, a folder on a mapped network drive (for example `Z:\results`) is saved as its network path (`\\server\share\results`). That way it still works when the drive letter is not available, for example when FLIMAnalyzer was started as administrator. If the folder can't be reached or written to, the dialog marks it and `OK` stays disabled.
 
 ## Settings of features
 
@@ -168,9 +171,11 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
   "cache": {"dir": null, "max_size_mb": 2048, "max_age_days": 7},
   "filters": { ... },
   "tools": {
-    "Summarize": {"config": { ... }, "autosave": {"enabled": false, "results_dir": null, "formats": []}},
-    "K-Means": {"config": { ... }, "autosave": {"enabled": true, "results_dir": "results",
-                "formats": [{"kind": "plot", "format": "svg"}]}}
+    "Summarize": {"config": { ... }, "output": {"save": false, "results_dir": null, "formats": []}},
+    "K-Means": {"config": { ... }, "output": {"save": true, "results_dir": "results",
+                "formats": [{"kind": "plot", "format": "svg"}]}},
+    "Basic FLIRR Analysis": {"config": { ... }, "output": {"save": true, "results_dir": null, "formats": []},
+                             "processing": {"strict": false}}
   }
 }
 ```
@@ -180,18 +185,20 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
 * `results_dir`: the folder under `Save results` for tools that have no folder of their own. If it is not set (`null`), the results go to the folder FLIMAnalyzer was started from.
 * `execution`: the executor and its options, as with `-e` (see [Concurrent and Distributed Execution](/userguide/execution)). For example, `{"executor": "dask-local", "workers": 8, "scheduler": "processes"}`, or `{"executor": "dask", "address": "tcp://host:8786"}`.
 * `prefect_server`: `false` does the same as `--no-prefect-server`.
-* `log`: the log folder (`dir`) and how many days the GUI keeps its log files (`max_age_days`). If the folder is not set (`null`), the GUI uses the platform's log folder and `flimbatch` its output folder (see [Log files](/install/index.md#log-files)).
+* `log`: the log folder (`dir`) and how many days the GUI keeps its log files (`max_age_days`). If the folder is not set (`null`), the GUI uses the platform's log folder, and `flimbatch` writes `flimbatch.log` into the results folder of the call (see [Log files](/install/index.md#log-files)).
 * `cache`: the cache folder setting (`dir`), the maximum cache size in MB (`max_size_mb`) and the maximum age of cached items in days (`max_age_days`).
 * `appsettings_path`: the folders searched for app settings files. It is read only from the user settings file, because it is needed to find an app settings file; in an app settings file it has no effect (see [App settings files](#app-settings-files)).
 * `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it, `appsettings_path`, `workflow_paths` and `last_run_url` out.
 * `last_run_url`: the Prefect page of the last run the GUI started, opened by `Monitor` > `Last Run`. The GUI writes it after each run; it is read from the user settings file.
-* `workflow_paths`: the folders searched for workflow files (see [Workflow files](/userguide/workflows.md#workflow-files)). It is read from the user settings file, and from an app settings file, which takes precedence. `flimbatch` reads no user settings file, so it uses only that of the `-s` file.
+* `workflow_paths`: the folders searched for workflow files and tool files by the GUI (see [Where workflow files are found](/userguide/workflows.md#where-workflow-files-are-found)). It is read only from the user settings file; in an app settings file it is not used, and a message says so. `-w` and `FLIM_WORKFLOW_PATH` replace it. `flimbatch` and `flimsettings` read no user settings file, so they don't use it.
 * `favorites`: the names of the tools and workflows the tool panel shows, in order (see [Menus](/userguide/appmenu)). Empty: all tools. The GUI writes it to the user settings file with `File` > `Favorites...`; an app settings file can set it, for example for a course, and the user settings file takes precedence.
 * `presets`: the presets saved with `Save as Preset...`, by tool name, for example `"Separate Categories": [{"name": "Mine", "settings": {...}}]`. A preset's `settings` are a part of the tool's settings. The `Calculate`, `Separate Categories` and `Filter` dialogs save them, and a table window's `Filter Settings` saves its filters (`Filter Data`, range filters, category values) under `Filter` (see [Calculate](/userguide/analysis/calculate.md), [Separate Categories](/userguide/data/separate.md#presets) and [Filtering Data](/userguide/data/filter.md#presets)). The GUI writes them to the user settings file.
 * `max_windows`: per kind of result, the most windows that a run of `Import Tables` or of a workflow file in the GUI may open, by default `{"table": 10, "plot": 10, "image": 4}`; such a run that would open more doesn't start (see [Import Tables](/userguide/data/load.md#import-tables)). Other tools and workflows are not limited. The GUI doesn't change it; set it in an app settings file.
 * `filters`: whether new table windows filter their rows (`use`) and show the dropped rows (`show_dropped`). They apply only to the table windows; `flimbatch` doesn't use them: to filter rows in a batch run, add a `Filter` step to a workflow file. The filters themselves are the settings of the `Filter` tool, in `tools` (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
-* `tools`: each tool has its own section, named after the tool, with its settings (`config`) and its `autosave` section: whether its results are saved (`enabled`), in which folder (`results_dir`: `null` for the default results folder, a relative path such as `"results"` for a folder inside it, which moves with it, or an absolute path), and in which formats (`formats`, one entry per format with its `kind` and `format`, for example `{"kind": "table", "format": "csv"}`; a kind not listed is saved in its default format).
+* `char_replacements`: the text replaced in the names of the files and folders that FLIMAnalyzer writes, for example `{"%": "pcent"}`. The replacements are made in order; then letters with accents lose them (`é` becomes `e`), and every character other than ASCII letters, digits, `-`, `_` and `.` becomes `_`. A replacement may contain only these characters, and the text to replace can't be empty. The built-in replacements are `%` to `pcent`, `τ` to `tau`, and `µ` and `μ` to `u`. They are added to the table of each settings layer, and an entry for the same text replaces the built-in one (see [Where the settings come from](#where-the-settings-come-from)).
+* `server_timeout`: how many seconds to wait for responses of the Prefect server, and of the Dask cluster if one is used, as `--server-timeout`. Default: 60.
+* `tools`: each tool has its own section, named after the tool, with its settings (`config`), its `output` section and, if it is set, its `processing` section. `output` is whether its results are saved (`save`), in which folder (`results_dir`: `null` for the default results folder, a relative path such as `"results"` for a folder inside it, which moves with it, or an absolute path), and in which formats (`formats`, one entry per format with its `kind` and `format`, for example `{"kind": "table", "format": "csv"}`; a kind not listed is saved in its default format). `processing` is how a run treats data that doesn't match the settings, as in a step of a workflow file (see `processing` under [Workflow files](/userguide/workflows.md#workflow-files)).
 
-Older files are converted when they are read: `working_dir` becomes `results_dir`, a tool's `autosave` and `results_dir` become its `autosave` section (with the default formats, as before), the `preprocess` section becomes the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools (each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` of FLIMAnalyzer 0.6 calculated them), the range filters in `filters` become the `Filter` tool's filters (each switched on as it was selected; the `Filter` tool's own filters of the older file are added switched off), and `display`, which is no longer used, is dropped.
+Older files are converted when they are read: `working_dir` becomes `results_dir`, a tool's `autosave` and `results_dir` become its `output` section (`save` and `results_dir`, with the default formats), `strict` in a tool's `config` becomes its `processing` > `strict` (`null` is dropped, because strict is the default), the `preprocess` section becomes the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools (each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` of FLIMAnalyzer 0.6 calculated them), the range filters in `filters` become the `Filter` tool's filters (each switched on as it was selected; the `Filter` tool's own filters of the older file are added switched off), and `display`, which is no longer used, is dropped.
 
 The `import` section of FLIMAnalyzer 0.6 (the delimiter, the filename parser and its patterns, the files left out and the column combinations) is not used any more: what is done with data files is a [workflow file](/userguide/workflows.md#workflow-files)'s. When the GUI uses such a file (with `-s`, at startup, or with `File` > `Import Settings...`), it offers to save these settings, together with the file's renamed, dropped and calculated columns, as a workflow file that imports as FLIMAnalyzer 0.6 did, for example `Import (lab-settings)`. If you save it, `File` > `Import Tables...` runs it next, and reads the files with the file's delimiter and files left out. Nothing is applied unless you save it. `flimbatch` says that the settings are not used.

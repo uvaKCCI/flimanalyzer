@@ -54,12 +54,12 @@ The address is required. The workers must have the same FLIMAnalyzer version ins
 
 Prefect can limit how many tasks with a given *tag* run at the same time ([tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits)), whichever executor is used. The limits are set on the Prefect server.
 
-Every task is tagged with the name of its tool as shown in the menu, for example `Autoencoder: Train` (not the name of its Python class). That holds whether the tool runs on its own or as a step of a workflow. Workflow steps can carry more tags, for example the parameters of a training run in FLIM Data Augmentation Tuning; these also name the folders their results are saved in. The Prefect UI shows each task's tags.
+Every task is tagged with the name of its tool as shown in the menu, for example `Autoencoder Run` (not the name of its Python class), and with the tool's former names, for example `Autoencoder: Run`. That holds whether the tool runs on its own or as a step of a workflow. The training tasks (the step `Autoencoder Train Model`) are also tagged `Autoencoder Train` and `Autoencoder: Train`, also inside the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis`. Workflow steps can carry more tags, for example the parameters of a training run in FLIM Data Augmentation Tuning; these also name the folders their results are saved in. The Prefect UI shows each task's tags.
 
 A limit on a tool's name therefore applies to every run of that tool. For example, to let only one autoencoder training run at a time, also inside workflows:
 
 ```
-prefect concurrency-limit create "Autoencoder: Train" 1
+prefect concurrency-limit create "Autoencoder Train" 1
 ```
 
 `prefect concurrency-limit ls` lists the limits, and `prefect concurrency-limit delete <tag>` removes one.
@@ -88,11 +88,11 @@ apptainer pull flimanalyzer.sif docker://ghcr.io/uvakcci/flimanalyzer:latest-cpu
 #SBATCH --time=02:00:00
 
 apptainer run flimanalyzer.sif \
-    -i data/ -o results/ -s settings.json --run "Basic FLIRR Analysis" \
+    -i data/ -o results/ --run flirr-analysis.json \
     -e local:workers=${SLURM_CPUS_PER_TASK} --no-prefect-server
 ```
 
-Submit it with `sbatch`. The published images don't include Dask, so they use the default executor (threads). Replace `<cluster_partition>` with a partition of your cluster (`--partition` or `-p`; `sinfo` lists them), and adjust the other `#SBATCH` lines (cores, memory, time, and an account if your cluster requires one) to your data and cluster.
+`flirr-analysis.json` is a tool file of the workflow `Basic FLIRR Analysis`, for example one saved with `Save Settings...` in its dialog (see [Tools and workflows](/userguide/batch.md#tools-and-workflows)). Submit the job script with `sbatch`. The published images don't include Dask, so they use the default executor (threads). Replace `<cluster_partition>` with a partition of your cluster (`--partition` or `-p`; `sinfo` lists them), and adjust the other `#SBATCH` lines (cores, memory, time, and an account if your cluster requires one) to your data and cluster.
 
 ### Across several nodes (Dask)
 
@@ -111,7 +111,7 @@ print(cluster.scheduler_address)
 While this Python session runs, start `flimbatch` from the same environment with the printed address:
 
 ```
-flimbatch -i data/ -o results/ -s settings.json --run "Basic FLIRR Analysis" \
+flimbatch -i data/ -o results/ --run flirr-analysis.json \
     -e dask:address=<printed address> --no-prefect-server
 ```
 

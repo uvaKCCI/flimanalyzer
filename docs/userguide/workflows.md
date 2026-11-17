@@ -193,8 +193,8 @@ Settings:
 * `Features`: the features the autoencoders use. By default, the FAD and NAD(P)H amplitudes (a1, a2), lifetimes (t1, t2) and photons.
 * `Time series`: the category column with the time points. The KDE plots and the summaries of the augmented data are grouped by it. Default: `Treatment`.
 * `Resources`: the device and threads of the training and augmentation (see [Resources](/userguide/dialogs.md#resources)).
-* `Training`: the settings of [Autoencoder: Train](/userguide/analysis/aetrain), without those the workflow sets. Defaults: 6 epochs, learning rates 1e-5 and 2e-5, weight decays 1e-7 and 1e-8, batch sizes 128 and 64 (8 models), `Rescale output to the data's units` on, a checkpoint every 2 epochs, and the architecture `AE Simulator 1-6`.
-* `Augment`: the settings of [Autoencoder: Augment Data](/userguide/analysis/aeaugment), without those the workflow sets. Defaults: 4 copies, `Add noise` off.
+* `Training`: the settings of [Autoencoder Train](/userguide/analysis/aetrain), without those the workflow sets. Defaults: 6 epochs, learning rates 1e-5 and 2e-5, weight decays 1e-7 and 1e-8, batch sizes 128 and 64 (8 models), `Rescale output to the data's units` on, a checkpoint every 2 epochs, and the architecture `AE Simulator 1-6`.
+* `Augment`: the settings of [Autoencoder Augment Data](/userguide/analysis/aeaugment), without those the workflow sets. Defaults: 4 copies, `Add noise` off.
 * `Strict` (next to the settings buttons): see [Validating the settings](#validating-the-settings).
 
 ## FLIM Feature Analysis
@@ -208,6 +208,6 @@ Uses two data tables, chosen under `Training data` and `Data`: training data (fo
 Settings:
 
 * `Grouping`, `Features`, `Time series` and `Resources`, and `Strict` next to the settings buttons: as in [FLIM Data Augmentation Tuning](#flim-data-augmentation-tuning).
-* `Training`: the settings of [Autoencoder: Train](/userguide/analysis/aetrain), without those the workflow sets. The defaults are those of FLIM Data Augmentation Tuning, except the architecture, `AE Dimensionality Reduction 2-10`.
-* `Run`: the settings of [Autoencoder: Run](/userguide/analysis/aerun), without those the workflow sets.
+* `Training`: the settings of [Autoencoder Train](/userguide/analysis/aetrain), without those the workflow sets. The defaults are those of FLIM Data Augmentation Tuning, except the architecture, `AE Dimensionality Reduction 2-10`.
+* `Run`: the settings of [Autoencoder Run](/userguide/analysis/aerun), without those the workflow sets.
 * `Control`: the value of the time series column used as control. Default: `Ctrl`. The tables of normalized changes are sorted by the changes from this time point to the next. Upper and lower case don't matter.

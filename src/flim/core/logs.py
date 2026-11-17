@@ -1,8 +1,9 @@
 """Log files: one per session, never overwritten, with a size limit and an age limit.
 
 A session's log file is named after the program, its start time and its process ID,
-e.g. `flimbatch_2026-11-09T14-23-43_12345.log` (`-` instead of `:`, which Windows
-does not allow in file names). Records logged before the file is known (e.g. while
+e.g. `flimanalyzer_2026-11-09T14-23-43_12345.log` (`-` instead of `:`, which Windows
+does not allow in file names); a `flimbatch` call without a log folder writes
+`flimbatch.log` in its results folder instead. Records logged before the file is known (e.g. while
 the settings are read) are kept in memory and written to it when it is opened.
 """
 

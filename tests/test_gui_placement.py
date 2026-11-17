@@ -33,7 +33,7 @@ def test_category_paths():
 
 
 # FLIMAnalyzer's tools with a category but not in the GUI, on purpose
-NOT_IN_GUI = {"Collect Files"}  # its inputs are files: the GUI has no windows for them
+NOT_IN_GUI: set = set()  # Collect Files (inputs are files) has no category: in no menu
 
 
 def test_every_tool_of_flimanalyzer_with_a_category_has_a_registered_dialog():

@@ -1,7 +1,7 @@
 Analysis
 ========
 
-`Summarize`, `Relative Change` and `KS-Statistics` can group the data by the values of category columns and analyze each group separately. You can group by one category column or by a combination of several. `Autoencoder: Train` uses the grouping to split the data into training and validation sets, and `Autoencoder: Augment Data` to number the copies' cells. `Scale` scales each group on its own. The other analysis tools, among them `Series Analysis` and `Random Forest`, have no `Grouping` setting. Category column headers have a light blue background. All other column headers are gray.
+`Summarize`, `Relative Change` and `KS-Statistics` can group the data by the values of category columns and analyze each group separately. You can group by one category column or by a combination of several. `Autoencoder Train` uses the grouping to split the data into training and validation sets, and `Autoencoder Augment Data` to number the copies' cells. `Scale` scales each group on its own. The other analysis tools, among them `Series Analysis` and `Random Forest`, have no `Grouping` setting. Category column headers have a light blue background. All other column headers are gray.
 
 .. image:: /images/data/dataframe.png
 
@@ -51,13 +51,13 @@ The example table has these category columns that you can use for grouping: `Cel
      - `KS-Statistics <ks.html>`_
      - Compares the distributions of a feature between the groups of a category column, two at a time, with the Kolmogorov–Smirnov test.
    * - .. image:: /images/analysis/aetrain.png 
-     - `Autoencoder: Train <aetrain.html>`_
+     - `Autoencoder Train <aetrain.html>`_
      - Trains an autoencoder model on selected data features. 
    * - .. image:: /images/analysis/aerun.png 
-     - `Autoencoder: Run <aerun.html>`_
+     - `Autoencoder Run <aerun.html>`_
      - Applies a pre-trained autoencoder model to data.
    * - .. image:: /images/analysis/aeaugment.png 
-     - `Autoencoder: Augment Data <aeaugment.html>`_
+     - `Autoencoder Augment Data <aeaugment.html>`_
      - Generates augmented data with a pre-trained autoencoder model.
 
 .. toctree::

@@ -97,19 +97,18 @@ Run `flimanalyzer --help` for all command-line options.
 
 | Option | |
 |---|---|
-| `-i`, `--input` | data files or folders to open at startup, each file in its own table window, read with the settings of `Open Tables`; with `--run` or `--workflow`, the files to run it on (`--run "Import Tables"` shows its dialog for them) |
+| `-i`, `--input` | data files or folders to open at startup, each file in its own table window, read with the settings of `Open Tables`; with `--run`, the files to run it on (`--run "Import Tables"` shows its dialog for them) |
 | `-x`, `--exclude` | files not to read (names) |
-| `-r`, `--run` | tool or workflow to run on the `-i` files at startup, also a workflow file by its name: a workflow file's steps are shown, then it runs; a tool's dialog opens with the files' tables |
-| `-w`, `--workflow` | workflow file to run on the `-i` files at startup: a path, or a file name in the workflow search path (see [Workflow files](/userguide/workflows.md#workflow-files)) |
-| `--dry-run` | validate the runs against the first rows of the `-i` files, report, and exit without opening the GUI, as `flimbatch --dry-run` does (see [Batch Mode](/userguide/batch.md#validating-a-run-first)). It runs batch mode, so it reads no user settings file. |
+| `-r`, `--run` | tool or workflow to run on the `-i` files at startup: a name, or a workflow file (a path, or a file name ending in `.json` in the workflow search path). A workflow file's steps are shown, then it runs; a tool's dialog opens with the files' tables. Repeat it for several runs; they run in the order given. |
+| `-w`, `--workflow-path` | folders searched for workflow files and tool files. They replace the folders of `FLIM_WORKFLOW_PATH` and of `workflow_paths` in the user settings file (see [Where workflow files are found](/userguide/workflows.md#where-workflow-files-are-found)). Takes several values, and can be repeated. |
 | `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings search path, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
 | `-o`, `--output` | results folder: the folder under `Save results` for tools that have no folder of their own |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4` (see [Concurrent and Distributed Execution](/userguide/execution)) |
-| `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |
+| `--prefect-server`, `--no-prefect-server` | `--prefect-server` (the default) uses a local Prefect server, and starts one if none is found. `--no-prefect-server` uses a temporary Prefect server for each run instead (see [Prefect server](#prefect-server)). |
+| `--server-timeout SECONDS` | how long to wait for responses of the Prefect server, and of the Dask cluster if one is used (default: 60) |
 | `--log-dir` | log folder (`log` > `dir`; see [Log files](#log-files)) |
 | `--cache-dir` | sets the cache folder setting (`cache` > `dir`) |
-| `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
-| `--batch` | runs [batch mode](/userguide/batch) instead of the GUI: `flimanalyzer --batch ...` does the same as `flimbatch ...` |
+| `-l`, `--log-level` | logging level: `debug`, `info` (default), `warning`, `error` or `critical`; also `--log` |
 
 These options can also be set with environment variables, and in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)). An option given on the command line takes precedence.
 
@@ -118,6 +117,7 @@ These options can also be set with environment variables, and in an app settings
 | Deprecated | Use instead | Example | Removed in |
 |---|---|---|---|
 | `-c`, `--config FILE` | `-s`, `--settings FILE` | `-c settings.json` → `-s settings.json` | 0.8.0 |
+| `--batch` | `flimbatch` with the same arguments | `flimanalyzer --batch -i data/ -o results/ ...` → `flimbatch -i data/ -o results/ ...` | 0.8.0 |
 | `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` | 1.0.0 |
 | `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `-e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"` → `-e dask-local:workers=8,scheduler=processes` | 0.8.0 |
 
@@ -125,7 +125,10 @@ These options can also be set with environment variables, and in an app settings
 
 ## Log files
 
-FLIMAnalyzer writes its messages to a log file. When an error message says "see the log", the details are in this file. Each session gets its own file, named after the program, its start time and its process ID, for example `flimanalyzer_2026-11-09T14-23-43_12345.log` or `flimbatch_2026-11-09T14-23-43_12345.log`. A file is never overwritten.
+FLIMAnalyzer writes its messages to a log file. When an error message says "see the log", the details are in this file. A file is never overwritten:
+
+* Each session of the GUI gets its own file, named after the program, its start time and its process ID, for example `flimanalyzer_2026-11-09T14-23-43_12345.log`.
+* Each call of `flimbatch` writes `flimbatch.log` into its results folder, `<output>/<date and time>/` (see [Results](/userguide/batch.md#results)). If a log folder is set (items 1 to 3 below), the file is in that folder instead, named after the call's start and its process ID, for example `flimbatch_2026-11-09T14-23-43_12345.log`. A dry run (`--dry-run`) writes a file of this name into the output folder (`-o`), or into the log folder if one is set.
 
 The location of the log file is determined in this order; the first that applies is used:
 
@@ -136,17 +139,17 @@ The location of the log file is determined in this order; the first that applies
    * macOS: `~/Library/Logs/FLIMAnalyzer`
    * Linux: `~/.local/state/FLIMAnalyzer/log`
    * Windows: `%LOCALAPPDATA%\FLIMAnalyzer\Logs`
-5. For `flimbatch`, its output folder (`-o`), next to the results. `flimbatch` also writes its messages to the console.
+5. For `flimbatch`, the results folder of the call, as `flimbatch.log`. `flimbatch` also writes its messages to the terminal.
 
 If the log folder can't be created or written to, the log goes to the folder `FLIMAnalyzer` in the system's temporary folder, and FLIMAnalyzer says so. The Settings dialog of the GUI shows the log file in use (`File` > `Settings...`).
 
-A log file that reaches 10 MB is renamed with `.1` added (`.2`, `.3` for older parts; up to three are kept), and a new one is started. When the GUI starts, it removes the log files in its log folder that are older than 30 days; `log` > `max_age_days` in an app settings file sets another number of days. It removes only files named like FLIMAnalyzer's log files. `flimbatch` doesn't remove logs, because its log folder is usually a results folder.
+A log file that reaches 10 MB is renamed with `.1` added (`.2`, `.3` for older parts; up to three are kept), and a new one is started. When the GUI starts, it removes the log files in its log folder that are older than 30 days; `log` > `max_age_days` in an app settings file sets another number of days. It removes only files named like FLIMAnalyzer's log files. `flimbatch` doesn't remove logs, because its log is usually in a results folder.
 
-`--log` sets the level of the messages written, for FLIMAnalyzer and for the libraries it uses. Each message names where it comes from, for example `flim.core.runner` or `matplotlib`.
+`-l` (`--log-level`) sets the level of the messages written, for FLIMAnalyzer and for the libraries it uses. Each message names where it comes from, for example `flim.core.runner` or `matplotlib`.
 
 ## Using a GPU
 
-The autoencoder tools have a `Device` setting. These tools are `Autoencoder: Train`, `Autoencoder: Run` and `Autoencoder: Augment Data`, and the workflows `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis`. The `Device` setting selects the hardware these tools compute on: a GPU (graphics processor) or the CPU. This applies to both the GUI and batch mode. The choices are:
+The autoencoder tools and workflows have a `Device` setting: the tools `Autoencoder Run` and `Autoencoder Augment Data`, and the workflows `Autoencoder Train`, `FLIM Data Augmentation Tuning` and `FLIM Feature Analysis`. The `Device` setting selects the hardware they compute on: a GPU (graphics processor) or the CPU. This applies to both the GUI and batch mode. The choices are:
 
 * `auto` (default): uses an NVIDIA GPU (`cuda`) if there is one, otherwise the Apple GPU (`mps`), otherwise the CPU.
 * `cpu`, `cuda` or `mps`: uses that device, or the CPU if the device is not available.
@@ -161,7 +164,7 @@ FLIMAnalyzer runs tools and workflows as [Prefect](https://www.prefect.io) flows
 2. A server already running on this computer at `http://127.0.0.1:4200/api`.
 3. If there is none, FLIMAnalyzer starts a local server (`prefect server start`) and stops it again when FLIMAnalyzer closes. If port 4200 is taken, the server is started on a free port. The server's messages are added to the file `prefect-server.log` in the folder FLIMAnalyzer was started from. If no server can be started, FLIMAnalyzer stops with an error that names this file.
 
-The server found or started at startup is used for all runs until FLIMAnalyzer closes.
+The server found or started at startup is used for all runs until FLIMAnalyzer closes. If it no longer responds before a run, for example because another FLIMAnalyzer process that started it has closed, a server is found or started again in the same order, and used for this and the next runs.
 
 With `--no-prefect-server`, step 3 is skipped: if no server is found, Prefect starts a temporary server for each run, which stops when the run ends.
 
