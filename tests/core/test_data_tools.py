@@ -709,3 +709,13 @@ def test_categorize_example_shows_a_row_per_category():
     config = Categorizer.config_class(name="Level", rules=[CategoryRule(value="high", feature="FLIRR", min=0.55, max=1)])
     example = Categorizer.example(config, [_flim_table()])
     assert _cells_of(example) == [["FLIRR", "→ Level"], [0.4, config.default], [0.6, "high"]]
+
+
+def test_pivot_without_other_category_columns_gives_one_row():
+    """The pivoted column is the only category column: the means over all rows."""
+    from flim.tools.data import Pivot
+
+    table = pd.DataFrame({"Treatment": pd.Categorical(["ctrl", "ctrl", "dox"]), "FLIRR": [0.4, 0.6, 0.8]})
+    (result,) = Pivot().run(table, config=Pivot.config_class(grouping=["Treatment"], features="all")).values()
+    assert list(result.columns) == ["FLIRR\nctrl", "FLIRR\ndox"]
+    assert result.iloc[0].tolist() == pytest.approx([0.5, 0.8]) and len(result) == 1

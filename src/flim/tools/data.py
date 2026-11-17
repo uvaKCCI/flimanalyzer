@@ -511,7 +511,8 @@ class Pivot(Tool[PivotConfig]):
         """Turn the values of the grouping columns into columns.
 
         The other category columns are the rows; each row holds the mean of the
-        feature over the input rows with the same category values. A new column's
+        feature over the input rows with the same category values. Without other
+        category columns, the result is one row with the means over all rows. A new column's
         header has the feature's lines and a line for the value of each grouping
         column, e.g. `FLIRR` and `ctrl`. Rows and columns without any value are left
         out.
@@ -529,8 +530,12 @@ class Pivot(Tool[PivotConfig]):
         categories = category_columns(data)
         index = [c for c in categories if c not in config.grouping]
         logger.debug(f"pivoting {config.grouping}, index {index}")
+        source = data[features + categories]
+        if not index:  # no other category column: one row, keyed by a column dropped below
+            index = [unique_name("row", "row", list(map(str, data.columns)))]
+            source = source.assign(**{index[0]: 0})
         table = pd.pivot_table(
-            data[features + categories],
+            source,
             index=index,
             columns=config.grouping,
             observed=False,
@@ -541,6 +546,8 @@ class Pivot(Tool[PivotConfig]):
             headers.depth(features), headers.level_names(data)
         )
         table = table.reset_index()
+        if index[0] not in categories:  # the key of the single row
+            table = table.drop(columns=index[0])
         return {
             "Pivoted": headers.set_level_names(
                 table, feature_levels + list(config.grouping)
