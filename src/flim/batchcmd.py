@@ -247,7 +247,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         errors += override_problems(args.overrides, runs)
         if errors:
             raise BatchError("\n".join(errors))
-        output = canonical_folder(args.output) if args.output else None
+        output = canonical_folder(args.output)
         for number, tool in enumerate(runs, 1):
             for message in ignored_settings([tool], settings, output):
                 _run_warn(args.overrides, number)(message)
@@ -264,7 +264,6 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
             execution=settings.execution, server_timeout=settings.server_timeout
         )
         execution.validate_available()
-        output = canonical_folder(args.output)
         if problem := folder_problem(output):
             raise BatchError(f"--output: {problem}")
         os.makedirs(output, exist_ok=True)
@@ -319,7 +318,19 @@ def _read(
     settings: ReadSettings,
     nrows: Optional[int] = None,
 ) -> dict[str, "pd.DataFrame"]:
-    """Read the data files; raises `BatchError` if none could be read."""
+    """Read the data files; print a warning for each file not read.
+
+    Args:
+        paths: The files and folders of `-i`.
+        settings: How the files are read.
+        nrows: Read only this many rows of each file; None reads all rows.
+
+    Returns:
+        The tables by name.
+
+    Raises:
+        BatchError: If no file could be read.
+    """
     reading = read_tables(paths, settings, nrows=nrows)
     for path, reason in reading.skipped.items():
         print(f"flimbatch: warning: not read: {path}: {reason}", file=sys.stderr)
@@ -337,6 +348,13 @@ def _run_warn(overrides: "Overrides", number: int) -> Callable[[str], None]:
     With `--override` of `output.save` for the run, the files' `output.save` is
     not used, so the warning about it (`tool_save_warning`) is left out; the run
     summary lists the override.
+
+    Args:
+        overrides: The overrides of every run (`parse_overrides`).
+        number: The run's number, from 1, in the order of `--run`.
+
+    Returns:
+        A function that prints a warning (`_warn`), except a moot save warning.
     """
     saving = overrides.for_run(number).save is not None
 

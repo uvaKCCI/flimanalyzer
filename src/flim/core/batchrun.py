@@ -432,7 +432,7 @@ def ignored_settings(
     Args:
         runs: The tools and workflows of `--run`.
         settings: The session's settings.
-        output: The folder of `-o`; None if not given (a dry run).
+        output: The folder of `-o`; None if not known.
 
     Returns:
         The messages, one per setting. For example

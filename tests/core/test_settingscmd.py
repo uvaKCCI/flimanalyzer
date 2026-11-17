@@ -251,6 +251,15 @@ def test_env_list_shows_every_variable_and_the_order_of_precedence(capsys):
     names = [line.strip() for line in out.splitlines() if line.startswith("  FLIM_")]
     assert names == sorted(ENV_VARIABLES)  # every variable, in alphabetical order
     assert "FLIM_DRY_RUN\n      true: a dry run (--dry-run); read by flimbatch\n" in out
+    assert ("Exception: favorites: the user settings file\nover the app settings file."
+            in out)  # fmt: skip
+
+
+def test_app_show_names_the_exception_to_the_order_of_precedence(clean_env, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("FLIM_USER_SETTINGS", str(tmp_path / "usersettings.json"))
+    code, out, _ = run(capsys, "app", "--show")
+    assert code == 0
+    assert "Exception:\nfavorites: the user settings file over the app settings file." in out
 
 
 def test_env_show_reports_unknown_names_and_invalid_values(clean_env, monkeypatch, capsys):

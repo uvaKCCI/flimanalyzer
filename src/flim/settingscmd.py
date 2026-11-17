@@ -43,6 +43,7 @@ from flim.core.settingsmgr import (
     APP_SETTINGS_PATH_VAR,
     ENV_NAMES,
     OPTION_NAMES,
+    USER_CHOICES,
     USER_SETTINGS_VAR,
     UserSettingsFile,
     app_settings_files,
@@ -108,7 +109,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     objects = parser.add_subparsers(dest="object", required=True, metavar="OBJECT")
 
-    def add(name: str, help: str) -> argparse._MutuallyExclusiveGroup:
+    def add(
+        name: str, help: str
+    ) -> tuple[argparse.ArgumentParser, argparse._MutuallyExclusiveGroup]:
         sub = objects.add_parser(name, help=help, description=help)
         return sub, sub.add_mutually_exclusive_group(required=True)
 
@@ -402,8 +405,18 @@ class _Defaults(Exception):
 
 
 def _show(args: argparse.Namespace, kind: str) -> int:
-    """Print a tool or workflow file as it is (the file is only read), or the default
-    settings of a tool or of a workflow defined in code, as a tool file."""
+    """Print a tool or workflow file as it is, or the default settings as a tool file.
+
+    The file is only read. The default settings are those of a tool or of a workflow
+    defined in code given by its name.
+
+    Args:
+        args: The parsed arguments, with `--show`.
+        kind: The kind of file: `tool` or `workflow`.
+
+    Returns:
+        The exit code, 0.
+    """
     from flim.core.settings import tool_file_data, tool_settings
 
     try:
@@ -423,8 +436,10 @@ def _tool_show(args: argparse.Namespace) -> int:
 
 
 def _workflow_show(args: argparse.Namespace) -> int:
-    """Print a workflow file as it is, or the default settings of a workflow defined in
-    code as a tool file."""
+    """Print a workflow file as it is, or the defaults of a workflow as a tool file.
+
+    The defaults are those of a workflow defined in code given by its name.
+    """
     return _show(args, "workflow")
 
 
@@ -637,7 +652,8 @@ def _app_show(args: argparse.Namespace) -> int:
     lines = [
         "App settings of flimanalyzer and flimbatch, without command-line options.",
         "Order of precedence, highest first: command line, environment, app settings file",
-        "(-s), user settings file (flimanalyzer only), built-in defaults.",
+        "(-s), user settings file (flimanalyzer only), built-in defaults. Exception:",
+        f"{', '.join(USER_CHOICES)}: the user settings file over the app settings file.",
         "",
     ]
     for command, manager in managers.items():
@@ -753,7 +769,8 @@ def _env_list(args: argparse.Namespace) -> int:
         "environment variable takes precedence over the settings files and the built-in",
         "defaults. Order of precedence of the app settings, highest first: command line,",
         "environment, app settings file (-s), user settings file (flimanalyzer only),",
-        "built-in defaults.",
+        f"built-in defaults. Exception: {', '.join(USER_CHOICES)}: the user settings file",
+        "over the app settings file.",
         "",
     ]
     for name, (what, commands) in sorted(ENV_VARIABLES.items()):

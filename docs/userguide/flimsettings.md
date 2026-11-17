@@ -287,7 +287,8 @@ App settings search path:
 $ flimsettings app --show -s course
 App settings of flimanalyzer and flimbatch, without command-line options.
 Order of precedence, highest first: command line, environment, app settings file
-(-s), user settings file (flimanalyzer only), built-in defaults.
+(-s), user settings file (flimanalyzer only), built-in defaults. Exception:
+favorites: the user settings file over the app settings file.
 
 App settings file of flimanalyzer: /Users/mst3k/Library/Application Support/FLIMAnalyzer/appsettings/course.json
 App settings file of flimbatch: /Users/mst3k/Library/Application Support/FLIMAnalyzer/appsettings/course.json
@@ -355,7 +356,8 @@ A command-line option takes precedence over its environment variable; an
 environment variable takes precedence over the settings files and the built-in
 defaults. Order of precedence of the app settings, highest first: command line,
 environment, app settings file (-s), user settings file (flimanalyzer only),
-built-in defaults.
+built-in defaults. Exception: favorites: the user settings file
+over the app settings file.
 
   FLIM_APP_SETTINGS_PATH
       folders searched for app settings files, separated by ':'; read by flimanalyzer, flimbatch, flimsettings
