@@ -10,25 +10,26 @@ earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
 ## 0.7.0 - YYYY-MM-DD
 
-Settings files, workflow files and new data tools, and bug fixes for 0.6.2, several of
-which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
+Settings files, workflow files, the `flimsettings` command and new data tools, and bug
+fixes for 0.6.2, several of which change results. New requirements: Python 3.12 to
+3.14, PyTorch 2.14.1.
 
 ### Results that change
 
-- **Autoencoder: Train, weight decay:** the `Weight decays` setting was passed to
+- **Autoencoder Train, weight decay:** the `Weight decays` setting was passed to
   PyTorch's RMSprop optimizer as its smoothing constant (`alpha`), and the weight decay
   was always 0; in `FLIM Data Augmentation Tuning` the weight decay values varied
   `alpha` instead. This was so in every published release. Training now uses the
   weight decay as set, so trained models, reconstructions and tuning results change.
-- **Autoencoder, missing values:** a model saved by `Autoencoder: Train` set missing
-  values to 0 before scaling the data, while training scaled first. `Autoencoder: Run`
-  and `Autoencoder: Augment Data` therefore got other values than training for rows
+- **Autoencoder, missing values:** a model saved by `Autoencoder Train` set missing
+  values to 0 before scaling the data, while training scaled first. `Autoencoder Run`
+  and `Autoencoder Augment Data` therefore got other values than training for rows
   with missing values. Models trained now scale first; models saved before keep their
   order, so their results don't change.
-- **Autoencoder: Train without grouping:** rows that were exact duplicates of each
+- **Autoencoder Train without grouping:** rows that were exact duplicates of each
   other (all category and feature values equal) went into neither the training nor the
   validation set. They are now split like all other rows.
-- **Autoencoder: Augment Data, noise:** since 0.6.0, every feature got the same noise
+- **Autoencoder Augment Data, noise:** since 0.6.0, every feature got the same noise
   level, set by the features with the largest values (a change in pandas 2.0). Each
   feature gets its own noise level again, as in 0.5. Results with `Add noise` checked
   change.
@@ -60,6 +61,10 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   without filters. Uncheck them in the `Filter` dialog to keep all rows.
 - **Import, `NADPH/NADH`:** importing calculated `NADPH/NADH` before `NADH %`, which it
   needs, so the column was never added. The built-in `Import` workflow now adds it.
+- **Pivot without other category columns:** when the pivoted columns were the table's
+  only category columns, the result had a column `index` and columns named after the
+  letters of the values, one header line per letter (for example `c`, `t`, `r`, `l`
+  for `ctrl`). The result is now one row with the mean of each feature for each value.
 
 ### Changed
 
@@ -78,12 +83,14 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
 - **Settings files of 0.6** are converted when read: the renamed, dropped and calculated
   columns (`preprocess`) become the settings of `Rename Columns`, `Drop Columns` and
   `Calculate`, the range filters become the `Filter` tool's filters, `working_dir`
-  becomes `results_dir`, and the autoencoder tools' `rescale` becomes
-  `rescale_output`. The `import` section (delimiter, filename parser, patterns, files
-  left out, column combinations) is not used any more: the GUI offers to save it as an
-  equivalent workflow file, and `flimbatch` says that it is not used. In such a workflow
-  file, combined categories are joined with `:` instead of `-`, for example
-  `FOV:Treatment` = `FOV1:WT` instead of `FOV-Treatment` = `FOV1-WT`.
+  becomes `results_dir`, each tool's `autosave` and `results_dir` become its `output`
+  section (`save`, `results_dir`, `formats`), a workflow's `strict` becomes its
+  `processing` > `strict` (see `Workflows defined in code` below), and the autoencoder
+  tools' `rescale` becomes `rescale_output`. The `import` section (delimiter, filename
+  parser, patterns, files left out, column combinations) is not used any more: the GUI
+  offers to save it as an equivalent workflow file, and `flimbatch` says that it is not
+  used. In such a workflow file, combined categories are joined with `:` instead of
+  `-`, for example `FOV:Treatment` = `FOV1:WT` instead of `FOV-Treatment` = `FOV1-WT`.
 - **Range filters of the table windows:** each table window has its own range filters
   and `Filter Data` setting. A change in one window doesn't change the others, and a
   new window starts with the defaults for new tables: the `Filter` tool's range filters
@@ -104,34 +111,63 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   in the GUI. `Import Settings...` applies a file to the session only. `Export
   Settings...` saves every setting as it is active, including the settings of every
   installed tool with its defaults.
-- **Settings files are checked before use:** the GUI lists converted, removed, unknown
-  and invalid settings and asks whether to use what can be used, not use the file,
-  update the file to the current version, or choose another file. `flimbatch` stops with
-  an error if a settings file has invalid values, unknown settings or settings of tools
-  that aren't installed; until 0.6.2 it ignored them, and used a tool's defaults when
-  its settings were invalid, with only a line in the log. `run_summary.txt` names the
-  settings files used.
-- **`flimbatch`** needs `--run` or `--workflow`. It reads each file given with `-i`
-  into a table of its own and runs each tool once per table (a tool with several inputs,
-  such as `Concatenate`, once on all of them); until 0.6.2 it imported all files into
-  one table, applied the import settings and the range filters, and saved
-  `Imported.txt`. To get one imported table, use `--run Import`; to run a tool on it,
-  use a workflow file that starts with the steps of `Import`. A tool's own `enabled` and
-  `results_dir` settings are not used: results go under `-o`. `-o` is not needed with
-  `--dry-run`. An unknown executor name for `-e` is now an error; until 0.6.2
-  `flimbatch` ran the local executor and only the log said so.
+- **Settings layers:** the settings come from these layers, from lowest to highest
+  precedence: the built-in defaults, the user settings file (GUI only), the app
+  settings file (`-s`), environment variables, command-line options. A higher layer
+  changes each tool's section in `tools` and each tool's presets in `presets`
+  separately, `max_windows` per kind of window, and `log` and `cache` per setting; it
+  replaces all other sections whole, for example `execution`, `filters` and
+  `char_replacements`. For example, an app settings file with presets of `Filter` keeps
+  the user's presets of `Calculate`. Exception: the user settings file's `favorites`
+  take precedence over those of the app settings file.
+- **Settings files are validated before use:** a file with unknown settings or invalid
+  values, or a file that can't be used at all (it can't be read, comes from a newer
+  version, or is a tool or workflow file), is not used. The GUI shows a message that
+  lists the problems: at startup it then asks again which app settings file to start
+  with, and `Import Settings...` and a tool dialog's `Load Settings...` load nothing.
+  `flimsettings app --validate FILE` lists the problems of a file. `flimbatch` stops
+  with an error if a settings file has invalid values, unknown settings or settings of
+  tools that aren't installed; until 0.6.2 it ignored them, and used a tool's defaults
+  when its settings were invalid, with only a line in the log. `run_summary.txt` names
+  the settings files used.
+- **`-s` takes app settings files only:** a tool file or a workflow file given with
+  `-s` is an error: `flimbatch` runs it with `--run`, and the GUI loads a tool file in
+  the tool's dialog. `flimbatch --run NAME` with an `-s` file that has no settings for
+  the tool is an error; until 0.6.2 the tool ran with its defaults.
+- **`flimbatch`** needs `--run`. It reads each file given with `-i` into a table of its
+  own and runs each tool once per table (a tool with several inputs, such as
+  `Concatenate`, once on all of them); until 0.6.2 it imported all files into one
+  table, applied the import settings and the range filters, and saved `Imported.txt`.
+  To get one imported table, use `--run Import`; to run a tool on it, use a workflow
+  file that starts with the steps of `Import`. An unknown executor name for `-e` is now
+  an error; until 0.6.2 `flimbatch` ran the local executor and only the log said so.
+  With `-e dask-local`, one Dask cluster serves all runs of a call, instead of one
+  cluster per run.
+- **`flimbatch` results:** each call saves in one folder, `<output>/<date and time>/`,
+  with a folder `run-<n>` for each `--run`, in the order given. Each `run-<n>` holds
+  the run's `run_summary.txt` and `resolved.json` and a folder for each step,
+  `<id>-<tool>`, for example `01-Summarize`, with a folder for each table and part
+  below it where a step runs once per table or part. A tool given to `--run` runs as a
+  workflow of one step, `01`. Until 0.6.2 the results were saved in
+  `<output>/<tool>/<date and time>/`. `flimbatch` always saves: it warns when a tool's
+  `output` sets `results_dir`, which `-o` replaces, or `save` to `false`.
 - **Default results folder:** the folder FLIMAnalyzer was started from, or `-o`, instead
   of `FLIMAnalyzerResults` in the home folder. A relative tool folder in a settings file
-  (`autosave` > `results_dir`, for example `"results"`) now means a folder inside the
+  (`output` > `results_dir`, for example `"results"`) now means a folder inside the
   default results folder.
 - **Tool dialogs** have three sections, `Input`, `Settings` and `Output`; `Result
   prefix` is in `Output`. `Save results in` is now `Save results`, with `Use the default
   folder`, `Make Default Folder` and the formats below it. A tool that follows the
-  default folder stores no folder of its own. The dialogs offer only the columns the
-  selected table has, show an example line and warnings for some tools, and hide
-  settings that have no effect (`Grouping` in `Series Analysis`, `Random Forest` and
-  `Heatmap`; `Random seed` in `PCA`; for `Concatenate`, the settings of the other
-  direction).
+  default folder stores no folder of its own; the formats offered are those of the kinds
+  of result the tool makes. The dialogs offer only the columns the selected table has,
+  show warnings for some tools, and hide settings that have no effect (`Grouping` in
+  `Series Analysis`, `Random Forest` and `Heatmap`; `Random seed` in `PCA`; for
+  `Concatenate`, the settings of the other direction). The dialogs of `Pivot`,
+  `Unpivot`, `Categorize Data`, `Scale` and the new data tools show an example table:
+  a few rows of the selected table, the input columns next to the columns the tool
+  makes. `Save Settings...` saves a new file as a tool file (see `Added`); its file
+  dialog starts in the workflow folder, and before it saves a new file into a folder of
+  the app settings search path, it asks first (`Use Workflow Folder`, `Save Here`).
 - **Saved results:** plots saved by a tool (`Save results`, workflows, `flimbatch`) are
   `.png` files at 300 dpi by default; `Resolution (dpi)` in the tool's `Output` section
   sets another value. Until 0.6.2 they were saved at 100 dpi, matplotlib's default
@@ -163,14 +199,43 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
 - **Order Categories** is now `Order Category Values`: it orders the values within
   category columns. Its results are saved in a folder of the new name. The former name
   still works in settings files, workflow files and `flimbatch --run`.
+- **Autoencoder tools** are named without a colon: `Autoencoder Train`, `Autoencoder
+  Run` and `Autoencoder Augment Data`. `Autoencoder Train` is now a workflow: the step
+  `Autoencoder Train Model`, which is in no menu, trains one model for each combination
+  of settings, and `Collect Files` lists the model files of all combinations in one
+  table. The former names still work in settings files, workflow files and
+  `flimbatch --run`, and the tasks are also tagged with them in Prefect, so concurrency
+  limits set on the former names still apply.
+- **Workflows defined in code** (for example `Basic FLIRR Analysis`) are strict by
+  default also in the GUI: a column that the settings name and the data doesn't have
+  is an error. Until 0.6.2 the GUI used the closest matching column, unless `Strict`
+  was on. The check box `Strict`, next to `Load Settings...` and `Save Settings...`,
+  replaces the `Strict` setting; it is saved as the tool's `processing` > `strict`. A
+  saved `strict` of 0.6 moves there when the file is read; `null` (automatic) becomes
+  strict.
+- **File and folder names** of saved results follow one rule: `%`, `τ` and `µ` become
+  `pcent`, `tau` and `u`, letters lose their accents, and every other character than
+  ASCII letters, digits, `-`, `_` and `.` becomes `_`. For example, the results of
+  `Summary: NAD(P)H a2[%]` are saved as `Summary_NAD_P_H_a2_pcent`. Until 0.6.2 only
+  `%`, `:`, `/`, `\`, `|` and line breaks were replaced, so names kept spaces and
+  brackets. The new app setting `char_replacements` adds or changes replacements. A
+  run whose inputs give the same folder name doesn't start.
+- **`run_summary.txt`** also lists the versions of FLIMAnalyzer, Python, the installed
+  dependencies of FLIMAnalyzer and the packages of installed plugin tools (with a Dask
+  executor also `dask` and `distributed`) under `Versions`, and how the tasks ran under
+  `Execution`, so a results folder records them also without the Prefect UI.
 - **Heatmap:** the title is `Correlation`; until 0.6.2 it was `Data grouped by ...`,
   although the correlations are those of the whole table.
-- **Log files:** each session writes its own log file, for example
-  `flimanalyzer_2026-11-09T14-23-43_12345.log`, never overwritten: the GUI in the
-  platform's log folder, `flimbatch` in its output folder (`--log-dir`, `FLIM_LOG_DIR`).
+- **Log files:** each GUI session writes its own log file in the platform's log folder,
+  for example `flimanalyzer_2026-11-09T14-23-43_12345.log`, never overwritten. Each
+  `flimbatch` call writes `flimbatch.log` in its results folder, or, with a log folder
+  set (`--log-dir`, `FLIM_LOG_DIR`), a file named after the call's start in that folder.
   Until 0.6.2 the GUI wrote `flimanalyzer.log` in the start folder, replaced at each
   start, and `flimbatch` wrote no file. Log lines name the module that wrote them, and
-  errors in the GUI are written to the log.
+  errors in the GUI are written to the log. `flimbatch` shows log lines in the terminal
+  with the time, as the GUI's terminal does, for example
+  `08:29:03.614 | INFO    | flim.core.batchrun - ...`; until 0.6.2 they were
+  `INFO message`.
 - **Requirements:** Python 3.12, 3.13 and 3.14. Installs with uv from the source and
   the Docker CUDA image use PyTorch 2.14.1 with CUDA 13.0 (until 0.6.2: 2.11.0 with
   CUDA 12.8 on Windows and Linux x86_64), which needs NVIDIA driver 580 or newer and a
@@ -183,8 +248,8 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   versions are unchanged.
 - **Plugin and tool API** (developers): names that changed without a deprecated alias,
   because an alias would behave differently: in `flim.core.settings`, `ToolEntry` is now
-  `ToolSettings` (`autosave` is an `AutosaveConfig`, without `results_dir`), the 0.6
-  `ToolSettings` map is `ToolSettingsMap`, and `tool_entry`, `read_tool_entry`,
+  `ToolSettings` (`autosave` and `results_dir` are in its `output`, a `ToolOutput`),
+  the 0.6 `ToolSettings` map is `ToolSettingsMap`, and `tool_entry`, `read_tool_entry`,
   `write_tool_entry` are `tool_settings`, `read_tool_settings`, `write_tool_settings`.
   `flim.core.tools.check_executor_available` is now
   `flim.core.execution.ExecutionOptions.check_available`. The tool registry refuses a
@@ -197,32 +262,97 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
 - **App settings files:** `-s NAME` finds a settings file by name in the app settings
   search path (`FLIM_APP_SETTINGS_PATH`, `appsettings_path`, or the folder
   `appsettings` in the platform's settings folder). Started without `-s`, the GUI asks
-  which file to start with, if there are any, and can keep one as the default.
-  `Export Settings...` offers to add the file's folder to the search path, and asks for
-  an optional `description` of the file, which the list of files at startup shows.
+  which file to start with, if there are any, and can keep one as the default. The list
+  shows only app settings files, not the tool and workflow files in the same folders;
+  `Browse...` adds a file from another folder and offers to add that folder to the
+  search path. `Export Settings...` offers to add the file's folder to the search path,
+  and asks for an optional `description` of the file, which the list of files at
+  startup shows.
 - **`File` > `Settings...`** shows the app settings of the session (results folder,
-  executor, Prefect server, log folder, how workflows handle missing columns), where
-  each value comes from, and how to change it.
-- **Command line and environment:** both programs take `-s`, `-o`, `-e NAME[:KEY=VALUE,...]`
-  (`local`, `dask-local`, `dask`), `--no-prefect-server`, `--log-dir`, `--cache-dir`,
-  `--strict`/`--no-strict`, `-i`, `-x`, `--run`, `--workflow` and `--dry-run`, and read
-  the environment variables `FLIM_RESULTS_DIR`, `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`,
-  `FLIM_LOG_DIR`, `FLIM_CACHE_DIR`, `FLIM_STRICT`, `FLIM_APP_SETTINGS_PATH`,
-  `FLIM_WORKFLOW_PATH` and `FLIM_USER_SETTINGS`. `--dry-run` checks the runs against the
-  first rows of the files and runs nothing.
+  executor, Prefect server, server timeout, log folder), where each value comes from,
+  and how to change it.
+- **Command line and environment:** both programs take `-s`, `-o`,
+  `-e NAME[:KEY=VALUE,...]` (`local`, `dask-local`, `dask`),
+  `--prefect-server`/`--no-prefect-server`, `--server-timeout`, `--log-dir`,
+  `--cache-dir`, `-l`/`--log-level` (also `--log`, as until 0.6.2), `-i`, `-x`,
+  `-r`/`--run` and `-w`/`--workflow-path`. `-i`, `-x` and `-w` take several values and
+  can be repeated. `--run` also takes a workflow file (a path, or a file name ending in
+  `.json` in the workflow search path); repeated, the runs are done in the order given.
+  `flimbatch` also takes `--dry-run` and `--override`. Both programs read the
+  environment variables `FLIM_RESULTS_DIR`, `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`,
+  `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`, `FLIM_CACHE_DIR`,
+  `FLIM_APP_SETTINGS_PATH`, `FLIM_WORKFLOW_PATH` and `FLIM_USER_SETTINGS`; `flimbatch`
+  also reads `FLIM_DRY_RUN`. The app setting `server_timeout` (default 60 s) sets how
+  long FLIMAnalyzer waits for the Prefect server, also for a local one that it starts,
+  and for a Dask cluster.
+- **`flimbatch --dry-run`** reads the first rows of the files, validates the output
+  folder, the executor, the Prefect server and every run against them, and runs
+  nothing. It needs `-o`, and writes its log there, or in the log folder if one is set.
+  The first and the last line of its output say that it is a dry run and what made it
+  one (`--dry-run` or `FLIM_DRY_RUN`).
+- **`flimbatch --override GROUP.FIELD=VALUE`** (repeatable) sets a field of the
+  `output` or `processing` group for every step of every run, for example
+  `output.save=true`, `output.formats=table:csv,plot:svg` or `processing.strict=false`.
+  The order of precedence is: `--override`, the step, the workflow, the tool's default.
+  The tools' `config` can't be set this way. The run summary lists the overrides, and
+  `resolved.json` holds the overridden settings.
+- **`resolved.json`:** `flimbatch` writes the settings of each run into
+  `run-<n>/resolved.json`, as a workflow file (for a workflow defined in code, a tool
+  file) that states every setting of every step, the formats of each kind of result,
+  and the columns taken from the data (`features: all`, guessed columns, skipped
+  entries). `flimbatch --run resolved.json` on the same files repeats the run, also
+  with a later FLIMAnalyzer version whose defaults are different.
+- **`flimsettings`:** a command that lists, shows and validates settings without the
+  GUI. `flimsettings tool` and `flimsettings workflow` take `--list`,
+  `--show FILE|NAME`, `--validate FILE` and `--resolve FILE` (the file with every
+  setting stated, as `flimbatch` runs it), and `tool` also `--update FILE`. `--show NAME`
+  prints the default settings of a tool, or of a workflow defined in code, as a tool
+  file. `flimsettings app` takes `--list` (the app settings files in the search path),
+  `--show` (the app settings of `flimanalyzer` and `flimbatch`, and where each value
+  comes from), `--validate FILE` and `--update FILE`. `flimsettings user --show` shows
+  the user settings file, and `flimsettings env` (`--list`, `--show`) the `FLIM_*`
+  environment variables. The exit code is 1 if a validation finds a problem.
+- **Tool files:** a tool dialog's `Save Settings...` saves a new file as a tool file:
+  the tool's name with its `config`, `output` (`save`, `formats`) and `processing`, in
+  the form of a workflow step, without the results folder. `Load Settings...` reads it,
+  and `flimbatch --run FILE` runs it as a workflow of one step; a tool file of a
+  workflow defined in code runs that workflow with the file's settings.
+- **Settings files of older versions** can be updated: when the GUI uses a settings file
+  of an older version (at startup, with `Import Settings...` or with a tool dialog's
+  `Load Settings...`), it asks whether to update it. `Update` rewrites the file in the
+  current format and keeps the original next to it as `<name>.v<n>.json`, for example
+  `lab.v1.json`, which the older version can still read; `Not Now` uses the file as it
+  is and asks again the next time. `flimsettings app --update FILE` and
+  `flimsettings tool --update FILE` do the same. `flimbatch` never changes a settings
+  file. Before the GUI writes the user settings file in a new format for the first
+  time, it keeps the old file as `usersettings.v<n>.json`.
 - **Workflow files:** a workflow as a JSON file of steps, each a tool with its own
-  settings, which run once per file until a step such as `Concatenate` joins the tables;
-  each step's `save` decides what is saved. They are found in the workflow search path
-  (`workflow_paths`, `FLIM_WORKFLOW_PATH`), listed in the menus by their `tags`, and run
-  with `Import Tables...`, `Workflow` > `Run Workflow File...` (on the current table),
-  or `flimbatch --workflow` and `--run`. The built-in `Import` workflow is one.
+  `config`, `output` (`save`, `formats`) and `processing`. The steps run once per
+  table until a step such as `Concatenate` joins the tables. A step whose tool makes
+  its results in parts, for example `Summarize` with a table per feature, passes each
+  part on, and the later steps run once per part. Only the results of steps with
+  `output` > `save` are saved: a workflow in which no step saves is refused, and a step
+  that doesn't save and whose results no later step uses gets a warning. A step's
+  formats take precedence over the workflow's `output` > `formats`, for each kind of
+  result. `processing`, for the whole workflow or per step, sets per field whether a
+  column that the data doesn't have is an error or is replaced by the closest one
+  (`strict`, default `true`), which entries a step may skip if they don't apply to the
+  data (`skippable`: `none`, `some` or `all`), and which entries must apply although
+  skippable (`required`). `category` places a workflow in the menus (default:
+  `Workflow`); `Import Tables...` offers those of `["File", "Import"]`. Workflow files
+  are found in the workflow search path: the folders of `-w`, else of
+  `FLIM_WORKFLOW_PATH`, else of `workflow_paths` in the user settings file, else the
+  folder `workflows` in the platform's settings folder. They run with
+  `Import Tables...`, their menu entries, `Workflow` > `Run Workflow File...` (on the
+  current table), or `flimbatch --run`. The built-in `Import` workflow is one.
 - **`Source` column:** each table read from a file gets `Source`, the file as a URI,
   for example `file:///data/Results-a-Dox15_01.txt`. `Data` > `Directory/File to Source`
   adds it to tables imported with 0.6 or earlier.
 - **New tools:** `Rename Columns` (#10), `Drop Columns`, `Fuse Categories` and
   `Separate Categories` (modes `delimiter`, `pattern`, `template`; presets) in `Data`;
   `Calculate` (expressions and functions, presets) and `Scale` (standardize, min-max or
-  robust, per group) in `Analysis`.
+  robust, per group) in `Analysis`; `Collect Files`, for workflow files and `flimbatch`
+  only, which lists the files of its inputs in one table.
 - **Filter tool:** filters by category values, ranges and conditions written as
   expressions, and, in settings files, groups (`all`, `any`, `not`). `Use filters`
   (`enabled`) switches all filters; off, the tool keeps all rows. A filter applies only
@@ -238,7 +368,7 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
   filters as the defaults for new tables.
 - **Standardize input** in `PCA`, `K-Means` and `Gaussian Mixed Model`: one setting with
   the same meaning in all three. The defaults keep the earlier behaviour (on, on, off).
-- **Autoencoder: Augment Data:** `Random seed`, for the same noise on every run.
+- **Autoencoder Augment Data:** `Random seed`, for the same noise on every run.
 - **Random Forest:** the accuracy on the test data as a table, `Table: Accuracy Data`;
   until 0.6.2 it was shown only in the importance plot.
 - **Unpivot** of columns with fewer header lines than the others, for example after
@@ -255,15 +385,20 @@ which change results. New requirements: Python 3.12 to 3.14, PyTorch 2.14.1.
 - **Prefect UI:** the new `Monitor` menu, also a group of the tool panel: `Prefect
   Server` opens the Prefect UI in the web browser, and `Last Run` opens the page of the
   last run the GUI started, also in an earlier session. Each task's settings are shown
-  in the task run's `Artifacts` tab. Each flow run's `Artifacts` tab shows the versions of FLIMAnalyzer, Python and the main
-  packages, how the tasks ran (threads or Dask, with their settings) and the input
+  in the task run's `Artifacts` tab. Each flow run's `Artifacts` tab shows the versions
+  of FLIMAnalyzer, Python and the packages listed in `run_summary.txt` (see
+  `Changed`), how the tasks ran (threads or Dask, with their settings) and the input
   files. FLIMAnalyzer's log messages from a run are shown in the run's `Logs` tab,
   except those of tasks that Dask runs in other processes.
 - **Icons** at 64 px for high-resolution screens; icons for the new tools.
-- **Plugin and tool API** (developers): `Tool.short_name`, `Tool.example`,
-  `Tool.validate_data`, `Tool.proposals` and `Tool.inapplicable_fields` for the dialogs;
+- **Plugin and tool API** (developers): `Tool.short_name`, `Tool.example` (a table or
+  one line), `Tool.validate_data`, `Tool.proposals` and `Tool.inapplicable_fields` for
+  the dialogs; `Tool.category` as a list of a menu and its submenus, and `None` or `[]`
+  for no menu; `flim.gui.configdialog.register_dialog`; `Tool.output_types`;
+  `Tool.mappable_output` and `Tool.output_prefix` for results in parts;
+  `Tool.skippable_fields` and `Tool.never_guessed` for `processing`; `Tool.extra_tags`;
   tool lookups accept `former_names`; each data type declares its `save_options` and
-  writes with `DataType.save`; `flim.__version__`.
+  writes with `DataType.save`; `flim.core.paths.path_name`; `flim.__version__`.
 
 ### Deprecated
 
@@ -275,7 +410,12 @@ describes how API changes are handled.
   `-e dask-local` and `-e dask`. Removed in 1.0.0.
 - **`-a` / `--execargs`:** put the options after the executor name, as
   `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers`. Removed in 0.8.0.
-- **`--allow-guesses`** (`flimbatch`): use `--no-strict`. Removed in 0.8.0.
+- **`--allow-guesses`** (`flimbatch`): use `--override processing.strict=false`. Removed
+  in 0.8.0.
+- **`flimanalyzer --batch`:** use `flimbatch` with the same arguments. Removed in 0.8.0.
+- **`flimbatch --run NAME` with the tool's settings from the `-s` file:** save the
+  tool's settings as a tool file (`Save Settings...` in the tool's dialog) and run it
+  with `--run FILE`. Removed in 0.8.0.
 - **`Directory` and `File` columns:** still added when a file is read; `Source` replaces
   them. Removed in 0.8.0. To add `Source` to older tables, use
   `Directory/File to Source`.
@@ -288,6 +428,21 @@ describes how API changes are handled.
   0.8.0.
 - **`flim.core.runner.default_max_workers`** (developers): use `default_workers`. Removed
   in 0.8.0.
+- **`flim.batch`** (developers): use `flim.core.batchrun` for the run functions and
+  `flim.batchcmd` for the `flimbatch` command. Importing the module issues a
+  `DeprecationWarning`. Removed in 0.8.0.
+- **`flim.results.clean_path_component`** (developers): use `flim.core.paths.path_name`.
+  Removed in 0.8.0.
+- **`flim.core.tool.check_requirements`** (developers): use
+  `flim.core.tool.validate_requirements`; the former name issues a `DeprecationWarning`.
+  Removed in 0.8.0.
+- **Plugin tools without `output_types`** (developers): such a tool can save every kind
+  of result, with a `DeprecationWarning`; set `output_types`, for example
+  `(TableType,)`. Required from 0.8.0.
+- **Plugin tools without a registered dialog** (developers): still shown in the menus
+  and the tool panel with the generic dialog, with a `DeprecationWarning`; register one
+  with `flim.gui.configdialog.register_dialog`, also for the generic `ConfigDialog`.
+  Not shown from 0.8.0.
 
 ### Removed
 
@@ -348,6 +503,14 @@ describes how API changes are handled.
   of the column names; `Rename Columns` skips a replacement with empty text.
 - **Docker:** matplotlib warned at every start that it can't write its cache folder; the
   images set `MPLCONFIGDIR` to `/tmp/matplotlib`.
+- **`-i` and `-x` given more than once** (`-i a.txt -i b.txt`) used only the files of
+  the last use. All uses now count, in both programs.
+- **`flimbatch` plots on macOS:** tools that draw plots failed, because macOS' default
+  matplotlib backend can't draw outside the main thread. `flimbatch` now draws with
+  the `Agg` backend, which opens no windows.
+- **Table window:** the window could be lower than its side bar, so the last buttons
+  were cut off. It now opens at least as high as the side bar, within the screen, and
+  can't be made lower.
 
 ### Known issues
 
