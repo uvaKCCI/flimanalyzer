@@ -373,6 +373,31 @@ def test_split(data):
     assert sum(len(t) for t in results.values()) == len(data)
 
 
+def test_split_warns_about_rows_without_a_grouping_value(data):
+    data.loc[data.index[:2], "FOV"] = np.nan
+    tool = Split()
+    results = tool(data, config=SplitConfig(grouping=["Treatment", "FOV"]))
+    assert sum(len(t) for t in results.values()) == len(data) - 2  # as before
+    assert tool.context.warnings == ["2 rows left out: no value in the grouping column 'FOV'"]
+    tool = Split()
+    tool(data.dropna(), config=SplitConfig(grouping=["Treatment", "FOV"]))
+    assert tool.context.warnings == []
+
+
+def test_pivot_warns_about_rows_without_a_category_value(data):
+    data.loc[data.index[0], "Treatment"] = np.nan
+    data.loc[data.index[1], "Cell"] = np.nan
+    tool = Pivot()
+    pivoted = table(tool(data, config=PivotConfig(grouping=["Treatment"], features=["t1"])))
+    expected = data.dropna().groupby(["FOV", "Cell", "Treatment"], observed=True)["t1"].mean()
+    assert pivoted.set_index(["FOV", "Cell"])["t1\nWT"].dropna().to_dict() == (
+        expected.xs("WT", level="Treatment").to_dict()
+    )
+    assert tool.context.warnings == [
+        "2 rows left out: no value in the category columns 'Treatment', 'Cell'"
+    ]
+
+
 def test_split_needs_columns(data):
     # a valid setting (its default), but the run needs a column to split by
     config = SplitConfig.model_validate(SplitConfig().model_dump(mode="json"))

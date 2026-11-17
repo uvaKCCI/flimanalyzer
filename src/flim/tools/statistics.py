@@ -23,6 +23,7 @@ from flim.core.types import OutputSpec, TableType
 from flim.tools.common import (
     category_columns,
     first_line,
+    missing_group_message,
     selected_features,
     set_lineage,
 )
@@ -103,10 +104,14 @@ class Summarize(Tool[SummaryConfig]):
             One table per feature, named `Summary: <feature>`, or with `single_table`
             one table named `Summary`. Each has a row per group (one row without
             grouping columns) and a column per feature and statistic, whose header has
-            two lines: the feature and the statistic.
+            two lines: the feature and the statistic. Rows with a missing value in a
+            grouping column are left out, with a warning.
         """
         functions = [AGGREGATE_FUNCTIONS[a] for a in config.aggs]
         grouping = list(config.grouping)
+        message = missing_group_message(data, grouping)
+        if message:  # pandas leaves out rows with a missing grouping value
+            self.warn(message)
         summaries = {}
         for feature in selected_features(data, config.features):
             columns = grouping + [feature]

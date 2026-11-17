@@ -80,6 +80,19 @@ def test_summary_single_table(data):
     )
 
 
+def test_summary_warns_about_rows_without_a_grouping_value(data):
+    data.loc[data.index[0], "Treatment"] = np.nan
+    config = SummaryConfig(grouping=["Treatment"], features=["t1", "t2"], aggs=["count"])
+    tool = Summarize()
+    (table,) = tool(data, config=config).values()
+    assert table["t1\ncount"].sum() == len(data) - 1  # left out, as before
+    # one warning, not one per feature
+    assert tool.context.warnings == ["1 row left out: no value in the grouping column 'Treatment'"]
+    tool = Summarize()
+    tool(data, config=SummaryConfig(features=["t1"], aggs=["count"]))
+    assert tool.context.warnings == []  # without grouping, no row is left out
+
+
 def test_summary_per_feature_and_mapping(data):
     config = SummaryConfig(features=["t1", "t2"], single_table=False, aggs=["max"])
     results = Summarize()(data, config=config)

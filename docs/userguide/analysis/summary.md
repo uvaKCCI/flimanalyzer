@@ -25,7 +25,7 @@ The `Summarize` tool calculates the count, minimum, maximum, mean, median (50th 
 
 4. Click `OK`.
 
-5. The results are shown in a new table window, `Table: Summary`, with a row for each group and a column for each feature and statistic. The column headers have two lines: the feature and the statistic, e.g. `FLIRR` and `mean`. The percentiles are labeled `25 percentile` and `75 percentile`. With `Single table` unchecked, each feature gets its own table window, `Table: Summary: <feature>`.
+5. The results are shown in a new table window, `Table: Summary`, with a row for each group and a column for each feature and statistic. The column headers have two lines: the feature and the statistic, e.g. `FLIRR` and `mean`. The percentiles are labeled `25 percentile` and `75 percentile`. With `Single table` unchecked, each feature gets its own table window, `Table: Summary: <feature>`. A row without a value in one of the grouping columns is in no group; the run summary gives the number of these rows.
 
 ## Example Output
 

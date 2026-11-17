@@ -37,6 +37,7 @@ from flim.tools.common import (
     categories_first,
     category_columns,
     first_line,
+    missing_group_message,
     selected_features,
     set_lineage,
 )
@@ -515,7 +516,8 @@ class Pivot(Tool[PivotConfig]):
         category columns, the result is one row with the means over all rows. A new column's
         header has the feature's lines and a line for the value of each grouping
         column, e.g. `FLIRR` and `ctrl`. Rows and columns without any value are left
-        out.
+        out. Input rows with a missing value in a category column are left out, with
+        a warning.
 
         Args:
             data: The table.
@@ -530,6 +532,10 @@ class Pivot(Tool[PivotConfig]):
         categories = category_columns(data)
         index = [c for c in categories if c not in config.grouping]
         logger.debug(f"pivoting {config.grouping}, index {index}")
+        # pandas leaves out rows with a missing value in a column or row key
+        message = missing_group_message(data, list(config.grouping) + index, "category")
+        if message:
+            self.warn(message)
         source = data[features + categories]
         if not index:  # no other category column: one row, keyed by a column dropped below
             index = [unique_name("row", "row", list(map(str, data.columns)))]
@@ -632,9 +638,13 @@ class Split(Tool[SplitConfig]):
 
         Returns:
             One table per combination of the columns' values that has rows, named as
-            by `table_name`, in the order of the categories.
+            by `table_name`, in the order of the categories. Rows with a missing
+            value in a grouping column are in no table, with a warning.
         """
         grouping = list(config.grouping)
+        message = missing_group_message(data, grouping)
+        if message:  # pandas leaves out rows with a missing grouping value
+            self.warn(message)
         # in the order of the categories; combinations without rows are left out
         return {
             self.table_name(grouping, values): group.copy()

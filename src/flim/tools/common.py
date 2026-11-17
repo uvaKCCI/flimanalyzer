@@ -98,3 +98,35 @@ def first_line(name: str) -> Optional[str]:
         The first line, e.g. `FLIRR`; None for a name of one line.
     """
     return name.split("\n")[0] if "\n" in name else None
+
+
+def missing_group_message(
+    data: pd.DataFrame, columns: Iterable[str], kind: str = "grouping"
+) -> Optional[str]:
+    """Return a warning about the rows that a grouping leaves out; None if none.
+
+    pandas leaves out of a grouping each row with a missing value in one of the
+    grouping columns.
+
+    Args:
+        data: The table.
+        columns: The grouping columns.
+        kind: The role of the columns in the message, e.g. `grouping` or `category`.
+            Defaults to `grouping`.
+
+    Returns:
+        For example `3 rows left out: no value in the grouping column 'FOV'`; None
+        if every row has a value in all the columns.
+    """
+    columns = list(columns)
+    if not columns:
+        return None
+    missing = data[columns].isna()
+    count = int(missing.any(axis=1).sum())
+    if count == 0:
+        return None
+    named = [c for c in columns if missing[c].any()]
+    rows = "1 row" if count == 1 else f"{count} rows"
+    noun = f"{kind} column" if len(named) == 1 else f"{kind} columns"
+    listed = ", ".join(f"'{c}'" for c in named)
+    return f"{rows} left out: no value in the {noun} {listed}"
