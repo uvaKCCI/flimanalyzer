@@ -202,7 +202,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
     """
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
-    from flim.core.prefect_server import checked_prefect_server, use_prefect_server
+    from flim.core.prefect_server import use_prefect_server, validated_prefect_server
     from flim.core.workflowfile import register_workflow_files, save_issues, workflow_path
 
     discover(TOOLS_GROUP)  # registers the tools of other installed packages
@@ -263,7 +263,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         execution = ExecutionOptions(
             execution=settings.execution, server_timeout=settings.server_timeout
         )
-        execution.check_available()
+        execution.validate_available()
         output = canonical_folder(args.output)
         if problem := folder_problem(output):
             raise BatchError(f"--output: {problem}")
@@ -292,7 +292,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         ):
             for number, (tool, read) in enumerate(runs, 1):
                 tables = _read(args.input, read_settings(read, args.exclude))
-                with checked_prefect_server():
+                with validated_prefect_server():
                     run = run_on_tables(
                         tool, tables, settings, call_dir / f"run-{number}", execution,
                         args.overrides.for_run(number), manager.record(), notes=[note] if note else [],
@@ -397,13 +397,13 @@ def _dry_run(
     execution = ExecutionOptions(execution=settings.execution, server_timeout=settings.server_timeout)
     name = settings.execution.executor
     try:
-        execution.check_available()
+        execution.validate_available()
         if name == "dask":
             logger.info(
                 f"Checking the Dask cluster at {settings.execution.address}"
                 f" (timeout {settings.server_timeout:g} s)"
             )
-        problem = execution.check_cluster()
+        problem = execution.validate_cluster()
     except RuntimeError as err:
         problem = str(err)
     report(f"Executor {name}", problem)

@@ -196,11 +196,11 @@ def test_dask_executors_need_the_dask_extra(monkeypatch, capsys):
         "find_spec",
         lambda name, *a: None if name == "prefect_dask" else real_find_spec(name, *a),
     )
-    ExecutionOptions().check_available()  # local: needs nothing extra
+    ExecutionOptions().validate_available()  # local: needs nothing extra
     for spec in ("dask-local", "dask:address=tcp://h:8786"):
         options = ExecutionOptions(execution=executor_settings(spec)[0])
         with pytest.raises(RuntimeError, match="uv sync --extra dask"):
-            options.check_available()
+            options.validate_available()
         with pytest.raises(RuntimeError, match="optional Dask support"):
             FLIMAnalyzer(execution=options).get_task_runner()
     # the 0.6 names still reach the same check

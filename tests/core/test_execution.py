@@ -153,5 +153,10 @@ def test_started_runs_one_local_dask_cluster_until_the_end():
         assert started.server_timeout == 5
         assert note.startswith(f"executor dask-local: one Dask cluster for all runs, at {address}")
         assert "(1 workers, threads)" in note
-        assert started.check_cluster() is None  # the cluster answers
-    assert started.check_cluster() is not None  # stopped with the context
+        assert started.validate_cluster() is None  # the cluster answers
+    assert started.validate_cluster() is not None  # stopped with the context
+
+
+def test_check_available_is_deprecated():
+    with pytest.warns(DeprecationWarning, match="check_available is deprecated and is removed in 0.8.0"):
+        ExecutionOptions().check_available()  # local: needs nothing extra

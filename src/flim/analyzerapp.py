@@ -327,7 +327,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             execution=manager.settings.execution,
             server_timeout=manager.settings.server_timeout,
         )
-        execution.check_available()
+        execution.validate_available()
     except (FileNotFoundError, ValueError, RuntimeError) as err:
         logger.error(err)
         open_log(memory)  # the log folder setting may be what failed

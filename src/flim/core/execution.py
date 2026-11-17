@@ -2,6 +2,7 @@
 
 import importlib.util
 import logging
+import warnings
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Optional, Self, Union
@@ -151,7 +152,17 @@ class ExecutionOptions(BaseConfig):
         return cls(execution=settings, **kwargs)
 
     def check_available(self) -> None:
-        """Check that the packages the executor needs are installed.
+        """Deprecated: use `validate_available`; removed in 0.8.0."""
+        warnings.warn(
+            "flim.core.execution.ExecutionOptions.check_available is deprecated and is"
+            " removed in 0.8.0; use flim.core.execution.ExecutionOptions.validate_available",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.validate_available()
+
+    def validate_available(self) -> None:
+        """Validate that the packages the executor needs are installed.
 
         Raises:
             RuntimeError: If a Dask executor is selected and `prefect_dask` is not
@@ -163,11 +174,11 @@ class ExecutionOptions(BaseConfig):
                 " uv sync --extra dask (or pip install flimanalyzer[dask])"
             )
 
-    def check_cluster(self) -> Optional[str]:
-        """Check that the Dask cluster of the `dask` executor answers, within the timeout.
+    def validate_cluster(self) -> Optional[str]:
+        """Validate that the Dask cluster of the `dask` executor answers, within the timeout.
 
         Connects to the cluster's address, waiting at most `server_timeout` seconds,
-        and disconnects. Other executors have no cluster to check.
+        and disconnects. Other executors have no cluster to validate.
 
         Returns:
             None if the cluster answers (or there is none), else the problem.
@@ -203,7 +214,7 @@ class ExecutionOptions(BaseConfig):
             from flim.core.runner import default_task_runner
 
             return default_task_runner(settings.workers)
-        self.check_available()
+        self.validate_available()
         from prefect_dask import DaskTaskRunner
 
         if isinstance(settings, DaskClusterExecutorSettings):
@@ -243,7 +254,7 @@ class ExecutionOptions(BaseConfig):
         if not isinstance(settings, DaskLocalExecutorSettings):
             yield self, None
             return
-        self.check_available()
+        self.validate_available()
         from distributed import LocalCluster
 
         with LocalCluster(**self._cluster_kwargs()) as cluster:

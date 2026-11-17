@@ -297,7 +297,7 @@ def test_unavailable_executor_stops_the_start(monkeypatch, capsys):
     def unavailable(self):
         raise RuntimeError("needs the optional Dask support")
 
-    monkeypatch.setattr(ExecutionOptions, "check_available", unavailable)
+    monkeypatch.setattr(ExecutionOptions, "validate_available", unavailable)
     monkeypatch.setattr(sys, "argv", ["flimanalyzer", "-e", "dask-local"])
     with pytest.raises(SystemExit) as stop:
         analyzerapp.main()

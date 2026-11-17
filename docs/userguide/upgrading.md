@@ -147,7 +147,8 @@ These changes apply to tools written for FLIMAnalyzer, for example in a plugin (
   | `flim.batch` | `flim.core.batchrun` (run functions), `flim.batchcmd` (the `flimbatch` command) |
   | `flim.results.clean_path_component` | `flim.core.paths.path_name` |
   | `flim.core.tool.check_requirements` | `flim.core.tool.validate_requirements` |
+  | `flim.core.execution.ExecutionOptions.check_available` | `flim.core.execution.ExecutionOptions.validate_available` |
 
-* **Names changed without a deprecated name:** in `flim.core.settings`, `ToolEntry` is now `ToolSettings` (`autosave` and `results_dir` are in its `output`, a `ToolOutput`), the 0.6 `ToolSettings` map is `ToolSettingsMap`, and `tool_entry`, `read_tool_entry`, `write_tool_entry` are `tool_settings`, `read_tool_settings`, `write_tool_settings`. `flim.core.tools.check_executor_available` is now `flim.core.execution.ExecutionOptions.check_available`.
+* **Names changed without a deprecated name:** in `flim.core.settings`, `ToolEntry` is now `ToolSettings` (`autosave` and `results_dir` are in its `output`, a `ToolOutput`), the 0.6 `ToolSettings` map is `ToolSettingsMap`, and `tool_entry`, `read_tool_entry`, `write_tool_entry` are `tool_settings`, `read_tool_settings`, `write_tool_settings`. `flim.core.tools.check_executor_available` is now `flim.core.execution.ExecutionOptions.validate_available`.
 * **Removed without replacement:** `flim.core.importer`, `flim.core.preprocessor.defaultpreprocessor`, `ImportSettings`, `ParserSettings`, `PreprocessSettings`, `flim.batch.run_tool`, `import_table`, `filtered`, `IMPORTED`, `flim.core.tools.DASK_EXECUTORS`, `flim.core.filter.SeriesFilter` and `RangeFilter.apply_filter`.
 * **Unique names.** The tool registry refuses a tool whose name, former name or short name equals that of another tool, with case ignored. The tool is not loaded, and the log says so.

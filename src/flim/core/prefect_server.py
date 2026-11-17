@@ -237,11 +237,11 @@ def use_prefect_server(**kwargs: Any) -> Iterator[str | None]:
     belongs to the current thread: a thread started inside the body has to run in a
     copy of it (`contextvars.copy_context().run`), or its flows use the settings
     Prefect read at import. Each flow run inside the body should run in
-    `checked_prefect_server`.
+    `validated_prefect_server`.
 
     Args:
         **kwargs: The arguments of `ensure_prefect_server`; they are also used when
-            `checked_prefect_server` finds or starts a server again.
+            `validated_prefect_server` finds or starts a server again.
 
     Yields:
         The API URL in use, or None for Prefect's temporary servers.
@@ -276,15 +276,15 @@ def _available(api_url: str) -> bool:
 
 
 @contextlib.contextmanager
-def checked_prefect_server() -> Iterator[str | None]:
+def validated_prefect_server() -> Iterator[str | None]:
     """Context manager for one flow run inside `use_prefect_server`.
 
-    Before the run, it checks that the server of the session still answers. A local
+    Before the run, it validates that the server of the session still answers. A local
     server can stop while the process runs, for example when another flimanalyzer
     process that started it exits. In that case a server is found or started again
     as in `ensure_prefect_server`, with the arguments given to `use_prefect_server`,
     and used for this and later runs. Outside `use_prefect_server`, or if the session
-    uses Prefect's temporary servers, no server is checked.
+    uses Prefect's temporary servers, no server is validated.
 
     Yields:
         The API URL the run uses, or None for Prefect's temporary servers or

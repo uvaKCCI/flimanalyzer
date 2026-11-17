@@ -201,13 +201,13 @@ def session(monkeypatch):
 def test_checked_server_outside_a_session_changes_nothing(monkeypatch):
     monkeypatch.setattr(ps, "_available", lambda url: pytest.fail("checked"))
     before = PREFECT_API_URL.value()
-    with ps.checked_prefect_server() as url:
+    with ps.validated_prefect_server() as url:
         assert url is None and PREFECT_API_URL.value() == before
 
 
 def test_checked_server_keeps_an_available_server(monkeypatch, session):
     monkeypatch.setattr(ps, "_available", lambda url: True)
-    with ps.checked_prefect_server() as url:
+    with ps.validated_prefect_server() as url:
         assert url == PREFECT_API_URL.value() == "http://127.0.0.1:9999/api"
     assert len(session) == 1  # no second search
 
@@ -216,11 +216,11 @@ def test_checked_server_starts_a_server_again_if_it_is_gone(monkeypatch, session
     # e.g. another flimanalyzer process started the server and exited
     available = {"http://127.0.0.1:9999/api": False, "http://127.0.0.1:9998/api": True}
     monkeypatch.setattr(ps, "_available", available.get)
-    with ps.checked_prefect_server() as url:
+    with ps.validated_prefect_server() as url:
         assert url == PREFECT_API_URL.value() == "http://127.0.0.1:9998/api"
     assert session == [{"port": 9999, "start": True}] * 2  # the session's arguments
     # later runs use the new server without another search
-    with ps.checked_prefect_server() as url:
+    with ps.validated_prefect_server() as url:
         assert url == PREFECT_API_URL.value() == "http://127.0.0.1:9998/api"
     assert len(session) == 2
 
@@ -231,7 +231,7 @@ def test_checked_server_reports_a_failed_start(monkeypatch, session):
 
     monkeypatch.setattr(ps, "_available", lambda url: False)
     monkeypatch.setattr(ps, "ensure_prefect_server", fail)
-    with pytest.raises(ps.PrefectServerError), ps.checked_prefect_server():
+    with pytest.raises(ps.PrefectServerError), ps.validated_prefect_server():
         pytest.fail("the run started")
 
 
@@ -241,7 +241,7 @@ def test_checked_server_with_temporary_servers(monkeypatch):
     with (
         temporary_settings(updates={PREFECT_API_URL: "http://127.0.0.1:9997/api"}),
         ps.use_prefect_server(start=False),
-        ps.checked_prefect_server() as url,
+        ps.validated_prefect_server() as url,
     ):
         assert url is None and PREFECT_API_URL.value() is None
 
@@ -266,7 +266,7 @@ def test_checked_server_searches_as_at_the_start(monkeypatch):
     with (
         temporary_settings(restore_defaults={PREFECT_API_URL}),
         ps.use_prefect_server(),
-        ps.checked_prefect_server(),
+        ps.validated_prefect_server(),
     ):
         pass
     assert seen == [None, None]

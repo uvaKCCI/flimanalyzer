@@ -181,10 +181,10 @@ class RunProgressDialog(wx.Dialog):
 
     def _work(self) -> None:
         """Run the flow in the worker thread and store its run or error."""
-        from flim.core.prefect_server import checked_prefect_server
+        from flim.core.prefect_server import validated_prefect_server
 
         try:
-            with checked_prefect_server():
+            with validated_prefect_server():
                 self.run = self.start_run(
                     self.cancel_token, self._on_progress, self._on_start
                 )
