@@ -55,10 +55,11 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   table windows' range filters (`filters` > `use` in the settings file). To filter rows
   in a batch run, add a `Filter` step to a workflow file.
 - **Filter tool defaults:** the `Filter` tool's range filters are now also the range
-  filters that new table windows start with. Started with the built-in defaults, the `Filter` tool therefore applies
-  the three range filters that are on by default (`trp chi` 0 to 4.7, `NAD(P)H chi` and
-  `FAD chi` 0.7 to 4.7) to tables that have these columns; until 0.6.2 it started
-  without filters. Uncheck them in the `Filter` dialog to keep all rows.
+  filters that new table windows start with. Started with the built-in defaults, the
+  `Filter` tool therefore applies the three range filters that are on by default (`trp
+  chi` 0 to 4.7, `NAD(P)H chi` and `FAD chi` 0.7 to 4.7) to tables that have these
+  columns; until 0.6.2 it started without filters. Uncheck them in the `Filter` dialog
+  to keep all rows.
 - **Import, `NADPH/NADH`:** the import calculated `NADPH/NADH` before `NADH %`, which it
   needs, so the column was never added. The built-in `Import` workflow now adds it.
 - **Pivot without other category columns:** when the pivoted columns were the table's
@@ -66,8 +67,27 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   letters of the values, one header line per letter (for example `c`, `t`, `r`, `l`
   for `ctrl`). The result is now one row with the mean of each feature for each value.
 
+- **KS-Statistics, missing values:** a sample with missing values of the feature gave
+  a missing p-value and statistic, `dissimilar` `No`, and the missing values were
+  counted in `n`. Missing values are now left out of the test and of `n`.
+- **KS-Statistics, grouping values:** with grouping columns, groups whose values are
+  numbers or contain a backslash matched no rows and were left out of the results
+  without a message; a value with a double quote stopped the tool with an error. Each
+  group is now tested, so the results of such data get rows they didn't have.
+- **Merge, missing key values:** rows with a missing value in a column merged on were
+  paired with every row of the other table that also had a missing value there. These
+  rows now match no row: `left`, `right` and `outer` keep them without the values of
+  the other table, and `inner` leaves them out. A warning gives the number of these
+  rows in each table.
+- **Order Category Values:** values of a column that were not in the configured order
+  became missing values, for example with a settings file used on other data. They
+  now follow the configured values, in their order in the table, and the run summary
+  names them.
 ### Changed
 
+- **Split, Pivot and Summarize:** rows with a missing value in a grouping column (for
+  Pivot also in the other category columns) are left out as before; the run summary
+  now gives their number.
 - **Reading data files:** `File` > `Open...` and `Import...` are replaced by
   `Open Tables...` and `Import Tables...` (see `Loading Data` in the user guide).
   `Open Tables` opens each file in a table window. `Import Tables` reads the files, one
@@ -493,6 +513,9 @@ describes how API changes are handled.
 - **Text fields in dialogs** dropped spaces and tabs at the start and end of values.
 - **Filter Settings:** `Dropped from view` and the remaining count ignored the rows
   hidden by a single other filter.
+- **Merge without shared category columns:** with automatic `Merge on`, two tables
+  without a shared category column stopped the run with an `IndexError`. The dialog
+  and the validation of workflow files now show the error, and the tool doesn't run.
 - **Filter Settings checkboxes:** the checkbox of the first row, and of the row
   clicked last, couldn't be checked or unchecked; a click on it opened the cell editor
   instead.
