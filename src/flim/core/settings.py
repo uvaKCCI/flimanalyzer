@@ -1023,12 +1023,37 @@ def settings_from_data(data: dict) -> AppSettings:
     return _validated(migrate(data))
 
 
-def merge_sections(base: dict, changes: dict) -> dict:
-    """Return a copy of `base` with the sections of `changes` replacing its sections.
+# how a later settings layer changes each section: "whole" replaces the section,
+# "per key" replaces its entries one by one and keeps the others (`merge_sections`)
+SECTION_MERGE: dict[str, str] = {
+    "description": "whole",
+    "results_dir": "whole",
+    "execution": "whole",  # one executor with its options
+    "prefect_server": "whole",
+    "server_timeout": "whole",
+    "log": "per key",
+    "cache": "per key",
+    "appsettings_path": "whole",
+    "char_replacements": "whole",  # one table
+    "max_windows": "per key",  # a limit per kind of window
+    "presets": "per key",  # per tool
+    "favorites": "whole",
+    "workflow_paths": "whole",
+    "default_app_settings": "whole",
+    "last_run_url": "whole",
+    "filters": "whole",  # one filter set
+    "tools": "per key",  # per tool; former names are removed
+}
 
-    In `tools`, each tool's section is replaced separately, and the sections under
-    the former names of a registered tool are removed. In `presets`, each tool's
-    presets are replaced separately: the presets of the other tools are kept.
+
+def merge_sections(base: dict, changes: dict) -> dict:
+    """Return a copy of `base` with the sections of `changes` merged into it.
+
+    Each section is merged by its rule in `SECTION_MERGE`: replaced whole, or entry
+    by entry (`per key`), keeping the entries `changes` doesn't have; e.g. an app
+    settings file with presets of Filter keeps the user's presets of Calculate. In
+    `tools`, the sections under the former names of a registered tool are removed
+    too. A section without a rule is replaced whole.
 
     Args:
         base: Settings sections in the current version.
@@ -1042,17 +1067,18 @@ def merge_sections(base: dict, changes: dict) -> dict:
     """
     merged = copy.deepcopy(base)
     for key, value in migrate(changes).items():
+        if key == "schema_version":
+            continue
         if key == "tools" and isinstance(value, dict):
-            tools = merged.setdefault("tools", {})
             for name in value:
                 tool = _registered(name)
                 for former in getattr(tool, "former_names", ()):
-                    tools.pop(former, None)
-            tools.update(value)
-        elif key == "presets" and isinstance(value, dict) and isinstance(merged.get("presets"), dict):
-            merged["presets"] = {**merged["presets"], **value}
-        elif key != "schema_version":
-            merged[key] = value
+                    merged.setdefault("tools", {}).pop(former, None)
+        current = merged.get(key)
+        if SECTION_MERGE.get(key) == "per key" and isinstance(value, dict) and isinstance(current, dict):
+            merged[key] = {**current, **copy.deepcopy(value)}
+        else:
+            merged[key] = copy.deepcopy(value)
     return merged
 
 

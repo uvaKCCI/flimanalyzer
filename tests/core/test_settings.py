@@ -457,3 +457,38 @@ def test_update_keeps_a_tool_file_a_tool_file(tmp_path):
     update_settings_file(path)
     data = json.loads(path.read_text())
     assert data["tool"] == "Summarize" and data["schema_version"] == 2 and "tools" not in data
+
+
+def test_every_app_settings_section_has_a_merge_rule():
+    """A new section must state how a later layer changes it (presets were hidden
+    by an app settings file's presets while all sections but tools were replaced)."""
+    from flim.core.settings import SECTION_MERGE, AppSettings
+
+    assert set(SECTION_MERGE) == set(AppSettings.model_fields) - {"schema_version"}
+    assert set(SECTION_MERGE.values()) == {"whole", "per key"}
+
+
+def test_sections_merge_whole_or_per_key():
+    from flim.core.settings import merge_sections
+
+    base = {
+        "log": {"dir": "logs", "max_age_days": 10},
+        "max_windows": {"table": 50, "plot": 20},
+        "presets": {"Calculate": [{"name": "mine"}]},
+        "execution": {"executor": "dask-local", "workers": 8},
+        "char_replacements": {"/": "_", ":": "-"},
+    }
+    changes = {
+        "schema_version": 2,
+        "log": {"dir": "lab"},
+        "max_windows": {"plot": 5},
+        "presets": {"Filter": [{"name": "lab"}]},
+        "execution": {"executor": "local"},
+        "char_replacements": {"/": "-"},
+    }
+    merged = merge_sections(base, changes)
+    assert merged["log"] == {"dir": "lab", "max_age_days": 10}  # per field
+    assert merged["max_windows"] == {"table": 50, "plot": 5}  # per kind
+    assert set(merged["presets"]) == {"Calculate", "Filter"}  # per tool
+    assert merged["execution"] == {"executor": "local"}  # whole: one executor
+    assert merged["char_replacements"] == {"/": "-"}  # whole: one table
