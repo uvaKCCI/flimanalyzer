@@ -300,7 +300,8 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
 
     Args:
         name: A path, or a file name (with or without `.json`) in the workflow search
-            path or among the built-in workflow files.
+            path or among the built-in workflow files, or the `name` of a workflow
+            file in the search path (as `flimbatch --run` takes it).
         args: The parsed arguments, with `-w`.
         kind: The kind of file required: `tool` or `workflow`.
 
@@ -324,9 +325,13 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
         path = find_workflow_file(name, [*search_path, BUILT_IN])
     except FileNotFoundError:
         try:
-            found = _kind(tools.get(name))
+            registered = tools.get(name)
+            found = _kind(registered)
         except KeyError:
             found = ""
+        if found == "file" and registered.path is not None:  # a workflow file by its name
+            path = Path(registered.path)
+            return path, json.loads(path.read_text())
         if found in ("tool", "workflow"):
             what = "a tool" if found == "tool" else "a workflow defined in code"
             if found == kind and args.action == "show":

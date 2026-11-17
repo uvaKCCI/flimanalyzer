@@ -345,3 +345,8 @@ def test_a_workflow_file_that_is_not_loaded_is_reported_once(tmp_path, capsys):
     (folder / "dup.json").write_text(json.dumps({"name": "Import", "steps": [{"id": "1", "tool": "Sort"}]}))
     code, _, err = run(capsys, "workflow", "--list", "-w", str(folder))
     assert err.count("dup.json: not loaded") == 1
+
+
+def test_a_workflow_file_is_found_by_its_name_too(folder, capsys):
+    code, out, _ = run(capsys, "workflow", "--show", "per treatment", "-w", str(folder))
+    assert code == 0 and '"name": "per treatment"' in out

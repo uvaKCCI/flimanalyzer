@@ -30,6 +30,7 @@ The actions of `tool` and `workflow` take a `FILE`. A `FILE` is one of these, in
 1. A path, relative to the current folder or absolute.
 2. A file name in the workflow search path, with or without `.json`. For example, `summary` finds `summary.json`. `-w DIR` sets the folders of the search path, as with `flimbatch`; else `FLIM_WORKFLOW_PATH` sets them, else the search path is the folder `workflows` in the platform's settings folder (see [Workflow files](/userguide/workflows.md#workflow-files)). `flimsettings` reads no settings file to find the search path.
 3. A built-in workflow file, for example `import`.
+4. The `name` in a workflow file of the search path or a built-in one, for example `Import`.
 
 `--show` also takes a `NAME`: the name of a tool (`tool --show`) or of a workflow defined in code (`workflow --show`). If no file has this name, `--show NAME` prints the default settings of the tool or workflow as a tool file. A file takes precedence over a tool or workflow of the same name.
 
@@ -183,7 +184,7 @@ Workflow search path:
   /Users/mst3k/Library/Application Support/FLIMAnalyzer/workflows
 ```
 
-The list shows each workflow file by the `name` in the file. `--show`, `--validate` and `--resolve` find a file by its file name, not by this `name`: `flimsettings workflow --show import` prints the built-in `Import` workflow file (`import.json`).
+The list shows each workflow file by the `name` in the file. `--show`, `--validate` and `--resolve` find a file by its file name or by this `name`, as `flimbatch --run` does: `flimsettings workflow --show import` and `flimsettings workflow --show Import` both print the built-in `Import` workflow file (`import.json`).
 
 `--show NAME` with a workflow defined in code prints its default settings as a tool file. A tool file of a workflow defined in code runs that workflow with the file's settings (`flimbatch --run FILE`):
 
