@@ -112,8 +112,9 @@ def file_run(
 ) -> tuple[type["Tool"], ReadSettings]:
     """Return the tool to run on the files' tables, and how the files are read.
 
-    Import Tables reads with its own settings and runs the workflow they name; every
-    other tool or workflow runs on the files read with Open Tables' settings.
+    Import Tables reads with its own settings and runs the workflow they name (the
+    settings of its tool file, or of the `-s` file); every other tool or workflow runs
+    on the files read with Open Tables' settings.
 
     Args:
         tool: The tool or workflow of `--run`.
@@ -129,13 +130,14 @@ def file_run(
     from flim.core.workflowfile import resolve_workflow
     from flim.tools.readers import ImportTables, TableReader
 
-    if tool is not ImportTables:
+    if not issubclass(tool, ImportTables):
         return tool, settings.tools.config(TableReader).read_settings()
-    config = settings.tools.config(ImportTables)
+    config, _ = workflow_settings(tool, settings)  # a tool file's, else the -s file's
     if not config.workflow:
         raise BatchError(
             "Import Tables: the settings name no workflow; set `workflow` in its"
-            " section of the settings file, or run the workflow file with --run"
+            " settings (a tool file of Import Tables, or its section of the settings"
+            " file), or run the workflow file with --run"
         )
     try:
         return resolve_workflow(config.workflow), config.read_settings()

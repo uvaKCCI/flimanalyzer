@@ -697,3 +697,20 @@ def test_a_step_override_takes_precedence_over_one_for_every_step(data_dir, tmp_
            "--override", "steps.1.output.save=false"]  # fmt: skip
     assert main(two) == 1
     assert "several --run; name the run, e.g. run-1.steps.1.output.save=false" in capsys.readouterr().err
+
+
+def test_a_tool_file_of_import_tables_reads_with_its_settings_and_runs_its_workflow(data_dir, tmp_path, capsys):
+    """The replacement of --run "Import Tables" with the settings of the -s file."""
+    from flim.configs import ImportTablesConfig
+    from flim.core.settings import tool_settings
+    from flim.tools.readers import ImportTables
+
+    path = tmp_path / "import-tables.json"
+    config = ImportTablesConfig(workflow="Import", exclude=[sorted(p.name for p in data_dir.iterdir())[0]])
+    path.write_text(json.dumps(tool_file_data(ImportTables, tool_settings(config))))
+    out = tmp_path / "out"
+    assert main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]) == 0
+    (calculated,) = run_dir(out).rglob("*Calculated*")
+    assert len(pd.read_csv(calculated, sep="\t")) == 35  # one file left out, by the tool file's settings
+    err = capsys.readouterr().err
+    assert "deprecated" not in err and "output.save=false" not in err

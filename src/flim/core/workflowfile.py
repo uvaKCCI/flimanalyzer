@@ -452,8 +452,7 @@ def _validate_workflow_settings(
     from flim.core.settings import ToolSettings
 
     section = {k: v for k, v in data.items() if k not in ("schema_version", "tool")}
-    if (section.get("output") or {}).get("save") is False:
-        validation.warnings.append(tool_save_warning(tool.name))
+    # no save warning: a workflow always saves its results, in the GUI too
     try:
         entry = ToolSettings.model_validate(section)
         config = tool.config_class.model_validate(entry.config or {})
