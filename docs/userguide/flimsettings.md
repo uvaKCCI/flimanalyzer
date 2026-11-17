@@ -18,7 +18,7 @@ flimsettings env --show
 
 ## Output and exit codes
 
-* The result goes to standard output. Problems and warnings go to standard error, as `flimsettings: ...` and `flimsettings: warning: ...`.
+* The result goes to standard output. Problems and warnings go to standard error, as `flimsettings: ...` and `flimsettings: warning: ...`. Exception: `app --validate` prints its report, with the problems, to standard output, and one line to standard error if the file has a problem.
 * The exit code is 0 if the action is done and no problem is found. It is 1 if a validation finds a problem or the action can't be done, for example because a file doesn't exist. It is 2 if the arguments are not valid, for example no action or two actions.
 * `flimsettings` doesn't start the GUI and doesn't load wxPython. It changes no file, except with `--update`.
 * Of the environment variables, it shows only the `FLIM_*` variables, never others, for example those of Prefect.
@@ -66,12 +66,13 @@ Tool files hold the settings of one tool, as a tool dialog's `Save Settings...` 
 $ flimsettings tool --list
 Tools by menu (flimbatch --run NAME; quote names with spaces):
   File: Open Tables
-  Data: Collect Files, Concatenate, Directory/File to Source, Drop Columns, Filter, ...
+  Data: Concatenate, Directory/File to Source, Drop Columns, Filter, ...
   Analysis: Autoencoder Augment Data, Autoencoder Run, Calculate, ...
   Plot: Bar Plot, Box Plot, FLIRR Plot, Frequency Histogram, ...
 
 Not in the menus (by name or as a workflow step):
   Autoencoder Train Model
+  Collect Files
 
 Tool files (flimbatch --run FILE, by path or file name):
   summary.json  (/Users/mst3k/Library/Application Support/FLIMAnalyzer/workflows)
@@ -80,7 +81,7 @@ Workflow search path:
   /Users/mst3k/Library/Application Support/FLIMAnalyzer/workflows
 ```
 
-`--show NAME` prints the defaults of a tool. Save the output to a file to start a tool file:
+`--show NAME` prints the defaults of a tool. Save the output to a file to start a tool file (here, the lists are on fewer lines; the command prints one item per line):
 
 ```
 $ flimsettings tool --show Summarize > summary.json
@@ -112,10 +113,10 @@ $ cat summary.json
 
 ```
 $ flimsettings tool --validate summary.json
-/Users/mst3k/flim/summary.json: a valid tool file of Summarize
+summary.json: a valid tool file of Summarize
 
 $ flimsettings tool --validate bad.json
-flimsettings: /Users/mst3k/flim/bad.json:
+flimsettings: bad.json:
   step 01 (Summarize): settings not valid: aggs.1: Input should be 'count', 'min', 'max', 'mean', 'std', 'sem', 'median', 'percentile(25)', 'percentile(75)' or 'sum'
 ```
 
@@ -177,8 +178,8 @@ Workflows defined in code (flimbatch --run NAME):
   Import Tables  (built-in, File)
 
 Workflow files (flimbatch --run NAME, or by path or file name):
-  Import  (built-in)
   FLIRR summary  (/Users/mst3k/Library/Application Support/FLIMAnalyzer/workflows/flirr-summary.json)
+  Import  (built-in)
 
 Workflow search path:
   /Users/mst3k/Library/Application Support/FLIMAnalyzer/workflows
@@ -186,7 +187,7 @@ Workflow search path:
 
 The list shows each workflow file by the `name` in the file. `--show`, `--validate` and `--resolve` find a file by its file name or by this `name`, as `flimbatch --run` does: `flimsettings workflow --show import` and `flimsettings workflow --show Import` both print the built-in `Import` workflow file (`import.json`).
 
-`--show NAME` with a workflow defined in code prints its default settings as a tool file. A tool file of a workflow defined in code runs that workflow with the file's settings (`flimbatch --run FILE`):
+`--show NAME` with a workflow defined in code prints its default settings as a tool file. A tool file of a workflow defined in code runs that workflow with the file's settings (`flimbatch --run FILE`) (here, the lists are on fewer lines; the command prints one item per line):
 
 ```
 $ flimsettings workflow --show "Basic FLIRR Analysis"
@@ -310,7 +311,7 @@ User settings file (flimanalyzer only): /Users/mst3k/Library/Application Support
       set with --log-dir, FLIM_LOG_DIR
 ```
 
-If a command can't use the file, its line says `refused, see above`, and the problems are on standard error.
+If a command can't use the file, its line says `refused, see above`, and the problems are on standard error. If neither command can use the file, only the problems are shown, and the exit code is 1.
 
 `--validate FILE` takes the path of an app settings file. It shows the schema version of the file, the settings converted to the current version, and the problems (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)). The exit code is 1 if the file can't be used, if it has invalid values or unknown settings, or if it has settings of tools that aren't installed, which `flimbatch` refuses. A tool file or a workflow file is not an app settings file: this is an error.
 
@@ -376,7 +377,7 @@ FLIM_* environment variables that are set:
   FLIM_LOG_LEVEL=loud
   FLIM_RESULT_DIR=/Users/mst3k/results
 flimsettings: problems:
-  FLIM_RESULT_DIR: FLIMAnalyzer does not read this variable; check the name
+  FLIM_RESULT_DIR: FLIMAnalyzer does not read this variable; verify the name
   Invalid environment variable: FLIM_LOG_LEVEL=loud
 ```
 

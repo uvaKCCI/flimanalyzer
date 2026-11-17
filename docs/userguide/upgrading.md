@@ -13,7 +13,7 @@ In short:
 
 ## Requirements
 
-* Python 3.12, 3.13 or 3.14.
+* Python 3.12 to 3.14.
 * PyTorch 2.14.1. Installs with uv from the source and the Docker CUDA image use CUDA 13.0, which needs NVIDIA driver 580 or newer and a GPU of the Turing generation or newer. For older GPUs, see [PyTorch and the GPU](/install/index.md#pytorch-and-the-gpu).
 
 ## Settings files of 0.6
@@ -125,9 +125,10 @@ Other changes to the results:
 
 The names of saved result files and folders follow one rule:
 
-* `%`, `τ` and `µ` become `pcent`, `tau` and `u`.
+* `%`, `τ`, `µ` and `μ` become `pcent`, `tau`, `u` and `u`.
 * Letters lose their accents.
 * Every other character than ASCII letters, digits, `-`, `_` and `.` becomes `_`.
+* Repeated `_` become one, and `_`, `.` and spaces at the start and end are removed.
 
 For example, the results of `Summary: NAD(P)H a2[%]` are saved as `Summary_NAD_P_H_a2_pcent`. In 0.6 only `%`, `:`, `/`, `\`, `|` and line breaks were replaced, so names kept spaces and brackets. Update scripts that find result files by name. The app setting `char_replacements` adds or changes replacements. A run whose inputs give the same folder name doesn't start.
 

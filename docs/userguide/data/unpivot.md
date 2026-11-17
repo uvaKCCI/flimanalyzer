@@ -16,7 +16,7 @@ Column headers made by tools can have several lines, one per *level*. Pivoting t
 
 4. Optionally, enter a name for the new category column under `Category column`; by default it is named after the level.
 
-    A column with fewer header lines than the others, for example `FLIRR` next to `FLIRR` / `standardized` after [Scale](/userguide/analysis/scale.md) with `Keep original` checked, counts as having empty last lines. In the new category column, its rows get the value of `Label for a missing line` (default `none`; for example `original`). The dialog warns which columns have fewer lines. With `Category column` `Scaling mode` and the label `original`, the table has one `FLIRR` column and `Scaling mode` `original` or `standardized`.
+    A column with fewer header lines than the others, for example `FLIRR` next to `FLIRR` / `standardized` after [Scale](/userguide/analysis/scale.md) with `Keep the original features` checked, counts as having empty last lines. In the new category column, its rows get the value of `Label for a missing line` (default `none`; for example `original`). The dialog warns which columns have fewer lines. With `Category column` `Scaling mode` and the label `original`, the table has one `FLIRR` column and `Scaling mode` `original` or `standardized`.
 
     Below the settings, the dialog shows the rows that the table's first two rows become, in a small table.
 

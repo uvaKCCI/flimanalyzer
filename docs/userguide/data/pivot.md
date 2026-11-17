@@ -12,7 +12,7 @@ Take the following data table as an example.
 
 The table has three category columns, `Treatment`, `FOV` (field-of-view), and `Cell`. Multiple measurements were obtained for each cell in each FOV, for a time series of treatment conditions (`ctrl`, `Dox15`, `Dox30`, `Dox45`, `Dox60`).
 
-Say you want to see how `FAD a1[%]` and `NAD(P)H a2[%]` change for each cell over the treatment time series. In the original data, this is hard to see. Pivoting the `Treatment` column and averaging the measurements of each cell in each FOV puts the whole time series of a cell in one row.
+For example, the original data doesn't show clearly how `FAD a1[%]` and `NAD(P)H a2[%]` change for each cell over the treatment time series. Pivoting the `Treatment` column and averaging the measurements of each cell in each FOV puts the whole time series of a cell in one row.
 
 1. In the table window, click `Pivot...`, or select `Data` > `Pivot`. The dialog uses only the rows that the table window shows; rows hidden by filters are left out. From the table window, the dialog opens with that window's table selected.
 

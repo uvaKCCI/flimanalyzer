@@ -5,7 +5,7 @@ Analysis
 
 .. image:: /images/data/dataframe.png
 
-The example table has these category columns that you can use for grouping: `Cell, Compartment, FOV, Treatment`. When you group by several category columns, you can choose their order (the grouping hierarchy).
+The example table has these category columns that you can use for grouping: `Treatment`, `FOV` and `Cell`. When you group by several category columns, you can choose their order (the grouping hierarchy).
 
 .. note::
     The order of the grouping columns changes the order of the rows in the result tables and how the data is arranged in plots. The effect differs from tool to tool. Each tool's page shows it with examples.

@@ -13,7 +13,7 @@ The `Heatmap` tool creates a heatmap of the correlations between the selected fe
 
 2. Start the Heatmap tool by clicking on its icon in the tool panel or via the `Plot` > `Heatmap` menu.
 
-3. In the `Configuration: Heatmap` dialog, select the correlation method and the features. In the `Correlation` menu, choose `pearson`, `spearman` or `kendall`, whichever suits your data. The features are the columns with numbers, such as `FAD a1`. Check `Show values` to write each correlation value in its cell of the heatmap. Otherwise the heatmap shows the values only as colors.
+3. In the `Configuration: Heatmap` dialog, select the correlation method and the features. In the `Correlation` menu, choose `pearson`, `spearman` or `kendall`. The features are the columns with numbers, such as `FAD a1`. Check `Show values` to write each correlation value in its cell of the heatmap. Otherwise the heatmap shows the values only as colors.
 
     The heatmap always uses all rows of the table, and its title is `Correlation`.
 

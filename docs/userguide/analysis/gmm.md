@@ -40,7 +40,7 @@ Adding components always makes the model match the data more closely, even when 
 How to read them:
 
 - Lower is better. Pick the number of components with the lowest score, or the point where the scores stop dropping much (the "elbow" of the curve).
-- BIC penalizes extra components more than AIC, especially for large tables. BIC tends to point to fewer components, AIC to more. If they disagree, BIC is the safer choice.
+- BIC penalizes extra components more than AIC, especially for large tables. BIC tends to point to fewer components, AIC to more. If they disagree, use BIC.
 - Only compare scores from the same table, features and `Covariance` setting. A score on its own means nothing.
 
 The scores are always calculated with the `EM` method, for 1 up to the chosen number of components, even when `Method` is `Variational Bayesian`.

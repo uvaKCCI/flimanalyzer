@@ -8,7 +8,7 @@ Documentation: https://flimanalyzer.readthedocs.io
 
 ## Requirements
 
-* Python 3.12 or later
+* Python 3.12 to 3.14
 * All Python dependencies, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are declared in `pyproject.toml` and installed automatically.
 
 ## Installation
@@ -93,7 +93,7 @@ Run `flimanalyzer --help` for all command line options.
 
 ## Using a GPU
 
-The autoencoder tools (Autoencoder: Train, Run and Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting, in the GUI and in batch mode:
+The autoencoder tools (Autoencoder Train, Autoencoder Run and Autoencoder Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting, in the GUI and in batch mode:
 
 * `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
 * `cpu`, `cuda` or `mps`: uses that device, or the CPU if it is not available.
@@ -102,21 +102,20 @@ Which GPU can be used depends on the PyTorch build that was installed (see [Inst
 
 ## Run FLIMAnalyzer in batch mode
 
-`flimbatch` reads data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. A workflow file (`--workflow`, or the built-in one, `--run Import`) says exactly what is done with the files; tools take their settings from an app settings file, given with `-s` and saved in the GUI (File > Export Settings...). A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
+`flimbatch` reads data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. A workflow file, for example the built-in `Import`, says exactly what a run does with the files. A tool runs with its settings from a tool file, which Save Settings... in the tool's dialog writes.
 
-    uv run flimbatch -i data/ -o results/ -s settings.json \
-        --run Summarize --run "Basic FLIRR Analysis"
+    uv run flimbatch -i data/ -o results/ --run Import --run summarize.json
 
-Each tool's or workflow's results are saved in `results/<name>/`; a workflow file saves the steps it marks to save. `--dry-run` validates the runs against the files without running them. A column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error, unless the tool or workflow file's `processing` section allows the closest column (`"strict": false`). The exit code is 1 if a validation or a task failed. Run `flimbatch --help` for all options.
+Each call saves its results in a new folder below `-o`, named after the date and time, with a folder `run-<n>` per `--run`; a workflow file saves the results of the steps it marks to save. `--dry-run` validates the runs against the files without running them. A column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error, unless the tool or workflow file's `processing` section allows the closest column (`"strict": false`). The exit code is 1 if a validation or a task failed. Run `flimbatch --help` for all options.
 
 `flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
 
 ### In Docker
 
-The image runs `flimbatch`. Make the folder with the data and the settings file available inside the container as `/work`:
+The image runs `flimbatch`. Make the folder with the data and the tool or workflow files available inside the container as `/work`:
 
     docker run --rm -v "$PWD:/work" ghcr.io/uvakcci/flimanalyzer:latest-cpu \
-        -i data/ -o results/ -s settings.json --run Summarize --no-prefect-server
+        -i data/ -o results/ --run summarize.json --no-prefect-server
 
 * On Linux, add `-u $(id -u)` so that the result files belong to you.
 * With the CUDA image, add `--gpus all` to use the GPU.
@@ -163,9 +162,9 @@ To use an existing Dask cluster:
 
 ### Concurrency limits
 
-Prefect applies [tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits) set on the Prefect server, whichever executor is used. Every task is tagged with its tool's name as shown in the menu (e.g. `Autoencoder: Train`, not the Python class name), also as a step of a workflow; workflow steps can carry more tags, which also name their results folders. For example, to let only one autoencoder training run at a time, also inside workflows:
+Prefect applies [tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits) set on the Prefect server, whichever executor is used. Every task is tagged with its tool's name as shown in the menu (e.g. `Autoencoder Train`, not the Python class name), also as a step of a workflow; workflow steps can carry more tags, which also name their results folders. For example, to let only one autoencoder training run at a time, also inside workflows:
 
-    uv run prefect concurrency-limit create "Autoencoder: Train" 1
+    uv run prefect concurrency-limit create "Autoencoder Train" 1
 
 `uv run prefect concurrency-limit ls` lists the limits, and `uv run prefect concurrency-limit delete <tag>` removes one.
 

@@ -2,7 +2,7 @@
 
 ## Requirements
 
-* Python 3.12 or later
+* Python 3.12 to 3.14
 * All other Python packages that FLIMAnalyzer needs, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are installed automatically. They are listed in the `pyproject.toml` file of the Git repository [https://github.com/uvaKCCI/flimanalyzer.git](https://github.com/uvaKCCI/flimanalyzer.git).
 
 ## Installing from PyPI with uv (recommended)

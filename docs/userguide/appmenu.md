@@ -32,7 +32,7 @@ The `Plot` menu has the plots. See [Plots](/userguide/plots/index).
 
 ## Workflow
 
-The `Workflow` menu runs several tools in one go. See [Workflows](/userguide/workflows).
+The `Workflow` menu runs several tools in one run. See [Workflows](/userguide/workflows).
 
 * The workflows made in code, such as `Basic FLIRR Analysis`.
 * The workflow files without `category`, and those whose `category` names the `Workflow` menu, below the workflows made in code, or in the submenu that their `category` names. A workflow file whose `category` names another menu, for example `Analysis` or `["Data", "Reshape"]`, is in that menu or submenu instead (see [Workflow files](/userguide/workflows.md#workflow-files)).

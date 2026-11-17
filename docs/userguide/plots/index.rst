@@ -6,7 +6,7 @@ The plotting tools show the data of a table as plots. Most plotting tools can gr
 Select a Data Table
 -------------------
 
-The example table has these category columns, which you can use to group the data: `Cell`, `Compartment`, `FOV` and `Treatment`. When you group by several columns, the order of the columns matters: the data is grouped by the first column, then by the second, and so on. You can change this order.
+The example table has these category columns, which you can use to group the data: `Treatment`, `FOV` and `Cell`. When you group by several columns, the order of the columns matters: the data is grouped by the first column, then by the second, and so on. You can change this order.
 
 .. image:: /images/data/dataframe.png
 
