@@ -11,9 +11,6 @@
   defined in code as a tool file), `--validate FILE` (validates a workflow file),
   `--resolve FILE` (prints it with every setting of every step stated).
 
-A FILE is a path, or a file name in the workflow search path; a file of another kind
-is an error. A file takes precedence over a tool or workflow of the same name.
-`--show` only reads.
 - `app`: `--list` (the app settings files in the search path), `--show` (the app
   settings of flimanalyzer and of flimbatch, and where each value comes from), `--validate FILE`
   (an app settings file), `--update FILE` (rewrites a file of an older version in the
@@ -21,6 +18,10 @@ is an error. A file takes precedence over a tool or workflow of the same name.
 - `user`: `--show` (the user settings file).
 - `env`: `--list` (the `FLIM_*` variables FLIMAnalyzer reads), `--show` (those that
   are set, with unknown names and invalid values).
+
+A FILE is a path, or a file name in the workflow search path; a file of another kind
+is an error. A file takes precedence over a tool or workflow of the same name.
+`--show` only reads.
 
 The output goes to standard output, and problems go to standard error. The exit code is 1 if a validation finds a problem, 2 for
 invalid arguments, 0 otherwise. Only `FLIM_*` variables are shown, never others

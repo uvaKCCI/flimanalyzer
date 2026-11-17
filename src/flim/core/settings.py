@@ -1515,8 +1515,8 @@ def tool_file_data(tool: "type[Tool]", entry: ToolSettings) -> dict:
         entry: The tool's settings.
 
     Returns:
-        `{"schema_version", "tool", "config", "output": {"save", "formats"}}` and
-        `processing` if set, the shape of a workflow step; without
+        The keys `schema_version`, `tool`, `config`, `output` (`save`, `formats`)
+        and `processing` if set, the shape of a workflow step; without
         `output.results_dir`, a setting of the computer.
     """
     section = entry.model_dump(mode="json")

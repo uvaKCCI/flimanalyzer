@@ -92,11 +92,11 @@ def resolution_notes(report: ValidationReport, prefix: str = "") -> list[str]:
 
     Args:
         report: The report.
-        prefix: Text before each line, e.g. the table's name and `: `.
+        prefix: Text before each line, e.g. the table's name and a colon.
 
     Returns:
-        E.g. `features[0]: 'FAD a1' -> 'FAD a1%' (guessed)` and
-        `features[2]: 'FLIRR' (skipped, not in the input)`.
+        The lines, e.g. ``features[0]: 'FAD a1' -> 'FAD a1%' (guessed)`` and
+        ``features[2]: 'FLIRR' (skipped, not in the input)``.
     """
     def where(issue: Issue) -> str:
         return f"{prefix}{issue.step + ': ' if issue.step else ''}{issue.field}"

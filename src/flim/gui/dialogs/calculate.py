@@ -121,8 +121,8 @@ def function_summary(name: str) -> str:
         name: The function's name.
 
     Returns:
-        E.g. `ratio(v1, v2): Return v1 / v2; NaN if v2 is 0.`; empty for a name
-        that is not registered.
+        The summary, e.g. ``ratio(v1, v2): Return v1 / v2; NaN if v2 is 0.``; empty
+        for a name that is not registered.
     """
     import inspect
 

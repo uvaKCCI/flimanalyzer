@@ -477,8 +477,9 @@ def tool_save_warning(tool: str) -> str:
         tool: The tool's name.
 
     Returns:
-        The warning, e.g. `step 01, tool 'Summarize': output.save=false applies in the
-        GUI only; flimbatch always saves the results of a tool run`.
+        The warning, e.g. for Summarize: ``step 01, tool 'Summarize':
+        output.save=false applies in the GUI only; flimbatch always saves the results
+        of a tool run``.
     """
     return (
         f"step 01, tool '{tool}': output.save=false applies in the GUI only; flimbatch"
