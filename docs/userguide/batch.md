@@ -91,6 +91,9 @@ Before a workflow runs, its settings are validated against the data (see [Workfl
 
 ## Options
 
+```{tabularcolumns} \Y{0.32}\Y{0.68}
+```
+
 | Option | |
 |---|---|
 | `-i`, `--input` | data files or folders (required). Takes several values, and can be repeated. |
@@ -113,6 +116,9 @@ These options can also be set with environment variables (see [Environment varia
 ### Deprecated options
 
 These options and forms still work, but print a warning that shows the new form:
+
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.24}>{\raggedright\arraybackslash}\Y{0.28}>{\raggedright\arraybackslash}\Y{0.36}>{\raggedright\arraybackslash}\Y{0.12}
+```
 
 | Deprecated | Use instead | Example | Removed in |
 |---|---|---|---|

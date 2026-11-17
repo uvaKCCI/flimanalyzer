@@ -119,11 +119,41 @@ def _narrow_tall_images(app, doctree):
             continue
         if width <= ICON_WIDTH:
             continue
+        _to_own_block(node)
         # dialogs, and small images; large plots and windows stay as they are
         if height > 1.1 * width or width <= SMALL_WIDTH:
             node["width"] = "50%"
             node["align"] = "right"  # the text flows beside it
             _to_start_of_step(node)
+
+
+def _to_own_block(image):
+    """Move a screenshot out of its paragraph, to a block of its own.
+
+    In the page source a screenshot often follows the text of a step on the next
+    line, which puts it into the same paragraph. In the PDF an image in a paragraph
+    starts after the text and ignores its alignment, so wide images run off the page.
+    The image is moved directly after the paragraph; a paragraph that holds only the
+    image is replaced by it. Images with text after them in the paragraph are left
+    where they are.
+    """
+    from docutils import nodes
+
+    paragraph = image.parent
+    if not isinstance(paragraph, nodes.paragraph):
+        return
+    after = paragraph.children[paragraph.index(image) + 1 :]
+    if any(child.astext().strip() for child in after):
+        return
+    for child in after:
+        paragraph.remove(child)
+    paragraph.remove(image)
+    parent = paragraph.parent
+    position = parent.index(paragraph)
+    if paragraph.astext().strip():
+        parent.insert(position + 1, image)
+    else:
+        parent.replace(paragraph, image)
 
 
 def _to_start_of_step(image):
@@ -136,8 +166,8 @@ def _to_start_of_step(image):
     """
     from docutils import nodes
 
-    block = image.parent if isinstance(image.parent, nodes.paragraph) else image
-    if isinstance(block, nodes.paragraph) and len(block.children) != 1:
+    block = image
+    if isinstance(block.parent, nodes.paragraph):
         return  # an image inside a sentence: left where it is
     item = block.parent
     while item is not None and not isinstance(item, nodes.list_item):
@@ -166,11 +196,16 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "docs"]
 
 # every image fits the page, also in height (a tall dialog would otherwise run off
 # the bottom of the page), keeping its proportions
+# xelatex: the pages use Unicode characters (μ, τ, −, √, ↗, ⌘) that pdflatex can't set
+latex_engine = "xelatex"
+# long class names in the index have no break points: a smaller font, lines not
+# justified
 latex_elements = {
     "preamble": r"""
 \usepackage[export]{adjustbox}
 \setkeys{Gin}{max width=\linewidth,max height=0.8\textheight,keepaspectratio}
 """,
+    "printindex": r"\footnotesize\raggedright\printindex",
 }
 
 
