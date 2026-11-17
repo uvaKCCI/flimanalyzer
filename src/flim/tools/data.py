@@ -407,6 +407,55 @@ class Merge(Tool[MergeConfig]):
     inputs = (InputSpec("left", TableType), InputSpec("right", TableType))
     outputs = (OutputSpec("Merged", TableType),)
 
+    @staticmethod
+    def join_columns(config: MergeConfig, left: Any, right: Any) -> list[str]:
+        """Return the columns to join on: `on`, or the category columns both tables have.
+
+        Args:
+            config: The config.
+            left: The first table: a DataFrame or a `TableSchema`.
+            right: The second table, of the same kind.
+
+        Returns:
+            The columns, in the order of the first table for automatic selection.
+        """
+        if config.on is not None:
+            return list(config.on)
+
+        def categories(table: Any) -> list[str]:
+            if isinstance(table, pd.DataFrame):
+                return category_columns(table)
+            return [c.name for c in table.columns if c.role == "category"]
+
+        right_categories = set(categories(right))
+        return [c for c in categories(left) if c in right_categories]
+
+    @staticmethod
+    def no_columns_message(config: MergeConfig) -> str:
+        """Return why there are no columns to join on, for an empty `join_columns`."""
+        if config.on is not None:
+            return "select at least one column to merge on"
+        return "the two tables have no shared category columns to merge on"
+
+    @classmethod
+    def validate(cls, config: MergeConfig, inputs: Sequence[Any]) -> list[Issue]:
+        """Validate the config; no columns to join on is an error.
+
+        The automatic selection is validated only with complete schemas of both
+        tables.
+        """
+        issues = super().validate(config, inputs)
+        schemas = list(inputs)
+        known = len(schemas) == 2 and all(s is not None and s.complete for s in schemas)
+        if config.on is not None:
+            empty = not config.on
+        else:
+            empty = known and not cls.join_columns(config, *schemas)
+        if empty:
+            message = cls.no_columns_message(config)
+            issues.append(Issue("on", message[:1].upper() + message[1:]))
+        return issues
+
     def run(
         self, left: pd.DataFrame, right: pd.DataFrame, *, config: MergeConfig
     ) -> dict[str, Any]:
@@ -425,16 +474,47 @@ class Merge(Tool[MergeConfig]):
                 have), `combine_identical`, and the suffixes `suffix_left` and
                 `suffix_right`.
 
+        A row with a missing value in a column joined on matches no row: with `left`,
+        `right` or `outer` it is kept without values of the other table, with
+        `inner` it is left out. A warning gives the number of these rows.
+
         Returns:
             `Merged`: the joined table, its category columns first; the columns
             joined on are category columns.
+
+        Raises:
+            ValueError: If there are no columns to join on (none selected, or the
+                tables have no category column in common).
         """
-        on = config.on
-        if on is None:
-            right_cats = set(category_columns(right))
-            on = [c for c in category_columns(left) if c in right_cats]
+        on = self.join_columns(config, left, right)
+        if not on:
+            raise ValueError(f"{self.name}: {self.no_columns_message(config)}")
         suffixes = (config.suffix_left, config.suffix_right)
-        merged = pd.merge(left, right, how=config.how, on=on, suffixes=suffixes)
+        # pandas pairs missing key values with each other: each row with a missing
+        # key value gets its own value of an extra key, so that it matches no row
+        key = unique_name("row", "row", [*map(str, left.columns), *map(str, right.columns)])
+        unmatched = []
+        tables = []
+        offset = 0
+        for table, name, kept in (
+            (left, "first", config.how in ("left", "outer")),
+            (right, "second", config.how in ("right", "outer")),
+        ):
+            missing = table[on].isna().any(axis=1).to_numpy()
+            ids = np.full(len(table), -1)
+            ids[missing] = offset + np.arange(missing.sum())
+            offset += int(missing.sum())
+            tables.append(table.assign(**{key: ids}))
+            if missing.any():
+                fate = "kept without a match" if kept else "left out"
+                unmatched.append(f"{int(missing.sum())} of the {name} table ({fate})")
+        if unmatched:
+            self.warn(
+                f"rows with no value in a column merged on ({', '.join(on)}) match no"
+                f" row: {'; '.join(unmatched)}"
+            )
+        merged = pd.merge(*tables, how=config.how, on=on + [key], suffixes=suffixes)
+        merged = merged.drop(columns=key)
         merged[on] = merged[on].astype("category")
         # columns both tables have (not merged on): one column if they agree
         shared = [c for c in left.columns if c in right.columns and c not in on]

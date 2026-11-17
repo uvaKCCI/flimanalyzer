@@ -185,6 +185,54 @@ def test_merge_outer_join_takes_the_value_of_either_side():
     assert isinstance(df["Note"].dtype, pd.CategoricalDtype)  # the left table's type
 
 
+def _keyed(fovs, values):
+    return pd.DataFrame({"FOV": pd.Categorical(fovs), "x": values})
+
+
+@pytest.mark.parametrize(
+    "how, rows",
+    [
+        ("inner", [("1", 1.0, 10.0)]),
+        ("left", [("1", 1.0, 10.0), (None, 2.0, None), (None, 3.0, None)]),
+        ("right", [("1", 1.0, 10.0), (None, None, 20.0)]),
+        ("outer", [("1", 1.0, 10.0), (None, 2.0, None), (None, 3.0, None), (None, None, 20.0)]),
+    ],
+)
+def test_merge_does_not_pair_missing_key_values(how, rows):
+    left = _keyed(["1", None, None], [1.0, 2.0, 3.0])
+    right = _keyed(["1", None], [10.0, 20.0])
+    tool = Merge()
+    merged = table(tool(left, right, config=MergeConfig(how=how)))
+    values = merged.astype(object).where(merged.notna(), None)
+    assert sorted(map(tuple, values.values.tolist()), key=str) == sorted(rows, key=str)
+    assert list(merged.columns) == ["FOV", "x (left)", "x (right)"]
+    (warning, _) = tool.context.warnings  # and the suffixes warning
+    first = "kept without a match" if how in ("left", "outer") else "left out"
+    second = "kept without a match" if how in ("right", "outer") else "left out"
+    assert warning == (
+        "rows with no value in a column merged on (FOV) match no row:"
+        f" 2 of the first table ({first}); 1 of the second table ({second})"
+    )
+
+
+def test_merge_without_columns_to_merge_on():
+    left = _keyed(["1"], [1.0])
+    right = pd.DataFrame({"Cell": pd.Categorical(["1"]), "y": [2.0]})
+    schemas = [TableSchema.from_frame(left), TableSchema.from_frame(right)]
+    issues = Merge.validate(MergeConfig(), schemas)
+    assert [(i.field, i.message, i.severity) for i in issues] == [
+        ("on", "The two tables have no shared category columns to merge on", "error")
+    ]
+    assert Merge.validate(MergeConfig(), [schemas[0], schemas[0]]) == []
+    assert Merge.validate(MergeConfig(), [None, schemas[1]]) == []  # not known
+    with pytest.raises(ValueError, match="Merge: the two tables have no shared category"):
+        Merge()(left, right)
+    (issue,) = Merge.validate(MergeConfig(on=[]), [None, None])
+    assert issue.message == "Select at least one column to merge on"
+    with pytest.raises(ValueError, match="select at least one column to merge on"):
+        Merge()(left, left, config=MergeConfig(on=[]))
+
+
 def test_pivot(data):
     df = table(
         Pivot()(data, config=PivotConfig(grouping=["Treatment"], features=["t1"]))
