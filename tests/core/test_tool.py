@@ -282,3 +282,10 @@ def test_a_tool_without_output_types_makes_any_kind_with_a_deprecation_warning()
     with warnings.catch_warnings():
         warnings.simplefilter("error", DeprecationWarning)
         assert Old.output_kinds() == kinds  # warned once
+
+
+def test_the_0_6_name_check_requirements_is_deprecated():
+    import flim.core.tool as tool_module
+
+    with pytest.warns(DeprecationWarning, match="removed in 0.8.0; use flim.core.tool.validate_requirements"):
+        assert tool_module.check_requirements is tool_module.validate_requirements

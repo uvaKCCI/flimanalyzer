@@ -66,8 +66,8 @@ def add_file_options(
     )  # fmt: skip
     parser.add_argument(
         "-w", "--workflow-path", nargs="+", action="extend", default=[], metavar="DIR",
-        help="folders searched for workflow files, before FLIM_WORKFLOW_PATH\n"
-        "(repeatable)",
+        help="folders searched for workflow and tool files; they replace the folders of\n"
+        "FLIM_WORKFLOW_PATH and of the settings (repeatable)",
     )  # fmt: skip
 
 

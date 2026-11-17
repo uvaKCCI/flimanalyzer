@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Generic, Optional, Sequence, Ty
 from pydantic import BaseModel
 
 from flim.core.config import Issue, TaskConfig, column_references, requirement_issues
+from flim.core.deprecation import deprecated_names
 from flim.core.registry import API_VERSION
 from flim.core.schema import TableSchema
 from flim.core.types import DataType, InputSpec, OutputSpec, TableType
@@ -32,6 +33,11 @@ if TYPE_CHECKING:
     from flim.core.runner import TaskOutput
 
 logger = logging.getLogger(__name__)
+
+# names of 0.6 that were renamed: still importable, with a DeprecationWarning
+__getattr__ = deprecated_names(
+    __name__, {"check_requirements": (__name__, "validate_requirements", "0.8.0")}
+)
 
 ConfigT = TypeVar("ConfigT", bound=TaskConfig)
 
