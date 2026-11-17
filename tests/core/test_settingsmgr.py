@@ -25,8 +25,8 @@ def written(path) -> dict:
 def test_readers_get_copies():
     manager = SettingsManager()
     copy = manager.settings
-    copy.filters.use = not copy.filters.use
-    assert manager.settings.filters.use != copy.filters.use
+    copy.filters.features.enabled = not copy.filters.features.enabled
+    assert manager.settings.filters.features.enabled != copy.filters.features.enabled
 
 
 def test_set_tool_writes_only_that_tool(tmp_path):
@@ -184,7 +184,7 @@ def test_load_applies_a_file_for_the_session_only(tmp_path):
 def test_load_migrates_older_files(tmp_path):
     old = tmp_path / "old.json"
     old.write_text(json.dumps({"root": {"filters": {"Use": True}}}))  # version 0
-    assert SettingsManager().load(old).filters.use is True
+    assert SettingsManager().load(old).filters.features.enabled is True
 
 
 def test_export_writes_all_settings(tmp_path):
@@ -220,7 +220,7 @@ def test_legacy_is_written_only_if_set(tmp_path):
 def test_older_user_file_is_migrated(tmp_path):
     path = tmp_path / "usersettings.json"
     path.write_text(json.dumps({"root": {"filters": {"Use": True}}}))  # version 0
-    assert SettingsManager(user_file=UserSettingsFile(path)).settings.filters.use is True
+    assert SettingsManager(user_file=UserSettingsFile(path)).settings.filters.features.enabled is True
 
 
 def test_user_settings_path_from_the_environment(monkeypatch, tmp_path):

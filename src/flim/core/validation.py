@@ -583,8 +583,8 @@ def resolve_step(
             else:
                 removed.setdefault(top, []).append(name)
             continue
-        if top in tool.skippable_fields and top not in REMOVED_ENTRIES and mode != "none":
-            continue  # the tool skips the entry (Tool.skip)
+        if top in tool.skippable_fields and mode != "none":
+            continue  # the tool skips the entry (Tool.skip), e.g. a filter's column
         result.errors.append(f"{path}: {issue.message}")
     for top, names in removed.items():
         value = getattr(config, top)
@@ -596,8 +596,8 @@ def resolve_step(
         result.skipped += [f"{top}: '{n}' (not in the input)" for n in names]
     for top in REMOVED_ENTRIES:
         value = getattr(config, top, None)
-        if value is None or value == "all":
-            continue
+        if not isinstance(value, (list, tuple, dict)):
+            continue  # None, `all`, or a field of another kind (Filter's `features`)
         least = config.min_features if top == "features" else config.min_grouping
         if rules.skip(top) == "some" and top in removed:  # skipped entries: not all
             least = max(least, 1)

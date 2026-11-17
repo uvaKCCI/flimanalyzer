@@ -12,10 +12,12 @@ from flim.configs.data import RangeFilterNode as Range
 from flim.core.filtering import (
     WindowFilters,
     apply_filters,
-    validate_filters,
     label,
+    validate_filters,
     window_filters,
+    window_part,
     window_ranges,
+    window_settings,
     with_window_ranges,
 )
 from flim.core.schema import TableSchema
@@ -34,6 +36,9 @@ def data():
 
 
 def kept(data, *filters):
+    """The names of the rows kept by filter nodes, or by a Filter config."""
+    if len(filters) == 1 and isinstance(filters[0], FilterConfig):
+        filters = filters[0]
     return list(apply_filters(data, filters).data["name"])
 
 
@@ -113,16 +118,125 @@ def test_labels():
 
 
 def test_filter_tool(data):
-    config = FilterConfig(filters=[Range(column="t1", high=5)])
+    config = FilterConfig(features={"filters": [Range(column="t1", high=5)]})
     (table,) = Filter()(data, config=config).values()
     assert list(table["name"]) == ["a", "b"]
     # a filter on a missing column keeps all rows: a warning only if it is used
-    config = FilterConfig(filters=[Range(column="gone", high=1), Range(column="lost", enabled=False)])
+    config = FilterConfig(
+        features={"filters": [Range(column="gone", high=1), Range(column="lost", enabled=False)]}
+    )
     issues = Filter.validate(config, [TableSchema.from_frame(data)])
-    assert [(i.field, i.severity) for i in issues] == [("filters[0].column", "warning")]
-    config = FilterConfig(filters=[Group(kind="any", filters=[Expression(expression="1 +")])])
+    assert [(i.field, i.severity) for i in issues] == [("features.filters[0].column", "warning")]
+    config = FilterConfig(other={"filters": [Group(kind="any", filters=[Expression(expression="1 +")])]})
     (issue,) = Filter.validate(config, [TableSchema.from_frame(data)])
-    assert (issue.field, issue.severity) == ("filters[0].filters[0].expression", "error")
+    assert (issue.field, issue.severity) == ("other.filters[0].filters[0].expression", "error")
+
+
+def parts(**values):
+    """A Filter config: the parts' filters as lists, the switches as `<part>_on`."""
+    config = {"enabled": values.pop("enabled", True)}
+    for part in ("features", "categories", "other"):
+        config[part] = {"filters": values.get(part, []), "enabled": values.get(f"{part}_on", True)}
+    return FilterConfig(**config)
+
+
+def test_a_row_is_kept_if_every_part_keeps_it(data):
+    config = parts(
+        features=[Range(column="t1", high=6)],
+        categories=[Category(column="FOV", keep=["2"])],
+        other=[Expression(expression="t1 > 2")],
+    )
+    outcome = apply_filters(data, config)
+    assert list(outcome.data["name"]) == ["b"]
+    assert [path for path, _, _ in outcome.dropped] == [
+        "features.filters[0]", "categories.filters[0]", "other.filters[0]"
+    ]  # fmt: skip
+
+
+def test_a_filter_applies_only_if_every_switch_on_its_way_is_on(data):
+    everything = ["a", "b", "c", "d"]
+    ranges = [Range(column="t1", high=2)]
+    assert kept(data, parts(features=ranges)) == ["a"]
+    assert kept(data, parts(features=ranges, enabled=False)) == everything  # top level
+    assert kept(data, parts(features=ranges, features_on=False)) == everything  # part
+    off = [Range(column="t1", high=2, enabled=False)]
+    assert kept(data, parts(features=off)) == everything  # leaf
+    group = Group(enabled=False, filters=[Range(column="t1", high=2)])
+    assert kept(data, parts(other=[group])) == everything  # group
+    # a switch narrows: an enabled leaf in a part that is off stays off
+    both = parts(features=ranges, features_on=False, categories=[Category(column="FOV", keep=["1"])])
+    assert kept(data, both) == ["a", "c"]
+    assert apply_filters(data, parts(features=ranges, enabled=False)).dropped == []
+    # the tool: all rows with the top-level switch off
+    (table,) = Filter()(data, config=parts(features=ranges, enabled=False)).values()
+    assert list(table["name"]) == everything
+
+
+def test_validate_only_the_filters_in_use(data):
+    config = parts(
+        features=[Range(column="t1", high=2)],
+        other=[Range(column="t1", low=5), Expression(expression="1 +")],
+    )
+    problems = [(path, severity) for path, severity, _ in validate_filters(config, list(data.columns))]
+    # the parts form one `all` group: the ranges on t1 don't overlap
+    assert problems == [("other.filters[1].expression", "error"), ("other.filters[0]", "warning")]
+    off = config.model_copy(update={"other": config.other.model_copy(update={"enabled": False})})
+    assert validate_filters(off, list(data.columns)) == []
+    schema = [TableSchema.from_frame(data)]
+    config = parts(categories=[Category(column="FOV", keep=["9"])], categories_on=False)
+    assert Filter.validate(config, schema) == []  # a value not in the column, not in use
+    config = parts(categories=[Category(column="FOV", keep=["9"])])
+    assert [i.field for i in Filter.validate(config, schema)] == ["categories.filters[0].keep"]
+
+
+def test_one_filter_per_column_in_features_and_categories():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="two range filters on 't1'"):
+        FilterConfig(features={"filters": [Range(column="t1"), Range(column="t1", low=1)]})
+    with pytest.raises(ValidationError, match="two category filters on 'FOV'"):
+        FilterConfig(categories={"filters": [Category(column="FOV"), Category(column="FOV")]})
+    with pytest.raises(ValidationError):  # only range leaves in features
+        FilterConfig(features={"filters": [Category(column="FOV")]})
+    # further filters on a column: in the other filters
+    config = FilterConfig(
+        features={"filters": [Range(column="t1")]}, other={"filters": [Range(column="t1", low=1)]}
+    )
+    assert len(config.other.filters) == 1
+
+
+def test_flat_filters_of_development_builds_convert_by_kind():
+    flat = [
+        Range(column="t1", high=2),
+        Category(column="FOV", keep=["1"], enabled=False),
+        Expression(expression="t1 > 0"),
+        Range(column="t1", low=1),  # the second on t1: other
+        Category(column="FOV", keep=["2"]),  # likewise
+        Group(kind="any", filters=[Range(column="t2")]),
+    ]
+    config = FilterConfig.model_validate(
+        {"enabled": False, "filters": [n.model_dump(mode="json") for n in flat]}
+    )
+    assert not config.enabled
+    assert config.features.filters == [flat[0]]
+    assert config.categories.filters == [flat[1]]
+    assert config.other.filters == [flat[2], flat[3], flat[4], flat[5]]
+    assert "filters" not in config.model_dump()
+    # nothing is lost: the same rows are kept as by the flat list
+    data = pd.DataFrame({"t1": [0.5, 1.5, 3.0], "t2": [1.0, 1.0, 1.0], "FOV": pd.Categorical(["1", "2", "2"])})
+    assert apply_filters(data, config.model_copy(update={"enabled": True})).kept.tolist() == (
+        apply_filters(data, flat).kept.tolist()
+    )
+
+
+def test_settings_of_0_6_convert_by_kind():
+    config = FilterConfig(range_filters={"t1": {"high": 2}}, category_filters={"FOV": ["1"]})
+    assert config.features.filters == [Range(column="t1", high=2)]
+    assert config.categories.filters == [Category(column="FOV", keep=["1"])]
+    assert config.other.filters == [] and config.enabled
+    legacy = {"range_filters": [{"name": "t1", "rangelow": 0, "rangehigh": 2}], "category_filters": {"F": ["a"]}}
+    config = FilterConfig.from_legacy_params({**legacy, "features": [], "use": False})
+    assert (config.enabled, len(config.features.filters), len(config.categories.filters)) == (False, 1, 1)
 
 
 def test_window_ranges_round_trip():
@@ -148,8 +262,85 @@ def test_window_filters_of_the_settings():
     from flim.core.settings import AppSettings
 
     settings = AppSettings.default()
-    settings.filters.use = True
+    settings.filters.features.enabled = True
     filters = window_filters(settings)
-    assert isinstance(filters, WindowFilters) and filters.use
-    assert len(filters.range_filters) == 38  # 39 defaults; NAD(P)H a2[%] twice
+    assert isinstance(filters, WindowFilters)
+    assert filters.features.enabled and not filters.categories.enabled
+    assert len(filters.range_filters) == 38  # the defaults, one per column
     assert sum(r["selected"] for r in filters.range_filters) == 3
+    assert filters.category_filters == {}
+
+
+def test_use_of_development_builds_is_read_as_both_switches():
+    from flim.core.settings import FilterSettings
+
+    for model in (WindowFilters, FilterSettings):
+        on = model.model_validate({"use": True})
+        assert on.features.enabled and on.categories.enabled
+        assert "use" not in on.model_dump()
+        off = model.model_validate({"use": False})
+        assert not off.features.enabled and not off.categories.enabled
+    with pytest.raises(ValueError):
+        FilterSettings.model_validate({"use": "not a boolean"})
+
+
+def test_window_settings_hold_only_the_range_filters():
+    filters = WindowFilters(
+        features={"enabled": True},
+        categories={"enabled": True},
+        range_filters=[{"name": "t1", "rangelow": 0, "rangehigh": 2, "selected": True}],
+        category_filters={"FOV": ["1"]},
+    )
+    settings = window_settings(filters)
+    assert set(settings) == {"features"}
+    assert settings["features"]["enabled"] is True
+    assert [n["column"] for n in settings["features"]["filters"]] == ["t1"]
+    part = window_part(settings)
+    assert (part.use, [r["name"] for r in part.ranges], part.unused) == (True, ["t1"], 0)
+
+
+def test_window_part_ignores_category_filters_of_earlier_presets():
+    earlier = {  # a preset of a development build: the switch and a flat list
+        "enabled": False,
+        "filters": [
+            Range(column="t1", high=2).model_dump(mode="json"),
+            Category(column="FOV", keep=["1"]).model_dump(mode="json"),
+        ],
+    }
+    part = window_part(earlier)
+    assert part.use is False  # the earlier `Filter Data`: the range filters' switch
+    assert [r["name"] for r in part.ranges] == ["t1"] and part.unused == 1
+    # a part without switches leaves Filter Features as it is
+    assert window_part({"features": {"filters": []}}).use is None
+    # the top-level switch narrows the part's
+    assert window_part({"enabled": False, "features": {"enabled": True}}).use is False
+
+
+def test_processing_of_workflow_file_steps_names_the_parts():
+    from flim.core.config import Processing
+    from flim.core.workflowfile import processing_issues
+
+    config = parts(features=[Range(column="t1", high=2)])
+    rules = Processing(
+        skippable={"features": "some", "other": "all"}, required={"features": [{"column": "t1"}]}
+    )
+    assert processing_issues(Filter, rules, config, "step 1") == ([], [])
+    rules = Processing(required={"features": [{"column": "t9"}]}, skippable={"filters": "some"})
+    _, errors = processing_issues(Filter, rules, config, "step 1")
+    assert any("can't skip entries of 'filters'" in e for e in errors)
+    assert any("{'column': 't9'} is not an entry of features" in e for e in errors)
+
+
+def test_workflow_file_step_with_a_range_on_a_missing_column(data):
+    from flim.core.config import Processing, ProcessingRules
+    from flim.core.validation import resolve_step
+
+    config = parts(features=[Range(column="gone", high=2)], other=[Range(column="t1", high=5)])
+    schema = TableSchema.from_frame(data)
+    rules = ProcessingRules.of(Processing(skippable={"features": "some"}))
+    resolution = resolve_step(Filter, config, [schema], rules)
+    assert resolution.errors == [] and resolution.config == config  # the tool skips it
+    tool = Filter()
+    tool._processing = rules
+    (table,) = tool(data, config=config).values()
+    assert list(table["name"]) == ["a", "b"]  # the range on t1 applies

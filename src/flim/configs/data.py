@@ -273,42 +273,202 @@ def _filters_of_v1(
     return nodes
 
 
+# the parts of the Filter tool's settings, in the order they are evaluated and shown
+FILTER_PARTS = ("features", "categories", "other")
+# the parts with one leaf per column, by the kind of their leaves
+_LEAF_PARTS = {"range": "features", "category": "categories"}
+
+
+def _kind_and_column(node: Any) -> tuple[str, Any]:
+    """Return the kind of a filter node (a dict or a model) and its column, if any."""
+    if isinstance(node, dict):
+        return node.get("kind", "range"), node.get("column")
+    return getattr(node, "kind", "range"), getattr(node, "column", None)
+
+
+def _part_dict(part: Any) -> dict[str, Any]:
+    """Return a part of the Filter settings (a dict, a model or None) as a dict."""
+    if part is None:
+        return {}
+    if isinstance(part, BaseConfig):
+        return {"enabled": part.enabled, "filters": list(part.filters)}
+    return dict(part)
+
+
+def split_filters(
+    nodes: list[Any], parts: Optional[dict[str, Any]] = None
+) -> dict[str, dict[str, Any]]:
+    """Add filter nodes to the parts of the Filter tool's settings, by kind.
+
+    Range leaves go to `features`, category leaves to `categories`, all other nodes
+    (expressions, groups) to `other`. A range or category leaf on a column that its
+    part has already goes to `other`, so that each column has one leaf in its part.
+
+    Args:
+        nodes: The filter nodes, dicts or models, e.g. a flat `filters` list of
+            earlier settings.
+        parts: The parts to add to (`features`, `categories`, `other`; dicts or
+            models), not changed. Defaults to empty parts.
+
+    Returns:
+        A new dict of the three parts, each a dict with its `filters` and, if given,
+        its `enabled`.
+    """
+    parts = parts or {}
+    result = {name: _part_dict(parts.get(name)) for name in FILTER_PARTS}
+    for part in result.values():
+        part["filters"] = list(part.get("filters") or [])
+    columns = {
+        name: {_kind_and_column(n)[1] for n in result[name]["filters"]}
+        for name in _LEAF_PARTS.values()
+    }
+    for node in nodes:
+        kind, column = _kind_and_column(node)
+        name = _LEAF_PARTS.get(kind, "other")
+        if name != "other" and column in columns[name]:
+            name = "other"  # a further leaf of the column
+        elif name != "other":
+            columns[name].add(column)
+        result[name]["filters"].append(node)
+    return result
+
+
+def _one_per_column(filters: list[FilterNode], what: str) -> None:
+    """Reject a second leaf on a column.
+
+    Raises:
+        ValueError: If two leaves name the same column.
+    """
+    seen = set()
+    for node in filters:
+        if node.column in seen:
+            raise ValueError(
+                f"two {what} filters on '{node.column}': one per column; put further"
+                " filters on the column into the other filters"
+            )
+        seen.add(node.column)
+
+
+class FeatureFilters(BaseConfig):
+    """The range filters of the Filter tool: one per feature column."""
+
+    enabled: bool = Field(
+        default=True,
+        title="Use range filters",
+        description="Off: the range filters keep all rows.",
+    )
+    filters: list[RangeFilterNode] = Field(
+        default=[],
+        title="Range filters",
+        description="One per feature column: rows outside [low, high] are dropped"
+        " (empty: no limit).",
+    )
+
+    @model_validator(mode="after")
+    def _validate_columns(self) -> Self:
+        """Reject a second range filter on a column."""
+        _one_per_column(self.filters, "range")
+        return self
+
+
+class CategoryFilters(BaseConfig):
+    """The category filters of the Filter tool: one per category column."""
+
+    enabled: bool = Field(
+        default=True,
+        title="Use category filters",
+        description="Off: the category filters keep all rows.",
+    )
+    filters: list[CategoryFilterNode] = Field(
+        default=[],
+        title="Category values to keep",
+        description="One per category column: the values whose rows are kept.",
+    )
+
+    @model_validator(mode="after")
+    def _validate_columns(self) -> Self:
+        """Reject a second category filter on a column."""
+        _one_per_column(self.filters, "category")
+        return self
+
+
+class OtherFilters(BaseConfig):
+    """The other filters of the Filter tool: filters of any kind."""
+
+    enabled: bool = Field(
+        default=True,
+        title="Use other filters",
+        description="Off: the other filters keep all rows.",
+    )
+    filters: list[FilterEntry] = Field(
+        default=[],
+        title="Other filters",
+        description="Conditions, groups and further filters; a row is kept if every"
+        " filter keeps it.",
+    )
+
+
 class FilterConfig(DataTaskConfig):
     """Config of Filter: keeps the rows that the filters keep.
 
-    The filters are a tree whose top level is an `all` group: a row is kept if every
-    filter of the list keeps it. A filter is used only if `enabled` (the switch of
-    all filters), the `enabled` of each group it is in and its own `enabled` are all
-    true.
+    The filters are in three parts: `features` (range filters, one per feature
+    column), `categories` (category filters, one per category column) and `other`
+    (filters of any kind: expressions, `all`/`any`/`not` groups, further filters on
+    a column). A row is kept if every part keeps it; a part keeps a row if every
+    filter of its list keeps it. A filter is used only if every `enabled` on its way
+    is on: `enabled` (the switch of all filters), its part's `enabled`, the
+    `enabled` of each group it is in and its own `enabled`.
+
+    Settings of FLIMAnalyzer 0.5 and 0.6 (`category_filters`, `range_filters`) and a
+    flat `filters` list are converted by kind (see `split_filters`).
     """
 
-    legacy_keys = {"filters": None, "enabled": "use"}  # 0.5: `use`, the same switch
+    legacy_keys = {
+        "enabled": "use", "features": None, "categories": None, "other": None,
+    }  # fmt: skip  # 0.5: `use`, the same switch
     legacy_dropped = frozenset({"inplace", "show_dropped"})  # unused
-    hidden_fields = frozenset({"grouping", "features"})
+    hidden_fields = frozenset({"grouping"})
 
     enabled: bool = Field(
         default=True,
         title="Use filters",
         description="The switch of all filters: off keeps all rows. A filter is used"
-        " only if this, the groups it is in and its own Use are all on.",
+        " only if this, its part's switch, the groups it is in and its own Use are"
+        " all on.",
     )
-    filters: list[FilterEntry] = Field(
-        default=[],
-        title="Filters",
-        description="A row is kept if every filter keeps it. A filter on a column the"
-        " table doesn't have keeps all rows.",
+    features: FeatureFilters = Field(
+        default_factory=FeatureFilters,
+        title="Range filters",
+        description="One range filter per feature column.",
+        json_schema_extra={"order": 301},
+    )
+    categories: CategoryFilters = Field(
+        default_factory=CategoryFilters,
+        title="Category values to keep",
+        description="One category filter per category column.",
+        json_schema_extra={"order": 302},
+    )
+    other: OtherFilters = Field(
+        default_factory=OtherFilters,
+        title="Other filters",
+        description="Filters of any kind. A filter on a column the table doesn't have"
+        " keeps all rows.",
+        json_schema_extra={"order": 303},
     )
 
     @model_validator(mode="before")
     @classmethod
     def _from_v1(cls, values: Any) -> Any:
-        """Convert the older fields `category_filters` and `range_filters`."""
-        if isinstance(values, dict) and (
-            "category_filters" in values or "range_filters" in values
-        ):
-            values = dict(values)
-            old = {k: values.pop(k) for k in ("category_filters", "range_filters") if k in values}
-            values["filters"] = list(values.get("filters") or []) + _filters_of_v1(old)
+        """Convert `category_filters`, `range_filters` and a flat `filters` list."""
+        if not isinstance(values, dict):
+            return values
+        old = ("category_filters", "range_filters", "filters")
+        if not any(k in values for k in old):
+            return values
+        values = dict(values)
+        legacy = {k: values.pop(k) for k in old[:2] if k in values}
+        nodes = list(values.pop("filters", None) or []) + _filters_of_v1(legacy)
+        values.update(split_filters(nodes, values))
         return values
 
     @classmethod
@@ -322,11 +482,19 @@ class FilterConfig(DataTaskConfig):
                 filters.append({"kind": "range", "column": spec["name"], **range_of_legacy(spec)})
         for column, keep in (params.pop("category_filters", {}) or {}).items():
             filters.append({"kind": "category", "column": column, "keep": list(keep)})
-        return {"filters": filters}
+        params.pop("features", None)  # the plugin's feature columns: not used
+        return split_filters(filters)
 
     def _to_legacy(self) -> dict[str, Any]:
-        """Return the enabled top-level range and category filters in legacy form."""
+        """Return the range and category filters in use as legacy filters.
+
+        These are the enabled filters of `features` and `categories`, if their
+        part is on; the other filters have no legacy form. The plugin's `features`
+        (feature columns, not used) is empty.
+        """
         inf = float("inf")
+        ranges = self.features.filters if self.features.enabled else []
+        categories = self.categories.filters if self.categories.enabled else []
         return {
             "range_filters": [
                 {
@@ -338,14 +506,11 @@ class FilterConfig(DataTaskConfig):
                     "selected": True,
                     "dropna": f.dropna,
                 }
-                for f in self.filters
-                if f.kind == "range" and f.enabled
+                for f in ranges
+                if f.enabled
             ],
-            "category_filters": {
-                f.column: list(f.keep)
-                for f in self.filters
-                if f.kind == "category" and f.enabled
-            },
+            "category_filters": {f.column: list(f.keep) for f in categories if f.enabled},
+            "features": [],  # the plugin's feature columns: not used
         }
 
 

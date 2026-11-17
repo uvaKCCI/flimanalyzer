@@ -304,30 +304,30 @@ class Concat(Tool[ConcatConfig]):
 
 @register_tool
 class Filter(Tool[FilterConfig]):
-    """Keeps the rows that a tree of filters keeps."""
+    """Keeps the rows that the range, category and other filters keep."""
 
     name = "Filter"
     category = "Data"
     description = (
         "Keeps the rows that the filters keep: values in ranges, category values,"
-        " conditions; the table windows use the same filters."
+        " conditions; the table windows use the same range filters."
     )
     icon = "filter.png"
     outputs = (OutputSpec("Filtered", TableType),)
-    skippable_fields = ("grouping", "features", "filters")
+    skippable_fields = ("grouping", "features", "categories", "other")
 
     def run(self, data: pd.DataFrame, *, config: FilterConfig) -> dict[str, Any]:
-        """Keep the rows that every top-level filter keeps.
+        """Keep the rows that every filter in use keeps.
 
-        A filter on a column the table doesn't have keeps all rows and is reported as
-        a skipped part of the settings. The rows each filter drops are logged.
-
-        With `enabled` off, all rows are kept.
+        A filter is used if every switch on its way is on: `enabled`, its part's,
+        its groups' and its own (see `flim.core.filtering.apply_filters`). A filter
+        on a column the table doesn't have keeps all rows and is reported as a
+        skipped entry of its part. The rows each filter drops are logged.
 
         Args:
             data: The table.
-            config: The switch of all filters (`enabled`) and the filter tree
-                (`filters`).
+            config: The switch of all filters (`enabled`) and the three parts
+                (`features`, `categories`, `other`).
 
         Returns:
             `Filtered`: the rows kept, numbered from 0.
@@ -337,12 +337,13 @@ class Filter(Tool[FilterConfig]):
         if not config.enabled:
             logger.info(f"{self.name}: the filters are switched off (Use filters): all rows kept")
             return {"Filtered": data.reset_index(drop=True).copy()}
-        outcome = apply_filters(data, config.filters)
-        # parts: a filter on a column the table doesn't have keeps all rows
+        outcome = apply_filters(data, config)
+        # entries: a filter on a column the table doesn't have keeps all rows
         self.applied(len(outcome.dropped) - len(outcome.notes))
         for path, note in outcome.notes.items():
-            index = int(re.match(r"filters\[(\d+)\]", path).group(1))
-            self.skip(f"{path}: {note}", entry=config.filters[index])
+            part, index = re.match(r"(\w+)\.filters\[(\d+)\]", path).groups()
+            entry = getattr(config, part).filters[int(index)]
+            self.skip(f"{path}: {note}", field=part, entry=entry)
         line = leaf_counts(outcome)
         if line:
             logger.info(f"{self.name}: {line}")
@@ -352,20 +353,20 @@ class Filter(Tool[FilterConfig]):
     def validate(cls, config: FilterConfig, inputs: Sequence[Any]) -> list[Issue]:
         """Validate the config against the input schema.
 
-        A column of an enabled filter that the input doesn't have is a warning (the
-        filter keeps all rows); for a disabled filter it is no issue. The filter tree
-        itself is validated by `flim.core.filtering.validate_filters`. A value of an enabled
-        category filter that its column doesn't have is a warning.
+        A column of a filter in use that the input doesn't have is a warning (the
+        filter keeps all rows); for a filter not in use it is no issue. The filters
+        themselves are validated by `flim.core.filtering.validate_filters`. A value
+        of a category filter in use that its column doesn't have is a warning.
         """
         from flim.core.filtering import validate_filters
 
-        enabled = set(_enabled_paths(config.filters, "filters")) if config.enabled else set()
+        used = set(_used_paths(config))
         issues = []
         for issue in super().validate(config, inputs):
             node = (issue.field or "").rsplit(".", 1)[0]
-            if "is not in the input" in issue.message and node.startswith("filters["):
+            if "is not in the input" in issue.message and _in_parts(node):
                 # a filter on a missing column keeps all rows (as up to 0.6)
-                if node in enabled:
+                if node in used:
                     message = issue.message.replace("is not in the input", "is not in the input: keeps all rows")
                     issues.append(Issue(issue.field, message, "warning"))
                 continue
@@ -373,11 +374,11 @@ class Filter(Tool[FilterConfig]):
         schema = inputs[0] if inputs else None
         complete = schema is not None and schema.complete
         columns = schema.names if complete else None
-        issues += [Issue(f, m, sev) for f, sev, m in validate_filters(config.filters, columns)]
+        issues += [Issue(f, m, sev) for f, sev, m in validate_filters(config, columns)]
         if schema is None:
             return issues
-        for path, node in _leaves(config.filters, "filters"):
-            if node.kind != "category" or not node.enabled:
+        for path, node in _part_leaves(config):
+            if node.kind != "category" or path not in used:
                 continue
             info = schema.column(node.column)
             if info is None or info.levels is None:
@@ -388,6 +389,30 @@ class Filter(Tool[FilterConfig]):
                     Issue(f"{path}.keep", f"Values not in '{node.column}': {missing}", "warning")
                 )
         return issues
+
+
+def _in_parts(path: str) -> bool:
+    """Return whether a config path is inside the filter parts, e.g. `other.filters[0]`."""
+    from flim.configs.data import FILTER_PARTS
+
+    return path.startswith(tuple(f"{part}.filters[" for part in FILTER_PARTS))
+
+
+def _part_leaves(config: FilterConfig) -> Iterator[tuple[str, FilterNode]]:
+    """Yield (path, node) of every leaf of the three parts, also in groups."""
+    from flim.configs.data import FILTER_PARTS
+
+    for part in FILTER_PARTS:
+        yield from _leaves(getattr(config, part).filters, f"{part}.filters")
+
+
+def _used_paths(config: FilterConfig) -> Iterator[str]:
+    """Yield the paths of the nodes in use: every switch on their way is on."""
+    from flim.configs.data import FILTER_PARTS
+
+    for part in FILTER_PARTS:
+        on = config.enabled and getattr(config, part).enabled
+        yield from _enabled_paths(getattr(config, part).filters, f"{part}.filters", on)
 
 
 def _leaves(

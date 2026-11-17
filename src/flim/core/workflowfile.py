@@ -254,6 +254,7 @@ def processing_issues(
                 )
     for key, entries in processing.required.items():
         value = getattr(config, key, None) if key in tool.skippable_fields else None
+        value = getattr(value, "filters", value)  # a part of Filter's settings: its filters
         if value is None or value == "all":
             continue
         present = list(value) if isinstance(value, (list, tuple, dict, set)) else [value]

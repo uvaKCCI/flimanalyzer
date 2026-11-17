@@ -40,16 +40,21 @@ def test_defaults():
     settings = AppSettings.default()
     assert settings.schema_version == SETTINGS_VERSION
     assert "import" not in settings.to_json()  # reading: a workflow file's
-    # the windows' range filters of 0.6, now the Filter tool's filters
-    filters = settings.tools.config(tools.get("Filter")).filters
-    assert len(filters) == 39 and sum(f.enabled for f in filters) == 3
+    # the windows' range filters of 0.6, now the Filter tool's range filters
+    config = settings.tools.config(tools.get("Filter"))
+    filters = config.features.filters
+    assert len(filters) == 38 and sum(f.enabled for f in filters) == 3  # one per column
+    assert len({f.column for f in filters}) == 38
     assert filters[0].column == "trp t1" and (filters[0].low, filters[0].high) == (0, 2500)
+    assert config.categories.filters == [] and config.other.filters == []
     assert settings.results_dir is None and settings.resolved_results_dir() == START_DIR
     assert settings.execution == LocalExecutorSettings() and settings.prefect_server
     assert settings.log.dir is None and settings.log.max_age_days == 30
     assert "cache" not in settings.to_json()
     assert "preprocess" not in settings.to_json()  # the Rename, Drop, Calculate tools'
-    assert set(settings.filters.model_dump()) == {"use", "show_dropped"}
+    assert settings.filters.model_dump() == {
+        "features": {"enabled": False}, "categories": {"enabled": False}, "show_dropped": True,
+    }  # fmt: skip
     assert list(settings.tools.entries) == ["Filter"]  # the others: their configs'
 
 
@@ -60,7 +65,8 @@ def test_settings_of_version_0(caplog):
     assert settings.schema_version == SETTINGS_VERSION
     assert settings.results_dir == Path("/data/results")
     assert "import" not in settings.to_json()  # dropped: a workflow file's
-    assert settings.filters.use is False and settings.filters.show_dropped is True
+    assert settings.filters.features.enabled is False and settings.filters.show_dropped is True
+    assert settings.filters.categories.enabled is False
     store = settings.tools
     summary = store.config(tools.get("Summarize"))
     assert isinstance(summary, SummaryConfig)
@@ -96,7 +102,7 @@ def test_unknown_keys_are_reported_not_fatal(caplog):
     with caplog.at_level(logging.WARNING):
         settings = settings_from_data(data)
     assert "colour" in caplog.text and "filters.x" in caplog.text
-    assert settings.filters.use is False
+    assert settings.filters.features.enabled is False
 
 
 def test_newer_versions_are_refused():
@@ -161,7 +167,9 @@ def test_a_file_with_some_sections_changes_only_those():
         "tools": {"Summarize": {"config": SummaryConfig(aggs=["max"]).model_dump()}},
     }
     updated = update_settings(settings, data)
-    assert updated.filters.use and updated.filters.show_dropped  # replaced: default
+    # replaced; `use` of development builds: both switches
+    assert updated.filters.features.enabled and updated.filters.categories.enabled
+    assert updated.filters.show_dropped  # default
     assert updated.tools.config(tools.get("K-Means")).n_clusters == 3
     assert updated.tools.config(tools.get("Summarize")).aggs == ["max"]
 
@@ -310,20 +318,33 @@ def test_filters_of_version_1_become_the_filter_tools():
         {"name": "t2", "rangelow": 0, "rangehigh": 10, "selected": False, "dropna": False},
     ]
     data["filters"]["series_filters"] = [{"x": 1}]
+    data["filters"]["use"] = True
     data["tools"]["Filter"] = {
-        "config": {"range_filters": {"t3": {"high": 2}}, "category_filters": {"FOV": ["1"]}}
+        "config": {
+            "range_filters": {"t3": {"high": 2}, "t1": {"high": 9}},
+            "category_filters": {"FOV": ["1"]},
+        }
     }
     changes = Changes()
-    settings = AppSettings.model_validate(migrate(data, changes))
-    assert set(settings.filters.model_dump()) == {"use", "show_dropped"}
-    filters = settings.tools.config(tools.get("Filter")).filters
-    assert filters[:3] == [
+    migrated = migrate(data, changes)
+    config = migrated["tools"]["Filter"]["config"]
+    assert "filters" not in config and set(config) >= {"features", "categories", "other"}
+    settings = AppSettings.model_validate(migrated)
+    # 0.6's Filter Data switched the range filters only
+    assert settings.filters.features.enabled and not settings.filters.categories.enabled
+    assert "use" not in settings.filters.model_dump()
+    filter_config = settings.tools.config(tools.get("Filter"))
+    assert filter_config.features.filters == [
         RangeFilterNode(column="t1", low=0),  # clipped by allowedmin, as 0.6 did
         RangeFilterNode(column="t2", low=0, high=10, dropna=False, enabled=False),
         RangeFilterNode(column="t3", high=2, enabled=False),  # the tool's own: off
     ]
-    assert (filters[3].kind, filters[3].keep, filters[3].enabled) == ("category", ["1"], False)
-    assert "the Filter tool's own 2 filter(s): added switched off" in changes.converted
+    # a second range on t1: kept, in the other filters
+    assert filter_config.other.filters == [RangeFilterNode(column="t1", high=9, enabled=False)]
+    (category,) = filter_config.categories.filters
+    assert (category.column, category.keep, category.enabled) == ("FOV", ["1"], False)
+    assert "the Filter tool's own 3 filter(s): added switched off" in changes.converted
+    assert "filters.use to filters.features.enabled (Filter Features)" in changes.converted
     assert "filters.series_filters (never used)" in changes.dropped
 
 
@@ -396,7 +417,10 @@ def test_export_leaves_out_unknown_keys_and_migration_drops_development_keys(tmp
     manager.export(path)
     exported = json.loads(path.read_text())
     assert "newer_setting" not in exported and "newer_switch" not in exported["filters"]
-    assert exported["filters"]["use"] is True
+    # `use` of a development build: written as both switches
+    assert "use" not in exported["filters"]
+    assert exported["filters"]["features"] == {"enabled": True}
+    assert exported["filters"]["categories"] == {"enabled": True}
 
 
 def test_validate_app_settings_refuses_tool_and_workflow_files(tmp_path):

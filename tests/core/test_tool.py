@@ -177,8 +177,8 @@ def test_validate_nested_columns(table):
     issues = Filter.validate(config, [TableSchema.from_frame(table)])
     # a filter on a column the input doesn't have keeps all rows: a warning
     assert [(i.field, i.severity) for i in issues] == [
-        ("filters[0].column", "warning"),
-        ("filters[1].keep", "warning"),
+        ("features.filters[0].column", "warning"),
+        ("categories.filters[0].keep", "warning"),
     ]
 
 

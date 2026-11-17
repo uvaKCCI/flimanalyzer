@@ -183,15 +183,18 @@ def test_range_filter():
     }
     unused = {**legacy, "name": "t1", "selected": False}  # the plugin did not apply it
     cfg = FilterConfig.from_legacy_params({"range_filters": [legacy, unused]})
-    assert cfg.filters == [RangeFilterNode(column="FLIRR", low=0.1, high=2)]
+    assert cfg.features.filters == [RangeFilterNode(column="FLIRR", low=0.1, high=2)]
     assert cfg.to_legacy_params()["range_filters"] == [legacy]
+    # a part that is off has no filters in use: none in the legacy form
+    off = cfg.model_copy(update={"features": cfg.features.model_copy(update={"enabled": False})})
+    assert off.to_legacy_params()["range_filters"] == []
     # no limit: written as infinity in the legacy params
     cfg = FilterConfig(range_filters={"x": {"low": 1}})
     (legacy,) = cfg.to_legacy_params()["range_filters"]
     assert (legacy["rangelow"], legacy["rangehigh"]) == (1, float("inf"))
     assert FilterConfig.from_legacy_params(cfg.to_legacy_params()) == cfg
     # 0.6's fields: a list of columns, filters without limits
-    assert FilterConfig(range_filters=["x"]).filters == [RangeFilterNode(column="x")]
+    assert FilterConfig(range_filters=["x"]).features.filters == [RangeFilterNode(column="x")]
     with pytest.raises(ValidationError):
         RangeSettings(low=2, high=1)
 

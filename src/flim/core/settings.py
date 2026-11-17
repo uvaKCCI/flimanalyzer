@@ -78,16 +78,44 @@ class _Settings(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class FilterSwitch(_Settings):
+    """The switch of a group of filters of the table windows.
+
+    Attributes:
+        enabled: Whether the filters of the group are used.
+    """
+
+    enabled: bool = False
+
+
 class FilterSettings(_Settings):
     """The table windows' filter switches; the filters are the Filter tool's settings.
 
+    A `use` of earlier settings of this version (the switch of all filters) sets
+    both switches.
+
     Attributes:
-        use: Whether the table windows filter their tables.
+        features: `Filter Features`: whether new table windows use the range
+            filters.
+        categories: `Filter Categories`: whether new table windows use the category
+            values hidden through a column header.
         show_dropped: Whether the table windows show the rows the filters dropped.
     """
 
-    use: bool = False
+    features: FilterSwitch = Field(default_factory=FilterSwitch)
+    categories: FilterSwitch = Field(default_factory=FilterSwitch)
     show_dropped: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_use(cls, values: Any) -> Any:
+        """Read `use`, the switch of all filters, as both switches."""
+        if isinstance(values, dict) and "use" in values:
+            values = dict(values)
+            use = values.pop("use")  # validated as the switches
+            for name in ("features", "categories"):
+                values.setdefault(name, {"enabled": use})
+        return values
 
 
 class ToolOutput(_Settings):
@@ -305,7 +333,6 @@ def default_range_filters() -> list["RangeFilter"]:
     RangeFilter("NAD(P)H t2", 2000, 7000),
     RangeFilter("NAD(P)H tm", 0, 2000),
     RangeFilter("NAD(P)H photons", 10, 2000),
-    RangeFilter("NAD(P)H a2[%]", 0, 100),
     RangeFilter("NADPH %", 0, 99),
     RangeFilter("NADH %", 0, 100),
     RangeFilter("NADPH/NADH", 0, 3),
@@ -468,9 +495,8 @@ class AppSettings(_Settings):
         from flim.core.filtering import default_ranges
 
         settings = cls()
-        settings.tools.entries["Filter"] = ToolSettings(
-            config=FilterConfig(filters=default_ranges()).model_dump(mode="json")
-        )
+        config = FilterConfig(features={"filters": default_ranges()})
+        settings.tools.entries["Filter"] = ToolSettings(config=config.model_dump(mode="json"))
         return settings
 
     def to_json(self) -> dict:
@@ -655,15 +681,22 @@ def _v1_import(data: dict, changes: "Changes") -> None:
 def _v1_filters(data: dict, changes: "Changes") -> None:
     """Move 0.6's range filters into the Filter tool's config, in place.
 
-    The table windows' range filters become the Filter tool's filters (`enabled` =
-    `selected`); the Filter tool's own 0.6 filters are added switched off.
+    The table windows' range filters become the Filter tool's range filters
+    (`enabled` = `selected`); the Filter tool's own 0.6 filters are added switched
+    off. The filters are put into the parts of the Filter tool's settings by kind
+    (`flim.configs.data.split_filters`): a second filter on a column goes to the
+    other filters. The windows' `use` (`Filter Data`, which switched the range
+    filters only) becomes the `Filter Features` switch.
     """
-    from flim.configs.data import _filters_of_v1, range_of_legacy
+    from flim.configs.data import _filters_of_v1, range_of_legacy, split_filters
 
     filters = data.get("filters")
     tools = data.setdefault("tools", {})
     if not isinstance(filters, dict) or not isinstance(tools, dict):
         return
+    if "use" in filters:
+        filters["features"] = {"enabled": bool(filters.pop("use"))}
+        changes.converted.append("filters.use to filters.features.enabled (Filter Features)")
     nodes = []
     if "range_filters" in filters:
         for spec in filters.pop("range_filters") or []:
@@ -696,7 +729,8 @@ def _v1_filters(data: dict, changes: "Changes") -> None:
     if nodes or own:
         entry = tools.setdefault("Filter", {})
         config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
-        config["filters"] = nodes + own + list(config.get("filters") or [])
+        flat = nodes + own + list(config.pop("filters", None) or [])
+        config.update(split_filters(flat, config))
         entry["config"] = config
 
 
