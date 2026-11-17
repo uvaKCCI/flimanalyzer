@@ -148,9 +148,13 @@ HISTOGRAM = HISTOGRAMS[0]  # the bar style, as the user guide's example
 HISTOGRAM_CUMULATIVE = HISTOGRAMS[2].model_copy(update={"cumulative": True})  # step style
 FLIRR = FLIRRPlotConfig(grouping=["Treatment", "FOV"])
 FILTER = FilterConfig(
-    category_filters={"Treatment": ["ctrl", "Dox15", "Dox30"]},
-    range_filters={"FAD a1[%]": {"low": 50, "high": 90}, "FLIRR": {"high": 2.4}},
-)
+    features={"filters": [
+        {"column": "FAD a1[%]", "low": 50, "high": 90},
+        {"column": "FLIRR", "high": 2.4},
+    ]},
+    categories={"filters": [{"kind": "category", "column": "Treatment", "keep": ["ctrl", "Dox15", "Dox30"]}]},
+    other={"filters": [{"kind": "expression", "expression": "FLIRR > 0.1"}]},
+)  # fmt: skip
 SORT = SortConfig(features=["FAD a1"])
 # runs of workflows use the closest column for a column that the data doesn't have
 GUESSES = ProcessingRules.of(Processing(strict=False))
@@ -613,8 +617,8 @@ class Shooter:
         from flim.gui.dialogs import ConfigureFiltersDlg
 
         filters = window_filters(AppSettings.default())  # as a new table window
-        filters.use = True
-        # with the preset buttons, as a table window opens it
+        filters.features.enabled = True  # Filter Features on
+        # Filter Features..., with the preset buttons, as a table window opens it
         return ConfigureFiltersDlg(
             self.frame, filters, self.data, {}, presets=self.frame.filter_presets()
         )

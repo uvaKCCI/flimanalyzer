@@ -88,6 +88,13 @@ Workflows defined in code, for example `Basic FLIRR Analysis`, are strict by def
 
 Workflow files are new in 0.7: a workflow as a JSON file of steps (see [Workflow files](/userguide/workflows.md#workflow-files)).
 
+## Filters of the table windows
+
+* **`Filter Data` is now `Filter Features`.** The checkbox in the side bar of a table window switches the range filters on and off, as `Filter Data` did in 0.6.
+* **`Filter Settings...` is now `Filter Features...`.** The dialog edits the range filters and has its own `Filter Features` checkbox. Checking a range filter in it switches `Filter Features` on. Its presets and the defaults for new tables hold the range filters and `Filter Features` (see [Presets](/userguide/data/filter.md#presets)).
+* **Category filters have their own switch, `Filter Categories`.** In 0.6, the values hidden through a right-click on a category column header always applied, whether `Filter Data` was on or off. In 0.7 they apply only while `Filter Categories` is on. When you hide a value, the GUI switches `Filter Categories` on, so the table shows the same rows as in 0.6.
+* **Settings files:** `filters` > `use` of a 0.6 file becomes `filters` > `features` (`Filter Features`). The range filters become the `Filter` tool's range filters (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
+
 ## Renamed tools
 
 | 0.6 | 0.7 |

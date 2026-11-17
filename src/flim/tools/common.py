@@ -115,8 +115,8 @@ def missing_group_message(
             Defaults to `grouping`.
 
     Returns:
-        For example `3 rows left out: no value in the grouping column 'FOV'`; None
-        if every row has a value in all the columns.
+        The warning, or None if every row has a value in all the columns; for
+        example `3 rows left out: no value in the grouping column 'FOV'`.
     """
     columns = list(columns)
     if not columns:
