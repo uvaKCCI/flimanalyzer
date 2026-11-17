@@ -309,7 +309,9 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   `--show FILE|NAME`, `--validate FILE` and `--resolve FILE` (the file with every
   setting stated, as `flimbatch` runs it), and `tool` also `--update FILE`. `--show NAME`
   prints the default settings of a tool, or of a workflow defined in code, as a tool
-  file. `flimsettings app` takes `--list` (the app settings files in the search path),
+  file; a workflow file is found by its file name or by its `name`, as with
+  `flimbatch --run`. `flimsettings app` takes `--list` (the app settings files in the
+  search path),
   `--show` (the app settings of `flimanalyzer` and `flimbatch`, and where each value
   comes from), `--validate FILE` and `--update FILE`. `flimsettings user --show` shows
   the user settings file, and `flimsettings env` (`--list`, `--show`) the `FLIM_*`
@@ -318,7 +320,8 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   the tool's name with its `config`, `output` (`save`, `formats`) and `processing`, in
   the form of a workflow step, without the results folder. `Load Settings...` reads it,
   and `flimbatch --run FILE` runs it as a workflow of one step; a tool file of a
-  workflow defined in code runs that workflow with the file's settings.
+  workflow defined in code runs that workflow with the file's settings, and a tool file
+  of `Import Tables` reads the files with its read settings and runs its workflow.
 - **Settings files of older versions** can be updated: when the GUI uses a settings file
   of an older version (at startup, with `Import Settings...` or with a tool dialog's
   `Load Settings...`), it asks whether to update it. `Update` rewrites the file in the
