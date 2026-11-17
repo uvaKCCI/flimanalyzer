@@ -813,6 +813,20 @@ def test_override_scopes_step_over_run_over_every_run():
     assert "run-2.steps.3.output.save=false" in second.given
 
 
+def test_a_run_override_takes_precedence_over_a_later_one_for_every_run():
+    from flim.core.config import ProcessingRules
+    from flim.core.workflowfile import parse_overrides
+
+    overrides = parse_overrides([
+        "run-1.output.save=false", "run-1.processing.strict=false",
+        "output.save=true", "processing.strict=true", "steps.2.output.formats=table:csv",
+    ])  # fmt: skip
+    first = overrides.for_run(1)
+    assert first.save is False and first.for_step("1").save is False
+    assert first.for_step("2").save is False  # also with a step override of another field
+    assert not ProcessingRules.of(first.processing).is_strict("features[0]")
+
+
 def test_override_scopes_are_validated_against_the_runs():
     from flim.core.workflowfile import override_problems, parse_overrides
     from flim.workflow.basicflow import BasicFLIRR

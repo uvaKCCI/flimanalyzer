@@ -1251,7 +1251,10 @@ class Overrides:
             The overrides of the run.
         """
         own = [(r, st, a) for r, st, a in self.scoped if r in (None, number)]
-        result = _parse_flat([a for r, st, a in own if st is None])
+        # every run's first, then this run's: the run's take precedence, in any order given
+        general = [a for r, st, a in own if st is None and r is None]
+        run = [a for r, st, a in own if st is None and r is not None]
+        result = _parse_flat(general + run)
         given = tuple(_given(r, st, a) for r, st, a in own)
         return replace(result, given=given, scoped=tuple(own), run=number)
 
