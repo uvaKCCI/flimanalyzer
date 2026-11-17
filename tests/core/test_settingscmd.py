@@ -264,7 +264,7 @@ def test_env_show_reports_unknown_names_and_invalid_values(clean_env, monkeypatc
     monkeypatch.setenv("FLIM_LOG_LEVEL", "loud")
     code, out, err = run(capsys, "env", "--show")
     assert code == 1 and "  FLIM_DRYRUN=1" in out
-    assert "FLIM_DRYRUN: FLIMAnalyzer does not read this variable; check the name" in err
+    assert "FLIM_DRYRUN: FLIMAnalyzer does not read this variable; verify the name" in err
     assert "FLIM_LOG_LEVEL=loud" in err
 
 

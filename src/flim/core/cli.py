@@ -61,13 +61,14 @@ def add_file_options(
     parser.add_argument(
         "-r", "--run", action="append", default=[], metavar="NAME",
         help="tool or workflow to run on the files (repeatable; runs in the order given):\n"
-        "a registered name, or a workflow file: a path, or a file name ending in .json\n"
+        "a registered name, or a workflow file or a tool file: a path, or a file name\n"
+        "ending in .json "
         "in the workflow search path" + (f";\n{run_help}" if run_help else ""),
     )  # fmt: skip
     parser.add_argument(
         "-w", "--workflow-path", nargs="+", action="extend", default=[], metavar="DIR",
         help="folders searched for workflow and tool files; they replace the folders of\n"
-        "FLIM_WORKFLOW_PATH and of the settings (repeatable)",
+        "FLIM_WORKFLOW_PATH and, in the GUI, of the user settings (repeatable)",
     )  # fmt: skip
 
 

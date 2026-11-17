@@ -104,8 +104,8 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog=PROG,
-        description="Lists, shows and validates FLIMAnalyzer settings: of tools, workflows,"
-        " the app, the user and the environment.",
+        description="Lists, shows, validates, resolves and updates FLIMAnalyzer settings: of"
+        " tools, workflows, the app, the user and the environment.",
     )
     objects = parser.add_subparsers(dest="object", required=True, metavar="OBJECT")
 
@@ -746,7 +746,7 @@ def _env_show(args: argparse.Namespace) -> int:
     lines += [f"  {k}={v}" for k, v in found.items()] or ["  none"]
     print("\n".join(lines))
     problems = [
-        f"{k}: FLIMAnalyzer does not read this variable; check the name" for k in found if not _known(k)
+        f"{k}: FLIMAnalyzer does not read this variable; verify the name" for k in found if not _known(k)
     ]
     try:
         environment_changes()

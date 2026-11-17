@@ -92,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawTextHelpFormatter,
     )
     add_file_options(parser, input_required=True)
-    add_settings_options(parser)
+    add_settings_options(parser, output_required=True)
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -139,8 +139,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         `--dry-run`: if the validation found no error), 1 otherwise.
 
     Raises:
-        SystemExit: If the arguments are invalid, or no `--run` is given, or `-o`
-            is missing without `--dry-run`, or `FLIM_LOG_LEVEL` or `FLIM_DRY_RUN` is
+        SystemExit: If the arguments are invalid, or no `--run` or no `-o` is given
+            (also with `--dry-run`), or `FLIM_LOG_LEVEL` or `FLIM_DRY_RUN` is
             invalid (exit code 2, from `argparse`).
     """
     # tools draw their figures in worker threads, into files: a backend without
@@ -156,14 +156,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         level = log_level(args)
         dry_run = dry_run_source(args)
-        # --allow-guesses first: an explicit --override of processing.strict wins
+        # --allow-guesses first: an explicit --override of processing.strict takes precedence
         given = (["processing.strict=false"] if args.allow_guesses else []) + args.override
         args.overrides = parse_overrides(given)
     except ValueError as err:
         parser.error(str(err))
     args.dry_run = dry_run is not None
-    if not args.output:  # also for a dry run: it validates the folder, and logs there
-        parser.error("the following arguments are required: -o/--output")
     # the console as before; the log file opens once the output folder is known
     memory = logs.begin(level)
     logging.getLogger().addHandler(logs.console_handler(level))

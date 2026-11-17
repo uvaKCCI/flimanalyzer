@@ -318,7 +318,7 @@ def test_dry_run_variable_false_or_invalid(data_dir, tmp_path, monkeypatch, caps
     assert "-o/--output" in capsys.readouterr().err
     monkeypatch.setenv("FLIM_DRY_RUN", "maybe")
     with pytest.raises(SystemExit) as exit_:
-        main(["-i", str(data_dir), "--run", "Import"])
+        main(["-i", str(data_dir), "-o", str(tmp_path), "--run", "Import"])
     assert exit_.value.code == 2
     assert "FLIM_DRY_RUN=maybe; use true or false" in capsys.readouterr().err
 
