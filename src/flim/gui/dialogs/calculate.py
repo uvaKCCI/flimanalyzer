@@ -114,6 +114,30 @@ def describe(calculation: Calculation) -> str:
     return f"{calculation.function}({args})"
 
 
+def function_summary(name: str) -> str:
+    """Return a registered function's parameters and the first line of its docstring.
+
+    Args:
+        name: The function's name.
+
+    Returns:
+        E.g. `ratio(v1, v2): Return v1 / v2; NaN if v2 is 0.`; empty for a name
+        that is not registered.
+    """
+    import inspect
+
+    from flim.core.calculate import FUNCTIONS, _register_builtins
+
+    _register_builtins()
+    function = FUNCTIONS.get(name)
+    if function is None:
+        return ""
+    parameters = ", ".join(inspect.signature(function).parameters)
+    doc = (inspect.getdoc(function) or "").splitlines()
+    summary = doc[0].replace("`", "") if doc else ""
+    return f"{name}({parameters})" + (f": {summary}" if summary else "")
+
+
 # --- the editors of a function's fields ---
 
 
@@ -250,12 +274,18 @@ class ParametersEditor(Editor):
 # --- the calculation editor ---
 
 
-class CalculationDialog(wx.Dialog):
-    """Dialog that edits one calculation: its kind, then only the fields of that kind.
+SHARED = ("enabled", "name", "keep", "description")  # the fields of every kind
 
-    Below the fields, the dialog shows the problems of the calculation and an
-    example from the first row of the input table; OK is enabled only without
-    errors.
+
+class CalculationDialog(wx.Dialog):
+    """Dialog that edits one calculation: its kind, its shared fields, then its own.
+
+    The fields every kind has (`SHARED`: `Use`, `New Column`, `Keep`,
+    `Description`) stay in place when the kind changes; below them are the fields of
+    the kind. A function's are preceded by a preview: the call with its arguments,
+    and the function's parameters and summary. Below the fields, the dialog shows
+    the problems of the calculation and an example from the first rows of the input
+    table; OK is enabled only without errors.
     """
 
     def __init__(
@@ -288,6 +318,16 @@ class CalculationDialog(wx.Dialog):
         self.kind.Bind(wx.EVT_CHOICE, self._on_kind)
         row.Add(self.kind)
         sizer.Add(row, 0, wx.ALL, 8)
+        # the fields of every kind: built once, so they don't move with the kind
+        self.shared = FieldsPanel(
+            self, type(calculation), exclude=set(type(calculation).model_fields) - set(SHARED)
+        )
+        self.shared.set_values(calculation)
+        self.shared.on_change = self.validate
+        sizer.Add(self.shared, 0, wx.LEFT | wx.RIGHT, 8)  # its own width: stays in place
+        # a function's call and what the function does, above its arguments
+        self.preview = wx.StaticText(self, label="")
+        sizer.Add(self.preview, 0, wx.LEFT | wx.RIGHT | wx.TOP, 8)
         self.body = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.body, 1, wx.EXPAND | wx.LEFT | wx.RIGHT, 8)
         self.example = ExampleView(self)
@@ -301,10 +341,12 @@ class CalculationDialog(wx.Dialog):
         self._build(calculation)
 
     def _build(self, calculation: Calculation) -> None:
-        """Replace the fields with those of the calculation's kind, and validate it."""
+        """Replace the kind's own fields with those of the calculation's kind; validate."""
         if self.fields is not None:
             self.fields.Destroy()
-        self.fields = FieldsPanel(self, type(calculation), exclude={"kind", "engine"})
+        self.fields = FieldsPanel(
+            self, type(calculation), exclude={"kind", "engine", *SHARED}
+        )
         self.fields.set_schema(self.schema)
         self.fields.set_data(self.tables)
         self.fields.set_values(calculation)
@@ -313,10 +355,8 @@ class CalculationDialog(wx.Dialog):
         self.validate()  # fills the example and message lines, then fits
 
     def _on_kind(self, event: wx.CommandEvent) -> None:
-        """Show the fields of the chosen kind; the name is kept."""
-        model = KINDS[self.kind.GetStringSelection()]
-        name = self.fields.value_of("name") or ""
-        self._build(model(name=name))
+        """Show the own fields of the chosen kind; the shared fields stay as they are."""
+        self._build(KINDS[self.kind.GetStringSelection()]())
 
     def calculation(self) -> Calculation:
         """Return the calculation as edited.
@@ -326,7 +366,10 @@ class CalculationDialog(wx.Dialog):
                 `ValidationError`, both subclasses of `ValueError`).
         """
         model = KINDS[self.kind.GetStringSelection()]
-        return model.model_validate(self.fields.values(model()))
+        values = self.shared.values(model())
+        own = self.fields.values(model())
+        values.update({name: own[name] for name in self.fields.editors})
+        return model.model_validate(values)
 
     def validate(self) -> bool:
         """Validate the calculation and show the result.
@@ -344,6 +387,7 @@ class CalculationDialog(wx.Dialog):
         from flim.tools.data import calculation_example
 
         ok = self.FindWindowById(wx.ID_OK)
+        self._show_preview()
         try:
             calculation = self.calculation()
         except (FieldErrors, ValidationError, ValueError) as err:
@@ -370,6 +414,25 @@ class CalculationDialog(wx.Dialog):
                 errors.append(f"{calculation.name}: {err}")
         self._show(example, "\n".join(errors + warnings), ok, not errors)
         return not errors
+
+    def _show_preview(self) -> None:
+        """Show a function's call and its parameters and summary; hide it otherwise.
+
+        For example `FAD tm = tm(FAD a1[%], FAD t1, FAD a2[%], FAD t2)` and
+        `tm(a1perc, t1, a2perc, t2): Return the mean lifetime of two components, ...`.
+        """
+        lines = []
+        if self.kind.GetStringSelection() == "function":
+            try:
+                calculation = self.calculation()
+            except (FieldErrors, ValidationError, ValueError):
+                calculation = None
+            if calculation is not None and calculation.function:
+                lines.append(f"{calculation.name or '?'} = {describe(calculation)}")
+                lines.append(function_summary(calculation.function))
+        self.preview.SetLabel("\n".join(line for line in lines if line))
+        self.preview.Wrap(460)
+        self.preview.Show(bool(lines))
 
     def _show(
         self, example: Any, message: str, ok: Optional[wx.Window], enabled: bool

@@ -750,17 +750,21 @@ def test_calculation_editor_shows_only_the_kinds_fields(wxapp, table):
     schema = TableSchema.from_frame(table)
     d = CalculationDialog(None, None, list(table.columns), schema, [table])
     try:
-        assert set(d.fields.editors) == {"enabled", "name", "keep", "description", "expression"}
-        d.fields.editors["name"].control.SetValue("ratio")
+        assert set(d.shared.editors) == {"enabled", "name", "keep", "description"}
+        assert set(d.fields.editors) == {"expression"}
+        d.shared.editors["name"].control.SetValue("ratio")
         d.fields.editors["expression"].control.SetValue("t1 / t2")  # no backticks needed
         assert d.validate() and d.example.rows()[0] == ["t1", "t2", "\u2192 ratio"]  # used, made
         d.fields.editors["expression"].control.SetValue("t1 / t22")
         assert not d.validate()  # OK disabled
         assert "'t22' (did you mean 't2'?)" in d.message.GetLabel()
-        # a function: its own parameters only
+        # a function: its own fields only; the shared ones stay in place, as edited
+        shared, position = d.shared, d.shared.editors["name"].control.GetPosition()
         d.kind.SetSelection(1)
         d._on_kind(None)
         assert {"function", "args", "params"} <= set(d.fields.editors) and "expression" not in d.fields.editors
+        assert d.shared is shared and d.shared.editors["name"].control.GetValue() == "ratio"
+        assert d.shared.editors["name"].control.GetPosition() == position
         d.fields.editors["function"].set("trp_Eperc_1")
         d.fields.refresh()
         params = d.fields.editors["params"]
@@ -769,6 +773,9 @@ def test_calculation_editor_shows_only_the_kinds_fields(wxapp, table):
         d.fields.editors["function"].set("ratio")
         d.fields.refresh()
         assert params.fields is None  # ratio has no parameters
+        d.validate()  # the preview above the arguments: the call and the function
+        preview = d.preview.GetLabel()
+        assert preview.startswith("ratio = ratio(") and "ratio(v1, v2): Return v1 / v2" in preview
     finally:
         d.Destroy()
 
@@ -811,12 +818,12 @@ def test_calculation_editor_example_without_use_or_keep(wxapp, table):
     d = CalculationDialog(None, None, list(table.columns), TableSchema.from_frame(table), [table])
     try:
         d.fields.editors["expression"].control.SetValue("t1 * 2")
-        d.fields.editors["enabled"].set(False)  # Use unchecked, no name: no error
+        d.shared.editors["enabled"].set(False)  # Use unchecked, no name: no error
         d.validate()
         assert "Not used" in d.message.GetLabel()
-        d.fields.editors["enabled"].set(True)
-        d.fields.editors["name"].control.SetValue("helper")
-        d.fields.editors["keep"].set(False)  # a helper column: its example is shown
+        d.shared.editors["enabled"].set(True)
+        d.shared.editors["name"].control.SetValue("helper")
+        d.shared.editors["keep"].set(False)  # a helper column: its example is shown
         assert d.validate() and d.example.rows()[0][-1] == "\u2192 helper"
     finally:
         d.Destroy()

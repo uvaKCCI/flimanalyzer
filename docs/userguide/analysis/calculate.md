@@ -15,14 +15,17 @@ The `Calculate` tool adds new columns calculated from others, for example the me
     - `Load Preset...` lists the calculations that apply to the table: the built-in ones (those of `Import`, such as `FLIRR` and `NAD(P)H tm`) and the ones you saved, marked `(saved)`. A calculation applies if the table has the columns it uses and doesn't have its result yet. Check the ones to add and click `OK`. A calculation that needs another one's result, for example `NADH %`, which needs `NADPH %`, is offered if that one applies too, and is added after it. If you check only `NADH %`, `Load Preset...` adds `NADPH %` too, before it.
     - `Save as Preset...` saves the selected calculations, so that `Load Preset...` offers them in later sessions. A saved calculation with the same new column name is replaced; `Remove Presets...` removes saved ones. The built-in calculations can't be removed.
 
-    **The calculation editor** first asks for the `Kind`, `expression` or `function`, and then shows only the fields of that kind:
+    **The calculation editor** first asks for the `Kind`, `expression` or `function`. Below it are the fields of every kind, which stay in place when you change the kind:
 
-    - `New Column`: the new column's name. If the table already has a column with this name, the new one replaces it; the dialog warns about this.
-    - `Expression` (kind `expression`): the formula (see [Expressions](#expressions)).
-    - `Function` (kind `function`): one of the functions (see [Functions](#functions)); `Arguments`: the table's features it takes, checked and in the function's order (use the arrows to move them); `Parameters`: the function's own parameters, with their defaults, for example `const` = 3100 for `trp_Eperc_1`. A function without parameters shows `(none)`.
     - `Use` (default checked): unchecked, the calculation is left out.
+    - `New Column`: the new column's name. If the table already has a column with this name, the new one replaces it; the dialog warns about this.
     - `Keep` (default checked): unchecked makes a helper column. Later calculations can use it, but it is not in the result.
     - `Description`: a note for yourself.
+
+    Below them are the fields of the kind:
+
+    - `Expression` (kind `expression`): the formula (see [Expressions](#expressions)).
+    - `Function` (kind `function`): one of the functions (see [Functions](#functions)); `Arguments`: the table's features it takes, checked and in the function's order (use the arrows to move them); `Parameters`: the function's own parameters, with their defaults, for example `const` = 3100 for `trp_Eperc_1`. A function without parameters shows `(none)`. Above the arguments, a preview shows the calculation as a call, for example `FAD tm = tm(FAD a1[%], FAD t1, FAD a2[%], FAD t2)`, and the function's parameters and what it does, for example `tm(a1perc, t1, a2perc, t2): Return the mean lifetime of two components, weighted by their amplitudes.`, so you can check that each feature is in the right place.
 
     Below the fields, the editor shows the result for the table's first rows in a small table: the columns the calculation uses, and the calculated column, marked `→`, for example `→ FLIRR`. Otherwise it shows what is wrong, for example `skipped: 'FAD tn' (did you mean 'FAD tm'?) not in the table or calculated before`. `OK` is enabled only when the calculation can be made on the table.
 
