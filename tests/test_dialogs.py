@@ -231,3 +231,45 @@ def test_filter_list_checkbox_of_the_current_row_can_be_clicked(wxapp, table):
             assert event.GetSkipped() is to_list
     finally:
         dlg.Destroy()
+
+
+def _axis_dialog(limits):
+    from flim.gui.dialogs import ConfigureAxisDlg
+
+    dlg = ConfigureAxisDlg(None, "Set Y Axis", {"label": "FLIRR", "min": limits[0], "max": limits[1]})
+    ended = []
+    dlg.EndModal = ended.append  # not shown modal in the test
+    return dlg, ended
+
+
+def test_axis_dialog_keeps_limits_that_are_not_edited(wxapp):
+    """Small limits were rounded to 2 decimals: 0.0012-0.0048 became 0.0-0.0."""
+    import numpy as np
+    import wx
+
+    dlg, ended = _axis_dialog((np.float64(0.0012), 0.0048))
+    try:
+        dlg.labelinput.SetValue("New label")
+        dlg.OnOK(None)
+        assert ended == [wx.ID_OK]
+        assert dlg.get_settings() == {"label": "New label", "min": 0.0012, "max": 0.0048}
+    finally:
+        dlg.Destroy()
+
+
+def test_axis_dialog_reads_edited_limits_and_rejects_text(wxapp, no_modal_message_dialogs):
+    import wx
+
+    dlg, ended = _axis_dialog((0.0, 1.0))
+    try:
+        dlg.mininput.SetValue("1e-5")
+        dlg.maxinput.SetValue("abc")
+        dlg.OnOK(None)
+        assert ended == []  # stays open
+        assert "Max value: not a valid number" in no_modal_message_dialogs[0]
+        dlg.maxinput.SetValue(" 0.25 ")
+        dlg.OnOK(None)
+        assert ended == [wx.ID_OK]
+        assert dlg.get_settings()["min"] == 1e-5 and dlg.get_settings()["max"] == 0.25
+    finally:
+        dlg.Destroy()

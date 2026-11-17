@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any, Optional, Union
 import numpy as np
 import wx.grid
 from pubsub import pub
-from wx.lib.masked import NumCtrl
 from flim.core.filter import RangeFilter
 from flim.core.paths import with_extension
 from flim.gui.listcontrol import FilterListCtrl, FILTERS_UPDATED
@@ -764,7 +763,11 @@ def _write_filter_settings(path: str, settings: dict) -> None:
 
 
 class ConfigureAxisDlg(wx.Dialog):
-    """Dialog that edits the label and the range of a plot axis."""
+    """Dialog that edits the label and the range of a plot axis.
+
+    The limits show with all their digits. A limit that is not edited is returned
+    unchanged; an edited limit must be a finite number.
+    """
 
     def __init__(
         self, parent: Optional[wx.Window], title: str, settings: dict[str, Any]
@@ -784,21 +787,33 @@ class ConfigureAxisDlg(wx.Dialog):
             self.panel, value=settings["label"], pos=(110, 20), size=(500, -1)
         )
         self.minname = wx.StaticText(self.panel, label="Min value", pos=(20, 60))
-        self.mininput = NumCtrl(
-            self.panel, value=settings["min"], fractionWidth=2, pos=(110, 60)
-        )
+        self.mininput = wx.TextCtrl(
+            self.panel, value=self._limit_text(settings["min"]), pos=(110, 60),
+            size=(200, -1),
+        )  # fmt: skip
         self.maxlabel = wx.StaticText(self.panel, label="Max value", pos=(20, 100))
-        self.maxinput = NumCtrl(
-            self.panel, value=settings["max"], fractionWidth=2, pos=(110, 100)
-        )
+        self.maxinput = wx.TextCtrl(
+            self.panel, value=self._limit_text(settings["max"]), pos=(110, 100),
+            size=(200, -1),
+        )  # fmt: skip
         self.okButton = wx.Button(self.panel, label="OK", pos=(110, 160))
         self.closeButton = wx.Button(self.panel, label="Cancel", pos=(210, 160))
-        self.okButton.Bind(wx.EVT_BUTTON, self.SaveConnString)
+        self.okButton.Bind(wx.EVT_BUTTON, self.OnOK)
         self.closeButton.Bind(wx.EVT_BUTTON, self.OnQuit)
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
 
         self.settings = dict(settings)
+        # the texts shown first: a limit whose text is not changed stays unchanged
+        self._shown = {
+            "min": self.mininput.GetValue(),
+            "max": self.maxinput.GetValue(),
+        }
         self.Show()
+
+    @staticmethod
+    def _limit_text(value: float) -> str:
+        """Return the shortest text that reads back as the same float."""
+        return repr(float(value))
 
     def OnQuit(self, event: wx.Event) -> None:
         """Close the dialog with Cancel; `get_settings` returns None."""
@@ -809,11 +824,34 @@ class ConfigureAxisDlg(wx.Dialog):
         """Return the edited `label`, `min` and `max`; None if cancelled."""
         return self.settings
 
-    def SaveConnString(self, event: wx.CommandEvent) -> None:
-        """Store the edited label and range and close the dialog with OK."""
+    def OnOK(self, event: Optional[wx.CommandEvent]) -> None:
+        """Store the edited label and range and close the dialog with OK.
+
+        If an edited limit is not a finite number, a message box shows it and the
+        dialog stays open.
+        """
+        limits = {}
+        for key, field, name in (
+            ("min", self.mininput, "Min value"),
+            ("max", self.maxinput, "Max value"),
+        ):
+            text = field.GetValue().strip()
+            if text == self._shown[key].strip():
+                limits[key] = self.settings[key]
+                continue
+            try:
+                value = float(text)
+            except ValueError:
+                value = None
+            if value is None or not np.isfinite(value):
+                wx.MessageBox(
+                    f"{name}: not a valid number: {text!r}", self.GetTitle(),
+                    wx.OK | wx.ICON_WARNING, self,
+                )  # fmt: skip
+                return
+            limits[key] = value
         self.settings["label"] = self.labelinput.GetValue()
-        self.settings["min"] = self.mininput.GetValue()
-        self.settings["max"] = self.maxinput.GetValue()
+        self.settings.update(limits)
         self.EndModal(wx.ID_OK)
 
 

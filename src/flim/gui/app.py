@@ -1746,8 +1746,9 @@ class AppFrame(wx.Frame):
                     },
                 )
                 response = dlg.ShowModal()
+                newsettings = dlg.get_settings()
+                dlg.Destroy()
                 if response == wx.ID_OK:
-                    newsettings = dlg.get_settings()
                     event.artist.set_label_text(newsettings["label"], picker=True)
                     ax.set_ylim(newsettings["min"], newsettings["max"])
                     fig.canvas.draw_idle()
@@ -1763,8 +1764,9 @@ class AppFrame(wx.Frame):
                     },
                 )
                 response = dlg.ShowModal()
+                newsettings = dlg.get_settings()
+                dlg.Destroy()
                 if response == wx.ID_OK:
-                    newsettings = dlg.get_settings()
                     event.artist.set_label_text(newsettings["label"], picker=True)
                     ax.set_xlim(newsettings["min"], newsettings["max"])
                     fig.canvas.draw_idle()

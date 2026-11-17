@@ -274,3 +274,33 @@ def test_line_color_changes_only_on_ok(frame, monkeypatch, answer, changed):
     frame.OnPick(event)
     assert (line.get_color() == (1.0, 0.0, 0.0)) == changed
     assert shown == ["destroyed"]
+
+
+def test_axis_dialog_is_destroyed_after_use(frame, monkeypatch):
+    from types import SimpleNamespace
+
+    import matplotlib.figure
+
+    import flim.gui.app as app
+
+    ax = matplotlib.figure.Figure().subplots()
+    destroyed = []
+
+    class Dialog:
+        def __init__(self, parent, title, settings):
+            self.settings = settings
+
+        def ShowModal(self):
+            return wx.ID_OK
+
+        def get_settings(self):
+            return self.settings
+
+        def Destroy(self):
+            destroyed.append(True)
+
+    monkeypatch.setattr(app, "ConfigureAxisDlg", Dialog)
+    monkeypatch.setattr(frame, "_plot_edited", lambda fig: None)
+    for axis in (ax.yaxis, ax.xaxis):
+        frame.OnPick(SimpleNamespace(artist=axis, mouseevent=SimpleNamespace(dblclick=True)))
+    assert destroyed == [True, True]

@@ -27,7 +27,7 @@ To save the plots automatically each time a tool runs, check `Save results` in t
 
 Double-click parts of a plot to change them:
 
-- **An axis:** double-click just outside the plot, along the x or the y axis. The `Set X Axis` or `Set Y Axis` dialog opens. Set the `Axis label`, `Min value` and `Max value`, and click `OK`.
+- **An axis:** double-click just outside the plot, along the x or the y axis. The `Set X Axis` or `Set Y Axis` dialog opens. Set the `Axis label`, `Min value` and `Max value`, and click `OK`. The fields show the limits with all their digits, and a limit that is not changed stays the same. A limit must be a number; if it is not, a message shows the problem and the dialog stays open.
 
     ![](/images/analysis/plot-setaxis.png)
 
