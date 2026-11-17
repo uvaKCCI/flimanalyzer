@@ -691,6 +691,27 @@ def test_rename_columns_in_order_and_unique():
         RenameColumnsConfig(replacements=[Replacement(part="", new="a")])
 
 
+def test_rename_columns_reports_against_the_names_at_each_step():
+    from flim.configs import RenameColumnsConfig
+    from flim.configs.data import Replacement
+    from flim.tools.data import RenameColumns
+
+    data = pd.DataFrame({"a_t1": [1.0], "x": [2.0]})
+    # " y" occurs only after the first replacement; "a_" no more after it
+    config = RenameColumnsConfig(
+        replacements=[
+            Replacement(part="_t1", new=" y"),
+            Replacement(part=" y", new=" z"),
+            Replacement(part="_t1", new="w"),
+        ]
+    )
+    tool = RenameColumns()
+    (renamed,) = tool(data, config=config).values()
+    assert list(renamed.columns) == ["a z", "x"]
+    assert tool.context.applied == 2
+    assert [(entry.part, entry.new) for _, entry, _ in tool.context.skipped] == [("_t1", "w")]
+
+
 def test_drop_columns_match_modes():
     from flim.configs import DropColumnsConfig
     from flim.configs.data import DropRule

@@ -1376,8 +1376,8 @@ class RenameColumns(Tool[RenameColumnsConfig]):
     ) -> dict[str, Any]:
         """Replace parts of the column names, in the order of the replacements.
 
-        A replacement whose part occurs in no column name is reported as a skipped
-        part of the settings.
+        A replacement whose part occurs in no column name, as the replacements
+        before it left the names, is reported as a skipped part of the settings.
 
         Args:
             data: The table.
@@ -1392,14 +1392,15 @@ class RenameColumns(Tool[RenameColumnsConfig]):
         """
         from flim.core.columns import renamed_columns
 
-        pairs = [(r.part, r.new) for r in config.replacements]
-        names = renamed_columns(data.columns, pairs)
-        # entries: a replacement whose part occurs in no column name is skipped
+        names = [str(c) for c in data.columns]
+        # entries: a replacement whose part occurs in none of the names that the
+        # replacements before it produced is skipped
         for replacement in config.replacements:
-            if any(replacement.part in str(c) for c in data.columns):
+            if any(replacement.part in n for n in names):
                 self.applied()
             else:
                 self.skip(f"no column name contains '{replacement.part}'", entry=replacement)
+            names = renamed_columns(names, [(replacement.part, replacement.new)])
         if len(set(names)) < len(names):
             duplicates = sorted({n for n in names if names.count(n) > 1})
             raise ValueError(
