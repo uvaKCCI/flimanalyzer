@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 
     from flim.core.saving import SaveOptions
     from flim.core.filtering import WindowFilters
-    from flim.core.settings import FilterSettings
 
 logger = logging.getLogger(__name__)
 
@@ -324,12 +323,13 @@ class SelectGroupsDlg(wx.Dialog):
 
 @dataclass
 class FilterPresets:
-    """Where `Filter Settings` loads filters from and saves them to.
+    """Where `Filter Features...` loads range filters from and saves them to.
 
     Attributes:
-        defaults: Returns the filters new tables start with, as the Filter tool's
-            settings (`enabled` and `filters`).
-        save_defaults: Makes a table's filters (`WindowFilters`) the defaults.
+        defaults: Returns the range filters new tables start with, as a part of the
+            Filter tool's settings (`features`: `enabled` and `filters`).
+        save_defaults: Makes a table's range filters and `Filter Features`
+            (`WindowFilters`) the defaults.
         saved: Returns the saved presets, each a dict with `name` and `settings`.
         save: Replaces the saved presets.
     """
@@ -344,21 +344,23 @@ DEFAULTS_PRESET = "Defaults for new tables"
 
 
 class ConfigureFiltersDlg(wx.Dialog):
-    """Dialog that edits the range filters of a table.
+    """Dialog that edits the range filters of a table (`Filter Features...`).
 
-    The list shows each filter's column, range and the number of rows it drops from
-    the view; the labels above it show the rows dropped and remaining. With
-    `presets`, `Load Preset...`, `Save as Preset...` and `Remove Presets...` load
-    and save the table's filters as the Filter tool's settings: the switch of all
-    filters (`Filter Data`), the range filters and the category values kept. They
-    go to the defaults for new tables, a saved preset or a settings file. With OK,
-    `GetData` returns an edited copy of the filter settings.
+    `Filter Features` switches the range filters on and off; while it is off, the
+    list is greyed out, and checking a filter in it switches it on. The list shows
+    each filter's column, range and the number of rows it drops from the view; the
+    labels above it show the rows dropped and remaining. With `presets`, `Load
+    Preset...`, `Save as Preset...` and `Remove Presets...` load and save the range
+    filters and `Filter Features` as the Filter tool's `features`; the category
+    values are not part of them. They go to the defaults for new tables, a saved
+    preset or a settings file. With OK, `GetData` returns an edited copy of the
+    filters.
     """
 
     def __init__(
         self,
         parent: Optional[wx.Window],
-        filters: Optional["FilterSettings"] = None,
+        filters: Optional["WindowFilters"] = None,
         dataframe: Optional["pd.DataFrame"] = None,
         dropped: dict[Any, Any] = {},
         show_dropped_option: bool = True,
@@ -368,7 +370,8 @@ class ConfigureFiltersDlg(wx.Dialog):
 
         Args:
             parent: The parent window.
-            filters: The filter settings to edit; required (None is not handled).
+            filters: The window's filters (`WindowFilters`) to edit; required (None
+                is not handled).
             dataframe: The table the filters apply to; required (None is not
                 handled).
             dropped: The row positions dropped from the view, by filter name or
@@ -379,7 +382,7 @@ class ConfigureFiltersDlg(wx.Dialog):
                 preset buttons. Defaults to None.
         """
         wx.Dialog.__init__(
-            self, parent, wx.ID_ANY, "Filter Settings", size=(650, 400)
+            self, parent, wx.ID_ANY, "Filter Features", size=(650, 400)
         )
         self.dataframe = dataframe
         self.dropped = dropped
@@ -387,17 +390,20 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.presets = presets
         self.result = None  # set by OK; None after Cancel or closing the window
         self.filters = filters
-        self.use = filters.use  # Filter Data; a loaded preset can change it
-        self.categories = dict(filters.category_filters)  # likewise
         cfgdata = filters.range_filters
         self.panel = wx.Panel(self, wx.ID_ANY)
         cbsizer = wx.BoxSizer(wx.HORIZONTAL)
         filtersizer = wx.BoxSizer(wx.VERTICAL)
+        self.featurescb = wx.CheckBox(self.panel, wx.ID_ANY, label="Filter Features")
+        self.featurescb.SetToolTip("Use the range filters; checking a filter switches them on")
+        self.featurescb.SetValue(filters.features.enabled)
+        self.featurescb.Bind(wx.EVT_CHECKBOX, lambda event: self.grey_out())
+        cbsizer.Add(self.featurescb, 0, wx.ALL | wx.EXPAND, 5)
+        filtersizer.Add(cbsizer, 0, wx.ALL | wx.EXPAND, 5)
         if self.show_dropped_option:
             self.showdropcb = wx.CheckBox(self.panel, wx.ID_ANY, label="Show Dropped")
             self.showdropcb.SetValue(filters.show_dropped)
             cbsizer.Add(self.showdropcb, 0, wx.ALL | wx.EXPAND, 5)
-            filtersizer.Add(cbsizer, 0, wx.ALL | wx.EXPAND, 5)
         self.dropped_label = wx.StaticText(
             self.panel, label=f"Dropped from view: ??? (of {len(self.dataframe):,})"
         )
@@ -420,6 +426,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.filterlist.InsertColumn(3, "Max", wx.LIST_FORMAT_RIGHT)
         self.filterlist.InsertColumn(4, "Dropped view", wx.LIST_FORMAT_RIGHT)
         self.filterlist.SetEditable([False, False, True, True, False])
+        self.filterlist.on_check = self._on_check
         self.filterlist.Arrange()
         currentfilters = {rfcfg["name"]: RangeFilter(params=rfcfg) for rfcfg in cfgdata}
 
@@ -483,6 +490,7 @@ class ConfigureFiltersDlg(wx.Dialog):
             dropped=self.dropped,
             headers=["Use", "Column", "Min", "Max", "Dropped view"],
         )
+        self.grey_out()
 
         self.Show()
 
@@ -519,13 +527,39 @@ class ConfigureFiltersDlg(wx.Dialog):
             f" {remaining:,} ({100.0 * remaining/viewlength:.2f}%)"
         )
 
-    def GetData(self) -> Optional["FilterSettings"]:
-        """Return the edited filter settings; None if the dialog was cancelled."""
+    def GetData(self) -> Optional["WindowFilters"]:
+        """Return the edited filters; None if the dialog was cancelled."""
         return self.result
 
+    def grey_out(self) -> None:
+        """Show the range filters greyed out while `Filter Features` is off."""
+        on = self.featurescb.GetValue()
+        colour = wx.SystemSettings.GetColour(
+            wx.SYS_COLOUR_LISTBOXTEXT if on else wx.SYS_COLOUR_GRAYTEXT
+        )
+        for row in range(self.filterlist.GetItemCount()):
+            self.filterlist.SetItemTextColour(row, colour)
+        self.filterlist.Refresh()
+
+    def switch_on(self) -> None:
+        """Switch `Filter Features` on: the explicit action of checking a filter."""
+        if not self.featurescb.GetValue():
+            self.featurescb.SetValue(True)
+            self.grey_out()
+
+    def _on_check(self, name: str, checked: bool) -> None:
+        """Switch `Filter Features` on when the user checks a range filter."""
+        if checked:
+            self.switch_on()
+
     def use_all(self, check: bool) -> None:
-        """Check (`Select All`) or uncheck (`Deselect All`) the Use of every range filter."""
+        """Check (`Select All`) or uncheck (`Deselect All`) the Use of every range filter.
+
+        `Select All` also switches `Filter Features` on.
+        """
         self.filterlist.check_items(list(self.filterlist.GetData()), check)
+        if check:
+            self.switch_on()
 
     def current_ranges(self) -> list[dict]:
         """Return the range filters as shown, as `RangeFilter` parameters."""
@@ -566,6 +600,7 @@ class ConfigureFiltersDlg(wx.Dialog):
             dropped=dropped,
             headers=["Use", "Column", "Min", "Max", "Dropped view"],
         )
+        self.grey_out()
         loaded = len(ranges) - len(missing)
         text = f"{loaded} filters loaded"
         if missing:
@@ -573,26 +608,29 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.message.SetLabel(text)
 
     def current_filters(self) -> "WindowFilters":
-        """Return the filters as shown: the switch, the ranges and the category values."""
+        """Return the filters as shown: `Filter Features` and the range filters."""
         return self.filters.model_copy(
             update={
-                "use": self.use,
+                "features": self.filters.features.model_copy(
+                    update={"enabled": self.featurescb.GetValue()}
+                ),
                 "range_filters": self.current_ranges(),
-                "category_filters": dict(self.categories),
             }
         )
 
     def show_settings(self, settings: dict) -> None:
-        """Show the Filter tool's settings: the switch, the ranges and the category values.
+        """Show the range filters and their switch of the Filter tool's settings.
 
-        The settings replace all filters of the table: range filters of columns they
-        don't have are switched off, and category columns they don't have keep all
-        values. Settings without `enabled` leave `Filter Data` as it is. The
-        message lists what is not used.
+        The range filters (`features`) replace those of the table: range filters
+        of columns they don't have are switched off. `Filter Features` is set from
+        the settings' switches (`enabled` of `features`, and the top-level
+        `enabled`); settings without them leave it as it is. The category and other
+        filters are not used (e.g. the category values of presets saved by earlier
+        versions); the message says how many.
 
         Args:
-            settings: The Filter tool's settings, or a part of them (`enabled`,
-                `filters`).
+            settings: The Filter tool's settings, or a part of them (`features`;
+                earlier versions: `enabled` and `filters`).
 
         Raises:
             ValueError: If the settings are not valid Filter settings.
@@ -601,24 +639,12 @@ class ConfigureFiltersDlg(wx.Dialog):
 
         part = window_part(settings)
         if part.use is not None:
-            self.use = part.use
-        columns = set(self.dataframe.columns)
-        self.categories = {c: keep for c, keep in part.categories.items() if c in columns}
-        # the rows the category values hide, for the counts
-        self.dropped = {k: v for k, v in self.dropped.items() if not isinstance(k, tuple)}
-        for column, keep in self.categories.items():
-            for value in self.dataframe[column].dropna().unique():
-                if value not in keep:
-                    self.dropped[(column, value)] = np.flatnonzero(self.dataframe[column] == value)
+            self.featurescb.SetValue(part.use)
         self.show_ranges(part.ranges, others_off=True)
-        notes = [self.message.GetLabel(), f"Filter Data {'on' if self.use else 'off'}"]
-        if self.categories:
-            notes.append(f"category values kept in {', '.join(self.categories)}")
-        missing = [c for c in part.categories if c not in columns]
-        if missing:
-            notes.append(f"category columns not in this table: {', '.join(missing)}")
+        on = self.featurescb.GetValue()
+        notes = [self.message.GetLabel(), f"Filter Features {'on' if on else 'off'}"]
         if part.unused:
-            notes.append(f"{part.unused} filters not used by table windows")
+            notes.append(f"{part.unused} category and other filters not used")
         self.message.SetLabel("; ".join(notes))
 
     def _on_load_preset(self, event: wx.CommandEvent) -> None:
@@ -664,7 +690,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         current = self.current_filters()
         if choice == DEFAULTS_PRESET:
             self.presets.save_defaults(current)
-            note = "; the category values are not part of them" if self.categories else ""
+            note = "; the category values are not part of them" if current.category_filters else ""
             self.message.SetLabel(f"Saved as the defaults for new tables{note}")
             return
         if choice == "To file...":
@@ -722,7 +748,7 @@ class ConfigureFiltersDlg(wx.Dialog):
 
 
 def _file_filter_settings(path: str) -> Optional[dict]:
-    """Return the Filter tool's settings in a file, as `Filter Settings` loads them.
+    """Return the Filter tool's settings in a file, as `Filter Features...` loads them.
 
     The file is a settings file with a Filter section (as `Save Settings...` of the
     Filter dialog and `To file...` write it), a Filter config alone, or a file of
@@ -732,8 +758,8 @@ def _file_filter_settings(path: str) -> Optional[dict]:
         path: The file.
 
     Returns:
-        The settings (`enabled`, `filters`; ranges only: `filters`), or None if the
-        file has none.
+        The settings (`enabled` and the three parts; ranges only: `features` with
+        its `filters`), or None if the file has none.
 
     Raises:
         OSError: If the file cannot be read.
@@ -747,24 +773,26 @@ def _file_filter_settings(path: str) -> Optional[dict]:
     entry = read_tool_settings(path, Filter)
     if entry is not None and entry.config is not None:
         config = Filter.config_class.model_validate(entry.config)
-        return config.model_dump(mode="json", include={"enabled", "filters"})
+        return config.model_dump(mode="json", include={"enabled", "features", "categories", "other"})
     with open(path) as f:
         found = find_feature_settings(json.load(f), ["low", "high", "dropna"])
     if not found:
         return None
     nodes = with_window_ranges([], file_data_ranges(found))
-    return {"filters": [node.model_dump(mode="json") for node in nodes]}
+    return {"features": {"filters": [node.model_dump(mode="json") for node in nodes]}}
 
 
 def _write_filter_settings(path: str, settings: dict) -> None:
-    """Write the Filter tool's settings into a settings file, as `Save Settings...` does.
+    """Write a part of the Filter tool's settings into a settings file.
 
-    The file's other sections are kept, and so are the Filter section's other
-    settings and how it saves its results.
+    The parts in `settings` replace those of the file's Filter section; the file's
+    other sections are kept, and so are the Filter section's other parts, its
+    top-level switch (`enabled`) and how it saves its results. A Filter section
+    of an earlier version is converted first.
 
     Args:
         path: The settings file; created if it does not exist.
-        settings: `enabled` and `filters`.
+        settings: The parts to write, e.g. `features` (`enabled` and `filters`).
 
     Raises:
         OSError: If the file cannot be read or written.
@@ -774,7 +802,8 @@ def _write_filter_settings(path: str, settings: dict) -> None:
     from flim.tools.data import Filter
 
     entry = read_tool_settings(path, Filter) if os.path.exists(path) else None
-    base = (entry.config if entry is not None and entry.config else None) or Filter.config_class().model_dump(mode="json")
+    stored = entry.config if entry is not None and entry.config else {}
+    base = Filter.config_class.model_validate(stored).model_dump(mode="json")
     config = Filter.config_class.model_validate({**base, **settings})
     autosave = entry.autosave if entry is not None else None
     write_tool_settings(path, Filter, tool_settings(config, autosave))

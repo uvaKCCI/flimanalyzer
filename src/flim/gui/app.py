@@ -742,20 +742,23 @@ class AppFrame(wx.Frame):
     def refresh_window_filters(self) -> None:
         """Update the defaults for new tables in place from the settings.
 
-        These are the switches (`use`, `show_dropped`) and the Filter tool's
-        top-level range filters. Open table windows keep their own filters.
+        These are the switches (`Filter Features`, `Filter Categories`, `Show
+        Dropped`) and the Filter tool's range filters. Open table windows keep their
+        own filters.
         """
         current = window_filters(self.settings)
-        self.filters.use = current.use
+        self.filters.features = current.features
+        self.filters.categories = current.categories
         self.filters.show_dropped = current.show_dropped
         self.filters.range_filters = current.range_filters
 
     def filter_presets(self) -> "flim.gui.dialogs.FilterPresets":
-        """Return where the table windows' `Filter Settings` load and save filters.
+        """Return where the table windows' `Filter Features...` load and save filters.
 
-        The defaults for new tables are the `filters` setting (`use`) and the Filter
-        tool's range filters (`window_filters`), as the Filter tool's settings; saved
-        presets are the Filter tool's presets.
+        The defaults for new tables are the `Filter Features` switch of the
+        `filters` setting and the Filter tool's range filters (`window_filters`),
+        as the Filter tool's `features`; saved presets are the Filter tool's
+        presets.
         """
         from flim.gui.dialogs import FilterPresets
 
@@ -771,24 +774,31 @@ class AppFrame(wx.Frame):
         )
 
     def report_filters(self, filters: WindowFilters) -> None:
-        """Write filters to the user settings file, as the defaults for new tables.
+        """Write range filters to the user settings file, as the defaults for new tables.
 
-        The switches go to the `filters` setting, the range filters to the Filter
-        tool's filters; its other filters are kept.
+        The `Filter Features` switch and `Show Dropped` go to the `filters` setting,
+        the range filters to the Filter tool's range filters (`features`); the
+        tool's switches and its other parts are kept, and so is `Filter
+        Categories`.
 
         Args:
-            filters: The filters of the data windows.
+            filters: The filters of a table window.
         """
         settings = self.settings
         config = settings.tools.config(Filter)
-        config = config.model_copy(
-            update={"filters": with_window_ranges(config.filters, filters.range_filters)}
-        )
+        ranges = with_window_ranges(config.features.filters, filters.range_filters)
+        features = config.features.model_copy(update={"filters": ranges})
+        config = config.model_copy(update={"features": features})
         entry = settings.tools.entry(Filter)
         stored = tool_settings(config, entry.autosave if entry else None)
         self.settings_manager.update(
             {
-                "filters": {"use": filters.use, "show_dropped": filters.show_dropped},
+                "filters": {
+                    "features": {"enabled": filters.features.enabled},
+                    # the section is replaced as a whole: Filter Categories as it is
+                    "categories": settings.filters.categories.model_dump(),
+                    "show_dropped": filters.show_dropped,
+                },
                 "tools": {Filter.name: stored.model_dump(mode="json")},
             }
         )

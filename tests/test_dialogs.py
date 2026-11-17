@@ -28,7 +28,7 @@ def test_filter_dialog(wxapp, table, recwarn):
     dlg = ConfigureFiltersDlg(None, filters=filters, dataframe=table)
     try:
         assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]
-        assert dlg.GetTitle() == "Filter Settings"
+        assert dlg.GetTitle() == "Filter Features"
         filters = dlg.filterlist
         assert filters.GetItemCount() > 0
         checked = filters.IsChecked(0)

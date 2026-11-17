@@ -84,21 +84,21 @@ def test_category_order_keeps_saved_orders(dialog):
 
 
 def _ranges(config) -> dict:
-    """The used top-level range filters of a FilterConfig, by column."""
+    """The used range filters of a FilterConfig, by column."""
     return {
         f.column: RangeSettings(low=f.low, high=f.high, dropna=f.dropna)
-        for f in config.filters
-        if f.kind == "range" and f.enabled
+        for f in config.features.filters
+        if f.enabled
     }
 
 
 def _categories(config) -> dict:
-    return {f.column: f.keep for f in config.filters if f.kind == "category" and f.enabled}
+    return {f.column: f.keep for f in config.categories.filters if f.enabled}
 
 
 def test_category_filters(dialog):
     d = dialog("Filter")
-    editor = d.fields.editors["filters"].categories
+    editor = d.fields.editors["categories"].view
     editor.columns.SetSelection(0)
     editor._show_values()
     editor.values.Check(2, False)  # drop Placebo
@@ -115,7 +115,7 @@ def test_category_filters(dialog):
 def test_range_filters_table(dialog, table):
     config = FilterConfig(range_filters={"t1": RangeSettings(low=120, high=180)})
     d = dialog("Filter", config)
-    editor = d.fields.editors["filters"].ranges
+    editor = d.fields.editors["features"].view
     assert editor.features == ["t1", "t2"]  # a row for each numeric column
     assert [editor.is_used(r) for r in range(2)] == [True, False]
     editor.use(1)  # checking fills in the data's range
@@ -136,7 +136,7 @@ def test_use_column_toggles_on_every_click_also_on_the_current_row(dialog):
     import wx.grid
 
     d = dialog("Filter")
-    editor = d.fields.editors["filters"].ranges
+    editor = d.fields.editors["features"].view
     editor.grid.SetGridCursor(0, 0)  # the current cell, as after a click on it
     first = editor.is_used(0)
     states = []
@@ -152,13 +152,13 @@ def test_save_and_load_feature_settings(dialog, tmp_path):
 
     path = tmp_path / "ranges.json"
     d = dialog("Filter", FilterConfig(range_filters={"t1": {"low": 120, "high": 180}}))
-    d.fields.editors["filters"].ranges.save_settings(path)
+    d.fields.editors["features"].view.save_settings(path)
     assert json.loads(path.read_text()) == {
         "t1": {"low": 120, "high": 180, "dropna": True}
     }
 
     other = dialog("Filter")
-    editor = other.fields.editors["filters"].ranges
+    editor = other.fields.editors["features"].view
     applied, skipped = editor.load_settings(path)
     assert (applied, skipped) == (["t1"], [])
     assert _ranges(other.result().config) == {}  # applied, but not checked
@@ -168,7 +168,7 @@ def test_save_and_load_feature_settings(dialog, tmp_path):
 
 def test_feature_settings_that_cannot_be_saved_give_a_message(dialog, tmp_path):
     d = dialog("Filter", FilterConfig(range_filters={"t1": {"low": 120, "high": 180}}))
-    editor = d.fields.editors["filters"].ranges
+    editor = d.fields.editors["features"].view
     editor.save_settings(tmp_path / "missing folder" / "ranges.json")  # no error raised
     assert editor.message.GetLabel().startswith("Could not save ranges.json:")
 
@@ -203,7 +203,7 @@ def test_load_settings_from_an_old_settings_file(dialog, tmp_path):
         min=100, max=200, bins=20
     )
     filters = dialog("Filter", FilterConfig(range_filters=["t2"]))
-    editor = filters.fields.editors["filters"].ranges
+    editor = filters.fields.editors["features"].view
     assert editor.load_settings(path) == (["t2"], ["gone"])
     assert "1 are not in the table" in editor.message.GetLabel()
     assert _ranges(filters.result().config)["t2"] == RangeSettings(
@@ -257,7 +257,7 @@ def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
 
     path = tmp_path / "settings.json"
     app = AppSettings.default()
-    app.filters.use = True
+    app.filters.features.enabled = True
     save_settings(app, path)  # an application settings file
     d = dialog("Summarize")
     d.fields.editors["aggs"].set(["max"])
@@ -265,7 +265,7 @@ def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
     d.folder.SetPath(str(tmp_path))
     assert d.save_settings(str(path))
     saved = load_settings(path)
-    assert saved.filters.use  # the other sections are kept
+    assert saved.filters.features.enabled  # the other sections are kept
     entry = saved.tools.entry(tools.get("Summarize"))
     assert entry.config["aggs"] == ["max"] and entry.autosave.enabled
     # the app settings' tools (Filter) and the dialog's
@@ -667,7 +667,7 @@ def test_no_statistics_disable_ok(dialog):
     assert not d.ok_button.IsEnabled()
 
 
-def test_filter_dialog_keeps_the_whole_tree(dialog, table):
+def test_filter_dialog_keeps_all_parts(dialog, table):
     from flim.configs.data import (
         CategoryFilterNode as Category,
         ExpressionFilterNode as Expression,
@@ -676,27 +676,76 @@ def test_filter_dialog_keeps_the_whole_tree(dialog, table):
     )
 
     config = FilterConfig(
-        filters=[
+        features={"filters": [
             Range(column="t1", low=120, high=180),
             Range(column="t2", low=0, high=1, enabled=False),  # shown unchecked
             Range(column="gone", high=3, enabled=False),  # not in the table: kept
-            Category(column="Treatment", keep=["Ctrl"]),
+        ]},
+        categories={"filters": [Category(column="Treatment", keep=["Ctrl"])]},
+        other={"enabled": False, "filters": [
             Expression(expression="t1 > 100"),
             FilterGroup(kind="any", filters=[Range(column="t2", high=5), Expression(expression="t1 < 3")]),
             Range(column="t1", high=500),  # a second range on t1
-        ]
-    )
+        ]},
+    )  # fmt: skip
     d = dialog("Filter", config)
-    editor = d.fields.editors["filters"]
-    assert [editor.ranges.is_used(r) for r in range(2)] == [True, False]
-    assert editor.ranges.grid.GetCellValue(1, 3) == "1"  # t2's unused range is shown
-    others = editor.others
+    ranges = d.fields.editors["features"].view
+    assert [ranges.is_used(r) for r in range(2)] == [True, False]
+    assert ranges.grid.GetCellValue(1, 3) == "1"  # t2's unused range is shown
+    others = d.fields.editors["other"].view
     assert others.grid.GetNumberRows() == 3  # the expression, the group, the second t1
     kind = others._kind_column()
     assert others.grid.GetCellValue(1, kind) == "any" and others.grid.IsReadOnly(1, kind)
     assert "any" not in others.columns[kind - others.offset].choices  # no new groups
-    result = d.result().config.filters
-    assert sorted(map(repr, result)) == sorted(map(repr, config.filters))
+    result = d.result().config
+    for part in ("features", "categories", "other"):
+        got, expected = getattr(result, part), getattr(config, part)
+        assert got.enabled == expected.enabled, part
+        assert sorted(map(repr, got.filters)) == sorted(map(repr, expected.filters)), part
+
+
+def test_filter_dialog_shows_each_part_with_its_switch(dialog, table):
+    d = dialog("Filter", FilterConfig(other={"enabled": False}))
+    editors = d.fields.editors
+    order = [n for n in editors if n in ("enabled", "features", "categories", "other")]
+    assert order == ["enabled", "features", "categories", "other"]
+    switches = {n: editors[n].switch for n in ("features", "categories", "other")}
+    assert {n: s.GetLabel() for n, s in switches.items()} == {
+        "features": "Use range filters",
+        "categories": "Use category filters",
+        "other": "Use other filters",
+    }
+    # a part that is off: its filters greyed out
+    assert editors["features"].view.control.IsEnabled()
+    assert not editors["other"].view.control.IsEnabled()
+    # Use filters off: all parts greyed out, their switches kept
+    editors["enabled"].set(False)
+    d.fields.refresh()
+    assert not any(editors[n].view.control.IsEnabled() for n in switches)
+    config = d.result().config
+    assert not config.enabled and config.features.enabled and not config.other.enabled
+    editors["enabled"].set(True)
+    switches["other"].SetValue(True)
+    d.fields.refresh()
+    assert all(editors[n].view.control.IsEnabled() for n in switches)
+
+
+def test_category_filters_that_are_off_are_kept_and_used_again_on_an_edit(dialog, table):
+    from flim.configs.data import CategoryFilterNode as Category
+
+    config = FilterConfig(categories={"filters": [Category(column="Treatment", keep=["Ctrl"], enabled=False)]})
+    d = dialog("Filter", config)
+    view = d.fields.editors["categories"].view
+    assert view.columns.GetString(0) == "Treatment * (off)"
+    (kept,) = d.result().config.categories.filters
+    assert (kept.keep, kept.enabled) == (["Ctrl"], False)
+    view.columns.SetSelection(0)
+    view._show_values()
+    view.values.Check(1, True)  # keep Drug too: the filter is used again
+    view._on_check(None)
+    assert view.columns.GetString(0) == "Treatment *"
+    (edited,) = d.result().config.categories.filters
+    assert (edited.keep, edited.enabled) == (["Ctrl", "Drug"], True)
 
 
 def test_source_dialog_shows_the_rename_only_for_a_source_column(dialog):
@@ -892,9 +941,9 @@ def test_separate_categories_presets(wxapp, monkeypatch):
         bind_presets(None)
 
 
-def test_filter_dialog_presets_are_those_of_filter_settings(wxapp, monkeypatch):
-    """The Filter dialog loads a preset saved in a table window's Filter Settings
-    (switch, ranges, category values), and saves its switch and filter list."""
+def test_filter_dialog_presets_are_those_of_filter_features(wxapp, monkeypatch):
+    """The Filter dialog loads a preset saved in a table window's Filter Features...
+    (the range filters and their switch), and saves its switch and its parts."""
     from flim.core.filtering import WindowFilters, new_range, window_part, window_settings
     from flim.core.registry import tools
     from flim.core.settingsmgr import SettingsManager
@@ -905,36 +954,54 @@ def test_filter_dialog_presets_are_those_of_filter_settings(wxapp, monkeypatch):
     manager = SettingsManager()
     tool = tools.get("Filter")
     window = WindowFilters(
-        use=False,
+        features={"enabled": False},
         range_filters=[new_range("t1") | {"rangelow": 2.0, "rangehigh": 9.0, "selected": True}],
         category_filters={"Treatment": ["a"]},
     )
-    manager.set_presets(tool, [{"name": "From a table", "settings": window_settings(window)}])
+    earlier = {  # a preset of a development build: a flat list
+        "enabled": False,
+        "filters": [{"kind": "range", "column": "t1", "high": 3},
+                    {"kind": "category", "column": "Treatment", "keep": ["b"]}],
+    }  # fmt: skip
+    manager.set_presets(tool, [
+        {"name": "From a table", "settings": window_settings(window)},
+        {"name": "Earlier", "settings": earlier},
+    ])  # fmt: skip
     bind_presets(manager)
-    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": data})
+    config = FilterConfig(categories={"filters": [{"kind": "category", "column": "Treatment", "keep": ["a"]}]})
+    d = dialog_class(tool.config_class)(None, tool, config, data_choices={"Table: data": data})
     try:
         assert isinstance(d, FilterDialog)
         monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
-        monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: 0)
+        choice = {"index": 0}
+        monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: choice["index"])
         d._on_load_preset(None)
         config, _ = d.current_config()
-        assert config.enabled is False  # the window's Filter Data
-        (leaf,) = [f for f in config.filters if f.kind == "range"]
+        assert config.enabled is True  # a window's preset has no top-level switch
+        assert config.features.enabled is False  # the window's Filter Features
+        (leaf,) = config.features.filters
         assert (leaf.column, leaf.low, leaf.high, leaf.enabled) == ("t1", 2.0, 9.0, True)
-        (category,) = [f for f in config.filters if f.kind == "category"]
+        (category,) = config.categories.filters  # kept: not part of the preset
         assert (category.column, category.keep) == ("Treatment", ["a"])
-        # Save as Preset...: the switch and all filters, also loaded by Filter Settings
+        # a preset of an earlier version: converted, sets all parts
+        choice["index"] = 1
+        d._on_load_preset(None)
+        config, _ = d.current_config()
+        assert config.enabled is False and config.features.filters[0].high == 3
+        assert config.categories.filters[0].keep == ["b"]
+        # Save as Preset...: the switch and all parts, also loaded by Filter Features...
         monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
         d._on_save_preset(None)
         saved = {p["name"]: p["settings"] for p in manager.settings.tool_presets(tool)}
-        assert set(saved) == {"From a table", "Mine"} and set(saved["Mine"]) == {"enabled", "filters"}
-        part = window_part(saved["Mine"])
-        assert part.use is False and part.categories == {"Treatment": ["a"]}
-        assert [(r["name"], r["rangehigh"]) for r in part.ranges if r["selected"]] == [("t1", 9.0)]
+        assert set(saved) == {"From a table", "Earlier", "Mine"}
+        assert set(saved["Mine"]) == {"enabled", "features", "categories", "other"}
+        part = window_part(saved["Mine"])  # in a table window: the range filters only
+        assert part.use is False and part.unused == 1
+        assert [(r["name"], r["rangehigh"]) for r in part.ranges if r["selected"]] == [("t1", 3.0)]
         # Remove Presets...
         monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
-        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0, 1])
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0, 1, 2])
         d._on_remove_presets(None)
         assert manager.settings.tool_presets(tool) == []
     finally:

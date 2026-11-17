@@ -7,7 +7,7 @@ are published with pubsub.
 """
 
 import logging
-from typing import Any, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -273,7 +273,8 @@ class FilterListCtrl(AnalysisListCtrl):
     The columns are the checkbox, the column the filter applies to, the low and high
     end of the range, and (with `showdropped`) the number of rows the filter drops
     from the view. The data map each column name to its `RangeFilter`. Changes are
-    published with `FILTERS_UPDATED`.
+    published with `FILTERS_UPDATED`; `on_check`, if set, is called with the
+    column name and the new state when the user checks or unchecks a filter.
     """
 
     def __init__(
@@ -302,6 +303,7 @@ class FilterListCtrl(AnalysisListCtrl):
         self.showdropped = showdropped
         self.setdrop(dropped)
         self.fireevents = fireevents
+        self.on_check: Optional[Callable[[str, bool], None]] = None
         self.Bind(wx.EVT_LIST_END_LABEL_EDIT, self.EndLabelEdit)
 
     def setdrop(self, dropped: Optional[dict[str, Any]]) -> None:
@@ -528,3 +530,5 @@ class FilterListCtrl(AnalysisListCtrl):
 
         if self.enableevents:
             self.fire_rowsupdated_event({rowkey: self.data[rowkey]})
+            if self.on_check is not None:  # a click: not SetData or check_items
+                self.on_check(rowkey, flag)

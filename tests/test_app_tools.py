@@ -201,7 +201,7 @@ def test_make_default_folder_in_the_dialog(frame, monkeypatch, prefect_harness, 
 
 def test_run_a_tool_with_a_custom_editor(frame, monkeypatch, prefect_harness):
     def change(dialog):
-        dialog.fields.editors["filters"].categories.set({"Treatment": ["Ctrl"]})
+        dialog.fields.editors["categories"].view.set({"Treatment": ["Ctrl"]})
 
     answer_dialog(monkeypatch, change)
     frame.run_tool(tools.get("Filter"))

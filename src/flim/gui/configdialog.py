@@ -1359,12 +1359,23 @@ class PresetsDialog(ConfigDialog):
         presets, current = [], self._current().model_dump()
         for data in _settings_manager.settings.tool_presets(self.tool):
             try:
-                settings = {k: v for k, v in data["settings"].items() if k in self.preset_fields}
+                settings = self.preset_settings(data["settings"])
                 self.tool.config_class.model_validate({**current, **settings})
                 presets.append({"name": str(data["name"]), "settings": settings})
             except (KeyError, TypeError, ValueError) as err:
                 logger.warning(f"Saved {self.tool.name} preset not valid, not offered: {err}")
         return presets
+
+    def preset_settings(self, settings: dict) -> dict:
+        """Return the settings a stored preset sets: its values of `preset_fields`.
+
+        Args:
+            settings: The preset's settings, as stored.
+
+        Returns:
+            The values of the fields in `preset_fields`.
+        """
+        return {k: v for k, v in settings.items() if k in self.preset_fields}
 
     def stored_presets(self) -> list[dict]:
         """Return all presets of the tool in the user settings file, as stored.

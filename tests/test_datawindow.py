@@ -113,8 +113,18 @@ def test_range_filter_on_and_off(frame, flim_data):
     expected = flim_data[FEATURE].between(low, high).sum()
     assert len(window.GetViewData()) == expected < len(flim_data)
     assert window.is_modified()
-    window.updateusefilter(False)  # Filter Data unchecked
+    window.use_features(False)  # Filter Features unchecked
     assert len(window.GetViewData()) == len(flim_data)
+    assert not window.featurescb.GetValue()
+
+
+def test_the_side_bar_has_two_filter_switches(frame, flim_data):
+    window = _open(frame, flim_data)
+    labels = [w.GetLabel() for w in window.GetChildren() if isinstance(w, (wx.CheckBox, wx.Button))]
+    assert {"Filter Features", "Filter Features...", "Filter Categories"} <= set(labels)
+    assert not {"Filter Data", "Filter Settings..."} & set(labels)
+    # the dialog can be opened with the range filters off: checking one there switches them on
+    assert not window.featurescb.GetValue() and window.filterbutton.IsEnabled()
 
 
 def test_a_new_window_applies_the_range_filters_that_are_on(frame, flim_data):
@@ -122,19 +132,34 @@ def test_a_new_window_applies_the_range_filters_that_are_on(frame, flim_data):
 
     low, high = flim_data[FEATURE].quantile([0.25, 0.75])
     frame.filters.range_filters = [new_range(FEATURE) | {"rangelow": low, "rangehigh": high, "selected": True}]
-    frame.filters.use = True
+    frame.filters.features.enabled = True
     expected = flim_data[FEATURE].between(low, high).sum()
     window = _open(frame, flim_data, "New")
-    assert window.filtercb.GetValue() and window.filterbutton.IsEnabled()
+    assert window.featurescb.GetValue() and not window.categoriescb.GetValue()
     assert len(window.GetViewData()) == expected < len(flim_data)
     assert not window.is_modified()  # read from a file: the filters change only the view
     # Show Dropped: the window of the hidden rows shows them all, its filters off
-    window.updateusefilter(True, showdiscarded=True)
+    window.use_features(True, showdiscarded=True)
     discarded = frame.windows_by_title()["New - Discarded"]
     assert len(discarded.GetViewData()) == len(flim_data) - expected
-    assert not discarded.filtercb.GetValue()
-    frame.filters.use = False
+    assert not discarded.featurescb.GetValue() and not discarded.categoriescb.GetValue()
+    assert not discarded.filters.features.enabled and not discarded.filters.categories.enabled
+    frame.filters.features.enabled = False
     assert len(_open(frame, flim_data, "Unfiltered").GetViewData()) == len(flim_data)
+
+
+def test_show_dropped_leaves_out_the_rows_of_hidden_category_values(frame, flim_data):
+    from flim.core.filtering import new_range
+
+    low, high = flim_data[FEATURE].quantile([0.25, 0.75])
+    window = _open(frame, flim_data, "Both")
+    window.filters.range_filters = [new_range(FEATURE) | {"rangelow": low, "rangehigh": high, "selected": True}]
+    window.set_category_filters({"Treatment": ["WT"]})
+    window.use_categories(True)
+    window.use_features(True, showdiscarded=True)
+    discarded = frame.windows_by_title()["Both - Discarded"].GetViewData()
+    outside = ~flim_data[FEATURE].between(low, high)
+    assert len(discarded) == (outside & (flim_data["Treatment"] == "WT")).sum()
 
 
 @pytest.mark.parametrize("button", ["Save Shown Rows...", "Save All Rows..."])
@@ -352,34 +377,44 @@ def test_filter_settings_dialogs_are_destroyed_and_unsubscribed(frame, monkeypat
     assert not [l for l in topic.getListeners() if "ConfigureFiltersDlg" in repr(l)]
 
 
-def test_filter_data_switches_the_category_filters_too(frame, monkeypatch, flim_data):
+class _Checked:
+    """The event of a checkbox of the side bar."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def GetEventObject(self):
+        return self
+
+    def GetValue(self):
+        return self.value
+
+
+def test_filter_categories_switches_the_hidden_category_values(frame, monkeypatch, flim_data):
     import flim.gui.datapanel as datapanel
 
     window = _open(frame, flim_data)
-
-    class Checked:  # the Filter Data checkbox's event
-        def __init__(self, value):
-            self.value = value
-
-        def GetEventObject(self):
-            return self
-
-        def GetValue(self):
-            return self.value
-
     window.set_category_filters({"Treatment": ["WT"]})
     window.update_view()
-    assert len(window.GetViewData()) == len(flim_data)  # Filter Data off: all rows
-    window.OnFilterData(Checked(True))
-    assert set(window.GetViewData()["Treatment"]) == {"WT"}
+    assert len(window.GetViewData()) == len(flim_data)  # Filter Categories off: all rows
+    window.OnFilterCategories(_Checked(True))
+    assert set(window.GetViewData()["Treatment"]) == {"WT"} and window.filters.categories.enabled
     assert window.category_filters() == {"Treatment": ["WT"]}
-    window.OnFilterData(Checked(False))
-    assert len(window.GetViewData()) == len(flim_data)
+    window.OnFilterFeatures(_Checked(True))  # the range filters: independent
+    assert set(window.GetViewData()["Treatment"]) == {"WT"}
+    window.OnFilterCategories(_Checked(False))
+    assert len(window.GetViewData()) == len(flim_data)  # no range filter is checked
+    assert window.category_filters() == {"Treatment": ["WT"]}  # kept while off
 
-    class Dialog:  # Filter Settings, closed with OK after loading a preset
-        def __init__(self, parent, shown, *args, **kwargs):
-            assert shown.category_filters == {"Treatment": ["WT"]}
-            self.result = shown.model_copy(update={"use": True, "category_filters": {"FOV": ["1", "2"]}})
+    class Dialog:  # Filter Features..., closed with OK after loading a preset
+        def __init__(self, parent, shown, data, dropped, *args, **kwargs):
+            assert not any(isinstance(k, tuple) for k in dropped)  # categories off: not counted
+            self.result = shown.model_copy(
+                update={
+                    "features": shown.features.model_copy(update={"enabled": False}),
+                    "category_filters": {"FOV": ["1", "2"]},
+                }
+            )
 
         def ShowModal(self):
             return wx.ID_OK
@@ -392,9 +427,68 @@ def test_filter_data_switches_the_category_filters_too(frame, monkeypatch, flim_
 
     monkeypatch.setattr(datapanel, "ConfigureFiltersDlg", Dialog)
     window.OnFilterSettings(None)
-    assert window.filtercb.GetValue() and window.filters.use
-    assert window.category_filters() == {"FOV": ["1", "2"]}
-    assert set(window.GetViewData()["FOV"]) == {"1", "2"} and len(window.GetViewData()) == 40
+    # the dialog edits the range filters only: the category values stay as they are
+    assert not window.featurescb.GetValue() and not window.filters.features.enabled
+    assert window.category_filters() == {"Treatment": ["WT"]}
+
+
+def test_hiding_a_category_value_switches_filter_categories_on(frame, monkeypatch, flim_data):
+    import flim.gui.datapanel as datapanel
+
+    window = _open(frame, flim_data)
+    changes = []
+    window.on_filters_changed = lambda filters: changes.append(filters.categories.enabled)
+
+    class Select:  # the Select Items dialog: only WT
+        def __init__(self, *args, groups=None, **kwargs):
+            self.groups = groups
+
+        def ShowModal(self):
+            return wx.ID_OK
+
+        def get_selected(self):
+            return ["WT"]
+
+        def Destroy(self):
+            pass
+
+    class Event:  # a right-click on the Treatment header
+        def GetCol(self):
+            return list(window.dataview.columns).index("Treatment") + int(window.showcolindex)
+
+        def GetRow(self):
+            return -1
+
+    monkeypatch.setattr(datapanel, "SelectGroupsDlg", Select)
+    assert not window.categoriescb.GetValue()
+    window.OnLabelClick(Event())
+    assert window.categoriescb.GetValue() and window.filters.categories.enabled
+    assert not window.featurescb.GetValue()  # the other switch is not changed
+    assert set(window.GetViewData()["Treatment"]) == {"WT"} and changes == [True]
+
+
+def test_checking_a_range_filter_switches_filter_features_on(frame, flim_data):
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    window = _open(frame, flim_data)
+    shown = window.filters.model_copy(update={"range_filters": window._existing_rangefilters([])})
+    dlg = ConfigureFiltersDlg(window, shown, window.data, {})
+    try:
+        gray = wx.SystemSettings.GetColour(wx.SYS_COLOUR_GRAYTEXT)
+        assert not dlg.featurescb.GetValue()
+        assert dlg.filterlist.GetItemTextColour(0) == gray  # greyed out while off
+        dlg.filterlist.CheckItem(0, True)  # as a click on the box
+        assert dlg.featurescb.GetValue()
+        assert dlg.filterlist.GetItemTextColour(0) != gray
+        dlg.featurescb.SetValue(False)
+        dlg.grey_out()
+        dlg.filterlist.CheckItem(0, False)  # unchecking: stays off
+        assert not dlg.featurescb.GetValue()
+        dlg.use_all(True)  # Select All
+        assert dlg.featurescb.GetValue()
+        assert dlg.current_filters().features.enabled
+    finally:
+        dlg.Destroy()
 
 
 def test_filter_settings_select_all_and_deselect_all(frame, flim_data):
@@ -421,18 +515,12 @@ def test_filters_belong_to_their_table_window(wxapp, monkeypatch, tmp_path, flim
     try:
         first = _open(frame, flim_data, "First")
         second = _open(frame, flim_data, "Second")
-
-        class Checked:  # the filter checkbox's event: checked
-            def GetEventObject(self):
-                return self
-
-            def GetValue(self):
-                return True
-
-        first.OnFilterData(Checked())
-        assert first.filters.use and not second.filters.use  # this table only
-        assert not frame.filters.use  # the defaults for new tables are unchanged
-        assert not path.exists() or "use" not in json.loads(path.read_text()).get("filters", {})
+        first.OnFilterFeatures(_Checked(True))
+        first.OnFilterCategories(_Checked(True))
+        assert first.filters.features.enabled and not second.filters.features.enabled  # this table only
+        assert first.filters.categories.enabled and not second.filters.categories.enabled
+        assert not frame.filters.features.enabled  # the defaults for new tables are unchanged
+        assert not path.exists() or "features" not in json.loads(path.read_text()).get("filters", {})
         assert first.filters is not second.filters is not frame.filters
     finally:
         frame.OnCloseAll(None)
@@ -452,77 +540,101 @@ def test_filter_presets_defaults_saved_and_files(wxapp, monkeypatch, tmp_path, f
     column = "FAD a1[%]"
     try:
         window = _open(frame, flim_data, "Data")
-        window.filters.use = True
-        shown = window.filters.model_copy(update={"range_filters": window._existing_rangefilters([])})
+        window.filters.features.enabled = True
+        window.set_category_filters({"Treatment": ["WT"]})
+        window.use_categories(True)
+        shown = window.filters.model_copy(
+            update={"range_filters": window._existing_rangefilters([]), "category_filters": window.category_filters()}
+        )
         dlg = ConfigureFiltersDlg(window, shown, window.data, {}, presets=window.presets)
         try:
-            assert not hasattr(dlg, "filtercb")  # no Use Filters: Filter Data is the switch
+            assert dlg.GetTitle() == "Filter Features" and dlg.featurescb.GetValue()
             dlg.show_ranges([new_range(column) | {"rangelow": 60.0, "rangehigh": 75.0, "selected": True}])
             choice = {"index": 0}
             monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda d: wx.ID_OK)
             monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda d: choice["index"])
-            # Save as Preset...: Defaults for new tables
+            # Save as Preset...: Defaults for new tables: the range filters and their switch
             dlg._on_save_preset(None)
+            assert "the category values are not part of them" in dlg.message.GetLabel()
             stored = json.loads(path.read_text())
-            leaf = next(f for f in stored["tools"]["Filter"]["config"]["filters"] if f.get("column") == column)
+            config = stored["tools"]["Filter"]["config"]
+            leaf = next(f for f in config["features"]["filters"] if f.get("column") == column)
             assert (leaf["low"], leaf["high"], leaf["enabled"]) == (60.0, 75.0, True)
-            assert stored["filters"]["use"] is True
+            assert config["categories"]["filters"] == [] and config["other"]["filters"] == []
+            assert stored["filters"]["features"] == {"enabled": True}
+            assert stored["filters"]["categories"] == {"enabled": False}  # as it was
             # ... a new preset, by name (choices: defaults, New preset..., To file...)
             choice["index"] = 1
             monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda d: wx.ID_OK)
             monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda d: "Mito")
             dlg._on_save_preset(None)
-            assert [p["name"] for p in frame.settings.tool_presets(Filter)] == ["Mito"]
-            # ... a settings file with the Filter section, as the Filter dialog's Save Settings...
+            (preset,) = frame.settings.tool_presets(Filter)
+            assert preset["name"] == "Mito" and set(preset["settings"]) == {"features"}
+            assert preset["settings"]["features"]["enabled"] is True
+            # ... into an existing settings file: only `features` is replaced
             choice["index"] = 3  # defaults, Mito, New preset..., To file...
-            target = tmp_path / "filters"  # .json is added
+            target = tmp_path / "filters.json"
+            write_tool_settings(target, Filter, ToolSettings(config=Filter.config_class(
+                enabled=False,
+                features={"filters": [{"column": FEATURE, "high": 1}]},
+                categories={"enabled": False, "filters": [{"kind": "category", "column": "FOV", "keep": ["1"]}]},
+                other={"filters": [{"kind": "expression", "expression": "`FAD a1[%]` > 1"}]},
+            ).model_dump(mode="json")))
             monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda d: wx.ID_OK)
             monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(target))
-            dlg.categories = {"Treatment": ["WT"]}
             dlg._on_save_preset(None)
-            written = json.loads((tmp_path / "filters.json").read_text())
-            config = written["config"]  # a new file: a tool file
-            assert written["schema_version"] == 2 and written["tool"] == "Filter"
-            assert config["enabled"] is True
-            assert {"enabled": True, "kind": "category", "column": "Treatment", "keep": ["WT"]} in config["filters"]
+            config = read_tool_settings(target, Filter).config
+            assert config["enabled"] is False  # the top-level switch: kept
+            assert config["categories"]["enabled"] is False and len(config["categories"]["filters"]) == 1
+            assert config["other"]["filters"][0]["expression"] == "`FAD a1[%]` > 1"
+            assert config["features"]["enabled"] is True
             assert {"enabled": True, "kind": "range", "column": column, "low": 60.0, "high": 75.0,
-                    "dropna": True} in config["filters"]
-            entry = read_tool_settings(tmp_path / "filters.json", Filter)  # the Filter tool reads it
-            assert Filter.config_class.model_validate(entry.config).enabled
-            # Load Preset...: the saved preset, then the file: switch, ranges, categories
+                    "dropna": True} in config["features"]["filters"]
+            assert not any(f["column"] == FEATURE and f.get("high") == 1 for f in config["features"]["filters"])
+            # ... a new file: a tool file with the range filters
+            new_file = tmp_path / "new"  # .json is added
+            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(new_file))
+            dlg._on_save_preset(None)
+            written = json.loads((tmp_path / "new.json").read_text())
+            assert written["schema_version"] == 2 and written["tool"] == "Filter"
+            assert written["config"]["enabled"] is True and written["config"]["categories"]["filters"] == []
+            # Load Preset...: the saved preset, then a file
             dlg.show_ranges([new_range(column)])
-            dlg.use, dlg.categories = False, {}
+            dlg.featurescb.SetValue(False)
             choice["index"] = 1
             dlg._on_load_preset(None)
             assert next(r for r in dlg.current_ranges() if r["name"] == column)["rangehigh"] == 75.0
-            assert dlg.use and dlg.categories == {}  # the preset was saved before the categories
-            dlg.use = False
-            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(tmp_path / "filters.json"))
+            assert dlg.featurescb.GetValue()
+            # a file of the Filter tool with its switch off: the range filters are not used
+            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(target))
             choice["index"] = 2  # defaults, Mito, From file...
             dlg._on_load_preset(None)
-            assert dlg.use and dlg.categories == {"Treatment": ["WT"]}
-            assert dlg.current_filters().category_filters == {"Treatment": ["WT"]}
-            # a file of the Filter tool: its switch off, an expression the window doesn't use
-            tool_file = tmp_path / "tool.json"
-            write_tool_settings(tool_file, Filter, ToolSettings(config=Filter.config_class(
-                enabled=False, filters=[{"kind": "expression", "expression": "`FAD a1[%]` > 1"},
-                                        {"kind": "range", "column": FEATURE, "low": 0, "high": 5}]
-            ).model_dump(mode="json")))
-            monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(tool_file))
+            assert not dlg.featurescb.GetValue()
+            assert "2 category and other filters not used" in dlg.message.GetLabel()
+            # a preset of an earlier version: its switch and range filters; category values ignored
+            frame.settings_manager.set_presets(Filter, [{"name": "Earlier", "settings": {
+                "enabled": True,
+                "filters": [{"kind": "range", "column": FEATURE, "low": 0, "high": 5},
+                            {"kind": "category", "column": "Treatment", "keep": ["KO"]}],
+            }}])
+            choice["index"] = 1
             dlg._on_load_preset(None)
             shown = {r["name"]: r for r in dlg.current_ranges()}
-            assert not dlg.use and dlg.categories == {}
+            assert dlg.featurescb.GetValue()
             assert (shown[FEATURE]["rangehigh"], shown[FEATURE]["selected"]) == (5, True)
-            assert not shown[column]["selected"]  # not in the file: off
-            assert "1 filters not used by table windows" in dlg.message.GetLabel()
-            # a file of Save Feature Settings... (ranges only): all on, Filter Data unchanged
+            assert not shown[column]["selected"]  # not in the preset: off
+            assert "1 category and other filters not used" in dlg.message.GetLabel()
+            assert dlg.current_filters().category_filters == {"Treatment": ["WT"]}  # the window's
+            # a file of Save Feature Settings... (ranges only): all on, Filter Features unchanged
+            dlg.featurescb.SetValue(False)
             ranges_file = tmp_path / "ranges.json"
             ranges_file.write_text(json.dumps({column: {"low": 65, "high": 70}, "not here": {"low": 1}}))
             monkeypatch.setattr(wx.FileDialog, "GetPath", lambda d: str(ranges_file))
+            choice["index"] = 2
             dlg._on_load_preset(None)
             shown = {r["name"]: r for r in dlg.current_ranges()}
             assert (shown[column]["rangelow"], shown[column]["rangehigh"], shown[column]["selected"]) == (65, 70, True)
-            assert not shown[FEATURE]["selected"] and not dlg.use
+            assert not shown[FEATURE]["selected"] and not dlg.featurescb.GetValue()
             assert "not in this table: not here" in dlg.message.GetLabel()
             # Remove Presets...
             monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda d: wx.ID_OK)
@@ -532,9 +644,9 @@ def test_filter_presets_defaults_saved_and_files(wxapp, monkeypatch, tmp_path, f
         finally:
             dlg.Destroy()
         assert DEFAULTS_PRESET == "Defaults for new tables"
-        # a new table starts with the defaults
+        # a new table starts with the defaults: the range filters on, no category values
         new = _open(frame, flim_data, "New")
-        assert new.filtercb.GetValue()
+        assert new.featurescb.GetValue() and not new.categoriescb.GetValue()
         assert len(new.GetViewData()) == flim_data[column].between(60, 75).sum()
     finally:
         frame.OnCloseAll(None)

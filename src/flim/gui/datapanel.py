@@ -239,12 +239,14 @@ def category_values(column: pd.Series) -> list[Any]:
 class PandasFrame(wx.Frame):
     """Table window: a grid with the table and buttons for its view.
 
-    The buttons set the precision of floats, fit the column widths, turn the range
-    filters on and off and edit them, run the Pivot and Unpivot tools on the table,
-    and save all rows or the rows shown. Right-clicking a category column's header
-    selects the values shown; double-clicking it renames values with a pattern.
-    Right-clicking a numeric column's header, with filters on, edits the column's
-    range filter.
+    The side bar sets the precision of floats, fits the column widths, turns the
+    range filters (`Filter Features`) and the hidden category values (`Filter
+    Categories`) on and off, edits the range filters (`Filter Features...`), runs
+    the Pivot and Unpivot tools on the table, and saves all rows or the rows shown.
+    Right-clicking a category column's header selects the values shown (hiding a
+    value switches `Filter Categories` on); double-clicking it renames values with a
+    pattern. Right-clicking a numeric column's header, with `Filter Features` on,
+    edits the column's range filter.
 
     Pubsub: sends `FOCUSED_DATA_WINDOW` when activated, `CLOSING_DATA_WINDOW` when
     closed and `REQUEST_RENAME_DATA_WINDOW` after a save; receives
@@ -286,20 +288,25 @@ class PandasFrame(wx.Frame):
             enableclose: Whether the window can be closed; if not, closing it shows
                 a message.
             on_filters_changed: Called with the window's filters after the user
-                changes them (filter checkbox, Filter Settings dialog).
+                changes them (the filter checkboxes, `Filter Features...`, hidden
+                category values).
             on_run_tool: Called with a tool's name and this window's title to run
                 the tool on this window's table in its dialog (Pivot, Unpivot); None:
                 the window does not show these buttons.
             filtered: Whether the window applies the range filters of `filters`
-                when they are on (`filters.use`), also when it opens; False for a
-                window of the rows they hide (`Show Dropped`), whose `Filter Data`
-                box is then unchecked.
-            presets: Where `Filter Settings` loads and saves filters (the defaults
-                for new tables, saved presets, files); None for no preset buttons.
+                when they are on (`filters.features`), also when it opens; False for
+                a window of the rows they hide (`Show Dropped`), whose `Filter
+                Features` and `Filter Categories` boxes are then unchecked.
+            presets: Where `Filter Features...` loads and saves range filters (the
+                defaults for new tables, saved presets, files); None for no preset
+                buttons.
         """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
         start = filters if filters is not None else window_filters(AppSettings.default())
         self.filters = start.model_copy(deep=True)  # this table's own
+        if not filtered:  # the rows the filters of another window dropped
+            self.filters.features.enabled = False
+            self.filters.categories.enabled = False
         self.presets = presets
         self.on_filters_changed = on_filters_changed
         self.on_run_tool = on_run_tool
@@ -308,8 +315,8 @@ class PandasFrame(wx.Frame):
         self.grid = None
         self.SetData(data, showcolindex, groups, analyzable, savemodified, precision)
         self._init_gui()
-        if self.filtered and self.filters.use:
-            self.updateusefilter(True)  # the shared range filters, as in the other windows
+        if self.filters.features.enabled:
+            self.use_features(True)  # the shared range filters, as in the other windows
         self.Layout()
 
         self.Bind(wx.EVT_CLOSE, self.close_and_destroy)
@@ -410,12 +417,20 @@ class PandasFrame(wx.Frame):
         autosizebutton = wx.Button(self, wx.ID_ANY, "Autosize Cols")
         autosizebutton.Bind(wx.EVT_BUTTON, self.OnAutosize)
 
-        self.filtercb = wx.CheckBox(self, wx.ID_ANY, label="Filter Data")
-        self.filtercb.SetValue(self.filtered and self.filters.use)
-        self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnFilterData)
+        self.featurescb = wx.CheckBox(self, wx.ID_ANY, label="Filter Features")
+        self.featurescb.SetToolTip("Use the range filters of the feature columns")
+        self.featurescb.SetValue(self.filters.features.enabled)
+        self.featurescb.Bind(wx.EVT_CHECKBOX, self.OnFilterFeatures)
 
-        self.filterbutton = wx.Button(self, wx.ID_ANY, "Filter Settings...")
-        self.filterbutton.Enable(self.filtercb.GetValue())
+        self.categoriescb = wx.CheckBox(self, wx.ID_ANY, label="Filter Categories")
+        self.categoriescb.SetToolTip(
+            "Use the category values hidden through a right-click on a column header"
+        )
+        self.categoriescb.SetValue(self.filters.categories.enabled)
+        self.categoriescb.Bind(wx.EVT_CHECKBOX, self.OnFilterCategories)
+
+        self.filterbutton = wx.Button(self, wx.ID_ANY, "Filter Features...")
+        self.filterbutton.SetToolTip("Edit the range filters of the feature columns")
         self.filterbutton.Bind(wx.EVT_BUTTON, self.OnFilterSettings)
 
         pivotviewbutton = wx.Button(self, wx.ID_ANY, "Pivot...")
@@ -441,8 +456,9 @@ class PandasFrame(wx.Frame):
         toolsizer = wx.BoxSizer(wx.VERTICAL)
         toolsizer.Add(precisionsizer, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(autosizebutton, 0, wx.ALL | wx.EXPAND, 5)
-        toolsizer.Add(self.filtercb, 0, wx.ALL | wx.EXPAND, 5)
+        toolsizer.Add(self.featurescb, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(self.filterbutton, 0, wx.ALL | wx.EXPAND, 5)
+        toolsizer.Add(self.categoriescb, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(pivotviewbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(self.unpivotbutton, 0, wx.ALL | wx.EXPAND, 5)
         toolsizer.Add(saveallbutton, 0, wx.ALL | wx.EXPAND, 5)
@@ -548,34 +564,45 @@ class PandasFrame(wx.Frame):
         self.update_precision(event.GetEventObject().GetValue())
         self.grid.Refresh()
 
-    def updateusefilter(self, enabled: bool, showdiscarded: bool = False) -> None:
-        """Turn all filters on or off and update the view.
-
-        The category values hidden in the window are kept, and apply only while the
-        filters are on.
+    def use_features(self, enabled: bool, showdiscarded: bool = False) -> None:
+        """Turn the range filters on or off (`Filter Features`) and update the view.
 
         Args:
-            enabled: True to apply the range filters of `filters` and the hidden
-                category values, False to show all rows.
+            enabled: True to apply the range filters of `filters`, False to keep
+                the rows they drop.
             showdiscarded: Whether a new table window shows the rows the range
                 filters drop (only when `enabled`). Defaults to False.
         """
-        self.filters.use = enabled
-        self.filterbutton.Enable(enabled)
+        self.filters.features.enabled = enabled
+        self.featurescb.SetValue(enabled)
         filtercfg = self.filters.range_filters
         if enabled:
-            # apply
             self.apply_filters(
                 {f["name"]: f for f in filtercfg}, showdiscarded=showdiscarded
             )
         else:
-            # clear
             self.apply_filters({})
 
-    def OnFilterData(self, event: wx.CommandEvent) -> None:
-        """Turn all filters (ranges and category values) on or off with Filter Data."""
-        cb = event.GetEventObject()
-        self.updateusefilter(cb.GetValue())
+    def use_categories(self, enabled: bool) -> None:
+        """Turn the hidden category values on or off (`Filter Categories`).
+
+        The values hidden in the window are kept while they are off.
+
+        Args:
+            enabled: True to hide the rows of the hidden values, False to show them.
+        """
+        self.filters.categories.enabled = enabled
+        self.categoriescb.SetValue(enabled)
+        self.update_view()
+
+    def OnFilterFeatures(self, event: wx.CommandEvent) -> None:
+        """Turn the range filters on or off with `Filter Features`."""
+        self.use_features(event.GetEventObject().GetValue())
+        self._filters_changed()
+
+    def OnFilterCategories(self, event: wx.CommandEvent) -> None:
+        """Turn the hidden category values on or off with `Filter Categories`."""
+        self.use_categories(event.GetEventObject().GetValue())
         self._filters_changed()
 
     def _filters_changed(self) -> None:
@@ -598,8 +625,21 @@ class PandasFrame(wx.Frame):
         ]
         return rangefilters
 
+    def _applied_rows(self) -> dict:
+        """Return a copy of the dropped rows, without the hidden category values if off.
+
+        The filter dialog counts the rows its range filters drop from the view.
+        """
+        if self.filters.categories.enabled:
+            return self.droppedrows.copy()
+        return {k: v for k, v in self.droppedrows.items() if not isinstance(k, tuple)}
+
     def OnFilterSettings(self, event: wx.CommandEvent) -> None:
-        """Edit the view filters in the filter dialog and apply them on OK."""
+        """Edit the range filters in `Filter Features...` and apply them on OK.
+
+        Checking a range filter in the dialog switches `Filter Features` on there;
+        the window's box follows on OK.
+        """
         rfilterlist = self.filters.range_filters
         shown = self.filters.model_copy(
             update={
@@ -609,7 +649,7 @@ class PandasFrame(wx.Frame):
         )
         # a copy of the dropped rows, so that Cancel leaves droppedrows unchanged
         dlg = ConfigureFiltersDlg(
-            self, shown, self.data, self.droppedrows.copy(), presets=self.presets
+            self, shown, self.data, self._applied_rows(), presets=self.presets
         )
         response = dlg.ShowModal()
         edited = dlg.GetData()
@@ -617,10 +657,7 @@ class PandasFrame(wx.Frame):
         if response == wx.ID_OK:
             self.filters.range_filters = self._merged_filters(edited.range_filters)
             self.filters.show_dropped = edited.show_dropped
-            if edited.category_filters != shown.category_filters:
-                self.set_category_filters(edited.category_filters)
-            self.filtercb.SetValue(edited.use)
-            self.updateusefilter(edited.use, showdiscarded=edited.show_dropped)
+            self.use_features(edited.features.enabled, showdiscarded=edited.show_dropped)
             self._filters_changed()
 
     def category_filters(self) -> dict[str, list]:
@@ -681,12 +718,12 @@ class PandasFrame(wx.Frame):
                 if fname in self.droppedrows
             ]
         )
-        # get rows dropped by category filters; Filter Data switches them too
+        # get rows dropped by the hidden category values, if Filter Categories is on
         catdropped = self._flatten_array(
             [
-                self.droppedrows[fname]
-                for fname in self.droppedrows
-                if fname not in rfilter_names and self.filters.use
+                self.droppedrows[key]
+                for key in self.droppedrows
+                if isinstance(key, tuple) and self.filters.categories.enabled
             ]
         )
         # all dropped rows: the union of rfilterdropped and catdropped
@@ -754,7 +791,8 @@ class PandasFrame(wx.Frame):
     def OnLabelClick(self, event: wx.grid.GridEvent) -> None:
         """Select the values shown of a category column, or edit a range filter.
 
-        A numeric column's range filter is edited only when the filters are on.
+        Hiding a value switches `Filter Categories` on. A numeric column's range
+        filter is edited only when `Filter Features` is on.
         """
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
@@ -777,15 +815,16 @@ class PandasFrame(wx.Frame):
                     self.data[group] == value
                 )
             self.modified = True
-            if notselected and not self.filters.use:
-                # hidden values apply with Filter Data on: switch it on
-                self.filtercb.SetValue(True)
-                self.updateusefilter(True)
+            if notselected and not self.filters.categories.enabled:
+                # hiding a value is an explicit action: Filter Categories goes on
+                self.use_categories(True)
                 self._filters_changed()
             else:
                 self.update_view()
         elif (
-            event.GetRow() == -1 and group in self.numcols and self.filtercb.GetValue()
+            event.GetRow() == -1
+            and group in self.numcols
+            and self.filters.features.enabled
         ):
             # the range filter of the current column (group)
             shown = self.filters.model_copy(
@@ -799,7 +838,7 @@ class PandasFrame(wx.Frame):
                 self,
                 shown,
                 self.data,
-                self.droppedrows.copy(),
+                self._applied_rows(),
                 show_dropped_option=False,
             )
             response = dlg.ShowModal()
@@ -808,7 +847,10 @@ class PandasFrame(wx.Frame):
             if response == wx.ID_OK:
                 edited = result.range_filters
                 self.filters.range_filters = self._merged_filters(edited)
-                self.apply_filters({f["name"]: f for f in edited})
+                if result.features.enabled:
+                    self.apply_filters({f["name"]: f for f in edited})
+                else:
+                    self.use_features(False)
                 self._filters_changed()
 
     def OnAutosize(self, event: wx.CommandEvent) -> None:
