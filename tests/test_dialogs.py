@@ -209,3 +209,25 @@ def test_filter_settings_buttons_show_their_whole_labels(wxapp, table):
             assert button.GetRect().GetRight() <= dlg.panel.GetClientSize().width
     finally:
         dlg.Destroy()
+
+
+def test_filter_list_checkbox_of_the_current_row_can_be_clicked(wxapp, table):
+    import wx
+
+    from flim.core.filtering import window_filters
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, window_filters(AppSettings.default()), table, {})
+    try:
+        ctrl = dlg.filterlist
+        ctrl.curRow = 0  # the current row, as after a click on it
+        y = ctrl.GetItemRect(0).GetTop() + 2
+        for x, to_list in ((5, True), (ctrl.GetColumnWidth(0) + 5, False)):
+            event = wx.MouseEvent(wx.wxEVT_LEFT_DOWN)
+            event.SetPosition(wx.Point(x, y))
+            ctrl.OnLeftDown(event)
+            # the checkbox column: the click goes to the list, which toggles the box
+            assert event.GetSkipped() is to_list
+    finally:
+        dlg.Destroy()

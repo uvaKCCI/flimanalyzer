@@ -51,6 +51,20 @@ class AnalysisListCtrl(
         self.Bind(wx.EVT_LIST_ITEM_CHECKED, self._on_item_checked)
         self.Bind(wx.EVT_LIST_ITEM_UNCHECKED, self._on_item_checked)
 
+    def OnLeftDown(self, evt: wx.MouseEvent) -> None:
+        """Pass clicks on the checkbox column to the list; others to the cell editor.
+
+        `TextEditMixin` opens the editor for a click on the current row and keeps
+        the click, so the checkbox of the current row could not be clicked.
+        """
+        x = evt.GetPosition()[0] + self.GetScrollPos(wx.HORIZONTAL)
+        if x < self.GetColumnWidth(0):
+            if self.editor.IsShown():
+                self.CloseEditor()
+            evt.Skip()
+            return
+        listmix.TextEditMixin.OnLeftDown(self, evt)
+
     def IsChecked(self, index: int) -> bool:
         """Return whether the item at `index` is checked."""
         return self.IsItemChecked(index)

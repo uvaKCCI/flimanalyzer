@@ -489,6 +489,9 @@ describes how API changes are handled.
   delimiter.
 - **Filter Settings:** `Dropped from view` and the remaining count ignored the rows
   hidden by a single other filter.
+- **Filter Settings checkboxes:** the checkbox of the first row, and of the row
+  clicked last, couldn't be checked or unchecked; a click on it opened the cell editor
+  instead.
 - **Messages not shown:** `OK` with nothing selected, and an invalid pattern in Pattern
   Rename, did nothing instead of showing an error.
 - **Saving a table window when closing it** suggested the file name `frame.txt`; it now
