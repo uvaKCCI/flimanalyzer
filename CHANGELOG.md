@@ -85,6 +85,9 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   names them.
 ### Changed
 
+- **Closing a table window:** `Yes` to save now saves all rows, also those hidden by
+  filters, as `Save All Rows...` and `File` > `Save All Windows...` do; until 0.6.2 it
+  saved only the rows shown.
 - **Split, Pivot and Summarize:** rows with a missing value in a grouping column (for
   Pivot also in the other category columns) are left out as before; the run summary
   now gives their number.
@@ -274,7 +277,7 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   the 0.6 `ToolSettings` map is `ToolSettingsMap`, and `tool_entry`, `read_tool_entry`,
   `write_tool_entry` are `tool_settings`, `read_tool_settings`, `write_tool_settings`.
   `flim.core.tools.check_executor_available` is now
-  `flim.core.execution.ExecutionOptions.check_available`. The tool registry refuses a
+  `flim.core.execution.ExecutionOptions.validate_available`. The tool registry refuses a
   tool whose name, former name or short name equals another tool's, ignoring case (the
   tool is not loaded, and the log says so). See the
   Programming Guide for how API changes are handled.
@@ -299,7 +302,7 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   `-l`/`--log-level` (also `--log`, as until 0.6.2), `-i`, `-x`,
   `-r`/`--run` and `-w`/`--workflow-path`. `-i`, `-x` and `-w` take several values and
   can be repeated. `--run` also takes a workflow file (a path, or a file name ending in
-  `.json` in the workflow search path); repeated, the runs are done in the order given.
+  `.json` in the workflow search path or among the built-in workflow files); repeated, the runs are done in the order given.
   `flimbatch` also takes `--dry-run` and `--override`. Both programs read the
   environment variables `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`,
   `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`, `FLIM_APP_SETTINGS_PATH`
@@ -318,7 +321,9 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   A prefix limits an override to one run (`run-2.`) or one step (`run-2.steps.3.`, or
   `steps.3.` with a single `--run`). The order of precedence is: `--override` of the
   step, of the run, of every run; then the step in the file, the workflow, the tool's
-  default. The tools' `config` can't be set this way. The run summary lists the overrides, and
+  default. The tools' `config` can't be set this way. A workflow defined in code always
+  saves its results: `output.save=false` for its run is an error. The run summary lists
+  the overrides, and
   `resolved.json` holds the overridden settings.
 - **`resolved.json`:** `flimbatch` writes the settings of each run into
   `run-<n>/resolved.json`, as a workflow file (for a workflow defined in code, a tool
@@ -464,6 +469,8 @@ describes how API changes are handled.
   `DeprecationWarning`. Removed in 0.8.0.
 - **`flim.results.clean_path_component`** (developers): use `flim.core.paths.path_name`.
   Removed in 0.8.0.
+- **`flim.core.execution.ExecutionOptions.check_available`** (developers): use
+  `validate_available`; the former name issues a `DeprecationWarning`. Removed in 0.8.0.
 - **`flim.core.tool.check_requirements`** (developers): use
   `flim.core.tool.validate_requirements`; the former name issues a `DeprecationWarning`.
   Removed in 0.8.0.
@@ -486,7 +493,7 @@ describes how API changes are handled.
   `flim.core.preprocessor.defaultpreprocessor`, `ImportSettings`, `ParserSettings` and
   `PreprocessSettings` (import is a workflow); `flim.batch.run_tool`, `import_table`,
   `filtered` and `IMPORTED` (internals of `flimbatch`);
-  `flim.core.tools.DASK_EXECUTORS`; `flim.core.filter.SeriesFilter` (could not be
+  `flim.core.tools.DASK_EXECUTORS`; `flim.core.calculator` (an empty module); `flim.core.filter.SeriesFilter` (could not be
   created) and `RangeFilter.apply_filter`.
 - **Dependency** `importlib-resources`: the standard library's `importlib.resources` is
   used.
@@ -519,8 +526,19 @@ describes how API changes are handled.
 - **Filter Settings checkboxes:** the checkbox of the first row, and of the row
   clicked last, couldn't be checked or unchecked; a click on it opened the cell editor
   instead.
-- **Messages not shown:** `OK` with nothing selected, and an invalid pattern in Pattern
-  Rename, did nothing instead of showing an error.
+- **Messages not shown:** `OK` with nothing selected, an invalid pattern in Pattern
+  Rename, and a replacement that is not valid (for example `\1` without a group) did
+  nothing instead of showing an error.
+- **Plot axis dialog:** `Min value` and `Max value` were rounded to 2 decimals, so
+  changing only the label of an axis with small limits (for example 0.0012 to 0.0048)
+  set both limits to 0. The fields now show all digits, and a limit that is not changed
+  stays the same.
+- **Autosize Cols** failed in a table with missing text values or with no rows, and the
+  column widths stayed as they were.
+- **Saving settings files:** `Export Settings...` and `Save Settings...` wrote the file
+  in place, so a failure while writing (for example a full disk) left an incomplete
+  file. The file is now written to a temporary file in the same folder that then
+  replaces it; if writing fails, the file is left unchanged.
 - **Saving a table window when closing it** suggested the file name `frame.txt`; it now
   suggests the window's title.
 - **Save Feature Settings...:** an error writing the file, for example to a folder that

@@ -1083,7 +1083,7 @@ def test_save_asks_before_replacing_the_file_with_the_added_extension(frame, mon
     assert (tmp_path / "cells.txt").read_text() == "keep"
     monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
     assert save_dataframe(window, "Save", window.data, "cells.txt") == str(tmp_path / "cells.txt")
-    assert pd.read_csv(tmp_path / "cells.txt", sep="\\t").shape[0] == len(flim_data)
+    assert pd.read_csv(tmp_path / "cells.txt", sep="\t").shape[0] == len(flim_data)
 
 
 def test_save_uses_the_format_of_a_typed_extension(frame, monkeypatch, tmp_path, flim_data):
