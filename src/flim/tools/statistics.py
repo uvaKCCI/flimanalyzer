@@ -198,8 +198,9 @@ class KSStats(Tool[KSStatsConfig]):
 
         The pairs are tested in each group of the other grouping columns. A pair is
         dissimilar if the test statistic is larger than the critical value D at
-        `alpha` and the p-value is smaller than `alpha`. Groups and values without
-        rows are left out.
+        `alpha` and the p-value is smaller than `alpha`. Missing values of the feature
+        are left out of each sample and of its number of rows. Groups and values
+        without rows (or without values of the feature) are left out.
 
         Args:
             data: The table.
@@ -215,12 +216,7 @@ class KSStats(Tool[KSStatsConfig]):
         comparison, alpha = config.comparison, config.alpha
         # the comparison column splits the data; the other groups are tested separately
         groups = [g for g in config.grouping if g != comparison]
-        if groups:
-            group_values = [name for name, _ in data.groupby(groups, observed=False)]
-            columns = list(groups)
-        else:
-            group_values = [("none",)]
-            columns = ["Grouping"]
+        columns = list(groups) if groups else ["Grouping"]
         dissimilar = f"dissimilar (<{alpha})"
         pair_columns = [
             f"{comparison} 1",
@@ -237,19 +233,17 @@ class KSStats(Tool[KSStatsConfig]):
             f"critical D ({alpha})",
         ]
         rows = []
-        for group_value in group_values:
+        if groups:  # the rows of each group, selected by their values, not by text
+            subsets = data.groupby(groups, observed=False)
+        else:
+            subsets = [(("none",), data)]
+        for group_value, subset in subsets:
             self.check_cancelled()
-            if groups:
-                query = " and ".join(
-                    f'`{g}` == "{v}"' for g, v in zip(groups, group_value)
-                )
-                subset = data.query(query)
-            else:
-                subset = data
             if len(subset) == 0:
                 continue
+            # the samples without missing values: they are not data points
             split = {
-                name: values[feature]
+                name: values[feature].dropna()
                 for name, values in subset.groupby(comparison, observed=False)
             }
             for a, b in combinations(split, 2):

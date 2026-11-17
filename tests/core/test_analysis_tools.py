@@ -129,6 +129,33 @@ def test_ks_statistics_match_scipy(flim_data):
     assert {row["n (Treatment 1)"], row["n (Treatment 2)"]} == {len(wt), len(ko)}
 
 
+@pytest.mark.parametrize("values", [['a "1"', 'b "2"'], ["a\\1", "b\\2"], [1, 2]])
+def test_ks_stats_selects_groups_by_value(data, values):
+    # values with quotes or backslashes, and numbers: each group is tested
+    data["FOV"] = data["FOV"].cat.rename_categories(values)
+    config = KSStatsConfig(
+        grouping=["Treatment", "FOV"], features=["t1"], comparison="Treatment"
+    )
+    (table,) = KSStats()(data, config=config).values()
+    assert list(table["FOV"]) == values
+    assert table["n (Treatment 1)"].tolist() == [15, 15]
+
+
+def test_ks_stats_leaves_out_missing_values(data):
+    data.loc[data.index[:3], "t1"] = np.nan  # 3 WT rows
+    config = KSStatsConfig(grouping=["Treatment"], features=["t1"], comparison="Treatment")
+    (table,) = KSStats()(data, config=config).values()
+    row = table.iloc[0]
+    wt = data.loc[data["Treatment"] == "WT", "t1"].dropna()
+    ko = data.loc[data["Treatment"] == "KO", "t1"].dropna()
+    expected = stats.ks_2samp(ko, wt)
+    assert (row["Treatment 1"], row["Treatment 2"]) == ("KO", "WT")
+    assert (row["n (Treatment 1)"], row["n (Treatment 2)"]) == (30, 27)
+    assert row["p-values"] == pytest.approx(expected.pvalue)
+    assert row["statistic"] == pytest.approx(expected.statistic)
+    assert row["dissimilar (<0.05)"] == "Yes"
+
+
 def test_ks_stats_validate(data):
     one_value = TableSchema.from_frame(
         data[data["Treatment"] == "WT"].assign(
