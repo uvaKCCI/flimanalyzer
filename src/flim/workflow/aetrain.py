@@ -42,7 +42,10 @@ class AETrain(Workflow[AETrainWorkflowConfig]):
             config: The training settings, with the lists of batch sizes, learning
                 rates and weight decays.
         """
-        training = AETrainConfig.model_validate(config.model_dump(exclude={"classname"}))
+        # the steps name their own results: the workflow's prefix is not passed on
+        training = AETrainConfig.model_validate(
+            config.model_dump(exclude={"classname", "prefix"})
+        )
         tool = AETraining()
         files = {}
         for part in tool.map_configs(training):

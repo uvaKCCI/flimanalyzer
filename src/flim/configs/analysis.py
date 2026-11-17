@@ -608,7 +608,7 @@ class _ModelFilesConfig(AutoencoderConfig):
     model_files: list[Path] = Field(
         default=[],
         title="Model files",
-        description="Models saved by Autoencoder: Train (one result per model).",
+        description="Models saved by Autoencoder Train (one result per model).",
     )
 
     @classmethod
@@ -666,5 +666,8 @@ class AETrainWorkflowConfig(AETrainConfig):
 
     A class of its own (no fields of its own), so that the workflow and its training
     step each have their config class; the workflow trains one model per combination
-    of batch size, learning rate and weight decay.
+    of batch size, learning rate and weight decay. As in the other workflows, the
+    result prefix is hidden and not used: the steps name their results.
     """
+
+    hidden_fields = AETrainConfig.hidden_fields | {"prefix"}

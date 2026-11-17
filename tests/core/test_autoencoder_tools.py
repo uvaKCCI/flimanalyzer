@@ -320,3 +320,19 @@ def test_the_workflow_trains_each_combination_and_collects_the_model_files(
     expected = {"-".join(str(v) for v in c) for c in combinations(config)}
     assert set(table["Input"]) == expected and len(expected) == 2
     assert all(str(f).endswith(".model") for f in table["File"])
+
+
+def test_the_workflow_does_not_pass_a_saved_prefix_to_its_steps(
+    needs_torch, prefect_harness, data, tmp_path
+):
+    """A prefix (e.g. from a settings file) went to the training step, whose results
+    the workflow then did not find under their names."""
+    import flim.workflow  # noqa: F401  (registers the workflows)
+    from flim.configs import AETrainWorkflowConfig
+
+    values = train_config().model_dump(exclude={"classname"})
+    config = AETrainWorkflowConfig(**{**values, "prefix": "Mine-"})  # accepted
+    run = tools.get("Autoencoder Train")().run_flow(data, config=config, autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    assert not [p for p in tmp_path.rglob("*") if p.name.startswith("Mine-")]
+    assert len(list(tmp_path.rglob("Table_Files.txt"))) == 1

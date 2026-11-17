@@ -77,6 +77,15 @@ def test_hidden_fields():
 
     for workflow in (BasicFLIRRConfig, AEFeatureConfig):
         assert "prefix" not in [s.name for s in visible(describe(workflow))]
+    # all registered workflows, also Autoencoder Train (its config is not a WorkflowConfig)
+    import flim.workflow  # noqa: F401  (registers the workflows)
+    from flim.core.registry import tools
+    from flim.core.workflow import Workflow
+
+    workflows = [t for t in tools._tools.values() if issubclass(t, Workflow)]
+    assert "Autoencoder Train" in [t.name for t in workflows]
+    for workflow in workflows:
+        assert "prefix" not in [s.name for s in visible(describe(workflow.config_class))], workflow.name
 
 
 def test_titles_and_descriptions():
@@ -150,3 +159,11 @@ def test_figure_layout_after_grouping_and_features():
         selection = [order[n] for n in SELECTION & set(order)]
         if layout and selection:
             assert min(layout) > max(selection), (tool.name, order)
+
+
+def test_model_files_tooltip_names_the_training_tool():
+    from flim.configs import AEAugmentConfig, AERunConfig
+
+    for config in (AERunConfig, AEAugmentConfig):
+        description = config.model_fields["model_files"].description
+        assert "Autoencoder Train " in description and "Autoencoder: Train" not in description
