@@ -109,7 +109,7 @@ Some bug fixes change results. Compare new results with results of 0.6 before yo
 * **Autoencoder, missing values:** models trained with 0.7 scale the data before they set missing values to 0, as training does. Models saved before keep the earlier order, so their results don't change.
 * **Autoencoder Augment Data, noise:** each feature gets its own noise level again, as in 0.5. Results with `Add noise` checked change.
 * **Pivot without other category columns:** the result is now one row with the mean of each feature for each value. In 0.6 the result had a column `index` and columns named after the letters of the values.
-* **Filter tool defaults:** the `Filter` tool started with the built-in defaults applies the three range filters that are on by default (`trp chi`, `NAD(P)H chi`, `FAD chi`). Clear them in the `Filter` dialog to keep all rows.
+* **Filter tool defaults:** the `Filter` tool started with the built-in defaults applies the three range filters that are on by default (`trp chi`, `NAD(P)H chi`, `FAD chi`). Uncheck them in the `Filter` dialog to keep all rows.
 * **Import, `NADPH/NADH`:** the built-in `Import` workflow now adds this column; in 0.6 it was never added.
 * **Concatenate, `Columns (side by side)`:** rows are now paired by position, not by row labels.
 

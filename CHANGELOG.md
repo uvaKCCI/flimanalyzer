@@ -12,7 +12,7 @@ earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
 Settings files, workflow files, the `flimsettings` command and new data tools, and bug
 fixes for 0.6.2, several of which change results. New requirements: Python 3.12 to
-3.14, PyTorch 2.14.1.
+3.14; PyTorch 2.14.1 for installs with uv from the source and the Docker CUDA image.
 
 ### Results that change
 
@@ -54,12 +54,12 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
 - **`flimbatch` and the range filters:** `flimbatch` no longer filters the data by the
   table windows' range filters (`filters` > `use` in the settings file). To filter rows
   in a batch run, add a `Filter` step to a workflow file.
-- **Filter tool defaults:** the `Filter` tool and the table windows now share one set of
-  range filters. Started with the built-in defaults, the `Filter` tool therefore applies
+- **Filter tool defaults:** the `Filter` tool's range filters are now also the range
+  filters that new table windows start with. Started with the built-in defaults, the `Filter` tool therefore applies
   the three range filters that are on by default (`trp chi` 0 to 4.7, `NAD(P)H chi` and
   `FAD chi` 0.7 to 4.7) to tables that have these columns; until 0.6.2 it started
   without filters. Uncheck them in the `Filter` dialog to keep all rows.
-- **Import, `NADPH/NADH`:** importing calculated `NADPH/NADH` before `NADH %`, which it
+- **Import, `NADPH/NADH`:** the import calculated `NADPH/NADH` before `NADH %`, which it
   needs, so the column was never added. The built-in `Import` workflow now adds it.
 - **Pivot without other category columns:** when the pivoted columns were the table's
   only category columns, the result had a column `index` and columns named after the
@@ -78,8 +78,6 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   (for example `FOV, Treatment, Cell`). The columns keep the files' order, after
   `Source`, `Directory` and `File`, and calculated columns are added at the end; until
   0.6.2 the columns were sorted alphabetically (text, then category, then the others).
-  A file opened with the same name as an open window opens in a new window, for example
-  `data.txt-1`.
 - **Settings files of 0.6** are converted when read: the renamed, dropped and calculated
   columns (`preprocess`) become the settings of `Rename Columns`, `Drop Columns` and
   `Calculate`, the range filters become the `Filter` tool's filters, `working_dir`
@@ -100,7 +98,8 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   the table window switches the filters on and off. `Filter Data` now also switches the
   values hidden in category columns; until 0.6.2 they applied whether it was on or off.
   Hiding values while it is off switches it on. `Filter Settings` has `Select All` and `Deselect All`.
-- **Settings file format:** files saved by 0.7.0 have `schema_version` 2.
+- **Settings file format:** app settings files and tool files saved by 0.7.0 have
+  `schema_version` 2; workflow files, new in 0.7.0, have their own `schema_version` 1.
   FLIMAnalyzer 0.6 refuses them; 0.7.0 reads the files of 0.5 and 0.6.
 - **Settings are saved automatically:** the GUI writes the settings you change (tool
   dialogs, presets, the range filters saved as the defaults for new tables, the default
@@ -115,7 +114,7 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   precedence: the built-in defaults, the user settings file (GUI only), the app
   settings file (`-s`), environment variables, command-line options. A higher layer
   changes each tool's section in `tools` and each tool's presets in `presets`
-  separately, `max_windows` per kind of window, and `log` and `cache` per setting; it
+  separately, `max_windows` per kind of window, and `log` per setting; it
   replaces all other sections whole, for example `execution`, `filters` and
   `char_replacements`. For example, an app settings file with presets of `Filter` keeps
   the user's presets of `Calculate`. Exception: the user settings file's `favorites`
@@ -227,7 +226,10 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
 - **Heatmap:** the title is `Correlation`; until 0.6.2 it was `Data grouped by ...`,
   although the correlations are those of the whole table.
 - **Log files:** each GUI session writes its own log file in the platform's log folder,
-  for example `flimanalyzer_2026-11-09T14-23-43_12345.log`, never overwritten. Each
+  for example `flimanalyzer_2026-11-09T14-23-43_12345.log`, never overwritten. A log
+  file that reaches 10 MB continues in a new file; three older parts are kept. At
+  startup the GUI removes its log files older than the app setting `log` >
+  `max_age_days` (default 30 days). Each
   `flimbatch` call writes `flimbatch.log` in its results folder, or, with a log folder
   set (`--log-dir`, `FLIM_LOG_DIR`), a file named after the call's start in that folder.
   Until 0.6.2 the GUI wrote `flimanalyzer.log` in the start folder, replaced at each
@@ -268,21 +270,21 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   search path. `Export Settings...` offers to add the file's folder to the search path,
   and asks for an optional `description` of the file, which the list of files at
   startup shows.
-- **`File` > `Settings...`** shows the app settings of the session (results folder,
+- **`File` > `Settings...`** (on macOS: `FLIMAnalyzer` > `Settings...`) shows the app settings of the session (results folder,
   executor, Prefect server, server timeout, log folder), where each value comes from,
   and how to change it.
 - **Command line and environment:** both programs take `-s`, `-o`,
   `-e NAME[:KEY=VALUE,...]` (`local`, `dask-local`, `dask`),
   `--prefect-server`/`--no-prefect-server`, `--server-timeout`, `--log-dir`,
-  `--cache-dir`, `-l`/`--log-level` (also `--log`, as until 0.6.2), `-i`, `-x`,
+  `-l`/`--log-level` (also `--log`, as until 0.6.2), `-i`, `-x`,
   `-r`/`--run` and `-w`/`--workflow-path`. `-i`, `-x` and `-w` take several values and
   can be repeated. `--run` also takes a workflow file (a path, or a file name ending in
   `.json` in the workflow search path); repeated, the runs are done in the order given.
   `flimbatch` also takes `--dry-run` and `--override`. Both programs read the
-  environment variables `FLIM_RESULTS_DIR`, `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`,
-  `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`, `FLIM_CACHE_DIR`,
-  `FLIM_APP_SETTINGS_PATH`, `FLIM_WORKFLOW_PATH` and `FLIM_USER_SETTINGS`; `flimbatch`
-  also reads `FLIM_DRY_RUN`. The app setting `server_timeout` (default 60 s) sets how
+  environment variables `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`,
+  `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`, `FLIM_APP_SETTINGS_PATH`
+  and `FLIM_WORKFLOW_PATH`; the GUI also reads `FLIM_RESULTS_DIR` and
+  `FLIM_USER_SETTINGS`, and `flimbatch` also reads `FLIM_DRY_RUN`. The app setting `server_timeout` (default 60 s) sets how
   long FLIMAnalyzer waits for the Prefect server, also for a local one that it starts,
   and for a Dask cluster.
 - **`flimbatch --dry-run`** reads the first rows of the files, validates the output
@@ -304,16 +306,17 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   and the columns taken from the data (`features: all`, guessed columns, skipped
   entries). `flimbatch --run resolved.json` on the same files repeats the run, also
   with a later FLIMAnalyzer version whose defaults are different.
-- **`flimsettings`:** a command that lists, shows and validates settings without the
-  GUI. `flimsettings tool` and `flimsettings workflow` take `--list`,
-  `--show FILE|NAME`, `--validate FILE` and `--resolve FILE` (the file with every
-  setting stated, as `flimbatch` runs it), and `tool` also `--update FILE`. `--show NAME`
-  prints the default settings of a tool, or of a workflow defined in code, as a tool
-  file; a workflow file is found by its file name or by its `name`, as with
-  `flimbatch --run`. `flimsettings app` takes `--list` (the app settings files in the
-  search path),
+- **`flimsettings`:** a command that lists, shows, validates, resolves and updates
+  settings without the GUI. `flimsettings tool` and `flimsettings workflow` take
+  `--list`, `--show FILE|NAME`, `--validate FILE` and `--resolve FILE` (the file with
+  every setting stated, as `flimbatch` runs it, also with `--override`), and `tool` also
+  `--update FILE`; `-w` sets the workflow search path. `--show NAME` prints the default
+  settings of a tool, or of a workflow defined in code, as a tool file; a workflow file
+  is found by its file name or by its `name`, as with `flimbatch --run`.
+  `flimsettings app` takes `--list` (the app settings files in the search path),
   `--show` (the app settings of `flimanalyzer` and `flimbatch`, and where each value
-  comes from), `--validate FILE` and `--update FILE`. `flimsettings user --show` shows
+  comes from; with `-s`, of an app settings file), `--validate FILE` and
+  `--update FILE`. `flimsettings user --show` shows
   the user settings file, and `flimsettings env` (`--list`, `--show`) the `FLIM_*`
   environment variables. The exit code is 1 if a validation finds a problem.
 - **Tool files:** a tool dialog's `Save Settings...` saves a new file as a tool file:
@@ -349,7 +352,10 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   `FLIM_WORKFLOW_PATH`, else of `workflow_paths` in the user settings file, else the
   folder `workflows` in the platform's settings folder. They run with
   `Import Tables...`, their menu entries, `Workflow` > `Run Workflow File...` (on the
-  current table), or `flimbatch --run`. The built-in `Import` workflow is one.
+  current table), or `flimbatch --run`. The built-in `Import` workflow is one. In the
+  GUI, a run of `Import Tables` or of a workflow file that would open more windows than
+  the app setting `max_windows` allows (default: 10 tables, 10 plots, 4 images)
+  doesn't start.
 - **`Source` column:** each table read from a file gets `Source`, the file as a URI,
   for example `file:///data/Results-a-Dox15_01.txt`. `Data` > `Directory/File to Source`
   adds it to tables imported with 0.6 or earlier.
@@ -484,9 +490,7 @@ describes how API changes are handled.
   replaced that window's table and cleared its unsaved changes, without asking. It now
   opens in a new window.
 - **Window menu on macOS** listed every window twice.
-- **Text fields in dialogs** dropped spaces and tabs at the start and end of values, for
-  example a tab in a delimiter, the space in a Rename part `trp `, or ` - ` as Fuse's
-  delimiter.
+- **Text fields in dialogs** dropped spaces and tabs at the start and end of values.
 - **Filter Settings:** `Dropped from view` and the remaining count ignored the rows
   hidden by a single other filter.
 - **Filter Settings checkboxes:** the checkbox of the first row, and of the row
