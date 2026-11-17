@@ -132,6 +132,21 @@ def test_range_filters_table(dialog, table):
 # --- settings files ---
 
 
+def test_use_column_toggles_on_every_click_also_on_the_current_row(dialog):
+    import wx.grid
+
+    d = dialog("Filter")
+    editor = d.fields.editors["filters"].ranges
+    editor.grid.SetGridCursor(0, 0)  # the current cell, as after a click on it
+    first = editor.is_used(0)
+    states = []
+    for _ in range(3):
+        event = wx.grid.GridEvent(editor.grid.GetId(), wx.grid.wxEVT_GRID_CELL_LEFT_CLICK, editor.grid, 0, 0)
+        editor._on_click(event)
+        states.append(editor.is_used(0))
+    assert states == [not first, first, not first]
+
+
 def test_save_and_load_feature_settings(dialog, tmp_path):
     import json
 
