@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 import os
 import re
-import collections.abc
 from collections.abc import Callable
 from typing import Any, Optional, Union
 
@@ -727,7 +726,11 @@ class PandasFrame(wx.Frame):
             self.GetEventHandler().ProcessEvent(event)
 
     def OnLabelDClick(self, event: wx.grid.GridEvent) -> None:
-        """Rename the values of a category column with a pattern and a replacement."""
+        """Rename the values of a category column with a pattern and a replacement.
+
+        A pattern or a replacement that is not valid shows a message; the values
+        are not changed.
+        """
         group = self.grid.GetColLabelValue(event.GetCol())
         if event.GetRow() == -1 and group in self.groups:
             dlg = RenameGroupsDlg(self, title=f"{group}: Pattern Rename")
@@ -736,11 +739,16 @@ class PandasFrame(wx.Frame):
                 return
             pattern = dlg.patterntxt.GetLineText(0)
             replacement = dlg.replacetxt.GetLineText(0)
-
-            self.data[group] = self.data[group].apply(
-                lambda x: re.sub(pattern, replacement, str(x))
-            )
-            self.data[group] = self.data[group].astype("category")
+            dlg.Destroy()
+            try:
+                renamed = self.data[group].apply(lambda x: re.sub(pattern, replacement, str(x)))
+            except re.error as err:  # e.g. a replacement that names a missing group
+                wx.MessageBox(
+                    f"The pattern or the replacement is not valid: {err}",
+                    f"{group}: Pattern Rename", wx.OK | wx.ICON_WARNING, self,
+                )  # fmt: skip
+                return
+            self.data[group] = renamed.astype("category")
             self.modified = True
             self.update_view()
 
@@ -825,13 +833,11 @@ class PandasFrame(wx.Frame):
             headerwidth = self.grid.GetColSize(colindex)
             # determine best size for values in this col
             colseries = self.dataview[col]
-            if col not in numericcols.columns.values and (
-                isinstance(colseries, (str, bytes, collections.abc.Iterable))
-            ):
-                # handle strings, categories, objects
-                logger.debug(f"AUTOSIZE col {col}")
-                rowidx = colseries.map(len).idxmax()
-                valuestr = colseries[rowidx]
+            if col not in numericcols.columns.values:
+                # strings, categories, objects: the longest text; missing values and
+                # an empty table have none
+                texts = colseries.dropna().astype(str)
+                valuestr = max(texts, key=len) if len(texts) else ""
             else:
                 # handle numbers; using numpy min/max is orders of magnitude faster than grid.AutoSize
                 minval = mins[col]
@@ -839,7 +845,9 @@ class PandasFrame(wx.Frame):
                 value = maxval
                 if len(str(minval)) > len(str(maxval)):
                     value = minval
-                if col in floatcols:
+                if pd.isna(value):  # an empty table or only missing values
+                    valuestr = ""
+                elif col in floatcols:
                     valuestr = f"{value:.{self.precision}f}"
                 else:
                     valuestr = str(int(value))  # integer part only

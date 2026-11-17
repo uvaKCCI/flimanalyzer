@@ -1004,3 +1004,46 @@ def test_the_side_bar_buttons_fit_in_a_new_window(frame, flim_data):
     lowest = max(b.GetRect().GetBottom() for b in buttons)
     assert lowest <= window.GetClientSize().height
     assert window.GetMinClientSize().height >= lowest  # can't be shrunk to cut them off
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        pd.DataFrame({"Name": ["a", None, "long text"], "n": [1.0, None, 3.0]}),  # missing values
+        pd.DataFrame({"Name": pd.Series([], dtype=object), "n": pd.Series([], dtype=float)}),
+        pd.DataFrame({"Name": pd.Categorical(["a", None]), "n": pd.Series([None, None], dtype=float)}),
+    ],
+)
+def test_autosize_with_missing_values_and_empty_tables(frame, data):
+    """Autosize Cols raised TypeError (len of a missing value) or ValueError (empty)."""
+    window = _open(frame, data)
+    window.OnAutosize(None)
+    assert all(window.grid.GetColSize(i) > 0 for i in range(window.grid.GetNumberCols()))
+
+
+@pytest.mark.parametrize("pattern, replacement", [("(", "x"), ("a", r"\1")])
+def test_pattern_rename_shows_a_message_if_not_valid(frame, monkeypatch, flim_data, no_modal_message_dialogs, pattern, replacement):
+    """re.sub raised re.error: a logged traceback and nothing shown."""
+    from types import SimpleNamespace
+
+    import flim.gui.datapanel as datapanel
+
+    class Dialog:
+        def __init__(self, parent, title):
+            self.patterntxt = SimpleNamespace(GetLineText=lambda line: pattern)
+            self.replacetxt = SimpleNamespace(GetLineText=lambda line: replacement)
+
+        def ShowModal(self):
+            return wx.ID_OK
+
+        def Destroy(self):
+            pass
+
+    monkeypatch.setattr(datapanel, "RenameGroupsDlg", Dialog)
+    window = _open(frame, flim_data)
+    labels = [window.grid.GetColLabelValue(i) for i in range(window.grid.GetNumberCols())]
+    event = SimpleNamespace(GetCol=lambda: labels.index("Treatment"), GetRow=lambda: -1)
+    before = window.data["Treatment"].copy()
+    window.OnLabelDClick(event)
+    assert "not valid" in no_modal_message_dialogs[-1]
+    pd.testing.assert_series_equal(window.data["Treatment"], before)
