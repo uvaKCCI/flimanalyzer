@@ -105,7 +105,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" != "pull_request" ] || git diff --name-only \
               "origin/${{ github.base_ref }}...HEAD" -- Dockerfile .dockerignore \
-              pyproject.toml uv.lock flim .github/scripts/check-image.sh | grep -q .; then
+              pyproject.toml uv.lock src .github/scripts/check-image.sh | grep -q .; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
             echo "No changes to the image's files: not built"
