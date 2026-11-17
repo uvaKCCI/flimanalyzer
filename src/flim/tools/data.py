@@ -67,8 +67,10 @@ class CategoryOrder(Tool[CategoryOrderConfig]):
 
         The configured columns stay at the positions the table has for them, but in
         the order of the config. Each becomes an ordered category column with the
-        configured values; a value that is not configured becomes missing. The rows
-        are sorted by the columns, in the configured order; the sort is stable, so
+        configured values first. The column's values that are not configured follow,
+        in the column's order (its categories, or for another column the order in
+        which the values occur), with a warning that names those that occur in the
+        table. The rows are sorted by the columns, in the configured order; the sort is stable, so
         rows with equal values keep their order. The rows are renumbered from 0.
 
         Args:
@@ -88,7 +90,24 @@ class CategoryOrder(Tool[CategoryOrderConfig]):
         columns = [new_order.pop(0) if c in categories else c for c in data.columns]
         data = data[columns]
         for column, values in categories.items():
-            data[column] = pd.Categorical(data[column], categories=values, ordered=True)
+            present = data[column]
+            if isinstance(present.dtype, pd.CategoricalDtype):
+                known = list(present.cat.categories)
+            else:
+                known = list(pd.unique(present.dropna()))
+            # values that are not configured follow the configured ones, as in the
+            # GUI's editor; a warning names those that occur in the table
+            others = [v for v in known if v not in values]
+            occurring = set(present.dropna().unique())
+            appended = [str(v) for v in others if v in occurring]
+            if appended:
+                self.warn(
+                    f"{column}: values not in the configured order, placed after it:"
+                    f" {', '.join(appended)}"
+                )
+            data[column] = pd.Categorical(
+                present, categories=list(values) + others, ordered=True
+            )
         # stable sort: rows with equal category values keep their previous order;
         # the rows are renumbered in their new order (#119)
         data = data.sort_values(by=list(categories), kind="stable", ignore_index=True)

@@ -83,6 +83,27 @@ def test_category_order_renumbers_the_rows(data, tmp_path):
     assert list(saved["Treatment"]) == list(df["Treatment"])
 
 
+def test_category_order_appends_values_not_configured(data):
+    # as the GUI's editor: values not configured follow, in their order in the data
+    data["Treatment"] = data["Treatment"].cat.set_categories(["KO", "WT", "Het"])
+    data["Cell"] = data["Cell"].astype(str)  # a text column: values in data order
+    config = CategoryOrderConfig(categories={"Treatment": ["WT"], "Cell": ["3", "1"]})
+    tool = CategoryOrder()
+    df = table(tool(data, config=config))
+    assert list(df["Treatment"].cat.categories) == ["WT", "KO", "Het"]
+    assert list(df["Cell"].cat.categories) == ["3", "1", "0", "2", "4"]
+    assert df["Treatment"].notna().all() and df["Cell"].notna().all()
+    assert list(df["Treatment"].iloc[[0, -1]]) == ["WT", "KO"]
+    # "Het" has no rows: not named
+    assert tool.context.warnings == [
+        "Treatment: values not in the configured order, placed after it: KO",
+        "Cell: values not in the configured order, placed after it: 0, 2, 4",
+    ]
+    tool = CategoryOrder()
+    tool(data, config=CategoryOrderConfig(categories={"Treatment": ["WT", "KO"]}))
+    assert tool.context.warnings == []
+
+
 def test_category_order_without_categories(data):
     df = table(CategoryOrder()(data))
     pd.testing.assert_frame_equal(df, data)

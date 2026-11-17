@@ -24,3 +24,5 @@ In the following example, the values of `Treatment` are put in the order of the 
 4. Click `OK`. A new table, `Table: Reordered`, is created with the new order. Its rows are sorted by the checked columns.
 
 ![](/images/data/order-config.png)
+
+Settings that give the order of only some values of a column, for example a settings file used with `flimbatch` on other data, keep the other values: they come after the values in the settings, in their order in the table. The run summary names these values.
