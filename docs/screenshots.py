@@ -27,6 +27,7 @@ import wx  # noqa: E402
 import flim.gui  # noqa: E402,F401  (registers the dialogs)
 import flim.tools  # noqa: E402,F401  (registers the tools)
 import flim.workflow  # noqa: E402,F401
+from flim.core.config import Processing, ProcessingRules  # noqa: E402
 from flim.configs import (  # noqa: E402
     ConcatConfig,
     FilterConfig,
@@ -151,6 +152,8 @@ FILTER = FilterConfig(
     range_filters={"FAD a1[%]": {"low": 50, "high": 90}, "FLIRR": {"high": 2.4}},
 )
 SORT = SortConfig(features=["FAD a1"])
+# runs of workflows use the closest column for a column that the data doesn't have
+GUESSES = ProcessingRules.of(Processing(strict=False))
 
 # Analysis
 SUMMARY = SummaryConfig(
@@ -219,8 +222,6 @@ SHOTS = {
     "data/dataframe.png": ("table", {}),
     # Data
     "data/precision.png": ("table", {"crop": (400, 28, 1000, 250)}),  # decimals next to the control
-    "files/open-dlg.png": ("window", {"make": "open_dialog"}),
-    "files/import-dlg.png": ("window", {"make": "import_dialog"}),
     "data/category-filter.png": ("window", {"make": "category_filter"}),
     "data/filter-settings.png": ("window", {"make": "filter_settings"}),
     "data/sort-preresult.png": ("table", {}),
@@ -237,8 +238,6 @@ SHOTS = {
     "data/merge-res1.png": ("table", {"tool": "Merge", "config": MERGE, "inputs": MERGE_INPUTS}),
     "data/merge-res3.png": ("table", {"tool": "Merge", "config": MERGE, "inputs": MERGE_INPUTS, "scroll_to_end": True}),
     "data/pivot-original.png": ("table", {}),
-    "data/pivot-input.png": ("window", {"make": "pivot_groups"}),
-    "data/pivot-columns.png": ("window", {"make": "pivot_columns"}),
     "data/pivot-result.png": ("table", {"table": pivoted, "title": DATAFILE}),
     # Analysis
     "analysis/summary-config-nogrouping.png": ("dialog", {"tool": "Summarize", "config": SUMMARY}),
@@ -527,7 +526,7 @@ class Shooter:
                     on_progress=on_progress,
                     cancel_token=cancel_token,
                     on_start=on_start,
-                    strict=False,
+                    processing=GUESSES,
                 )
 
         dialog = RunProgressDialog(self.frame, tool, start_run)
@@ -568,7 +567,7 @@ class Shooter:
                     self.table(rows or "data"),
                     config=workflow.config_class(**config),
                     autosave_dir=self.results_folder(),
-                    strict=False,
+                    processing=GUESSES,
                 )
         return self.results[key]
 
@@ -595,38 +594,6 @@ class Shooter:
 
     # --- other dialogs of the GUI ---
 
-    def open_dialog(self):
-        from flim.core.settings import AppSettings
-        from flim.gui.importdlg import ImportDlg
-
-        return ImportDlg(
-            self.frame,
-            "Open File",
-            AppSettings.default(),
-            parsefname=False,
-            preprocess=False,
-            singlefile=True,
-        )
-
-    def import_dialog(self):
-        from flim.core.settings import AppSettings
-        from flim.gui.importdlg import ImportDlg
-
-        settings = AppSettings.default()
-        settings.import_.filename_parser.parser = "fov_treatment_cell_parser"
-        settings.import_.filename_parser.patterns = []  # the parser's own
-        dialog = ImportDlg(self.frame, "Import File(s)", settings)
-        # as after Add Files (the files don't exist here)
-        dialog.files_list.Set(
-            [
-                f"/data/9SR/Results-{f}-{t}_{c:02d}.txt"
-                for f in ("a", "b")
-                for t in TREATMENTS
-                for c in (1, 2)
-            ]
-        )
-        return dialog
-
     def category_filter(self):
         from flim.gui.dialogs import SelectGroupsDlg
 
@@ -641,32 +608,15 @@ class Shooter:
         )
 
     def filter_settings(self):
+        from flim.core.filtering import window_filters
         from flim.core.settings import AppSettings
         from flim.gui.dialogs import ConfigureFiltersDlg
 
-        filters = AppSettings.default().filters
+        filters = window_filters(AppSettings.default())  # as a new table window
         filters.use = True
-        return ConfigureFiltersDlg(self.frame, filters, self.data, {})
-
-    def pivot_groups(self):
-        from flim.gui.dialogs import SelectGroupsDlg
-
-        return SelectGroupsDlg(
-            self.frame,
-            title="Pivot data: Groups to pivot",
-            groups=CATEGORIES,
-            selected=["Treatment"],
-        )
-
-    def pivot_columns(self):
-        from flim.gui.dialogs import SelectGroupsDlg
-
-        columns = [c for c in self.data.columns if c not in CATEGORIES]
-        return SelectGroupsDlg(
-            self.frame,
-            title="Pivot data: Columns to retain",
-            groups=columns,
-            selected=["FAD a1[%]", "NAD(P)H a2[%]"],
+        # with the preset buttons, as a table window opens it
+        return ConfigureFiltersDlg(
+            self.frame, filters, self.data, {}, presets=self.frame.filter_presets()
         )
 
     def axis_dialog(self):
