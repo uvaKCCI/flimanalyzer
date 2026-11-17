@@ -401,3 +401,21 @@ def test_user_settings_file_of_an_older_version_is_kept_before_it_is_rewritten(t
     assert json.loads(path.read_text())["schema_version"] == 2
     user.merge({"schema_version": 2, "server_timeout": 6})  # current now: no new copy
     assert sorted(p.name for p in tmp_path.glob("*.json")) == ["usersettings.json", "usersettings.v1.json"]
+
+
+def test_presets_are_merged_per_tool(tmp_path):
+    """An app settings file's presets don't hide the user's presets of other tools,
+    and saving one tool's presets keeps the others'."""
+    from flim.tools.data import Calculate, Filter
+
+    user = tmp_path / "usersettings.json"
+    user.write_text(json.dumps({"schema_version": 2, "presets": {"Calculate": [{"name": "mine", "settings": {}}]}}))
+    app = tmp_path / "lab.json"
+    app.write_text(json.dumps({"schema_version": 2, "presets": {"Filter": [{"name": "lab", "settings": {}}]}}))
+    manager = session_settings(str(app), user_file=UserSettingsFile(user))
+    assert [p["name"] for p in manager.settings.tool_presets(Calculate)] == ["mine"]
+    assert [p["name"] for p in manager.settings.tool_presets(Filter)] == ["lab"]
+    manager.set_presets(Calculate, [{"name": "new", "settings": {}}])
+    assert [p["name"] for p in manager.settings.tool_presets(Filter)] == ["lab"]
+    saved = json.loads(user.read_text())["presets"]
+    assert [p["name"] for p in saved["Calculate"]] == ["new"]

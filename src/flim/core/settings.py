@@ -1027,7 +1027,8 @@ def merge_sections(base: dict, changes: dict) -> dict:
     """Return a copy of `base` with the sections of `changes` replacing its sections.
 
     In `tools`, each tool's section is replaced separately, and the sections under
-    the former names of a registered tool are removed.
+    the former names of a registered tool are removed. In `presets`, each tool's
+    presets are replaced separately: the presets of the other tools are kept.
 
     Args:
         base: Settings sections in the current version.
@@ -1048,6 +1049,8 @@ def merge_sections(base: dict, changes: dict) -> dict:
                 for former in getattr(tool, "former_names", ()):
                     tools.pop(former, None)
             tools.update(value)
+        elif key == "presets" and isinstance(value, dict) and isinstance(merged.get("presets"), dict):
+            merged["presets"] = {**merged["presets"], **value}
         elif key != "schema_version":
             merged[key] = value
     return merged
