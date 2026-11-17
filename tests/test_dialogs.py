@@ -188,3 +188,24 @@ def test_filter_settings_have_no_load_button(wxapp):
         assert "Load" not in labels and "OK" in labels
     finally:
         dlg.Destroy()
+
+
+def test_filter_settings_buttons_show_their_whole_labels(wxapp, table):
+    import wx
+
+    from flim.core.filtering import window_filters
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg, FilterPresets
+
+    presets = FilterPresets(defaults=lambda: {}, save_defaults=lambda f: None, saved=lambda: [], save=lambda p: None)
+    dlg = ConfigureFiltersDlg(None, window_filters(AppSettings.default()), table, {}, presets=presets)
+    try:
+        dlg.Layout()
+        dlg.panel.Layout()
+        buttons = [c for c in dlg.panel.GetChildren() if isinstance(c, wx.Button)]
+        assert "Save as Preset..." in [b.GetLabel() for b in buttons]
+        for button in buttons:
+            assert button.GetSize().width >= button.GetBestSize().width, button.GetLabel()
+            assert button.GetRect().GetRight() <= dlg.panel.GetClientSize().width
+    finally:
+        dlg.Destroy()

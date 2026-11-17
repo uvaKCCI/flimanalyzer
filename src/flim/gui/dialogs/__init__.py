@@ -452,6 +452,11 @@ class ConfigureFiltersDlg(wx.Dialog):
         )
         sizer.Add(buttonsizer, 0, wx.ALL | wx.EXPAND, 5)
         self.panel.SetSizer(sizer)
+        # at least as large as the content, so that the button column keeps its width
+        needed = self.ClientToWindowSize(sizer.GetMinSize())
+        size = self.GetSize()
+        self.SetMinSize(needed)
+        self.SetSize((max(size.width, needed.width), max(size.height, needed.height)))
 
         pub.subscribe(self.OnFiltersUpdated, FILTERS_UPDATED)
         self.Bind(wx.EVT_WINDOW_DESTROY, self._on_destroy)
