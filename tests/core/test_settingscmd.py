@@ -303,3 +303,15 @@ def test_resolve_shows_the_effect_of_overrides(folder, capsys):
     steps = json.loads(out)["steps"]
     assert code == 0 and all(s["output"]["save"] for s in steps)
     assert steps[1]["output"]["formats"] == [{"kind": "table", "format": "csv"}]
+
+
+def test_app_update(tmp_path, capsys):
+    import shutil
+    from pathlib import Path
+
+    path = tmp_path / "lab.json"
+    shutil.copy(Path(__file__).parent / "data" / "settings_v1.json", path)
+    code, out, _ = run(capsys, "app", "--update", str(path))
+    assert code == 0 and f"the original is kept as {tmp_path / 'lab.v1.json'}" in out
+    code, _, err = run(capsys, "app", "--update", str(path))
+    assert code == 1 and "already in the current format" in err

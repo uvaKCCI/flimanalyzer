@@ -1373,6 +1373,62 @@ def save_sections(sections: dict, path: str | os.PathLike) -> None:
         json.dump({"schema_version": SETTINGS_VERSION, **sections}, f, indent=2, default=str)
 
 
+def backup_path(path: str | os.PathLike, version: int) -> Path:
+    """Return a free name for the copy of a settings file of an older version.
+
+    Args:
+        path: The file, e.g. `lab.json`.
+        version: Its schema version.
+
+    Returns:
+        `lab.v1.json` in the same folder, or `lab.v1_2.json` and so on if taken.
+    """
+    path = Path(path)
+    candidate, number = path.with_name(f"{path.stem}.v{version}{path.suffix}"), 2
+    while candidate.exists():
+        candidate = path.with_name(f"{path.stem}.v{version}_{number}{path.suffix}")
+        number += 1
+    return candidate
+
+
+def update_settings_file(path: str | os.PathLike) -> Path:
+    """Rewrite an app settings file or a tool file of an older version in the current one.
+
+    The original is kept next to it (`backup_path`), so that the older FLIMAnalyzer
+    version can still read it. A tool file stays a tool file.
+
+    Args:
+        path: The file.
+
+    Returns:
+        The copy of the original.
+
+    Raises:
+        ValueError: If the file can't be used, has settings that can't be used, or
+            is of the current version; the message says which.
+        OSError: If the file can't be copied or written.
+    """
+    import shutil
+
+    path = Path(path)
+    validation = validate_settings_file(path)
+    if validation.problems:
+        raise ValueError(validation.summary())
+    if validation.version is None or validation.version >= SETTINGS_VERSION:
+        raise ValueError(f"{path}: already in the current format (schema version {SETTINGS_VERSION})")
+    data = json.loads(path.read_text())
+    backup = backup_path(path, validation.version)
+    shutil.copy2(path, backup)
+    if is_tool_file(data):
+        name = str(data["tool"])
+        section = validation.sections.get("tools", {}).get(name, {})
+        content = {"schema_version": SETTINGS_VERSION, "tool": name, **section}
+        path.write_text(json.dumps(content, indent=2, default=str) + "\n")
+    else:
+        save_sections(validation.sections, path)
+    return backup
+
+
 def save_settings(settings: AppSettings, path: str | os.PathLike) -> None:
     """Write settings, in the current version, to a file.
 

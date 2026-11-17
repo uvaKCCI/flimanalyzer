@@ -154,6 +154,25 @@ def refuse_settings(validation: "SettingsValidation") -> None:
     )
 
 
+def offer_settings_update(validation: "SettingsValidation") -> None:
+    """Offer to rewrite the app settings file, of an older version, in the current one.
+
+    The question (`flim.gui.settingsvalidation.offer_update`) is asked before the
+    main window opens; without wxPython, nothing is asked.
+
+    Args:
+        validation: The result of `validate_settings_file` for the file used.
+    """
+    try:
+        import wx  # noqa: F401
+    except ImportError:
+        return
+    from flim.gui.settingsvalidation import offer_update
+
+    _gui_app()
+    offer_update(validation)
+
+
 def _gui_app() -> None:
     """Create the GUI app for a dialog before the main window, if there is none."""
     import wx
@@ -300,6 +319,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             changes,
             user_file=UserSettingsFile(user_settings_path()),
             refuse=refuse_settings,
+            update=offer_settings_update,
             pick=pick_app_settings,
         )
         set_char_replacements(manager.settings.char_replacements)  # file names

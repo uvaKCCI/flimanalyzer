@@ -366,3 +366,20 @@ def test_startup_dialog_browses_for_a_file_and_offers_its_folder(wxapp, tmp_path
         assert d.files == [a, course] and d.selected() == a and len(asked) == 1
     finally:
         d.Destroy()
+
+
+@pytest.mark.parametrize("answer, updated", [(wx.ID_YES, True), (wx.ID_NO, False)])
+def test_offer_update_asks_and_keeps_the_original(tmp_path, monkeypatch, wxapp, answer, updated):
+    import shutil
+
+    data = Path(__file__).parent / "core" / "data" / "settings_v1.json"
+    path = tmp_path / "lab.json"
+    shutil.copy(data, path)
+    asked = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(dlg.GetMessage()) or answer)
+    assert settingsvalidation.offer_update(validate_settings_file(path)) is updated
+    assert "older FLIMAnalyzer version (schema 1)" in asked[0] and "lab.v1.json" in asked[0]
+    assert (tmp_path / "lab.v1.json").exists() is updated
+    asked.clear()
+    if updated:  # current now: not asked again
+        assert not settingsvalidation.offer_update(validate_settings_file(path)) and asked == []

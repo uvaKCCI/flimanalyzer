@@ -5,7 +5,7 @@
 - `tool`: `--list` (tools by name, and tool files in the workflow search path),
   `--show FILE|NAME` (prints a tool file, or a tool's default settings as a tool
   file), `--validate FILE` (validates a tool file), `--resolve FILE` (prints it with
-  every setting stated).
+  every setting stated), `--update FILE` (rewrites a file of an older version).
 - `workflow`: `--list` (workflows defined in code, and workflow files),
   `--show FILE|NAME` (prints a workflow file, or the default settings of a workflow
   defined in code as a tool file), `--validate FILE` (validates a workflow file),
@@ -16,7 +16,8 @@ is an error. A file takes precedence over a tool or workflow of the same name.
 `--show` only reads.
 - `app`: `--list` (the app settings files in the search path), `--show` (the app
   settings of flimanalyzer and of flimbatch, and where each value comes from), `--validate FILE`
-  (an app settings file).
+  (an app settings file), `--update FILE` (rewrites a file of an older version in the
+  current one, keeping the original).
 - `user`: `--show` (the user settings file).
 - `env`: `--list` (the `FLIM_*` variables FLIMAnalyzer reads), `--show` (those that
   are set, with unknown names and invalid values).
@@ -122,6 +123,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--resolve", metavar="FILE",
         help=f"print a tool file with every setting stated, as flimbatch runs it: {file_help}",
     )  # fmt: skip
+    actions.add_argument(
+        "--update", metavar="FILE",
+        help="rewrite a tool file of an older version in the current one; the original\n"
+        f"is kept next to it as <name>.v<version>.json: {file_help}",
+    )  # fmt: skip
     _add_workflow_path(sub)
 
     sub, actions = add("workflow", "workflows and workflow files")
@@ -151,6 +157,11 @@ def build_parser() -> argparse.ArgumentParser:
         " from",
     )  # fmt: skip
     actions.add_argument("--validate", metavar="FILE", help="validate an app settings file")
+    actions.add_argument(
+        "--update", metavar="FILE",
+        help="rewrite an app settings file of an older version in the current one; the\n"
+        "original is kept next to it as <name>.v<version>.json",
+    )  # fmt: skip
     _add_settings_file(sub)
 
     sub, actions = add("user", "the user settings file (settings changed in the GUI)")
@@ -202,7 +213,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     args = build_parser().parse_args(argv)
     args.action = next(
-        a for a in ("list", "show", "validate", "resolve") if getattr(args, a, None)
+        a for a in ("list", "show", "validate", "resolve", "update") if getattr(args, a, None)
     )
     handler = globals()[f"_{args.object}_{args.action}"]
     try:
@@ -586,6 +597,35 @@ def _app_show(args: argparse.Namespace) -> int:
         lines.append(f"      set with {row.change}")
     print("\n".join(lines))
     return 0
+
+
+def _update(path: Path) -> int:
+    """Rewrite a settings file of an older version in the current one; print the result."""
+    import flim.tools  # noqa: F401  (registers the tools: their settings are validated)
+    import flim.workflow  # noqa: F401
+    from flim.core.settings import update_settings_file
+
+    discover(TOOLS_GROUP)
+    try:
+        backup = update_settings_file(path)
+    except ValueError as err:
+        print(f"{PROG}: {err}", file=sys.stderr)
+        return 1
+    print(f"{path}: updated to the current format; the original is kept as {backup}")
+    return 0
+
+
+def _app_update(args: argparse.Namespace) -> int:
+    """Rewrite an app settings file of an older version in the current one."""
+    from flim.core.settingsmgr import find_app_settings
+
+    return _update(find_app_settings(args.update, app_settings_path()))
+
+
+def _tool_update(args: argparse.Namespace) -> int:
+    """Rewrite a tool file of an older version in the current one."""
+    path, _ = _file(args.update, args, "tool")
+    return _update(path)
 
 
 def _app_validate(args: argparse.Namespace) -> int:

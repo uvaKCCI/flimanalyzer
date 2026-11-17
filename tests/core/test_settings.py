@@ -424,3 +424,36 @@ def test_the_removed_app_setting_strict_is_dropped_not_unknown(tmp_path):
     validation = validate_settings_file(path)
     assert not validation.problems and "strict" not in validation.sections
     assert validation.dropped == ["strict (now processing.strict of tool and workflow files)"]
+
+
+def test_update_settings_file_keeps_the_original(tmp_path):
+    import shutil
+    from pathlib import Path
+
+    from flim.core.settings import SETTINGS_VERSION, update_settings_file, validate_settings_file
+
+    data = Path(__file__).parent / "data" / "settings_v1.json"
+    path = tmp_path / "lab.json"
+    shutil.copy(data, path)
+    backup = update_settings_file(path)
+    assert backup == tmp_path / "lab.v1.json" and backup.read_text() == data.read_text()
+    updated = validate_settings_file(path)
+    assert updated.version == SETTINGS_VERSION and not updated.problems
+    with pytest.raises(ValueError, match="already in the current format"):
+        update_settings_file(path)
+    shutil.copy(data, path)
+    assert update_settings_file(path) == tmp_path / "lab.v1_2.json"  # the first copy is kept
+    mixed = tmp_path / "mixed.json"
+    mixed.write_text(json.dumps({"schema_version": 1, "bogus": 1}))
+    with pytest.raises(ValueError, match="bogus"):
+        update_settings_file(mixed)  # settings that can't be used: not rewritten
+
+
+def test_update_keeps_a_tool_file_a_tool_file(tmp_path):
+    from flim.core.settings import update_settings_file
+
+    path = tmp_path / "summary.json"
+    path.write_text(json.dumps({"schema_version": 1, "tool": "Summarize", "config": {"aggs": ["mean"]}}))
+    update_settings_file(path)
+    data = json.loads(path.read_text())
+    assert data["tool"] == "Summarize" and data["schema_version"] == 2 and "tools" not in data

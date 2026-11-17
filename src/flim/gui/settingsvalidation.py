@@ -50,6 +50,49 @@ def show_problems(
     wx.MessageBox(message, title, wx.OK | icon, parent)
 
 
+UPDATE_FILE = "Update"
+NOT_NOW = "Not Now"
+
+
+def offer_update(validation: SettingsValidation, parent: Optional[wx.Window] = None) -> bool:
+    """Offer to rewrite a settings file of an older version in the current one.
+
+    Asked only for a file of an older version all of whose settings can be used.
+    `Update` rewrites it (`flim.core.settings.update_settings_file`) and keeps the
+    original next to it; `Not Now` leaves it as it is, to be asked again next time.
+
+    Args:
+        validation: The result of `validate_settings_file` for the file used.
+        parent: The parent window; None for none.
+
+    Returns:
+        Whether the file was updated.
+    """
+    from flim.core.settings import update_settings_file
+
+    if validation.problems or validation.version is None or validation.version >= SETTINGS_VERSION:
+        return False
+    question = (
+        f"{validation.path.name} is in the format of an older FLIMAnalyzer version (schema"
+        f" {validation.version}). Update it to the current format?\n\nThe original is kept"
+        f" next to it as {validation.path.stem}.v{validation.version}{validation.path.suffix},"
+        " which the older version can still read."
+    )
+    with wx.MessageDialog(
+        parent, question, "Settings File", wx.YES_NO | wx.ICON_QUESTION
+    ) as dialog:
+        dialog.SetYesNoLabels(UPDATE_FILE, NOT_NOW)
+        if dialog.ShowModal() != wx.ID_YES:
+            return False
+    try:
+        backup = update_settings_file(validation.path)
+    except (OSError, ValueError) as err:
+        wx.MessageBox(f"Could not update {validation.path}:\n{err}", "Settings File", wx.OK | wx.ICON_ERROR, parent)
+        return False
+    logger.info(f"{validation.path} updated to the current format; the original is {backup}")
+    return True
+
+
 def needs_rewrite(validation: SettingsValidation) -> bool:
     """Return whether adding settings to a validated file rewrites more than they.
 

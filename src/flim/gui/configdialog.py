@@ -1068,7 +1068,7 @@ class ConfigDialog(wx.Dialog):
             some of the tool's settings in it cannot be used.
         """
         from flim.core.settings import ToolSettingsMap, validate_settings_file
-        from flim.gui.settingsvalidation import show_problems
+        from flim.gui.settingsvalidation import offer_update, show_problems
 
         self._loaded_from = path
         with open(path) as f:
@@ -1079,6 +1079,7 @@ class ConfigDialog(wx.Dialog):
         if validation.tool_problems(self.tool):
             show_problems(validation, self, outcome="Nothing is loaded.", title="Load Settings")
             return False
+        offer_update(validation, self)  # a file of an older version
         self._loaded_from = validation.path
         return ToolSettingsMap.model_validate(validation.sections.get("tools", {})).entry(self.tool)
 

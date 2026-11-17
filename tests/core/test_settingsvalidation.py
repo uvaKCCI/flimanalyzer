@@ -286,3 +286,13 @@ def test_default_and_last_run_are_not_exported(tmp_path):
     manager.export(tmp_path / "e.json")
     exported = json.loads((tmp_path / "e.json").read_text())
     assert "default_app_settings" not in exported and "last_run_url" not in exported
+
+
+def test_session_offers_to_update_a_file_of_an_older_version(tmp_path):
+    offered = []
+    session_settings(str(DATA / "settings_v1.json"), update=offered.append)
+    assert [v.path for v in offered] == [DATA / "settings_v1.json"]
+    offered.clear()
+    current = write(tmp_path, {"schema_version": 2}, "current.json")
+    session_settings(str(current), update=offered.append)
+    assert offered == []

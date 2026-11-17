@@ -117,7 +117,7 @@ You can import settings files from this and older FLIMAnalyzer versions, includi
 
 ## Settings files from older versions
 
-Each time FLIMAnalyzer reads a settings file, it validates the file and converts its settings to the current format in memory. Reading a file doesn't change it. The validation sorts the settings into:
+Each time FLIMAnalyzer reads a settings file, it validates the file and converts its settings to the current format in memory. Reading a file doesn't change it. If a file of an older version can be used, the GUI asks whether to update it to the current format: at the start, in `File` > `Import Settings...` and in a tool dialog's `Load Settings...`. `Update` rewrites the file in the current format and keeps the original next to it, for example `lab.v1.json`, which the older FLIMAnalyzer version can still read. `Not Now` uses the file as it is, and the GUI asks again the next time. `flimsettings app --update FILE` and `flimsettings tool --update FILE` do the same from the command line. `flimbatch` never changes a settings file. The user settings file is updated when the GUI next saves a setting in it; before that, the GUI keeps the old file as `usersettings.v1.json`, for going back to the older FLIMAnalyzer. The validation sorts the settings into:
 
 * settings converted to the current format, for example `working_dir`, which is now `results_dir`;
 * settings removed because they are no longer used, for example `display`;

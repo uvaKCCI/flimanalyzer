@@ -13,7 +13,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
 
 from filelock import FileLock
 from pydantic import ValidationError
@@ -35,6 +35,7 @@ from flim.core.settings import (
     settings_kind,
     tool_settings,
     update_settings,
+    version_of,
 )
 
 if TYPE_CHECKING:
@@ -156,6 +157,23 @@ class UserSettingsFile:
         logger.warning(f"User settings {self.path} cannot be read ({reason}); renamed to {target}")
         self.set_aside = (target, reason)
 
+    def _keep_older_version(self) -> None:
+        """Copy the file to `<name>.v<version>.json` if it is of an older version.
+
+        Done once per version: an existing copy is kept. A file that can't be read
+        is left to `read`.
+        """
+        import shutil
+
+        try:
+            version = version_of(json.loads(self.path.read_text()))
+        except (OSError, ValueError, TypeError):
+            return
+        copy = self.path.with_name(f"{self.path.stem}.v{version}{self.path.suffix}")
+        if version < SETTINGS_VERSION and not copy.exists():
+            shutil.copy2(self.path, copy)
+            logger.info(f"{self.path}: of an older version; kept as {copy}")
+
     def merge(self, changes: dict) -> None:
         """Write settings sections to the file, replacing only these sections.
 
@@ -163,7 +181,9 @@ class UserSettingsFile:
         `changes` replace its sections (in `tools`, each tool's section; see
         `merge_sections`), and the result is written to a temporary file in the same
         folder that then replaces the file. The folder is created if it does not
-        exist. If writing fails, the file is left unchanged.
+        exist. If writing fails, the file is left unchanged. A file of an older
+        schema version is first copied to `usersettings.v<version>.json` (if that
+        doesn't exist yet), for going back to the older FLIMAnalyzer.
 
         Args:
             changes: Sections in the settings file format, of any version.
@@ -177,6 +197,7 @@ class UserSettingsFile:
         """
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.lock:
+            self._keep_older_version()
             current = self.read()
             if self.set_aside and self.set_aside[0] is None:
                 raise OSError(f"{self.path} cannot be read or renamed: {self.set_aside[1]}")
@@ -785,6 +806,7 @@ def session_settings(
     refuse: Optional[Refusal] = None,
     complete: bool = False,
     pick: Optional[Callable[..., "Pick"]] = None,
+    update: Optional[Callable[[SettingsValidation], Any]] = None,
 ) -> SettingsManager:
     """Create the settings manager of a session from all settings layers.
 
@@ -809,7 +831,10 @@ def session_settings(
         pick: Called without `settings_file` if the app settings search path has
             files (`list_app_settings`) or a default app settings file is set, as
             `pick(files, default, warning, search_path)`; returns a `Pick`. Its
-            `added_folder` is added to `appsettings_path` in the user settings file. A default that does
+            `added_folder` is added to `appsettings_path` in the user settings file.
+        update: Called with the validation of the app settings file used if it is of
+            an older version, to offer to rewrite it in the current one (the GUI);
+            None: the file is only read. A default that does
             not exist or cannot be read is cleared in the user settings file first,
             and `warning` says so (also added to the manager's notices if `pick` is
             not called).
@@ -852,6 +877,8 @@ def session_settings(
             continue
         chosen = strict_choice(validation, complete=complete)
         manager.apply(chosen)
+        if update is not None and (chosen.version or 0) < SETTINGS_VERSION:
+            update(chosen)
         _keep_user_choices(manager, user_file)
         if chosen.user_only:
             manager.notices.append(

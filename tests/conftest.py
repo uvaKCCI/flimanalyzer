@@ -11,6 +11,28 @@ import pandas as pd
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def no_modal_message_dialogs(monkeypatch):
+    """Answer message dialogs and message boxes without showing them.
+
+    A modal dialog that a test doesn't answer would wait for a click and stop the
+    whole run. Unless a test sets its own answer, a message dialog answers No (e.g.
+    `Not Now`, `Don't Save`) and a message box OK; both are recorded in
+    `shown_messages`.
+    """
+    try:
+        import wx
+    except ImportError:
+        yield []
+        return
+    shown = []
+    monkeypatch.setattr(
+        wx.MessageDialog, "ShowModal", lambda dialog: shown.append(dialog.GetMessage()) or wx.ID_NO
+    )
+    monkeypatch.setattr(wx, "MessageBox", lambda message, *args, **kwargs: shown.append(message) or wx.OK)
+    yield shown
+
+
 @pytest.fixture
 def flim_data():
     """Small synthetic FLIM table: 2 treatments x 3 FOVs x 10 cells."""

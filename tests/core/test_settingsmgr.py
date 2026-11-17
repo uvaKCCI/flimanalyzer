@@ -389,3 +389,15 @@ def test_favorites_of_the_user_settings_file_win(tmp_path, monkeypatch):
     manager = session_settings("course", user_file=user)
     assert manager.settings.favorites == ["Sort"]
     assert manager.origins["favorites"] == "user settings file"
+
+
+def test_user_settings_file_of_an_older_version_is_kept_before_it_is_rewritten(tmp_path):
+    path = tmp_path / "usersettings.json"
+    path.write_text(json.dumps({"schema_version": 1, "working_dir": "res"}))
+    user = UserSettingsFile(path)
+    user.merge({"schema_version": 2, "server_timeout": 5})
+    copy = tmp_path / "usersettings.v1.json"
+    assert json.loads(copy.read_text()) == {"schema_version": 1, "working_dir": "res"}
+    assert json.loads(path.read_text())["schema_version"] == 2
+    user.merge({"schema_version": 2, "server_timeout": 6})  # current now: no new copy
+    assert sorted(p.name for p in tmp_path.glob("*.json")) == ["usersettings.json", "usersettings.v1.json"]

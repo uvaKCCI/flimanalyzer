@@ -1290,12 +1290,13 @@ class AppFrame(wx.Frame):
             path: The settings file.
         """
         from flim.core.settings import validate_settings_file
-        from flim.gui.settingsvalidation import show_problems
+        from flim.gui.settingsvalidation import offer_update, show_problems
 
         validation = validate_settings_file(path)
         if validation.problems:
             show_problems(validation, self, outcome="Nothing is imported.", title="Import Settings")
             return
+        offer_update(validation, self)  # a file of an older version
         self.settings_manager.apply(validation)
         self.refresh_window_filters()
         from flim.gui.settingsvalidation import offer_import_workflow
