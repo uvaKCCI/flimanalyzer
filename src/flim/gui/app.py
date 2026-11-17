@@ -14,7 +14,7 @@ from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
 import re
 from types import TracebackType
-from typing import Any, Optional
+from typing import Optional
 import pandas as pd
 import wx
 import wx.adv
@@ -722,22 +722,6 @@ class AppFrame(wx.Frame):
             order = dialog.GetOrder()
         self.set_favorites([items[i] for i in order if i >= 0])
 
-    def _get_window_frame(self, obj_id: int) -> Optional[tuple[ItemId, wx.Frame]]:
-        """Return the (item ID, window) whose table or figure has `id` `obj_id`."""
-        for title, window in self.windowframes.items():
-            if isinstance(window, PandasFrame) and id(window.GetData()) == obj_id:
-                logger.debug(
-                    f"selected: title={title}, obj_id={obj_id},"
-                    f" id={id(window.GetData())}"
-                )
-                return title, window
-            elif isinstance(window, PlotFrame) and id(window.figure) == obj_id:
-                logger.debug(
-                    f"selected: title={title}, obj_id={obj_id}, id={id(window)}"
-                )
-                return title, window
-        return
-
     def _own_item(self, frame: wx.Frame) -> Optional[ItemId]:
         """Return the item ID of a window of this frame, else None."""
         item_id = getattr(frame, "item_id", None)
@@ -1386,14 +1370,6 @@ class AppFrame(wx.Frame):
             if isinstance(frame, PandasFrame)
         }
 
-    def OnSetFilters(self, event: wx.Event) -> None:
-        """Not bound to an event; shows a message if there is no data, else nothing."""
-        data = self.get_currentdata()
-        if data is None:
-            wx.MessageBox("No data available")
-            return
-        pass
-
     def tool_data_choices(self) -> dict[str, pd.DataFrame]:
         """Return the shown tables of the table windows by title, the current first.
 
@@ -1611,10 +1587,6 @@ class AppFrame(wx.Frame):
         dlg = RunSummaryDialog(self, title, flow_run)
         dlg.ShowModal()
         dlg.Destroy()
-
-    def _on_hover(self, event: Any) -> None:
-        """Print an event; not bound to an event."""
-        print(event)
 
     def register_window(
         self,
@@ -2062,14 +2034,6 @@ class AppFrame(wx.Frame):
         )
         info.SetWebSite(DOCS_URL)
         wx.adv.AboutBox(info, self)
-
-    def get_window_frames(self) -> list[wx.Frame]:
-        """Return the child windows of this frame that are frames."""
-        return [
-            x
-            for x in self.GetChildren()
-            if isinstance(x, wx.Frame)
-        ]
 
     def make_default_folder(self, folder: str | os.PathLike) -> None:
         """Make a folder the default results folder (`results_dir`).

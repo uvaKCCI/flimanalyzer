@@ -349,7 +349,6 @@ class PandasFrame(wx.Frame):
         self.showcolindex = showcolindex
         # get all columns that define categories; these are the columns with view filters
         if groups is None:
-            groups = list(data.select_dtypes(["category"]).columns.values)
             groups = data.select_dtypes(["category"]).columns.get_level_values(0).values
         self.groups = groups
         self.numcols = data.select_dtypes(["number"]).columns.get_level_values(0).values
@@ -943,25 +942,3 @@ class PandasFrame(wx.Frame):
                 return
         pub.sendMessage(CLOSING_DATA_WINDOW, data=self.dataview, frame=self)
         self.Destroy()
-
-
-class TestApp(wx.App):
-    """App that shows a table in a table window, for manual tests."""
-
-    def __init__(self, data: pd.DataFrame) -> None:
-        """Create the app for the table `data`."""
-        self.data = data
-        super(TestApp, self).__init__()
-
-    def OnInit(self) -> bool:
-        """Show the table window."""
-        self.frame = PandasFrame(None, "Test", None, self.data)
-        self.frame.Show(True)
-        return True
-
-
-if __name__ == "__main__":
-    np.random.seed(0)
-    df = pd.DataFrame(np.random.randn(8, 4), columns=["A", "B", "C", "D"])
-    app = TestApp(df)
-    app.MainLoop()

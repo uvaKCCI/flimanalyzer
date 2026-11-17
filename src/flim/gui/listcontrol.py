@@ -408,36 +408,6 @@ class FilterListCtrl(AnalysisListCtrl):
         self.enableevents = True
         self.fire_rowsupdated_event(changed)
 
-    def GetDroppedRows(self, rowkey: str) -> Any:
-        """Return the row positions the filter `rowkey` drops; None if not known."""
-        return self.dropped.get(rowkey)
-
-    def SetDroppedRows(self, droppedrows: Optional[dict[str, Any]]) -> None:
-        """Replace the dropped rows by filter name and show their counts.
-
-        Rows of filters without dropped rows show `---`.
-        """
-        if droppedrows is None:
-            droppedrows = {}
-        self.dropped = droppedrows
-        logger.debug(f"{len(droppedrows)} filters")
-        for idx in range(self.GetItemCount()):
-            key = self.GetItem(idx, self.get_key_col()).GetText()
-            if key in droppedrows:
-                dropped = droppedrows[key]
-                no_droppedfromview = len(self.get_view_dropped(key))
-                self.SetItem(idx, 4, f"{no_droppedfromview:,}")
-                logger.debug(
-                    f"\tSetting dropped row, key={key}, index={idx}: {len(dropped)},"
-                    f" dropped from view: {no_droppedfromview}"
-                )
-            else:
-                self.SetItem(idx, 4, "---")
-                logger.debug(
-                    f"\tSetting dropped row, index={idx}, key={key}, dropped=---"
-                )
-        self.Update()
-
     def UpdateDroppedRows(self, droppedrows: dict[str, Any]) -> None:
         """Store the dropped rows of the filters in `droppedrows` and show the counts.
 
