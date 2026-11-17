@@ -555,6 +555,12 @@ def _managers(args: argparse.Namespace) -> tuple[dict, str]:
         The managers by command, and how the GUI's app settings file is chosen (see
         `_gui_settings_file`).
     """
+    import flim.tools  # noqa: F401  (registers the tools: their settings are validated)
+    import flim.workflow  # noqa: F401
+    from flim.core.workflowfile import register_workflow_files
+
+    discover(TOOLS_GROUP)
+    register_workflow_files()  # the built-in ones: a settings file may have their sections
     user_file = _ReadOnlyUserFile(user_settings_path())
     user = user_file.read()
     if user_file.unreadable:
@@ -653,21 +659,32 @@ def _tool_update(args: argparse.Namespace) -> int:
 
 
 def _app_validate(args: argparse.Namespace) -> int:
-    """Validate an app settings file, as the GUI and flimbatch read it."""
+    """Validate an app settings file, as the GUI and flimbatch read it.
+
+    The GUI refuses a file with settings that can't be used (unknown or invalid) and
+    keeps the settings of tools that aren't installed; flimbatch refuses both.
+    """
     import flim.tools  # noqa: F401  (registers the tools: their settings are validated)
     import flim.workflow  # noqa: F401
     from flim.core.settings import validate_app_settings
+    from flim.core.workflowfile import register_workflow_files
 
     discover(TOOLS_GROUP)
+    register_workflow_files()  # the built-in ones: a settings file may have their sections
     validation = validate_app_settings(args.validate)
     print(validation.summary())
-    if validation.error or validation.invalid:
-        print(f"{PROG}: {args.validate}: cannot be used", file=sys.stderr)
-        return 1
-    if validation.unknown or validation.not_validated:
+    if validation.error or validation.invalid or validation.unknown:
         print(
-            f"{PROG}: {args.validate}: the GUI uses it without the settings listed;"
-            " flimbatch refuses it (all settings must be usable and validated)",
+            f"{PROG}: {args.validate}: settings that can't be used; the GUI and flimbatch"
+            " refuse it",
+            file=sys.stderr,
+        )
+        return 1
+    if validation.not_validated:
+        print(
+            f"{PROG}: {args.validate}: settings of tools that aren't installed; the GUI"
+            " uses it and keeps them, flimbatch refuses it (every setting must be usable"
+            " and validated)",
             file=sys.stderr,
         )
         return 1

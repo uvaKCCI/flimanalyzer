@@ -225,7 +225,7 @@ def test_app_validate(tmp_path, capsys):
     unknown = tmp_path / "unknown.json"
     unknown.write_text(json.dumps({"schema_version": 2, "colour": "red"}))
     code, out, err = run(capsys, "app", "--validate", str(unknown))
-    assert code == 1 and "colour" in out and "flimbatch refuses it" in err
+    assert code == 1 and "colour" in out and "the GUI and flimbatch refuse it" in err
 
 
 def test_user_show_reads_the_file_only(tmp_path, monkeypatch, capsys):
@@ -315,3 +315,25 @@ def test_app_update(tmp_path, capsys):
     assert code == 0 and f"the original is kept as {tmp_path / 'lab.v1.json'}" in out
     code, _, err = run(capsys, "app", "--update", str(path))
     assert code == 1 and "already in the current format" in err
+
+
+def test_app_show_validates_tool_settings_with_the_tools_loaded(tmp_path):
+    """A file with tool settings: flimbatch accepts it, so app --show must say so.
+
+    In a process of its own: here, the test module has loaded the tools already.
+    """
+    import os
+    import subprocess
+    import sys
+
+    lab = tmp_path / "lab.json"
+    lab.write_text(json.dumps({"schema_version": 2, "tools": {"Summarize": {"config": {"aggs": ["mean"]}}}}))
+    env = {k: v for k, v in os.environ.items() if not k.startswith("FLIM_")}
+    env["FLIM_USER_SETTINGS"] = str(tmp_path / "usersettings.json")
+    code = "import sys; from flim.settingscmd import main; sys.exit(main(sys.argv[1:]))"
+    result = subprocess.run(
+        [sys.executable, "-c", code, "app", "--show", "-s", str(lab)],
+        capture_output=True, text=True, env=env,
+    )  # fmt: skip
+    assert result.returncode == 0 and "not installed" not in result.stderr
+    assert f"App settings file of flimbatch: {lab}" in result.stdout
