@@ -3,7 +3,7 @@
 A workflow file names its steps; each step is a tool with its own settings, so the
 file alone decides what a run does::
 
-    {"schema_version": 1, "name": "calc and aggregate", "tags": ["summaries"],
+    {"schema_version": 1, "name": "calc and aggregate", "category": "Analysis",
      "output": {"formats": [{"kind": "table", "format": "csv"}]},
      "steps": [
        {"id": "1", "tool": "Calculate", "config": {...},

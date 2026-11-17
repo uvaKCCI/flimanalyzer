@@ -97,19 +97,19 @@ Run `flimanalyzer --help` for all command-line options.
 
 | Option | |
 |---|---|
-| `-i`, `--input` | data files or folders to open at startup, each file in its own table window, read with the settings of `Open Tables`; with `--run`, the files to run it on (`--run "Import Tables"` shows its dialog for them) |
-| `-x`, `--exclude` | files not to read (names) |
+| `-i`, `--input` | data files or folders to open at startup (takes several values, and can be repeated: `-i a.txt -i b.txt`), each file in its own table window, read with the settings of `Open Tables`; with `--run`, the files to run it on (`--run "Import Tables"` shows its dialog for them) |
+| `-x`, `--exclude` | files not to read, by their exact file name. Takes several values, and can be repeated: `-x a.txt -x b.txt` |
 | `-r`, `--run` | tool or workflow to run on the `-i` files at startup: a name, or a workflow file (a path, or a file name ending in `.json` in the workflow search path). A workflow file's steps are shown, then it runs; a tool's dialog opens with the files' tables. Repeat it for several runs; they run in the order given. |
 | `-w`, `--workflow-path` | folders searched for workflow files and tool files. They replace the folders of `FLIM_WORKFLOW_PATH` and of `workflow_paths` in the user settings file (see [Where workflow files are found](/userguide/workflows.md#where-workflow-files-are-found)). Takes several values, and can be repeated. |
 | `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings search path, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
 | `-o`, `--output` | results folder: the folder under `Save results` for tools that have no folder of their own |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4` (see [Concurrent and Distributed Execution](/userguide/execution)) |
 | `--prefect-server`, `--no-prefect-server` | `--prefect-server` (the default) uses a local Prefect server, and starts one if none is found. `--no-prefect-server` uses a temporary Prefect server for each run instead (see [Prefect server](#prefect-server)). |
-| `--server-timeout SECONDS` | how long to wait for responses of the Prefect server, and of the Dask cluster if one is used (default: 60) |
+| `--server-timeout SECONDS` | how long to wait for responses of the Prefect server, and of the Dask cluster if one is used (default: 60). Below 60, a local Prefect server that is started may not be ready in time. |
 | `--log-dir` | log folder (`log` > `dir`; see [Log files](#log-files)) |
 | `-l`, `--log-level` | logging level: `debug`, `info` (default), `warning`, `error` or `critical`; also `--log` |
 
-These options can also be set with environment variables, and in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)). An option given on the command line takes precedence.
+`-o`, `-e`, `--prefect-server`, `--server-timeout`, `--log-dir` and `-l` can also be set with environment variables (`FLIM_RESULTS_DIR`, `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`, `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`; see [Environment variables](/userguide/settings.md#environment-variables)), and in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)); `-w` with `FLIM_WORKFLOW_PATH`. The other options have no environment variable. An option given on the command line takes precedence.
 
 **Deprecated options.** These options still work, but print a warning that shows the new form:
 

@@ -108,7 +108,7 @@ Which GPU can be used depends on the PyTorch build that was installed (see [Inst
 
 Each call saves its results in a new folder below `-o`, named after the date and time, with a folder `run-<n>` per `--run`; a workflow file saves the results of the steps it marks to save. `--dry-run` validates the runs against the files without running them. A column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error, unless the tool or workflow file's `processing` section allows the closest column (`"strict": false`). The exit code is 1 if a validation or a task failed. Run `flimbatch --help` for all options.
 
-`flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
+`flimanalyzer --batch …` does the same as `flimbatch …`, but is deprecated and is removed in 0.8.0. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
 
 ### In Docker
 

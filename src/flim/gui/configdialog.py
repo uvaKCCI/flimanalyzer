@@ -632,7 +632,7 @@ class ConfigDialog(wx.Dialog):
             row = wx.BoxSizer(wx.HORIZONTAL)
             self.use_default = wx.CheckBox(self, label="Use the default folder")
             self.use_default.SetToolTip(
-                "The tool saves in the app's default results folder, also when it changes"
+                "The tool saves in the GUI's default results folder, also when it changes"
             )
             self.use_default.Bind(wx.EVT_CHECKBOX, lambda e: self._on_use_default())
             self.make_default = wx.Button(self, label="Make Default Folder")

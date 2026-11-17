@@ -8,7 +8,7 @@ flimbatch -i data/ -o results/ --run my-analysis.json
 flimbatch -i data/ -o results/ --run Import --run summarize.json
 ```
 
-With uv, run it as `uv run flimbatch ...`. `flimanalyzer --batch ...` does the same as `flimbatch ...`. On Windows, use `flimbatch`. There, `flimanalyzer` starts without a console window, so its messages are not shown.
+With uv, run it as `uv run flimbatch ...`. `flimanalyzer --batch ...` does the same as `flimbatch ...`, but is deprecated and is removed in 0.8.0. On Windows, use `flimbatch`. There, `flimanalyzer` starts without a console window, so its messages are not shown.
 
 ## Steps
 
@@ -96,21 +96,21 @@ Before a workflow runs, its settings are validated against the data (see [Workfl
 
 | Option | |
 |---|---|
-| `-i`, `--input` | data files or folders (required). Takes several values, and can be repeated. |
-| `-x`, `--exclude` | files not to read, by name. Takes several values, and can be repeated. |
+| `-i`, `--input` | data files or folders (required). Takes several values, and can be repeated: `-i a.txt -i b.txt` is the same as `-i a.txt b.txt`. On macOS and Linux, the shell expands wildcards, for example `-i data/*.txt`; on Windows, give a folder instead. |
+| `-x`, `--exclude` | files not to read, by their exact file name (no folder, no wildcards). Takes several values, and can be repeated: `-x a.txt -x b.txt`. |
 | `-o`, `--output` | folder for the results (required, also with `--dry-run`). `flimbatch` stops with a message if it can't be reached or written to. |
 | `-s`, `--settings` | app settings file: a path, or the name of a file in the app settings search path, with or without `.json` |
 | `-r`, `--run` | tool or workflow to run: a name, or a workflow file or a tool file (see [Tools and workflows](#tools-and-workflows)). Repeat it for several runs; they run in the order given. |
 | `-w`, `--workflow-path` | folders searched for workflow files and tool files. They replace the folders of `FLIM_WORKFLOW_PATH` and the default folder (see [Where workflow files are found](/userguide/workflows.md#where-workflow-files-are-found)). Takes several values, and can be repeated. |
 | `-e`, `--executor` | where and how the tasks run: `local` (default), `dask-local` or `dask`, with their options, for example `-e local:workers=4`. An unknown name is an error. |
 | `--prefect-server`, `--no-prefect-server` | `--prefect-server` uses a local Prefect server, and starts one if none is found. `--no-prefect-server` uses a temporary Prefect server for each run instead (see [Prefect server](/install/index.md#prefect-server)). |
-| `--server-timeout SECONDS` | how long to wait for responses of the Prefect server, and of the Dask cluster if one is used |
+| `--server-timeout SECONDS` | how long to wait for responses of the Prefect server, and of the Dask cluster if one is used (default: 60). Below 60, a local Prefect server that is started may not be ready in time. |
 | `--log-dir` | log folder (`log` > `dir`); default: the call's results folder (see [Results](#results) and [Log files](/install/index.md#log-files)) |
 | `-l`, `--log-level` | logging level: `debug`, `info` (default), `warning`, `error` or `critical`; also `--log`. The messages are shown in the terminal. |
 | `--dry-run` | validate the output folder, the executor, the Prefect server and the runs, against the first rows of the files; run nothing (see [Validating a run first](#validating-a-run-first)) |
 | `--override GROUP.FIELD=VALUE` | set a setting for every step of every run, over the settings in the files; repeatable. `output.save=true` saves the results of every step. A workflow defined in code always saves its results: `output.save=false` for its run is an error; limit it to the other runs with a prefix (see below). `output.formats=table:csv,plot:svg` saves tables as `.csv` and plots as `.svg` (or as JSON, for options such as `[{"kind": "plot", "format": "png", "dpi": 600}]`); kinds not named keep their formats. `processing.strict=false` uses the closest matching column for a column that is not in the data; `processing.strict.features=false` does so for one setting only. `processing.skippable.features=some` and `processing.required.features=FLIRR` as in a workflow file's `processing` section; a step whose `features` has no entries, for example a Concatenate step, is not affected (see [Workflow files](/userguide/workflows.md#workflow-files)). The settings of the tools themselves (`config`) can't be set this way. A prefix limits an override to one run or one step: `run-2.output.save=true` applies to the second `--run` only, and `run-2.steps.3.output.save=false` to step 3 of the second `--run` (with a single `--run`, `steps.3.output.save=false` is enough). The more specific override takes precedence: one for a step over one for a run, over one for every run, over the settings in the files. The run summary lists the overrides, and `resolved.json` holds the overridden settings, so a rerun of it needs none. |
 
-These options can also be set with environment variables (see [Environment variables](/userguide/settings.md#environment-variables)). An option given on the command line takes precedence.
+`-e`, `--prefect-server`, `--server-timeout`, `--log-dir`, `-l` and `--dry-run` can also be set with environment variables: `FLIM_EXECUTION` (or `FLIM_EXECUTION__EXECUTOR` and the other `FLIM_EXECUTION__` variables), `FLIM_PREFECT_SERVER`, `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL` and `FLIM_DRY_RUN`, and `-w` with `FLIM_WORKFLOW_PATH` (see [Environment variables](/userguide/settings.md#environment-variables)). The other options have no environment variable. An option given on the command line takes precedence.
 
 ### Deprecated options
 
