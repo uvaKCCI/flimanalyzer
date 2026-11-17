@@ -1047,3 +1047,22 @@ def test_pattern_rename_shows_a_message_if_not_valid(frame, monkeypatch, flim_da
     window.OnLabelDClick(event)
     assert "not valid" in no_modal_message_dialogs[-1]
     pd.testing.assert_series_equal(window.data["Treatment"], before)
+
+
+def test_save_on_close_saves_all_rows(frame, monkeypatch, flim_data):
+    """It saved only the rows shown, and the window then counted as saved."""
+    import flim.gui.dialogs
+
+    window = _open(frame, flim_data, "cells")
+    low, high = flim_data[FEATURE].quantile([0.25, 0.75])
+    window.apply_filters({FEATURE: {"name": FEATURE, "rangelow": low, "rangehigh": high, "selected": True}})
+    assert len(window.GetViewData()) < len(flim_data)
+    saved = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
+    monkeypatch.setattr(
+        flim.gui.dialogs, "save_dataframe",
+        lambda parent, title, data, name, **k: saved.append(len(data)) or False,
+    )  # fmt: skip
+    window.close_and_destroy(None)  # the save is cancelled: the window stays open
+    assert saved == [len(flim_data)]
+    window.modified = False

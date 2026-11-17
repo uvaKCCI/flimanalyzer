@@ -4,7 +4,7 @@ Data tables can be saved by clicking the `Save All Rows...` or `Save Shown Rows.
 
 The suggested file name is the window's title, changed so that it is a safe file name: spaces, `[`, `]`, `(` and `)` are removed, `,`, `/` and `\` become `_`, `:` becomes `-`, and `%` becomes `perc`.
 
-When you close a table window that has not been saved since it was made or changed, FLIMAnalyzer asks whether to save it. A file you opened counts as saved until you change it, for example with a filter. This save works like `Save Shown Rows...`: it saves only the rows the window shows. The suggested file name is the window's title, changed as above.
+When you close a table window that has not been saved since it was made or changed, the GUI asks whether to save it. A file you opened counts as saved until you change it, for example with a filter. This save works like `Save All Rows...`: it saves all rows, also those hidden by filters. The suggested file name is the window's title, changed as above.
 
 * `Save All Rows...`: saves all the data, including rows hidden by filters.
 * `Save Shown Rows...`: saves the data as currently displayed. Hidden rows are not saved and cannot be recovered from the saved file.

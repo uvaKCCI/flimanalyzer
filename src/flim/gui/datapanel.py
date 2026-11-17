@@ -908,8 +908,10 @@ class PandasFrame(wx.Frame):
     def close_and_destroy(self, event: wx.CloseEvent) -> None:
         """Close the window, after asking to save a modified table.
 
-        A window that cannot be closed shows a message instead. Cancel, or a save
-        that is cancelled or fails, keeps the window open. Sends
+        The save saves all rows, also those hidden by filters, as `Save All Rows...`
+        and File > Save All Windows... do. A window that cannot be closed shows a
+        message instead. Cancel, or a save that is cancelled or fails, keeps the
+        window open. Sends
         `CLOSING_DATA_WINDOW` before the window is destroyed.
         """
         if not self.enableclose:
@@ -918,17 +920,18 @@ class PandasFrame(wx.Frame):
         if self.savemodified and self.modified:
             dlg = wx.MessageDialog(
                 self,
-                "The current view of the data has not been saved.\n\nDo you want to"
-                " save the data?\n",
+                "The table has not been saved.\n\nSave all its rows, also those"
+                " hidden by filters?\n",
                 self.GetLabel(),
                 style=wx.YES_NO | wx.CANCEL,
             )
             answer = dlg.ShowModal()
+            dlg.Destroy()
             if answer == wx.ID_YES:
                 if flim.gui.dialogs.save_dataframe(
                     self,
-                    "Save current data view",
-                    self.dataview,
+                    "Save entire data.",
+                    self.data,
                     self.GetTitle() + ".txt",
                     saveindex=self.showcolindex,
                 ):
