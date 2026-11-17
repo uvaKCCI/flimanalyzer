@@ -782,7 +782,8 @@ def _v1_to_v2(data: dict, changes: Optional["Changes"] = None) -> dict:
             )
     if moved:
         changes.converted.append(
-            f"autosave and results_dir of {moved} tools to their output section"
+            f"autosave and results_dir of {moved} tool{'s' if moved != 1 else ''} to"
+            f" {'their' if moved != 1 else 'its'} output section"
         )
     return data
 
