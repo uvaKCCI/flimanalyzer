@@ -1293,6 +1293,30 @@ class ConfigDialog(wx.Dialog):
         )
 
 
+def _replaced(presets: list[dict], preset: dict) -> list[dict]:
+    """Return presets with `preset` in place of the presets of its name.
+
+    The preset takes the place of the first preset of its name, or is added at the
+    end; the other presets are kept as they are.
+
+    Args:
+        presets: The stored presets, each a dict with `name` and `settings`.
+        preset: The new preset.
+
+    Returns:
+        A new list of the presets.
+    """
+    result, placed = [], False
+    for stored in presets:
+        if str(stored.get("name")) == preset["name"]:
+            if not placed:
+                result.append(preset)
+                placed = True
+        else:
+            result.append(stored)
+    return result if placed else result + [preset]
+
+
 class PresetsDialog(ConfigDialog):
     """A configuration dialog with buttons for presets of its settings.
 
@@ -1342,6 +1366,20 @@ class PresetsDialog(ConfigDialog):
                 logger.warning(f"Saved {self.tool.name} preset not valid, not offered: {err}")
         return presets
 
+    def stored_presets(self) -> list[dict]:
+        """Return all presets of the tool in the user settings file, as stored.
+
+        Unlike `saved_presets`, presets that are not valid and settings outside
+        `preset_fields` are kept: saving or removing a preset changes only that
+        preset.
+
+        Returns:
+            Copies of the stored presets; empty if no settings manager is bound.
+        """
+        if _settings_manager is None:
+            return []
+        return _settings_manager.settings.tool_presets(self.tool)
+
     def save_presets(self, presets: list[dict]) -> None:
         """Replace the saved presets in the user settings file.
 
@@ -1381,9 +1419,19 @@ class PresetsDialog(ConfigDialog):
     def _on_save_preset(self, event: wx.CommandEvent) -> None:
         """Ask for a name and save the values of `preset_fields` as a preset.
 
-        A saved preset of the same name is replaced; a built-in preset's name is
-        refused with a message.
+        A saved preset of the same name is replaced, the other saved presets are
+        kept; a built-in preset's name is refused with a message. If the edited
+        values are not valid, a message shows the validation issues and nothing is
+        saved.
         """
+        config, issues = self.current_config()
+        if config is None:
+            wx.MessageBox(
+                "The settings are not valid; the preset is not saved.\n\n"
+                + "\n".join(f"{i.field}: {i.message}" if i.field else i.message for i in issues),
+                "Save as Preset", wx.OK | wx.ICON_WARNING, self,
+            )  # fmt: skip
+            return
         with wx.TextEntryDialog(self, "Name of the preset:", "Save as Preset") as dialog:
             if dialog.ShowModal() != wx.ID_OK:
                 return
@@ -1393,10 +1441,9 @@ class PresetsDialog(ConfigDialog):
         if name in [p["name"] for p in self.built_in_presets()]:
             wx.MessageBox(f"'{name}' is a built-in preset; choose another name.", "Save as Preset")
             return
-        data = self._current().model_dump(mode="json")
+        data = config.model_dump(mode="json")
         settings = {field: data[field] for field in self.preset_fields}
-        presets = [p for p in self.saved_presets() if p["name"] != name]  # same name: replaced
-        self.save_presets(presets + [{"name": name, "settings": settings}])
+        self.save_presets(_replaced(self.stored_presets(), {"name": name, "settings": settings}))
         self.settings_message.SetLabel(f"Saved as preset {name}")
 
     def _on_remove_presets(self, event: wx.CommandEvent) -> None:
@@ -1410,5 +1457,6 @@ class PresetsDialog(ConfigDialog):
             if dialog.ShowModal() != wx.ID_OK:
                 return
             remove = {names[i] for i in dialog.GetSelections()}
-        self.save_presets([p for p in saved if p["name"] not in remove])
+        stored = self.stored_presets()  # also those not offered: they are kept
+        self.save_presets([p for p in stored if str(p.get("name")) not in remove])
         self.settings_message.SetLabel(f"{len(remove)} presets removed")

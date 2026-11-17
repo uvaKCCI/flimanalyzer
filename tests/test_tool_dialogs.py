@@ -1009,3 +1009,101 @@ def test_spaces_in_values_are_kept(wxapp):
         assert editor.get() == " - "
     finally:
         frame.Destroy()
+
+
+def test_saving_or_removing_a_preset_keeps_the_other_stored_presets(wxapp, monkeypatch):
+    """Saving or removing rewrote the list of presets that were offered: presets not
+    valid with the current values were deleted, other fields were stripped."""
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import bind_presets, dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results_a_ctrl_1.txt"], "t1": [1.0]})
+    tool = tools.get("Separate Categories")
+    broken = {"name": "Broken", "settings": {"mode": "no such mode"}}
+    extra = {"name": "Extra", "settings": {"column": "Source", "note": "kept"}}
+    manager = SettingsManager()
+    manager.set_presets(tool, [broken, extra])
+    bind_presets(manager)
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        assert [p["name"] for p in d.saved_presets()] == ["Extra"]  # Broken: not offered
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        stored = manager.settings.tool_presets(tool)
+        assert [p["name"] for p in stored] == ["Broken", "Extra", "Mine"]
+        assert stored[:2] == [broken, extra]
+        d._on_save_preset(None)  # the same name: replaced in place
+        assert [p["name"] for p in manager.settings.tool_presets(tool)] == ["Broken", "Extra", "Mine"]
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [1])  # Mine
+        d._on_remove_presets(None)
+        assert manager.settings.tool_presets(tool) == [broken, extra]
+    finally:
+        d.Destroy()
+        bind_presets(None)
+
+
+def test_save_as_preset_saves_nothing_if_the_settings_are_not_valid(wxapp, monkeypatch, no_modal_message_dialogs):
+    """It saved the dialog's earlier values and said `Saved as preset`."""
+    from flim.core.config import Issue
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import bind_presets, dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results_a_ctrl_1.txt"], "t1": [1.0]})
+    tool = tools.get("Separate Categories")
+    manager = SettingsManager()
+    bind_presets(manager)
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        monkeypatch.setattr(d, "current_config", lambda: (None, [Issue("column", "Field required")]))
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        assert manager.settings.tool_presets(tool) == []
+        assert "not valid" in no_modal_message_dialogs[0]
+        assert "column: Field required" in no_modal_message_dialogs[0]
+        assert "Saved" not in d.settings_message.GetLabel()
+    finally:
+        d.Destroy()
+        bind_presets(None)
+
+
+def test_calculate_presets_keep_the_other_stored_presets(wxapp, dialog, monkeypatch):
+    """Saving or removing a calculation deleted the stored presets that were not valid."""
+    from flim.configs.data import ExpressionCalculation
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.dialogs import calculate
+    from flim.tools.data import Calculate
+
+    manager = SettingsManager()
+    broken = {"name": "broken", "settings": {"calculations": [{"kind": "no such kind"}]}}
+    two = {
+        "name": "two",
+        "settings": {
+            "calculations": [
+                {"kind": "expression", "name": "a", "expression": "t1 * 2"},
+                {"kind": "expression", "name": "ratio", "expression": "t1 / 3"},
+            ]
+        },
+    }
+    manager.set_presets(Calculate, [broken, two])
+    calculate.bind(manager)
+    try:
+        calculate.save_presets([ExpressionCalculation(name="ratio", expression="t1 / t2")])
+        stored = manager.settings.tool_presets(Calculate)
+        assert [p["name"] for p in stored] == ["broken", "two", "ratio"]
+        assert stored[0] == broken
+        assert [c["name"] for c in stored[1]["settings"]["calculations"]] == ["a"]  # replaced
+        assert [p.name for p in calculate.saved_presets()] == ["a", "ratio"]
+        d = dialog("Calculate")
+        editor = d.fields.editors["calculations"]
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [1])  # ratio
+        editor._on_remove_presets(None)
+        stored = manager.settings.tool_presets(Calculate)
+        assert [p["name"] for p in stored] == ["broken", "two"] and stored[0] == broken
+    finally:
+        calculate.bind(None)

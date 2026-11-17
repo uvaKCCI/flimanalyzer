@@ -77,24 +77,77 @@ def saved_presets() -> list[Calculation]:
     return presets
 
 
-def save_presets(presets: Iterable[Calculation]) -> None:
-    """Replace the saved presets in the user settings file.
+def _without(stored: list[dict], names: set[str]) -> list[dict]:
+    """Return stored presets without the calculations of the given names.
 
-    Nothing is saved if no settings manager is bound (`bind`).
+    A preset that has other calculations keeps them; a preset without calculations
+    left is dropped. A preset whose calculations cannot be read is dropped only if
+    its name is one of `names`. The other presets are kept as they are.
+    """
+    result = []
+    for preset in stored:
+        settings = preset.get("settings")
+        calculations = settings.get("calculations") if isinstance(settings, dict) else None
+        if not isinstance(calculations, list):
+            if str(preset.get("name")) not in names:
+                result.append(preset)
+            continue
+        kept = [c for c in calculations if not (isinstance(c, dict) and c.get("name") in names)]
+        if len(kept) == len(calculations):
+            result.append(preset)
+        elif kept:
+            result.append({**preset, "settings": {**settings, "calculations": kept}})
+    return result
+
+
+def _stored_presets() -> list[dict]:
+    """Return all presets of Calculate in the user settings file, as stored."""
+    from flim.tools.data import Calculate
+
+    return _settings_manager.settings.tool_presets(Calculate)
+
+
+def _write_presets(presets: list[dict]) -> None:
+    """Replace all presets of Calculate in the user settings file."""
+    from flim.tools.data import Calculate
+
+    _settings_manager.set_presets(Calculate, presets)
+
+
+def save_presets(calculations: Iterable[Calculation]) -> None:
+    """Save calculations as presets in the user settings file, one preset each.
+
+    Saved calculations of the same names are replaced; the other stored presets are
+    kept, also those that are not valid. Nothing is saved if no settings manager is
+    bound (`bind`).
 
     Args:
-        presets: The calculations.
+        calculations: The calculations to save.
+    """
+    if _settings_manager is None:
+        return
+    calculations = list(calculations)
+    stored = _without(_stored_presets(), {c.name for c in calculations})
+    _write_presets(
+        stored
+        + [
+            {"name": c.name, "settings": {"calculations": [c.model_dump(mode="json")]}}
+            for c in calculations
+        ]
+    )
+
+
+def remove_presets(names: Iterable[str]) -> None:
+    """Remove the saved calculations of the given names from the user settings file.
+
+    The other stored presets are kept, also those that are not valid. Nothing is
+    changed if no settings manager is bound (`bind`).
+
+    Args:
+        names: The names of the calculations to remove.
     """
     if _settings_manager is not None:
-        from flim.tools.data import Calculate
-
-        _settings_manager.set_presets(
-            Calculate,
-            [
-                {"name": p.name, "settings": {"calculations": [p.model_dump(mode="json")]}}
-                for p in presets
-            ],
-        )
+        _write_presets(_without(_stored_presets(), set(names)))
 
 
 def describe(calculation: Calculation) -> str:
@@ -635,8 +688,7 @@ class CalculationsEditor(_RowIssues, Editor):
         if not new:
             wx.MessageBox("Select the calculations to save.", "Save as Preset", wx.OK)
             return
-        names = {p.name for p in new}
-        save_presets([p for p in saved_presets() if p.name not in names] + new)
+        save_presets(new)
         wx.MessageBox(
             f"Saved {len(new)} calculation(s); Load Preset... offers them.",
             "Save as Preset",
@@ -659,8 +711,8 @@ class CalculationsEditor(_RowIssues, Editor):
         ) as dialog:  # fmt: skip
             if dialog.ShowModal() != wx.ID_OK:
                 return
-            removed = set(dialog.GetSelections())
-        save_presets([p for i, p in enumerate(saved) if i not in removed])
+            removed = {saved[i].name for i in dialog.GetSelections()}
+        remove_presets(removed)
 
     # --- Editor ---
 

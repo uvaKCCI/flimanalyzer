@@ -50,8 +50,10 @@ A group that matches nothing gives `?`. A value that the pattern doesn't match g
 The buttons below the settings load and save presets: settings for how to separate, by name.
 
 * `Load Preset...` fills in the settings of a preset. A preset you saved sets the column, the mode, the part, the delimiters, the new columns' names, the patterns and the template. A built-in preset sets the column, the mode, the part (`value`) and the patterns. The other settings stay as they are.
-* `Save as Preset...` saves these settings of the dialog as a preset of your own, in the user settings file (`presets` > `Separate Categories`). A preset with the same name is replaced; the names of the built-in presets can't be used.
+* `Save as Preset...` saves these settings of the dialog as a preset of your own, in the user settings file (`presets` > `Separate Categories`). A preset with the same name is replaced; the names of the built-in presets can't be used. If the settings are not valid, a message shows the problems and no preset is saved.
 * `Remove Presets...` removes presets you saved. The built-in ones can't be removed.
+
+Saving or removing a preset changes only that preset. A saved preset that is not valid for the dialog is not offered, but it stays in the user settings file.
 
 The built-in presets are the filename parsers of FLIMAnalyzer 0.6, as patterns on the `Source` column, named after the categories they take from the file paths. Their patterns match the whole path, so they set `Part` to `value`. The built-in presets are `FOV, Treatment, Cell`, `Treatment, FOV, Cell`, `Treatment, FOV, Time`, `Treatment, Time`, `FOV, Time, Well`, `Compartment, FOV, Treatment, Cell`, `Compartment, Treatment, FOV, Cell` and `Cell line, Compartment, FOV, Treatment, Cell`. For example, `FOV, Treatment, Cell` reads `FOV` `a`, `Treatment` `ctrl` and `Cell` `1` from `Results-a-ctrl-1.txt`, with these patterns:
 
