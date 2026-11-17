@@ -88,12 +88,22 @@ def _skip_sklearn_members(app, what, name, obj, skip, options):
     return None
 
 
-def _narrow_tall_images(app, doctree):
-    """Show screenshots that are clearly taller than wide at half the column width, on the right.
+# images up to this many pixels wide (half on screen: two pixels per point) have
+# little content: small dialogs and windows; icons up to ICON_WIDTH are left inline
+SMALL_WIDTH = 1100
+ICON_WIDTH = 64
 
-    The screenshots are taken on a high-resolution screen (two pixels per point),
-    and the theme shows an image at its pixel size up to the column width, so tall
-    dialogs would fill several screens. Images with a width set are left as they are.
+
+def _narrow_tall_images(app, doctree):
+    """Show tall or small screenshots at half the column width, on the right.
+
+    Screenshots that are clearly taller than wide (dialogs), or at most `SMALL_WIDTH`
+    pixels wide (little content), are shown at half the column width, and the text
+    flows beside them; in the PDF they are half the text width. The screenshots are
+    taken on a high-resolution screen (two pixels per point), and the theme shows an
+    image at its pixel size up to the column width, so tall dialogs would fill
+    several screens. Icons (up to `ICON_WIDTH` pixels) and images with a width set
+    are left as they are.
     """
     from docutils import nodes
     from PIL import Image
@@ -107,7 +117,10 @@ def _narrow_tall_images(app, doctree):
                 width, height = image.size
         except OSError:
             continue
-        if height > 1.1 * width:  # dialogs; plots are about square and stay as they are
+        if width <= ICON_WIDTH:
+            continue
+        # dialogs, and small images; large plots and windows stay as they are
+        if height > 1.1 * width or width <= SMALL_WIDTH:
             node["width"] = "50%"
             node["align"] = "right"  # the text flows beside it
             _to_start_of_step(node)
@@ -147,6 +160,18 @@ templates_path = ["_templates"]
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "docs"]
+
+
+# -- Options for LaTeX (PDF) output ------------------------------------------
+
+# every image fits the page, also in height (a tall dialog would otherwise run off
+# the bottom of the page), keeping its proportions
+latex_elements = {
+    "preamble": r"""
+\usepackage[export]{adjustbox}
+\setkeys{Gin}{max width=\linewidth,max height=0.8\textheight,keepaspectratio}
+""",
+}
 
 
 # -- Options for HTML output -------------------------------------------------
