@@ -1019,14 +1019,27 @@ def _with_columns(
 ) -> pd.DataFrame:
     """Return the table with new columns after a column, and some columns removed.
 
-    New names that are taken get a number (`unique_name`).
+    The columns are removed first, so that a new column can take the name of a
+    removed one. The new columns are where they would be after `after` if the
+    removed columns stayed: after the columns before it that are kept. New names
+    that are taken get a number (`unique_name`).
+
+    Args:
+        data: The table.
+        new: The new columns by name, in order.
+        after: The column the new columns follow; it may be removed.
+        remove: The columns removed.
+
+    Returns:
+        The new table.
     """
-    table = data.copy()
-    position = list(table.columns).index(after) + 1
+    columns = list(data.columns)
+    before = columns[: columns.index(after) + 1]
+    position = len([c for c in before if c not in remove])
+    table = data.drop(columns=list(remove))
     for offset, (name, values) in enumerate(new.items()):
-        taken = [c for c in table.columns if c not in remove]
-        table.insert(position + offset, unique_name(name, name, taken), values)
-    return table.drop(columns=list(remove))
+        table.insert(position + offset, unique_name(name, name, list(table.columns)), values)
+    return table
 
 
 def _clashes(data: pd.DataFrame, new: Sequence[str], remove: Sequence[str] = ()) -> dict:

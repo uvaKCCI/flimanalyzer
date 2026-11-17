@@ -558,6 +558,29 @@ def test_fuse_categories_places_and_keeps():
     assert list(fused.columns) == ["ID", "t1"]
 
 
+def test_new_column_takes_the_name_of_a_removed_column():
+    from flim.configs import FuseCategoriesConfig, SeparateCategoriesConfig
+    from flim.tools.data import FuseCategories, SeparateCategories
+
+    data = _cells().assign(Treatment=pd.Categorical(["a", "b", "a"]))
+    config = FuseCategoriesConfig(grouping=["FOV", "Cell"], name="FOV", keep_original=False)
+    tool = FuseCategories()
+    (fused,) = tool(data, config=config).values()
+    assert list(fused.columns) == ["FOV", "t1", "Treatment"]  # in place of FOV and Cell
+    assert list(fused["FOV"]) == ["1:1", "1:2", "2:1"]
+    assert tool.context.warnings == [] and FuseCategories.validate_data(config, [data]) == []
+    config = SeparateCategoriesConfig(column="FOV", names=["FOV", "N"], keep_original=False)
+    tool = SeparateCategories()
+    (separated,) = tool(fused, config=config).values()
+    assert list(separated.columns) == ["FOV", "N", "t1", "Treatment"]
+    assert list(separated["FOV"]) == ["1", "1", "2"] and list(separated["N"]) == ["1", "2", "1"]
+    assert tool.context.warnings == [] and SeparateCategories.validate_data(config, [fused]) == []
+    # the original kept: the new column gets a number, after the separated column
+    kept = config.model_copy(update={"keep_original": True})
+    (separated,) = SeparateCategories()(fused, config=kept).values()
+    assert list(separated.columns) == ["FOV", "FOV_1", "N", "t1", "Treatment"]
+
+
 def test_fuse_then_separate_round_trip():
     from flim.configs import FuseCategoriesConfig, SeparateCategoriesConfig
     from flim.tools.data import FuseCategories, SeparateCategories
