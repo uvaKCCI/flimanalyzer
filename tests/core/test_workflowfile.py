@@ -796,3 +796,34 @@ def test_parse_overrides():
     assert not rules.is_strict("features[0]") and rules.is_strict("grouping[0]")  # false, but grouping true
     assert rules.skip("features") == "some" and rules.required == {"features": ["FLIRR", "t1"]}
     assert overrides.formats_over([*parse_overrides(["output.formats=table:tsv,plot:svg"]).formats])[1].format == "png"
+
+
+def test_override_scopes_step_over_run_over_every_run():
+    from flim.core.workflowfile import parse_overrides
+
+    overrides = parse_overrides([
+        "output.save=true", "run-2.output.formats=table:csv",
+        "run-2.steps.3.output.save=false", "steps.1.processing.strict=false",
+    ])  # fmt: skip
+    second = overrides.for_run(2)
+    assert second.save is True and [f.format for f in second.formats] == ["csv"]
+    assert second.for_step("3").save is False and second.for_step("03").save is False
+    assert second.for_step("2").save is True  # no step override: the run's
+    assert overrides.for_run(1).formats == ()  # run-2's formats are not run 1's
+    assert "run-2.steps.3.output.save=false" in second.given
+
+
+def test_override_scopes_are_validated_against_the_runs():
+    from flim.core.workflowfile import override_problems, parse_overrides
+    from flim.workflow.basicflow import BasicFLIRR
+
+    two = WorkflowDefinition.model_validate({"name": "two", "steps": [{"id": "1", "tool": "Sort"}, {"id": "2", "tool": "Sort"}]})
+    runs = [workflow_class(two), workflow_class(two)]
+    def problems(*values, runs=runs):
+        return " ".join(override_problems(parse_overrides(values), runs))
+    assert problems("run-1.steps.2.output.save=true") == ""
+    assert "several --run; name the run, e.g. run-1.steps.2.output.save=true" in problems("steps.2.output.save=true")
+    assert "there is no run 3" in problems("run-3.output.save=true")
+    assert "has no step 5" in problems("run-1.steps.5.output.save=true")
+    assert "is a workflow defined in code; it has no steps" in problems("steps.1.output.save=true", runs=[BasicFLIRR])
+    assert problems("steps.2.output.save=true", runs=runs[:1]) == ""  # one run: no prefix needed

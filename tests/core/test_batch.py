@@ -681,3 +681,19 @@ def test_a_settings_file_with_a_built_in_workflow_files_section_is_accepted(data
     path.write_text(json.dumps({"schema_version": 2, "tools": {"Import": {"output": {"save": True}}}}))
     argv = ["-i", str(data_dir), "-s", str(path), "--run", "Import", *DRY_RUN, "--no-prefect-server"]
     assert main(argv) == 0, capsys.readouterr().err
+
+
+def test_a_step_override_takes_precedence_over_one_for_every_step(data_dir, tmp_path, capsys):
+    path = tmp_path / "unsaved.json"
+    path.write_text(json.dumps(UNSAVED))
+    out = tmp_path / "out"
+    argv = ["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server",
+            "--override", "output.save=true", "--override", "steps.1.output.save=false"]  # fmt: skip
+    assert main(argv) == 0
+    run = run_dir(out)
+    assert sorted(p.name for p in run.iterdir() if p.is_dir()) == ["02-Sort"]
+    assert "--override steps.1.output.save=false" in (run / "run_summary.txt").read_text()
+    two = ["-i", str(data_dir), *DRY_RUN, "--run", str(path), "--run", str(path),
+           "--override", "steps.1.output.save=false"]  # fmt: skip
+    assert main(two) == 1
+    assert "several --run; name the run, e.g. run-1.steps.1.output.save=false" in capsys.readouterr().err

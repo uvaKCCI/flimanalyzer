@@ -193,9 +193,10 @@ def validate_run(
         tables: The tables by name.
         settings: The session's settings; a tool or workflow is validated with its
             settings from them.
-        overrides: Settings over the tool's or the steps' (`flimbatch --override`);
-            None: none. Unless they make every step save, a workflow file none of
-            whose steps saves is an error (see `save_issues`).
+        overrides: Settings over the tool's or the steps' (`flimbatch --override`),
+            of this run (`Overrides.for_run`); None: none. Unless they make every
+            step save, a workflow file none of whose steps saves is an error (see
+            `save_issues`).
 
     Returns:
         The errors, each with the tool and the table; empty if there are none.
@@ -218,7 +219,7 @@ def validate_run(
     if definition is not None:
         definition = overridden(definition, overrides)
         unsaved = save_issues(definition)[1]
-        return names + unsaved + validate_steps(definition, schemas, overrides.processing)
+        return names + unsaved + validate_steps(definition, schemas, overrides)
     config, entry = workflow_settings(tool, settings)
     rules = ProcessingRules.of(entry.processing if entry else None, overrides.processing)
     targets = [(name, [schema] * max(1, len(tool.inputs))) for name, schema in schemas.items()]
@@ -258,7 +259,7 @@ def run_on_tables(
         run_dir: The run's folder, e.g. `<output>/<date and time>/run-1`.
         execution: The executor; None for the default `ExecutionOptions`.
         overrides: Settings over the tool's or the steps' (`flimbatch --override`),
-            listed in the run summary; None: none.
+            of this run (`Overrides.for_run`), listed in the run summary; None: none.
         settings_record: The settings files, for the run summary.
         notes: Notes for the run summary, e.g. on the executor.
 
@@ -296,9 +297,9 @@ def run_on_tables(
     if definition is not None:  # a workflow file, or a tool as one
         if overrides.given:
             definition = overridden(definition, overrides)
-            tool = workflow_class(definition, getattr(tool, "path", None), overrides.processing)
+            tool = workflow_class(definition, getattr(tool, "path", None), overrides)
         schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
-        resolved = resolve_definition(definition, overrides.processing, schemas)
+        resolved = resolve_definition(definition, overrides, schemas)
         _write_resolved(run_dir, resolved_data(resolved))
         return tool().run_flow(
             tables,

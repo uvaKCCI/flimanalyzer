@@ -33,7 +33,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 from flim.core.batchrun import BatchError
 from flim.core.cli import DRY_RUN_VAR, LOG_LEVEL_VAR, LOG_LEVELS, flag_source
@@ -55,6 +55,7 @@ from flim.core.workflowfile import WORKFLOW_PATH_VAR
 
 if TYPE_CHECKING:
     from flim.core.tool import Tool
+    from flim.core.workflowfile import Overrides
 
 PROG = "flimsettings"
 GUI, BATCH, SETTINGS = "flimanalyzer", "flimbatch", "flimsettings"
@@ -424,13 +425,16 @@ def _workflow_validate(args: argparse.Namespace) -> int:
 def _tool_resolve(args: argparse.Namespace) -> int:
     """Print a tool file with every setting stated (data-dependent settings excepted)."""
     from flim.core.config import ProcessingRules
-    from flim.core.workflowfile import parse_overrides, resolved_tool_data, validate_workflow_file
+    from flim.core.workflowfile import resolved_tool_data, validate_workflow_file, workflow_class
 
-    overrides = parse_overrides(args.override)
     path, _ = _file(args.resolve, args, "tool")
     validation = validate_workflow_file(path, tool_files=True)
     if validation.errors:
         return _report(str(path), validation.errors, validation.warnings, "")
+    run = validation.workflow or workflow_class(validation.definition, path)
+    overrides = _overrides(args, run, path)
+    if overrides is None:
+        return 1
     if validation.workflow is not None:  # a workflow defined in code
         tool, entry = validation.workflow, validation.workflow.settings_entry
         config = tool.config_class.model_validate(entry.config or {})
@@ -441,8 +445,9 @@ def _tool_resolve(args: argparse.Namespace) -> int:
         (step,) = definition.steps
         tool = tools.get(step.tool)
         config = tool.config_class.model_validate(step.config)
-        formats = overrides.formats_over(step.output.formats or [])
-        data = resolved_tool_data(tool, config, formats, definition.rules(step, overrides.processing))
+        own = overrides.for_step(step.id)
+        formats = own.formats_over(step.output.formats or [])
+        data = resolved_tool_data(tool, config, formats, definition.rules(step, overrides))
     print(json.dumps(data, indent=2))
     return 0
 
@@ -455,20 +460,38 @@ def _workflow_resolve(args: argparse.Namespace) -> int:
     """
     from flim.core.workflowfile import (
         overridden,
-        parse_overrides,
         resolve_definition,
         resolved_data,
         validate_workflow_file,
+        workflow_class,
     )
 
-    overrides = parse_overrides(args.override)
     path, _ = _file(args.resolve, args, "workflow")
     validation = validate_workflow_file(path)
     if validation.errors:
         return _report(str(path), validation.errors, validation.warnings, "")
+    overrides = _overrides(args, workflow_class(validation.definition, path), path)
+    if overrides is None:
+        return 1
     definition = overridden(validation.definition, overrides)
-    print(json.dumps(resolved_data(resolve_definition(definition, overrides.processing)), indent=2))
+    print(json.dumps(resolved_data(resolve_definition(definition, overrides)), indent=2))
     return 0
+
+
+def _overrides(args: argparse.Namespace, run: Any, path: Path) -> Optional["Overrides"]:
+    """Return the `--override` arguments of `--resolve` for the file, as one run.
+
+    Prints the errors of their scopes (`override_problems`) and returns None if
+    there are any.
+    """
+    from flim.core.workflowfile import override_problems, parse_overrides
+
+    overrides = parse_overrides(args.override)
+    errors = override_problems(overrides, [run])
+    if errors:
+        _report(str(path), errors, [], "")
+        return None
+    return overrides.for_run(1)
 
 
 # --- app and user settings ---

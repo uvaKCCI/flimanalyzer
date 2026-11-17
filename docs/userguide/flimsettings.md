@@ -387,7 +387,7 @@ flimsettings: problems:
    flimsettings workflow --show "Basic FLIRR Analysis" > flirr.json
    ```
 
-2. Edit the file, for example `grouping` and `features` in `config`. Set `"save": true` in `output` to prevent the warning about `save`.
+2. Edit the file, for example `grouping` and `features` in `config`. The file has the defaults, also `"save": false` in `output`; `flimbatch` always saves the results of a tool and warns about this setting, unless you set it to `true` or run with `--override output.save=true`.
 3. Validate the file:
 
    ```

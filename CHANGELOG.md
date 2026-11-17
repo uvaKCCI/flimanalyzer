@@ -293,8 +293,10 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
 - **`flimbatch --override GROUP.FIELD=VALUE`** (repeatable) sets a field of the
   `output` or `processing` group for every step of every run, for example
   `output.save=true`, `output.formats=table:csv,plot:svg` or `processing.strict=false`.
-  The order of precedence is: `--override`, the step, the workflow, the tool's default.
-  The tools' `config` can't be set this way. The run summary lists the overrides, and
+  A prefix limits an override to one run (`run-2.`) or one step (`run-2.steps.3.`, or
+  `steps.3.` with a single `--run`). The order of precedence is: `--override` of the
+  step, of the run, of every run; then the step in the file, the workflow, the tool's
+  default. The tools' `config` can't be set this way. The run summary lists the overrides, and
   `resolved.json` holds the overridden settings.
 - **`resolved.json`:** `flimbatch` writes the settings of each run into
   `run-<n>/resolved.json`, as a workflow file (for a workflow defined in code, a tool

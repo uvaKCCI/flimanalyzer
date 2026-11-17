@@ -28,7 +28,7 @@ import datetime
 import logging
 import os
 import sys
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Callable, Optional, Sequence
 
 import matplotlib
 
@@ -40,7 +40,7 @@ from flim.core.paths import (
     unique_run_folder,
 )
 from flim.core.registry import TOOLS_GROUP, discover
-from flim.core.workflowfile import parse_overrides
+from flim.core.workflowfile import overridden, override_problems, parse_overrides
 from flim.core import logs
 from flim.core.batchrun import (
     BatchError,
@@ -70,6 +70,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from flim.core.tool import Tool
+    from flim.core.workflowfile import Overrides
 
 logger = logging.getLogger(__name__)
 
@@ -239,20 +240,26 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         search_path = workflow_path(folders=args.workflow_path)
         for message in register_workflow_files(search_path):
             print(f"flimbatch: warning: {message}", file=sys.stderr)
-        runs = [resolve_run(n, search_path, warn=_warn) for n in args.run]
+        runs = [
+            resolve_run(name, search_path, warn=_run_warn(args.overrides, number))
+            for number, name in enumerate(args.run, 1)
+        ]
         warnings, errors = settings_file_issues(runs, settings, manager.source)
         for message in warnings:
             _warn(message)
+        errors += override_problems(args.overrides, runs)
         if errors:
             raise BatchError("\n".join(errors))
         output = canonical_folder(args.output) if args.output else None
-        for message in ignored_settings(runs, settings, output):
-            _warn(message)
+        for number, tool in enumerate(runs, 1):
+            for message in ignored_settings([tool], settings, output):
+                _run_warn(args.overrides, number)(message)
         runs = [file_run(tool, settings) for tool in runs]
-        if not args.overrides.save:  # results a workflow file's run would not keep
-            for tool, _ in runs:
-                definition = getattr(tool, "definition", None)
-                for message in save_issues(definition)[0] if definition is not None else []:
+        for number, (tool, _) in enumerate(runs, 1):  # results a run would not keep
+            definition = getattr(tool, "definition", None)
+            if definition is not None:
+                definition = overridden(definition, args.overrides.for_run(number))
+                for message in save_issues(definition)[0]:
                     _warn(message)
         if args.dry_run:
             return _dry_run(runs, args, settings, memory)
@@ -291,7 +298,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
                 with checked_prefect_server():
                     run = run_on_tables(
                         tool, tables, settings, call_dir / f"run-{number}", execution,
-                        args.overrides, manager.record(), notes=[note] if note else [],
+                        args.overrides.for_run(number), manager.record(), notes=[note] if note else [],
                     )  # fmt: skip
                 if run.failed or run.state != "completed":
                     failed.append(f"{tool.name}: {', '.join(run.failed) or run.state}")
@@ -325,6 +332,22 @@ def _read(
         raise BatchError("No data files could be read")
     logger.info(f"Read {len(reading.tables)} file(s)")
     return reading.tables
+
+
+def _run_warn(overrides: "Overrides", number: int) -> Callable[[str], None]:
+    """Return a warning function for run `number` that leaves out moot save warnings.
+
+    With `--override` of `output.save` for the run, the files' `output.save` is
+    not used, so the warning about it (`tool_save_warning`) is left out; the run
+    summary lists the override.
+    """
+    saving = overrides.for_run(number).save is not None
+
+    def warn(message: str) -> None:
+        if not (saving and "output.save=false applies in the GUI only" in message):
+            _warn(message)
+
+    return warn
 
 
 def _dry_run(
@@ -391,9 +414,9 @@ def _dry_run(
         logger.info(f"Checking the Prefect server (timeout {settings.server_timeout:g} s)")
     ok, found = server_status(start=settings.prefect_server, timeout=settings.server_timeout)
     report("Prefect server", None if ok else found, found)
-    for tool, read in runs:
+    for number, (tool, read) in enumerate(runs, 1):
         tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
-        problems = validate_run(tool, tables, settings, args.overrides)
+        problems = validate_run(tool, tables, settings, args.overrides.for_run(number))
         if problems:
             errors += len(problems)
             print(f"{tool.name}: {len(problems)} problem(s)", file=sys.stderr)

@@ -36,8 +36,9 @@ import itertools
 import json
 import logging
 import os
+import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
@@ -152,6 +153,8 @@ class WorkflowDefinition(BaseModel):
         Returns:
             The merged rules.
         """
+        if isinstance(override, Overrides):  # the step's own (`Overrides.for_step`)
+            override = override.for_step(step.id).processing
         return ProcessingRules.of(self.processing, step.processing, override)
 
 
@@ -1226,6 +1229,42 @@ class Overrides:
     formats: tuple = ()
     processing: tuple = ()
     given: tuple = ()
+    # every argument with its scope: (run number or None, step id or None, argument)
+    scoped: tuple = ()
+    run: Optional[int] = None  # the run these are for (`for_run`); None: every run
+
+    def for_run(self, number: int) -> "Overrides":
+        """Return the overrides of one run: those of every run, then of this run.
+
+        The overrides of its steps (`for_step`) are kept: those named `run-N.steps.`
+        for this run and `steps.` (allowed with a single run only).
+
+        Args:
+            number: The run's number, from 1, in the order of `--run`.
+
+        Returns:
+            The overrides of the run.
+        """
+        own = [(r, st, a) for r, st, a in self.scoped if r in (None, number)]
+        result = _parse_flat([a for r, st, a in own if st is None])
+        given = tuple(_given(r, st, a) for r, st, a in own)
+        return replace(result, given=given, scoped=tuple(own), run=number)
+
+    def for_step(self, step_id: str) -> "Overrides":
+        """Return the overrides of one step: those of every run, of the run, of the step.
+
+        Args:
+            step_id: The step's id, e.g. `3` (`03` names the same step).
+
+        Returns:
+            The overrides of the step, more specific over more general.
+        """
+        same = [a for r, st, a in self.scoped if st is not None and int(st) == int(step_id)]
+        if not same:
+            return self
+        general = [a for r, st, a in self.scoped if st is None and r is None]
+        run = [a for r, st, a in self.scoped if st is None and r is not None]
+        return replace(_parse_flat(general + run + same), given=self.given, scoped=self.scoped, run=self.run)
 
     def formats_over(self, formats: Sequence[Any]) -> list:
         """Return formats with the kinds of `formats` given here replaced.
@@ -1271,8 +1310,94 @@ def _formats(value: str, path: str) -> list:
         raise ValueError(f"--override {path}={value}: {reason}") from None
 
 
+_SCOPE = re.compile(r"^(?:run-(?P<run>\d+)\.)?(?:steps\.(?P<step>\d+)\.)?(?P<rest>.*)$", re.S)
+
+
+def _given(run: Optional[int], step: Optional[str], argument: str) -> str:
+    """Return an argument with its scope, as given, e.g. `run-2.steps.3.output.save=false`."""
+    prefix = (f"run-{run}." if run is not None else "") + (f"steps.{step}." if step is not None else "")
+    return prefix + argument
+
+
 def parse_overrides(values: Sequence[str]) -> Overrides:
-    """Return the overrides of `GROUP.FIELD=VALUE` arguments, later over earlier.
+    """Return the overrides of `[run-N.][steps.ID.]GROUP.FIELD=VALUE` arguments.
+
+    Without a prefix, an argument applies to every step of every run; `run-N.` (the
+    N-th `--run`) to every step of that run; `steps.ID.` (with a single `--run`) or
+    `run-N.steps.ID.` to one step. The more specific scope takes precedence (step >
+    run > every run); within a scope, later arguments take precedence over earlier
+    ones. See `_parse_flat` for the groups and fields; `override_problems` validates
+    the scopes against the runs.
+
+    Args:
+        values: The arguments.
+
+    Returns:
+        The overrides of every run, with each argument's scope (`scoped`); a run's
+        and a step's are given by `Overrides.for_run` and `Overrides.for_step`.
+
+    Raises:
+        ValueError: If an argument is not valid; the message names it.
+    """
+    scoped = []
+    for argument in values:
+        match = _SCOPE.match(argument.strip())
+        run = int(match["run"]) if match["run"] else None
+        if run == 0:
+            raise ValueError(f"--override {argument}: runs are numbered from 1 (run-1)")
+        scoped.append((run, match["step"], match["rest"]))
+    # validate every argument, whatever its scope
+    for _, _, rest in scoped:
+        _parse_flat([rest])
+    general = _parse_flat([a for r, st, a in scoped if r is None and st is None])
+    return replace(general, given=tuple(_given(*item) for item in scoped), scoped=tuple(scoped))
+
+
+def override_problems(overrides: Overrides, runs: Sequence[Any]) -> list[str]:
+    """Return the errors of the overrides' scopes for the runs of a call.
+
+    `run-N.` must name an existing run; `steps.ID.` needs a single run (else
+    `run-N.steps.ID.`), an existing step, and a run with steps (a workflow file, or
+    a tool as one; not a workflow defined in code).
+
+    Args:
+        overrides: The overrides (`parse_overrides`).
+        runs: The tools and workflows of the `--run` options, in order.
+
+    Returns:
+        The errors; empty if there are none.
+    """
+    errors = []
+    for run, step, argument in overrides.scoped:
+        given = _given(run, step, argument)
+        if run is not None and run > len(runs):
+            errors.append(f"--override {given}: there is no run {run} ({len(runs)} --run given)")
+            continue
+        if step is None:
+            continue
+        if run is None and len(runs) > 1:
+            errors.append(f"--override {given}: several --run; name the run, e.g. run-1.steps.{step}.{argument}")
+            continue
+        tool = runs[(run or 1) - 1]
+        definition = getattr(tool, "definition", None)
+        if definition is None and _is_code_workflow(tool):
+            errors.append(f"--override {given}: {tool.name} is a workflow defined in code; it has no steps")
+            continue
+        ids = [s.id for s in definition.steps] if definition is not None else ["1"]
+        if int(step) not in {int(i) for i in ids}:
+            errors.append(f"--override {given}: {tool.name} has no step {step}")
+    return errors
+
+
+def _is_code_workflow(tool: Any) -> bool:
+    """Return whether a tool class is a workflow defined in code."""
+    from flim.core.workflow import Workflow
+
+    return isinstance(tool, type) and issubclass(tool, Workflow)
+
+
+def _parse_flat(values: Sequence[str]) -> Overrides:
+    """Return the overrides of `GROUP.FIELD=VALUE` arguments (no scope), later over earlier.
 
     Groups and fields:
 
@@ -1339,9 +1464,10 @@ def parse_overrides(values: Sequence[str]) -> Overrides:
 def overridden(definition: WorkflowDefinition, overrides: Overrides) -> WorkflowDefinition:
     """Return a workflow with the output settings of `overrides` in every step.
 
-    `output.save` replaces each step's; `output.formats` replaces each step's
-    formats of the kinds given. The `processing` of `overrides` is not put into
-    the steps: it is a layer over theirs (`WorkflowDefinition.rules`).
+    Per step, with its own overrides (`Overrides.for_step`): `output.save` replaces
+    the step's; `output.formats` replaces the step's formats of the kinds given. The
+    `processing` of `overrides` is not put into the steps: it is a layer over theirs
+    (`WorkflowDefinition.rules`).
 
     Args:
         definition: The workflow.
@@ -1350,15 +1476,14 @@ def overridden(definition: WorkflowDefinition, overrides: Overrides) -> Workflow
     Returns:
         A copy with the overridden steps.
     """
-    if overrides.save is None and not overrides.formats:
-        return definition
     steps = []
     for step in definition.steps:
+        own = overrides.for_step(step.id)
         update = {}
-        if overrides.save is not None:
-            update["save"] = overrides.save
-        if overrides.formats:
-            update["formats"] = overrides.formats_over(step.output.formats or [])
+        if own.save is not None:
+            update["save"] = own.save
+        if own.formats:
+            update["formats"] = own.formats_over(step.output.formats or [])
         steps.append(step.model_copy(update={"output": step.output.model_copy(update=update)}))
     return definition.model_copy(update={"steps": steps})
 
