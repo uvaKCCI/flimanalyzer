@@ -50,9 +50,10 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
 - **Table windows opened while `Filter Data` is on:** the box was shown checked, but
   the range filters were not applied: the new window showed all rows, and tools started
   for it got all rows. The range filters now apply, so these tools get only the rows
-  inside the ranges. The `<title> - Discarded` window opens with `Filter Data` off.
+  inside the ranges. The `<title> - Discarded` window opens with `Filter Features` and
+  `Filter Categories` off.
 - **`flimbatch` and the range filters:** `flimbatch` no longer filters the data by the
-  table windows' range filters (`filters` > `use` in the settings file). To filter rows
+  table windows' range filters (`filters` > `use` in 0.6 settings files). To filter rows
   in a batch run, add a `Filter` step to a workflow file.
 - **Filter tool defaults:** the `Filter` tool's range filters are now also the range
   filters that new table windows start with. Started with the built-in defaults, the
@@ -112,15 +113,19 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   offers to save it as an equivalent workflow file, and `flimbatch` says that it is not
   used. In such a workflow file, combined categories are joined with `:` instead of
   `-`, for example `FOV:Treatment` = `FOV1:WT` instead of `FOV-Treatment` = `FOV1-WT`.
-- **Range filters of the table windows:** each table window has its own range filters
-  and `Filter Data` setting. A change in one window doesn't change the others, and a
-  new window starts with the defaults for new tables: the `Filter` tool's range filters
-  and the `filters` setting. `Save as Preset...` > `Defaults for new tables` in
-  `Filter Settings` changes them. Until 0.6.2 all table windows shared one set of range
-  filters. The `Use Filters` checkbox of `Filter Settings` is removed: `Filter Data` in
-  the table window switches the filters on and off. `Filter Data` now also switches the
-  values hidden in category columns; until 0.6.2 they applied whether it was on or off.
-  Hiding values while it is off switches it on. `Filter Settings` has `Select All` and `Deselect All`.
+- **Filters of the table windows:** two switches in the side bar replace `Filter Data`:
+  `Filter Features` switches the range filters, as `Filter Data` did, and `Filter
+  Categories` the values hidden in category columns, which until 0.6.2 applied whether
+  `Filter Data` was on or off. Hiding a value switches `Filter Categories` on, so the
+  table shows the same rows as before. `Filter Settings...` is now `Filter Features...`
+  and edits only the range filters; it has its own `Filter Features` checkbox, which
+  replaces its `Use Filters` checkbox, and `Select All` and `Deselect All`. Each table
+  window has its own range filters and switches. A change in one window doesn't change
+  the others, and a new window starts with the defaults for new tables: the `Filter`
+  tool's range filters and the `filters` setting. `Save as Preset...` > `Defaults for
+  new tables` in `Filter Features` changes them. Until 0.6.2 all table windows shared
+  one set of range filters. In settings files, `filters` > `use` becomes `filters` >
+  `features` (`Filter Features`), beside `filters` > `categories`.
 - **Settings file format:** app settings files and tool files saved by 0.7.0 have
   `schema_version` 2; workflow files, new in 0.7.0, have their own `schema_version` 1.
   FLIMAnalyzer 0.6 refuses them; 0.7.0 reads the files of 0.5 and 0.6.
@@ -390,16 +395,18 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   robust, per group) in `Analysis`; `Collect Files`, for workflow files and `flimbatch`
   only, which lists the files of its inputs in one table.
 - **Filter tool:** filters by category values, ranges and conditions written as
-  expressions, and, in settings files, groups (`all`, `any`, `not`). `Use filters`
-  (`enabled`) switches all filters; off, the tool keeps all rows. A filter applies only
-  if `Use filters`, the `enabled` of each group that contains it and its own `enabled`
-  are all on.
+  expressions, and, in settings files, groups (`all`, `any`, `not`). The filters are in
+  three parts, each with its own switch: range filters (`features`, `Use range
+  filters`), category filters (`categories`, `Use category filters`) and other filters
+  (`other`, `Use other filters`). `Use filters` (`enabled`) switches all filters; off,
+  the tool keeps all rows. A filter applies only if `Use filters`, the switch of its
+  part, the `enabled` of each group that contains it and its own `enabled` are all on.
 - **Presets:** `Load Preset...`, `Save as Preset...` and `Remove Presets...` in the
   `Calculate`, `Separate Categories` and `Filter` dialogs and in a table window's
-  `Filter Settings`. Presets are saved in the user settings file, in the `presets`
-  section by tool name. A preset of `Filter Settings` holds the table window's
-  `Filter Data`, range filters and category values as `Filter` tool settings, and
-  `Filter Settings` also loads them from and saves them to settings files, as the
+  `Filter Features`. Presets are saved in the user settings file, in the `presets`
+  section by tool name. A preset of `Filter Features` holds the table window's range
+  filters and `Filter Features` as the `Filter` tool's range filters, and
+  `Filter Features` also loads them from and saves them to settings files, as the
   `Filter` dialog's `Load Settings...` and `Save Settings...` do, and saves the range
   filters as the defaults for new tables.
 - **Standardize input** in `PCA`, `K-Means` and `Gaussian Mixed Model`: one setting with
@@ -518,12 +525,12 @@ describes how API changes are handled.
   opens in a new window.
 - **Window menu on macOS** listed every window twice.
 - **Text fields in dialogs** dropped spaces and tabs at the start and end of values.
-- **Filter Settings:** `Dropped from view` and the remaining count ignored the rows
+- **Filter Settings (now `Filter Features`):** `Dropped from view` and the remaining count ignored the rows
   hidden by a single other filter.
 - **Merge without shared category columns:** with automatic `Merge on`, two tables
   without a shared category column stopped the run with an `IndexError`. The dialog
   and the validation of workflow files now show the error, and the tool doesn't run.
-- **Filter Settings checkboxes:** the checkbox of the first row, and of the row
+- **Filter Settings (now `Filter Features`) checkboxes:** the checkbox of the first row, and of the row
   clicked last, couldn't be checked or unchecked; a click on it opened the cell editor
   instead.
 - **Messages not shown:** `OK` with nothing selected, an invalid pattern in Pattern
