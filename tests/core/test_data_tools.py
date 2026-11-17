@@ -719,3 +719,20 @@ def test_pivot_without_other_category_columns_gives_one_row():
     (result,) = Pivot().run(table, config=Pivot.config_class(grouping=["Treatment"], features="all")).values()
     assert list(result.columns) == ["FLIRR\nctrl", "FLIRR\ndox"]
     assert result.iloc[0].tolist() == pytest.approx([0.5, 0.8]) and len(result) == 1
+
+
+def test_separate_and_fuse_warn_about_a_taken_column_name():
+    """A new column whose name the table has gets a number, with a warning."""
+    from flim.tools.data import FuseCategories, SeparateCategories
+
+    table = pd.DataFrame({"Source": pd.Categorical(["a_1", "b_2"]), "FOV": pd.Categorical(["x", "y"]), "Cell": pd.Categorical(["1", "2"])})
+    config = SeparateCategories.config_class(column="Source", mode="delimiter", delimiters=["_"], names=["FOV", "Cell"])
+    issues = [(i.field, i.message, i.severity) for i in SeparateCategories.validate_data(config, [table])]
+    assert ("names", "the table already has a column 'FOV': the new column is named 'FOV_1'", "warning") in issues
+    assert list(SeparateCategories.example(config, [table]).columns) == ["Source", "→ FOV_1", "→ Cell_1"]
+    tool = SeparateCategories()
+    (result,) = tool.run(table, config=config).values()
+    assert {"FOV", "FOV_1", "Cell", "Cell_1"} <= set(result.columns)  # nothing replaced
+    fuse = FuseCategories.config_class(grouping=["FOV", "Cell"], name="FOV")
+    issues = FuseCategories.validate_data(fuse, [table])
+    assert [(i.field, i.severity) for i in issues] == [("name", "warning")] and "'FOV_1'" in issues[0].message

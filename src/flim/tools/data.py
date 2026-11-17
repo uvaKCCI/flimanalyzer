@@ -939,6 +939,37 @@ def _with_columns(
     return table.drop(columns=list(remove))
 
 
+def _clashes(data: pd.DataFrame, new: Sequence[str], remove: Sequence[str] = ()) -> dict:
+    """Return the new columns whose names the table has, and the names they get.
+
+    As `_with_columns` names them: a taken name gets a number (`unique_name`).
+
+    Args:
+        data: The table.
+        new: The names of the new columns, in order.
+        remove: The columns removed, whose names are free.
+
+    Returns:
+        Taken name -> the name the new column gets, e.g. `{"FOV": "FOV_1"}`.
+    """
+    taken = [c for c in data.columns if c not in remove]
+    renamed = {}
+    for name in new:
+        given = unique_name(name, name, taken)
+        if given != name:
+            renamed[name] = given
+        taken.append(given)
+    return renamed
+
+
+def _clash_messages(renamed: dict) -> list[str]:
+    """Return a warning for each new column whose name the table has (`_clashes`)."""
+    return [
+        f"the table already has a column '{name}': the new column is named '{given}'"
+        for name, given in renamed.items()
+    ]
+
+
 @register_tool
 class FuseCategories(Tool[FuseCategoriesConfig]):
     """Joins category columns into one category column, e.g. FOV and Cell."""
@@ -973,7 +1004,9 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
         if rows.empty:
             return None
         fused = fuse(rows, columns, config.delimiter, config.name).columns
-        return example_table(rows[columns], pd.DataFrame(fused))
+        remove = () if config.keep_original else columns
+        renamed = _clashes(table, list(fused), remove)
+        return example_table(rows[columns], pd.DataFrame(fused).rename(columns=renamed))
 
     @classmethod
     def validate_data(
@@ -981,8 +1014,10 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
     ) -> list[Issue]:
         """Warn where the delimiter occurs in the column names or values of a table.
 
-        Then separating the fused column back would be ambiguous. Tables without all
-        the selected columns, and fewer than two columns, are not validated.
+        Then separating the fused column back would be ambiguous. Also warn if the
+        table has a column of the new column's name: the new one gets a number
+        (`New column`). Tables without all the selected columns, and fewer than two
+        columns, are not validated.
         """
         from flim.core.categories import fuse
 
@@ -994,8 +1029,12 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
             if len(columns) < 2:
                 continue
             combinations = table[columns].drop_duplicates()  # few: category values
-            for message in fuse(combinations, columns, config.delimiter).warnings:
+            result = fuse(combinations, columns, config.delimiter, config.name)
+            for message in result.warnings:
                 issues.append(Issue("delimiter", message, "warning"))
+            remove = () if config.keep_original else columns
+            for message in _clash_messages(_clashes(table, list(result.columns), remove)):
+                issues.append(Issue("name", message, "warning"))
         return issues
 
     def run(
@@ -1005,7 +1044,8 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
 
         The values are joined by the delimiter, e.g. `1` and `2` into `1:2`; a row
         with a missing value in one of the columns gets a missing value. A warning
-        is reported if the delimiter occurs in the column names or values.
+        is reported if the delimiter occurs in the column names or values, and if the
+        new column's name is taken.
 
         Args:
             data: The table.
@@ -1022,9 +1062,9 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
 
         columns = list(config.grouping)
         result = fuse(data, columns, config.delimiter, config.name)
-        for message in result.warnings:
-            self.warn(message)
         remove = () if config.keep_original else columns
+        for message in result.warnings + _clash_messages(_clashes(data, list(result.columns), remove)):
+            self.warn(message)
         return {"Fused": _with_columns(data, result.columns, columns[-1], remove)}
 
 
@@ -1099,7 +1139,10 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
             result = cls._separated(config, rows)
         except ValueError as err:  # e.g. an invalid pattern: shown as an issue
             return f"{rows[config.column].iloc[0]} \u2192 {err}"
-        return example_table(rows[[config.column]], pd.DataFrame(result.columns))
+        remove = () if config.keep_original else [config.column]
+        renamed = _clashes(table, list(result.columns), remove)
+        new = pd.DataFrame(result.columns).rename(columns=renamed)
+        return example_table(rows[[config.column]], new)
 
     @classmethod
     def validate_data(
@@ -1109,7 +1152,8 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
 
         An invalid setting is an error, the separation's warnings (e.g. values that
         could not be separated) are warnings, on the mode's field: `names`,
-        `patterns` or `template`.
+        `patterns` or `template`; so is a new column whose name the table has (the
+        new one gets a number).
         """
         table = cls._table(config, tables) if config.column else None
         if table is None or cls._incomplete(config):
@@ -1120,7 +1164,9 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
             result = cls._separated(config, distinct)
         except ValueError as err:
             return [Issue(field, str(err))]
-        return [Issue(field, message, "warning") for message in result.warnings]
+        remove = () if config.keep_original else [config.column]
+        messages = result.warnings + _clash_messages(_clashes(table, list(result.columns), remove))
+        return [Issue(field, message, "warning") for message in messages]
 
     @classmethod
     def validate(
@@ -1150,7 +1196,8 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
     ) -> dict[str, Any]:
         """Separate a category column into several new category columns.
 
-        The separation's warnings are reported.
+        The separation's warnings are reported, and a new column whose name the table
+        has (it gets a number).
 
         Args:
             data: The table.
@@ -1170,9 +1217,9 @@ class SeparateCategories(Tool[SeparateCategoriesConfig]):
         if config.column is None:
             raise ValueError(f"{self.name}: select the column to separate")
         result = self._separated(config, data)
-        for message in result.warnings:
-            self.warn(message)
         remove = () if config.keep_original else [config.column]
+        for message in result.warnings + _clash_messages(_clashes(data, list(result.columns), remove)):
+            self.warn(message)
         return {"Separated": _with_columns(data, result.columns, config.column, remove)}
 
 
