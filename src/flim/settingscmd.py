@@ -228,14 +228,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 def _register(args: argparse.Namespace) -> list[Path]:
-    """Register the tools, workflows and workflow files; return the workflow search path."""
+    """Register the tools, workflows and workflow files; return the workflow search path.
+
+    Args:
+        args: The parsed arguments; `-w` if the subcommand has it.
+
+    Returns:
+        The workflow search path: as flimbatch, from `-w` or `FLIM_WORKFLOW_PATH`
+        (else the default folder), not from a settings file.
+    """
     import flim.tools  # noqa: F401  (registers the tools)
     import flim.workflow  # noqa: F401  (registers the workflows)
     from flim.core.workflowfile import register_workflow_files, workflow_path
 
     discover(TOOLS_GROUP)  # the tools of other installed packages
-    # as flimbatch: from -w or FLIM_WORKFLOW_PATH, not from a settings file
-    search_path = workflow_path(folders=args.workflow_path)
+    search_path = workflow_path(folders=getattr(args, "workflow_path", None) or ())
     for message in register_workflow_files(search_path, log=False):  # shown here
         _warn(message)
     return search_path
@@ -330,7 +337,7 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
             found = ""
         if found == "file" and registered.path is not None:  # a workflow file by its name
             path = Path(registered.path)
-            return path, json.loads(path.read_text())
+            return path, _of_kind(path, json.loads(path.read_text()), name, args, kind)
         if found in ("tool", "workflow"):
             what = "a tool" if found == "tool" else "a workflow defined in code"
             if found == kind and args.action == "show":
@@ -338,22 +345,52 @@ def _file(name: str, args: argparse.Namespace, kind: str) -> tuple[Path, dict]:
             if args.action == "show":
                 hint = f"flimsettings {found} --show '{name}' prints its default settings"
             else:
-                hint = f"--validate takes a file; flimsettings {kind} --list lists the {kind} files"
+                hint = (
+                    f"--{args.action} takes a file; flimsettings {kind} --list lists the"
+                    f" {kind} files"
+                )
             raise BatchError(f"'{name}' is {what}, not a {kind} file; {hint}") from None
         raise FileNotFoundError(
             f"No {kind} file '{name}' at this path, in the workflow search path or built in"
         ) from None
-    data = json.loads(path.read_text())
+    return path, _of_kind(path, json.loads(path.read_text()), name, args, kind)
+
+
+# the actions of each kind of file
+_ACTIONS = {
+    "tool": ("show", "validate", "resolve", "update"),
+    "workflow": ("show", "validate", "resolve"),
+    "app": ("show", "validate", "update"),
+}
+
+
+def _of_kind(path: Path, data: Any, name: str, args: argparse.Namespace, kind: str) -> Any:
+    """Return a file's data if the file is of the kind required.
+
+    Args:
+        path: The file.
+        data: Its data.
+        name: The name or path given for it.
+        args: The parsed arguments.
+        kind: The kind of file required: `tool` or `workflow`.
+
+    Returns:
+        `data`.
+
+    Raises:
+        BatchError: If the file is of another kind; the message names the command
+            for its kind, if that kind has the action.
+    """
     found = settings_kind(data)
-    if found != kind:
-        names = {"tool": "a tool file", "workflow": "a workflow file", "app": "an app settings file"}
-        command = f"{found} --{args.action} {name}"
-        if found == "app" and args.action == "show":
-            command = f"app --show -s {name}"  # app --show takes the file with -s
-        hint = f" (flimsettings {command})" if found in names else ""
-        what = f"{names[found]}, not" if found in names else "not"
-        raise BatchError(f"{path}: {what} a {kind} file{hint}")
-    return path, data
+    if found == kind:
+        return data
+    names = {"tool": "a tool file", "workflow": "a workflow file", "app": "an app settings file"}
+    command = f"{found} --{args.action} {name}"
+    if found == "app" and args.action == "show":
+        command = f"app --show -s {name}"  # app --show takes the file with -s
+    hint = f" (flimsettings {command})" if args.action in _ACTIONS.get(found, ()) else ""
+    what = f"{names[found]}, not" if found in names else "not"
+    raise BatchError(f"{path}: {what} a {kind} file{hint}")
 
 
 class _Defaults(Exception):
@@ -559,12 +596,9 @@ def _managers(args: argparse.Namespace) -> tuple[dict, str]:
         The managers by command, and how the GUI's app settings file is chosen (see
         `_gui_settings_file`).
     """
-    import flim.tools  # noqa: F401  (registers the tools: their settings are validated)
-    import flim.workflow  # noqa: F401
-    from flim.core.workflowfile import register_workflow_files
-
-    discover(TOOLS_GROUP)
-    register_workflow_files()  # the built-in ones: a settings file may have their sections
+    # the tools and the workflow files of the search path: their settings are
+    # validated, and a settings file may have their sections
+    _register(args)
     user_file = _ReadOnlyUserFile(user_settings_path())
     user = user_file.read()
     if user_file.unreadable:
@@ -668,13 +702,11 @@ def _app_validate(args: argparse.Namespace) -> int:
     The GUI refuses a file with settings that can't be used (unknown or invalid) and
     keeps the settings of tools that aren't installed; flimbatch refuses both.
     """
-    import flim.tools  # noqa: F401  (registers the tools: their settings are validated)
-    import flim.workflow  # noqa: F401
     from flim.core.settings import validate_app_settings
-    from flim.core.workflowfile import register_workflow_files
 
-    discover(TOOLS_GROUP)
-    register_workflow_files()  # the built-in ones: a settings file may have their sections
+    # the tools and the workflow files of the search path, as flimbatch: their
+    # settings are validated, and a settings file may have their sections
+    _register(args)
     validation = validate_app_settings(args.validate)
     print(validation.summary())
     if validation.error or validation.invalid or validation.unknown:

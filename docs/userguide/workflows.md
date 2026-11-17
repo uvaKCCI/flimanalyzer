@@ -95,7 +95,7 @@ To start a workflow file from an example, `flimsettings workflow --show Import` 
         * `formats` (optional): the formats of the step's results, per kind, as in the workflow's `output.formats`. A kind that the step's tool doesn't make is an error.
     * `processing` (optional): how the step treats data that doesn't match its settings. The workflow's `processing` applies to every step; a step's own fields take precedence, field by field.
         * `strict`: `true` (the default): a column that the settings name and the data doesn't have is an error. `false`: it is replaced by the closest column of the same role, and the run summary lists the replacement. One value for all fields, or one value per field, for example `{"features": false}`.
-        * `skippable`: per field, which of its entries the step may skip if they don't apply to the data: `"none"` (the default): no entry, or the step fails. `"some"`: entries may be skipped if at least one applies. `"all"`: all entries may be skipped, and the table passes on unchanged. Only some fields have entries that can be skipped: `grouping` and `features`, Rename Columns' `replacements`, Drop Columns' `drop`, Calculate's `calculations` and Filter's `filters`. For example `{"calculations": "some"}`. The run summary lists what each step skipped.
+        * `skippable`: per field, which of its entries the step may skip if they don't apply to the data: `"none"` (the default): no entry, or the step fails. `"some"`: entries may be skipped if at least one applies; a field without entries has none to skip, and the step does not fail for it. `"all"`: all entries may be skipped, and the table passes on unchanged. Only some fields have entries that can be skipped: `grouping` and `features`, Rename Columns' `replacements`, Drop Columns' `drop`, Calculate's `calculations` and Filter's `filters`. For example `{"calculations": "some"}`. The run summary lists what each step skipped.
         * `required`: per field, the entries that must apply although the field is skippable, for example `{"calculations": [{"name": "FLIRR"}]}` (a calculation by its name) or `{"features": ["FLIRR"]}`. Each entry must be in the step's settings.
 
 ### Formats
@@ -132,7 +132,7 @@ FLIMAnalyzer finds the built-in workflow file, and the workflow files in the fol
 3. The folders of `workflow_paths` in the user settings file. This setting is read only from the user settings file; in an app settings file, it is not used, and a message says so. `flimbatch` and `flimsettings` read no user settings file, so they don't use it.
 4. The folder `workflows` in the platform's settings folder, next to `usersettings.json`.
 
-The folders of the search path also hold tool files: `flimbatch --run FILE` finds a workflow file or a tool file by its file name in these folders, and `Save Settings...` in a tool's dialog starts in the first folder of the search path.
+The folders of the search path also hold tool files: `flimbatch --run FILE` finds a workflow file or a tool file by its file name in these folders, then among the built-in workflow files, and `Save Settings...` in a tool's dialog starts in the first folder of the search path.
 
 ## Running a workflow file in the GUI
 

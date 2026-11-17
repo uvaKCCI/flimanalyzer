@@ -535,7 +535,8 @@ def resolve_step(
     rule list the tool counts itself (e.g. Filter's `filters`) is left to the tool
     if the field is skippable. After removals, `grouping` and `features` keep at
     least the tool's minimum (`min_grouping`, `min_features`), and at least one
-    entry if skippable is `some`. Nothing is validated if an input is unknown.
+    entry if skippable is `some` and entries were removed (a field without entries,
+    e.g. Concatenate's `features`, has none to skip). Nothing is validated if an input is unknown.
 
     Args:
         tool: The tool class.
@@ -598,7 +599,7 @@ def resolve_step(
         if value is None or value == "all":
             continue
         least = config.min_features if top == "features" else config.min_grouping
-        if rules.skip(top) == "some":
+        if rules.skip(top) == "some" and top in removed:  # skipped entries: not all
             least = max(least, 1)
         if len(value) < least:
             present = ", ".join(map(str, value)) or "none"

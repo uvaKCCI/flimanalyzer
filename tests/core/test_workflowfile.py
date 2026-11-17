@@ -1,6 +1,7 @@
 """Workflow files: format and checks (flim.core.workflowfile)."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -796,6 +797,20 @@ def test_parse_overrides():
     assert not rules.is_strict("features[0]") and rules.is_strict("grouping[0]")  # false, but grouping true
     assert rules.skip("features") == "some" and rules.required == {"features": ["FLIRR", "t1"]}
     assert overrides.formats_over([*parse_overrides(["output.formats=table:tsv,plot:svg"]).formats])[1].format == "png"
+
+
+@pytest.mark.parametrize("value, reason", [
+    ("[bad", "not valid JSON"),
+    ("[1, {}]", "use a list of texts or of objects with at least one field"),
+    ("[null]", "use a list of texts or of objects with at least one field"),
+])  # fmt: skip
+def test_an_invalid_required_override_names_the_argument(value, reason):
+    from flim.core.workflowfile import parse_overrides
+
+    with pytest.raises(ValueError, match=re.escape(f"--override processing.required.features={value}: {reason}")):
+        parse_overrides([f"processing.required.features={value}"])
+    overrides = parse_overrides(['processing.required.calculations=[" FLIRR ", {"name": "x"}]'])
+    assert overrides.processing[0].required == {"calculations": ["FLIRR", {"name": "x"}]}
 
 
 def test_override_scopes_step_over_run_over_every_run():

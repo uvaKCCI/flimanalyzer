@@ -366,6 +366,9 @@ def validate_definition(definition: WorkflowDefinition, validation: WorkflowVali
                 )
 
 
+TOOL_FILE_SECTIONS = ("config", "output", "processing")  # a tool file's objects
+
+
 def validate_workflow_file(path: str | os.PathLike, *, tool_files: bool = False) -> WorkflowValidation:
     """Read and validate a workflow file, or with `tool_files` also a tool file.
 
@@ -397,6 +400,13 @@ def validate_workflow_file(path: str | os.PathLike, *, tool_files: bool = False)
                 f"{path.name}: a tool file (the settings of {data['tool']}), not a"
                 " workflow file"
             )
+            return validation
+        for key in TOOL_FILE_SECTIONS:  # objects or absent (null: not set)
+            if data.get(key) is not None and not isinstance(data[key], dict):
+                validation.errors.append(
+                    f"{path.name}: {key}: must be an object, e.g. {{}}; found {json.dumps(data[key])}"
+                )
+        if validation.errors:
             return validation
         tool = tools.get(str(data["tool"])) if str(data["tool"]) in tools else None
         if tool is not None and issubclass(tool, Workflow) and getattr(tool, "definition", None) is None:
@@ -1318,6 +1328,38 @@ def _formats(value: str, path: str) -> list:
         raise ValueError(f"--override {path}={value}: {reason}") from None
 
 
+def _entries(value: str, path: str) -> list[Any]:
+    """Return the entries of `processing.required.FIELD`: `ENTRY[,ENTRY...]` or a JSON list.
+
+    Args:
+        value: The value given.
+        path: The setting, e.g. `processing.required.features`, for the message.
+
+    Returns:
+        The entries: texts without surrounding white space, and rules by some of
+        their fields (objects, e.g. `{"name": "FLIRR"}`) as given.
+
+    Raises:
+        ValueError: If the value is not valid JSON, or not a list of texts and
+            objects with at least one field; the message names the argument.
+    """
+    if not value.lstrip().startswith("["):
+        return [e.strip() for e in value.split(",")]
+    try:
+        entries = json.loads(value)
+    except ValueError as err:
+        raise ValueError(f"--override {path}={value}: not valid JSON ({err})") from None
+    valid = isinstance(entries, list) and all(
+        isinstance(e, str) or (isinstance(e, dict) and e) for e in entries
+    )
+    if not valid:
+        raise ValueError(
+            f"--override {path}={value}: use a list of texts or of objects with at least"
+            ' one field, e.g. ["FLIRR"] or [{"name": "FLIRR"}]'
+        )
+    return [e.strip() if isinstance(e, str) else e for e in entries]
+
+
 _SCOPE = re.compile(r"^(?:run-(?P<run>\d+)\.)?(?:steps\.(?P<step>\d+)\.)?(?P<rest>.*)$", re.S)
 
 
@@ -1366,7 +1408,9 @@ def override_problems(overrides: Overrides, runs: Sequence[Any]) -> list[str]:
 
     `run-N.` must name an existing run; `steps.ID.` needs a single run (else
     `run-N.steps.ID.`), an existing step, and a run with steps (a workflow file, or
-    a tool as one; not a workflow defined in code).
+    a tool as one; not a workflow defined in code). A workflow defined in code always
+    saves its results: `output.save=false` must not apply to its run (`output.save=true`
+    is accepted: the run saves its results).
 
     Args:
         overrides: The overrides (`parse_overrides`).
@@ -1394,6 +1438,26 @@ def override_problems(overrides: Overrides, runs: Sequence[Any]) -> list[str]:
         ids = [s.id for s in definition.steps] if definition is not None else ["1"]
         if int(step) not in {int(i) for i in ids}:
             errors.append(f"--override {given}: {tool.name} has no step {step}")
+    for number, tool in enumerate(runs, 1):
+        if getattr(tool, "definition", None) is not None or not _is_code_workflow(tool):
+            continue
+        if overrides.for_run(number).save is False:
+            saves = [
+                (r, a) for r, st, a in overrides.scoped
+                if st is None and a.partition("=")[0].strip() == "output.save"
+            ]
+            # the one that applies: the run's own over the one for every run
+            own = [s for s in saves if s[0] == number] or [s for s in saves if s[0] is None]
+            run, argument = own[-1]
+            others = [n for n in range(1, len(runs) + 1) if n != number]
+            hint = (
+                f"; limit the override to the other runs, e.g. run-{others[0]}.output.save=false"
+                if others else ""
+            )
+            errors.append(
+                f"--override {_given(run, None, argument)}: run {number} ({tool.name}) is a workflow defined"
+                f" in code, which always saves its results{hint}"
+            )
     return errors
 
 
@@ -1455,9 +1519,7 @@ def _parse_flat(values: Sequence[str]) -> Overrides:
                 raise ValueError(f"--override {path}={value}: use none, some or all")
             layers.append(Processing(skippable={rest: value}))
         elif (group, field_name) == ("processing", "required") and rest:
-            entries = json.loads(value) if value.lstrip().startswith("[") else value.split(",")
-            entries = [e.strip() if isinstance(e, str) else e for e in entries]
-            layers.append(Processing(required={rest: entries}))
+            layers.append(Processing(required={rest: _entries(value, path)}))
         else:
             raise ValueError(f"--override {argument}: can't be overridden; use {OVERRIDABLE}")
         given.append(argument)

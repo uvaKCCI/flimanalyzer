@@ -219,8 +219,12 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         # no user settings file: batch results don't depend on settings changed in the GUI
         # every setting of the file must be usable: results don't depend on ignored
         # settings or on which tools are installed
-        # the built-in workflow files first: a settings file may have their sections
-        register_workflow_files()
+        # the workflow files first: a settings file may have their sections (the GUI
+        # exports a section per registered workflow file). From -w or
+        # FLIM_WORKFLOW_PATH only: a settings file doesn't decide which workflow file a
+        # name refers to
+        search_path = workflow_path(folders=args.workflow_path)
+        register_workflow_files(search_path)  # problems are logged: in the terminal and the log
         manager = session_settings(name, changes, complete=True)
         settings = manager.settings
         for notice in manager.notices:  # e.g. keys of the user settings file only
@@ -233,10 +237,6 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
                 " Import Settings...) and save them as a workflow file",
                 file=sys.stderr,
             )
-        # from -w or FLIM_WORKFLOW_PATH only: a settings file doesn't decide which
-        # workflow file a name refers to
-        search_path = workflow_path(folders=args.workflow_path)
-        register_workflow_files(search_path)  # problems are logged: in the terminal and the log
         runs = [
             resolve_run(name, search_path, warn=_run_warn(args.overrides, number))
             for number, name in enumerate(args.run, 1)

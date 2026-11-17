@@ -62,7 +62,7 @@ def resolve_run(
 
     An argument that contains a folder separator or ends with `.json` is a workflow
     file, or a tool file (run as a workflow of one step): a path, or a file name in
-    the search path. Any other argument is a
+    the search path or, after it, among the built-in workflow files. Any other argument is a
     registered name: a tool, a workflow defined in code, or a workflow file by the
     `name` in it.
 
@@ -80,6 +80,7 @@ def resolve_run(
             errors.
     """
     from flim.core.workflowfile import (
+        BUILT_IN,
         validate_workflow_file,
         find_workflow_file,
         is_workflow_file,
@@ -94,7 +95,7 @@ def resolve_run(
             )
         return tools.get(name)
     try:
-        path = find_workflow_file(name, search_path)
+        path = find_workflow_file(name, [*search_path, BUILT_IN])  # built-in ones last
     except FileNotFoundError as err:
         raise BatchError(str(err)) from None
     validation = validate_workflow_file(path, tool_files=True)  # a tool file: one step

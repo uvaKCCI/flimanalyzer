@@ -224,6 +224,63 @@ def test_run_takes_a_workflow_file_by_path_or_by_file_name(data_dir, workflow_fo
     assert capsys.readouterr().out.count("per treatment: OK") == 2
 
 
+def test_run_takes_a_built_in_workflow_file_by_file_name(data_dir, workflow_folder, capsys):
+    assert main(["-i", str(data_dir), *DRY_RUN, "--run", "import.json"]) == 0
+    assert "Import: OK" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("key", ["config", "output", "processing"])
+@pytest.mark.parametrize("tool", ["Summarize", "Basic FLIRR Analysis"])
+def test_a_tool_file_section_that_is_not_an_object_is_an_error(
+    data_dir, workflow_folder, capsys, key, tool
+):
+    path = workflow_folder / "bad.json"
+    path.write_text(json.dumps({"schema_version": 2, "tool": tool, key: 5}))
+    assert main(["-i", str(data_dir), *DRY_RUN, "--run", str(path)]) == 1
+    assert f"bad.json: {key}: must be an object, e.g. {{}}; found 5" in capsys.readouterr().err
+
+
+def test_an_unknown_encoding_in_the_read_settings_is_a_settings_error(data_dir, tmp_path, capsys):
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps(
+        {"schema_version": 2, "tools": {"Open Tables": {"config": {"encoding": "nope"}}}}
+    ))  # fmt: skip
+    assert main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "--run", "Summarize"]) == 1
+    err = capsys.readouterr().err
+    assert "unknown text encoding 'nope'" in err and "Traceback" not in err
+
+
+@pytest.mark.parametrize("run", ["Concatenate", "Import"])
+def test_skippable_some_applies_to_fields_with_entries_only(data_dir, run, capsys):
+    """Concatenate has no features: none are skipped, so `some` doesn't apply."""
+    code = main(["-i", str(data_dir), *DRY_RUN, "--run", run,
+                 "--override", "processing.skippable.features=some"])  # fmt: skip
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert f"{run}: OK" in captured.out
+
+
+def test_output_save_false_is_an_error_for_a_workflow_defined_in_code(
+    data_dir, workflow_folder, capsys
+):
+    """A workflow defined in code always saves its results; true is accepted."""
+    run = ["-i", str(data_dir), *DRY_RUN, "-w", str(workflow_folder),
+           "--run", "per-treatment.json", "--run", "Basic FLIRR Analysis"]  # fmt: skip
+    assert main(run + ["--override", "output.save=false"]) == 1
+    err = capsys.readouterr().err
+    assert ("--override output.save=false: run 2 (Basic FLIRR Analysis) is a workflow"
+            " defined in code, which always saves its results; limit the override to"
+            " the other runs, e.g. run-1.output.save=false") in err  # fmt: skip
+    assert "run 1" not in err
+    # limited to the workflow file, or true: no such error
+    for override in ("run-1.output.save=false", "output.save=true"):
+        main(run + ["--override", override])
+        assert "always saves its results" not in capsys.readouterr().err
+    # a run's own override takes precedence over the one for every run
+    main(run + ["--override", "output.save=false", "--override", "run-2.output.save=true"])
+    assert "always saves its results" not in capsys.readouterr().err
+
+
 def test_a_name_without_json_is_a_registered_name(data_dir, workflow_folder, capsys):
     code = main(["-i", str(data_dir), *DRY_RUN, "-w", str(workflow_folder),
                  "--run", "per-treatment"])  # fmt: skip
@@ -241,6 +298,25 @@ def test_a_settings_file_doesnt_set_the_workflow_folders(
     err = capsys.readouterr().err
     assert code == 1 and "No workflow file 'per-treatment.json'" in err
     assert "not used, read only from the user settings file: workflow_paths" in err
+
+
+def test_a_settings_file_exported_with_own_workflow_files_is_used(
+    data_dir, workflow_folder, tmp_path, capsys
+):
+    """The GUI exports a section per registered workflow file, the user's too."""
+    from flim.core.settingsmgr import session_settings
+    from flim.core.workflowfile import register_workflow_files
+
+    register_workflow_files([workflow_folder])
+    path = tmp_path / "exported.json"
+    session_settings(None, {}).export(path)
+    assert "per treatment" in json.loads(path.read_text())["tools"]
+    tools._tools.pop("per treatment")  # as in a new flimbatch process
+    code = main(["-i", str(data_dir), *DRY_RUN, "-s", str(path), "-w", str(workflow_folder),
+                 "--run", "per-treatment.json"])  # fmt: skip
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "per treatment: OK" in captured.out
 
 
 def test_tool_settings_flimbatch_doesnt_use_are_warned(data_dir, settings, tmp_path, capsys):

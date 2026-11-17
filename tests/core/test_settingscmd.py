@@ -350,3 +350,46 @@ def test_a_workflow_file_that_is_not_loaded_is_reported_once(tmp_path, capsys):
 def test_a_workflow_file_is_found_by_its_name_too(folder, capsys):
     code, out, _ = run(capsys, "workflow", "--show", "per treatment", "-w", str(folder))
     assert code == 0 and '"name": "per treatment"' in out
+
+
+def test_app_validate_knows_the_workflow_files_of_the_search_path(folder, tmp_path, monkeypatch, capsys):
+    """The GUI exports a section per registered workflow file, the user's too."""
+    from flim.core.settingsmgr import session_settings
+    from flim.core.workflowfile import register_workflow_files
+
+    register_workflow_files([folder])
+    exported = tmp_path / "exported.json"
+    session_settings(None, {}).export(exported)
+    tools._tools.pop("per treatment")  # as in a new flimsettings process
+    monkeypatch.setenv("FLIM_WORKFLOW_PATH", str(folder))
+    code, out, err = run(capsys, "app", "--validate", str(exported))
+    assert code == 0, out + err
+    assert "not validated" not in out
+
+
+def test_a_workflow_file_name_given_for_a_tool_file_is_an_error(folder, capsys):
+    path = folder / "per-treatment.json"
+    for action in ("--validate", "--resolve", "--update"):
+        code, out, err = run(capsys, "tool", action, "per treatment", "-w", str(folder))
+        assert code == 1 and not out
+        if action == "--update":  # workflow files have no --update: no command named
+            assert err.rstrip().endswith(f"{path}: a workflow file, not a tool file")
+        else:
+            assert (f"{path}: a workflow file, not a tool file"
+                    f" (flimsettings workflow {action} per treatment)") in err  # fmt: skip
+
+
+@pytest.mark.parametrize("action", ["--validate", "--resolve", "--update"])
+def test_a_tool_file_output_that_is_not_an_object_is_an_error(folder, action, capsys):
+    path = folder / "bad.json"
+    path.write_text(json.dumps({**TOOL_FILE, "schema_version": 1, "output": 5}))
+    code, out, err = run(capsys, "tool", action, str(path))
+    assert code == 1 and not out
+    assert "output" in err and "Traceback" not in err
+
+
+@pytest.mark.parametrize("action", ["--validate", "--resolve", "--update"])
+def test_the_hint_for_a_tool_name_names_the_option(action, capsys):
+    code, _, err = run(capsys, "tool", action, "Summarize")
+    assert code == 1
+    assert f"'Summarize' is a tool, not a tool file; {action} takes a file" in err

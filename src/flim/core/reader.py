@@ -9,6 +9,7 @@ so values such as `01` keep their leading zero, and become categories, because s
 text tables don't keep their column types.
 """
 
+import codecs
 import logging
 import os
 import re
@@ -84,11 +85,43 @@ class ReadSettings(BaseModel):
         description="{name} is the column's name, {tool} the reader's short name (Read).",
     )
 
+    @field_validator("encoding")
+    @classmethod
+    def _known_encoding(cls, encoding: str) -> str:
+        """Return the encoding if it is a known text encoding.
+
+        Raises:
+            ValueError: If Python has no text encoding of this name.
+        """
+        problem = encoding_problem(encoding)
+        if problem:
+            raise ValueError(problem)
+        return encoding
+
     @field_validator("extensions")
     @classmethod
     def _dotted(cls, extensions: list[str]) -> list[str]:
         """Return the extensions in lower case with a leading dot (`TXT` -> `.txt`)."""
         return ["." + e.strip().lstrip(".").lower() for e in extensions if e.strip().lstrip(".")]
+
+
+def encoding_problem(encoding: str) -> Optional[str]:
+    """Return why a text encoding can't be used to read files; None if it can.
+
+    Args:
+        encoding: The name of the encoding, e.g. `utf-8` or `latin-1`.
+
+    Returns:
+        The message, or None if Python has a text encoding of this name.
+    """
+    try:
+        info = codecs.lookup(encoding)
+    except LookupError:
+        info = None
+    # codecs.lookup also finds codecs from bytes to bytes, e.g. base64
+    if info is None or not getattr(info, "_is_text_encoding", True):
+        return f"unknown text encoding '{encoding}'; for example utf-8 or latin-1"
+    return None
 
 
 def source_uri(path: Union[str, os.PathLike]) -> str:
@@ -196,11 +229,14 @@ def read_file(
         The table, and warnings (e.g. a renamed column).
 
     Raises:
-        ValueError: If the file can't be read as a table, or not with the encoding.
+        ValueError: If the file can't be read as a table, or not with the encoding,
+            or the encoding is unknown.
         OSError: If the file can't be opened.
     """
     settings = settings or ReadSettings()
     path = Path(path)
+    if problem := encoding_problem(settings.encoding):  # e.g. a model not validated
+        raise ValueError(f"{path.name}: {problem}")
     delimiter = "|".join(re.escape(d) for d in settings.delimiter) or None
     try:
         table = pd.read_csv(
@@ -244,7 +280,9 @@ def read_tables(
 ) -> Reading:
     """Read data files and folders, one table per file.
 
-    A file that can't be read is skipped and named in `skipped`; the others are read.
+    A file that can't be read (`read_file` raises `ValueError` or `OSError`, e.g.
+    permission denied) is skipped and named in `skipped`, with the reason; the others
+    are read.
 
     Args:
         paths: Files and folders (with their subfolders; see `find_files`).
@@ -263,6 +301,9 @@ def read_tables(
             table, warnings = read_file(file, settings, nrows=nrows)
         except ValueError as err:
             reading.skipped[str(file)] = str(err)
+            continue
+        except OSError as err:  # e.g. permission denied
+            reading.skipped[str(file)] = f"{file.name}: can't be opened ({err.strerror or err})"
             continue
         name = unique_name(file.name, file.name, reading.tables)
         reading.tables[name] = table
