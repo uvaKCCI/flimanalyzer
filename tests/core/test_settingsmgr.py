@@ -292,14 +292,16 @@ def test_environment_changes(monkeypatch):
             monkeypatch.delenv(name)
     assert environment_changes() == {}
     monkeypatch.setenv("FLIM_RESULTS_DIR", "/data/out")
-    monkeypatch.setenv("FLIM_CACHE_DIR", "/scratch/cache")
+    monkeypatch.setenv("FLIM_LOG_DIR", "/scratch/logs")
+    monkeypatch.setenv("FLIM_CACHE_DIR", "/scratch/cache")  # removed: ignored
     monkeypatch.setenv("FLIM_PREFECT_SERVER", "false")
     monkeypatch.setenv("FLIM_EXECUTION__EXECUTOR", "dask-local")
     monkeypatch.setenv("FLIM_EXECUTION__WORKERS", "8")
     monkeypatch.setenv("FLIM_SERVER_TIMEOUT", "90")
     changes = environment_changes()
     assert changes["server_timeout"] == 90
-    assert changes["results_dir"] == "/data/out" and changes["cache"] == {"dir": "/scratch/cache"}
+    assert changes["results_dir"] == "/data/out" and changes["log"] == {"dir": "/scratch/logs"}
+    assert "cache" not in changes
     assert changes["prefect_server"] is False and "strict" not in changes
     assert changes["execution"]["executor"] == "dask-local"
     assert changes["execution"]["workers"] == 8
@@ -342,10 +344,18 @@ def test_session_without_user_file_ignores_it(monkeypatch, tmp_path):
     assert session_settings().settings.tools.config(KMEANS).n_clusters == 2  # default
 
 
-def test_partial_cache_section_keeps_the_other_cache_settings(monkeypatch):
-    monkeypatch.delenv("FLIM_CACHE_DIR", raising=False)
-    settings = session_settings(None, {"cache": {"dir": "/c"}}).settings
-    assert settings.cache.dir == Path("/c") and settings.cache.max_age_days == 7
+def test_partial_log_section_keeps_the_other_log_settings(monkeypatch):
+    monkeypatch.delenv("FLIM_LOG_DIR", raising=False)
+    settings = session_settings(None, {"log": {"dir": "/l"}}).settings
+    assert settings.log.dir == Path("/l") and settings.log.max_age_days == 30
+
+
+def test_user_settings_file_with_the_removed_cache_section_loads(tmp_path):
+    user = UserSettingsFile(tmp_path / "usersettings.json")
+    user.path.write_text(json.dumps({"schema_version": 2, "cache": {"dir": "/c"},
+                                     "results_dir": "/out"}))
+    assert user.read() == {"schema_version": 2, "results_dir": "/out"}
+    assert user.set_aside is None  # not renamed as unreadable
 
 
 # --- adding a folder to the app settings search path ---

@@ -148,7 +148,6 @@ def add_settings_options(
         "responses, if used)",
     )  # fmt: skip
     parser.add_argument("--log-dir", metavar="DIR", help="folder of the log files")
-    parser.add_argument("--cache-dir", metavar="DIR", help="cache folder")
 
 
 def settings_file(args: argparse.Namespace) -> tuple[Optional[str], list[str]]:
@@ -263,8 +262,8 @@ def executor_settings(
 def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list[str]]:
     """Return the settings set on the command line, as sections to apply.
 
-    Only options that were given are returned. `--log-dir` and `--cache-dir` give the
-    partial sections `{"log": {"dir": ...}}` and `{"cache": {"dir": ...}}`.
+    Only options that were given are returned. `--log-dir` gives the partial section
+    `{"log": {"dir": ...}}`.
 
     Args:
         args: The parsed arguments (`add_settings_options`).
@@ -286,8 +285,6 @@ def command_line_changes(args: argparse.Namespace) -> tuple[dict[str, Any], list
         changes["server_timeout"] = args.server_timeout
     if args.log_dir is not None:
         changes["log"] = {"dir": args.log_dir}
-    if args.cache_dir is not None:
-        changes["cache"] = {"dir": args.cache_dir}
     return changes, notes
 
 

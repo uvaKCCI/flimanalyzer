@@ -359,8 +359,6 @@ built-in defaults.
 
   FLIM_APP_SETTINGS_PATH
       folders searched for app settings files, separated by ':'; read by flimanalyzer, flimbatch, flimsettings
-  FLIM_CACHE_DIR
-      cache folder (--cache-dir); read by flimanalyzer, flimbatch
   FLIM_DRY_RUN
       true: a dry run (--dry-run); read by flimbatch
   ...

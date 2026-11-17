@@ -205,14 +205,12 @@ def test_command_line_options_set_the_session_settings(monkeypatch, clean_loggin
     )
     _no_server(monkeypatch)
     analyzerapp.main(
-        ["-o", "out", "-e", "local:workers=3", "--no-prefect-server", "--log-dir", "logs",
-         "--cache-dir", "cache"]
+        ["-o", "out", "-e", "local:workers=3", "--no-prefect-server", "--log-dir", "logs"]
     )
     settings = started["manager"].settings
     assert settings.results_dir == Path("out") and settings.log.dir == Path("logs")
     assert settings.execution.workers == 3 and settings.prefect_server is False
-    assert settings.cache.dir == Path("cache")
-    assert settings.cache.max_size_mb == 2048  # only the cache folder changed
+    assert settings.log.max_age_days == 30  # only the log folder changed
     assert started["fa"].execution.execution.workers == 3
 
 

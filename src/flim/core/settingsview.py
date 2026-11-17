@@ -7,7 +7,7 @@ from typing import Optional
 from flim.core.settings import START_DIR, AppSettings
 from flim.core.settingsmgr import ENV_NAMES, OPTION_NAMES, SettingsManager
 
-# the app settings the viewer shows, in this order (the cache settings are not shown)
+# the app settings the viewer shows, in this order
 VIEWED = ("results_dir", "execution", "prefect_server", "server_timeout", "log")
 
 

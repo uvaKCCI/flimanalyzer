@@ -125,15 +125,13 @@ def test_settings_file_from_s_or_deprecated_c():
 def test_only_given_options_become_changes():
     assert command_line_changes(parse()) == ({}, [])
     changes, notes = command_line_changes(
-        parse("-o", "out", "--no-prefect-server", "--log-dir", "logs", "--cache-dir",
-              "cache", "-e", "local:workers=2")
+        parse("-o", "out", "--no-prefect-server", "--log-dir", "logs", "-e", "local:workers=2")
     )
     assert notes == []
     assert changes == {
         "results_dir": "out",
         "prefect_server": False,
         "log": {"dir": "logs"},  # partial: the session settings complete it
-        "cache": {"dir": "cache"},  # partial: the session settings complete it
         "execution": {"executor": "local", "workers": 2},
     }
 
@@ -202,8 +200,9 @@ def test_help_lists_the_executors(capsys):
         parse("--help")
     text = capsys.readouterr().out
     for line in ("local[:workers=N]", "dask-local[:workers=N,scheduler=threads|processes",
-                 "dask:address=URL", "--cache-dir DIR"):
+                 "dask:address=URL", "--log-dir DIR"):
         assert line in text
+    assert "--cache-dir" not in text  # removed: no code used the cache settings
     assert "--config" not in text and "--execargs" not in text  # deprecated: hidden
 
 

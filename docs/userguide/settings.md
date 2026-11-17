@@ -16,7 +16,7 @@ The settings come from several layers. Each layer changes only the settings it h
 
 Within a section, a higher layer changes:
 
-* each entry on its own in `tools` and `presets` (per tool), `max_windows` (per kind of window), and `log` and `cache` (per setting). For example, an app settings file with presets for `Filter` keeps your saved presets for `Calculate`, and one that sets only `log.dir` keeps your `log.max_age_days`.
+* each entry on its own in `tools` and `presets` (per tool), `max_windows` (per kind of window), and `log` (per setting). For example, an app settings file with presets for `Filter` keeps your saved presets for `Calculate`, and one that sets only `log.dir` keeps your `log.max_age_days`.
 * the whole section in `execution` (one executor with its options), `filters` (one set of filters) and `char_replacements` (one table), and in all single settings. The built-in replacements of `char_replacements` are added to the table of each layer; an entry for the same text replaces the built-in one.
 
 `flimbatch` does not read the user settings file, so its results don't depend on settings changed in the GUI.
@@ -98,7 +98,6 @@ These environment variables set the same settings as the command-line options. T
 | `FLIM_PREFECT_SERVER` | `false` does the same as `--no-prefect-server` |
 | `FLIM_SERVER_TIMEOUT` | how many seconds to wait for responses of the Prefect server, and of the Dask cluster if one is used, as `--server-timeout` |
 | `FLIM_LOG_DIR` | log folder (`log` > `dir`), as `--log-dir` |
-| `FLIM_CACHE_DIR` | cache folder setting, as `--cache-dir` |
 | `FLIM_LOG_LEVEL` | logging level, as `-l` (`--log-level`) |
 | `FLIM_DRY_RUN` | `true` does the same as `--dry-run` (`flimbatch` only) |
 | `FLIM_APP_SETTINGS_PATH` | the app settings search path (see [App settings files](#app-settings-files)), instead of `appsettings_path` and the default folder; also read by `flimsettings` |
@@ -168,7 +167,6 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
   "execution": {"executor": "local", "workers": null},
   "prefect_server": true,
   "log": {"dir": null, "max_age_days": 30},
-  "cache": {"dir": null, "max_size_mb": 2048, "max_age_days": 7},
   "filters": { ... },
   "tools": {
     "Summarize": {"config": { ... }, "output": {"save": false, "results_dir": null, "formats": []}},
@@ -186,7 +184,6 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
 * `execution`: the executor and its options, as with `-e` (see [Concurrent and Distributed Execution](/userguide/execution)). For example, `{"executor": "dask-local", "workers": 8, "scheduler": "processes"}`, or `{"executor": "dask", "address": "tcp://host:8786"}`.
 * `prefect_server`: `false` does the same as `--no-prefect-server`.
 * `log`: the log folder (`dir`) and how many days the GUI keeps its log files (`max_age_days`). If the folder is not set (`null`), the GUI uses the platform's log folder, and `flimbatch` writes `flimbatch.log` into the results folder of the call (see [Log files](/install/index.md#log-files)).
-* `cache`: the cache folder setting (`dir`), the maximum cache size in MB (`max_size_mb`) and the maximum age of cached items in days (`max_age_days`).
 * `appsettings_path`: the folders searched for app settings files. It is read only from the user settings file, because it is needed to find an app settings file; in an app settings file it has no effect (see [App settings files](#app-settings-files)).
 * `default_app_settings`: the app settings file selected when the GUI starts without `-s` (see [Choosing an app settings file at startup](#choosing-an-app-settings-file-at-startup)). It is read from the user settings file. `Export Settings...` leaves it, `appsettings_path`, `workflow_paths` and `last_run_url` out.
 * `last_run_url`: the Prefect page of the last run the GUI started, opened by `Monitor` > `Last Run`. The GUI writes it after each run; it is read from the user settings file.

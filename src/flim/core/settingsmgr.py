@@ -56,7 +56,6 @@ ENV_NAMES = {
     "prefect_server": "FLIM_PREFECT_SERVER",
     "server_timeout": "FLIM_SERVER_TIMEOUT",
     "log": "FLIM_LOG_DIR",
-    "cache": "FLIM_CACHE_DIR",
 }
 OPTION_NAMES = {
     "results_dir": "-o",
@@ -64,7 +63,6 @@ OPTION_NAMES = {
     "prefect_server": "--prefect-server, --no-prefect-server",
     "server_timeout": "--server-timeout",
     "log": "--log-dir",
-    "cache": "--cache-dir",
 }
 
 
@@ -656,7 +654,7 @@ class EnvSettings(BaseSettings):
 
     Only these app-level fields can be set this way; nested fields of the executor use
     `__`, e.g. `FLIM_EXECUTION__EXECUTOR=dask-local`, or `FLIM_EXECUTION` holds them as
-    JSON. `FLIM_CACHE_DIR` sets `cache.dir`.
+    JSON.
     """
 
     model_config = SettingsConfigDict(
@@ -667,16 +665,14 @@ class EnvSettings(BaseSettings):
     prefect_server: Optional[bool] = None
     server_timeout: Optional[float] = None
     log_dir: Optional[Path] = None
-    cache_dir: Optional[Path] = None
 
 
 def environment_changes() -> dict:
     """Return the settings set by environment variables, as sections to apply.
 
     Returns:
-        The sections set by the environment; empty if none is set. `FLIM_LOG_DIR` and
-        `FLIM_CACHE_DIR` give the partial sections `{"log": {"dir": ...}}` and
-        `{"cache": {"dir": ...}}`.
+        The sections set by the environment; empty if none is set. `FLIM_LOG_DIR`
+        gives the partial section `{"log": {"dir": ...}}`.
 
     Raises:
         ValueError: If a variable has an invalid value; the message names it.
@@ -703,18 +699,14 @@ def environment_changes() -> dict:
     }
     if "log_dir" in values:
         changes["log"] = {"dir": values["log_dir"]}
-    if "cache_dir" in values:
-        changes["cache"] = {"dir": values["cache_dir"]}
     return changes
 
 
 def _completed(changes: dict, current: AppSettings) -> dict:
-    """Return `changes` with partial `log` and `cache` sections completed."""
+    """Return `changes` with a partial `log` section completed."""
     completed = dict(changes)
-    for section in ("log", "cache"):
-        if section in changes:
-            values = getattr(current, section).model_dump(mode="json")
-            completed[section] = {**values, **changes[section]}
+    if "log" in changes:
+        completed["log"] = {**current.log.model_dump(mode="json"), **changes["log"]}
     return completed
 
 
@@ -824,8 +816,8 @@ def session_settings(
     Args:
         settings_file: The argument of `-s`: a path, or a name in the app settings
             folders (see `find_app_settings`). None: no app settings file.
-        command_line: The sections set on the command line (`flim.core.cli`); `log`
-            and `cache` sections may be partial.
+        command_line: The sections set on the command line (`flim.core.cli`); the `log`
+            section may be partial.
         user_file: The user settings file; None in flimbatch, whose runs do not depend
             on settings changed in the GUI.
         base: The lowest layer. Defaults to the built-in defaults.

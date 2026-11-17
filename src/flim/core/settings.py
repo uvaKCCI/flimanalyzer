@@ -10,7 +10,7 @@ A settings file has a section per settings area, and one per tool::
 
     {"schema_version": 2,
      "results_dir": null, "execution": {"executor": "local", ...},
-     "prefect_server": true, "log": {...}, "cache": {...},
+     "prefect_server": true, "log": {...},
      "import": {...}, "filters": {...},
      "tools": {"Summarize": {"config": {...}, "output": {"save": true,
                              "results_dir": null, "formats": [...]}}, ...}}
@@ -23,8 +23,8 @@ of a workflow step; it is read as a settings file with that one tool's section.
 
 - `ToolSettingsMap`: the settings of each tool (its config, and its `output`: whether
   it saves its results, the folder and the formats), by tool name.
-- `AppSettings`: the results folder, the executor, the Prefect server, the log and
-  cache folders, import, filters and the tool settings (Import's renaming, dropping
+- `AppSettings`: the results folder, the executor, the Prefect server, the log
+  folder, import, filters and the tool settings (Import's renaming, dropping
   and calculating: the Rename Columns, Drop Columns and Calculate tools' settings).
 """
 
@@ -325,20 +325,6 @@ def default_range_filters() -> list["RangeFilter"]:
     ]
 
 
-class CacheSettings(_Settings):
-    """Where closed items are kept, and the limits of that cache."""
-
-    dir: Optional[Path] = Field(
-        default=None,
-        description="Cache folder. None defaults to FLIM_CACHE_DIR, else the platform's"
-        " cache folder.",
-    )
-    max_size_mb: int = Field(default=2048, ge=0, description="Maximum cache size (MB).")
-    max_age_days: int = Field(
-        default=7, ge=0, description="Items older than this are removed (days)."
-    )
-
-
 class LogSettings(_Settings):
     """Where the log files are written, and how long the GUI keeps them."""
 
@@ -356,7 +342,7 @@ class LogSettings(_Settings):
 
 
 class AppSettings(_Settings):
-    """The app settings: folders, execution, log, cache, filters and tool settings.
+    """The app settings: folders, execution, log, filters and tool settings.
 
     Each field's `title` and `description` describe the setting; keys the model
     does not have are kept as extra and logged when a file is loaded.
@@ -398,7 +384,6 @@ class AppSettings(_Settings):
         title="Log folder",
         description="Log folder and how long the GUI keeps its log files.",
     )
-    cache: CacheSettings = Field(default_factory=CacheSettings)
     appsettings_path: list[Path] = Field(
         default=[],
         description="Folders searched for app settings files, in order. Empty defaults to"
@@ -881,12 +866,20 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
     return _removed_settings(_moved_presets(data, changes), changes)
 
 
+# the app settings that FLIMAnalyzer wrote and no longer has: key -> why it is dropped
+_REMOVED_SETTINGS: dict[str, str] = {
+    "strict": "now processing.strict of tool and workflow files",
+    "cache": "never used",
+}
+
+
 def _removed_settings(data: dict, changes: Changes) -> dict:
     """Drop the app settings that FLIMAnalyzer wrote and no longer has.
 
     `strict` (whether workflows guess missing columns) is a setting of tool and
-    workflow files now (`processing.strict`); an app settings file with it is
-    otherwise refused for an unknown setting.
+    workflow files now (`processing.strict`). `cache` (a cache folder and its limits)
+    was used by no code. Without this, an app settings file with one of them is
+    refused for an unknown setting.
 
     Args:
         data: Settings data of the current version.
@@ -895,9 +888,10 @@ def _removed_settings(data: dict, changes: Changes) -> dict:
     Returns:
         The data without these settings.
     """
-    if "strict" in data:
-        data = {k: v for k, v in data.items() if k != "strict"}
-        changes.dropped.append("strict (now processing.strict of tool and workflow files)")
+    for key, reason in _REMOVED_SETTINGS.items():
+        if key in data:
+            data = {k: v for k, v in data.items() if k != key}
+            changes.dropped.append(f"{key} ({reason})")
     return data
 
 
@@ -1033,7 +1027,6 @@ SECTION_MERGE: dict[str, str] = {
     "prefect_server": "whole",
     "server_timeout": "whole",
     "log": "per key",
-    "cache": "per key",
     "appsettings_path": "whole",
     "char_replacements": "whole",  # one table
     "max_windows": "per key",  # a limit per kind of window

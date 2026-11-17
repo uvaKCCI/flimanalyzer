@@ -78,7 +78,6 @@ ENV_VARIABLES = {
         [GUI, BATCH],
     ),
     ENV_NAMES["log"]: (f"folder of the log files ({OPTION_NAMES['log']})", [GUI, BATCH]),
-    ENV_NAMES["cache"]: (f"cache folder ({OPTION_NAMES['cache']})", [GUI, BATCH]),
     LOG_LEVEL_VAR: (f"log level: {', '.join(LOG_LEVELS)} (-l)", [GUI, BATCH]),
     DRY_RUN_VAR: ("true: a dry run (--dry-run)", [BATCH]),
     WORKFLOW_PATH_VAR: (

@@ -47,7 +47,7 @@ def test_defaults():
     assert settings.results_dir is None and settings.resolved_results_dir() == START_DIR
     assert settings.execution == LocalExecutorSettings() and settings.prefect_server
     assert settings.log.dir is None and settings.log.max_age_days == 30
-    assert settings.cache.dir is None
+    assert "cache" not in settings.to_json()
     assert "preprocess" not in settings.to_json()  # the Rename, Drop, Calculate tools'
     assert set(settings.filters.model_dump()) == {"use", "show_dropped"}
     assert list(settings.tools.entries) == ["Filter"]  # the others: their configs'
@@ -424,6 +424,19 @@ def test_the_removed_app_setting_strict_is_dropped_not_unknown(tmp_path):
     validation = validate_settings_file(path)
     assert not validation.problems and "strict" not in validation.sections
     assert validation.dropped == ["strict (now processing.strict of tool and workflow files)"]
+
+
+def test_the_removed_app_setting_cache_is_dropped_not_unknown(tmp_path):
+    """0.7 development builds wrote `cache` into app and user settings files."""
+    from flim.core.settings import validate_settings_file
+
+    section = {"dir": None, "max_size_mb": 2048, "max_age_days": 7}
+    path = tmp_path / "lab.json"
+    path.write_text(json.dumps({"schema_version": 2, "cache": section, "results_dir": "/out"}))
+    validation = validate_settings_file(path)
+    assert not validation.problems and not validation.unknown
+    assert "cache" not in validation.sections and validation.sections["results_dir"] == "/out"
+    assert validation.dropped == ["cache (never used)"]
 
 
 def test_update_settings_file_keeps_the_original(tmp_path):

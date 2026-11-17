@@ -107,7 +107,6 @@ Run `flimanalyzer --help` for all command-line options.
 | `--prefect-server`, `--no-prefect-server` | `--prefect-server` (the default) uses a local Prefect server, and starts one if none is found. `--no-prefect-server` uses a temporary Prefect server for each run instead (see [Prefect server](#prefect-server)). |
 | `--server-timeout SECONDS` | how long to wait for responses of the Prefect server, and of the Dask cluster if one is used (default: 60) |
 | `--log-dir` | log folder (`log` > `dir`; see [Log files](#log-files)) |
-| `--cache-dir` | sets the cache folder setting (`cache` > `dir`) |
 | `-l`, `--log-level` | logging level: `debug`, `info` (default), `warning`, `error` or `critical`; also `--log` |
 
 These options can also be set with environment variables, and in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)). An option given on the command line takes precedence.
