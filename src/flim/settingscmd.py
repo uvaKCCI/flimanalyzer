@@ -237,7 +237,7 @@ def _register(args: argparse.Namespace) -> list[Path]:
     discover(TOOLS_GROUP)  # the tools of other installed packages
     # as flimbatch: from -w or FLIM_WORKFLOW_PATH, not from a settings file
     search_path = workflow_path(folders=args.workflow_path)
-    for message in register_workflow_files(search_path):
+    for message in register_workflow_files(search_path, log=False):  # shown here
         _warn(message)
     return search_path
 

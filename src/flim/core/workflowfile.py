@@ -1070,7 +1070,7 @@ def import_workflows() -> list[type["Workflow"]]:
     return [t for t in files if category_path(t) == IMPORT_CATEGORY] or files
 
 
-def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
+def register_workflow_files(search_path: Iterable[Path] = (), log: bool = True) -> list[str]:
     """Register the built-in workflow files and those in the search path, by name.
 
     A file with errors, or whose name a tool or another workflow already has
@@ -1080,6 +1080,8 @@ def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
 
     Args:
         search_path: The folders (see `workflow_path`).
+        log: Whether to log the messages as warnings too; False for a caller that
+            shows them itself. Defaults to True.
 
     Returns:
         A message per file that was not registered.
@@ -1102,7 +1104,7 @@ def register_workflow_files(search_path: Iterable[Path] = ()) -> list[str]:
             tools.register(workflow_class(validation.definition, path))
         except ValueError as err:
             messages.append(f"{path}: not loaded: {err}")
-    for message in messages:
+    for message in messages if log else ():
         logger.warning(message)
     return messages
 

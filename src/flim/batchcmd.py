@@ -238,8 +238,7 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         # from -w or FLIM_WORKFLOW_PATH only: a settings file doesn't decide which
         # workflow file a name refers to
         search_path = workflow_path(folders=args.workflow_path)
-        for message in register_workflow_files(search_path):
-            print(f"flimbatch: warning: {message}", file=sys.stderr)
+        register_workflow_files(search_path)  # problems are logged: in the terminal and the log
         runs = [
             resolve_run(name, search_path, warn=_run_warn(args.overrides, number))
             for number, name in enumerate(args.run, 1)

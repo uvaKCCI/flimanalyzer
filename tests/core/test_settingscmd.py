@@ -337,3 +337,11 @@ def test_app_show_validates_tool_settings_with_the_tools_loaded(tmp_path):
     )  # fmt: skip
     assert result.returncode == 0 and "not installed" not in result.stderr
     assert f"App settings file of flimbatch: {lab}" in result.stdout
+
+
+def test_a_workflow_file_that_is_not_loaded_is_reported_once(tmp_path, capsys):
+    folder = tmp_path / "workflows"
+    folder.mkdir()
+    (folder / "dup.json").write_text(json.dumps({"name": "Import", "steps": [{"id": "1", "tool": "Sort"}]}))
+    code, _, err = run(capsys, "workflow", "--list", "-w", str(folder))
+    assert err.count("dup.json: not loaded") == 1
