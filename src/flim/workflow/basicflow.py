@@ -38,23 +38,27 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
     def build(self, data: pd.DataFrame, *, config: BasicFLIRRConfig) -> None:
         """Call the workflow's steps on the table.
 
-        The steps are:
+        The steps, by their ids (each saves into `<id>-<tool>`; a step called in a
+        loop has a part folder per call):
 
-        - Summaries of the features per value of the first grouping column (count,
-          median, mean, standard deviation, S.E.M.; prefix `Stats-`), and the count
-          of the first feature per group of all grouping columns (prefix `Counts-`).
-        - Pair plots of the features whose names contain `FAD`, and of those whose
-          names contain `NAD`, per value of the first grouping column, with KDEs on
-          the diagonal and a sample of at most 20000 rows.
-        - Relative changes: each feature divided by its mean in the rows with the
-          reference value of the first grouping column, per group of the other
-          grouping columns, and the mean of each `rel <feature>` per group of the
+        - 00: the input table.
+        - 01: summaries of the features per value of the first grouping column
+          (count, median, mean, standard deviation, S.E.M.; prefix `Stats-`); 02: the
+          count of the first feature per group of all grouping columns (prefix
+          `Counts-`).
+        - 03: pair plots of the features whose names contain `FAD` (part `FAD`), and
+          of those whose names contain `NAD` (part `NADPH`), per value of the first
+          grouping column, with KDEs on the diagonal and a sample of at most 20000
+          rows.
+        - 04: relative changes: each feature divided by its mean in the rows with
+          the reference value of the first grouping column, per group of the other
+          grouping columns; 05: the mean of each `rel <feature>` per group of the
           grouping columns in reverse order (prefix `Relative Stats-`).
-        - A scatter plot of FAD a1 % against NAD(P)H a2 %, if both columns are set or
-          found by name among the numeric columns.
-        - A line plot of each `rel <feature>` per group of the first two grouping
-          columns, and a KDE plot of each feature per value of the first grouping
-          column.
+        - 06: a scatter plot of FAD a1 % against NAD(P)H a2 %, if both columns are
+          set or found by name among the numeric columns.
+        - 07: a line plot of each `rel <feature>` per group of the first two grouping
+          columns (a part per feature); 08: a KDE plot of each feature per value of
+          the first grouping column (a part per feature).
 
         Args:
             data: The table.
@@ -66,7 +70,8 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
         grouping, features = config.grouping, config.features
         first = grouping[:1]
         rel_features = [f"rel {f}" for f in features]
-        input = workflow_input(data)
+        # fixed step ids, one per call; the calls of a loop are parts of one step
+        input = workflow_input(data, step="00")
         Summarize()(
             input,
             config=SummaryConfig(
@@ -75,12 +80,14 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
                 aggs=["count", "median", "mean", "std", "sem"],
                 prefix="Stats-",
             ),
+            step="01",
         )
         Summarize()(
             input,
             config=SummaryConfig(
                 grouping=grouping, features=features[:1], aggs=["count"], prefix="Counts-"
             ),
+            step="02",
         )
         for label, word in (("FAD", "FAD"), ("NADPH", "NAD")):
             PairPlot()(
@@ -92,6 +99,8 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
                     points=PAIR_PLOT_POINTS,
                     prefix=f"{label}-",
                 ),
+                step="03",
+                task_tags=[label],
             )
         relative = RelativeChange()(
             input,
@@ -103,6 +112,7 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
                 or ordered_values(data[grouping[0]])[0],
                 method="mean",
             ),
+            step="04",
         )["Table: Relative Change"]
         Summarize()(
             relative,
@@ -112,6 +122,7 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
                 aggs=["mean"],
                 prefix="Relative Stats-",
             ),
+            step="05",
         )
         numbers = list(data.select_dtypes(include=np.number))
         _, fad, nadph = flirr_columns(numbers, None, config.fad_a1, config.nadph_a2)
@@ -121,11 +132,19 @@ class BasicFLIRR(Workflow[BasicFLIRRConfig]):
                 config=ScatterPlotConfig(
                     grouping=first, features=[fad, nadph], x_axis=fad
                 ),
+                step="06",
             )
         for feature in rel_features:
             LinePlot()(
                 relative,
                 config=LinePlotConfig(grouping=grouping[:2], features=[feature]),
+                step="07",
+                task_tags=[feature],
             )
         for feature in features:
-            KDE()(input, config=KDEConfig(grouping=first, features=[feature]))
+            KDE()(
+                input,
+                config=KDEConfig(grouping=first, features=[feature]),
+                step="08",
+                task_tags=[feature],
+            )

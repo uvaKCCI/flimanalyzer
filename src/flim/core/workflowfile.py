@@ -796,8 +796,10 @@ def id_width(definition: WorkflowDefinition) -> int:
 def step_folder(step: WorkflowStep, width: int = 2) -> str:
     """Return the name of a step's results folder, `<id>-<tool>`, e.g. `02-Summarize`.
 
-    The id has leading zeros up to `width` digits (see `id_width`); the runner makes
-    the folder name with `flim.core.paths.path_name` (e.g. `03-Order_Category_Values`).
+    The id has leading zeros up to `width` digits (see `id_width`); the tool is named
+    by its current name, also if the file uses a former one. The runner makes the
+    folder (`flim.core.runner.FlowRun.call`) and its file-system name with
+    `flim.core.paths.path_name` (e.g. `03-Order_Category_Values`).
 
     Args:
         step: The step.
@@ -806,7 +808,9 @@ def step_folder(step: WorkflowStep, width: int = 2) -> str:
     Returns:
         The name.
     """
-    return f"{int(step.id):0{width}d}-{step.tool}"
+    from flim.core.registry import tools
+
+    return f"{int(step.id):0{width}d}-{tools.get(step.tool).name}"
 
 
 def _leaf(results: dict) -> Any:
@@ -945,9 +949,12 @@ def _file_workflow_base() -> type["Workflow"]:
                     tool._formats = step.output.formats  # None: the workflow's (the run's)
                     tool._processing = self.definition.rules(step, self.override)
                     tool._notes = notes  # applied before the run, reported by the run
-                    # the results' folders: the step's, then its input and part
-                    tags = [step_folder(step, width)] + [str(k) for k in key]
-                    return tool(*inputs, config=config, task_tags=tags)
+                    # the results' folders: the step's (made by the runner, see
+                    # `step_folder`), then its input and part
+                    tags = [str(k) for k in key]
+                    return tool(
+                        *inputs, config=config, task_tags=tags, step=f"{int(step.id):0{width}d}"
+                    )
 
                 def run(inputs: list[Any], key: tuple, results: dict) -> None:
                     if not mappable:

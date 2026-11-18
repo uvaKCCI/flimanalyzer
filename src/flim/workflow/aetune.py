@@ -37,13 +37,14 @@ def train_models(
     training: AETrainConfig,
     model_name: str,
     last_epoch: bool = False,
+    step: Optional[str] = None,
 ) -> list[tuple[str, TaskOutput]]:
     """Add one Autoencoder: Train task per combination of the training settings.
 
     A combination is one batch size, one learning rate and one weight decay. The
     tasks use `training` with `model_name` and without loss plots. Each task is
     tagged with its combination, e.g. `b128_l1e05_d1e07` (see `utils.clean`), which
-    names its results folder.
+    names its results folder: a part of the step `step`.
 
     Args:
         data: The training table, the output of an earlier step.
@@ -52,6 +53,7 @@ def train_models(
         model_name: The name of the models, used in their file names.
         last_epoch: If true, the tag also has the number of epochs, e.g. `_e0006`.
             Defaults to False.
+        step: The step id of the trainings; None for none.
 
     Returns:
         The tag and the output of each training task.
@@ -69,7 +71,7 @@ def train_models(
         )
         tag = str(combination) + (f" e{config.epochs:04d}" if last_epoch else "")
         tag = utils.clean(tag)
-        trained.append((tag, tool(data, config=config, task_tags=tag)))
+        trained.append((tag, tool(data, config=config, task_tags=[tag], step=step)))
     return trained
 
 
@@ -103,7 +105,7 @@ def result_name(kind: str, path: str | os.PathLike) -> str:
     return f"Table: {kind}-{os.path.basename(str(path))}"
 
 
-def loss_summary(trained: list[tuple[str, TaskOutput]], tags: str) -> None:
+def loss_summary(trained: list[tuple[str, TaskOutput]], first_step: int) -> None:
     """Add tasks for the training and validation losses of the trained models.
 
     The tasks are: the loss tables of all models concatenated into one table, its
@@ -114,7 +116,9 @@ def loss_summary(trained: list[tuple[str, TaskOutput]], tags: str) -> None:
 
     Args:
         trained: The tag and the output of each training task (see `train_models`).
-        tags: The tags of the added tasks.
+        first_step: The step id of the first task; the others follow it: the
+            concatenated table, its summary, the unpivoted table, the line plot and
+            the bar plots (a part per loss).
     """
     tables = {}
     for tag, output in trained:
@@ -123,11 +127,8 @@ def loss_summary(trained: list[tuple[str, TaskOutput]], tags: str) -> None:
             tables[tag] = found[0]
     if not tables:
         return
-    losses = Concat()(
-        tables,
-        config=ConcatConfig(),
-        task_tags=tags,
-    )["Table: Concatenated"]
+    ids = [f"{n:02d}" for n in range(first_step, first_step + 5)]
+    losses = Concat()(tables, config=ConcatConfig(), step=ids[0])["Table: Concatenated"]
     Summarize()(
         losses,
         config=SummaryConfig(
@@ -135,31 +136,38 @@ def loss_summary(trained: list[tuple[str, TaskOutput]], tags: str) -> None:
             features=["Training Loss", "Validation Loss", "Model File"],
             aggs=["min"],
         ),
-        task_tags=tags,
+        step=ids[1],
     )
     long = Unpivot()(
         losses,
         config=UnpivotConfig(
             features=["Training Loss", "Validation Loss"], category_name="Loss Type"
         ),
-        task_tags=tags,
+        step=ids[2],
     )["Table: Unpivoted"]
     LinePlot()(
         long,
         config=LinePlotConfig(
             grouping=["Epoch", "Loss Type"] + LOSS_GROUPING, features=[Unpivot.VALUE]
         ),
-        task_tags=tags,
+        step=ids[3],
     )
     for loss in ("Training Loss", "Validation Loss"):
         BarPlot()(
             losses,
             config=BarPlotConfig(grouping=["Epoch"] + LOSS_GROUPING, features=[loss]),
-            task_tags=tags,
+            step=ids[4],
+            task_tags=[loss],
         )
 
 
-def overview(data: TaskOutput, features: list[str], grouping: str, tags: str) -> None:
+def overview(
+    data: TaskOutput,
+    features: list[str],
+    grouping: str,
+    steps: tuple[str, str],
+    part: Optional[str] = None,
+) -> None:
     """Add tasks for a heatmap of the features' correlations and their KDE plots.
 
     The heatmap shows the Spearman correlations; the KDE plots show the distribution
@@ -169,14 +177,22 @@ def overview(data: TaskOutput, features: list[str], grouping: str, tags: str) ->
         data: The table, the output of an earlier step.
         features: The features.
         grouping: The grouping column of the KDE plots.
-        tags: The tags of the added tasks.
+        steps: The step ids of the heatmap and of the KDE plots.
+        part: The part of the steps the tasks are, e.g. a model's combination; None
+            for none.
     """
     Heatmap()(
         data,
         config=HeatmapConfig(features=features, correlation="spearman"),
-        task_tags=tags,
+        step=steps[0],
+        task_tags=[part] if part else None,
     )
-    KDE()(data, config=KDEConfig(grouping=[grouping], features=features), task_tags=tags)
+    KDE()(
+        data,
+        config=KDEConfig(grouping=[grouping], features=features),
+        step=steps[1],
+        task_tags=[part] if part else None,
+    )
 
 
 @register_tool
@@ -194,16 +210,17 @@ class AETune(Workflow[AETuneConfig]):
     def build(self, data: pd.DataFrame, *, config: AETuneConfig) -> None:
         """Call the workflow's steps on the table.
 
-        The steps are:
+        The steps, by their ids (each saves into `<id>-<tool>`; the calls for each
+        model are parts of a step, named by the model's combination):
 
-        - Filter the table and add the overview of its features (see `overview`), per
-          value of the time series column.
-        - Train a model per combination of the training settings (see
-          `train_models`) and summarize their losses (see `loss_summary`).
-        - For each model that was trained: augment the filtered table with the
-          model's files (Autoencoder: Augment), filter the result, add its overview,
-          and summarize its features (min, max, median, count) per value of the time
-          series column, one table per feature.
+        - 00: the input table; 01: filter it; 02, 03: the overview of its features
+          (see `overview`), per value of the time series column.
+        - 04: train a model per combination of the training settings (see
+          `train_models`); 05 to 09: summarize their losses (see `loss_summary`).
+        - For each model that was trained: 10: augment the filtered table with the
+          model's files (Autoencoder: Augment); 11: filter the result; 12, 13: its
+          overview; 14: summarize its features (min, max, median, count) per value
+          of the time series column, one table per feature.
 
         Args:
             data: The table.
@@ -211,15 +228,14 @@ class AETune(Workflow[AETuneConfig]):
                 training and augmentation steps.
         """
         features = config.features
-        input = workflow_input(data)
-        filtered = Filter()(input, config=FilterConfig(), task_tags="Input_Filtered")[
-            "Table: Filtered"
-        ]
-        overview(filtered, features, config.timeseries, "Input_Filtered")
+        # fixed step ids, one per call; the calls for each model are parts of a step
+        input = workflow_input(data, step="00")
+        filtered = Filter()(input, config=FilterConfig(), step="01")["Table: Filtered"]
+        overview(filtered, features, config.timeseries, ("02", "03"))
         trained = train_models(
-            filtered, config.training, f"AEAugment-{len(features)}"
+            filtered, config.training, f"AEAugment-{len(features)}", step="04"
         )
-        loss_summary(trained, "AE1_Training_Summary")
+        loss_summary(trained, first_step=5)  # 05 to 09
         for tag, output in trained:
             files = model_files(output)
             if not files:
@@ -227,13 +243,14 @@ class AETune(Workflow[AETuneConfig]):
             augmented = AEAugment()(
                 filtered,
                 config=config.augment.model_copy(update={"model_files": files}),
-                task_tags=tag,
+                task_tags=[tag],
                 after=[output],
+                step="10",
             )[result_name("Simulated", files[0])]
-            augmented = Filter()(augmented, config=FilterConfig(), task_tags=tag)[
+            augmented = Filter()(augmented, config=FilterConfig(), task_tags=[tag], step="11")[
                 "Table: Filtered"
             ]
-            overview(augmented, features, config.timeseries, tag)
+            overview(augmented, features, config.timeseries, ("12", "13"), part=tag)
             Summarize()(
                 augmented,
                 config=SummaryConfig(
@@ -242,5 +259,6 @@ class AETune(Workflow[AETuneConfig]):
                     single_table=False,
                     aggs=["min", "max", "median", "count"],
                 ),
-                task_tags=tag,
+                task_tags=[tag],
+                step="14",
             )

@@ -699,6 +699,7 @@ class FlowRun:
         tool: Tool,
         kwargs: Dict[str, Any],
         task_tags: Optional[str | Sequence[str]] = None,
+        step: Optional[str] = None,
     ) -> TaskOutput:
         """Submit one tool call as a Prefect task and return a handle to its result.
 
@@ -715,6 +716,9 @@ class FlowRun:
                 handles, and the handles the task waits for.
             task_tags: The task's tags, one or several; None for none. The task is
                 also tagged with the tool's name.
+            step: The id of the workflow step the call belongs to, e.g. `03`; None
+                for none. Its results go into the folder `<step>-<tool>`, before the
+                folders of `tag_prefix` and `task_tags`.
 
         Returns:
             The handle to the task's result.
@@ -728,9 +732,15 @@ class FlowRun:
         tool._cancel_token = self.cancel_token
 
         tag_list = [task_tags] if isinstance(task_tags, str) else list(task_tags or [])
-        tag_list = list(_TAG_PREFIX.get()) + tag_list
+        # the results folders: the step's (`<id>-<tool>`), the input's, then the task's
+        # own (e.g. its part), as in a workflow file
+        step_tags = [f"{step}-{type(tool).name}"] if step else []
+        tag_list = step_tags + list(_TAG_PREFIX.get()) + tag_list
         label = self._unique_label(tool.name)
-        node = self._add_node(label, getattr(tool, "graph_kind", "tool"), tool=tool)
+        folder = "/".join(path_name(str(t)) for t in tag_list)  # as on disk
+        node = self._add_node(
+            label, getattr(tool, "graph_kind", "tool"), tool=tool, step=step, folder=folder
+        )
         tool._notify_started = _StartNotifier(self, node)
         upstream = set()
         self.sources.update(_sources(kwargs))
@@ -956,14 +966,21 @@ class FlowRun:
             lines += ["Notes:"] + [f"  {note}" for note in self.notes] + [""]
         granted = [a.get("resources") or "" for a in tasks]
         res_width = max([len(r) for r in granted] + [len("Resources")])
+        # the step id (none for a tool run) and the results folder in the run
+        steps = [a.get("step") or "-" for a in tasks]
+        folders = [a.get("folder") or "-" for a in tasks]
+        step_width = max([len(s) for s in steps] + [len("Step")])
+        folder_width = max([len(f) for f in folders] + [len("Folder")])
         lines.append(
-            f"{'Task'.ljust(width)}  {'Status'.ljust(9)}  {'Resources'.ljust(res_width)}"
-            "  Message"
+            f"{'Task'.ljust(width)}  {'Step'.ljust(step_width)}"
+            f"  {'Folder'.ljust(folder_width)}  {'Status'.ljust(9)}"
+            f"  {'Resources'.ljust(res_width)}  Message"
         )
-        for a, resources in zip(tasks, granted):
+        for a, step, folder, resources in zip(tasks, steps, folders, granted):
             message = (a.get("message") or "").replace("\n", " ")
             lines.append(
-                f"{a['label'].ljust(width)}  {a['status'].ljust(9)}"
+                f"{a['label'].ljust(width)}  {step.ljust(step_width)}"
+                f"  {folder.ljust(folder_width)}  {a['status'].ljust(9)}"
                 f"  {resources.ljust(res_width)}  {message}".rstrip()
             )
         path = self.autosave_dir / "run_summary.txt"
@@ -999,6 +1016,7 @@ def call_tool(
     config: Optional["TaskConfig"] = None,
     task_tags: Optional[str | Sequence[str]] = None,
     after: Sequence[TaskOutput] = (),
+    step: Optional[str] = None,
 ) -> Any:
     """Call a tool (`flim.core.tool.Tool`) with its inputs and config.
 
@@ -1013,6 +1031,8 @@ def call_tool(
         after: Handles of tasks this one waits for although they are not its
             inputs, e.g. those whose results (model files) its config names. Used
             only inside a flow.
+        step: The id of the workflow step the call belongs to (see `FlowRun.call`);
+            None for none. Used only inside a flow.
 
     Returns:
         During a dry run, a `flim.core.validation.TraceOutput`; inside a flow, a
@@ -1030,7 +1050,7 @@ def call_tool(
     kwargs = {"inputs": inputs, "config": config}
     if after:
         kwargs[_AFTER] = list(after)
-    return run.call(tool, kwargs, task_tags=task_tags)
+    return run.call(tool, kwargs, task_tags=task_tags, step=step)
 
 
 def select(

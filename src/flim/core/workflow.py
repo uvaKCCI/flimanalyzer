@@ -237,6 +237,7 @@ def workflow_input(
     name: str = "Input",
     task_tags: Optional[str | Sequence[str]] = None,
     save: Optional[bool] = None,
+    step: Optional[str] = None,
 ) -> Any:
     """Add the input table of a workflow, the first node of its graph.
 
@@ -247,12 +248,16 @@ def workflow_input(
         save: False: the table is not saved with the run's results (workflow files
             save only what their steps' `save` says); None or True: it is saved if
             the run saves its results.
+        step: The step id of the input, e.g. `00` (folder `00-Input`); None for none.
+            With a step, the name is a folder below it only if it isn't `Input`.
 
     Returns:
         Inside a flow, a `flim.core.runner.TaskOutput` handle to the table;
         otherwise, also during a dry run, `data` itself.
     """
-    step = _Input()
-    step.name = name
-    step._save = save
-    return step(data, task_tags=task_tags or name)
+    node = _Input()
+    node.name = name
+    node._save = save
+    if task_tags is None:
+        task_tags = ([] if name == _Input.name else [name]) if step else name
+    return node(data, task_tags=task_tags, step=step)

@@ -175,8 +175,11 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   the run's `run_summary.txt` and `resolved.json` and a folder for each step,
   `<id>-<tool>`, for example `01-Summarize`, with a folder for each table and part
   below it where a step runs once per table or part. A tool given to `--run` runs as a
-  workflow of one step, `01`. Until 0.6.2 the results were saved in
-  `<output>/<tool>/<date and time>/`. `flimbatch` always saves: it warns when a tool's
+  workflow of one step, `01`. Workflows defined in code (`Basic FLIRR Analysis` and the
+  autoencoder workflows) save the same way, also in the GUI: each of their steps has a
+  fixed id and a folder `<id>-<tool>`, and a step run in a loop has a folder per part.
+  Until 0.6.2 the results were saved in `<output>/<tool>/<date and time>/`, and those
+  of a workflow defined in code were not in step folders. `flimbatch` always saves: it warns when a tool's
   `output` sets `results_dir`, which `-o` replaces, or `save` to `false`.
 - **Default results folder:** the folder FLIMAnalyzer was started from, or `-o`, instead
   of `FLIMAnalyzerResults` in the home folder. A relative tool folder in a settings file
@@ -251,7 +254,8 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   dependencies of FLIMAnalyzer and the packages of installed plugin tools (with a Dask
   executor also `dask` and `distributed`) under `Versions`, and how the tasks ran under
   `Execution`, so a results folder records them also without the Prefect UI, and
-  the time the run took under `Elapsed`.
+  the time the run took under `Elapsed`. Its task table names each task's step
+  (`Step`) and results folder in the run (`Folder`).
 - **Heatmap:** the title is `Correlation`; until 0.6.2 it was `Data grouped by ...`,
   although the correlations are those of the whole table.
 - **Log files:** each GUI session writes its own log file in the platform's log folder,

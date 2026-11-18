@@ -47,6 +47,8 @@ If tools reported warnings, the dialog lists them under `Warnings:`, each with t
 
 It also links to the results folder and to the flow run on the Prefect server, if there is one.
 
+The results folder of the run has the file `run_summary.txt`. It lists each task with its step id (`Step`), its results folder in the run (`Folder`, for example `01-Summarize/a.txt`, the step's folder and the table's), its state, the resources it used and its message, for example a column it guessed.
+
 ![](/images/analysis/workflow-summary.png)
 
 After a tool run that was not cancelled, there is no run summary. If the tool reported a warning, for example `Concatenate` when the rows of tables side by side don't match (see [Concatenate](/userguide/data/concat)), a message `<tool name>: warning` shows it after the result windows open. If a tool's tasks fail, a message lists the failed tasks.
@@ -146,7 +148,7 @@ Before the run, every step is validated against the columns of the tables. If a 
 
 ## Results of a workflow file
 
-A workflow file's run saves its results in `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results`. Each step that saves has a folder of its own there, `<id>-<tool>`, for example `04-Calculate`. Below it, the results of a step that runs once per table are in a folder per table, and the results of a step that runs once per part in a folder per part. Only the results of the steps with `save` are saved, in the formats described in [Formats](#formats).
+A workflow file's run saves its results in `<folder>/<workflow name>/<date and time>/`, where `<folder>` is the folder chosen under `Save results`. Each step that saves has a folder of its own there, `<id>-<tool>`, for example `04-Calculate`. Below it, the results of a step that runs once per table are in a folder per table, and the results of a step that runs once per part in a folder per part. Only the results of the steps with `save` are saved, in the formats described in [Formats](#formats). A workflow defined in code, for example `Basic FLIRR Analysis`, saves the same way, in `<folder>/<workflow name>/<date and time>/`: each of its steps has a fixed id and a folder `<id>-<tool>`, and a step it runs in a loop, for example a plot per feature, has a folder per part.
 
 When the run ends, a window opens for each result that no later step uses, for example the joined table of `Import`. Results that a step saved open as saved. The run summary shows how the run ended and where the results are. A workflow file opens no graph window.
 

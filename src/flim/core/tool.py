@@ -345,6 +345,7 @@ class Tool(Generic[ConfigT]):
         config: Optional[ConfigT] = None,
         task_tags: Optional[str | Sequence[str]] = None,
         after: Sequence["TaskOutput"] = (),
+        step: Optional[str] = None,
     ) -> Any:
         """Call the tool: run it directly, submit it as a task, or trace it.
 
@@ -356,6 +357,8 @@ class Tool(Generic[ConfigT]):
             task_tags: The tags of the task, one or several; None for none.
             after: Handles of tasks this one waits for although they are not its
                 inputs, e.g. those whose results (model files) its config names.
+            step: The id of the workflow step the call belongs to, e.g. `03`, which
+                names its results folder (`03-<tool>`); None for none.
 
         Returns:
             Outside a flow, the results by display name (see `run_task`); inside a
@@ -364,7 +367,7 @@ class Tool(Generic[ConfigT]):
         """
         from flim.core.runner import call_tool
 
-        return call_tool(self, inputs, config, task_tags=task_tags, after=after)
+        return call_tool(self, inputs, config, task_tags=task_tags, after=after, step=step)
 
     def run_task(
         self, inputs: Sequence[Any], config: Optional[ConfigT] = None

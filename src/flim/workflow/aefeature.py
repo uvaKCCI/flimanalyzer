@@ -60,22 +60,25 @@ class AEFeature(Workflow[AEFeatureConfig]):
     ) -> None:
         """Call the workflow's steps on the training table and the table to analyze.
 
-        The steps are:
+        The steps, by their ids (each saves into `<id>-<tool>`; the calls of a loop
+        are parts of a step, named by what they analyze):
 
-        - Filter both tables, and compute the principal components of the features of
-          the filtered `data_run`.
-        - Train a model per combination of the training settings on the filtered
-          `data_train` (see `train_models`), and run each trained model of the last
+        - 00: both tables (parts `Input_Train`, `Input_Run`); 01: filter them; 02:
+          compute the principal components of the features of the filtered
+          `data_run`.
+        - 03: train a model per combination of the training settings on the filtered
+          `data_train` (see `train_models`); 04: run each trained model of the last
           epoch on the filtered `data_run` (Autoencoder: Run).
         - For FLIRR, the first principal component and the first feature of each
-          model: a KDE plot per time point; the mean per group of the other grouping
-          columns and time point, pivoted to one column per time point; the
+          model (parts `FLIRR`, `PCA` and each model's combination): 05: a KDE plot
+          per time point; 06, 07: the mean per group of the other grouping columns
+          and time point, pivoted to one column per time point; 08, 09: the
           normalized changes between consecutive time points (Series Analysis),
           sorted by the changes from the time points whose name contains the control
-          group (not case-sensitive), and shown as stacked bars with S.E.M. per group
-          of the other grouping columns; and KS statistics between the time points,
-          per group of the other grouping columns.
-        - Concatenate the KS statistics tables into one table.
+          group (not case-sensitive); 10: shown as stacked bars with S.E.M. per
+          group of the other grouping columns; 11: KS statistics between the time
+          points, per group of the other grouping columns.
+        - 12: concatenate the KS statistics tables into one table.
 
         The time points are the values of the time series column of `data_train`, in
         the order of its categories.
@@ -94,20 +97,22 @@ class AEFeature(Workflow[AEFeatureConfig]):
         series = ordered_values(data_train[timeseries])  # the time points
         pairs = list(zip(series, series[1:]))
 
+        # fixed step ids, one per call; the calls of a loop are parts of one step
         def filtered(data: pd.DataFrame, name: str) -> TaskOutput:
             return Filter()(
-                workflow_input(data, name),
+                workflow_input(data, name, step="00"),
                 config=FilterConfig(),
-                task_tags=f"{name}_Filtered",
+                task_tags=[name],
+                step="01",
             )["Table: Filtered"]
 
         train = filtered(data_train, "Input_Train")
         run = filtered(data_run, "Input_Run")
-        pca = PCAnalysis()(
-            run, config=PCAConfig(features=features), task_tags="PCA"
-        )["Table: PCA Components"]
+        pca = PCAnalysis()(run, config=PCAConfig(features=features), step="02")[
+            "Table: PCA Components"
+        ]
         trained = train_models(
-            train, config.training, f"AEFeature-{len(features)}", last_epoch=True
+            train, config.training, f"AEFeature-{len(features)}", last_epoch=True, step="03"
         )
 
         # FLIRR, the first principal component and the first feature of each model
@@ -119,8 +124,9 @@ class AEFeature(Workflow[AEFeatureConfig]):
             features_table = RunAE()(
                 run,
                 config=config.run.model_copy(update={"model_files": files}),
-                task_tags=tag,
+                task_tags=[tag],
                 after=[output],
+                step="04",
             )[result_name("Features", files[0])]
             compared.append((tag, features_table, "Feature 1", f"AERun {tag}:"))
 
@@ -129,7 +135,8 @@ class AEFeature(Workflow[AEFeatureConfig]):
             KDE()(
                 table,
                 config=KDEConfig(grouping=[timeseries], features=[feature]),
-                task_tags=tag,
+                task_tags=[tag],
+                step="05",
             )
             summary = Summarize()(
                 table,
@@ -138,13 +145,15 @@ class AEFeature(Workflow[AEFeatureConfig]):
                     features=[feature],
                     aggs=["mean"],
                 ),
-                task_tags=tag,
+                task_tags=[tag],
+                step="06",
             )["Table: Summary"]
             mean = f"{feature}\nmean"
             pivoted = Pivot()(
                 summary,
                 config=PivotConfig(grouping=[timeseries], features=[mean]),
-                task_tags=tag,
+                task_tags=[tag],
+                step="07",
             )["Table: Pivoted"]
             changes = SeriesAnalysis()(
                 pivoted,
@@ -152,7 +161,8 @@ class AEFeature(Workflow[AEFeatureConfig]):
                     features=[f"{mean}\n{t}" for t in series],
                     statistics={"delta", "delta_cum", "delta_norm"},
                 ),
-                task_tags=tag,
+                task_tags=[tag],
+                step="08",
             )["Table: Series Analysis"]
             deltas = [f"{mean}\nnormalized delta {a}:{b}" for a, b in pairs]
             control = config.control_group.lower()
@@ -165,7 +175,8 @@ class AEFeature(Workflow[AEFeatureConfig]):
                         if control in a.lower()
                     ]
                 ),
-                task_tags=tag,
+                task_tags=[tag],
+                step="09",
             )["Table: Sorted"]
             BarPlot()(
                 ordered,
@@ -175,7 +186,8 @@ class AEFeature(Workflow[AEFeatureConfig]):
                     bar_type="stacked",
                     error_type="s.e.m.",
                 ),
-                task_tags=tag,
+                task_tags=[tag],
+                step="10",
             )
             ks[tag] = KSStats()(
                 table,
@@ -185,6 +197,7 @@ class AEFeature(Workflow[AEFeatureConfig]):
                     features=[feature],
                     prefix=prefix,
                 ),
-                task_tags=tag,
+                task_tags=[tag],
+                step="11",
             )[f"{prefix}Table: KS-stats: {feature}"]
-        Concat()(ks, config=ConcatConfig(), task_tags="Summary")
+        Concat()(ks, config=ConcatConfig(), step="12")

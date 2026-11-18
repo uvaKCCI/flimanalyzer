@@ -36,7 +36,7 @@ The `Autoencoder Train` workflow trains autoencoder models on selected features 
 
 5. Click `OK`.
 
-6. When the run ends, the window `Autoencoder Train Graph` shows the steps, and the run summary says how the run ended (see [Workflows](/userguide/workflows)). No windows open for the results: they are saved in the folder of the run. Each model is labeled with its batch size, learning rate and weight decay, e.g. `128-0.0001-1e-08`, and has a folder of this name with its model files and these results:
+6. When the run ends, the window `Autoencoder Train Graph` shows the steps, and the run summary says how the run ended (see [Workflows](/userguide/workflows)). No windows open for the results: they are saved in the folder of the run. The step `01-Autoencoder_Train_Model` has a folder for each model, labeled with its batch size, learning rate and weight decay, e.g. `128-0.0001-1e-08`, with its model files and these results:
     - `AE Loss-<label>`: for each epoch (`Epoch`), the model's `Batch Size`, `Learning Rate` and `Weight Decay`, the `Training Loss` and the `Validation Loss` (the mean squared error between the input and its reconstruction), and the `Model File` saved after that epoch (`---` if none).
     - `AE Loss-<label> Plot` (if `Loss plots` is checked): the training and validation loss of each epoch.
     - `AE Decoded-<label>`: the reconstructed features of the last epoch, named `AE Recon <feature>`, with the category columns and a category column `Autoencoder` that tells whether the row was in the `training` or the `validation` set.
@@ -46,4 +46,4 @@ The `Autoencoder Train` workflow trains autoencoder models on selected features 
 
     The model files are named `<Model name>_<batch size>_<learning rate>_<weight decay>_epoch<NNNN>.model`, e.g. `AEModel_128_0.0001_1e-08_epoch0020.model`.
 
-    The folder `Model_Files` has the table `Files`, made by `Collect Files`: a row for each model file, with the label of its model (`Input`) and its path (`File`).
+    The folder of the step `02-Collect_Files` has the table `Files`, made by `Collect Files`: a row for each model file, with the label of its model (`Input`) and its path (`File`).

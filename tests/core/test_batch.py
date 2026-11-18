@@ -791,3 +791,31 @@ def test_a_tool_file_of_import_tables_reads_with_its_settings_and_runs_its_workf
     assert len(pd.read_csv(calculated, sep="\t")) == 35  # one file left out, by the tool file's settings
     err = capsys.readouterr().err
     assert "deprecated" not in err and "output.save=false" not in err
+
+
+def test_a_workflow_defined_in_code_saves_into_its_step_folders(data_dir, settings, tmp_path):
+    # fixed step ids, as a workflow file's: <id>-<tool>/<table>/<part>
+    rows = []
+    for path in sorted(data_dir.iterdir()):
+        _, fov, treatment, cell = path.stem.split("_")
+        rows.append(pd.read_csv(path, sep="\t").assign(Treatment=treatment, FOV=fov, Cell=cell))
+    table = tmp_path / "table.txt"
+    pd.concat(rows).to_csv(table, sep="\t", index=False)
+    settings.tools.set(
+        tools.get("Basic FLIRR Analysis"),
+        BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=["FAD a1[%]", "NAD(P)H a2[%]"]),
+    )
+    path = _settings_file(settings, tmp_path)
+    out = tmp_path / "out"
+    assert main(["-i", str(table), "-s", str(path), "-o", str(out), "--run", "Basic FLIRR Analysis",
+                 "--no-prefect-server"]) == 0  # fmt: skip
+    (run,) = out.glob("*/run-1")
+    steps = sorted(p.name for p in run.iterdir() if p.is_dir())
+    assert steps == ["00-Input", "01-Summarize", "02-Summarize", "03-Pair_Plot", "04-Relative_Change",
+                     "05-Summarize", "06-Scatter_Plot", "07-Line_Plot", "08-KDE"]  # fmt: skip
+    assert sorted(p.name for p in (run / "08-KDE" / "table.txt").iterdir()) == ["FAD_a1_pcent", "NAD_P_H_a2_pcent"]
+    summary = (run / "run_summary.txt").read_text()
+    header = next(line for line in summary.splitlines() if line.startswith("Task "))
+    assert header.split()[:4] == ["Task", "Step", "Folder", "Status"]
+    line = next(line for line in summary.splitlines() if line.startswith("KDE-1 "))
+    assert line.split()[1:3] == ["08", "08-KDE/table.txt/NAD_P_H_a2_pcent"]  # as on disk
