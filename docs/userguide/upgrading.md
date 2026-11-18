@@ -27,6 +27,22 @@ You don't have to change your settings files. Each time FLIMAnalyzer reads a set
 * **A workflow's `Strict` is now `processing.strict`.** The `strict` setting that 0.6 saved for a workflow moves to its `processing` > `strict` when the file is read; `null` (automatic) becomes strict. See [Workflows in the GUI](#workflows-in-the-gui).
 * **`-s` takes app settings files only.** A tool file or a workflow file given with `-s` is an error.
 
+When it reads a 0.6 file, FLIMAnalyzer converts these settings:
+
+| 0.6 | 0.7 |
+|---|---|
+| `working_dir` | `results_dir` |
+| a tool's `autosave` and `results_dir` | its `output` section: `save` and `results_dir`, with the default formats |
+| `strict` in a tool's `config` | its `processing` > `strict` (`null` is dropped: strict is the default) |
+| `rescale` in the autoencoder training settings, also in the autoencoder workflows' `training` | `rescale_output` |
+| `preprocess` > `rename`, `drop` and `calculate` | the settings of `Rename Columns`, `Drop Columns` and `Calculate`: each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` of 0.6 calculated them (see [Results that change](#results-that-change) for `calculate`) |
+| the range filters in `filters` | the `Filter` tool's range filters, each switched on as it was selected; the `Filter` tool's own 0.6 filters are added switched off |
+| `filters` > `use` (`Filter Data`) | `filters` > `features` (`Filter Features`) |
+| the `Filter` tool's filters | its three parts, by kind (a second filter on a column goes to `other`) |
+| the `import` section | not used; the GUI offers to save it as a workflow file (see [The import settings of 0.6](#the-import-settings-of-0-6)) |
+| `display` | dropped (no longer used) |
+| tools under former names, for example `Order Categories` | still read, with a warning; saved under the new name (see [Renamed tools](#renamed-tools)) |
+
 ## The import settings of 0.6
 
 The `Import` dialog of 0.6 is removed. `File` > `Open Tables...` opens each file in a table window, and `File` > `Import Tables...` reads the files and runs a workflow file on them (see [Import Tables](/userguide/data/load.md#import-tables)). The built-in `Import` workflow renames and drops the channels' columns, joins the tables and calculates the FLIM features, as `Import...` did with the default settings.

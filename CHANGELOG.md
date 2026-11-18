@@ -13,9 +13,19 @@ earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 Settings files, workflow files, the `flimsettings` command and new data tools, and bug
 fixes for 0.6.2, several of which change results. New requirements: Python 3.12 to
 3.14; PyTorch 2.14.1 for installs with uv from the source and the Docker CUDA image.
+Users of 0.6: what to do when changing to 0.7 is on the user guide page "Moving from
+0.6 to 0.7" (`docs/userguide/upgrading.md`, also at
+https://flimanalyzer.readthedocs.io).
 
 ### Results that change
 
+- **Calculated columns of 0.6 settings files:** until 0.6.2, `Import...` calculated its
+  built-in columns and ignored the `preprocess` > `calculate` section of a settings
+  file; `rename` and `drop` were applied. 0.7 converts the section into the settings of
+  the `Calculate` tool, and the workflow that the GUI offers to save from a 0.6 file's
+  import settings ends with a `Calculate` step that uses them. A file whose `calculate`
+  section differs from the built-in one therefore gives other calculated columns than
+  in 0.6.
 - **Autoencoder Train, weight decay:** the `Weight decays` setting was passed to
   PyTorch's RMSprop optimizer as its smoothing constant (`alpha`), and the weight decay
   was always 0; in `FLIM Data Augmentation Tuning` the weight decay values varied

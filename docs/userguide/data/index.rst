@@ -40,6 +40,8 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Removes columns by their names, as Import does.
    * - :doc:`Directory/File to Source <source>`
      - Adds the Source column to tables imported with FLIMAnalyzer 0.6 or earlier.
+   * - :doc:`Collect Files <collectfiles>`
+     - Lists the files of several workflow steps in one table (workflow files and flimbatch only).
    * - :doc:`Saving Data <save>`
      - Saves a data table to a file.
    
@@ -64,4 +66,5 @@ After you load data, you can change the tables to show trends more clearly, chan
     rename
     drop
     source
+    collectfiles
     save
