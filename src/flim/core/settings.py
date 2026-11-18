@@ -1133,6 +1133,13 @@ def update_settings(settings: AppSettings, data: dict) -> AppSettings:
     return _validated(merged)
 
 
+def _current_tool_name(name: str) -> str:
+    """Return a tool's current name for `name`, which may be a former name."""
+    from flim.core.registry import tools
+
+    return tools.current_name(name) or name
+
+
 def _registered(name: str) -> "Optional[type[Tool]]":
     """Return the registered tool named `name`, or None."""
     from flim.core.registry import tools
@@ -1465,6 +1472,37 @@ def write_json(path: str | os.PathLike, data: Any, *, newline: bool = False) -> 
         raise
 
 
+def with_current_names(sections: dict) -> dict:
+    """Return settings sections with the tools' sections and presets under their names.
+
+    A section or presets saved under a former name of a tool (`Tool.former_names`,
+    deprecated) move to the tool's current name; if the current name has its own,
+    those are kept and the former name's are dropped.
+
+    Args:
+        sections: Settings sections, e.g. `SettingsValidation.sections`.
+
+    Returns:
+        A copy, with `tools` and `presets` renamed.
+    """
+    from flim.core.registry import tools
+
+    renamed = dict(sections)
+    for key in ("tools", "presets"):
+        entries = sections.get(key)
+        if not isinstance(entries, dict):
+            continue
+        result: dict = {}
+        for name, value in entries.items():
+            current = tools.current_name(name)
+            if current is None:
+                result[name] = value
+            elif current not in entries:
+                result[current] = value
+        renamed[key] = result
+    return renamed
+
+
 def save_sections(sections: dict, path: str | os.PathLike) -> None:
     """Write settings sections, in the current version, to a file.
 
@@ -1497,7 +1535,8 @@ def update_settings_file(path: str | os.PathLike) -> Path:
     """Rewrite an app settings file or a tool file of an older version in the current one.
 
     The original is kept next to it (`backup_path`), so that the older FLIMAnalyzer
-    version can still read it. A tool file stays a tool file.
+    version can still read it. A tool file stays a tool file. Tools named by a former
+    name (deprecated) are saved under their current name (`with_current_names`).
 
     Args:
         path: The file.
@@ -1524,10 +1563,11 @@ def update_settings_file(path: str | os.PathLike) -> Path:
     if is_tool_file(data):
         name = str(data["tool"])
         section = validation.sections.get("tools", {}).get(name, {})
-        content = {"schema_version": SETTINGS_VERSION, "tool": name, **section}
+        current = _current_tool_name(name)  # a former name: the tool's name now
+        content = {"schema_version": SETTINGS_VERSION, "tool": current, **section}
         write_json(path, content, newline=True)
     else:
-        save_sections(validation.sections, path)
+        save_sections(with_current_names(validation.sections), path)
     return backup
 
 

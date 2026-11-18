@@ -483,8 +483,10 @@ describes how API changes are handled.
   Data`, `Order Categories`, `Concat Data`) in settings files, workflow files, tool
   files and `--run`: use the current names (`Autoencoder Train`, `Autoencoder Run`,
   `Autoencoder Augment Data`, `Order Category Values`, `Concatenate`). A former name
-  gives a warning naming the current one. Removed in 0.8.0, and so are the Prefect tags
-  of the former names: set concurrency limits on the current names.
+  gives a warning naming the current one. `flimsettings app --update`, `flimsettings
+  tool --update` and the GUI's `Update` save settings files under the current names.
+  Removed in 0.8.0, and so are the Prefect tags of the former names: set concurrency
+  limits on the current names.
 - **`-a` / `--execargs`:** put the options after the executor name, as
   `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers`. Removed in 0.8.0.
 - **`--allow-guesses`** (`flimbatch`): use `--override processing.strict=false`. Removed

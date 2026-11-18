@@ -599,3 +599,31 @@ def test_app_settings_refuse_formats_of_kinds_a_tool_doesnt_make(tmp_path):
         for i in validation.invalid
     )
     assert not any(i.startswith("tools.KDE") for i in validation.invalid)  # KDE makes plots
+
+
+def test_update_saves_former_names_under_the_current_names(tmp_path):
+    import json
+
+    import flim.tools  # noqa: F401
+    from flim.core.settings import update_settings_file
+
+    path = tmp_path / "lab.json"
+    path.write_text(json.dumps({
+        "schema_version": 1,
+        "tools": {
+            "Order Categories": {"config": {}, "autosave": True},
+            "Concat Data": {"config": {}},
+            "Concatenate": {"config": {}, "autosave": True},  # its own: kept
+        },
+        "presets": {"Order Categories": [{"name": "mine", "settings": {}}]},
+    }))  # fmt: skip
+    update_settings_file(path)
+    data = json.loads(path.read_text())
+    assert "Order Categories" not in data["tools"] and "Order Category Values" in data["tools"]
+    assert "Concat Data" not in data["tools"] and data["tools"]["Concatenate"]["output"]["save"] is True
+    assert list(data["presets"]) == ["Order Category Values"]
+
+    tool_file = tmp_path / "order.json"
+    tool_file.write_text(json.dumps({"schema_version": 1, "tool": "Order Categories", "config": {}}))
+    update_settings_file(tool_file)
+    assert json.loads(tool_file.read_text())["tool"] == "Order Category Values"

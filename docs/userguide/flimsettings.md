@@ -148,7 +148,7 @@ $ flimsettings tool --resolve summary.json --override processing.strict=false
 }
 ```
 
-`--update FILE` rewrites a tool file of an older version in the current version. The original file is kept next to it as `<name>.v<version>.json`, which the older FLIMAnalyzer version can still read. A file that has settings that can't be used, or that is already of the current version, is not changed; the exit code is then 1.
+`--update FILE` rewrites a tool file of an older version in the current version. The original file is kept next to it as `<name>.v<version>.json`, which the older FLIMAnalyzer version can still read. A tool named by a former name, for example `Order Categories`, is saved under its current name (see [Renamed tools](/userguide/upgrading.md#renamed-tools)). A file that has settings that can't be used, or that is already of the current version, is not changed; the exit code is then 1.
 
 ```
 $ flimsettings tool --update old-summary.json
@@ -324,7 +324,7 @@ Converted to the current version:
   autosave and results_dir of 1 tool to its output section
 ```
 
-`--update FILE` takes a path or a name in the app settings search path. It rewrites the file in the current version and keeps the original next to it as `<name>.v<version>.json`. As with `tool --update`, a file that has settings that can't be used, or that is already of the current version, is not changed, and the exit code is 1.
+`--update FILE` takes a path or a name in the app settings search path. It rewrites the file in the current version and keeps the original next to it as `<name>.v<version>.json`. The settings and presets of tools saved under a former name move to the tool's current name. As with `tool --update`, a file that has settings that can't be used, or that is already of the current version, is not changed, and the exit code is 1.
 
 ```
 $ flimsettings app --update lab

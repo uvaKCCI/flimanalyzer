@@ -167,6 +167,23 @@ class ToolRegistry:
                 return cls
         raise KeyError(name)
 
+    def current_name(self, name: str) -> Optional[str]:
+        """Return the current name of a tool that had `name` before, without a warning.
+
+        Args:
+            name: A name.
+
+        Returns:
+            The current name if `name` is a former name of a registered tool; None
+            otherwise (also for a current name).
+        """
+        if name in self._tools:
+            return None
+        for cls in self._tools.values():
+            if name in getattr(cls, "former_names", ()):
+                return cls.name
+        return None
+
     def __contains__(self, name: str) -> bool:
         """Return whether a tool has the name or a former name equal to it (no warning)."""
         return name in self._tools or any(
