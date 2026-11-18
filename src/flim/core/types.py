@@ -60,6 +60,23 @@ class DataType:
         return value
 
     @classmethod
+    def content_hash(cls, value: Any) -> Optional[str]:
+        """Return the SHA-256 of a value's content, which identifies it in a run.
+
+        The hash depends on what the value holds, not on how it is stored in memory
+        or pickled (see `flim.core.hashing`). The default returns None: values of
+        this type are not hashed. Types of plugins override it to have their values
+        identified in the run summary.
+
+        Args:
+            value: A value of this type.
+
+        Returns:
+            The hash, 64 hex digits; None if the value is not hashed.
+        """
+        return None
+
+    @classmethod
     def python_classes(cls) -> tuple[type, ...]:
         """Return the accepted classes whose top-level package is already imported.
 
@@ -109,6 +126,22 @@ class TableType(DataType):
     def snapshot(cls, value: Any) -> Any:
         """Return a deep copy: a table window can change its table during a run."""
         return value.copy(deep=True)
+
+    @classmethod
+    def content_hash(cls, value: Any) -> Optional[str]:
+        """Return the SHA-256 of a table's shape, columns, dtypes, index and values.
+
+        See `flim.core.hashing.table_hash`.
+
+        Args:
+            value: The DataFrame or Series.
+
+        Returns:
+            The hash, 64 hex digits.
+        """
+        from flim.core.hashing import table_hash
+
+        return table_hash(value)
 
     @classmethod
     def save(cls, value: Any, base: str | Path, options: TableSaveOptions) -> Path:
@@ -165,6 +198,23 @@ class ImageType(DataType):
     pytypes = ("numpy.ndarray", "dask.array.Array", "torch.Tensor")
     kind = "image"
 
+    @classmethod
+    def content_hash(cls, value: Any) -> Optional[str]:
+        """Return the SHA-256 of an array's shape, dtype and values in C order.
+
+        A Dask array is read a block of rows at a time; its chunks don't change the
+        hash (see `flim.core.hashing.array_hash`).
+
+        Args:
+            value: The NumPy, Dask or PyTorch array.
+
+        Returns:
+            The hash, 64 hex digits.
+        """
+        from flim.core.hashing import array_hash
+
+        return array_hash(value)
+
 
 class FileType(DataType):
     """Files, as paths."""
@@ -172,6 +222,21 @@ class FileType(DataType):
     pretty_name = "File"
     pytypes = ("pathlib.Path",)
     kind = "file"
+
+    @classmethod
+    def content_hash(cls, value: Any) -> Optional[str]:
+        """Return the SHA-256 of a file's bytes, as `sha256sum` gives it.
+
+        Args:
+            value: The path of the file.
+
+        Returns:
+            The hash, 64 hex digits; None if the path is not a file.
+        """
+        from flim.core.hashing import file_hash
+
+        path = Path(value)
+        return file_hash(path) if path.is_file() else None
 
     @classmethod
     def save(
