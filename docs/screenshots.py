@@ -9,7 +9,8 @@ analysis/gmm-config.png) select screenshots; default: all.
 
 Dialogs and windows are captured by their window number (``screencapture -l``: only
 their own content, never other windows; the terminal needs the Screen Recording
-permission), plots are saved directly. Windows open on the screen while it runs.
+permission), plots are saved directly. Windows open on the screen while it runs. The runs use a
+temporary Prefect server, whatever server the Prefect profile names.
 """
 
 import os
@@ -666,10 +667,15 @@ def main(argv=None):
     if unknown:
         print(f"Unknown screenshots: {', '.join(unknown)}")
         return 2
-    app = wx.App(False)
-    shooter = Shooter(load(argv[0]), names)
-    wx.CallLater(DELAY, shooter.next)
-    app.MainLoop()
+    # a temporary Prefect server, as the tests use: the runs never reach the server of
+    # the user's Prefect profile, and the run summary shows no server address
+    from prefect.testing.utilities import prefect_test_harness
+
+    with prefect_test_harness():
+        app = wx.App(False)
+        shooter = Shooter(load(argv[0]), names)
+        wx.CallLater(DELAY, shooter.next)
+        app.MainLoop()
     return 0
 
 
