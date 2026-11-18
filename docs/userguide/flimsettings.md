@@ -122,7 +122,7 @@ flimsettings: bad.json:
 
 `--validate` also gives warnings. For example, `"save": false` gives a warning, because `flimbatch` always saves the results of a tool run.
 
-`--resolve FILE` prints the file with every setting stated, as `flimbatch` runs it: every field of the tool's settings, `output` with `save` and the format of each kind of result, and `processing`. The settings that depend on the data, for example `features: all` and the columns guessed with `"strict": false`, stay as in the file; `flimbatch` writes them into `resolved.json` (see [Batch Mode](/userguide/batch)). A file with problems is not resolved: the problems are shown, with the exit code 1.
+`--resolve FILE` prints the file with every setting stated, as `flimbatch` runs it: every field of the tool's settings, `output` with `save` and the format of each kind of result, and `processing`. The settings that depend on the data, for example `features: all` and the columns guessed with `"strict": false`, stay as in the file, as in the `resolved.json` that `flimbatch` writes: they are resolved for each table when it runs (see [Batch Mode](/userguide/batch)). A file with problems is not resolved: the problems are shown, with the exit code 1.
 
 `--override GROUP.FIELD=VALUE` (repeatable) shows the result of the same `--override` given to `flimbatch`, for example `processing.strict=false`. The tool's settings (`config`) can't be overridden. The end of the output:
 

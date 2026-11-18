@@ -944,8 +944,10 @@ class FlowRun:
             "Tasks:      " + ", ".join(f"{n} {s}" for s, n in sorted(counts.items())),
             "",
         ]
-        if self.settings_record:
-            lines += ["Settings:"] + [f"  {line}" for line in self.settings_record] + [""]
+        # the settings files, and the app settings that shape the saved files' names
+        replacements = ", ".join(f"{k!r}: {v!r}" for k, v in char_replacements().items())
+        lines += ["Settings:"] + [f"  {line}" for line in self.settings_record]
+        lines += [f"  char_replacements: {{{replacements}}}", ""]
         if self.versions:
             lines += ["Versions:"] + [f"  {k} {v}" for k, v in self.versions.items()] + [""]
         if self.execution:

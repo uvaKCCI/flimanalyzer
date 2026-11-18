@@ -1826,7 +1826,6 @@ def declared_processing(tool: Any, config: Any, rules: ProcessingRules) -> dict:
 def resolve_definition(
     definition: WorkflowDefinition,
     override: Union[Processing, Sequence[Processing], None] = None,
-    schemas: Optional[dict] = None,
 ) -> WorkflowDefinition:
     """Return a workflow with every setting of every step stated: the resolved file.
 
@@ -1835,56 +1834,30 @@ def resolve_definition(
     its `inputs`; the workflow-level `output` and `processing` are folded into the
     steps. Resolving a resolved workflow gives the same workflow.
 
-    With the schemas of the run's tables, what depends on the data is pinned too,
-    as the first table's columns give it: columns guessed or entries skipped by a
-    step's `processing` (`flim.core.validation.resolve_step`), and `features: all`
-    as the list of the step's input's feature columns.
+    Only settings are resolved, not the data: `features: all`, the columns a step's
+    `processing` lets it guess and the entries it lets it skip stay as given. For a
+    table, the same version resolves them the same way, so a rerun on the same
+    tables repeats the run; the run summary lists the guesses and skipped entries
+    per table, and the versions.
 
     Args:
         definition: The workflow (a plan).
         override: A `processing` over every step's; None: none.
-        schemas: The run's tables' schemas (`TableSchema`) by name; None: only the
-            settings, not the data, are resolved.
 
     Returns:
         The resolved workflow.
     """
     from flim.core.registry import tools
-    from flim.core.schema import TableSchema
-    from flim.core.validation import resolve_step
 
-    first = next(iter((schemas or {}).values()), None)
-    known = {INPUT: [first]}
     steps, previous = [], INPUT
     for step in definition.steps:
         tool = tools.get(step.tool)
         config = tool.config_class.model_validate(step.config)
         rules = definition.rules(step, override)
-        references = step.inputs or [previous]
-        inputs = []
-        for reference in references:
-            source, number = parse_reference(reference)
-            outputs = known.get(source) or []
-            inputs.append(outputs[number - 1] if number <= len(outputs) else None)
-        if tool.inputs and tool.inputs[0].many:
-            many = schemas if references[0] == INPUT else {"Input": inputs[0]}
-            inputs = [None if not many or None in many.values() else many]
-        if schemas is not None:
-            resolution = resolve_step(tool, config, inputs, rules)
-            if not resolution.errors:
-                config = resolution.config
-            schema = inputs[0] if inputs and isinstance(inputs[0], TableSchema) else None
-            if getattr(config, "features", None) == "all" and schema is not None and schema.complete:
-                config = config.model_copy(update={"features": schema.by_role("feature")})
-        try:
-            specs = list(tool.output_schema(config, inputs).values())
-        except Exception:  # the outputs can't be worked out
-            specs = []
-        known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
         steps.append({
             "id": step.id,
             "tool": step.tool,
-            "inputs": list(references),
+            "inputs": list(step.inputs or [previous]),
             "description": step.description,
             "config": config.model_dump(mode="json"),
             "output": {

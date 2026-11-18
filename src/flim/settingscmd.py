@@ -512,7 +512,7 @@ def _workflow_resolve(args: argparse.Namespace) -> int:
     """Print a workflow file with every setting of every step stated.
 
     The settings that depend on the data (`features: all`, guessed columns, skipped
-    entries) stay as in the file; flimbatch pins them in `resolved.json`.
+    entries) stay as in the file, as in flimbatch's `resolved.json`.
     """
     from flim.core.workflowfile import (
         overridden,

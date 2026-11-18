@@ -333,10 +333,12 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   `resolved.json` holds the overridden settings.
 - **`resolved.json`:** `flimbatch` writes the settings of each run into
   `run-<n>/resolved.json`, as a workflow file (for a workflow defined in code, a tool
-  file) that states every setting of every step, the formats of each kind of result,
-  and the columns taken from the data (`features: all`, guessed columns, skipped
-  entries). `flimbatch --run resolved.json` on the same files repeats the run, also
-  with a later FLIMAnalyzer version whose defaults are different.
+  file) that states every setting of every step and the formats of each kind of
+  result. Settings that depend on the data (`features: all`, guessed columns, skipped
+  entries) stay as given and are resolved for each table. `flimbatch --run
+  resolved.json` on the same files with the same FLIMAnalyzer version repeats the
+  run. `run_summary.txt` lists, for each table, the columns guessed and the entries
+  skipped, and records the versions, the settings files and `char_replacements`.
 - **`flimsettings`:** a command that lists, shows, validates, resolves and updates
   settings without the GUI. `flimsettings tool` and `flimsettings workflow` take
   `--list`, `--show FILE|NAME`, `--validate FILE` and `--resolve FILE` (the file with

@@ -622,9 +622,10 @@ def test_workflows_are_strict_unless_guesses_are_allowed(data_dir, settings, tmp
     assert main(args + ["-o", str(tmp_path / "guessed"), "--allow-guesses"]) == 0
     (summary,) = (tmp_path / "guessed").rglob("run_summary.txt")
     assert "'FAD a1%' -> 'FAD a1[%]' (guessed)" in summary.read_text()
-    (resolved,) = (tmp_path / "guessed").rglob("resolved.json")  # the guesses pinned
+    (resolved,) = (tmp_path / "guessed").rglob("resolved.json")  # the settings as given
     data = json.loads(resolved.read_text())
-    assert data["tool"] == "Basic FLIRR Analysis" and "FAD a1[%]" in data["config"]["features"]
+    assert data["tool"] == "Basic FLIRR Analysis" and "FAD a1%" in data["config"]["features"]
+    assert data["processing"]["strict"] is False  # so a rerun guesses the same columns
     assert "--allow-guesses is deprecated and is removed in 0.8.0" in capsys.readouterr().err
     # the same from a tool file whose processing allows guesses
     tool_file = tmp_path / "flirr.json"

@@ -301,8 +301,9 @@ def run_on_tables(
         if overrides.given:
             definition = overridden(definition, overrides)
             tool = workflow_class(definition, getattr(tool, "path", None), overrides)
-        schemas = {name: TableSchema.from_frame(t) for name, t in tables.items()}
-        resolved = resolve_definition(definition, overrides, schemas)
+        # the settings as given, every one stated; what depends on the data (`features:
+        # all`, guesses, skipped entries) is resolved again per table when it is rerun
+        resolved = resolve_definition(definition, overrides)
         _write_resolved(run_dir, resolved_data(resolved))
         return tool().run_flow(
             tables,
@@ -328,9 +329,8 @@ def run_on_tables(
         configs[name] = report.config
         notes += resolution_notes(report, f"{name}: ")
 
-    first = next(iter(configs.values()), config)
     formats = overrides.formats_over(entry.output.formats if entry else [])
-    _write_resolved(run_dir, resolved_tool_data(tool, first, formats, rules))
+    _write_resolved(run_dir, resolved_tool_data(tool, config, formats, rules))  # as given
 
     def build() -> None:
         for name, table in tables.items():

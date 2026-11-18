@@ -769,16 +769,15 @@ def test_resolving_states_every_setting_and_is_stable():
     assert resolved_data(resolve_definition(resolved)) == resolved_data(resolved)
 
 
-def test_resolving_with_the_tables_pins_what_depends_on_the_data():
+def test_resolving_leaves_what_depends_on_the_data_as_given():
     from flim.core.workflowfile import resolve_definition
 
-    schemas = {n: TableSchema.from_frame(t) for n, t in _tables().items()}
-    skipped = resolve_definition(_summarize(["t1", "gone"], {"skippable": {"features": "some"}}), schemas=schemas)
-    assert skipped.steps[0].config["features"] == ["t1"]
-    guessed = resolve_definition(_summarize(["T1"], {"strict": False}), schemas=schemas)
-    assert guessed.steps[0].config["features"] == ["t1"]
-    everything = resolve_definition(_summarize("all"), schemas=schemas)
-    assert everything.steps[0].config["features"] == ["t1"]  # the input's feature columns
+    # resolved for each table when it runs, not from the data of one run
+    skipped = resolve_definition(_summarize(["t1", "gone"], {"skippable": {"features": "some"}}))
+    assert skipped.steps[0].config["features"] == ["t1", "gone"]
+    guessed = resolve_definition(_summarize(["T1"], {"strict": False}))
+    assert guessed.steps[0].config["features"] == ["T1"]
+    assert resolve_definition(_summarize("all")).steps[0].config["features"] == "all"
 
 
 def test_parse_overrides():
