@@ -5,6 +5,7 @@ importing the module an entry point names registers its tools.
 """
 
 import logging
+import warnings
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
@@ -42,6 +43,33 @@ SHORT_NAME_LENGTH = 10  # Tool.short_name
 
 # a tool class, for the decorators that return the class they register
 ToolClassT = TypeVar("ToolClassT", bound="type[Tool]")
+
+
+# the release that removes the former names of tools (`Tool.former_names`)
+FORMER_NAMES_REMOVED_IN = "0.8.0"
+_warned_former: set[str] = set()  # the former names already warned about
+
+
+def warn_former_name(cls: type["Tool"], name: str) -> None:
+    """Warn that a tool was named by a former name, once per name and process.
+
+    The warning is logged (shown in the terminal by flimbatch and flimsettings, and
+    in the GUI's log), and issued as a `DeprecationWarning` for code that calls the
+    API.
+
+    Args:
+        cls: The tool.
+        name: The former name it was named by.
+    """
+    if name in _warned_former:
+        return
+    _warned_former.add(name)
+    message = (
+        f"the tool name '{name}' is deprecated and is removed in {FORMER_NAMES_REMOVED_IN};"
+        f" use '{cls.name}'"
+    )
+    logger.warning(message)
+    warnings.warn(message, DeprecationWarning, stacklevel=3)
 
 
 def _names(cls: type["Tool"]) -> set[str]:
@@ -117,9 +145,10 @@ class ToolRegistry:
     def get(self, name: str) -> type["Tool"]:
         """Return the tool registered under a name, or that had the name before.
 
-        A former name (`former_names`) is accepted, so that settings files,
-        workflow files and command lines that name a renamed tool keep working.
-        Names are matched exactly; a short name is not accepted.
+        A former name (`former_names`) is accepted, with a warning
+        (`warn_former_name`), so that settings files, workflow files and command
+        lines that name a renamed tool keep working until 0.8.0. Names are matched
+        exactly; a short name is not accepted.
 
         Args:
             name: The tool's name or one of its former names.
@@ -134,16 +163,15 @@ class ToolRegistry:
             return self._tools[name]
         for cls in self._tools.values():
             if name in getattr(cls, "former_names", ()):
+                warn_former_name(cls, name)
                 return cls
         raise KeyError(name)
 
     def __contains__(self, name: str) -> bool:
-        """Return whether a tool has the name or a former name equal to it."""
-        try:
-            self.get(name)
-        except KeyError:
-            return False
-        return True
+        """Return whether a tool has the name or a former name equal to it (no warning)."""
+        return name in self._tools or any(
+            name in getattr(cls, "former_names", ()) for cls in self._tools.values()
+        )
 
     def __len__(self) -> int:
         """Return the number of registered tools."""

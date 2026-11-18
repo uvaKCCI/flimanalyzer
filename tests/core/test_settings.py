@@ -61,7 +61,8 @@ def test_defaults():
 def test_settings_of_version_0(caplog):
     with caplog.at_level(logging.WARNING):
         settings = load_settings(V0_FILE)
-    assert not caplog.records  # every key known
+    # every key known; a 0.6 file names tools by their former names (deprecated)
+    assert not [r for r in caplog.records if "is deprecated and is removed in" not in r.getMessage()]
     assert settings.schema_version == SETTINGS_VERSION
     assert settings.results_dir == Path("/data/results")
     assert "import" not in settings.to_json()  # dropped: a workflow file's

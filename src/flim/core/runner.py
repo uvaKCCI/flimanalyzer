@@ -917,8 +917,8 @@ class FlowRun:
         # skips it (state NotReady) if one of them did not complete. Besides the
         # workflow's tags (which also name the results folders), every task is tagged
         # with its tool's name, so that concurrency limits on a tool apply everywhere;
-        # also with its former names (limits set on them keep applying) and its
-        # extra_tags.
+        # also with its former names (limits set on them keep applying; deprecated,
+        # removed in 0.8.0 with the former names) and its extra_tags.
         names = [tool.name, *getattr(tool, "former_names", ()), *getattr(tool, "extra_tags", ())]
         with tags(*dict.fromkeys(tag_list + names)):
             ref = run_tool.submit(tool, label, payload, autosave)

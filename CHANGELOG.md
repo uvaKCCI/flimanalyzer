@@ -227,14 +227,15 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   replace a column of the chosen name.
 - **Order Categories** is now `Order Category Values`: it orders the values within
   category columns. Its results are saved in a folder of the new name. The former name
-  still works in settings files, workflow files and `flimbatch --run`.
+  still works in settings files, workflow files and `flimbatch --run`, with a warning
+  (deprecated).
 - **Autoencoder tools** are named without a colon: `Autoencoder Train`, `Autoencoder
   Run` and `Autoencoder Augment Data`. `Autoencoder Train` is now a workflow: the step
   `Autoencoder Train Model`, which is in no menu, trains one model for each combination
   of settings, and `Collect Files` lists the model files of all combinations in one
   table. The former names still work in settings files, workflow files and
-  `flimbatch --run`, and the tasks are also tagged with them in Prefect, so concurrency
-  limits set on the former names still apply.
+  `flimbatch --run`, with a warning (deprecated), and the tasks are also tagged with
+  them in Prefect, so concurrency limits set on the former names still apply.
 - **Workflows defined in code** (for example `Basic FLIRR Analysis`) are strict by
   default also in the GUI: a column that the settings name and the data doesn't have
   is an error. Until 0.6.2 the GUI used the closest matching column, unless `Strict`
@@ -467,6 +468,12 @@ describes how API changes are handled.
 - **`-c` / `--config`:** use `-s` / `--settings`. Removed in 0.8.0.
 - **Executor names `LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor`:** use `-e local`,
   `-e dask-local` and `-e dask`. Removed in 1.0.0.
+- **Former tool names** (`Autoencoder: Train`, `Autoencoder: Run`, `Autoencoder: Augment
+  Data`, `Order Categories`, `Concat Data`) in settings files, workflow files, tool
+  files and `--run`: use the current names (`Autoencoder Train`, `Autoencoder Run`,
+  `Autoencoder Augment Data`, `Order Category Values`, `Concatenate`). A former name
+  gives a warning naming the current one. Removed in 0.8.0, and so are the Prefect tags
+  of the former names: set concurrency limits on the current names.
 - **`-a` / `--execargs`:** put the options after the executor name, as
   `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers`. Removed in 0.8.0.
 - **`--allow-guesses`** (`flimbatch`): use `--override processing.strict=false`. Removed

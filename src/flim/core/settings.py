@@ -236,6 +236,9 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
     def entry(self, tool: "type[Tool]") -> Optional[ToolSettings]:
         """Return the tool's settings, also those saved under one of its former names.
 
+        Settings under a former name are deprecated (`warn_former_name`); writing
+        the tool's settings saves them under its name.
+
         Args:
             tool: The tool class; its `name` is looked up first, then its
                 `former_names` in order.
@@ -245,6 +248,10 @@ class ToolSettingsMap(RootModel[dict[str, ToolSettings]]):
         """
         for name in (tool.name, *getattr(tool, "former_names", ())):
             if name in self.entries:
+                if name != tool.name:
+                    from flim.core.registry import warn_former_name
+
+                    warn_former_name(tool, name)
                 return self.entries[name]
         return None
 
@@ -506,6 +513,10 @@ class AppSettings(_Settings):
         """
         for name in (tool.name, *getattr(tool, "former_names", ())):
             if name in self.presets:
+                if name != tool.name:
+                    from flim.core.registry import warn_former_name
+
+                    warn_former_name(tool, name)
                 return copy.deepcopy(self.presets[name])
         return []
 

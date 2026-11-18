@@ -104,7 +104,7 @@ Workflow files are new in 0.7: a workflow as a JSON file of steps (see [Workflow
 | `Autoencoder: Augment Data` | `Autoencoder Augment Data` |
 | `Order Categories` | `Order Category Values` |
 
-The former names still work in settings files, workflow files and `flimbatch --run`. Prefect tags the tasks also with the former names of the tools, so concurrency limits set on the former names still apply. The results of `Order Category Values` are saved in a folder of the new name.
+The former names still work in settings files, workflow files and `flimbatch --run`, with a warning that names the new name; they are deprecated and are removed in 0.8.0. Replace them in your files and scripts, for example with `Save Settings...` in the tool's dialog, which saves the settings under the new name. Until then, Prefect tags the tasks also with the former names of the tools, so concurrency limits set on the former names still apply; set them on the new names. The results of `Order Category Values` are saved in a folder of the new name.
 
 `Autoencoder Train` is now a workflow. Its step `Autoencoder Train Model`, which is in no menu, trains one model for each combination of settings.
 
