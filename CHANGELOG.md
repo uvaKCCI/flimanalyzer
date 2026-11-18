@@ -250,7 +250,8 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
 - **`run_summary.txt`** also lists the versions of FLIMAnalyzer, Python, the installed
   dependencies of FLIMAnalyzer and the packages of installed plugin tools (with a Dask
   executor also `dask` and `distributed`) under `Versions`, and how the tasks ran under
-  `Execution`, so a results folder records them also without the Prefect UI.
+  `Execution`, so a results folder records them also without the Prefect UI, and
+  the time the run took under `Elapsed`.
 - **Heatmap:** the title is `Correlation`; until 0.6.2 it was `Data grouped by ...`,
   although the correlations are those of the whole table.
 - **Log files:** each GUI session writes its own log file in the platform's log folder,

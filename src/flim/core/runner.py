@@ -177,6 +177,20 @@ class CancelToken:
         self.__dict__.update(state, _local=None, _client=None)
 
 
+def elapsed(start: datetime.datetime, end: datetime.datetime) -> str:
+    """Return the time from `start` to `end` as hours, minutes and seconds.
+
+    Args:
+        start: When the run started.
+        end: When it finished.
+
+    Returns:
+        For example `0:02:05`, or `27:00:00` for more than a day.
+    """
+    seconds = max(0, round((end - start).total_seconds()))
+    return f"{seconds // 3600}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
+
+
 def default_workers() -> int:
     """Return the number of threads for concurrent tasks.
 
@@ -924,6 +938,7 @@ class FlowRun:
             f"State:      {self.state}",
             f"Started:    {self.start_time:%Y-%m-%d %H:%M:%S}",
             f"Finished:   {self.end_time:%Y-%m-%d %H:%M:%S}" if self.end_time else "Finished:",
+            f"Elapsed:    {elapsed(self.start_time, self.end_time)}" if self.end_time else "Elapsed:",
             f"Prefect:    {self.ui_url or self.flow_run_id or '-'}",
             f"Results:    {self.autosave_dir}",
             "Tasks:      " + ", ".join(f"{n} {s}" for s, n in sorted(counts.items())),
