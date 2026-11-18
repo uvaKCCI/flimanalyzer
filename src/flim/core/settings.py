@@ -1373,6 +1373,16 @@ def validate_settings_file(path: str | os.PathLike) -> SettingsValidation:
             ) if isinstance(err, ValidationError) else str(err)
             validation.invalid.append(f"tools.{name}.config: {reason}")
             data["tools"].pop(name, None)
+            continue
+        # formats of kinds the tool doesn't make, as for tool and workflow files
+        kinds = tool.output_kinds()
+        for options in entry.output.formats:
+            if options.kind not in kinds:
+                validation.invalid.append(
+                    f"tools.{name}.output.formats: a format of kind '{options.kind}',"
+                    f" which {tool.name} doesn't make (it makes: {', '.join(kinds)})"
+                )
+                data["tools"].pop(name, None)  # as for an invalid value (_remove_invalid)
     settings = _remove_invalid(data, validation.invalid)
     validation.unknown = _extra_keys(settings) + [
         key

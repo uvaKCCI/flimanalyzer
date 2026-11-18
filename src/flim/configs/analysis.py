@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Annotated, Any, Literal, Optional, Self, Union
 
-from pydantic import AfterValidator, Field, field_validator, model_validator
+from pydantic import AfterValidator, Field, field_serializer, field_validator, model_validator
 
 from flim.core.config import (
     BaseConfig,
@@ -147,6 +147,15 @@ class SeriesAnalysisConfig(StatisticsConfig):
         title="Include the input",
         description="Also include the series' features in the result.",
     )
+
+    @field_serializer("statistics")
+    def _statistics_in_order(self, statistics: set[str]) -> list[str]:
+        """Save the statistics as a list in a fixed order (that of `SERIES_STATISTICS`).
+
+        A set has no fixed order: saved settings files would list them differently
+        from run to run.
+        """
+        return [s for s in SERIES_STATISTICS if s in statistics]
 
     @classmethod
     def _from_legacy(cls, params: dict[str, Any]) -> dict[str, Any]:

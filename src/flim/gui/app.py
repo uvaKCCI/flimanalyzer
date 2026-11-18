@@ -1274,7 +1274,8 @@ class AppFrame(wx.Frame):
             self,
             "Import Settings",
             wildcard="json files (*.json)|*.json|All files|*",
-            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
+            # without FD_CHANGE_DIR: the working folder stays the start folder
+            style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
@@ -1323,12 +1324,20 @@ class AppFrame(wx.Frame):
             dialog.ShowModal()
 
     def OnSaveSettings(self, event: wx.CommandEvent) -> None:
-        """File > Export Settings...: write the settings to a chosen file."""
+        """File > Export Settings...: write the settings to a chosen file.
+
+        The dialog opens at the first folder of the app settings search path that
+        exists, where `-s` and the startup dialog find the file by name.
+        """
+        folders = [Path(f) for f in self.settings_folders()["app_settings_folders"]]
+        start = next((f for f in folders if f.is_dir()), None)
         with wx.FileDialog(
             self,
             "Export Settings",
+            defaultDir=str(start) if start else "",
             wildcard="json files (*.json)|*.json|All files|*",
-            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
+            # without FD_CHANGE_DIR: the working folder stays the start folder
+            style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return

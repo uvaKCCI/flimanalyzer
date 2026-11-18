@@ -118,6 +118,7 @@ class RangeFilter(Filter):
         params: Optional[dict[str, Any]] = None,
     ) -> None:
         """Create a range filter; see the class for the arguments."""
+        super().__init__(name, selected)  # the base attributes, e.g. `description`
         if params:
             self.set_params(params)
         else:
@@ -147,7 +148,11 @@ class RangeFilter(Filter):
         """Set the filter from parameters as returned by `get_params`.
 
         Missing keys take these values: name "", range 0 to 100, no allowed limits,
-        `selected` True, `dropna` True.
+        `selected` True, `dropna` True. `selected` is True here, unlike the
+        constructor's default (False, for a new filter): stored parameters without it
+        were written by versions that applied every filter they listed, and the
+        conversions of settings files read them the same way
+        (`flim.core.filtering`, `flim.configs.data`).
 
         Args:
             params: The parameters.

@@ -460,3 +460,22 @@ def test_workflow_strict_moved_to_processing():
     assert "strict" not in AETuneConfig.model_fields
     assert AETuneConfig.model_validate({"strict": True}) == AETuneConfig()  # accepted, dropped
     assert "strict" not in AETuneConfig().to_legacy_params()
+
+
+@pytest.mark.parametrize("seed", ["1", "2", "3"])
+def test_series_analysis_statistics_are_saved_in_a_fixed_order(seed):
+    import json
+    import subprocess
+    import sys
+
+    code = (
+        "import json, sys; sys.path.insert(0, 'src');"
+        "from flim.configs.analysis import SeriesAnalysisConfig;"
+        "print(json.dumps(SeriesAnalysisConfig(features=['a', 'b']).model_dump(mode='json')['statistics']))"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         env={"PYTHONHASHSEED": seed, "PATH": ""}, check=True).stdout  # fmt: skip
+    from flim.configs.analysis import SERIES_STATISTICS
+
+    statistics = json.loads(out)
+    assert statistics == [s for s in SERIES_STATISTICS if s in statistics]

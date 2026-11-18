@@ -594,6 +594,15 @@ describes how API changes are handled.
 - **Table window:** the window could be lower than its side bar, so the last buttons
   were cut off. It now opens at least as high as the side bar, within the screen, and
   can't be made lower.
+- **Series Analysis settings** listed the statistics in a different order each time
+  they were saved, so saved files changed without a change of settings. They are now
+  saved in a fixed order.
+- **Import Settings and Export Settings** changed the working folder to the folder of
+  the chosen file. They no longer do. `Export Settings...` opens at the first folder of
+  the app settings search path.
+- **App settings files** with a format of a kind that a tool doesn't make in the
+  tool's section, for example a plot format for `Summarize`, were accepted. The tool's
+  section is now reported as invalid and not used, as in tool and workflow files.
 
 ### Known issues
 

@@ -578,3 +578,24 @@ def test_a_settings_file_is_replaced_in_one_step(tmp_path, monkeypatch, writer):
     calls[writer]()  # written, with the permissions of the file it replaces
     assert json.loads(path.read_text())["schema_version"] == 2
     assert path.stat().st_mode & 0o777 == 0o640
+
+
+def test_app_settings_refuse_formats_of_kinds_a_tool_doesnt_make(tmp_path):
+    import json
+
+    from flim.core.settings import validate_settings_file
+
+    path = tmp_path / "lab.json"
+    path.write_text(json.dumps({
+        "schema_version": 2,
+        "tools": {
+            "Summarize": {"config": {}, "output": {"formats": [{"kind": "plot", "format": "svg"}]}},
+            "KDE": {"config": {}, "output": {"formats": [{"kind": "plot", "format": "svg"}]}},
+        },
+    }))  # fmt: skip
+    validation = validate_settings_file(path)
+    assert any(
+        i.startswith("tools.Summarize.output.formats: a format of kind 'plot', which Summarize doesn't make")
+        for i in validation.invalid
+    )
+    assert not any(i.startswith("tools.KDE") for i in validation.invalid)  # KDE makes plots

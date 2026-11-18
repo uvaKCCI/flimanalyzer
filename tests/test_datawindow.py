@@ -1,6 +1,7 @@
 """Data window and main window features, driven as a user would (file dialogs and
 group selections are answered by the test)."""
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -1227,3 +1228,19 @@ def test_save_uses_the_format_of_a_typed_extension(frame, monkeypatch, tmp_path,
     path = save_dataframe(window, "Save", window.data, "x.txt", saveindex=False)
     assert path == str(tmp_path / "x.csv")
     assert pd.read_csv(path, sep=",").shape == flim_data.shape
+
+
+def test_export_settings_opens_at_the_search_path_and_keeps_the_working_folder(frame, monkeypatch, tmp_path):
+    folder = tmp_path / "appsettings"  # the test's FLIM_APP_SETTINGS_PATH (conftest)
+    folder.mkdir(exist_ok=True)
+    opened = {}
+
+    def show(dialog):
+        opened["dir"] = dialog.GetDirectory()
+        return wx.ID_CANCEL
+
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", show)
+    cwd = os.getcwd()
+    frame.OnSaveSettings(None)
+    assert os.path.samefile(opened["dir"], folder)
+    assert os.getcwd() == cwd
