@@ -50,7 +50,7 @@ from flim.core.tool import Tool
 from flim.core.tools import FLIMAnalyzer
 from flim.core.workflow import Workflow
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, category_path, discover, tools
-from flim.core.runner import CancelToken, FlowRun, run_flow
+from flim.core.runner import CancelToken, FlowRun, InputOrigin, run_flow
 from flim.gui.configdialog import open_config_dialog, shown_in_gui
 from flim.gui.icons import icon_bitmap, tool_bitmap
 from flim.gui.macos import set_bundle_name, set_display_name
@@ -352,6 +352,9 @@ class AppFrame(wx.Frame):
         self.data_manager = DataManager()
         self.windowframes = {}  # item ID -> its window
         self.window_zorder = []  # item IDs of the table windows, the current one last
+        # the copies of the tables a tool dialog offered, with their items and views
+        # (`tool_data_choices`), for the run summary's `Inputs`
+        self.input_origins: list = []
         self._menu_items = {}  # item ID -> the ID of its Window menu entry
         self._save_all_dir = None  # the folder last used by Save All Windows...
 
@@ -1076,6 +1079,7 @@ class AppFrame(wx.Frame):
         autosave_dir = os.path.join(canonical_folder(str(folder)), name)
         task_runner = self.flimanalyzer.get_task_runner()
         formats = workflow.definition.output.formats if workflow is not None else []
+        replacements = workflow.definition.output.char_replacements if workflow is not None else None
 
         def start_run(
             cancel_token: CancelToken,
@@ -1092,6 +1096,7 @@ class AppFrame(wx.Frame):
                 on_start=on_start,
                 settings_record=self.settings_manager.record(),
                 save_formats=formats,
+                char_replacements=replacements,
             )
 
         flow_run = self.run_with_progress(importer.name, start_run)
@@ -1125,7 +1130,12 @@ class AppFrame(wx.Frame):
                 return
             tool = workflow_class(validation.definition, Path(path))
         if tool is not None and self.confirm_workflow(tool, title):
-            self.run_workflow_on_tables(tool, {title: TableType.snapshot(table)})
+            copy = TableType.snapshot(table)
+            frame = self.windowframes.get(self.window_zorder[-1]) if self.window_zorder else None
+            if isinstance(frame, PandasFrame):
+                details = f'item {self.window_zorder[-1]} "{title}"; {frame.view_description()}'
+                self.input_origins = [(copy, InputOrigin(details=details))]
+            self.run_workflow_on_tables(tool, {title: copy})
 
     def settings_folders(self) -> dict:
         """Return the folders a tool dialog's `Save Settings...` uses, as its arguments.
@@ -1184,6 +1194,11 @@ class AppFrame(wx.Frame):
         )
         autosave_dir = os.path.join(canonical_folder(str(folder)), tool.name)
         formats = autosave.formats if autosave is not None else tool.definition.output.formats
+        replacements = (
+            autosave.char_replacements
+            if autosave is not None and autosave.char_replacements
+            else tool.definition.output.char_replacements
+        )
         task_runner = self.flimanalyzer.get_task_runner()
         workflow = tool()
 
@@ -1201,8 +1216,11 @@ class AppFrame(wx.Frame):
                 on_start=on_start,
                 settings_record=self.settings_manager.record(),
                 save_formats=formats,
+                char_replacements=replacements,
+                input_origins=origins,
             )
 
+        origins, self.input_origins = self.input_origins, []  # this run's
         flow_run = self.run_with_progress(tool.name, start_run)
         if flow_run is None:
             return None
@@ -1384,12 +1402,22 @@ class AppFrame(wx.Frame):
         """Return the shown tables of the table windows by title, the current first.
 
         Each is a copy (`TableType.snapshot`): a run in its worker thread reads
-        tables that later edits in the windows don't change.
+        tables that later edits in the windows don't change. `input_origins` holds
+        each copy with its item and the window's view (filters, rows shown), for the
+        run summary's `Inputs`.
         """
-        title, currentdata = self.get_currentdata()
-        data_choices = {title: currentdata} if title else {}
-        data_choices.update(self.get_alldata())
-        return {name: TableType.snapshot(table) for name, table in data_choices.items()}
+        order = list(self.window_zorder[-1:]) + list(self.windowframes)  # the current first
+        choices: dict[str, pd.DataFrame] = {}
+        self.input_origins = []  # each copy, and the item and view it came from
+        for item_id in dict.fromkeys(order):
+            frame = self.windowframes.get(item_id)
+            if not isinstance(frame, PandasFrame):
+                continue
+            title = self.data_manager.get(item_id).title
+            choices[title] = copy = TableType.snapshot(frame.GetViewData())
+            details = f'item {item_id} "{title}"; {frame.view_description()}'
+            self.input_origins.append((copy, InputOrigin(details=details)))
+        return choices
 
     def run_tool(self, tool: type[Tool], current: Optional[str] = None) -> None:
         """Configure a tool in its dialog and run it on the selected tables.
@@ -1477,6 +1505,8 @@ class AppFrame(wx.Frame):
                     processing=ProcessingRules.of(result.processing),
                     settings_record=self.settings_manager.record(),
                     save_formats=autosave.formats,
+                    char_replacements=autosave.char_replacements,
+                    input_origins=origins,
                 )
 
         else:
@@ -1504,8 +1534,11 @@ class AppFrame(wx.Frame):
                     on_start=on_start,
                     settings_record=self.settings_manager.record(),
                     save_formats=autosave.formats,
+                    char_replacements=autosave.char_replacements,
+                    input_origins=origins,
                 )
 
+        origins, self.input_origins = self.input_origins, []  # this run's
         flow_run = self.run_with_progress(tool.name, start_run)
         if flow_run is None:
             return  # cancelled or stopped by an error, already reported

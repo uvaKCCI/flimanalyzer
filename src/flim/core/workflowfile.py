@@ -42,10 +42,19 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    ValidationError,
+    field_validator,
+    model_serializer,
+)
 
 from flim import __version__
 from flim.core.config import Processing, ProcessingRules
+from flim.core.paths import CharReplacements, without_unset_replacements
 from flim.core.saving import Formats
 
 if TYPE_CHECKING:
@@ -72,6 +81,19 @@ class StepOutput(BaseModel):
         default=None,
         description="The formats of the saved outputs, per kind; None: the workflow's.",
     )
+    char_replacements: Optional[CharReplacements] = Field(
+        default=None,
+        description="Text replaced in the names of the files and folders the results"
+        " are saved in, in order, before every other character than ASCII letters,"
+        " digits, -, _ and . becomes _; added to the defaults. None: the workflow's.",
+    )
+
+    # no return annotation: with one, pydantic's serialization JSON schema of the
+    # section would lose its fields (as for flim.core.config.BaseConfig)
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler):
+        """Serialize the section, leaving out `char_replacements` if it is not set."""
+        return without_unset_replacements(handler(self))
 
 
 class WorkflowOutput(BaseModel):
@@ -84,6 +106,19 @@ class WorkflowOutput(BaseModel):
         description="The formats of saved outputs, per kind, for steps without their"
         " own; a kind not listed is saved in its default format.",
     )
+    char_replacements: Optional[CharReplacements] = Field(
+        default=None,
+        description="Text replaced in the names of the files and folders the results"
+        " are saved in, in order, before every other character than ASCII letters,"
+        " digits, -, _ and . becomes _; added to the defaults. None: the defaults, for steps without their own.",
+    )
+
+    # no return annotation: with one, pydantic's serialization JSON schema of the
+    # section would lose its fields (as for flim.core.config.BaseConfig)
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler):
+        """Serialize the section, leaving out `char_replacements` if it is not set."""
+        return without_unset_replacements(handler(self))
 
 
 class WorkflowStep(BaseModel):
@@ -947,6 +982,7 @@ def _file_workflow_base() -> type["Workflow"]:
                     tool = tool_class()
                     tool._save = _saved(step)
                     tool._formats = step.output.formats  # None: the workflow's (the run's)
+                    tool._char_replacements = step.output.char_replacements  # likewise
                     tool._processing = self.definition.rules(step, self.override)
                     tool._notes = notes  # applied before the run, reported by the run
                     # the results' folders: the step's (made by the runner, see
@@ -1870,6 +1906,7 @@ def resolve_definition(
             "output": {
                 "save": step.output.save,
                 "formats": [f.model_dump(mode="json") for f in step_formats(definition, step)],
+                "char_replacements": step_replacements(definition, step),
             },
             "processing": declared_processing(tool, config, rules),
         })  # fmt: skip
@@ -1883,6 +1920,25 @@ def resolve_definition(
     })  # fmt: skip
 
 
+def step_replacements(definition: WorkflowDefinition, step: WorkflowStep) -> dict[str, str]:
+    """Return the character replacements of a step's file and folder names.
+
+    The step's own `output.char_replacements`, else the workflow's, else the
+    defaults; each with the defaults it adds to.
+
+    Args:
+        definition: The workflow.
+        step: One of its steps.
+
+    Returns:
+        Text -> replacement, in order.
+    """
+    from flim.core.paths import DEFAULT_CHAR_REPLACEMENTS
+
+    own = step.output.char_replacements or definition.output.char_replacements
+    return dict(own or DEFAULT_CHAR_REPLACEMENTS)
+
+
 def resolved_data(definition: WorkflowDefinition) -> dict:
     """Return a resolved workflow as the content of its file (`resolved.json`)."""
     data = definition.model_dump(mode="json", exclude={"output", "processing"})
@@ -1893,7 +1949,11 @@ def resolved_data(definition: WorkflowDefinition) -> dict:
 
 
 def resolved_tool_data(
-    tool: Any, config: Any, formats: Sequence[Any], rules: ProcessingRules
+    tool: Any,
+    config: Any,
+    formats: Sequence[Any],
+    rules: ProcessingRules,
+    char_replacements: Optional[dict[str, str]] = None,
 ) -> dict:
     """Return a tool's settings with every setting stated, as a tool file's content.
 
@@ -1906,10 +1966,12 @@ def resolved_tool_data(
         config: The config it runs with.
         formats: Its own formats (`SaveOptions`); kinds not listed get their default.
         rules: Its merged `processing`.
+        char_replacements: Its `output.char_replacements`; None for the defaults.
 
     Returns:
         The tool file's content.
     """
+    from flim.core.paths import DEFAULT_CHAR_REPLACEMENTS
     from flim.core.saving import save_options_classes
     from flim.core.settings import SETTINGS_VERSION
 
@@ -1925,6 +1987,10 @@ def resolved_tool_data(
         "schema_version": SETTINGS_VERSION,
         "tool": tool.name,
         "config": config.model_dump(mode="json"),
-        "output": {"save": True, "formats": [f.model_dump(mode="json") for f in stated]},
+        "output": {
+            "save": True,
+            "formats": [f.model_dump(mode="json") for f in stated],
+            "char_replacements": dict(char_replacements or DEFAULT_CHAR_REPLACEMENTS),
+        },
         "processing": processing,
     }

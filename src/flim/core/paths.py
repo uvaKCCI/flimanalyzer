@@ -1,7 +1,8 @@
 """Folders for results: one canonical form, a validation before a run, and file names.
 
 Every file and folder name FLIMAnalyzer makes (results, step and input folders) is
-made with one rule, `path_name`: the session's character replacements, then only
+made with one rule, `path_name`: the character replacements of the task's `output`
+section (`char_replacements`, added to the defaults), then only
 ASCII letters, digits, `-`, `_` and `.`. Paths the user gives are not changed.
 
 A folder chosen by the user is stored as an absolute path with links resolved
@@ -20,32 +21,68 @@ import sys
 import unicodedata
 from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Any, Optional
 
-# the default character replacements of file and folder names (app setting
-# `char_replacements`, which adds to them or overrides single ones)
+from pydantic import BeforeValidator
+
+# the default character replacements of file and folder names (`output` >
+# `char_replacements` of a tool or a workflow adds to them or overrides single ones)
 DEFAULT_CHAR_REPLACEMENTS = {"%": "pcent", "τ": "tau", "µ": "u", "μ": "u"}
 # the characters a name keeps; any other becomes `_`
 NAME_CHARS = "A-Za-z0-9._-"
 _OTHER = re.compile(f"[^{NAME_CHARS}]")
 _REPEATED = re.compile(r"_{2,}")
-_replacements = dict(DEFAULT_CHAR_REPLACEMENTS)  # the session's (see set_char_replacements)
 
 
-def set_char_replacements(replacements: Mapping[str, str]) -> None:
-    """Set the character replacements of this session's file and folder names.
+def with_default_replacements(value: Any) -> Any:
+    """Return character replacements added to the defaults; refuse invalid ones.
+
+    The validator of `CharReplacements`: a replacement may hold only the characters
+    a name keeps, so that it can't make a folder (`/`) or another invalid name.
 
     Args:
-        replacements: Text -> replacement, applied in order (the app setting
-            `char_replacements`).
+        value: Text -> replacement; other values are returned as they are, for the
+            type check.
+
+    Returns:
+        The defaults updated with `value`.
+
+    Raises:
+        ValueError: If a text is empty or a replacement has other characters.
     """
-    global _replacements
-    _replacements = dict(replacements)
+    if not isinstance(value, Mapping):
+        return value
+    for old, new in value.items():
+        if not old:
+            raise ValueError("char_replacements: an empty text can't be replaced")
+        if not isinstance(new, str) or re.search(f"[^{NAME_CHARS}]", new):
+            raise ValueError(
+                f"char_replacements: {old!r} -> {new!r}: a replacement may contain"
+                " only ASCII letters, digits, -, _ and ."
+            )
+    return {**DEFAULT_CHAR_REPLACEMENTS, **value}
 
 
-def char_replacements() -> dict[str, str]:
-    """Return the character replacements of this session's file and folder names."""
-    return dict(_replacements)
+# the `char_replacements` of an `output` section: text -> replacement, in order,
+# added to the defaults
+CharReplacements = Annotated[dict[str, str], BeforeValidator(with_default_replacements)]
+
+
+def without_unset_replacements(data: Any) -> Any:
+    """Drop `char_replacements` from a serialized `output` section if it is not set.
+
+    Files written before the setting existed stay as they were, and a file states it
+    only where it was set.
+
+    Args:
+        data: The serialized section.
+
+    Returns:
+        The section, without `char_replacements` if its value is None.
+    """
+    if isinstance(data, dict) and data.get("char_replacements", ...) is None:
+        data = {k: v for k, v in data.items() if k != "char_replacements"}
+    return data
 
 
 def path_name(name: object, replacements: Optional[Mapping[str, str]] = None) -> str:
@@ -59,15 +96,15 @@ def path_name(name: object, replacements: Optional[Mapping[str, str]] = None) ->
     Args:
         name: The name, e.g. a result or a tool's name; other values are converted
             with `str`.
-        replacements: The replacements; None for the session's
-            (`set_char_replacements`).
+        replacements: The replacements, e.g. an `output` section's
+            `char_replacements`; None for the defaults (`DEFAULT_CHAR_REPLACEMENTS`).
 
     Returns:
         The name, or `_` if nothing is left. For example
         `Summary_NAD_P_H_a2_pcent` for `Summary: NAD(P)H a2[%]`.
     """
     text = str(name)
-    for old, new in (_replacements if replacements is None else replacements).items():
+    for old, new in (DEFAULT_CHAR_REPLACEMENTS if replacements is None else replacements).items():
         text = text.replace(old, new)
     text = "".join(
         c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c)
@@ -85,7 +122,7 @@ def same_names(
 
     Args:
         names: The names, e.g. a task's results or the inputs of a run.
-        replacements: As for `path_name`; None for the session's.
+        replacements: As for `path_name`; None for the defaults.
 
     Returns:
         (first, second) for each name that becomes the file name of an earlier one.

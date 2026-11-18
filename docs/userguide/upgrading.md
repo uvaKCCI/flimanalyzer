@@ -137,7 +137,7 @@ The names of saved result files and folders follow one rule:
 * Every other character than ASCII letters, digits, `-`, `_` and `.` becomes `_`.
 * Repeated `_` become one, and `_`, `.` and spaces at the start and end are removed.
 
-For example, the results of `Summary: NAD(P)H a2[%]` are saved as `Summary_NAD_P_H_a2_pcent`. In 0.6 only `%`, `:`, `/`, `\`, `|` and line breaks were replaced, so names kept spaces and brackets. Update scripts that find result files by name. The app setting `char_replacements` adds or changes replacements. A run whose inputs give the same folder name doesn't start.
+For example, the results of `Summary: NAD(P)H a2[%]` are saved as `Summary_NAD_P_H_a2_pcent`. In 0.6 only `%`, `:`, `/`, `\`, `|` and line breaks were replaced, so names kept spaces and brackets. Update scripts that find result files by name. `char_replacements` in the `output` section of a tool or workflow file adds or changes replacements. A run whose inputs give the same folder name doesn't start.
 
 ## Plugin developers
 

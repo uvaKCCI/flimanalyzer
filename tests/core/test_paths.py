@@ -142,12 +142,9 @@ def test_path_name(name, expected):
     assert paths.path_name(name, paths.DEFAULT_CHAR_REPLACEMENTS) == expected
 
 
-def test_path_name_uses_the_sessions_replacements():
-    try:
-        paths.set_char_replacements({**paths.DEFAULT_CHAR_REPLACEMENTS, "%": "pct"})
-        assert paths.path_name("a2[%]") == "a2_pct"
-    finally:
-        paths.set_char_replacements(paths.DEFAULT_CHAR_REPLACEMENTS)
+def test_path_name_uses_the_given_replacements_else_the_defaults():
+    assert paths.path_name("a2[%]", {**paths.DEFAULT_CHAR_REPLACEMENTS, "%": "pct"}) == "a2_pct"
+    assert paths.path_name("a2[%]") == "a2_pcent"  # the defaults
 
 
 def test_same_names_ignore_case():

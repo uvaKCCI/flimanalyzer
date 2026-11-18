@@ -29,7 +29,6 @@ of a workflow step; it is read as a settings file with that one tool's section.
 """
 
 import copy
-import re
 import json
 import logging
 import os
@@ -44,14 +43,13 @@ from pydantic import (
     RootModel,
     SerializerFunctionWrapHandler,
     ValidationError,
-    field_validator,
     model_serializer,
     model_validator,
 )
 
 from flim import __version__
 from flim.core.config import Processing, TaskConfig
-from flim.core.paths import DEFAULT_CHAR_REPLACEMENTS, NAME_CHARS
+from flim.core.paths import CharReplacements, without_unset_replacements
 from flim.core.saving import AutosaveConfig, Formats
 from flim.core.execution import ExecutorSettings, LocalExecutorSettings
 
@@ -129,11 +127,21 @@ class ToolOutput(_Settings):
         results_dir: The folder (GUI); None for the app's results folder.
         formats: The formats, per kind of output; a kind not listed is saved in its
             default format.
+        char_replacements: The text replaced in the names of the files and folders
+            the results are saved in, added to the defaults; None for the defaults.
     """
 
     save: bool = False
     results_dir: Optional[Path] = None
     formats: Formats = []
+    char_replacements: Optional[CharReplacements] = None
+
+    # no return annotation: with one, pydantic's serialization JSON schema of the
+    # section would lose its fields (as for flim.core.config.BaseConfig)
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler):
+        """Serialize the section, leaving out `char_replacements` if it is not set."""
+        return without_unset_replacements(handler(self))
 
 
 class ToolSettings(_Settings):
@@ -192,7 +200,10 @@ class ToolSettings(_Settings):
         """Whether, where and in which formats the tool saves, as a run takes it."""
         output = self.output
         return AutosaveConfig(
-            enabled=output.save, results_dir=output.results_dir, formats=output.formats
+            enabled=output.save,
+            results_dir=output.results_dir,
+            formats=output.formats,
+            char_replacements=output.char_replacements,
         )
 
     @model_serializer(mode="wrap")
@@ -300,7 +311,10 @@ def tool_settings(
     return ToolSettings(
         config=config.model_dump(mode="json"),
         output=ToolOutput(
-            save=autosave.enabled, results_dir=autosave.results_dir, formats=autosave.formats
+            save=autosave.enabled,
+            results_dir=autosave.results_dir,
+            formats=autosave.formats,
+            char_replacements=autosave.char_replacements,
         ),
         processing=processing or Processing(),
     )
@@ -416,14 +430,6 @@ class AppSettings(_Settings):
         description="Folders searched for app settings files, in order. Empty defaults to"
         " the folder appsettings in the platform's settings folder.",
     )
-    char_replacements: dict[str, str] = Field(
-        default_factory=lambda: dict(DEFAULT_CHAR_REPLACEMENTS),
-        title="Characters replaced in file names",
-        description="Text replaced in the names of the files and folders FLIMAnalyzer"
-        " writes, in order, before every other character than ASCII letters, digits,"
-        " -, _ and . becomes _. A file adds entries to the defaults or overrides single"
-        " ones; the table of a later settings layer replaces that of an earlier one.",
-    )
     max_windows: dict[str, int] = Field(
         default={"table": 10, "plot": 10, "image": 4},
         title="Most windows of a run",
@@ -466,22 +472,6 @@ class AppSettings(_Settings):
     tools: ToolSettingsMap = Field(default_factory=ToolSettingsMap)
 
     model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    @field_validator("char_replacements", mode="before")
-    @classmethod
-    def _with_default_replacements(cls, value: Any) -> Any:
-        """Add the default replacements; refuse replacements with other characters."""
-        if not isinstance(value, dict):
-            return value
-        for old, new in value.items():
-            if not old:
-                raise ValueError("char_replacements: an empty text can't be replaced")
-            if not isinstance(new, str) or re.search(f"[^{NAME_CHARS}]", new):
-                raise ValueError(
-                    f"char_replacements: {old!r} -> {new!r}: a replacement may contain"
-                    " only ASCII letters, digits, -, _ and ."
-                )
-        return {**DEFAULT_CHAR_REPLACEMENTS, **value}
 
     @classmethod
     def default(cls) -> "AppSettings":
@@ -904,6 +894,7 @@ def migrate(data: dict, changes: Optional[Changes] = None) -> dict:
 _REMOVED_SETTINGS: dict[str, str] = {
     "strict": "now processing.strict of tool and workflow files",
     "cache": "never used",
+    "char_replacements": "now output.char_replacements of tool and workflow files",
 }
 
 
@@ -911,7 +902,8 @@ def _removed_settings(data: dict, changes: Changes) -> dict:
     """Drop the app settings that FLIMAnalyzer wrote and no longer has.
 
     `strict` (whether workflows guess missing columns) is a setting of tool and
-    workflow files now (`processing.strict`). `cache` (a cache folder and its limits)
+    workflow files now (`processing.strict`), and so is `char_replacements` (the
+    text replaced in the names of saved files, `output.char_replacements`). `cache` (a cache folder and its limits)
     was used by no code. Without this, an app settings file with one of them is
     refused for an unknown setting.
 
@@ -1062,7 +1054,6 @@ SECTION_MERGE: dict[str, str] = {
     "server_timeout": "whole",
     "log": "per key",
     "appsettings_path": "whole",
-    "char_replacements": "whole",  # one table
     "max_windows": "per key",  # a limit per kind of window
     "presets": "per key",  # per tool
     "favorites": "whole",

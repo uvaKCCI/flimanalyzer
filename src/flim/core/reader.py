@@ -199,11 +199,13 @@ class Reading:
             have the same name).
         skipped: Why a file was not read, by path.
         warnings: Messages for the user, e.g. renamed columns.
+        files: The file each table was read from, by the table's name.
     """
 
     tables: dict = field(default_factory=dict)
     skipped: dict = field(default_factory=dict)
     warnings: list = field(default_factory=list)
+    files: dict = field(default_factory=dict)
 
 
 def read_file(
@@ -307,6 +309,7 @@ def read_tables(
             continue
         name = unique_name(file.name, file.name, reading.tables)
         reading.tables[name] = table
+        reading.files[name] = Path(file)
         reading.warnings += warnings
     for path, reason in reading.skipped.items():
         logger.info(f"Not read: {path}: {reason}")

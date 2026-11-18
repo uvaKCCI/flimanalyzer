@@ -660,6 +660,32 @@ class PandasFrame(wx.Frame):
             self.use_features(edited.features.enabled, showdiscarded=edited.show_dropped)
             self._filters_changed()
 
+    def view_description(self) -> str:
+        """Return how the rows a tool gets differ from the table, for a run summary.
+
+        The window's filter switches, the range filters that are on and the category
+        values hidden, and the rows shown of the table's rows, e.g. `view: Filter
+        Features on (FLIRR 0-3), Filter Categories on (Treatment hides KO), 18 of 40
+        rows`.
+        """
+        parts = []
+        ranges = [
+            f"{f['name']} {f.get('rangelow')}-{f.get('rangehigh')}"
+            for f in self._existing_rangefilters(self.filters.range_filters)
+            if f.get("selected")
+        ]
+        state = "on" if self.filters.features.enabled else "off"
+        parts.append(f"Filter Features {state}" + (f" ({', '.join(ranges)})" if ranges else ""))
+        hidden: dict[str, list] = {}
+        for key in self.droppedrows:
+            if isinstance(key, tuple):
+                hidden.setdefault(str(key[0]), []).append(str(key[1]))
+        shown = [f"{column} hides {', '.join(values)}" for column, values in hidden.items()]
+        state = "on" if self.filters.categories.enabled else "off"
+        parts.append(f"Filter Categories {state}" + (f" ({'; '.join(shown)})" if shown else ""))
+        parts.append(f"{len(self.dataview)} of {len(self.data)} rows")
+        return "view: " + ", ".join(parts)
+
     def category_filters(self) -> dict[str, list]:
         """Return the values kept of each category column that hides values."""
         hidden: dict[str, set] = {}

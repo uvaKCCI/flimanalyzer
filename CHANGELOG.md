@@ -143,8 +143,7 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   settings file (`-s`), environment variables, command-line options. A higher layer
   changes each tool's section in `tools` and each tool's presets in `presets`
   separately, `max_windows` per kind of window, and `log` per setting; it
-  replaces all other sections whole, for example `execution`, `filters` and
-  `char_replacements`. For example, an app settings file with presets of `Filter` keeps
+  replaces all other sections whole, for example `execution` and `filters`. For example, an app settings file with presets of `Filter` keeps
   the user's presets of `Calculate`. Exception: the user settings file's `favorites`
   take precedence over those of the app settings file.
 - **Settings files are validated before use:** a file with unknown settings or invalid
@@ -248,14 +247,21 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   ASCII letters, digits, `-`, `_` and `.` becomes `_`. For example, the results of
   `Summary: NAD(P)H a2[%]` are saved as `Summary_NAD_P_H_a2_pcent`. Until 0.6.2 only
   `%`, `:`, `/`, `\`, `|` and line breaks were replaced, so names kept spaces and
-  brackets. The new app setting `char_replacements` adds or changes replacements. A
+  brackets. `char_replacements` in the `output` section of tool settings, tool files and
+  workflow files (workflow and step) adds or changes replacements; `resolved.json`
+  states each step's. A
   run whose inputs give the same folder name doesn't start.
 - **`run_summary.txt`** also lists the versions of FLIMAnalyzer, Python, the installed
   dependencies of FLIMAnalyzer and the packages of installed plugin tools (with a Dask
   executor also `dask` and `distributed`) under `Versions`, and how the tasks ran under
   `Execution`, so a results folder records them also without the Prefect UI, and
   the time the run took under `Elapsed`. Its task table names each task's step
-  (`Step`) and results folder in the run (`Folder`).
+  (`Step`) and results folder in the run (`Folder`). Above it, `Inputs` lists each
+  input of the run once, with the steps it enters: a file with its path, size, format,
+  SHA-256 and modification time, or a table or image with its class, shape, data
+  types, a SHA-256 of its content and a description (columns by role, missing values;
+  in the GUI also the table window it came from and the filters that change the rows
+  a tool gets).
 - **Heatmap:** the title is `Correlation`; until 0.6.2 it was `Data grouped by ...`,
   although the correlations are those of the whole table.
 - **Log files:** each GUI session writes its own log file in the platform's log folder,
@@ -342,7 +348,7 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   entries) stay as given and are resolved for each table. `flimbatch --run
   resolved.json` on the same files with the same FLIMAnalyzer version repeats the
   run. `run_summary.txt` lists, for each table, the columns guessed and the entries
-  skipped, and records the versions, the settings files and `char_replacements`.
+  skipped, and records the versions and the settings files.
 - **`flimsettings`:** a command that lists, shows, validates, resolves and updates
   settings without the GUI. `flimsettings tool` and `flimsettings workflow` take
   `--list`, `--show FILE|NAME`, `--validate FILE` and `--resolve FILE` (the file with
@@ -448,7 +454,10 @@ fixes for 0.6.2, several of which change results. New requirements: Python 3.12 
   `Tool.mappable_output` and `Tool.output_prefix` for results in parts;
   `Tool.skippable_fields` and `Tool.never_guessed` for `processing`; `Tool.extra_tags`;
   tool lookups accept `former_names`; each data type declares its `save_options` and
-  writes with `DataType.save`; `flim.core.paths.path_name`; `flim.__version__`.
+  writes with `DataType.save`; `DataType.content_hash` and `DataType.describe`, which
+  identify and list a value among a run's inputs (None and the class by default, so
+  data types of plugins can add their own); a tool call's `step`, which names its
+  results folder; `flim.core.paths.path_name`; `flim.__version__`.
 
 ### Deprecated
 

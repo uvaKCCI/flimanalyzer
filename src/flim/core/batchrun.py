@@ -8,7 +8,7 @@ folder. Used by the commands and the GUI; prints nothing.
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
 from flim.core.config import ProcessingRules
 from flim.core.execution import ExecutionOptions
@@ -244,6 +244,7 @@ def run_on_tables(
     overrides: Optional["Overrides"] = None,
     settings_record: Sequence[str] = (),
     notes: Sequence[str] = (),
+    files: Optional[Mapping[str, Path]] = None,
 ) -> "FlowRun":
     """Run a tool or workflow on the tables read from the files, as one run.
 
@@ -265,6 +266,8 @@ def run_on_tables(
             of this run (`Overrides.for_run`), listed in the run summary; None: none.
         settings_record: The settings files, for the run summary.
         notes: Notes for the run summary, e.g. on the executor.
+        files: The file each table was read from, by the table's name: the run
+            summary lists the files as the run's inputs; None: the tables.
 
     Returns:
         The run.
@@ -274,7 +277,10 @@ def run_on_tables(
             become the same folder name (see `validate_run`), or a workflow defined in
             code has errors for a table.
     """
-    from flim.core.runner import run_flow, tag_prefix
+    from flim.core.runner import InputOrigin, run_flow, tag_prefix
+
+    # the files are the run's inputs: their tables are read before it starts
+    origins = [(tables[n], InputOrigin(file=Path(f))) for n, f in (files or {}).items() if n in tables]
     from flim.core.tool import validate_requirements
     from flim.core.validation import resolution_notes
     from flim.core.workflow import Workflow, WorkflowValidationError
@@ -311,6 +317,8 @@ def run_on_tables(
             run_dir=run_dir,  # the steps' `save` decides what is written
             settings_record=settings_record,
             save_formats=definition.output.formats,
+            char_replacements=definition.output.char_replacements,
+            input_origins=origins,
             notes=notes,
         )
     # a workflow defined in code: validated per table, then all tables in one run
@@ -330,7 +338,8 @@ def run_on_tables(
         notes += resolution_notes(report, f"{name}: ")
 
     formats = overrides.formats_over(entry.output.formats if entry else [])
-    _write_resolved(run_dir, resolved_tool_data(tool, config, formats, rules))  # as given
+    replacements = entry.output.char_replacements if entry else None
+    _write_resolved(run_dir, resolved_tool_data(tool, config, formats, rules, replacements))
 
     def build() -> None:
         for name, table in tables.items():
@@ -345,6 +354,8 @@ def run_on_tables(
         notes=notes,
         settings_record=settings_record,
         save_formats=formats,
+        char_replacements=entry.output.char_replacements if entry else None,
+        input_origins=origins,
     )
 
 

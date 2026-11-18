@@ -819,3 +819,29 @@ def test_a_workflow_defined_in_code_saves_into_its_step_folders(data_dir, settin
     assert header.split()[:4] == ["Task", "Step", "Folder", "Status"]
     line = next(line for line in summary.splitlines() if line.startswith("KDE-1 "))
     assert line.split()[1:3] == ["08", "08-KDE/table.txt/NAD_P_H_a2_pcent"]  # as on disk
+
+
+def test_char_replacements_of_a_step_over_the_workflows_over_the_defaults(data_dir, tmp_path):
+    summary = {"features": ["FAD a1[%]"], "aggs": ["mean"], "single_table": False}
+    workflow = {
+        "name": "replacements",
+        "output": {"char_replacements": {"%": "percent"}},
+        "steps": [
+            {"id": "1", "tool": "Summarize", "config": summary,
+             "output": {"save": True, "char_replacements": {"%": "pct"}}},
+            {"id": "2", "tool": "Summarize", "inputs": ["input"], "config": summary,
+             "output": {"save": True}},
+        ],
+    }  # fmt: skip
+    path = tmp_path / "replacements.json"
+    path.write_text(json.dumps(workflow))
+    out = tmp_path / "out"
+    assert main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]) == 0
+    (run,) = out.glob("*/run-1")
+    first = {p.name for p in (run / "01-Summarize").rglob("*.txt") if p.is_file()}
+    second = {p.name for p in (run / "02-Summarize").rglob("*.txt") if p.is_file()}
+    assert first and all("pct" in name for name in first)  # the step's own
+    assert second and all("percent" in name for name in second)  # the workflow's
+    resolved = json.loads((run / "resolved.json").read_text())
+    assert [s["output"]["char_replacements"]["%"] for s in resolved["steps"]] == ["pct", "percent"]
+    assert resolved["steps"][0]["output"]["char_replacements"]["µ"] == "u"  # with the defaults

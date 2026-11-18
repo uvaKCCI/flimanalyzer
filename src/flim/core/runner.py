@@ -38,7 +38,7 @@ from pathlib import Path
 import re
 import threading
 import uuid
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Union
 
 import networkx as nx
 from prefect import flow, tags, task, unmapped
@@ -51,8 +51,9 @@ from prefect.task_runners import TaskRunner, ThreadPoolTaskRunner
 
 from flim.core.deprecation import deprecated_names
 from flim.core.tool import TaskCancelled, Tool, pyplot_lock, release_figures
+from flim.core.types import DataType, FileType
 from flim.core.paths import unique_run_folder  # noqa: F401  (also used from here)
-from flim.core.paths import char_replacements, path_name
+from flim.core.paths import DEFAULT_CHAR_REPLACEMENTS, path_name
 from flim.results import save_results
 
 if TYPE_CHECKING:
@@ -426,6 +427,37 @@ def _record_settings(
         logger.debug(f"Settings artifact not created: {err}")
 
 
+@dataclass(frozen=True)
+class InputOrigin:
+    """Where a value that enters a run comes from, for the run summary's `Inputs`.
+
+    Attributes:
+        file: The file it was read from: the input is listed as that file (until
+            readers are tasks of the run, the file is read before the run starts).
+        details: Text added to the input's details, e.g. the GUI item and window
+            filters it came from.
+    """
+
+    file: Optional[Path] = None
+    details: str = ""
+
+
+def _entry_values(value: Any) -> Iterator[Any]:
+    """Yield the data values among a tool call's inputs, not handles to other tasks."""
+    if isinstance(value, TaskOutput) or value is None:
+        return
+    if isinstance(value, dict):
+        if value.get(_MARKER):
+            return
+        for item in value.values():
+            yield from _entry_values(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _entry_values(item)
+    else:
+        yield value
+
+
 def _sources(value: Any) -> set[str]:
     """Return the values of the `Source` columns of the tables in `value`.
 
@@ -647,6 +679,14 @@ class FlowRun:
         self.sources: set[str] = set()  # the files of the tables that enter the run
         self.settings_record: List[str] = []  # the settings files, for the run summary
         self.save_formats: list = []  # AutosaveConfig.formats of the run
+        # the run's `output.char_replacements` (None: the defaults); a workflow file's
+        # step may have its own
+        self.char_replacements: Optional[dict[str, str]] = None
+        # the values that enter the run from outside, by id: the value (kept, so the
+        # id stays its), its row of the run summary's `Inputs`, the steps it enters
+        # and the `Input` nodes it enters through
+        self.inputs: dict[int, dict[str, Any]] = {}
+        self.input_origins: dict[int, InputOrigin] = {}  # by id of the value
         # the runtime, for the run summary: FLIMAnalyzer, Python and package versions,
         # and the task runner (see _record_run)
         self.versions: dict[str, str] = {}
@@ -686,6 +726,85 @@ class FlowRun:
         if isinstance(obj, (list, tuple)):
             return type(obj)(self._to_payload(v, upstream) for v in obj)
         return obj
+
+    def _record_inputs(self, inputs: Any, node: str, step: Optional[str], through: bool) -> None:
+        """Record the values among a call's inputs that enter the run from outside.
+
+        Each value is recorded once, by its id, with its content hash and description
+        (`DataType.content_hash`, `DataType.describe`), or those of the file it was
+        read from (`InputOrigin.file`). Values of types without a hash are left out.
+
+        Args:
+            inputs: The call's inputs.
+            node: The call's node.
+            step: The call's step id; None for none.
+            through: Whether the call is an `Input` node, which passes the value on:
+                its steps are those of the tasks that use the node's output.
+        """
+        for value in _entry_values(inputs):
+            data_type = DataType.of(value)
+            if data_type is None:
+                continue
+            entry = self.inputs.get(id(value))
+            if entry is None:
+                origin = self.input_origins.get(id(value), InputOrigin())
+                if origin.file is not None:
+                    kind, shown = FileType, Path(origin.file)
+                else:
+                    kind, shown = data_type, value
+                described = kind.describe(shown)
+                if origin.details:
+                    described["details"] = "; ".join(
+                        d for d in (described["details"], origin.details) if d
+                    )
+                entry = {
+                    "value": value,
+                    "kind": kind.kind,
+                    "hash": kind.content_hash(shown) or "-",
+                    **described,
+                    "steps": set(),
+                    "nodes": set(),
+                }
+                self.inputs[id(value)] = entry
+            if through:
+                entry["nodes"].add(node)
+            else:
+                entry["steps"].add(step or "")
+
+    def _input_steps(self, entry: dict[str, Any]) -> list[str]:
+        """Return the steps an input enters: its own, and those of the tasks that use
+        the outputs of the `Input` nodes it passes through."""
+        steps = set(entry["steps"])
+        for node in entry["nodes"]:
+            todo, seen = list(self.graph.successors(node)), set()
+            while todo:
+                n = todo.pop()
+                if n in seen:
+                    continue
+                seen.add(n)
+                attrs = self.graph.nodes[n]
+                if "tool" in attrs:  # a task that uses it
+                    steps.add(attrs.get("step") or "")
+                else:  # an item of the node's results
+                    todo.extend(self.graph.successors(n))
+        return sorted(s or "-" for s in steps) or ["-"]
+
+    def _inputs_lines(self) -> list[str]:
+        """Return the run summary's `Inputs` table: one line per input."""
+        if not self.inputs:
+            return []
+        header = ["Input", "Step", "Kind", "Identity", "Size/Shape", "Type", "SHA-256", "Details"]
+        rows = [
+            [str(n), ", ".join(self._input_steps(e)), e["kind"], e["identity"], e["size"],
+             e["type"], e["hash"], e["details"]]
+            for n, e in enumerate(self.inputs.values(), 1)
+        ]  # fmt: skip
+        widths = [max(len(r[i]) for r in [header, *rows]) for i in range(len(header))]
+        lines = ["Inputs:"]
+        for row in [header, *rows]:
+            cells = [c.ljust(w) for c, w in zip(row, widths)]
+            lines.append("  " + "  ".join(cells).rstrip())
+        return lines + [""]
 
     def _unique_label(self, label: str) -> str:
         """Return the label, with `-<n>` appended from its second use."""
@@ -737,11 +856,19 @@ class FlowRun:
         step_tags = [f"{step}-{type(tool).name}"] if step else []
         tag_list = step_tags + list(_TAG_PREFIX.get()) + tag_list
         label = self._unique_label(tool.name)
-        folder = "/".join(path_name(str(t)) for t in tag_list)  # as on disk
+        # the task's names of files and folders: a workflow file's step: its own
+        # `output.char_replacements`, else the run's (the workflow's), else the defaults
+        replacements = (
+            getattr(tool, "_char_replacements", None)
+            or self.char_replacements
+            or DEFAULT_CHAR_REPLACEMENTS
+        )
+        folder = "/".join(path_name(str(t), replacements) for t in tag_list)  # as on disk
         node = self._add_node(
             label, getattr(tool, "graph_kind", "tool"), tool=tool, step=step, folder=folder
         )
         tool._notify_started = _StartNotifier(self, node)
+        self._record_inputs(kwargs.get("inputs"), node, step, type(tool).name == "Input")
         upstream = set()
         self.sources.update(_sources(kwargs))
         payload = self._to_payload(kwargs, upstream)
@@ -773,12 +900,12 @@ class FlowRun:
         if self.autosave_dir and save is not False:
             autosave = {
                 "directory": self.autosave_dir.joinpath(
-                    *[path_name(t) for t in tag_list]
+                    *[path_name(t, replacements) for t in tag_list]
                 ),
                 "name": label,
                 "formats": self.save_formats if formats is None else formats,
-                # the session's: a task on a Dask worker names its files the same way
-                "replacements": char_replacements(),
+                # passed on: a task on a Dask worker names its files the same way
+                "replacements": dict(replacements),
             }
             if isinstance(save, (list, tuple)):
                 autosave["only"] = list(save)
@@ -954,16 +1081,15 @@ class FlowRun:
             "Tasks:      " + ", ".join(f"{n} {s}" for s, n in sorted(counts.items())),
             "",
         ]
-        # the settings files, and the app settings that shape the saved files' names
-        replacements = ", ".join(f"{k!r}: {v!r}" for k, v in char_replacements().items())
-        lines += ["Settings:"] + [f"  {line}" for line in self.settings_record]
-        lines += [f"  char_replacements: {{{replacements}}}", ""]
+        if self.settings_record:
+            lines += ["Settings:"] + [f"  {line}" for line in self.settings_record] + [""]
         if self.versions:
             lines += ["Versions:"] + [f"  {k} {v}" for k, v in self.versions.items()] + [""]
         if self.execution:
             lines += ["Execution:"] + [f"  {k}: {v}" for k, v in self.execution.items()] + [""]
         if self.notes:
             lines += ["Notes:"] + [f"  {note}" for note in self.notes] + [""]
+        lines += self._inputs_lines()
         granted = [a.get("resources") or "" for a in tasks]
         res_width = max([len(r) for r in granted] + [len("Resources")])
         # the step id (none for a tool run) and the results folder in the run
@@ -1151,6 +1277,8 @@ def run_flow(
     settings_record: Sequence[str] = (),
     save_formats: Sequence = (),
     run_dir: Optional[str | os.PathLike] = None,
+    char_replacements: Optional[Mapping[str, str]] = None,
+    input_origins: Sequence[tuple[Any, InputOrigin]] = (),
 ) -> FlowRun:
     """Run `build` as a Prefect flow; tool calls inside it become task runs.
 
@@ -1176,6 +1304,12 @@ def run_flow(
         run_dir: The run's folder, used as it is (e.g. `<output>/<date and
             time>/run-1` of a flimbatch call); None: a folder per run below
             `autosave_dir`.
+        char_replacements: The text replaced in the names of the files and folders
+            the tasks save into (`output.char_replacements`, with the defaults);
+            None: the defaults. A workflow file's step may have its own.
+        input_origins: Where values that enter the run come from: (value,
+            origin) pairs, e.g. a table and the file it was read from; listed in the
+            run summary's `Inputs` (see `InputOrigin`).
 
     Returns:
         The recorded task graph and results; `state` is completed, cancelled or
@@ -1190,6 +1324,9 @@ def run_flow(
     run.notes = list(notes)
     run.settings_record = list(settings_record)
     run.save_formats = list(save_formats)
+    run.char_replacements = dict(char_replacements) if char_replacements else None
+    run.input_origins = {id(value): origin for value, origin in input_origins}
+    run._origin_values = [value for value, _ in input_origins]  # keeps their ids
     if run_dir:
         run.autosave_dir = Path(run_dir)
         run.autosave_dir.mkdir(parents=True, exist_ok=True)

@@ -23,7 +23,6 @@ from flim.core.cli import (
     settings_file,
 )
 from flim.core.execution import ExecutionOptions
-from flim.core.paths import set_char_replacements
 from flim.core.prefect_server import PrefectServerError, use_prefect_server
 from flim.core.settingsmgr import (
     UserSettingsFile,
@@ -322,7 +321,6 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
             update=offer_settings_update,
             pick=pick_app_settings,
         )
-        set_char_replacements(manager.settings.char_replacements)  # file names
         execution = ExecutionOptions(
             execution=manager.settings.execution,
             server_timeout=manager.settings.server_timeout,

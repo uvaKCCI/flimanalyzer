@@ -6,7 +6,7 @@ steps, each with its step config, inside a flow; `Workflow.run_flow` runs that f
 and returns the `flim.core.runner.FlowRun` (task graph, results, run summary).
 """
 
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Mapping, Optional, Sequence
 import os
 
 import pandas as pd
@@ -86,6 +86,8 @@ class Workflow(Tool[ConfigT]):
         save_formats: Sequence[Any] = (),
         run_dir: Optional[str | os.PathLike] = None,
         notes: Sequence[str] = (),
+        char_replacements: Optional[Mapping[str, str]] = None,
+        input_origins: Sequence[tuple[Any, Any]] = (),
     ) -> "FlowRun":
         """Run the workflow as a Prefect flow; see `flim.core.runner.run_flow`.
 
@@ -109,6 +111,10 @@ class Workflow(Tool[ConfigT]):
             settings_record: Lines for the run summary naming the settings files
                 used.
             save_formats: The formats all steps save their results in.
+            char_replacements: The text replaced in the names of saved files and
+                folders (`output.char_replacements`); None: the defaults.
+            input_origins: Where the inputs come from, e.g. the file a table was
+                read from (`flim.core.runner.InputOrigin`), for the run summary.
             run_dir: The run's folder, used as it is; None: a folder per run below
                 `autosave_dir`.
             notes: Lines for the run summary, besides the guessed columns and
@@ -143,6 +149,8 @@ class Workflow(Tool[ConfigT]):
             settings_record=settings_record,
             save_formats=save_formats,
             run_dir=run_dir,
+            char_replacements=char_replacements,
+            input_origins=input_origins,
         )
 
     def resolve(

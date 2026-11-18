@@ -18,8 +18,12 @@ from pydantic import (
     ConfigDict,
     Field,
     SerializeAsAny,
+    SerializerFunctionWrapHandler,
+    model_serializer,
     model_validator,
 )
+
+from flim.core.paths import CharReplacements, without_unset_replacements
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -139,6 +143,9 @@ class AutosaveConfig(BaseModel):
             default format. Several formats of one kind are allowed (e.g. plots as png
             and svg); duplicates are dropped, and two entries of the same kind and
             format with different options are refused.
+        char_replacements: The text replaced in the names of the files and folders
+            the results are saved in, added to the defaults; None for the defaults
+            (`flim.core.paths.DEFAULT_CHAR_REPLACEMENTS`).
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -146,6 +153,14 @@ class AutosaveConfig(BaseModel):
     enabled: bool = False
     results_dir: Optional[Path] = None
     formats: Formats = []
+    char_replacements: Optional[CharReplacements] = None
+
+    # no return annotation: with one, pydantic's serialization JSON schema of the
+    # section would lose its fields (as for flim.core.config.BaseConfig)
+    @model_serializer(mode="wrap")
+    def _serialize(self, handler: SerializerFunctionWrapHandler):
+        """Serialize the section, leaving out `char_replacements` if it is not set."""
+        return without_unset_replacements(handler(self))
 
     def formats_for(self, kind: str) -> list[SaveOptions]:
         """Return the formats a value of a kind is saved in.

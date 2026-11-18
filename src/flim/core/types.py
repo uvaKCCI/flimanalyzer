@@ -77,6 +77,20 @@ class DataType:
         return None
 
     @classmethod
+    def describe(cls, value: Any) -> dict[str, str]:
+        """Return how a value is listed in the run summary's `Inputs` table.
+
+        Args:
+            value: A value of this type.
+
+        Returns:
+            `identity` (for an object, its class, e.g. `pandas.DataFrame`), `size`
+            (its size or shape), `type` (e.g. its dtype) and `details`; empty texts
+            where there is nothing to say. The default gives only the class.
+        """
+        return {"identity": class_path(value), "size": "", "type": "", "details": ""}
+
+    @classmethod
     def python_classes(cls) -> tuple[type, ...]:
         """Return the accepted classes whose top-level package is already imported.
 
@@ -142,6 +156,45 @@ class TableType(DataType):
         from flim.core.hashing import table_hash
 
         return table_hash(value)
+
+    @classmethod
+    def describe(cls, value: Any) -> dict[str, str]:
+        """Return a table's class, shape, dtypes and columns by role.
+
+        Args:
+            value: The DataFrame or Series.
+
+        Returns:
+            For example `pandas.DataFrame`, `34 rows x 10 cols`, `float64 (8),
+            category (2)` and `categories: Treatment (2), FOV (2); 8 features; 0
+            missing`.
+        """
+        import pandas as pd
+
+        from flim.core.schema import TableSchema
+
+        table = value.to_frame() if isinstance(value, pd.Series) else value
+        counts = table.dtypes.astype(str).value_counts()
+        types = ", ".join(f"{t} ({n})" for t, n in counts.items())
+        schema = TableSchema.from_frame(table)
+        parts = []
+        categories = [c for c in schema.columns if c.role == "category"]
+        if categories:
+            parts.append(
+                "categories: " + ", ".join(f"{c.name} ({len(c.levels or [])})" for c in categories)
+            )
+        parts.append(f"{len(schema.by_role('feature'))} features")
+        others = schema.by_role("other")
+        if others:
+            parts.append(f"{len(others)} other columns")
+        parts.append(f"{int(table.isna().sum().sum())} missing")
+        rows, cols = table.shape
+        return {
+            "identity": class_path(value),
+            "size": f"{rows} rows x {cols} cols",
+            "type": types,
+            "details": "; ".join(parts),
+        }
 
     @classmethod
     def save(cls, value: Any, base: str | Path, options: TableSaveOptions) -> Path:
@@ -215,6 +268,31 @@ class ImageType(DataType):
 
         return array_hash(value)
 
+    @classmethod
+    def describe(cls, value: Any) -> dict[str, str]:
+        """Return an array's class, shape and dtype; its chunks or device.
+
+        Args:
+            value: The NumPy, Dask or PyTorch array.
+
+        Returns:
+            For example `dask.array.Array`, `3 x 256 x 256`, `uint16` and `chunks 1 x
+            256 x 256`.
+        """
+        details = []
+        chunks = getattr(value, "chunksize", None)  # a Dask array
+        if chunks is not None:
+            details.append("chunks " + " x ".join(str(int(n)) for n in chunks))
+        device = getattr(value, "device", None)  # a PyTorch tensor (NumPy: none)
+        if device is not None and type(value).__module__.startswith("torch"):
+            details.append(f"device {device}")
+        return {
+            "identity": class_path(value),
+            "size": " x ".join(str(int(n)) for n in value.shape),
+            "type": str(value.dtype),
+            "details": "; ".join(details),
+        }
+
 
 class FileType(DataType):
     """Files, as paths."""
@@ -239,6 +317,31 @@ class FileType(DataType):
         return file_hash(path) if path.is_file() else None
 
     @classmethod
+    def describe(cls, value: Any) -> dict[str, str]:
+        """Return a file's path, size, format (its extension) and modification time.
+
+        Args:
+            value: The path of the file.
+
+        Returns:
+            For example `/data/a.txt`, `28.0 kB`, `txt` and `modified 2026-11-17
+            09:12:04`.
+        """
+        import datetime
+
+        path = Path(value).absolute()
+        if not path.is_file():
+            return {"identity": str(path), "size": "", "type": "", "details": "not a file"}
+        info = path.stat()
+        modified = datetime.datetime.fromtimestamp(info.st_mtime)
+        return {
+            "identity": str(path),
+            "size": file_size(info.st_size),
+            "type": path.suffix.lstrip(".") or "-",
+            "details": f"modified {modified:%Y-%m-%d %H:%M:%S}",
+        }
+
+    @classmethod
     def save(
         cls, value: Any, base: str | Path, options: Optional[SaveOptions] = None
     ) -> Path:
@@ -258,6 +361,27 @@ class FileType(DataType):
         path = Path(f"{base}{source.suffix}")
         shutil.copy2(source, path)
         return path
+
+
+def class_path(value: Any) -> str:
+    """Return a value's class as `<package>.<class>`, e.g. `pandas.DataFrame`."""
+    cls = type(value)
+    package = cls.__module__.split(".")[0]
+    # the public names, e.g. dask.array.Array (module dask.array.core)
+    known = {"pandas": "pandas", "numpy": "numpy", "torch": "torch"}
+    if package == "dask" and cls.__name__ == "Array":
+        return "dask.array.Array"
+    return f"{known.get(package, cls.__module__)}.{cls.__name__}"
+
+
+def file_size(size: int) -> str:
+    """Return a size in bytes as text, e.g. `512 B`, `28.0 kB`, `1.4 MB` (powers of 1000)."""
+    value = float(size)
+    for unit in ("B", "kB", "MB", "GB"):
+        if value < 1000 or unit == "GB":
+            return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1000
+    return f"{value:.1f} TB"
 
 
 def _all_types() -> list[type[DataType]]:

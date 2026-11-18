@@ -162,6 +162,25 @@ def test_show_dropped_leaves_out_the_rows_of_hidden_category_values(frame, flim_
     assert len(discarded) == (outside & (flim_data["Treatment"] == "WT")).sum()
 
 
+def test_the_view_description_names_the_filters_and_rows_a_tool_gets(frame, flim_data):
+    from flim.core.filtering import new_range
+
+    window = _open(frame, flim_data, "Viewed")
+    assert window.view_description().startswith("view: Filter Features ")
+    window.filters.range_filters = [new_range(FEATURE) | {"rangelow": 0, "rangehigh": 1, "selected": True}]
+    window.set_category_filters({"Treatment": ["WT"]})
+    window.use_categories(True)
+    window.use_features(True)
+    text = window.view_description()
+    assert f"Filter Features on ({FEATURE} 0-1" in text
+    assert "Filter Categories on (Treatment hides " in text
+    assert text.endswith(f"{len(window.GetViewData())} of {len(flim_data)} rows")
+    # the GUI records each table a dialog offers with its item and view
+    choices = frame.tool_data_choices()
+    ((copy, origin),) = [(c, o) for c, o in frame.input_origins if "Viewed" in o.details]
+    assert choices["Viewed"] is copy and origin.details.endswith(text)
+
+
 @pytest.mark.parametrize("button", ["Save Shown Rows...", "Save All Rows..."])
 def test_save_renames_the_window(frame, monkeypatch, tmp_path, flim_data, button):
     window = _open(frame, flim_data.copy())

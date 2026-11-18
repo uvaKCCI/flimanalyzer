@@ -1247,7 +1247,11 @@ class ConfigDialog(wx.Dialog):
         else:
             folder = path
         return AutosaveConfig(
-            enabled=self.autosave.GetValue(), results_dir=folder, formats=formats
+            enabled=self.autosave.GetValue(),
+            results_dir=folder,
+            formats=formats,
+            # not shown in the dialog (settings files only): kept as it is
+            char_replacements=self.execution.autosave.char_replacements,
         )
 
     def _show_processing(self) -> None:

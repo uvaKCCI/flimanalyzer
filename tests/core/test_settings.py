@@ -253,11 +253,23 @@ def test_keys_of_the_user_settings_file_only_are_not_used(tmp_path):
 def test_char_replacements_add_to_the_defaults_and_refuse_other_characters():
     from pydantic import ValidationError
 
-    settings = AppSettings.model_validate({"char_replacements": {"%": "pct", "°": "deg"}})
-    assert settings.char_replacements == {"%": "pct", "τ": "tau", "µ": "u", "μ": "u", "°": "deg"}
-    assert AppSettings().char_replacements["%"] == "pcent"
+    from flim.core.settings import ToolOutput
+
+    output = ToolOutput.model_validate({"char_replacements": {"%": "pct", "°": "deg"}})
+    assert output.char_replacements == {"%": "pct", "τ": "tau", "µ": "u", "μ": "u", "°": "deg"}
+    assert ToolOutput().char_replacements is None  # not set: the defaults
+    assert "char_replacements" not in ToolOutput().model_dump()  # and not written
     with pytest.raises(ValidationError, match="only ASCII letters, digits"):
-        AppSettings.model_validate({"char_replacements": {"%": "/"}})
+        ToolOutput.model_validate({"char_replacements": {"%": "/"}})
+
+
+def test_char_replacements_of_development_builds_are_dropped_from_app_settings():
+    from flim.core.settings import Changes, migrate
+
+    changes = Changes()
+    data = migrate({"schema_version": 2, "char_replacements": {"%": "pct"}}, changes=changes)
+    assert "char_replacements" not in data
+    assert any("output.char_replacements" in d for d in changes.dropped)
 
 
 def test_the_autosave_section_of_development_builds_is_read():
@@ -513,7 +525,7 @@ def test_sections_merge_whole_or_per_key():
         "max_windows": {"table": 50, "plot": 20},
         "presets": {"Calculate": [{"name": "mine"}]},
         "execution": {"executor": "dask-local", "workers": 8},
-        "char_replacements": {"/": "_", ":": "-"},
+        "favorites": ["Summarize", "Filter"],
     }
     changes = {
         "schema_version": 2,
@@ -521,14 +533,14 @@ def test_sections_merge_whole_or_per_key():
         "max_windows": {"plot": 5},
         "presets": {"Filter": [{"name": "lab"}]},
         "execution": {"executor": "local"},
-        "char_replacements": {"/": "-"},
+        "favorites": ["KDE"],
     }
     merged = merge_sections(base, changes)
     assert merged["log"] == {"dir": "lab", "max_age_days": 10}  # per field
     assert merged["max_windows"] == {"table": 50, "plot": 5}  # per kind
     assert set(merged["presets"]) == {"Calculate", "Filter"}  # per tool
     assert merged["execution"] == {"executor": "local"}  # whole: one executor
-    assert merged["char_replacements"] == {"/": "-"}  # whole: one table
+    assert merged["favorites"] == ["KDE"]  # whole: one list
 
 
 @pytest.mark.parametrize("writer", ["save_settings", "save_sections", "export", "write_tool_settings"])

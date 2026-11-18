@@ -36,7 +36,6 @@ from flim.core.execution import ExecutionOptions
 from flim.core.paths import (
     canonical_folder,
     folder_problem,
-    set_char_replacements,
     unique_run_folder,
 )
 from flim.core.registry import TOOLS_GROUP, discover
@@ -62,7 +61,7 @@ from flim.core.cli import (
     log_level,
     settings_file,
 )
-from flim.core.reader import ReadSettings, read_tables
+from flim.core.reader import Reading, ReadSettings, read_tables
 from flim.core.settings import AppSettings
 from flim.core.settingsmgr import session_settings
 
@@ -229,7 +228,6 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
         settings = manager.settings
         for notice in manager.notices:  # e.g. keys of the user settings file only
             _warn(notice)
-        set_char_replacements(settings.char_replacements)  # file and folder names
         if getattr(manager.validation, "import_workflow", None):
             print(
                 "flimbatch: warning: the settings file's import settings (FLIMAnalyzer"
@@ -290,11 +288,12 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
             execution.started() as (execution, note),  # dask-local: one cluster per call
         ):
             for number, (tool, read) in enumerate(runs, 1):
-                tables = _read(args.input, read_settings(read, args.exclude))
+                reading = _read(args.input, read_settings(read, args.exclude))
                 with validated_prefect_server():
                     run = run_on_tables(
-                        tool, tables, settings, call_dir / f"run-{number}", execution,
+                        tool, reading.tables, settings, call_dir / f"run-{number}", execution,
                         args.overrides.for_run(number), manager.record(), notes=[note] if note else [],
+                        files=reading.files,
                     )  # fmt: skip
                 if run.failed or run.state != "completed":
                     failed.append(f"{tool.name}: {', '.join(run.failed) or run.state}")
@@ -317,7 +316,7 @@ def _read(
     paths: Sequence[str | os.PathLike],
     settings: ReadSettings,
     nrows: Optional[int] = None,
-) -> dict[str, "pd.DataFrame"]:
+) -> "Reading":
     """Read the data files; print a warning for each file not read.
 
     Args:
@@ -326,7 +325,7 @@ def _read(
         nrows: Read only this many rows of each file; None reads all rows.
 
     Returns:
-        The tables by name.
+        The tables by name, and the file each was read from (`Reading`).
 
     Raises:
         BatchError: If no file could be read.
@@ -339,7 +338,7 @@ def _read(
     if not reading.tables:
         raise BatchError("No data files could be read")
     logger.info(f"Read {len(reading.tables)} file(s)")
-    return reading.tables
+    return reading
 
 
 def _run_warn(overrides: "Overrides", number: int) -> Callable[[str], None]:
@@ -430,7 +429,7 @@ def _dry_run(
     ok, found = server_status(start=settings.prefect_server, timeout=settings.server_timeout)
     report("Prefect server", None if ok else found, found)
     for number, (tool, read) in enumerate(runs, 1):
-        tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS)
+        tables = _read(args.input, read_settings(read, args.exclude), nrows=DRY_RUN_ROWS).tables
         problems = validate_run(tool, tables, settings, args.overrides.for_run(number))
         if problems:
             errors += len(problems)

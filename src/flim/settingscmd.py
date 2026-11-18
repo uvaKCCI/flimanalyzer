@@ -495,7 +495,8 @@ def _tool_resolve(args: argparse.Namespace) -> int:
         tool, entry = validation.workflow, validation.workflow.settings_entry
         config = tool.config_class.model_validate(entry.config or {})
         rules = ProcessingRules.of(entry.processing, overrides.processing)
-        data = resolved_tool_data(tool, config, overrides.formats_over(entry.output.formats), rules)
+        formats = overrides.formats_over(entry.output.formats)
+        data = resolved_tool_data(tool, config, formats, rules, entry.output.char_replacements)
     else:  # a tool, run as a workflow of one step
         definition = validation.definition
         (step,) = definition.steps
@@ -503,7 +504,9 @@ def _tool_resolve(args: argparse.Namespace) -> int:
         config = tool.config_class.model_validate(step.config)
         own = overrides.for_step(step.id)
         formats = own.formats_over(step.output.formats or [])
-        data = resolved_tool_data(tool, config, formats, definition.rules(step, overrides))
+        rules = definition.rules(step, overrides)
+        replacements = step.output.char_replacements or definition.output.char_replacements
+        data = resolved_tool_data(tool, config, formats, rules, replacements)
     print(json.dumps(data, indent=2))
     return 0
 
