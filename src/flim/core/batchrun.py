@@ -162,7 +162,7 @@ def read_settings(read: ReadSettings, exclude: Sequence[str] = ()) -> ReadSettin
 RESOLVED = "resolved.json"  # the run's settings with every setting stated
 
 
-def _write_resolved(run_dir: str | os.PathLike, data: dict) -> None:
+def write_resolved(run_dir: str | os.PathLike, data: dict) -> None:
     """Write a run's resolved settings into its folder, as `resolved.json`.
 
     Args:
@@ -310,7 +310,7 @@ def run_on_tables(
         # the settings as given, every one stated; what depends on the data (`features:
         # all`, guesses, skipped entries) is resolved again per table when it is rerun
         resolved = resolve_definition(definition, overrides)
-        _write_resolved(run_dir, resolved_data(resolved))
+        write_resolved(run_dir, resolved_data(resolved))
         return tool().run_flow(
             tables,
             task_runner=execution.task_runner(),
@@ -339,7 +339,7 @@ def run_on_tables(
 
     formats = overrides.formats_over(entry.output.formats if entry else [])
     replacements = entry.output.char_replacements if entry else None
-    _write_resolved(run_dir, resolved_tool_data(tool, config, formats, rules, replacements))
+    write_resolved(run_dir, resolved_tool_data(tool, config, formats, rules, replacements))
 
     def build() -> None:
         for name, table in tables.items():

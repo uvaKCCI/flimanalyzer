@@ -1,6 +1,7 @@
 """Data window and main window features, driven as a user would (file dialogs and
 group selections are answered by the test)."""
 
+import json
 import os
 import tempfile
 from pathlib import Path
@@ -288,6 +289,28 @@ def test_import_runs_a_workflow_on_the_files(frame, monkeypatch, tmp_path, prefe
 
     # remembered as Import Tables' settings
     assert frame.settings.tools.config(ImportTables).workflow == "Import"
+
+
+def test_gui_runs_record_their_settings_in_resolved_json(frame, monkeypatch, tmp_path, prefect_harness, flim_data):
+    import json
+    import types
+
+    written = []
+    monkeypatch.setattr(frame, "write_resolved_settings", lambda run, data: written.append(data()))
+    _answer_import(monkeypatch, frame, _results_files(tmp_path, flim_data), "Import")
+    frame.OnImportData(None)
+    ((data),) = written  # one run: Import Tables
+    assert data["tool"] == "Import Tables" and data["config"]["workflow"] == "Import"
+    assert data["output"]["char_replacements"]["%"] == "pcent"  # every setting stated
+
+    # written into the run's results folder; nothing without one
+    from flim.gui.app import AppFrame
+
+    run = types.SimpleNamespace(autosave_dir=tmp_path / "run", name="test")
+    (tmp_path / "run").mkdir()
+    AppFrame.write_resolved_settings(frame, run, lambda: {"tool": "x"})
+    assert json.loads((tmp_path / "run" / "resolved.json").read_text()) == {"tool": "x"}
+    AppFrame.write_resolved_settings(frame, types.SimpleNamespace(autosave_dir=None, name="t"), lambda: {})
 
 
 def test_import_refuses_runs_with_too_many_windows(frame, monkeypatch, tmp_path, flim_data):
@@ -1012,8 +1035,11 @@ def test_workflow_file_from_its_menu_saves_where_the_dialog_says(frame, monkeypa
     )  # fmt: skip
     monkeypatch.setattr(frame, "show_run_summary", lambda *a: None)
     frame.run_tool(tool)
-    tables = [p for p in own.rglob("*.*") if p.is_file() and "pickled" not in p.parts and p.name != "run_summary.txt"]
+    records = ("run_summary.txt", "resolved.json")  # the run's, not results
+    tables = [p for p in own.rglob("*.*") if p.is_file() and "pickled" not in p.parts and p.name not in records]
     assert tables and all(p.suffix == ".csv" for p in tables), tables
+    (resolved,) = own.rglob("resolved.json")  # with the dialog's formats
+    assert {"kind": "table", "format": "csv"} in json.loads(resolved.read_text())["steps"][0]["output"]["formats"]
 
 
 def test_exclude_option_applies_when_opening_and_importing(frame, monkeypatch, tmp_path, prefect_harness):

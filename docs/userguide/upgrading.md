@@ -39,7 +39,7 @@ When it reads a 0.6 file, FLIMAnalyzer converts these settings:
 | the range filters in `filters` | the `Filter` tool's range filters, each switched on as it was selected; the `Filter` tool's own 0.6 filters are added switched off |
 | `filters` > `use` (`Filter Data`) | `filters` > `features` (`Filter Features`) |
 | the `Filter` tool's filters | its three parts, by kind (a second filter on a column goes to `other`) |
-| the `import` section | not used; the GUI offers to save it as a workflow file (see [The import settings of 0.6](#the-import-settings-of-0-6)) |
+| the `import` section | not used; the GUI offers to save it as a workflow file (see [The import settings of 0.6](#the-import-settings-of-06)) |
 | `display` | dropped (no longer used) |
 | tools under former names, for example `Order Categories` | still read, with a warning; saved under the new name (see [Renamed tools](#renamed-tools)) |
 

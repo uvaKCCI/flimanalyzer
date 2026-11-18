@@ -1102,6 +1102,12 @@ class AppFrame(wx.Frame):
         flow_run = self.run_with_progress(importer.name, start_run)
         if flow_run is None:
             return None
+        from flim.core.workflowfile import resolved_tool_data
+
+        self.write_resolved_settings(
+            flow_run,
+            lambda: resolved_tool_data(importer, config, formats, ProcessingRules.of(None), replacements),
+        )
         self.show_leaves(importer, flow_run)
         self.show_run_summary(importer.name, flow_run)
         return flow_run
@@ -1224,9 +1230,40 @@ class AppFrame(wx.Frame):
         flow_run = self.run_with_progress(tool.name, start_run)
         if flow_run is None:
             return None
+
+        def resolved() -> dict:
+            from flim.core.workflowfile import resolve_definition, resolved_data
+
+            # the file's steps, with the run's formats and replacements at workflow level
+            definition = tool.definition
+            output = definition.output.model_copy(
+                update={"formats": list(formats or []), "char_replacements": replacements}
+            )
+            return resolved_data(resolve_definition(definition.model_copy(update={"output": output})))
+
+        self.write_resolved_settings(flow_run, resolved)
         self.show_leaves(workflow, flow_run)
         self.show_run_summary(tool.name, flow_run)
         return flow_run
+
+    def write_resolved_settings(self, flow_run: FlowRun, data: Callable[[], dict]) -> None:
+        """Write the run's settings with every setting stated, `resolved.json`, as
+        flimbatch does, into the run's results folder; nothing if it has none.
+
+        Args:
+            flow_run: The run.
+            data: Returns the file's content (`flim.core.workflowfile.resolved_data`
+                or `resolved_tool_data`).
+        """
+        from flim.core.batchrun import write_resolved
+
+        folder = flow_run.autosave_dir
+        if folder is None or not Path(folder).is_dir():
+            return
+        try:
+            write_resolved(folder, data())
+        except Exception as err:  # the run is done; the record is not essential to it
+            logger.warning(f"{flow_run.name}: resolved.json not written: {err}")
 
     def show_leaves(self, workflow: Tool, flow_run: FlowRun) -> None:
         """Open a window for each table and figure of a workflow's leaf steps.
@@ -1551,6 +1588,15 @@ class AppFrame(wx.Frame):
         flow_run = self.run_with_progress(tool.name, start_run)
         if flow_run is None:
             return  # cancelled or stopped by an error, already reported
+        from flim.core.workflowfile import resolved_tool_data
+
+        self.write_resolved_settings(
+            flow_run,
+            lambda: resolved_tool_data(
+                tool, result.config, autosave.formats, ProcessingRules.of(result.processing),
+                autosave.char_replacements,
+            ),
+        )  # fmt: skip
         if is_workflow:
             self.show_workflow_graph(flow_run)
             # always: how the run ended, its results folder and Prefect flow run

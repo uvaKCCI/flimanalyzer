@@ -359,7 +359,8 @@ https://flimanalyzer.readthedocs.io).
   entries) stay as given and are resolved for each table. `flimbatch --run
   resolved.json` on the same files with the same FLIMAnalyzer version repeats the
   run. `run_summary.txt` lists, for each table, the columns guessed and the entries
-  skipped, and records the versions and the settings files.
+  skipped, and records the versions and the settings files. Runs in the GUI that save
+  their results write `resolved.json` into their results folder too.
 - **`flimsettings`:** a command that lists, shows, validates, resolves and updates
   settings without the GUI. `flimsettings tool` and `flimsettings workflow` take
   `--list`, `--show FILE|NAME`, `--validate FILE` and `--resolve FILE` (the file with
