@@ -265,6 +265,26 @@ def test_output_schema_makes_only_the_declared_kinds():
         assert made <= set(tool.output_kinds()), (tool.name, made)
 
 
+@pytest.mark.parametrize("name, option", [("PCA", "explained_plot"), ("Frequency Histogram", "table")])
+def test_optional_outputs_are_declared_kinds(name, option):
+    """An option that adds an output of another kind: that kind is declared."""
+    import numpy as np
+    import pandas as pd
+
+    from flim.core.registry import tools
+    from flim.core.schema import TableSchema
+
+    df = pd.DataFrame({
+        "Treatment": pd.Categorical(["a", "b"] * 10),
+        "FLIRR": np.random.rand(20), "NADH tm": np.random.rand(20),
+    })  # fmt: skip
+    tool = tools.get(name)
+    config = tool.config_class.model_validate({"features": ["FLIRR", "NADH tm"], option: True})
+    specs = tool().output_schema(config, [TableSchema.from_frame(df)])
+    made = {s.type.kind for s in specs.values()}
+    assert len(made) == 2 and made <= set(tool.output_kinds()), made
+
+
 def test_a_tool_without_output_types_makes_any_kind_with_a_deprecation_warning():
     import pytest
 

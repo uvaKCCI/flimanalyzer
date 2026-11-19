@@ -97,7 +97,7 @@ class PCAnalysis(Tool[PCAConfig]):
     """Principal component analysis (scikit-learn) of the features."""
 
     name = "PCA"
-    output_types = (TableType,)
+    output_types = (TableType, PlotType)
     category = "Analysis"
     description = (
         "Principal component analysis of the features, standardized by default."

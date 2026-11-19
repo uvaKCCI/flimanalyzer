@@ -1473,7 +1473,7 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
     """Histograms of the features in percent of the measurements."""
 
     name = "Frequency Histogram"
-    output_types = (PlotType,)
+    output_types = (PlotType, TableType)
     description = (
         "Histograms of the features in percent of the measurements (per group, unless"
         " stacked), optionally with the binned values as a table."
