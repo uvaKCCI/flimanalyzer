@@ -603,8 +603,9 @@ def resolve_step(
             least = max(least, 1)
         if len(value) < least:
             present = ", ".join(map(str, value)) or "none"
+            applies = "entry applies" if len(value) == 1 else "entries apply"
             result.errors.append(
-                f"{top}: {len(value)} entries apply ({present}); {tool.name} needs at"
+                f"{top}: {len(value)} {applies} ({present}); {tool.name} needs at"
                 f" least {least}"
             )
     result.config = config

@@ -602,7 +602,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         )
         self.grey_out()
         loaded = len(ranges) - len(missing)
-        text = f"{loaded} filters loaded"
+        text = f"{loaded} {'filter' if loaded == 1 else 'filters'} loaded"
         if missing:
             text += f"; not in this table: {', '.join(missing)}"
         self.message.SetLabel(text)

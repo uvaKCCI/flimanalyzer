@@ -697,19 +697,19 @@ def _errors(definition):
 
 
 def test_a_missing_feature_is_an_error_by_default():
-    assert _errors(_summarize(["t1", "gone"])) == ["step 1 (Summarize): features[1]: Column 'gone' is not in the input"]
+    assert _errors(_summarize(["t1", "gone"])) == ["step 01 (Summarize): features[1]: Column 'gone' is not in the input"]
 
 
 def test_skippable_some_removes_missing_features_and_needs_one():
     assert _errors(_summarize(["t1", "gone"], {"skippable": {"features": "some"}})) == []
     errors = _errors(_summarize(["gone"], {"skippable": {"features": "some"}}))
-    assert errors == ["step 1 (Summarize): features: 0 entries apply (none); Summarize needs at least 1"]
+    assert errors == ["step 01 (Summarize): features: 0 entries apply (none); Summarize needs at least 1"]
 
 
 def test_a_required_feature_is_never_removed():
     processing = {"skippable": {"features": "all"}, "required": {"features": ["gone"]}}
     errors = _errors(_summarize(["t1", "gone"], processing))
-    assert errors == ["step 1 (Summarize): features[1]: Column 'gone' is not in the input (required)"]
+    assert errors == ["step 01 (Summarize): features[1]: Column 'gone' is not in the input (required)"]
 
 
 def test_the_minimum_of_the_tool_applies_after_skipping():
@@ -718,7 +718,7 @@ def test_the_minimum_of_the_tool_applies_after_skipping():
         "id": "1", "tool": "Scatter Plot", "config": {"features": ["t1", "gone"]},
         "processing": {"skippable": {"features": "all"}},
     }]})  # fmt: skip
-    assert any("features: 1 entries apply (t1); Scatter Plot needs at least 2" in e for e in _errors(definition))
+    assert any("features: 1 entry applies (t1); Scatter Plot needs at least 2" in e for e in _errors(definition))
 
 
 def test_strict_false_guesses_a_missing_column():

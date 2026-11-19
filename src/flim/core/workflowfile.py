@@ -320,9 +320,8 @@ def validate_definition(definition: WorkflowDefinition, validation: WorkflowVali
     from flim.core.workflow import Workflow
 
     seen = []
-    width = id_width(definition)
     for number, step in enumerate(definition.steps, 1):
-        where = f"step {int(step.id):0{width}d}"
+        where = step_label(definition, step)
         if step.id in seen or step.id == INPUT:
             validation.errors.append(f"{where}: the id '{step.id}' is used twice or reserved")
         inputs = step.inputs or ([seen[-1]] if seen else [INPUT])
@@ -680,14 +679,18 @@ def _shapes(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
         sources = {shapes.get(parse_reference(r)[0], MAPPED) for r in references}
         tool = tools.get(step.tool) if step.tool in tools else None
         if tool is not None and issubclass(tool, Workflow):
-            errors.append(f"step {step.id}: a step can't be a workflow")
+            errors.append(f"{step_label(definition, step)}: a step cannot be a workflow")
         if tool is not None and tool.inputs and tool.inputs[0].many:
             if len(references) != 1:
-                errors.append(f"step {step.id}: {step.tool} takes one input, the tables")
+                errors.append(
+                    f"{step_label(definition, step)}: {step.tool} takes one input, the"
+                    " tables"
+                )
             shapes[step.id] = SINGLE
         elif len(sources) > 1:
             errors.append(
-                f"step {step.id}: combines tables per file with a single table;"
+                f"{step_label(definition, step)}: combines tables per file with a"
+                " single table;"
                 " reduce them first (e.g. Concatenate)"
             )
             shapes[step.id] = SINGLE
@@ -739,8 +742,8 @@ def _dims(definition: WorkflowDefinition) -> tuple[dict, list[str]]:
             parts = {d for s in sources for d in s if d != INPUT_DIM}
             if any(s != own[: len(s)] for s in sources) and len(parts) > 1:
                 errors.append(
-                    f"step {step.id}: combines the parts of different steps; use the"
-                    " parts of one step"
+                    f"{step_label(definition, step)}: combines the parts of different"
+                    " steps; use the parts of one step"
                 )
         if tool is not None and _mappable(tool, step):
             own = own + (f"part {step.id}",)
@@ -826,6 +829,19 @@ def id_width(definition: WorkflowDefinition) -> int:
         the step folders by id.
     """
     return max(2, *(len(step.id) for step in definition.steps))
+
+
+def step_label(definition: WorkflowDefinition, step: "WorkflowStep") -> str:
+    """Return how messages name a step: `step` and its id as in its folder name.
+
+    Args:
+        definition: The workflow.
+        step: One of its steps.
+
+    Returns:
+        For example `step 01` (folder `01-<tool>`).
+    """
+    return f"step {int(step.id):0{id_width(definition)}d}"
 
 
 def step_folder(step: WorkflowStep, width: int = 2) -> str:
@@ -1213,7 +1229,8 @@ def validate_steps(
             many = schemas if source == INPUT else {"Input": inputs[0]}
             inputs = [None if None in many.values() else many]
         resolution = resolve_step(tool, config, inputs, definition.rules(step, override))
-        errors += [f"step {step.id} ({step.tool}): {e}" for e in resolution.errors]
+        label = step_label(definition, step)
+        errors += [f"{label} ({step.tool}): {e}" for e in resolution.errors]
         config = resolution.config
         try:
             specs = list(tool.output_schema(config, inputs).values())
