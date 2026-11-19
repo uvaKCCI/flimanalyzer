@@ -394,7 +394,6 @@ class DefaultWorkflowValidator:
             _TRACER.reset(token)
         report.steps = tracer.steps
         # columns reported for the workflow config are not reported again per step
-        seen = {(None, None, f"Column '{i.old}' is not in the input") for i in issues}
         missing = {
             m.group(1)
             for i in report.errors
@@ -402,6 +401,7 @@ class DefaultWorkflowValidator:
             if m
         }
         own = {i.message for i in issues}  # the workflow config's, e.g. bound fields
+        seen = set()
         for step in tracer.steps:  # one issue per message (steps run per feature)
             for issue in step.issues:
                 m = re.match(r"Column '(.*)' is not in the input", issue.message)

@@ -378,7 +378,7 @@ def file_size(size: int) -> str:
     """Return a size in bytes as text, e.g. `512 B`, `28.0 kB`, `1.4 MB` (powers of 1000)."""
     value = float(size)
     for unit in ("B", "kB", "MB", "GB"):
-        if value < 1000 or unit == "GB":
+        if value < 1000:
             return f"{int(value)} {unit}" if unit == "B" else f"{value:.1f} {unit}"
         value /= 1000
     return f"{value:.1f} TB"

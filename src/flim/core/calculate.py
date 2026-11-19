@@ -343,7 +343,7 @@ def calculate(
         # numbers: a feature; true/false or text: a category column (e.g. a condition)
         if pd.api.types.is_bool_dtype(values) or not pd.api.types.is_numeric_dtype(values):
             values = values.astype("category")
-        elif pd.api.types.is_numeric_dtype(values) and not pd.api.types.is_bool_dtype(values):
+        else:
             values = values.replace([np.inf, -np.inf], np.nan)
         if name in data.columns and name not in outcome.replaced:
             outcome.replaced.append(name)

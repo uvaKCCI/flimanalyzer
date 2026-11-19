@@ -193,9 +193,7 @@ def save_value(
         The files written; empty if no data type with save options accepts the value
         (a file, `FileType`, is copied as it is).
     """
-    from flim.core.types import DataType
-
-    from flim.core.types import FileType
+    from flim.core.types import DataType, FileType
 
     data_type = DataType.of(value)
     if data_type is FileType:

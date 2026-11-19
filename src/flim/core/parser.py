@@ -65,9 +65,8 @@ def instantiate_parser(fullname: str) -> Optional["defaultparser"]:
         module = importlib.import_module(modulename)
         class_ = getattr(module, classname)
         parserinstance = class_()
-    except Exception:
-        logger.error(f"Error instantiating {fullname} parser.")
-        logger.error(Exception)
+    except Exception as err:
+        logger.error(f"Error instantiating {fullname} parser: {err}")
         parserinstance = None
     return parserinstance
 

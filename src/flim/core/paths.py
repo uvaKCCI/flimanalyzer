@@ -324,7 +324,6 @@ def path_uri(directory: str, name: str) -> str:
         `file:///D:/KCCI/Results-a.txt`. For a relative folder, the percent-encoded
         relative reference without `file://`.
     """
-    import re
     from pathlib import PurePosixPath, PureWindowsPath
     from urllib.parse import quote
 

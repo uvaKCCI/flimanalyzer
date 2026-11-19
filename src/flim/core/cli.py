@@ -243,10 +243,16 @@ def executor_settings(
     settings = {"executor": name, **known, **({"kwargs": other} if other else {})}
     if old or execargs:
         keys = ",".join(f"{k}={v}" for k, v in {**known, **other}.items())
+        used = []
+        if old:
+            used.append("the -e names LocalExecutor, LocalDaskExecutor, DaskExecutor"
+                        " (removed in 1.0.0)")
+        if execargs:
+            used.append("-a (removed in 0.8.0)")
+        verb = "is" if execargs and not old else "are"
         notes.insert(
             0,
-            "the -e names LocalExecutor, LocalDaskExecutor, DaskExecutor (removed in"
-            " 1.0.0) and -a (removed in 0.8.0) are deprecated;"
+            f"{' and '.join(used)} {verb} deprecated;"
             f" use -e {name}{':' + keys if keys else ''}",
         )
     try:
