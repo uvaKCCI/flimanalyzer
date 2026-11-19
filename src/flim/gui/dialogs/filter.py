@@ -67,8 +67,10 @@ class CategoryFiltersEditor(Editor):
     """Per category column, the values whose rows are kept (all are, by default).
 
     A column with unchecked values filters; it is marked with `*` in the list, and
-    with `(off)` if its filter is not used (`off`). Checking or unchecking a value
-    of such a column uses its filter again.
+    with `(off)` if its filter is switched off (`off`). Checking or unchecking a
+    value of such a column uses its filter again. With an input table, only its
+    category columns are listed: filters on other columns are not used, and are
+    kept unchanged (`get` returns them).
     """
 
     expands = True
@@ -77,7 +79,8 @@ class CategoryFiltersEditor(Editor):
         """Create the panel of the columns and their values."""
         self.levels: dict = {}  # column -> values in the data
         self.kept: dict = {}  # column -> values kept (only columns that filter)
-        self.off: set = set()  # columns whose filter is not used
+        self.off: set = set()  # columns whose filter is switched off
+        self.table_columns: Optional[set] = None  # the input's category columns; None: no input
         panel = wx.Panel(parent)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.columns = wx.ListBox(panel, choices=[])
@@ -91,11 +94,18 @@ class CategoryFiltersEditor(Editor):
         return panel
 
     def column_names(self) -> list[str]:
-        """Return the category columns of the data, then other filtering columns."""
-        return list(self.levels) + [c for c in self.kept if c not in self.levels]
+        """Return the category columns of the data, then the other filtering columns shown.
+
+        Without an input table, every filtering column is shown; with one, only
+        those of its category columns whose values are unknown.
+        """
+        others = [c for c in self.kept if c not in self.levels]
+        if self.table_columns is not None:
+            others = [c for c in others if c in self.table_columns]
+        return list(self.levels) + others
 
     def _label(self, column: str) -> str:
-        """Return a column's label in the list: ` *` if it filters, ` (off)` if not used."""
+        """Return a column's label in the list: ` *` if it filters, ` (off)` if switched off."""
         if column not in self.kept:
             return column
         return f"{column} * (off)" if column in self.off else f"{column} *"
@@ -146,16 +156,19 @@ class CategoryFiltersEditor(Editor):
         self.changed(event)
 
     def set_schema(self, schema: Optional[TableSchema]) -> None:
-        """List the category columns with known values."""
+        """List the input's category columns; hide filters on other columns."""
         self.levels = {}
+        self.table_columns = None
         if schema is not None:
+            if schema.complete:
+                self.table_columns = {c.name for c in schema.columns if c.role == "category"}
             for column in schema.columns:
                 if column.role == "category" and column.levels is not None:
                     self.levels[column.name] = list(column.levels)
         self.show_columns()
 
     def get(self) -> Any:
-        """Return the kept values of each column that filters."""
+        """Return the kept values of each column that filters, shown or not."""
         return {column: list(values) for column, values in self.kept.items()}
 
     def set(self, value: Any) -> None:
@@ -277,7 +290,8 @@ class _ComponentEditor(Editor):
 class FeaturesComponentEditor(_ComponentEditor):
     """The feature filters: per feature of the input a range, used or not.
 
-    A range filter of a column the input doesn't have is kept unchanged. An
+    Only the input's feature columns are listed; a feature filter of a column the
+    input does not have is not used, and is kept unchanged. An
     unused range without values keeps the values it had.
     """
 

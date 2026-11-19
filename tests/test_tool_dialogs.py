@@ -748,6 +748,21 @@ def test_category_filters_that_are_off_are_kept_and_used_again_on_an_edit(dialog
     assert (edited.keep, edited.enabled) == (["Ctrl", "Drug"], True)
 
 
+def test_category_filters_on_columns_the_table_lacks_are_hidden_and_kept(dialog, table):
+    from flim.configs.data import CategoryFilterNode as Category
+
+    config = FilterConfig(categories={"filters": [
+        Category(column="Treatment", keep=["Ctrl"]),
+        Category(column="Gone", keep=["x"]),
+    ]})  # fmt: skip
+    d = dialog("Filter", config)
+    view = d.fields.editors["categories"].view
+    shown = [view.columns.GetString(i) for i in range(view.columns.GetCount())]
+    assert "Treatment *" in shown and not any(s.startswith("Gone") for s in shown)
+    kept = {f.column: f.keep for f in d.result().config.categories.filters}
+    assert kept == {"Treatment": ["Ctrl"], "Gone": ["x"]}  # not used, kept unchanged
+
+
 def test_source_dialog_shows_the_rename_only_for_a_source_column(dialog):
     from flim.tools.data import SourceFromPath
 
