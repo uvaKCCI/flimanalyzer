@@ -87,6 +87,9 @@ Before 0.7.0, the GUI read `defaults.json` in the folder it was started from. Th
 
 These environment variables set the same settings as the command-line options. They are read by the GUI and by `flimbatch`, except where the table says otherwise. `flimsettings env --list` lists them, with the commands that read each one (see [flimsettings](/userguide/flimsettings)).
 
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.38}>{\raggedright\arraybackslash}\Y{0.62}
+```
+
 | Variable | |
 |---|---|
 | `FLIM_RESULTS_DIR` | results folder, as `-o` (GUI only: `flimbatch` needs `-o`) |

@@ -49,6 +49,9 @@ Other elements, such as calling methods or functions other than the math functio
 
 A function calculates a value from the values of its argument columns, row by row. These are the functions the built-in `Import` workflow uses; plugins can add more:
 
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.16}>{\raggedright\arraybackslash}\Y{0.26}>{\raggedright\arraybackslash}\Y{0.18}>{\raggedright\arraybackslash}\Y{0.40}
+```
+
 | Function | Arguments | Parameters | Result |
 |:--|:--|:--|:--|
 | `tm` | a1[%], t1, a2[%], t2 | | the mean lifetime, (a1[%] × t1 + a2[%] × t2) / 100 |

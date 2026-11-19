@@ -342,6 +342,9 @@ No user settings file: /Users/mst3k/Library/Application Support/FLIMAnalyzer/use
 
 ## env
 
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.2}>{\raggedright\arraybackslash}\Y{0.8}
+```
+
 | Action | |
 |---|---|
 | `--list` | the `FLIM_*` variables that FLIMAnalyzer reads, what each sets and which commands read it, and the order of precedence |

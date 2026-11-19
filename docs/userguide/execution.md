@@ -4,6 +4,9 @@ Every tool and workflow step runs as a task. A task starts as soon as the result
 
 The *executor* decides where the tasks run. It is set with the option `-e`, in the GUI (`flimanalyzer`) and in [batch mode](/userguide/batch) (`flimbatch`) alike.
 
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.18}>{\raggedright\arraybackslash}\Y{0.36}>{\raggedright\arraybackslash}\Y{0.30}>{\raggedright\arraybackslash}\Y{0.16}
+```
+
 | Executor | Option | Tasks run | Needs |
 |---|---|---|---|
 | Threads (default) | `-e local[:workers=N]` | as threads in the FLIMAnalyzer process, on one computer | nothing extra |
@@ -12,7 +15,10 @@ The *executor* decides where the tasks run. It is set with the option `-e`, in t
 
 The executor's options follow its name after a colon, as `KEY=VALUE` pairs separated by commas. An unknown executor name or an invalid value is an error, and FLIMAnalyzer doesn't start. For `local`, an option it doesn't have is an error too. The Dask executors pass options they don't have on to Dask (`KEY=VALUE` in the table above). The executor can also be set with environment variables or in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
 
-**Deprecated options.** The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`, and the option `-a`, `--execargs`, still work, but print a warning that shows the new form. `num_workers` is now `workers`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does. For example:
+**Deprecated options.** The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`, and the option `-a`, `--execargs`, still work, but print a warning that shows the new form. The executor names are removed in 1.0.0, `-a` in 0.8.0. `num_workers` is now `workers`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does. For example:
+
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.55}>{\raggedright\arraybackslash}\Y{0.45}
+```
 
 | Deprecated | New |
 |---|---|

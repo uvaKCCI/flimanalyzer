@@ -93,7 +93,11 @@ uv run flimanalyzer -i results.txt more-results.csv
 ```
 Run `flimanalyzer --help` for all command-line options.
 
-### Command-line options
+(command-line-options)=
+**Command-line options**
+
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.32}>{\raggedright\arraybackslash}\Y{0.68}
+```
 
 | Option | |
 |---|---|
@@ -112,6 +116,9 @@ Run `flimanalyzer --help` for all command-line options.
 `-o`, `-e`, `--prefect-server`, `--server-timeout`, `--log-dir` and `-l` can also be set with environment variables (`FLIM_RESULTS_DIR`, `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`, `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`; see [Environment variables](/userguide/settings.md#environment-variables)), and in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)); `-w` with `FLIM_WORKFLOW_PATH`. The other options have no environment variable. An option given on the command line takes precedence.
 
 **Deprecated options.** These options still work, but print a warning that shows the new form:
+
+```{tabularcolumns} >{\raggedright\arraybackslash}\Y{0.20}>{\raggedright\arraybackslash}\Y{0.24}>{\raggedright\arraybackslash}\Y{0.45}>{\raggedright\arraybackslash}\Y{0.11}
+```
 
 | Deprecated | Use instead | Example | Removed in |
 |---|---|---|---|
