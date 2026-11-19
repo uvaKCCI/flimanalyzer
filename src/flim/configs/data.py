@@ -182,7 +182,11 @@ class RangeSettings(BaseConfig):
 class FilterNode(BaseConfig):
     """A node of a filter tree (base of the filter kinds)."""
 
-    enabled: bool = Field(default=True, title="Use", description="Unchecked: keeps all rows.")
+    enabled: bool = Field(
+        default=True,
+        title="Use",
+        description="Unchecked: not used (drops no rows; a group leaves it out).",
+    )
     kind: str = Field(
         default="range",
         title="Kind",
@@ -237,8 +241,11 @@ class ExpressionFilterNode(FilterNode):
 class FilterGroup(FilterNode):
     """A group of filters, combined by its kind.
 
-    `all` keeps the rows all of them keep, `any` the rows one of them keeps, `not` the
-    rows that `all` of them would drop. An empty group keeps all rows.
+    `all` keeps the rows all of its filters in use keep, `any` the rows at least one of
+    them keeps, `not` the rows that `all` of them would drop: those that at least one
+    of them drops. A filter is not used if it is off or on a column the table does not
+    have; a group combines only the filters it uses, and a group that uses none is
+    not used itself (it drops no rows).
     """
 
     kind: Literal["all", "any", "not"] = "all"
@@ -377,7 +384,7 @@ class CategoryFilters(BaseConfig):
     enabled: bool = Field(
         default=True,
         title="Use category filters",
-        description="Off: the category filters keep all rows.",
+        description="Off: the category filters are not used (they drop no rows).",
     )
     filters: list[CategoryFilterNode] = Field(
         default=[],
@@ -398,7 +405,7 @@ class OtherFilters(BaseConfig):
     enabled: bool = Field(
         default=True,
         title="Use other filters",
-        description="Off: the other filters keep all rows.",
+        description="Off: the other filters are not used (they drop no rows).",
     )
     filters: list[FilterEntry] = Field(
         default=[],
@@ -452,7 +459,7 @@ class FilterConfig(DataTaskConfig):
         default_factory=OtherFilters,
         title="Other filters",
         description="Filters of any kind. A filter on a column the table doesn't have"
-        " keeps all rows.",
+        " is not used (it drops no rows).",
         json_schema_extra={"order": 303},
     )
 

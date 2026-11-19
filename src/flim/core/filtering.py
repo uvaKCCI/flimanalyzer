@@ -12,7 +12,10 @@ table; the masks are combined, and the table is copied once at the end, so the
 order of the nodes doesn't matter.
 
 A node that is not enabled, an empty group, and a leaf on a column the table doesn't
-have keep all rows, as the range filters did up to FLIMAnalyzer 0.6.
+have are not used: they drop no rows. A group combines only the masks of the nodes
+it uses, and a group that uses none is not used itself. So a filter that is not used
+neither makes an `any` group keep every row nor a `not` group drop every row. A
+range filter on a missing column dropped no rows up to FLIMAnalyzer 0.6 either.
 """
 
 from collections.abc import Collection, Sequence
@@ -40,7 +43,7 @@ class Outcome:
         kept: Whether each input row is kept.
         dropped: (path, label, number of input rows the leaf drops) per leaf in use,
             e.g. `("features.filters[2]", "trp t1 in [0, 2500]", 12)`.
-        notes: Leaves that keep all rows because their column is missing or not a
+        notes: Leaves that are not used because their column is missing or not a
             feature, by path.
     """
 
@@ -79,49 +82,60 @@ def _all_rows(data: pd.DataFrame) -> pd.Series:
 
 def _keeps(
     data: pd.DataFrame, node: "FilterNode", path: str, outcome: Outcome
-) -> np.ndarray:
-    """Return whether each row is kept by a node; record what enabled leaves drop."""
+) -> Optional[np.ndarray]:
+    """Return whether each row is kept by a node; record what enabled leaves drop.
+
+    Returns:
+        The mask; None for a node that is not used: not enabled, an empty group, a
+        leaf on a column the table does not have, or a group that uses none of its
+        nodes.
+    """
     if not node.enabled:
-        return np.ones(len(data), dtype=bool)
+        return None
     if node.kind in ("all", "any", "not"):
         masks = [
-            _keeps(data, child, f"{path}.filters[{i}]", outcome)
+            mask
             for i, child in enumerate(node.filters)
+            if (mask := _keeps(data, child, f"{path}.filters[{i}]", outcome)) is not None
         ]
         if not masks:
-            return np.ones(len(data), dtype=bool)
+            return None
         if node.kind == "any":
             return np.logical_or.reduce(masks)
         joined = np.logical_and.reduce(masks)
         return ~joined if node.kind == "not" else joined
-    mask = np.asarray(_leaf(data, node, path, outcome), dtype=bool)
-    outcome.dropped.append((path, label(node), int((~mask).sum())))
+    kept = _leaf(data, node, path, outcome)
+    mask = None if kept is None else np.asarray(kept, dtype=bool)
+    outcome.dropped.append((path, label(node), 0 if mask is None else int((~mask).sum())))
     return mask
 
 
 def _leaf(
     data: pd.DataFrame, node: "FilterNode", path: str, outcome: Outcome
-) -> pd.Series:
-    """Return whether each row is kept by a leaf; note a missing or wrong column."""
+) -> Optional[pd.Series]:
+    """Return whether each row is kept by a leaf; None for a missing or wrong column.
+
+    A missing or wrong column is noted in `outcome.notes`.
+    """
     if node.kind == "expression":
         used = expression_columns(quote_columns(node.expression, data.columns))
         absent = [c for c in used if c not in data.columns]
         if absent:
             outcome.notes[path] = f"no column {', '.join(repr(c) for c in absent)}"
-            return _all_rows(data)
+            return None
         result = evaluate(data, node.expression)
         if not pd.api.types.is_bool_dtype(result):
             raise ValueError(f"'{node.expression}' is not a condition (true or false)")
         return result.fillna(False).astype(bool)
     if node.column not in data.columns:
         outcome.notes[path] = f"no column '{node.column}'"
-        return _all_rows(data)
+        return None
     values = data[node.column]
     if node.kind == "category":
         return values.isin(node.keep)
     if not pd.api.types.is_numeric_dtype(values) or pd.api.types.is_bool_dtype(values):
         outcome.notes[path] = f"'{node.column}' is not a feature"
-        return _all_rows(data)
+        return None
     inside = values.notna() if node.dropna else _all_rows(data)
     if node.low is not None:
         inside &= ~(values < node.low)
@@ -160,16 +174,17 @@ def apply_filters(
 
     Returns:
         The rows kept, whether each input row is kept, what each leaf in use
-        dropped, and the leaves that keep all rows because of their column.
+        dropped, and the leaves that are not used because of their column.
 
     Raises:
         ValueError: If an expression is not allowed or is not a condition.
     """
     outcome = Outcome(data=data, kept=_all_rows(data))
     masks = [
-        _keeps(data, node, f"{path}[{i}]", outcome)
+        mask
         for path, nodes in _lists(filters)
         for i, node in enumerate(nodes)
+        if (mask := _keeps(data, node, f"{path}[{i}]", outcome)) is not None
     ]
     kept = np.logical_and.reduce(masks) if masks else np.ones(len(data), dtype=bool)
     outcome.kept = pd.Series(np.asarray(kept, dtype=bool), index=data.index)
@@ -194,7 +209,7 @@ def validate_filters(
     Returns:
         (path, severity, message) per problem: `error` for an expression that is not
         allowed, `warning` for an expression on columns the table doesn't have (it
-        keeps all rows) and for two ranges on one column in the same `all` group that
+        is not used) and for two ranges on one column in the same `all` group that
         don't overlap (they drop all rows).
     """
     problems: list = []
@@ -244,7 +259,7 @@ def _validate(
             if absent:
                 missing = ", ".join(repr(c) for c in absent)
                 problems.append(
-                    (f"{where}.expression", "warning", f"keeps all rows: no column {missing}")
+                    (f"{where}.expression", "warning", f"not used: no column {missing}")
                 )
         if node.kind == "range" and ranges is not None:
             ranges.setdefault(node.column, []).append((where, node))

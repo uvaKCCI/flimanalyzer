@@ -60,6 +60,21 @@ def test_groups_nest(data):
         assert kept(data, Group(kind=kind)) == ["a", "b", "c", "d"]  # empty: keeps all
 
 
+def test_groups_leave_out_unused_filters(data):
+    """Filters off or on a missing column do not count in a group."""
+    half = Range(column="t1", high=5)  # keeps a, b
+    off = Range(column="t1", high=0, enabled=False)
+    missing = Range(column="gone", high=0)
+    for unused in (off, missing):
+        assert kept(data, Group(kind="any", filters=[unused, half])) == ["a", "b"]
+        assert kept(data, Group(kind="not", filters=[unused])) == ["a", "b", "c", "d"]
+        assert kept(data, Group(kind="not", filters=[unused, half])) == ["c", "d"]
+        assert kept(data, Group(kind="any", filters=[unused])) == ["a", "b", "c", "d"]
+    inner = Group(kind="any", filters=[off, missing])  # left out: nothing in use
+    assert kept(data, Group(kind="not", filters=[inner])) == ["a", "b", "c", "d"]
+    assert kept(data, Group(kind="any", filters=[inner, half])) == ["a", "b"]
+
+
 def test_disabled_and_missing_columns_keep_all_rows(data):
     everything = ["a", "b", "c", "d"]
     assert kept(data, Range(column="t1", high=0, enabled=False)) == everything
@@ -121,12 +136,13 @@ def test_filter_tool(data):
     config = FilterConfig(features={"filters": [Range(column="t1", high=5)]})
     (table,) = Filter()(data, config=config).values()
     assert list(table["name"]) == ["a", "b"]
-    # a filter on a missing column keeps all rows: a warning only if it is used
+    # a filter on a missing column is not used: a warning only if it is switched on
     config = FilterConfig(
         features={"filters": [Range(column="gone", high=1), Range(column="lost", enabled=False)]}
     )
     issues = Filter.validate(config, [TableSchema.from_frame(data)])
     assert [(i.field, i.severity) for i in issues] == [("features.filters[0].column", "warning")]
+    assert issues[0].message.endswith("is not in the input: this filter is not used")
     config = FilterConfig(other={"filters": [Group(kind="any", filters=[Expression(expression="1 +")])]})
     (issue,) = Filter.validate(config, [TableSchema.from_frame(data)])
     assert (issue.field, issue.severity) == ("other.filters[0].filters[0].expression", "error")

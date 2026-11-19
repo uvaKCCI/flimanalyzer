@@ -338,7 +338,7 @@ class Filter(Tool[FilterConfig]):
             logger.info(f"{self.name}: the filters are switched off (Use filters): all rows kept")
             return {"Filtered": data.reset_index(drop=True).copy()}
         outcome = apply_filters(data, config)
-        # entries: a filter on a column the table doesn't have keeps all rows
+        # entries: a filter on a column the table does not have is not used
         self.applied(len(outcome.dropped) - len(outcome.notes))
         for path, note in outcome.notes.items():
             part, index = re.match(r"(\w+)\.filters\[(\d+)\]", path).groups()
@@ -354,7 +354,7 @@ class Filter(Tool[FilterConfig]):
         """Validate the config against the input schema.
 
         A column of a filter in use that the input doesn't have is a warning (the
-        filter keeps all rows); for a filter not in use it is no issue. The filters
+        filter is not used); for a filter switched off it is no issue. The filters
         themselves are validated by `flim.core.filtering.validate_filters`. A value
         of a category filter in use that its column doesn't have is a warning.
         """
@@ -367,7 +367,9 @@ class Filter(Tool[FilterConfig]):
             if "is not in the input" in issue.message and _in_parts(node):
                 # a filter on a missing column keeps all rows (as up to 0.6)
                 if node in used:
-                    message = issue.message.replace("is not in the input", "is not in the input: keeps all rows")
+                    message = issue.message.replace(
+                        "is not in the input", "is not in the input: this filter is not used"
+                    )
                     issues.append(Issue(issue.field, message, "warning"))
                 continue
             issues.append(issue)
