@@ -18,7 +18,7 @@ The `Calculate` tool adds new columns calculated from others, for example the me
     **The calculation editor** first asks for the `Kind`, `expression` or `function`. Below it are the fields of every kind, which stay in place when you change the kind:
 
     - `Use` (default checked): unchecked, the calculation is left out.
-    - `New Column`: the new column's name. If the table already has a column with this name, the new one replaces it; the dialog warns about this.
+    - `New column`: the new column's name. If the table already has a column with this name, the new one replaces it; the dialog warns about this.
     - `Keep` (default checked): unchecked makes a helper column. Later calculations can use it, but it is not in the result.
     - `Description`: a note for yourself.
 
@@ -41,7 +41,7 @@ An expression is a formula of columns and numbers: `+`, `-`, `*`, `/`, `//` (div
 - `log(NAD(P)H tm / FAD tm)`: the logarithm of a ratio.
 - `FAD tm > 1000`: `True` or `False` per row, a category column to group by.
 
-A name that is not in the table yet, for example a column that a row above calculates, must be in backticks if it has spaces or other characters than letters, digits and `_`: `` `my ratio` * 100 ``. If a name in an expression isn't a column, the dialog marks the row and names the closest column, for example `did you mean 'FAD tm'?`.
+A name that is not in the table yet, for example a column that a row above calculates, must be in backticks if it has spaces or other characters than letters, digits and `_`: `` `my ratio` * 100 ``. If a name in an expression is not a column, the dialog marks the row and names the closest column, for example `did you mean 'FAD tm'?`.
 
 Other elements, such as calling methods or functions other than the math functions, are not allowed; the dialog marks such an expression as an error.
 

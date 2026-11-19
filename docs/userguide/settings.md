@@ -12,7 +12,9 @@ The settings come from several layers. Each layer changes only the settings it h
 2. The [user settings file](#the-user-settings-file) (GUI only).
 3. The [app settings file](#app-settings-files) given with `-s`.
 4. [Environment variables](#environment-variables).
-5. Command-line options (see [Command-line options](/install/index.md#command-line-options) and [Batch mode](/userguide/batch.md#options)).
+5. Command-line options (see {ref}`Command-line options <command-line-options>` and [Batch mode](/userguide/batch.md#options)).
+
+One exception: for `favorites`, the user settings file takes precedence over the app settings file, which only presets it (see [Layout of a settings file](#layout-of-a-settings-file)).
 
 Within a section, a higher layer changes:
 
@@ -33,7 +35,7 @@ The dialog lists the app settings of this session: the results folder, the execu
 
 Below the table, it names the user settings file, your default app settings file if you have set one, the app settings file of the session, and the log file. Pointing at a row shows the setting's full value and its description.
 
-The dialog only shows the settings. They apply when FLIMAnalyzer starts: to change them, start it with the command-line option, the environment variable, or an app settings file (`-s`) that sets them. The results folder can also be set for each run in a tool's dialog (`Save results`).
+The dialog only shows the settings. They apply when FLIMAnalyzer starts: to change them, start it with the command-line option, the environment variable, or an app settings file (`-s`) that sets them. The results folder can also be set for each run in a tool's dialog (`Save results`), and `Make Default Folder` there makes a tool's folder the default results folder, saved in the user settings file (see [Saving results](/userguide/dialogs.md#saving-results)).
 
 ## The user settings file
 
@@ -51,7 +53,7 @@ If the user settings file can't be read, because it is damaged or comes from a n
 
 ## App settings files
 
-An app settings file is a settings file that you give with `-s` when you start the GUI or `flimbatch`, for example one saved with `Export Settings...`. Its settings apply to this session only. FLIMAnalyzer writes to this file only if you choose to update it to the current version (see [Settings files from older versions](#settings-files-from-older-versions)).
+An app settings file is a settings file that you give with `-s` when you start the GUI or `flimbatch`, for example one saved with `Export Settings...`. Its settings apply to this session only. FLIMAnalyzer writes to this file only when you choose to: when you update it to the current version (see [Settings files from older versions](#settings-files-from-older-versions)), when you save a tool's settings into it with `Save Settings...`, or when you choose it as the file of `Export Settings...` (see [Saving and loading all settings](#saving-and-loading-all-settings)).
 
 `-s` takes a path or a name:
 
@@ -75,13 +77,13 @@ If you start the GUI without `-s`, and there is no `defaults.json` in the start 
 * `Clear Default` removes the default.
 * `Browse...` adds a file from another folder to the table and selects it. If its folder is not in the app settings search path, the GUI asks whether to add it. The folder is then saved in the user settings file (`appsettings_path`), and the GUI lists its files at the next start.
 
-The check mark moves at once. The change applies whether you then start with a file or skip; selecting a file alone doesn't change the default.
+The check mark moves immediately. The change applies whether you then start with a file or skip; selecting a file alone does not change the default.
 
 The default is saved in the user settings file (`default_app_settings`). If it no longer exists or can't be read, the GUI says so and removes it as the default. The chosen file is validated like a file given with `-s` (see [Settings files from older versions](#settings-files-from-older-versions)). If it can't be used, the GUI says why, and after `OK` it asks again.
 
 ### `defaults.json` (deprecated)
 
-Before 0.7.0, the GUI read `defaults.json` in the folder it was started from. The GUI started without `-s` still uses a `defaults.json` in the start folder, as if it were given with `-s`, and shows a warning that this is deprecated. Started with `-s`, the GUI doesn't read `defaults.json`. To keep using the file, move it to a folder of the app settings search path, give it a name, for example `cells.json`, and start with `-s cells`.
+Before 0.7.0, the GUI read `defaults.json` in the folder it was started from. The GUI started without `-s` still uses a `defaults.json` in the start folder, as if it were given with `-s`, and shows a warning that this is deprecated. Reading `defaults.json` is removed in 0.8.0. Started with `-s`, the GUI does not read `defaults.json`. To keep using the file, move it to a folder of the app settings search path, give it a name, for example `cells.json`, and start with `-s cells`.
 
 ## Environment variables
 
@@ -196,8 +198,22 @@ The example shows an app settings file as `Export Settings...` writes it, shorte
 * `max_windows`: per kind of result, the most windows that a run of `Import Tables` or of a workflow file in the GUI may open, by default `{"table": 10, "plot": 10, "image": 4}`; such a run that would open more doesn't start (see [Import Tables](/userguide/data/load.md#import-tables)). Other tools and workflows are not limited. The GUI doesn't change it; set it in an app settings file.
 * `filters`: the switches that new table windows start with: `features` (`Filter Features`, `{"enabled": true}` to use the range filters) and `categories` (`Filter Categories`, the category values hidden through a column header), both off by default, and whether the dropped rows are shown (`show_dropped`). They apply only to the table windows; `flimbatch` doesn't use them: to filter rows in a batch run, add a `Filter` step to a workflow file. The filters themselves are the settings of the `Filter` tool, in `tools` (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
 * `server_timeout`: how many seconds to wait for responses of the Prefect server, and of the Dask cluster if one is used, as `--server-timeout`. Default: 60.
-* `tools`: each tool has its own section, named after the tool, with its settings (`config`), its `output` section and, if it is set, its `processing` section. `output` is whether its results are saved (`save`), in which folder (`results_dir`: `null` for the default results folder, a relative path such as `"results"` for a folder inside it, which moves with it, or an absolute path), and in which formats (`formats`, one entry per format with its `kind` and `format`, for example `{"kind": "table", "format": "csv"}`; a kind not listed is saved in its default format, and a kind the tool doesn't make is an invalid value), and the text replaced in the names of the files and folders its results are saved in (`char_replacements`, as in a workflow file's `output`, see [Workflow files](/userguide/workflows.md#workflow-files); not set: the built-in replacements). The tool's dialog doesn't show `char_replacements`; it keeps the value of the settings file. `processing` is how a run treats data that doesn't match the settings, as in a step of a workflow file (see `processing` under [Workflow files](/userguide/workflows.md#workflow-files)).
+* `tools`: each tool has its own section, named after the tool, with its settings (`config`), its `output` section and, if it is set, its `processing` section. `output` is whether its results are saved (`save`), in which folder (`results_dir`: `null` for the default results folder, a relative path such as `"results"` for a folder inside it, which moves with it, or an absolute path), and in which formats (`formats`, one entry per format with its `kind` and `format`, for example `{"kind": "table", "format": "csv"}`; a kind not listed is saved in its default format, and a kind the tool does not make is an invalid value), and the text replaced in the names of the files and folders its results are saved in (`char_replacements`, as in a workflow file's `output`, see [Workflow files](/userguide/workflows.md#workflow-files); not set: the built-in replacements).
 
-Older files are converted when they are read: `working_dir` becomes `results_dir`, a tool's `autosave` and `results_dir` become its `output` section (`save` and `results_dir`, with the default formats), `strict` in a tool's `config` becomes its `processing` > `strict` (`null` is dropped, because strict is the default), `rescale` in the autoencoder training settings becomes `rescale_output`, the `preprocess` section becomes the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools (each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` of FLIMAnalyzer 0.6 calculated them), the range filters in `filters` become the `Filter` tool's range filters (each switched on as it was selected; the `Filter` tool's own filters of the older file are added switched off), `filters` > `use` (`Filter Data`) becomes `filters` > `features` (`Filter Features`), the `Filter` tool's filters are put into its three parts by kind (a second filter on a column goes to `other`, see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)), and `display`, which is no longer used, is dropped.
+    The tool's dialog does not show `char_replacements`; it keeps the value of the settings file.
+
+    `processing` is how a run treats data that does not match the settings, as in a step of a workflow file (see `processing` under [Workflow files](/userguide/workflows.md#workflow-files)).
+
+Older files are converted when they are read:
+
+* `working_dir` becomes `results_dir`.
+* A tool's `autosave` and `results_dir` become its `output` section (`save` and `results_dir`, with the default formats).
+* `strict` in a tool's `config` becomes its `processing` > `strict` (`null` is dropped, because strict is the default).
+* `rescale` in the autoencoder training settings becomes `rescale_output`.
+* The `preprocess` section becomes the settings of the `Rename Columns`, `Drop Columns` and `Calculate` tools (each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` of FLIMAnalyzer 0.6 calculated them).
+* The range filters in `filters` become the `Filter` tool's feature filters (each switched on as it was selected; the `Filter` tool's own filters of the older file are added switched off).
+* `filters` > `use` (`Filter Data`) becomes `filters` > `features` (`Filter Features`).
+* The `Filter` tool's filters are put into its three filter components by kind (a second filter on a column goes to `other`, see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
+* `display`, which is no longer used, is dropped.
 
 The `import` section of FLIMAnalyzer 0.6 (the delimiter, the filename parser and its patterns, the files left out and the column combinations) is not used any more: what is done with data files is a [workflow file](/userguide/workflows.md#workflow-files)'s. When the GUI uses such a file (with `-s`, at startup, or with `File` > `Import Settings...`), it offers to save these settings, together with the file's renamed, dropped and calculated columns, as a workflow file that imports as FLIMAnalyzer 0.6 did, for example `Import (lab-settings)`. If you save it, `File` > `Import Tables...` runs it next, and reads the files with the file's delimiter and files left out. Nothing is applied unless you save it. `flimbatch` says that the settings are not used.

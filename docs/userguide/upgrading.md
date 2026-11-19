@@ -119,8 +119,9 @@ Workflow files are new in 0.7: a workflow as a JSON file of steps (see [Workflow
 | `Autoencoder: Run` | `Autoencoder Run` |
 | `Autoencoder: Augment Data` | `Autoencoder Augment Data` |
 | `Order Categories` | `Order Category Values` |
+| `Concat Data` (up to 0.5; renamed in 0.6.0) | `Concatenate` |
 
-The former names still work in settings files, workflow files and `flimbatch --run`, with a warning that names the new name; they are deprecated and are removed in 0.8.0. Replace them in your files and scripts: `flimsettings app --update FILE` (an app settings file), `flimsettings tool --update FILE` (a tool file) and `Update` when the GUI offers to update a file save the settings under the new names, and so does `Save Settings...` in the tool's dialog. Workflow files and scripts you change by hand. Until then, Prefect tags the tasks also with the former names of the tools, so concurrency limits set on the former names still apply; set them on the new names. The results of `Order Category Values` are saved in a folder of the new name.
+The former names still work in settings files, workflow files and `flimbatch --run`, with a warning that names the new name; they are deprecated and are removed in 0.8.0. Replace them in your files and scripts: `flimsettings app --update FILE` (an app settings file), `flimsettings tool --update FILE` (a tool file) and `Update` when the GUI offers to update a file save the settings under the new names, and so does `Save Settings...` in the tool's dialog. `--update` and `Update` update only files of an older version: in a file that is already of the current version, replace the names by hand or with `Save Settings...`. Workflow files and scripts you change by hand. Until then, Prefect tags the tasks also with the former names of the tools, so concurrency limits set on the former names still apply; set them on the new names. The results of `Order Category Values` are saved in a folder of the new name.
 
 `Autoencoder Train` is now a workflow. Its step `Autoencoder Train Model`, which is in no menu, trains one model for each combination of settings.
 

@@ -18,46 +18,46 @@ The example table has these category columns that you can use for grouping: `Tre
      - Analysis Tool
      - Description
    * - .. image:: /images/analysis/calculate.png
-     - `Calculate <calculate.html>`_
+     - :doc:`Calculate <calculate>`
      - Adds columns calculated from others, by expressions or functions, for example the FLIM features of the built-in Import workflow.
    * - .. image:: /images/analysis/scale.png
-     - `Scale <scale.html>`_
+     - :doc:`Scale <scale>`
      - Scales features: standardized, from 0 to 1, or robust to outliers.
    * - .. image:: /images/analysis/summary.png 
-     - `Summarize <summary.html>`_
+     - :doc:`Summarize <summary>`
      - Calculates the count, minimum, maximum, mean, median, standard deviation, standard error of the mean, 25th and 75th percentiles, and sum of grouped data.
    * - .. image:: /images/analysis/relchange.png 
-     - `Relative Change <relchange.html>`_
+     - :doc:`Relative Change <relchange>`
      - Converts the data to fold-change values, relative to the mean or median of a reference group.
    * - .. image:: /images/analysis/seriesanalysis.png 
-     - `Series Analysis <seriesanalysis.html>`_
+     - :doc:`Series Analysis <seriesanalysis>`
      - Analyzes a series of values spread across several table columns.
    * - .. image:: /images/analysis/categorize.png 
-     - `Categorize Data <categorize.html>`_
+     - :doc:`Categorize Data <categorize>`
      - Adds a category column based on value ranges of a feature.
    * - .. image:: /images/analysis/randomforest.png 
-     - `Random Forest <randomforest.html>`_
+     - :doc:`Random Forest <randomforest>`
      - Predicts a category from the features with a random forest, and shows which features matter most.
    * - .. image:: /images/analysis/pca.png 
-     - `PCA <pca.html>`_
+     - :doc:`PCA <pca>`
      - Principal component analysis: summarizes many features in a few new columns (principal components) and outputs their values.
    * - .. image:: /images/analysis/kmeans.png 
-     - `K-Means <kmeans.html>`_
+     - :doc:`K-Means <kmeans>`
      - Groups similar data points into clusters.
    * - .. image:: /images/analysis/gmm.png
-     - `Gaussian Mixed Model <gmm.html>`_
+     - :doc:`Gaussian Mixed Model <gmm>`
      - Groups data points into clusters, each described by a Gaussian (bell-shaped) distribution, and gives each point's probability of belonging to each cluster.
    * - .. image:: /images/analysis/ks.png 
-     - `KS-Statistics <ks.html>`_
+     - :doc:`KS-Statistics <ks>`
      - Compares the distributions of a feature between the groups of a category column, two at a time, with the Kolmogorov–Smirnov test.
    * - .. image:: /images/analysis/aetrain.png 
-     - `Autoencoder Train <aetrain.html>`_
+     - :doc:`Autoencoder Train <aetrain>`
      - Trains an autoencoder model on selected data features. 
    * - .. image:: /images/analysis/aerun.png 
-     - `Autoencoder Run <aerun.html>`_
+     - :doc:`Autoencoder Run <aerun>`
      - Applies a pre-trained autoencoder model to data.
    * - .. image:: /images/analysis/aeaugment.png 
-     - `Autoencoder Augment Data <aeaugment.html>`_
+     - :doc:`Autoencoder Augment Data <aeaugment>`
      - Generates augmented data with a pre-trained autoencoder model.
 
 .. toctree::

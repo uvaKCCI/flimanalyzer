@@ -5,7 +5,8 @@ Thank you for helping to improve FLIMAnalyzer.
 ## Reporting a bug or asking for a feature
 
 Open an [issue](https://github.com/uvaKCCI/flimanalyzer/issues). For a bug, say which
-version you use (`Help` → `About FLIMAnalyzer`), your
+version you use (`Help` → `About FLIMAnalyzer`; on macOS `FLIMAnalyzer` →
+`About FLIMAnalyzer`), your
 operating system, what you did, what you expected and what happened. Attach the log
 file and, if you can, a small data file that shows the problem.
 

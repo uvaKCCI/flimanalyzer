@@ -122,7 +122,7 @@ flimsettings: bad.json:
 
 `--validate` also gives warnings. For example, `"save": false` gives a warning, because `flimbatch` always saves the results of a tool run.
 
-`--resolve FILE` prints the file with every setting stated, as `flimbatch` runs it: every field of the tool's settings, `output` with `save` and the format of each kind of result, and `processing`. The settings that depend on the data, for example `features: all` and the columns guessed with `"strict": false`, stay as in the file, as in the `resolved.json` that `flimbatch` writes: they are resolved for each table when it runs (see [Batch Mode](/userguide/batch)). A file with problems is not resolved: the problems are shown, with the exit code 1.
+`--resolve FILE` prints the file with every setting stated, as `flimbatch` runs it: every field of the tool's settings, `output` with `save`, the format of each kind of result and the characters replaced in file names (`char_replacements`), and `processing`. The settings that depend on the data, for example `features: all` and the columns guessed with `"strict": false`, stay as in the file, as in the `resolved.json` that `flimbatch` writes: they are resolved for each table when it runs (see [Batch Mode](/userguide/batch)). A file with problems is not resolved: the problems are shown, with the exit code 1.
 
 `--override GROUP.FIELD=VALUE` (repeatable) shows the result of the same `--override` given to `flimbatch`, for example `processing.strict=false`. The tool's settings (`config`) can't be overridden. The end of the output:
 
@@ -136,7 +136,13 @@ $ flimsettings tool --resolve summary.json --override processing.strict=false
         "kind": "table",
         "format": "tsv"
       }
-    ]
+    ],
+    "char_replacements": {
+      "%": "pcent",
+      "\u03c4": "tau",
+      "\u00b5": "u",
+      "\u03bc": "u"
+    }
   },
   "processing": {
     "strict": false,
@@ -148,7 +154,7 @@ $ flimsettings tool --resolve summary.json --override processing.strict=false
 }
 ```
 
-`--update FILE` rewrites a tool file of an older version in the current version. The original file is kept next to it as `<name>.v<version>.json`, which the older FLIMAnalyzer version can still read. A tool named by a former name, for example `Order Categories`, is saved under its current name (see [Renamed tools](/userguide/upgrading.md#renamed-tools)). A file that has settings that can't be used, or that is already of the current version, is not changed; the exit code is then 1.
+`--update FILE` rewrites a tool file of an older version in the current version. The original file is kept next to it as `<name>.v<version>.json`, which the older FLIMAnalyzer version can still read. A tool named by a former name, for example `Order Categories`, is saved under its current name (see [Renamed tools](/userguide/upgrading.md#renamed-tools)). A file that has settings that cannot be used, or that is already of the current version, is not changed; the exit code is then 1. Former names are renamed only in files of an older version: in a file of the current version, replace them by hand, or load the file in the tool's dialog and save it with `Save Settings...`.
 
 ```
 $ flimsettings tool --update old-summary.json
@@ -248,7 +254,8 @@ $ flimsettings workflow --resolve flirr-summary --override output.formats=table:
       },
       "output": {
         "save": true,
-        "formats": [{"kind": "table", "format": "csv"}]
+        "formats": [{"kind": "table", "format": "csv"}],
+        "char_replacements": {"%": "pcent", "\u03c4": "tau", "\u00b5": "u", "\u03bc": "u"}
       },
       "processing": {
         "strict": true,
@@ -324,7 +331,7 @@ Converted to the current version:
   autosave and results_dir of 1 tool to its output section
 ```
 
-`--update FILE` takes a path or a name in the app settings search path. It rewrites the file in the current version and keeps the original next to it as `<name>.v<version>.json`. The settings and presets of tools saved under a former name move to the tool's current name. As with `tool --update`, a file that has settings that can't be used, or that is already of the current version, is not changed, and the exit code is 1.
+`--update FILE` takes a path or a name in the app settings search path. It rewrites the file in the current version and keeps the original next to it as `<name>.v<version>.json`. The settings and presets of tools saved under a former name move to the tool's current name. As with `tool --update`, a file that has settings that cannot be used, or that is already of the current version, is not changed, and the exit code is 1; in a file of the current version, replace former names by hand.
 
 ```
 $ flimsettings app --update lab

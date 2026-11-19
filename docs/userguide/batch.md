@@ -13,7 +13,13 @@ With uv, run it as `uv run flimbatch ...`. `flimanalyzer --batch ...` does the s
 ## Steps
 
 1. **Settings:** `flimbatch` reads the app settings file given with `-s`: a path, or the name of a file in the app settings search path (see [App settings files](/userguide/settings.md#app-settings-files)). `-s` takes only app settings files; a tool file given with `-s` is refused, and the message says to give it to `--run`. The file can be from this or an older FLIMAnalyzer version. `flimbatch` uses the file only if every setting in it can be used and validated: it stops with an error if the file can't be read, comes from a newer version, or has invalid values, unknown settings or settings of tools that aren't installed (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)). Without `-s`, the built-in defaults are used. Environment variables and the other command-line options take precedence over the file (see [Where the settings come from](/userguide/settings.md#where-the-settings-come-from)). `flimbatch` does not read the user settings file, so its results don't depend on settings changed in the GUI, and it writes no settings file, so a run never changes what the GUI starts with.
-2. **Reading:** for each `--run`, it reads each file given with `-i` into a table of its own, with the columns `Source` (the file as a URI), `Directory` and `File` added (see [The Source column](/userguide/data/load.md#the-source-column)). Folders are searched with their subfolders for the files with the extensions of `Files to include` in the read settings (default: `.txt` and `.csv`). `-x` leaves out files by their names, for example `-x Results-a-ctrl-1.txt`. Nothing else is done to the data: renaming, dropping and calculating columns, categories from the file names and joining the files into one table are steps of a workflow, for example of the built-in `Import` workflow. The files are read with the settings of the `Open Tables` tool in the settings file (see [Read settings](/userguide/data/load.md#read-settings)); without them, tab and comma separate columns. `--run "Import Tables"` reads them with the settings of `Import Tables` in the settings file instead, and runs the workflow they name (`workflow`). By default, they name no workflow: then `--run "Import Tables"` stops with an error. As for every tool given by its name, taking these settings from the app settings file is deprecated (see [Deprecated options](#deprecated-options)): save them as a tool file of `Import Tables` (`Save Settings...` in its dialog, or `flimsettings workflow --show "Import Tables"` and edit `workflow`), and run it with `--run FILE`. It reads the files with the file's read settings and runs the workflow the file names. A file that can't be read is skipped with a warning.
+2. **Reading:** for each `--run`, it reads each file given with `-i` into a table of its own, with the columns `Source` (the file as a URI), `Directory` and `File` added (see [The Source column](/userguide/data/load.md#the-source-column)). `Directory` and `File` are deprecated: they are no longer added from 0.8.0.
+
+   Folders are searched with their subfolders for the files with the extensions of `Files to include` in the read settings (default: `.txt` and `.csv`). `-x` leaves out files by their names, for example `-x Results-a-ctrl-1.txt`. Nothing else is done to the data: renaming, dropping and calculating columns, categories from the file names and joining the files into one table are steps of a workflow, for example of the built-in `Import` workflow.
+
+   The files are read with the settings of the `Open Tables` tool in the settings file (see [Read settings](/userguide/data/load.md#read-settings)); without them, tab and comma separate columns. `--run "Import Tables"` reads them with the settings of `Import Tables` in the settings file instead, and runs the workflow they name (`workflow`). By default, they name no workflow: then `--run "Import Tables"` stops with an error.
+
+   As for every tool given by its name, taking these settings from the app settings file is deprecated (see [Deprecated options](#deprecated-options)): save them as a tool file of `Import Tables` (`Save Settings...` in its dialog, or `flimsettings workflow --show "Import Tables"` and edit `workflow`), and run it with `--run FILE`. It reads the files with the file's read settings and runs the workflow the file names. A file that cannot be read is skipped with a warning.
 3. **Tools and workflows:** it runs each `--run` on the tables, in the order given. See [Tools and workflows](#tools-and-workflows).
 
 `flimbatch` needs at least one `--run`. To read the files into one table, run the built-in `Import` workflow: `--run Import`. It also renames the channels' columns and drops the other channels' columns, and it calculates the FLIM features (see [Import Tables](/userguide/data/load.md#import-tables)).
@@ -33,7 +39,7 @@ They run as follows:
 
 A tool or a workflow defined in code that is given by its name runs with its default settings. With `-s`, it takes its settings from the `tools` section of the app settings file instead; if the file has no settings of the tool, `flimbatch` stops with an error. Taking a tool's settings from the app settings file is deprecated (see [Deprecated options](#deprecated-options)): give the settings as a tool file. To start a tool file, `flimsettings tool --show NAME` prints the default settings of a tool as a tool file, and `flimsettings workflow --show NAME` those of a workflow defined in code (see [flimsettings](/userguide/flimsettings)). Change the settings in the file and run it with `--run FILE`.
 
-Most tools need features selected in their settings (at least one, some two; see [Tool dialogs](/userguide/dialogs.md)), and for most tools the defaults select none: without them, `flimbatch` stops with an error that names the step, the tool and what is missing, for example `step 1 (Summarize): features: 0 entries apply (none); Summarize needs at least 1`.
+Most tools need features selected in their settings (at least one, some two; see [Tool dialogs](/userguide/dialogs.md)), and for most tools the defaults select none: without them, `flimbatch` stops with an error that names the step, the tool and what is missing, for example `step 01 (Summarize): features: 0 entries apply (none); Summarize needs at least 1`.
 
 `flimbatch` always saves the results of a tool. `"save": false` in a tool's settings applies in the GUI only, and the tool's results folder (`output.results_dir`) is replaced by `-o`. `flimbatch` prints a warning for each of these settings that it doesn't use.
 
@@ -46,7 +52,7 @@ Each call of `flimbatch` saves its results in a folder of its own, named after t
 * A folder per `--run`, `run-1`, `run-2` and so on, numbered in the order of the `--run` options. Each one holds:
     * `run_summary.txt`: when the run started and ended, how long it took (`Elapsed`), its state, each input with the steps it enters and its SHA-256 (`Inputs`), each task with its step and its results folder, the settings files used, the overrides, notes, warnings and the versions of FLIMAnalyzer and its libraries (see [The run summary](/userguide/workflows.md#the-run-summary)).
     * `resolved.json`: the run's settings with every setting stated, as a workflow file (for a workflow defined in code, as a tool file). It states every setting of every step and the formats of each kind of result, so a later version with other defaults runs the same settings. The settings that depend on the data stay as given (`features: all`, and the columns that `processing` lets a step guess or skip): FLIMAnalyzer resolves them for each table again, and `run_summary.txt` lists the columns guessed and the entries skipped for each table. Run it with `--run resolved.json` on the same files and with the same FLIMAnalyzer version to repeat the run; `run_summary.txt` records the versions and the settings files, and `resolved.json` the `char_replacements` of each step. `flimsettings workflow --resolve FILE` and `flimsettings tool --resolve FILE` show a file with every setting stated before a run.
-    * A folder per step that saves its results, `<id>-<tool>`, for example `01-Summarize` or `04-Calculate`. Below it, the results of a step that runs once per table are in a folder per table, and the results of a step that makes its results in parts (for example a table per feature) are in a folder per part. A workflow defined in code, for example `Basic FLIRR Analysis`, has the same folders: each of its steps has a fixed id (the run summary lists them), and a step it runs in a loop, for example a plot per feature, has a folder per part.
+    * A folder per step that saves its results, `<id>-<tool>`, for example `01-Summarize` or `04-Calculate`. Below it, the results of a step that runs once per table are in a folder per table, and the results of a step that makes its results in parts (for example a table per feature) are in a folder per part. Each results folder also has a folder `pickled` with the task's results in Python's pickle format, without the figures, so that they can be loaded again in Python. A workflow defined in code, for example `Basic FLIRR Analysis`, has the same folders: each of its steps has a fixed id (the run summary lists them), and a step it runs in a loop, for example a plot per feature, has a folder per part.
 * `flimbatch.log`: the log of the call. If a log folder is set (`--log-dir`, `FLIM_LOG_DIR` or `log` > `dir` in the app settings file), the log is in that folder instead, in a file named after the call's start and its process ID, for example `flimbatch_2026-11-03T14-05-31_12345.log` (see [Log files](/install/index.md#log-files)).
 
 For example, the results of `flimbatch -i data/ -o results/ --run Import --run summarize.json`, where `summarize.json` is a tool file of `Summarize` that makes a table per feature:
@@ -60,6 +66,7 @@ results/
       resolved.json
       04-Calculate/
         Table_Calculated.txt
+        pickled/
     run-2/
       run_summary.txt
       resolved.json
@@ -67,6 +74,7 @@ results/
         a.txt/
           FLIRR/
             Table_Summary_FLIRR.txt
+            pickled/
           ...
 ```
 
@@ -126,10 +134,12 @@ These options and forms still work, but print a warning that shows the new form:
 | `-e LocalExecutor`, `LocalDaskExecutor`, `DaskExecutor` | `-e local`, `dask-local`, `dask` | `-e LocalDaskExecutor` → `-e dask-local` | 1.0.0 |
 | `-a`, `--execargs` | the options after the executor name: `-e NAME:KEY=VALUE,...`; `num_workers` is now `workers` | `--execargs="num_workers=4"` → `-e local:workers=4` | 0.8.0 |
 | `--run NAME` with the tool's settings from the `-s` file | `--run FILE` with a tool file | `-s settings.json --run Summarize` → `--run summarize.json` | 0.8.0 |
+| `flimanalyzer --batch ARGS` | `flimbatch ARGS` | `flimanalyzer --batch -i data -o results` → `flimbatch -i data -o results` | 0.8.0 |
+| Former tool names in `--run` and in settings, workflow and tool files | the current names (see [Renamed tools](/userguide/upgrading.md#renamed-tools)) | `--run "Concat Data"` → `--run Concatenate` | 0.8.0 |
 
 `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does.
 
-The options of the GUI (`flimanalyzer`) are listed in [Command-line options](/install/index.md#command-line-options). The executors and their arguments, and how to run `flimbatch` on an HPC cluster with Slurm, are described in [Concurrent and Distributed Execution](/userguide/execution).
+The options of the GUI (`flimanalyzer`) are listed in {ref}`Command-line options <command-line-options>`. The executors and their arguments, and how to run `flimbatch` on an HPC cluster with Slurm, are described in [Concurrent and Distributed Execution](/userguide/execution).
 
 ## Running in Docker
 

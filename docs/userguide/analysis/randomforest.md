@@ -16,7 +16,7 @@ The `Random Forest` tool trains a random forest to predict a category from the f
 3. In the `Configuration: Random Forest` dialog, set:
     - `Predict`: the category column to predict. You must choose one; there is no default. With `Treatment`, the model shows which features are most important for telling the treatments apart.
     - `Trees`: the number of trees (default 100).
-    - `Test fraction`: the fraction of the rows that are kept aside to test the accuracy, more than 0 and less than 1 (default 0.3: 30% test data, 70% training data).
+    - `Test fraction`: the fraction of the rows that are used only to test the accuracy, more than 0 and less than 1 (default 0.3: 30% test data, 70% training data).
     - `Importance plot` (checked by default): a bar plot of the importance scores, labeled with the accuracy.
     - `Random seed`: with a number (default 0), every run gives the same results. Leave it empty for different results on every run.
     - `Threads`, in the `Resources` section: see [Resources](/userguide/dialogs.md#resources).

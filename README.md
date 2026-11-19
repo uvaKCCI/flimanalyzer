@@ -85,7 +85,7 @@ In an activated environment:
 
     flimanalyzer
 
-To open data files (tab- or comma-separated) right away, each in its own window:
+To open data files (tab- or comma-separated) at startup, each in its own window:
 
     uv run flimanalyzer -i results.txt more-results.csv
 
@@ -93,7 +93,7 @@ Run `flimanalyzer --help` for all command line options.
 
 ## Using a GPU
 
-The autoencoder tools (Autoencoder Train, Autoencoder Run and Autoencoder Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting, in the GUI and in batch mode:
+The autoencoder tools (Autoencoder Run and Autoencoder Augment Data) and workflows (Autoencoder Train, FLIM Data Augmentation Tuning and FLIM Feature Analysis) have a **Device** setting, in the GUI and in batch mode:
 
 * `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
 * `cpu`, `cuda` or `mps`: uses that device, or the CPU if it is not available.
@@ -119,7 +119,7 @@ The image runs `flimbatch`. Make the folder with the data and the tool or workfl
 
 * On Linux, add `-u $(id -u)` so that the result files belong to you.
 * With the CUDA image, add `--gpus all` to use the GPU.
-* With `--no-prefect-server`, each run uses a temporary Prefect server. To report to a Prefect server instead, pass its address, for example `-e PREFECT_API_URL=http://prefect.example.org:4200/api`.
+* With `--no-prefect-server`, each run uses a temporary Prefect server. To report to a Prefect server instead, leave out `--no-prefect-server` and pass the server's address to `docker run`, before the image name, for example `docker run --rm -e PREFECT_API_URL=http://prefect.example.org:4200/api -v "$PWD:/work" ...`. An `-e` after the image name goes to `flimbatch`, which reads it as the executor.
 
 ## Prefect server
 

@@ -37,6 +37,14 @@ Installed from PyPI, FLIMAnalyzer gets PyTorch from PyPI, which provides a diffe
 * **Windows:** the PyPI build is CPU-only. To use an NVIDIA GPU, install with `uv pip install "flimanalyzer[gui]" --torch-backend=cu130`, or with pip install the CUDA build first: `pip install torch --index-url https://download.pytorch.org/whl/cu130`. See [pytorch.org](https://pytorch.org/get-started/locally/) for other CUDA versions.
 * **macOS:** only Apple Silicon is supported, because current PyTorch versions are not available for Intel Macs. The PyPI build uses the Apple GPU (MPS).
 
+**Older NVIDIA GPUs.** The CUDA 13.0 build of PyTorch, which the installs from the source and the Docker CUDA image use, needs NVIDIA driver 580 or newer and a GPU of the Turing generation or newer (e.g. T4, RTX 20xx, A100, H100). For older GPUs such as the V100, use the CUDA 12.6 build (`cu126`) of the same PyTorch version, 2.14.1:
+
+* Installed from PyPI with uv: `uv pip install "flimanalyzer[gui]" --torch-backend=cu126`. With pip, install the CUDA 12.6 build first: `pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cu126`.
+* Installed from the source (`uv sync`, see [Installing the latest development version](#installing-the-latest-development-version)): replace PyTorch after `uv sync` with `uv pip install --reinstall torch==2.14.1 --index-url https://download.pytorch.org/whl/cu126`. A later `uv sync` installs the CUDA 13.0 build again.
+* Docker: build the image with `--build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu126` (see [Installing with Docker](#installing-with-docker)).
+
+Check PyTorch's release notes for the GPUs each build supports.
+
 ## Installing the latest development version
 
 To install the current state of the Git repository, clone it and let uv create the environment. `uv sync` installs FLIMAnalyzer with the GUI in editable mode, so changes to its code take effect without reinstalling. It uses the exact package versions listed in `uv.lock`, the versions the tests run with. On Windows and Linux (x86_64), it installs the CUDA 13.0 build of PyTorch:
@@ -103,7 +111,7 @@ Run `flimanalyzer --help` for all command-line options.
 |---|---|
 | `-i`, `--input` | data files or folders to open at startup (takes several values, and can be repeated: `-i a.txt -i b.txt`), each file in its own table window, read with the settings of `Open Tables`; with `--run`, the files to run it on (`--run "Import Tables"` shows its dialog for them) |
 | `-x`, `--exclude` | files not to read, by their exact file name. Takes several values, and can be repeated: `-x a.txt -x b.txt` |
-| `-r`, `--run` | tool or workflow to run on the `-i` files at startup: a name, or a workflow file (a path, or a file name ending in `.json` in the workflow search path). A workflow file's steps are shown, then it runs; a tool's dialog opens with the files' tables. Repeat it for several runs; they run in the order given. |
+| `-r`, `--run` | tool or workflow to run on the `-i` files at startup: a name, or a workflow file or tool file (a path, or a file name ending in `.json` in the workflow search path). A workflow file's steps are shown, then it runs; a tool file runs as a workflow of one step; a tool given by name opens its dialog with the files' tables. Repeat it for several runs; they run in the order given. |
 | `-w`, `--workflow-path` | folders searched for workflow files and tool files. They replace the folders of `FLIM_WORKFLOW_PATH` and of `workflow_paths` in the user settings file (see [Where workflow files are found](/userguide/workflows.md#where-workflow-files-are-found)). Takes several values, and can be repeated. |
 | `-s`, `--settings` | app settings file for this session: a path, or the name of a file in the app settings search path, with or without `.json` (see [Settings](/userguide/settings.md#app-settings-files)) |
 | `-o`, `--output` | results folder: the folder under `Save results` for tools that have no folder of their own |
@@ -113,7 +121,7 @@ Run `flimanalyzer --help` for all command-line options.
 | `--log-dir` | log folder (`log` > `dir`; see [Log files](#log-files)) |
 | `-l`, `--log-level` | logging level: `debug`, `info` (default), `warning`, `error` or `critical`; also `--log` |
 
-`-o`, `-e`, `--prefect-server`, `--server-timeout`, `--log-dir` and `-l` can also be set with environment variables (`FLIM_RESULTS_DIR`, `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`, `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`; see [Environment variables](/userguide/settings.md#environment-variables)), and in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)); `-w` with `FLIM_WORKFLOW_PATH`. The other options have no environment variable. An option given on the command line takes precedence.
+`-o`, `-e`, `--prefect-server`, `--server-timeout`, `--log-dir` and `-l` can also be set with environment variables (`FLIM_RESULTS_DIR`, `FLIM_EXECUTION`, `FLIM_PREFECT_SERVER`, `FLIM_SERVER_TIMEOUT`, `FLIM_LOG_DIR`, `FLIM_LOG_LEVEL`; see [Environment variables](/userguide/settings.md#environment-variables)), and, except `-l`, in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)); `-w` with `FLIM_WORKFLOW_PATH`. The other options have no environment variable. An option given on the command line takes precedence.
 
 **Deprecated options.** These options still work, but print a warning that shows the new form:
 
