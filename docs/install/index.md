@@ -176,7 +176,7 @@ With `--no-prefect-server`, step 3 is skipped: if no server is found, Prefect st
 
 The Prefect UI shows the flow and task runs of a server in the web browser, for example at [http://127.0.0.1:4200](http://127.0.0.1:4200) for a local server. `Monitor` > `Prefect Server` opens it, and `Monitor` > `Last Run` opens the page of the last run the GUI started. The progress dialog links to each run there (see [The progress dialog](/userguide/workflows.md#the-progress-dialog)). Each task run shows the settings its tool ran with in its `Artifacts` tab, as JSON. Each flow run shows, in its `Artifacts` tab, the versions of FLIMAnalyzer, Python and the main packages, how its tasks ran (threads or Dask, with their settings), and the files its tables were read from. The `Logs` tab of a run also shows FLIMAnalyzer's messages from that run, for example a tool's warnings, except those of tasks that Dask runs in other processes. No data values are sent to the server. To keep a local server running between sessions, start it yourself in a separate terminal with `uv run prefect server start` (or `prefect server start` in an activated environment).
 
-### Using another Prefect server
+**Using another Prefect server**
 
 To report the runs to a Prefect server on another computer, set its address in a Prefect profile. A profile is a named set of Prefect settings ([Settings and profiles](https://www.prefect.io/docs/v3/develop/settings-and-profiles) in the Prefect documentation). In the environment FLIMAnalyzer is installed in:
 

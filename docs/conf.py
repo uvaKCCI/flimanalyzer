@@ -78,6 +78,8 @@ autosummary_generate = True
 
 # anchors for Markdown headings up to level 3, e.g. [link](#open-data-file)
 myst_heading_anchors = 3
+# attributes of inline images, e.g. ![](plot.png){width="49%"} for two plots in a row
+myst_enable_extensions = ["attrs_inline"]
 
 
 def _skip_sklearn_members(app, what, name, obj, skip, options):

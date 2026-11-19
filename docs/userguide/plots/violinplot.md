@@ -42,14 +42,10 @@ To change the plot layout, change the order of the grouping columns. See the exa
 
 ## Example Output
 
-**Example Results:** `Grouping` - Treatment, FOV
+**Example Results:** left: `Grouping` - Treatment, FOV; right: `Grouping` - FOV, Treatment
 
-![](/images/analysis/violinplot-result1-grouping.png)
-
-
-**Example Results:** `Grouping` - FOV, Treatment
-
-![](/images/analysis/violinplot-result2-grouping.png)
+![](/images/analysis/violinplot-result1-grouping.png){width="49%"}
+![](/images/analysis/violinplot-result2-grouping.png){width="49%"}
 
 ```{note}
 You can zoom into the plot, change its axes and labels, and save it in its plot window. See [The Plot Window](/userguide/plots/plotwindow).

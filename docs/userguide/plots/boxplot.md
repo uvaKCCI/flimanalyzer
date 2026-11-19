@@ -44,14 +44,10 @@ To change the plot layout, change the order of the grouping columns. See the exa
 
 ## Example Output
 
-**Example Results:** `Grouping` - Treatment, FOV
+**Example Results:** left: `Grouping` - Treatment, FOV; right: `Grouping` - FOV, Treatment
 
-![](/images/analysis/boxplot-result1-grouping.png)
-
-
-**Example Results:** `Grouping` - FOV, Treatment
-
-![](/images/analysis/boxplot-result2-grouping.png)
+![](/images/analysis/boxplot-result1-grouping.png){width="49%"}
+![](/images/analysis/boxplot-result2-grouping.png){width="49%"}
 
 **Example Results:** `Single figure` - FAD a1[%], NAD(P)H a2[%], FLIRR; `Grouping` - Treatment, FOV
 
