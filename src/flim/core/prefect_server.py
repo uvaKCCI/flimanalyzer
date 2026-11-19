@@ -68,21 +68,18 @@ def server_status(start: bool = True, timeout: float = 60.0) -> tuple[bool, str]
     from prefect.settings import PREFECT_API_URL
 
     configured = PREFECT_API_URL.value()
+    unavailable = ""
     if configured:
         error = _configured_server_error()
         if error is None:
             return True, f"the configured server at {configured} answers"
-        if not start:
-            return True, (
-                f"the configured server at {configured} doesn't answer ({error});"
-                " temporary servers for each run"
-            )
+        unavailable = f"the configured server at {configured} does not answer ({error}); "
     api_url = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/api"
     if _is_healthy(api_url, timeout=timeout):
-        return True, f"a local server answers at {api_url}"
+        return True, f"{unavailable}a local server answers at {api_url}"
     if start:
-        return True, "none running: a local server will be started for the runs"
-    return True, "temporary servers for each run (--no-prefect-server)"
+        return True, f"{unavailable}none running: a local server will be started for the runs"
+    return True, f"{unavailable}temporary servers for each run (--no-prefect-server)"
 
 
 def _prefect_cli() -> list[str]:

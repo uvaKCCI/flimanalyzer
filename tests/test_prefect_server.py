@@ -281,3 +281,16 @@ def test_server_status_without_a_server(monkeypatch):
             True, "none running: a local server will be started for the runs"
         )
         assert ps.server_status(start=False, timeout=1)[1].startswith("temporary servers")
+
+
+def test_server_status_looks_for_a_local_server_when_the_configured_one_fails(monkeypatch):
+    """As ensure_prefect_server, also with start=False."""
+    from prefect.settings import PREFECT_API_URL, temporary_settings
+
+    monkeypatch.setattr(ps, "_configured_server_error", lambda: OSError("refused"))
+    monkeypatch.setattr(ps, "_is_healthy", lambda url, timeout=2.0: True)
+    with temporary_settings(updates={PREFECT_API_URL: "http://unreachable.invalid:1/api"}):
+        for start in (True, False):
+            ok, found = ps.server_status(start=start, timeout=1)
+            assert ok and "does not answer (refused)" in found
+            assert found.endswith(f"a local server answers at http://{ps.DEFAULT_HOST}:{ps.DEFAULT_PORT}/api")
