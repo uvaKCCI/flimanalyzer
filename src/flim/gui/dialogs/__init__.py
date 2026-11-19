@@ -326,8 +326,8 @@ class FilterPresets:
     """Where `Filter Features...` loads range filters from and saves them to.
 
     Attributes:
-        defaults: Returns the range filters new tables start with, as a part of the
-            Filter tool's settings (`features`: `enabled` and `filters`).
+        defaults: Returns the range filters new tables start with, as the Filter
+            tool's feature filters (`features`: `enabled` and `filters`).
         save_defaults: Makes a table's range filters and `Filter Features`
             (`WindowFilters`) the defaults.
         saved: Returns the saved presets, each a dict with `name` and `settings`.
@@ -351,9 +351,9 @@ class ConfigureFiltersDlg(wx.Dialog):
     each filter's column, range and the number of rows it drops from the view; the
     labels above it show the rows dropped and remaining. With `presets`, `Load
     Preset...`, `Save as Preset...` and `Remove Presets...` load and save the range
-    filters and `Filter Features` as the Filter tool's `features`; the category
-    values are not part of them. They go to the defaults for new tables, a saved
-    preset or a settings file. With OK, `GetData` returns an edited copy of the
+    filters and `Filter Features` as the Filter tool's feature filters (`features`);
+    the category values are not included. They go to the defaults for new tables, a
+    saved preset or a settings file. With OK, `GetData` returns an edited copy of the
     filters.
     """
 
@@ -619,9 +619,9 @@ class ConfigureFiltersDlg(wx.Dialog):
         )
 
     def show_settings(self, settings: dict) -> None:
-        """Show the range filters and their switch of the Filter tool's settings.
+        """Show the feature filters and their switch of the Filter tool's settings.
 
-        The range filters (`features`) replace those of the table: range filters
+        The feature filters (`features`) replace the table's range filters: range filters
         of columns they don't have are switched off. `Filter Features` is set from
         the settings' switches (`enabled` of `features`, and the top-level
         `enabled`); settings without them leave it as it is. The category and other
@@ -629,22 +629,22 @@ class ConfigureFiltersDlg(wx.Dialog):
         versions); the message says how many.
 
         Args:
-            settings: The Filter tool's settings, or a part of them (`features`;
+            settings: The Filter tool's settings, or some of them (`features`;
                 earlier versions: `enabled` and `filters`).
 
         Raises:
             ValueError: If the settings are not valid Filter settings.
         """
-        from flim.core.filtering import window_part
+        from flim.core.filtering import window_features
 
-        part = window_part(settings)
-        if part.use is not None:
-            self.featurescb.SetValue(part.use)
-        self.show_ranges(part.ranges, others_off=True)
+        features = window_features(settings)
+        if features.use is not None:
+            self.featurescb.SetValue(features.use)
+        self.show_ranges(features.ranges, others_off=True)
         on = self.featurescb.GetValue()
         notes = [self.message.GetLabel(), f"Filter Features {'on' if on else 'off'}"]
-        if part.unused:
-            notes.append(f"{part.unused} category and other filters not used")
+        if features.unused:
+            notes.append(f"{features.unused} category and other filters not used")
         self.message.SetLabel("; ".join(notes))
 
     def _on_load_preset(self, event: wx.CommandEvent) -> None:
@@ -758,7 +758,7 @@ def _file_filter_settings(path: str) -> Optional[dict]:
         path: The file.
 
     Returns:
-        The settings (`enabled` and the three parts; ranges only: `features` with
+        The settings (`enabled` and the three filter components; ranges only: `features` with
         its `filters`), or None if the file has none.
 
     Raises:
@@ -783,16 +783,18 @@ def _file_filter_settings(path: str) -> Optional[dict]:
 
 
 def _write_filter_settings(path: str, settings: dict) -> None:
-    """Write a part of the Filter tool's settings into a settings file.
+    """Write filter components of the Filter tool's settings into a settings file.
 
-    The parts in `settings` replace those of the file's Filter section; the file's
-    other sections are kept, and so are the Filter section's other parts, its
+    The filter components in `settings` replace those of the file's Filter section;
+    the file's other sections are kept, and so are the Filter section's other
+    filter components, its
     top-level switch (`enabled`) and how it saves its results. A Filter section
     of an earlier version is converted first.
 
     Args:
         path: The settings file; created if it does not exist.
-        settings: The parts to write, e.g. `features` (`enabled` and `filters`).
+        settings: The filter components to write, e.g. `features` (`enabled` and
+            `filters`).
 
     Raises:
         OSError: If the file cannot be read or written.

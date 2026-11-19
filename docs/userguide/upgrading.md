@@ -36,9 +36,9 @@ When it reads a 0.6 file, FLIMAnalyzer converts these settings:
 | `strict` in a tool's `config` | its `processing` > `strict` (`null` is dropped: strict is the default) |
 | `rescale` in the autoencoder training settings, also in the autoencoder workflows' `training` | `rescale_output` |
 | `preprocess` > `rename`, `drop` and `calculate` | the settings of `Rename Columns`, `Drop Columns` and `Calculate`: each dropped text with the match `contains`, each calculation a `function` row, in the order `Import...` of 0.6 calculated them (see [Results that change](#results-that-change) for `calculate`) |
-| the range filters in `filters` | the `Filter` tool's range filters, each switched on as it was selected; the `Filter` tool's own 0.6 filters are added switched off |
+| the range filters in `filters` | the `Filter` tool's feature filters, each switched on as it was selected; the `Filter` tool's own 0.6 filters are added switched off |
 | `filters` > `use` (`Filter Data`) | `filters` > `features` (`Filter Features`) |
-| the `Filter` tool's filters | its three parts, by kind (a second filter on a column goes to `other`) |
+| the `Filter` tool's filters | its three filter components, by kind (a second filter on a column goes to `other`) |
 | the `import` section | not used; the GUI offers to save it as a workflow file (see [The import settings of 0.6](#the-import-settings-of-06)) |
 | `display` | dropped (no longer used) |
 | tools under former names, for example `Order Categories` | still read, with a warning; `Update` in the GUI, `flimsettings app --update FILE` and `flimsettings tool --update FILE` save them under the new name (see [Renamed tools](#renamed-tools)) |
@@ -109,7 +109,7 @@ Workflow files are new in 0.7: a workflow as a JSON file of steps (see [Workflow
 * **`Filter Data` is now `Filter Features`.** The checkbox in the side bar of a table window switches the range filters on and off, as `Filter Data` did in 0.6.
 * **`Filter Settings...` is now `Filter Features...`.** The dialog edits the range filters and has its own `Filter Features` checkbox. Checking a range filter in it switches `Filter Features` on. Its presets and the defaults for new tables hold the range filters and `Filter Features` (see [Presets](/userguide/data/filter.md#presets)).
 * **Category filters have their own switch, `Filter Categories`.** In 0.6, the values hidden through a right-click on a category column header always applied, whether `Filter Data` was on or off. In 0.7 they apply only while `Filter Categories` is on. When you hide a value, the GUI switches `Filter Categories` on, so the table shows the same rows as in 0.6.
-* **Settings files:** `filters` > `use` of a 0.6 file becomes `filters` > `features` (`Filter Features`). The range filters become the `Filter` tool's range filters (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
+* **Settings files:** `filters` > `use` of a 0.6 file becomes `filters` > `features` (`Filter Features`). The range filters become the `Filter` tool's feature filters (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
 
 ## Renamed tools
 

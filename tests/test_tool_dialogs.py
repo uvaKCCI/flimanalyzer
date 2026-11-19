@@ -698,27 +698,27 @@ def test_filter_dialog_keeps_all_parts(dialog, table):
     assert others.grid.GetCellValue(1, kind) == "any" and others.grid.IsReadOnly(1, kind)
     assert "any" not in others.columns[kind - others.offset].choices  # no new groups
     result = d.result().config
-    for part in ("features", "categories", "other"):
-        got, expected = getattr(result, part), getattr(config, part)
-        assert got.enabled == expected.enabled, part
-        assert sorted(map(repr, got.filters)) == sorted(map(repr, expected.filters)), part
+    for name in ("features", "categories", "other"):
+        got, expected = getattr(result, name), getattr(config, name)
+        assert got.enabled == expected.enabled, name
+        assert sorted(map(repr, got.filters)) == sorted(map(repr, expected.filters)), name
 
 
-def test_filter_dialog_shows_each_part_with_its_switch(dialog, table):
+def test_filter_dialog_shows_each_component_with_its_switch(dialog, table):
     d = dialog("Filter", FilterConfig(other={"enabled": False}))
     editors = d.fields.editors
     order = [n for n in editors if n in ("enabled", "features", "categories", "other")]
     assert order == ["enabled", "features", "categories", "other"]
     switches = {n: editors[n].switch for n in ("features", "categories", "other")}
     assert {n: s.GetLabel() for n, s in switches.items()} == {
-        "features": "Use range filters",
+        "features": "Use feature filters",
         "categories": "Use category filters",
         "other": "Use other filters",
     }
-    # a part that is off: its filters greyed out
+    # a filter component that is off: its filters greyed out
     assert editors["features"].view.control.IsEnabled()
     assert not editors["other"].view.control.IsEnabled()
-    # Use filters off: all parts greyed out, their switches kept
+    # Use filters off: all filter components greyed out, their switches kept
     editors["enabled"].set(False)
     d.fields.refresh()
     assert not any(editors[n].view.control.IsEnabled() for n in switches)
@@ -943,8 +943,9 @@ def test_separate_categories_presets(wxapp, monkeypatch):
 
 def test_filter_dialog_presets_are_those_of_filter_features(wxapp, monkeypatch):
     """The Filter dialog loads a preset saved in a table window's Filter Features...
-    (the range filters and their switch), and saves its switch and its parts."""
-    from flim.core.filtering import WindowFilters, new_range, window_part, window_settings
+    (the feature filters and their switch), and saves its switch and its filter
+    components."""
+    from flim.core.filtering import WindowFilters, new_range, window_features, window_settings
     from flim.core.registry import tools
     from flim.core.settingsmgr import SettingsManager
     from flim.gui.configdialog import bind_presets, dialog_class
@@ -981,24 +982,24 @@ def test_filter_dialog_presets_are_those_of_filter_features(wxapp, monkeypatch):
         assert config.features.enabled is False  # the window's Filter Features
         (leaf,) = config.features.filters
         assert (leaf.column, leaf.low, leaf.high, leaf.enabled) == ("t1", 2.0, 9.0, True)
-        (category,) = config.categories.filters  # kept: not part of the preset
+        (category,) = config.categories.filters  # kept: not in the preset
         assert (category.column, category.keep) == ("Treatment", ["a"])
-        # a preset of an earlier version: converted, sets all parts
+        # a preset of an earlier version: converted, sets all filter components
         choice["index"] = 1
         d._on_load_preset(None)
         config, _ = d.current_config()
         assert config.enabled is False and config.features.filters[0].high == 3
         assert config.categories.filters[0].keep == ["b"]
-        # Save as Preset...: the switch and all parts, also loaded by Filter Features...
+        # Save as Preset...: the switch and all filter components, also loaded by Filter Features...
         monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
         d._on_save_preset(None)
         saved = {p["name"]: p["settings"] for p in manager.settings.tool_presets(tool)}
         assert set(saved) == {"From a table", "Earlier", "Mine"}
         assert set(saved["Mine"]) == {"enabled", "features", "categories", "other"}
-        part = window_part(saved["Mine"])  # in a table window: the range filters only
-        assert part.use is False and part.unused == 1
-        assert [(r["name"], r["rangehigh"]) for r in part.ranges if r["selected"]] == [("t1", 3.0)]
+        features = window_features(saved["Mine"])  # in a table window: the feature filters only
+        assert features.use is False and features.unused == 1
+        assert [(r["name"], r["rangehigh"]) for r in features.ranges if r["selected"]] == [("t1", 3.0)]
         # Remove Presets...
         monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
         monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0, 1, 2])

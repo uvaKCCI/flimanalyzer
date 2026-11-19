@@ -8,15 +8,15 @@ The `Filter` tool creates a new table with only the rows you want to keep: rows 
 
 The filters of the table window (see [Filtering Data](filter.md)) only hide rows in that window. The `Filter` tool instead creates a new table, `Table: Filtered`, and leaves the original table unchanged. Use it when the filtered rows should be saved, or used as the input of other tools and workflows.
 
-The range filters of the `Filter` tool are the defaults for new table windows (see [Filtering Data](filter.md#presets)): a new table window starts with the ranges that are checked here. A change in a table window's `Filter Features...` changes only that window. The `Filter` tool applies the filters checked in its dialog to the rows the table window shows. If the window's `Filter Features` or `Filter Categories` is checked, the rows that these filters hide are not in the tool's input. This is the same for every tool started for that window.
+The feature filters of the `Filter` tool are the defaults for new table windows (see [Filtering Data](filter.md#presets)): a new table window starts with the ranges that are checked here. A change in a table window's `Filter Features...` changes only that window. The `Filter` tool applies the filters checked in its dialog to the rows the table window shows. If the window's `Filter Features` or `Filter Categories` is checked, the rows that these filters hide are not in the tool's input. This is the same for every tool started for that window.
 
 ## Filtering the Data
 
-The dialog shows `Use filters`, the switch of all filters, and then the filters in three parts. Each part has its own switch. While a part's switch or `Use filters` is off, the part is greyed out.
+The dialog shows `Use filters`, the switch of all filters, and then the filters in three filter components: feature, category and other filters. Each filter component has its own switch. While a filter component's switch or `Use filters` is off, the filter component is greyed out.
 
 1. Open a data table, then start `Filter` from the menu or the tool panel.
 
-2. Under `Range filters` (switch: `Use range filters`), each row is a column with numeric values (`Feature`). Check `Use` for the columns to filter and set their limits:
+2. Under `Feature filters` (switch: `Use feature filters`), each row is a column of the table with numeric values (`Feature`). Today the feature filters are range filters. Check `Use` for the columns to filter and set their limits:
     - `Low` and `High`: rows with a value below `Low` or above `High` are dropped. Rows with a value equal to a limit are kept. Leave a limit empty for no limit on that side.
     - `Drop missing` (checked by default): also drops rows that have no value in the column.
 
@@ -32,21 +32,21 @@ The dialog shows `Use filters`, the switch of all filters, and then the filters 
     - `Use`: `no` switches the filter off.
     - `Kind`: `range` (the default for a new row), `category` or `expression`. The cells the row's kind doesn't use are greyed out.
     - `Expression`: a condition, written as in the [Calculate](/userguide/analysis/calculate.md#expressions) tool, for example `` `FAD tm` > 1000 & `FAD a1[%]` < 90 ``. Use `&` for and, `|` for or, and `~` for not. Rows with a missing value in a column of the condition are dropped.
-    - `Column`, `Low`, `High`, `Drop missing` and `Values to keep`: a further range or category filter, for example a second range on a column that has one under `Range filters`. Separate the values to keep with commas.
+    - `Column`, `Low`, `High`, `Drop missing` and `Values to keep`: a further range or category filter, for example a second range on a column that has one under `Feature filters`. Separate the values to keep with commas.
 
     Groups of filters (see [Filters in settings files](#filters-in-settings-files)) are listed here too. Their `Use` can be changed, the filters in them only in the settings file.
 
 5. Click `OK`. The new table `Table: Filtered` opens in its own window.
 
-**Use filters:** the switch of all filters (`enabled` in settings files, on by default). If it is off, the tool keeps all rows. A table window has no such switch: it has `Filter Features` for its range filters and `Filter Categories` for its hidden category values.
+**Use filters:** the switch of all filters (`enabled` in settings files, on by default). If it is off, the tool keeps all rows. A table window has no such switch: it has `Filter Features` for its feature filters and `Filter Categories` for its hidden category values.
 
-**Presets:** the buttons below the settings load and save `Use filters` and the three parts by name. `Load Preset...` replaces them with those of a preset. A preset saved in a table window's `Filter Features...` has only the range filters and their switch: it replaces only the range filters and `Use range filters`. `Save as Preset...` saves them as a preset; a preset with the same name is replaced. If the settings are not valid, a message shows the problems and no preset is saved. `Remove Presets...` removes presets. Saving or removing a preset changes only that preset. The presets are in the user settings file. A table window's `Filter Features...` offers them too; it uses only their range filters.
+**Presets:** the buttons below the settings load and save `Use filters` and the three filter components by name. `Load Preset...` replaces them with those of a preset. A preset saved in a table window's `Filter Features...` has only the feature filters and their switch: it replaces only the feature filters and `Use feature filters`. `Save as Preset...` saves them as a preset; a preset with the same name is replaced. If the settings are not valid, a message shows the problems and no preset is saved. `Remove Presets...` removes presets. Saving or removing a preset changes only that preset. The presets are in the user settings file. A table window's `Filter Features...` offers them too; it uses only their feature filters.
 
-A row is kept only if every part keeps it: its values lie within all checked ranges, its category values are among the selected ones, and every other filter keeps it. A filter on a column that the table doesn't have keeps all rows; the dialog marks it with a warning. The log file lists how many rows each filter dropped.
+A row is kept only if every filter component keeps it: its values lie within all checked ranges, its category values are among the selected ones, and every other filter keeps it. A filter on a column that the table does not have is not used. The feature and category filter components list only the table's columns, and keep such a filter unchanged in the settings. Under `Other filters`, its row is marked with a warning. A filter that is not used drops no rows, and a group combines only the filters it uses. The log file lists how many rows each filter dropped.
 
 ## Filters in settings files
 
-In the settings (see [Settings](/userguide/settings)), the `Filter` tool's settings have the switch of all filters, `enabled`, and three parts. Each part has its own `enabled` and its `filters`, a list of filters, each with a `kind`:
+In the settings (see [Settings](/userguide/settings)), the `Filter` tool's settings have the switch of all filters, `enabled`, and three filter components. Each filter component has its own `enabled` and its `filters`, a list of filters, each with a `kind`:
 
 ```
 "Filter": {"config": {
@@ -67,15 +67,15 @@ In the settings (see [Settings](/userguide/settings)), the `Filter` tool's setti
 }}
 ```
 
-* `features` (`Range filters`): `range` filters only, one per column.
+* `features` (`Feature filters`): the feature filters, one per column. Today these are `range` filters.
 * `categories` (`Category values to keep`): `category` filters only, one per column.
 * `other` (`Other filters`): filters of all kinds, for example a second range on a column, conditions and groups.
 * `range`, `category` and `expression`: the filters described above. An empty `low` or `high` (`null`) is no limit.
-* `all`, `any` and `not`: groups, with their own `filters`. `all` keeps the rows that all of its filters keep, `any` the rows that at least one of them keeps, and `not` the rows that `all` would drop. Groups can contain groups. An empty group keeps all rows.
-* `enabled` (default `true`): `false` switches a filter, a whole group or a whole part off; it then keeps all rows. The top-level `enabled` is `Use filters`, the switch of all filters.
+* `all`, `any` and `not`: groups, with their own `filters`. `all` keeps the rows that all of its filters keep, `any` the rows that at least one of them keeps, and `not` the rows that `all` would drop. Groups can contain groups. A group combines only the filters it uses; a filter that is off or on a column the table does not have is not used. A group that uses none of its filters is not used itself: it drops no rows. For example, an `any` group with one filter on a missing column and one that keeps half the rows keeps that half, and a `not` group with only filters that are off drops no rows.
+* `enabled` (default `true`): `false` switches a filter, a whole group or a whole filter component off; it is then not used and drops no rows. The top-level `enabled` is `Use filters`, the switch of all filters.
 
-A row is kept if every part keeps it, and a part keeps a row if every filter of its list keeps it. Two range or category filters on the same column in `features` or `categories` are not valid; put the second one in `other`.
+A row is kept if every filter component keeps it, and a filter component keeps a row if every filter of its list that is used keeps it. Two range or category filters on the same column in `features` or `categories` are not valid; put the second one in `other`.
 
-A filter applies only if every `enabled` on its way is `true`: the top-level `enabled` (`Use filters`), that of its part, that of each group that contains the filter, and its own. The `enabled` values are combined with a logical AND. For example, a range filter with `"enabled": true` in a group with `"enabled": false` keeps all rows.
+A filter applies only if every `enabled` on its way is `true`: the top-level `enabled` (`Use filters`), that of its filter component, that of each group that contains the filter, and its own. The `enabled` values are combined with a logical AND. For example, a range filter with `"enabled": true` in a group with `"enabled": false` is not used.
 
-Settings of FLIMAnalyzer 0.6 are converted when they are read: range filters go to `features`, category filters to `categories`. A second filter on a column goes to `other`, so that no filter is lost.
+Settings of FLIMAnalyzer 0.6 are converted when they are read: range filters go to `features` (the feature filters), category filters to `categories`. A second filter on a column goes to `other`, so that no filter is lost.

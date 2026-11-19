@@ -1,7 +1,10 @@
-"""Filter: the dialog with presets, and the editors of the three parts of the filters.
+"""Filter: the dialog with presets, and the editors of the three filter components.
 
-The parts are the range filters (one per feature column), the category values to
-keep (one filter per category column) and the other filters, each with its switch.
+The filter components are the feature filters (one per feature column; today range
+filters), the category values to keep (one filter per category column) and the
+other filters, each with its switch. The feature and category filter components
+list only the input table's columns; their filters on other columns are not used and
+are kept unchanged in the settings.
 The presets are those saved in the user settings file (`presets` > `Filter`), also
 by the table windows' `Filter Features...`.
 """
@@ -11,7 +14,7 @@ from typing import Any, Optional
 import wx
 from pydantic import BaseModel, TypeAdapter
 
-from flim.configs.data import FILTER_PARTS, FilterConfig, FilterEntry, RangeSettings
+from flim.configs.data import FILTER_COMPONENTS, FilterConfig, FilterEntry, RangeSettings
 from flim.core.config import FeatureColumn, Issue
 from flim.core.schema import TableSchema
 from flim.core.fields import FieldSpec, describe_annotation
@@ -31,19 +34,19 @@ class FilterDialog(PresetsDialog):
     """The Filter dialog, with buttons for presets below the settings.
 
     The buttons are `Load Preset...`, `Save as Preset...` and `Remove Presets...`;
-    a preset sets the switch of all filters (`enabled`) and the parts it has. A
-    preset saved in a table window's `Filter Features...` has only the range
-    filters (`features`) and their switch.
+    a preset sets the switch of all filters (`enabled`) and the filter components it
+    has. A preset saved in a table window's `Filter Features...` has only the
+    feature filters (`features`) and their switch.
     """
 
-    preset_fields = ("enabled",) + FILTER_PARTS
+    preset_fields = ("enabled",) + FILTER_COMPONENTS
 
     def preset_settings(self, settings: dict) -> dict:
         """Return the settings a stored preset sets, converted from earlier versions.
 
         A preset of an earlier version (`enabled` and a flat `filters` list) is
         converted by kind (see `flim.configs.data.split_filters`) and sets all
-        three parts.
+        three filter components.
 
         Args:
             settings: The preset's settings, as stored.
@@ -53,10 +56,10 @@ class FilterDialog(PresetsDialog):
         """
         if "filters" not in settings:
             return super().preset_settings(settings)
-        keys = ("enabled", "filters") + FILTER_PARTS
+        keys = ("enabled", "filters") + FILTER_COMPONENTS
         config = FilterConfig.model_validate({k: v for k, v in settings.items() if k in keys})
         data = config.model_dump(mode="json")
-        given = [k for k in self.preset_fields if k in settings or k in FILTER_PARTS]
+        given = [k for k in self.preset_fields if k in settings or k in FILTER_COMPONENTS]
         return {k: data[k] for k in given}
 
 
@@ -167,10 +170,10 @@ def _spec(name: str, title: str, annotation: Any, description: str = "") -> Fiel
     return FieldSpec(name=name, title=title, description=description, **describe_annotation(annotation))
 
 
-class _PartEditor(Editor):
-    """Editor of a part of the Filter settings: its switch above a view of its filters.
+class _ComponentEditor(Editor):
+    """Editor of a filter component of the Filter settings: its switch above its filters.
 
-    The view is greyed out while the part's switch or the switch of all filters
+    The view is greyed out while the component's switch or the switch of all filters
     (`Use filters`) is off. Subclasses create the view (`create_view`) and convert
     its value (`view_get`, `view_set`, `view_issues`).
     """
@@ -195,7 +198,7 @@ class _PartEditor(Editor):
         return panel
 
     def create_view(self, parent: wx.Window) -> Editor:
-        """Create and return the editor of the part's filters; implemented by subclasses."""
+        """Create and return the editor of the component's filters; implemented by subclasses."""
         raise NotImplementedError
 
     def _on_switch(self, event: wx.CommandEvent) -> None:
@@ -204,11 +207,11 @@ class _PartEditor(Editor):
         self.changed(event)
 
     def grey_out(self) -> None:
-        """Enable the view only while the part's switch and `Use filters` are on."""
+        """Enable the view only while the component's switch and `Use filters` are on."""
         self.view.control.Enable(self.all_on and self.switch.GetValue())
 
     def get(self) -> Any:
-        """Return the part: its switch and its filters, as a dict.
+        """Return the filter component: its switch and its filters, as a dict.
 
         Raises:
             ValueError: If text in the view is not a valid value.
@@ -216,7 +219,7 @@ class _PartEditor(Editor):
         return {"enabled": self.switch.GetValue(), "filters": self.view_get()}
 
     def set(self, value: Any) -> None:
-        """Show a part (a model or a dict; None for an empty part that is on)."""
+        """Show a filter component (a model or a dict; None for an empty one that is on)."""
         if isinstance(value, BaseModel):
             enabled, filters = value.enabled, list(value.filters)
         else:
@@ -235,10 +238,10 @@ class _PartEditor(Editor):
         raise NotImplementedError
 
     def view_issues(self, issues: list) -> None:
-        """Show the issues at `<part>.filters[i]` in the view; none here."""
+        """Show the issues at `<component>.filters[i]` in the view; none here."""
 
     def show_issues(self, issues: list) -> None:
-        """Show the issues of the part's filters in the view."""
+        """Show the issues of the component's filters in the view."""
         self.view_issues(issues)
 
     def set_schema(self, schema: Optional[TableSchema]) -> None:
@@ -257,7 +260,7 @@ class _PartEditor(Editor):
         self.view.refresh(panel)
 
     def _indexed(self, issues: list) -> list[tuple[int, str, Issue]]:
-        """Return (index, rest of the path, issue) of the issues at the part's filters."""
+        """Return (index, rest of the path, issue) of the issues at the component's filters."""
         result = []
         prefix = f"{self.spec.name}.filters["
         for issue in issues:
@@ -271,8 +274,8 @@ class _PartEditor(Editor):
 
 
 @register_editor(FilterConfig, "features")
-class RangePartEditor(_PartEditor):
-    """The range filters: per feature of the input a range, used or not.
+class FeaturesComponentEditor(_ComponentEditor):
+    """The feature filters: per feature of the input a range, used or not.
 
     A range filter of a column the input doesn't have is kept unchanged. An
     unused range without values keeps the values it had.
@@ -285,7 +288,7 @@ class RangePartEditor(_PartEditor):
         self.views: list = []  # per filter of `view_get`: (view, column)
         return FeatureSettingsEditor(
             parent,
-            _spec("range_filters", "Range filters", dict[FeatureColumn, RangeSettings],
+            _spec("range_filters", "Feature filters", dict[FeatureColumn, RangeSettings],
                   "Check the columns to filter: rows outside [low, high] are dropped (empty: no limit)."),
         )
 
@@ -329,7 +332,7 @@ class RangePartEditor(_PartEditor):
 
 
 @register_editor(FilterConfig, "categories")
-class CategoryPartEditor(_PartEditor):
+class CategoriesComponentEditor(_ComponentEditor):
     """The category filters: per category column the values whose rows are kept."""
 
     def create_view(self, parent: wx.Window) -> Editor:
@@ -354,7 +357,7 @@ class CategoryPartEditor(_PartEditor):
 
 
 @register_editor(FilterConfig, "other")
-class OtherPartEditor(_PartEditor):
+class OtherComponentEditor(_ComponentEditor):
     """The other filters: expressions, groups and further filters, as a table."""
 
     def create_view(self, parent: wx.Window) -> Editor:

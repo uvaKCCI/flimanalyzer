@@ -65,8 +65,8 @@ https://flimanalyzer.readthedocs.io).
 - **`flimbatch` and the range filters:** `flimbatch` no longer filters the data by the
   table windows' range filters (`filters` > `use` in 0.6 settings files). To filter rows
   in a batch run, add a `Filter` step to a workflow file.
-- **Filter tool defaults:** the `Filter` tool's range filters are now also the range
-  filters that new table windows start with. Started with the built-in defaults, the
+- **Filter tool defaults:** the `Filter` tool's feature filters (range filters) are now
+  also the range filters that new table windows start with. Started with the built-in defaults, the
   `Filter` tool therefore applies the three range filters that are on by default (`trp
   chi` 0 to 4.7, `NAD(P)H chi` and `FAD chi` 0.7 to 4.7) to tables that have these
   columns; until 0.6.2 it started without filters. Uncheck them in the `Filter` dialog
@@ -308,6 +308,8 @@ https://flimanalyzer.readthedocs.io).
   tool whose name, former name or short name equals another tool's, ignoring case (the
   tool is not loaded, and the log says so). See the
   Programming Guide for how API changes are handled.
+- **Filter dialog:** `Range filters` is now `Feature filters`. Settings files are
+  unchanged (`features`).
 
 ### Added
 
@@ -421,16 +423,20 @@ https://flimanalyzer.readthedocs.io).
   only, which lists the files of its inputs in one table.
 - **Filter tool:** filters by category values, ranges and conditions written as
   expressions, and, in settings files, groups (`all`, `any`, `not`). The filters are in
-  three parts, each with its own switch: range filters (`features`, `Use range
-  filters`), category filters (`categories`, `Use category filters`) and other filters
-  (`other`, `Use other filters`). `Use filters` (`enabled`) switches all filters; off,
-  the tool keeps all rows. A filter applies only if `Use filters`, the switch of its
-  part, the `enabled` of each group that contains it and its own `enabled` are all on.
+  three filter components, each with its own switch: feature filters (`features`, `Use
+  feature filters`; today range filters), category filters (`categories`, `Use category
+  filters`) and other filters (`other`, `Use other filters`). `Use filters` (`enabled`)
+  switches all filters; off, the tool keeps all rows. A filter applies only if `Use
+  filters`, the switch of its filter component, the `enabled` of each group that
+  contains it and its own `enabled` are all on. A filter that is not used, or that is on
+  a column the table does not have, drops no rows, and a group combines only the filters
+  it uses. The dialog lists only the table's columns under `Feature filters` and
+  `Category values to keep`, and keeps filters on other columns unchanged.
 - **Presets:** `Load Preset...`, `Save as Preset...` and `Remove Presets...` in the
   `Calculate`, `Separate Categories` and `Filter` dialogs and in a table window's
   `Filter Features`. Presets are saved in the user settings file, in the `presets`
   section by tool name. A preset of `Filter Features` holds the table window's range
-  filters and `Filter Features` as the `Filter` tool's range filters, and
+  filters and `Filter Features` as the `Filter` tool's feature filters, and
   `Filter Features` also loads them from and saves them to settings files, as the
   `Filter` dialog's `Load Settings...` and `Save Settings...` do, and saves the range
   filters as the defaults for new tables.

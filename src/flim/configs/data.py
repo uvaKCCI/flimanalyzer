@@ -280,10 +280,11 @@ def _filters_of_v1(
     return nodes
 
 
-# the parts of the Filter tool's settings, in the order they are evaluated and shown
-FILTER_PARTS = ("features", "categories", "other")
-# the parts with one leaf per column, by the kind of their leaves
-_LEAF_PARTS = {"range": "features", "category": "categories"}
+# the filter components of the Filter tool's settings, in the order they are
+# evaluated and shown
+FILTER_COMPONENTS = ("features", "categories", "other")
+# the filter components with one leaf per column, by the kind of their leaves
+_LEAF_COMPONENTS = {"range": "features", "category": "categories"}
 
 
 def _kind_and_column(node: Any) -> tuple[str, Any]:
@@ -293,45 +294,46 @@ def _kind_and_column(node: Any) -> tuple[str, Any]:
     return getattr(node, "kind", "range"), getattr(node, "column", None)
 
 
-def _part_dict(part: Any) -> dict[str, Any]:
-    """Return a part of the Filter settings (a dict, a model or None) as a dict."""
-    if part is None:
+def _component_dict(component: Any) -> dict[str, Any]:
+    """Return a filter component of the Filter settings (dict, model or None) as a dict."""
+    if component is None:
         return {}
-    if isinstance(part, BaseConfig):
-        return {"enabled": part.enabled, "filters": list(part.filters)}
-    return dict(part)
+    if isinstance(component, BaseConfig):
+        return {"enabled": component.enabled, "filters": list(component.filters)}
+    return dict(component)
 
 
 def split_filters(
-    nodes: list[Any], parts: Optional[dict[str, Any]] = None
+    nodes: list[Any], components: Optional[dict[str, Any]] = None
 ) -> dict[str, dict[str, Any]]:
-    """Add filter nodes to the parts of the Filter tool's settings, by kind.
+    """Add filter nodes to the filter components of the Filter tool's settings, by kind.
 
     Range leaves go to `features`, category leaves to `categories`, all other nodes
     (expressions, groups) to `other`. A range or category leaf on a column that its
-    part has already goes to `other`, so that each column has one leaf in its part.
+    component has already goes to `other`, so that each column has one leaf in its
+    component.
 
     Args:
         nodes: The filter nodes, dicts or models, e.g. a flat `filters` list of
             earlier settings.
-        parts: The parts to add to (`features`, `categories`, `other`; dicts or
-            models), not changed. Defaults to empty parts.
+        components: The filter components to add to (`features`, `categories`,
+            `other`; dicts or models), not changed. Defaults to empty components.
 
     Returns:
-        A new dict of the three parts, each a dict with its `filters` and, if given,
-        its `enabled`.
+        A new dict of the three filter components, each a dict with its `filters`
+        and, if given, its `enabled`.
     """
-    parts = parts or {}
-    result = {name: _part_dict(parts.get(name)) for name in FILTER_PARTS}
-    for part in result.values():
-        part["filters"] = list(part.get("filters") or [])
+    components = components or {}
+    result = {name: _component_dict(components.get(name)) for name in FILTER_COMPONENTS}
+    for component in result.values():
+        component["filters"] = list(component.get("filters") or [])
     columns = {
         name: {_kind_and_column(n)[1] for n in result[name]["filters"]}
-        for name in _LEAF_PARTS.values()
+        for name in _LEAF_COMPONENTS.values()
     }
     for node in nodes:
         kind, column = _kind_and_column(node)
-        name = _LEAF_PARTS.get(kind, "other")
+        name = _LEAF_COMPONENTS.get(kind, "other")
         if name != "other" and column in columns[name]:
             name = "other"  # a further leaf of the column
         elif name != "other":
@@ -357,29 +359,32 @@ def _one_per_column(filters: list[FilterNode], what: str) -> None:
 
 
 class FeatureFilters(BaseConfig):
-    """The range filters of the Filter tool: one per feature column."""
+    """The feature filter component of the Filter tool: one filter per feature column.
+
+    Its filters are range filters (today the only kind of feature filter).
+    """
 
     enabled: bool = Field(
         default=True,
-        title="Use range filters",
-        description="Off: the range filters keep all rows.",
+        title="Use feature filters",
+        description="Off: the feature filters are not used (they drop no rows).",
     )
     filters: list[RangeFilterNode] = Field(
         default=[],
-        title="Range filters",
+        title="Feature filters",
         description="One per feature column: rows outside [low, high] are dropped"
         " (empty: no limit).",
     )
 
     @model_validator(mode="after")
     def _validate_columns(self) -> Self:
-        """Reject a second range filter on a column."""
+        """Reject a second feature filter on a column."""
         _one_per_column(self.filters, "range")
         return self
 
 
 class CategoryFilters(BaseConfig):
-    """The category filters of the Filter tool: one per category column."""
+    """The category filter component of the Filter tool: one filter per category column."""
 
     enabled: bool = Field(
         default=True,
@@ -400,7 +405,7 @@ class CategoryFilters(BaseConfig):
 
 
 class OtherFilters(BaseConfig):
-    """The other filters of the Filter tool: filters of any kind."""
+    """The other filter component of the Filter tool: filters of any kind."""
 
     enabled: bool = Field(
         default=True,
@@ -418,13 +423,15 @@ class OtherFilters(BaseConfig):
 class FilterConfig(DataTaskConfig):
     """Config of Filter: keeps the rows that the filters keep.
 
-    The filters are in three parts: `features` (range filters, one per feature
-    column), `categories` (category filters, one per category column) and `other`
-    (filters of any kind: expressions, `all`/`any`/`not` groups, further filters on
-    a column). A row is kept if every part keeps it; a part keeps a row if every
-    filter of its list keeps it. A filter is used only if every `enabled` on its way
-    is on: `enabled` (the switch of all filters), its part's `enabled`, the
-    `enabled` of each group it is in and its own `enabled`.
+    The filters are in three filter components: `features` (feature filters, one
+    per feature column; today range filters), `categories` (category filters, one
+    per category column) and `other` (filters of any kind: expressions,
+    `all`/`any`/`not` groups, further filters on a column). A row is kept if every
+    component keeps it; a component keeps a row if every filter of its list that is
+    used keeps it. A filter is used only if every `enabled` on its way is on:
+    `enabled` (the switch of all filters), its component's `enabled`, the `enabled`
+    of each group it is in and its own `enabled`, and only if the table has its
+    columns. A filter that is not used drops no rows.
 
     Settings of FLIMAnalyzer 0.5 and 0.6 (`category_filters`, `range_filters`) and a
     flat `filters` list are converted by kind (see `split_filters`).
@@ -440,13 +447,13 @@ class FilterConfig(DataTaskConfig):
         default=True,
         title="Use filters",
         description="The switch of all filters: off keeps all rows. A filter is used"
-        " only if this, its part's switch, the groups it is in and its own Use are"
-        " all on.",
+        " only if this, its component's switch, the groups it is in and its own Use"
+        " are all on.",
     )
     features: FeatureFilters = Field(
         default_factory=FeatureFilters,
-        title="Range filters",
-        description="One range filter per feature column.",
+        title="Feature filters",
+        description="One filter per feature column (today range filters).",
         json_schema_extra={"order": 301},
     )
     categories: CategoryFilters = Field(
@@ -496,7 +503,7 @@ class FilterConfig(DataTaskConfig):
         """Return the range and category filters in use as legacy filters.
 
         These are the enabled filters of `features` and `categories`, if their
-        part is on; the other filters have no legacy form. The plugin's `features`
+        component is on; the other filters have no legacy form. The plugin's `features`
         (feature columns, not used) is empty.
         """
         inf = float("inf")

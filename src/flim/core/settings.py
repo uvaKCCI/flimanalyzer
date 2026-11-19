@@ -484,9 +484,9 @@ class AppSettings(_Settings):
     def default(cls) -> "AppSettings":
         """Return the default settings.
 
-        The Filter tool's settings hold the default range filters (those of the table
-        windows of FLIMAnalyzer 0.6); the other tools have no saved settings, so their
-        configs' defaults apply.
+        The Filter tool's settings hold the default feature filters (the range
+        filters of the table windows of FLIMAnalyzer 0.6); the other tools have no
+        saved settings, so their configs' defaults apply.
         """
         from flim.configs import FilterConfig
         from flim.core.filtering import default_ranges
@@ -682,10 +682,10 @@ def _v1_import(data: dict, changes: "Changes") -> None:
 def _v1_filters(data: dict, changes: "Changes") -> None:
     """Move 0.6's range filters into the Filter tool's config, in place.
 
-    The table windows' range filters become the Filter tool's range filters
+    The table windows' range filters become the Filter tool's feature filters
     (`enabled` = `selected`); the Filter tool's own 0.6 filters are added switched
-    off. The filters are put into the parts of the Filter tool's settings by kind
-    (`flim.configs.data.split_filters`): a second filter on a column goes to the
+    off. The filters are put into the filter components of the Filter tool's
+    settings by kind (`flim.configs.data.split_filters`): a second filter on a column goes to the
     other filters. The windows' `use` (`Filter Data`, which switched the range
     filters only) becomes the `Filter Features` switch.
     """

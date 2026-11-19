@@ -1,13 +1,14 @@
 """Filtering the rows of a table by the Filter tool's settings.
 
-The settings (`FilterConfig`) have three parts: `features` (range leaves, one per
-feature column), `categories` (category leaves, one per category column) and `other`
-(nodes of any kind). A row is kept if every part keeps it; a part keeps a row if
-every node of its list keeps it (an `all` group). Leaves: `range` (a feature's
+The settings (`FilterConfig`) have three filter components: `features` (feature
+filters, one per feature column; today range leaves), `categories` (category leaves,
+one per category column) and `other` (nodes of any kind). A row is kept if every
+component keeps it; a component keeps a row if every node of its list keeps it (an
+`all` group). Leaves: `range` (a feature's
 values in [low, high]), `category` (a category column's values to keep),
 `expression` (a condition, as Calculate's expressions). Groups: `all`, `any`, `not`;
 they nest. A leaf is used only if every `enabled` on its way is on: the top-level
-switch, its part's, its groups' and its own. Every node is evaluated on the input
+switch, its component's, its groups' and its own. Every node is evaluated on the input
 table; the masks are combined, and the table is copied once at the end, so the
 order of the nodes doesn't matter.
 
@@ -149,17 +150,17 @@ def _lists(
 ) -> list[tuple[str, Sequence["FilterNode"]]]:
     """Return the node lists in use with their paths, e.g. `features.filters`.
 
-    For settings: the lists of the parts that are on, none if the top-level switch
-    is off; for a list of nodes: the list, at `filters`.
+    For settings: the lists of the filter components that are on, none if the
+    top-level switch is off; for a list of nodes: the list, at `filters`.
     """
     if isinstance(filters, (list, tuple)):
         return [("filters", filters)]
-    from flim.configs.data import FILTER_PARTS
+    from flim.configs.data import FILTER_COMPONENTS
 
     if not filters.enabled:
         return []
-    parts = [(name, getattr(filters, name)) for name in FILTER_PARTS]
-    return [(f"{name}.filters", part.filters) for name, part in parts if part.enabled]
+    components = [(name, getattr(filters, name)) for name in FILTER_COMPONENTS]
+    return [(f"{name}.filters", c.filters) for name, c in components if c.enabled]
 
 
 def apply_filters(
@@ -199,7 +200,8 @@ def validate_filters(
     """Validate filters before using them.
 
     Only the nodes in use are validated (see `apply_filters`); groups are validated
-    with their nodes. The top-level lists of the parts form one `all` group.
+    with their nodes. The top-level lists of the filter components form one `all`
+    group.
 
     Args:
         filters: The Filter tool's settings, or a list of filter nodes (at
@@ -290,14 +292,14 @@ class WindowFilters(BaseModel):
     both switches.
 
     Attributes:
-        features: `Filter Features`: whether the range filters are used.
+        features: `Filter Features`: whether the window's range filters are used.
         categories: `Filter Categories`: whether the category values hidden
             through a column header are used.
-        show_dropped: Whether the rows the range filters drop are shown in a new
+        show_dropped: Whether the rows the window's range filters drop are shown in a new
             window.
         range_filters: The range filters (`flim.core.filter.RangeFilter`
-            parameters), one per column: the Filter tool's range filters
-            (`features`).
+            parameters), one per column: the range filters of the Filter tool's
+            feature filters (`features`).
         category_filters: The values kept of the category columns that hide
             values.
     """
@@ -404,7 +406,7 @@ def window_ranges(filters: Sequence["FilterNode"]) -> list[dict[str, Any]]:
     """Return range leaves as `RangeFilter` parameters.
 
     Args:
-        filters: The filter nodes, e.g. the Filter tool's range filters
+        filters: The filter nodes, e.g. the Filter tool's feature filters
             (`features.filters`); other kinds are left out and, of several range
             leaves on one column, the first is taken.
 
@@ -468,12 +470,12 @@ def leaf_counts(outcome: Outcome) -> Optional[str]:
         A text for the leaves that dropped rows, or None if none did, for example
         `dropped rows: <label>: <n>; ...`.
     """
-    parts = [f"{text}: {n}" for _, text, n in outcome.dropped if n]
-    return "dropped rows: " + "; ".join(parts) if parts else None
+    counts = [f"{text}: {n}" for _, text, n in outcome.dropped if n]
+    return "dropped rows: " + "; ".join(counts) if counts else None
 
 
 def window_settings(filters: WindowFilters) -> dict[str, Any]:
-    """Return a table window's range filters as a part of the Filter tool's settings.
+    """Return a table window's range filters as the Filter tool's feature filters.
 
     Args:
         filters: The window's filters.
@@ -481,7 +483,7 @@ def window_settings(filters: WindowFilters) -> dict[str, Any]:
     Returns:
         `features`: `enabled` (the window's `Filter Features`) and `filters` (a
         range leaf per range filter, enabled if selected), as JSON data. The
-        category values are not part of it.
+        category values are not included.
     """
     nodes = with_window_ranges([], filters.range_filters)
     return {
@@ -493,14 +495,15 @@ def window_settings(filters: WindowFilters) -> dict[str, Any]:
 
 
 @dataclass
-class WindowPart:
-    """The part of the Filter tool's settings that a table window uses.
+class WindowFeatures:
+    """The feature filters of the Filter tool's settings, as a table window uses them.
 
     Attributes:
-        use: Whether the range filters are used: the `enabled` of `features`, and
+        use: Whether the feature filters are used: the `enabled` of `features`, and
             the top-level `enabled` if the settings have it; None if the settings
             have neither (e.g. a file of `Save Feature Settings...`).
-        ranges: `RangeFilter` parameters of the range filters (`features`).
+        ranges: `RangeFilter` parameters of the feature filters' range leaves
+            (`features`).
         unused: The number of filters a table window doesn't use: those of
             `categories` and `other`.
     """
@@ -510,20 +513,21 @@ class WindowPart:
     unused: int
 
 
-def window_part(settings: dict[str, Any]) -> WindowPart:
-    """Return the part of the Filter tool's settings that a table window uses.
+def window_features(settings: dict[str, Any]) -> WindowFeatures:
+    """Return the feature filters of the Filter tool's settings, as a table window uses them.
 
     Settings of earlier versions (a flat `filters` list) are converted first: their
     range leaves become `features`, one per column (see
     `flim.configs.data.split_filters`). Their top-level `enabled` (from a table
-    window: `Filter Data`) is then the switch of the range filters.
+    window: `Filter Data`) is then the switch of the feature filters.
 
     Args:
-        settings: The Filter tool's settings, or a part of them, e.g. `features`
+        settings: The Filter tool's settings, or some of them, e.g. `features`
             alone, or `enabled` and `filters`.
 
     Returns:
-        The switch, the range filters and the number of filters left unused.
+        The switch, the range filters and the number of filters a table window
+        does not use.
 
     Raises:
         ValueError: If the settings are not valid Filter settings.
@@ -536,7 +540,7 @@ def window_part(settings: dict[str, Any]) -> WindowPart:
     given = "enabled" in settings or (isinstance(features, dict) and "enabled" in features)
     use = config.enabled and config.features.enabled if given else None
     unused = len(config.categories.filters) + len(config.other.filters)
-    return WindowPart(use, window_ranges(config.features.filters), unused)
+    return WindowFeatures(use, window_ranges(config.features.filters), unused)
 
 
 def file_data_ranges(data: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:

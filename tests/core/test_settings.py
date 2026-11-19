@@ -40,7 +40,7 @@ def test_defaults():
     settings = AppSettings.default()
     assert settings.schema_version == SETTINGS_VERSION
     assert "import" not in settings.to_json()  # reading: a workflow file's
-    # the windows' range filters of 0.6, now the Filter tool's range filters
+    # the windows' range filters of 0.6, now the Filter tool's feature filters
     config = settings.tools.config(tools.get("Filter"))
     filters = config.features.filters
     assert len(filters) == 38 and sum(f.enabled for f in filters) == 3  # one per column

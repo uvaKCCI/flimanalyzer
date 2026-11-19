@@ -2,7 +2,7 @@
 
 FLIMAnalyzer keeps its settings in JSON files. A settings file holds the range filters, the results folder, the executor, and the settings of each tool, such as the grouping and features chosen in its dialog. [Batch mode](/userguide/batch) uses the same files.
 
-The range filters (see [Filtering Data](/userguide/data/filter.md#filtering-columns-with-numeric-values)) are part of the settings, as the `Filter` tool's range filters. The values selected in category columns of a table window are not.
+The range filters (see [Filtering Data](/userguide/data/filter.md#filtering-columns-with-numeric-values)) are part of the settings, as the `Filter` tool's feature filters. The values selected in category columns of a table window are not.
 
 ## Where the settings come from
 

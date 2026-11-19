@@ -36,7 +36,7 @@ Follow these steps to view and change the range filters:
 
 5. Click `OK`. The dialog closes, and the table shows only the rows whose values are inside the ranges of the filters switched on in step 3. The `Filter Features` checkbox of the table window shows the value of the dialog. While the dialog is open, it shows how many rows these filters hide (`Dropped from view`) and how many remain.
 
-**Note:** The `Filter Features` checkbox in the table window switches all range filters on or off at once. This is a quick way to switch between the filtered table and the full data. A range filter applies only if `Filter Features` is on and the filter itself is on (see [When a filter applies](#when-a-filter-applies)).
+**Note:** The `Filter Features` checkbox in the table window switches all range filters on or off together. This is a quick way to switch between the filtered table and the full data. A range filter applies only if `Filter Features` is on and the filter itself is on (see [When a filter applies](#when-a-filter-applies)).
 
 **Note:** The filters and their switches apply only to their table window. A change in one window doesn't change the other windows. A new table window starts with the defaults for new tables (see [Presets](#presets)).
 
@@ -48,14 +48,14 @@ To change the range filter of a single column, it is quicker to check `Filter Fe
 
 ## Presets
 
-The buttons of the `Filter Features` dialog load and save the range filters of the table window and the `Filter Features` switch, as a part of the settings of the [Filter tool](filtertool.md): its range filters (`features` in settings files). The values hidden in category columns are not part of them.
+The buttons of the `Filter Features` dialog load and save the range filters of the table window and the `Filter Features` switch, as the feature filters of the [Filter tool](filtertool.md) (`features` in settings files). The values hidden in category columns are not part of them.
 
-* `Load Preset...` shows the range filters of the defaults for new tables, of a preset you saved, or of a file (`From file...`). They replace the range filters of the window: range filters of other columns are switched off. A column that the table doesn't have is listed below the filters, and so is the number of category and other filters of the Filter tool that the dialog doesn't use. `Filter Features` is set as in the preset or file: it is on only if `Use range filters` and `Use filters` of the Filter tool are both on. The table window uses the loaded filters when you click `OK`.
+* `Load Preset...` shows the range filters of the defaults for new tables, of a preset you saved, or of a file (`From file...`). They replace the range filters of the window: range filters of other columns are switched off. A column that the table does not have is listed below the filters, and so is the number of category and other filters of the Filter tool that the dialog does not use. `Filter Features` is set as in the preset or file: it is on only if `Use feature filters` and `Use filters` of the Filter tool are both on. The table window uses the loaded filters when you click `OK`.
     - `From file...` reads a settings file with `Filter` settings, for example one saved with `To file...` or with `Save Settings...` of the `Filter` dialog. It also reads a file of `Save Feature Settings...`: its range filters are switched on, and `Filter Features` is not changed.
 * `Save as Preset...` saves the range filters and `Filter Features` of the dialog:
     - `Defaults for new tables`: new table windows start with these range filters, and with `Filter Features` as it is in this window. The values hidden in category columns are not part of the defaults, and new table windows start with `Filter Categories` as before. The GUI writes the defaults to the user settings file, so they are used in later sessions too.
     - A preset you saved: replaces it. `New preset...` asks for a name. The presets are in the user settings file. The `Filter` tool's `Load Preset...` offers them too.
-    - `To file...`: writes the range filters and `Filter Features` to a settings file as the range filters of the `Filter` settings (`features`). In an existing file, only the range filters are replaced: the category filters, the other filters, `Use filters` and the file's other settings are kept. The `Filter` dialog's `Load Settings...` reads it.
+    - `To file...`: writes the range filters and `Filter Features` to a settings file as the feature filters of the `Filter` settings (`features`). In an existing file, only the feature filters are replaced: the category filters, the other filters, `Use filters` and the file's other settings are kept. The `Filter` dialog's `Load Settings...` reads it.
 * `Remove Presets...` removes presets you saved.
 
 ## When a filter applies
@@ -63,10 +63,10 @@ The buttons of the `Filter Features` dialog load and save the range filters of t
 A filter applies only if all switches on its way are on:
 
 * In a table window: `Filter Features` for the range filters, `Filter Categories` for the hidden category values, then the filter's own `Use`.
-* In the `Filter` tool: `Use filters`, then the switch of the part that contains the filter (`Use range filters`, `Use category filters` or `Use other filters`), then the switch of each group that contains the filter, then the filter's own `Use`.
+* In the `Filter` tool: `Use filters`, then the switch of the filter component that contains the filter (`Use feature filters`, `Use category filters` or `Use other filters`), then the switch of each group that contains the filter, then the filter's own `Use`.
 
-If one of them is off, the filter keeps all rows. A switch can only switch filters off: a filter that is on in a part that is off keeps all rows.
+If one of them is off, the filter is not used: it drops no rows. A switch can only switch filters off: a filter that is on in a filter component that is off is not used.
 
 ## Filters in settings files and batch mode
 
-The defaults for new tables are the range filters of the [Filter tool](filtertool.md) and the `filters` setting. They are part of the settings: `File` > `Export Settings...` saves them (see [Settings](/userguide/settings)). The filters of a table window are not saved, unless you save them as the defaults, as a preset or to a file. [Batch mode](/userguide/batch) doesn't filter by them: to filter rows there, add a `Filter` step to a workflow file. The filters of a table window apply only to that window, and to the tools started for it: a tool gets only the rows the window shows. To keep a table with only some category values, use the [Filter tool](filtertool.md).
+The defaults for new tables are the feature filters of the [Filter tool](filtertool.md) and the `filters` setting. They are part of the settings: `File` > `Export Settings...` saves them (see [Settings](/userguide/settings)). The filters of a table window are not saved, unless you save them as the defaults, as a preset or to a file. [Batch mode](/userguide/batch) does not filter by them: to filter rows there, add a `Filter` step to a workflow file. The filters of a table window apply only to that window, and to the tools started for it: a tool gets only the rows the window shows. To keep a table with only some category values, use the [Filter tool](filtertool.md).

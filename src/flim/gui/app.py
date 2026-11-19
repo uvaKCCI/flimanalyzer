@@ -341,7 +341,7 @@ class AppFrame(wx.Frame):
         self.settings_manager = (
             settings_manager if settings_manager is not None else SettingsManager()
         )
-        # the filters new table windows start with (the Filter tool's range filters
+        # the filters new table windows start with (the Filter tool's feature filters
         # and the `filters` switches); each window works on its own copy
         self.filters = WindowFilters()
         self._quit_confirmed = False  # the user chose to quit (confirm_quit)
@@ -746,7 +746,7 @@ class AppFrame(wx.Frame):
         """Update the defaults for new tables in place from the settings.
 
         These are the switches (`Filter Features`, `Filter Categories`, `Show
-        Dropped`) and the Filter tool's range filters. Open table windows keep their
+        Dropped`) and the Filter tool's feature filters. Open table windows keep their
         own filters.
         """
         current = window_filters(self.settings)
@@ -759,7 +759,7 @@ class AppFrame(wx.Frame):
         """Return where the table windows' `Filter Features...` load and save filters.
 
         The defaults for new tables are the `Filter Features` switch of the
-        `filters` setting and the Filter tool's range filters (`window_filters`),
+        `filters` setting and the Filter tool's feature filters (`window_filters`),
         as the Filter tool's `features`; saved presets are the Filter tool's
         presets.
         """
@@ -780,8 +780,8 @@ class AppFrame(wx.Frame):
         """Write range filters to the user settings file, as the defaults for new tables.
 
         The `Filter Features` switch and `Show Dropped` go to the `filters` setting,
-        the range filters to the Filter tool's range filters (`features`); the
-        tool's switches and its other parts are kept, and so is `Filter
+        the range filters to the Filter tool's feature filters (`features`); the
+        tool's switches and its other filter components are kept, and so is `Filter
         Categories`.
 
         Args:
