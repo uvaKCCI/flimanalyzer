@@ -11,8 +11,9 @@ earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 ## 0.7.0 - YYYY-MM-DD
 
 Settings files, workflow files, the `flimsettings` command and new data tools, and bug
-fixes for 0.6.2, several of which change results. New requirements: Python 3.12 to
-3.14; PyTorch 2.14.1 for installs with uv from the source and the Docker CUDA image.
+fixes for 0.6.2, several of which change results. Newly supported: Python 3.13 and
+3.14 (Python 3.12 or newer is still required). New requirement: PyTorch 2.14.1 for
+installs with uv from the source and the Docker CUDA image.
 Users of 0.6: what to do when changing to 0.7 is on the user guide page "Moving from
 0.6 to 0.7" (`docs/userguide/upgrading.md`, also at
 https://flimanalyzer.readthedocs.io).
@@ -184,7 +185,7 @@ https://flimanalyzer.readthedocs.io).
   the run's `run_summary.txt` and `resolved.json` and a folder for each step,
   `<id>-<tool>`, for example `01-Summarize`, with a folder for each table and part
   below it where a step runs once per table or part. A tool given to `--run` runs as a
-  workflow of one step, `01`. Workflows defined in code (`Basic FLIRR Analysis` and the
+  workflow of one step, `1` (folder `01-<tool>`). Workflows defined in code (`Basic FLIRR Analysis` and the
   autoencoder workflows) save the same way, also in the GUI: each of their steps has a
   fixed id and a folder `<id>-<tool>`, and a step run in a loop has a folder per part.
   Until 0.6.2 the results were saved in `<output>/<tool>/<date and time>/`, and those
@@ -468,10 +469,11 @@ https://flimanalyzer.readthedocs.io).
 - **Plugin and tool API** (developers): `Tool.short_name`, `Tool.example` (a table or
   one line), `Tool.validate_data`, `Tool.proposals` and `Tool.inapplicable_fields` for
   the dialogs; `Tool.category` as a list of a menu and its submenus, and `None` or `[]`
-  for no menu; `flim.gui.configdialog.register_dialog`; `Tool.output_types`;
+  for no menu; `Tool.output_types`;
   `Tool.mappable_output` and `Tool.output_prefix` for results in parts;
   `Tool.skippable_fields` and `Tool.never_guessed` for `processing`; `Tool.extra_tags`;
-  tool lookups accept `former_names`; each data type declares its `save_options` and
+  `tools.get` also finds a tool by its `former_names` (until 0.6.2 only settings files
+  did); each data type declares its `save_options` and
   writes with `DataType.save`; `DataType.content_hash` and `DataType.describe`, which
   identify and list a value among a run's inputs (None and the class by default, so
   data types of plugins can add their own); a tool call's `step`, which names its
@@ -619,9 +621,13 @@ describes how API changes are handled.
 - **Import Settings and Export Settings** changed the working folder to the folder of
   the chosen file. They no longer do. `Export Settings...` opens at the first folder of
   the app settings search path.
-- **App settings files** with a format of a kind that a tool doesn't make in the
-  tool's section, for example a plot format for `Summarize`, were accepted. The tool's
-  section is now reported as invalid and not used, as in tool and workflow files.
+- **Relative Change:** groups without reference rows were only logged. They are now a
+  warning of the task, shown in the run summary and in the Prefect UI.
+- **`flimanalyzer` without wxPython** read the settings and started a Prefect server
+  before it said that wxPython is missing. It now says so first.
+- **Box Plot, Violin Plot, Swarm Plot and Line Plot** ignored grouping columns after
+  the fourth (Line Plot: the fifth) without a message. More grouping columns are now an
+  error of the settings.
 
 ### Known issues
 
