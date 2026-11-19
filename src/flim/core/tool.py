@@ -207,7 +207,7 @@ class Tool(Generic[ConfigT]):
     # True if the whole task draws with pyplot (see pyplot_lock)
     draws_figures: ClassVar[bool] = False
     inputs: ClassVar[tuple[InputSpec, ...]] = (InputSpec("data", TableType),)
-    # outputs whose names don't depend on config or input; see output_schema
+    # outputs whose names do not depend on config or input; see output_schema
     outputs: ClassVar[tuple[OutputSpec, ...]] = ()
     # the types of all outputs, also of those whose names depend on the settings
     # (e.g. Summarize: one table per feature); fixed by the tool, see output_kinds
@@ -469,7 +469,7 @@ class Tool(Generic[ConfigT]):
         For example a calculation whose columns are missing. The entry is recorded as
         skipped for a workflow file step's `processing`. In a workflow file step, or
         with `warn`, it is a warning in the run summary; otherwise it is only logged
-        (e.g. the default filters on channels many data sets don't have).
+        (e.g. the default filters on channels many data sets do not have).
 
         Args:
             message: What was skipped and why.
@@ -489,7 +489,7 @@ class Tool(Generic[ConfigT]):
             context.skipped.append((field or self.skippable_fields[-1], entry, message))
 
     def validate_processing(self) -> None:
-        """Fail the run if a workflow file step's `processing` doesn't allow the skips.
+        """Fail the run if a workflow file step's `processing` does not allow the skips.
 
         Per field with skipped entries: `none` (the default) allows no skipped entry,
         `some` needs at least one applied entry, `all` allows any; an entry listed in
@@ -497,7 +497,7 @@ class Tool(Generic[ConfigT]):
         step or if nothing was skipped.
 
         Raises:
-            ValueError: If the step's `processing` doesn't allow what was skipped.
+            ValueError: If the step's `processing` does not allow what was skipped.
         """
         rules = getattr(self, "_processing", None)
         context = getattr(self, "context", None)
@@ -511,13 +511,13 @@ class Tool(Generic[ConfigT]):
             missing = [m for e, m in skipped if e is not None and is_listed(e, required)]
             if missing:
                 raise ValueError(
-                    f"{self.name}: required entries of {field_name} don't apply"
+                    f"{self.name}: required entries of {field_name} do not apply"
                     f" (processing.required): {'; '.join(missing)}"
                 )
             mode = rules.skip(field_name)
             if mode == "none":
                 raise ValueError(
-                    f"{self.name}: {len(skipped)} entries of {field_name} don't apply:"
+                    f"{self.name}: {len(skipped)} entries of {field_name} do not apply:"
                     f" {'; '.join(m for _, m in skipped)}. Set"
                     f' processing.skippable.{field_name} to "some" or "all" to skip'
                     " them"
@@ -698,9 +698,9 @@ class Tool(Generic[ConfigT]):
 
     @classmethod
     def inapplicable_fields(cls, config: ConfigT, tables: Sequence[Any]) -> set[str]:
-        """Return the fields that don't apply to the input tables.
+        """Return the fields that do not apply to the input tables.
 
-        The dialog hides them, e.g. how to rename a column the tables don't have.
+        The dialog hides them, e.g. how to rename a column the tables do not have.
 
         Args:
             config: The config.
@@ -846,7 +846,7 @@ def example_table(
 
     Args:
         before: The input rows, with the columns the tool reads; may have no
-            columns (e.g. a reshaping tool, whose rows don't pair).
+            columns (e.g. a reshaping tool, whose rows do not pair).
         after: The columns the tool makes, for the same rows.
         caption: A note shown above the table, e.g. which rows are shown; empty for
             none.

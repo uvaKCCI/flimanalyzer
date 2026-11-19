@@ -19,8 +19,8 @@ flimsettings env --show
 ## Output and exit codes
 
 * The result goes to standard output. Problems and warnings go to standard error, as `flimsettings: ...` and `flimsettings: warning: ...`. Exception: `app --validate` prints its report, with the problems, to standard output, and one line to standard error if the file has a problem.
-* The exit code is 0 if the action is done and no problem is found. It is 1 if a validation finds a problem or the action can't be done, for example because a file doesn't exist. It is 2 if the arguments are not valid, for example no action or two actions.
-* `flimsettings` doesn't start the GUI and doesn't load wxPython. It changes no file, except with `--update`.
+* The exit code is 0 if the action is done and no problem is found. It is 1 if a validation finds a problem or the action cannot be done, for example because a file does not exist. It is 2 if the arguments are not valid, for example no action or two actions.
+* `flimsettings` does not start the GUI and does not load wxPython. It changes no file, except with `--update`.
 * Of the environment variables, it shows only the `FLIM_*` variables, never others, for example those of Prefect.
 
 ## Files and names
@@ -124,7 +124,7 @@ flimsettings: bad.json:
 
 `--resolve FILE` prints the file with every setting stated, as `flimbatch` runs it: every field of the tool's settings, `output` with `save`, the format of each kind of result and the characters replaced in file names (`char_replacements`), and `processing`. The settings that depend on the data, for example `features: all` and the columns guessed with `"strict": false`, stay as in the file, as in the `resolved.json` that `flimbatch` writes: they are resolved for each table when it runs (see [Batch Mode](/userguide/batch)). A file with problems is not resolved: the problems are shown, with the exit code 1.
 
-`--override GROUP.FIELD=VALUE` (repeatable) shows the result of the same `--override` given to `flimbatch`, for example `processing.strict=false`. The tool's settings (`config`) can't be overridden. The end of the output:
+`--override GROUP.FIELD=VALUE` (repeatable) shows the result of the same `--override` given to `flimbatch`, for example `processing.strict=false`. The tool's settings (`config`) cannot be overridden. The end of the output:
 
 ```
 $ flimsettings tool --resolve summary.json --override processing.strict=false
@@ -277,7 +277,7 @@ App settings files hold the app settings and the settings of the tools for a ses
 | `--validate FILE` | validates an app settings file, as the GUI and `flimbatch` read it |
 | `--update FILE` | rewrites an app settings file of an older version in the current version |
 
-`--list` doesn't list tool and workflow files that are in the same folders; it gives their number.
+`--list` does not list tool and workflow files that are in the same folders; it gives their number.
 
 ```
 $ flimsettings app --list
@@ -319,9 +319,9 @@ User settings file (flimanalyzer only): /Users/mst3k/Library/Application Support
       set with --log-dir, FLIM_LOG_DIR
 ```
 
-If a command can't use the file, its line says `refused, see above`, and the problems are on standard error. If neither command can use the file, only the problems are shown, and the exit code is 1.
+If a command cannot use the file, its line says `refused, see above`, and the problems are on standard error. If neither command can use the file, only the problems are shown, and the exit code is 1.
 
-`--validate FILE` takes the path of an app settings file. It shows the schema version of the file, the settings converted to the current version, and the problems (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)). The exit code is 1 if the file can't be used, if it has invalid values or unknown settings, or if it has settings of tools that aren't installed, which `flimbatch` refuses. A tool file or a workflow file is not an app settings file: this is an error.
+`--validate FILE` takes the path of an app settings file. It shows the schema version of the file, the settings converted to the current version, and the problems (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)). The exit code is 1 if the file cannot be used, if it has invalid values or unknown settings, or if it has settings of tools that are not installed, which `flimbatch` refuses. A tool file or a workflow file is not an app settings file: this is an error.
 
 ```
 $ flimsettings app --validate lab.json
@@ -340,7 +340,7 @@ $ flimsettings app --update lab
 
 ## user
 
-`flimsettings user --show` prints the path and the content of the user settings file (see [The user settings file](/userguide/settings.md#the-user-settings-file)). The file is only read: a file that the GUI can't read is not renamed. `FLIM_USER_SETTINGS` sets another path for the file. If there is no user settings file, the output says so:
+`flimsettings user --show` prints the path and the content of the user settings file (see [The user settings file](/userguide/settings.md#the-user-settings-file)). The file is only read: a file that the GUI cannot read is not renamed. `FLIM_USER_SETTINGS` sets another path for the file. If there is no user settings file, the output says so:
 
 ```
 $ flimsettings user --show
@@ -378,7 +378,7 @@ over the app settings file.
       folders searched for workflow and tool files, separated by ':' (-w); read by flimanalyzer, flimbatch, flimsettings
 ```
 
-`--show` prints the `FLIM_*` variables that are set. A name that FLIMAnalyzer doesn't read, for example a misspelled name, and a value that is not valid are problems: they go to standard error, and the exit code is 1.
+`--show` prints the `FLIM_*` variables that are set. A name that FLIMAnalyzer does not read, for example a misspelled name, and a value that is not valid are problems: they go to standard error, and the exit code is 1.
 
 ```
 $ export FLIM_LOG_LEVEL=loud FLIM_RESULT_DIR=/Users/mst3k/results

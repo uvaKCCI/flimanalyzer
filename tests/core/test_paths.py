@@ -51,15 +51,15 @@ def test_read_only_folder(tmp_path):
     folder.mkdir()
     folder.chmod(0o500)
     try:
-        assert "can't be written to" in folder_problem(folder / "results")
+        assert "cannot be written to" in folder_problem(folder / "results")
     finally:
         folder.chmod(0o700)
 
 
 def test_unreachable_drive(monkeypatch):
-    # a drive the program doesn't see: neither the folder nor any parent exists
+    # a drive the program does not see: neither the folder nor any parent exists
     monkeypatch.setattr(paths.os.path, "exists", lambda p: False)
-    assert "can't be reached" in folder_problem("/Volumes/share/results")
+    assert "cannot be reached" in folder_problem("/Volumes/share/results")
 
 
 @pytest.mark.parametrize(

@@ -106,7 +106,7 @@ class Workflow(Tool[ConfigT]):
                 one.
             on_start: Called with the `flim.core.runner.FlowRun` once Prefect has
                 created the flow run, before the first task.
-            processing: How the run treats input that doesn't match the config
+            processing: How the run treats input that does not match the config
                 (the tool's `processing`); None: strict, nothing skipped.
             settings_record: Lines for the run summary naming the settings files
                 used.
@@ -257,7 +257,7 @@ def workflow_input(
             save only what their steps' `save` says); None or True: it is saved if
             the run saves its results.
         step: The step id of the input, e.g. `00` (folder `00-Input`); None for none.
-            With a step, the name is a folder below it only if it isn't `Input`.
+            With a step, the name is a folder below it only if it is not `Input`.
 
     Returns:
         Inside a flow, a `flim.core.runner.TaskOutput` handle to the table;

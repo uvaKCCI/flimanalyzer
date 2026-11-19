@@ -7,7 +7,7 @@ done to the data: renaming, dropping, calculating, categories from file names an
 joining the tables are steps of a workflow. The one exception is the column type of
 columns with known category names (`Treatment`, `FOV`, ...): they are read as text,
 so values such as `01` keep their leading zero, and become categories, because saved
-text tables don't keep their column types.
+text tables do not keep their column types.
 """
 
 import codecs
@@ -107,7 +107,7 @@ class ReadSettings(BaseModel):
 
 
 def encoding_problem(encoding: str) -> Optional[str]:
-    """Return why a text encoding can't be used to read files; None if it can.
+    """Return why a text encoding cannot be used to read files; None if it can.
 
     Args:
         encoding: The name of the encoding, e.g. `utf-8` or `latin-1`.
@@ -232,9 +232,9 @@ def read_file(
         The table, and warnings (e.g. a renamed column).
 
     Raises:
-        ValueError: If the file can't be read as a table, or not with the encoding,
+        ValueError: If the file cannot be read as a table, or not with the encoding,
             or the encoding is unknown.
-        OSError: If the file can't be opened.
+        OSError: If the file cannot be opened.
     """
     settings = settings or ReadSettings()
     path = Path(path)
@@ -283,7 +283,7 @@ def read_tables(
 ) -> Reading:
     """Read data files and folders, one table per file.
 
-    A file that can't be read (`read_file` raises `ValueError` or `OSError`, e.g.
+    A file that cannot be read (`read_file` raises `ValueError` or `OSError`, e.g.
     permission denied) is skipped and named in `skipped`, with the reason; the others
     are read.
 
@@ -306,7 +306,7 @@ def read_tables(
             reading.skipped[str(file)] = str(err)
             continue
         except OSError as err:  # e.g. permission denied
-            reading.skipped[str(file)] = f"{file.name}: can't be opened ({err.strerror or err})"
+            reading.skipped[str(file)] = f"{file.name}: cannot be opened ({err.strerror or err})"
             continue
         name = unique_name(file.name, file.name, reading.tables)
         reading.tables[name] = table

@@ -1,6 +1,6 @@
 # Concurrent and Distributed Execution
 
-Every tool and workflow step runs as a task. A task starts as soon as the results it needs are ready. Tasks that don't depend on each other run concurrently, without waiting for each other. Within one process, tasks that draw figures take turns, because matplotlib's plotting is not thread-safe. With `dask-local` and `scheduler=processes`, or with a Dask cluster, each worker process draws on its own, so plots run in parallel.
+Every tool and workflow step runs as a task. A task starts as soon as the results it needs are ready. Tasks that do not depend on each other run concurrently, without waiting for each other. Within one process, tasks that draw figures take turns, because matplotlib's plotting is not thread-safe. With `dask-local` and `scheduler=processes`, or with a Dask cluster, each worker process draws on its own, so plots run in parallel.
 
 The *executor* decides where the tasks run. It is set with the option `-e`, in the GUI (`flimanalyzer`) and in [batch mode](/userguide/batch) (`flimbatch`) alike.
 
@@ -13,7 +13,7 @@ The *executor* decides where the tasks run. It is set with the option `-e`, in t
 | Dask on one computer | `-e dask-local[:workers=N,scheduler=threads\|processes,KEY=VALUE...]` | in a Dask cluster started on this computer, as processes or threads | the `dask` extra |
 | Dask cluster | `-e dask:address=URL[,KEY=VALUE...]` | on the workers of an existing Dask cluster, also on other computers | the `dask` extra |
 
-The executor's options follow its name after a colon, as `KEY=VALUE` pairs separated by commas. An unknown executor name or an invalid value is an error, and FLIMAnalyzer doesn't start. For `local`, an option it doesn't have is an error too. The Dask executors pass options they don't have on to Dask (`KEY=VALUE` in the table above). The executor can also be set with environment variables or in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
+The executor's options follow its name after a colon, as `KEY=VALUE` pairs separated by commas. An unknown executor name or an invalid value is an error, and FLIMAnalyzer does not start. For `local`, an option it does not have is an error too. The Dask executors pass options they do not have on to Dask (`KEY=VALUE` in the table above). The executor can also be set with environment variables or in an app settings file (see [Settings](/userguide/settings.md#where-the-settings-come-from)).
 
 **Deprecated options.** The executor names `LocalExecutor`, `LocalDaskExecutor` and `DaskExecutor`, and the option `-a`, `--execargs`, still work, but print a warning that shows the new form. The executor names are removed in 1.0.0, `-a` in 0.8.0. `num_workers` is now `workers`. `DaskExecutor` without an address starts a Dask cluster on this computer, as `dask-local` does. For example:
 
@@ -98,7 +98,7 @@ apptainer run flimanalyzer.sif \
     -e local:workers=${SLURM_CPUS_PER_TASK} --no-prefect-server
 ```
 
-`flirr-analysis.json` is a tool file of the workflow `Basic FLIRR Analysis`, for example one saved with `Save Settings...` in its dialog (see [Tools and workflows](/userguide/batch.md#tools-and-workflows)). Submit the job script with `sbatch`. The published images don't include Dask, so they use the default executor (threads). Replace `<cluster_partition>` with a partition of your cluster (`--partition` or `-p`; `sinfo` lists them), and adjust the other `#SBATCH` lines (cores, memory, time, and an account if your cluster requires one) to your data and cluster.
+`flirr-analysis.json` is a tool file of the workflow `Basic FLIRR Analysis`, for example one saved with `Save Settings...` in its dialog (see [Tools and workflows](/userguide/batch.md#tools-and-workflows)). Submit the job script with `sbatch`. The published images do not include Dask, so they use the default executor (threads). Replace `<cluster_partition>` with a partition of your cluster (`--partition` or `-p`; `sinfo` lists them), and adjust the other `#SBATCH` lines (cores, memory, time, and an account if your cluster requires one) to your data and cluster.
 
 ### Across several nodes (Dask)
 

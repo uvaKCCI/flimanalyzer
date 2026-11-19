@@ -60,7 +60,7 @@ def test_a_file_that_cant_be_opened_is_skipped(tmp_path, monkeypatch):
     monkeypatch.setattr(pd, "read_csv", read_csv)
     reading = read_tables([good, locked])
     assert list(reading.tables) == ["good.txt"]
-    assert reading.skipped[str(locked)] == "locked.txt: can't be opened (Permission denied)"
+    assert reading.skipped[str(locked)] == "locked.txt: cannot be opened (Permission denied)"
 
 
 @pytest.mark.parametrize("encoding", ["no-such-encoding", "base64"])

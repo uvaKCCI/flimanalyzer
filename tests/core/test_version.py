@@ -7,7 +7,7 @@ import flim
 
 def test_version_matches_the_installed_package():
     # the runtime version and the package metadata report the same version (both are
-    # written at build time; a stale editable install has both stale, so this doesn't
+    # written at build time; a stale editable install has both stale, so this does not
     # detect that)
     assert flim.__version__ == importlib.metadata.version("flimanalyzer")
 

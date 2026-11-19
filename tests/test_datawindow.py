@@ -390,7 +390,7 @@ def test_run_workflow_file_on_the_current_table(frame, monkeypatch, tmp_path, pr
     new = _new_windows(frame, before)
     (title,) = [t for t in new if "Summary" in t]
     assert set(new[title].GetViewData()["Treatment"]) == {"WT", "KO"}
-    assert new[title].modified  # not saved: the step doesn't save
+    assert new[title].modified  # not saved: the step does not save
 
 
 def _frame_with_user_file(tmp_path):
@@ -1161,7 +1161,8 @@ def test_the_side_bar_buttons_fit_in_a_new_window(frame, flim_data):
     buttons = [c for c in window.GetChildren() if isinstance(c, wx.Button) and c.IsShown()]
     lowest = max(b.GetRect().GetBottom() for b in buttons)
     assert lowest <= window.GetClientSize().height
-    assert window.GetMinClientSize().height >= lowest  # can't be shrunk to cut them off
+    # the window cannot be shrunk to cut them off
+    assert window.GetMinClientSize().height >= lowest
 
 
 @pytest.mark.parametrize(

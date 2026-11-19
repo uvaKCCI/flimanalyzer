@@ -123,7 +123,7 @@ def test_validate_filters(data):
         ("filters[0].expression", "error"),
         ("filters[1].expression", "warning"),
         ("filters[3]", "warning"),
-    ]  # under `any`, two ranges that don't overlap are fine
+    ]  # under `any`, two ranges that do not overlap are fine
 
 
 def test_labels():
@@ -343,7 +343,7 @@ def test_processing_of_workflow_file_steps_names_the_parts():
     assert processing_issues(Filter, rules, config, "step 1") == ([], [])
     rules = Processing(required={"features": [{"column": "t9"}]}, skippable={"filters": "some"})
     _, errors = processing_issues(Filter, rules, config, "step 1")
-    assert any("can't skip entries of 'filters'" in e for e in errors)
+    assert any("cannot skip entries of 'filters'" in e for e in errors)
     assert any("{'column': 't9'} is not an entry of features" in e for e in errors)
 
 

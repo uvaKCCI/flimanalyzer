@@ -187,7 +187,7 @@ class Concat(Tool[ConcatConfig]):
         """Return `clash_name` if no `Input` column is added or none is in the way.
 
         No `Input` column is added for columns side by side or without `add_input`;
-        with known tables, `clash_name` also doesn't apply if none of them has an
+        with known tables, `clash_name` also does not apply if none of them has an
         `Input` column.
         """
         frames = [t for t in tables if isinstance(t, pd.DataFrame)]
@@ -253,13 +253,13 @@ class Concat(Tool[ConcatConfig]):
             return {"Concatenated": frames[0].copy()}
         if horizontal:
             # side by side, rows are paired by position: warn if the tables' shared
-            # category columns don't match row by row (e.g. one was reordered)
+            # category columns do not match row by row (e.g. one was reordered)
             names = list(tables)
             for name, df in zip(names[1:], frames[1:]):
                 mismatch = _row_mismatch(frames[0], df)
                 if mismatch:
                     self.warn(
-                        f"the rows of '{name}' don't match '{names[0]}' ({mismatch});"
+                        f"the rows of '{name}' do not match '{names[0]}' ({mismatch});"
                         " rows are paired by position. To pair rows by their"
                         " categories, use Merge."
                     )
@@ -354,10 +354,10 @@ class Filter(Tool[FilterConfig]):
     def validate(cls, config: FilterConfig, inputs: Sequence[Any]) -> list[Issue]:
         """Validate the config against the input schema.
 
-        A column of a filter in use that the input doesn't have is a warning (the
+        A column of a filter in use that the input does not have is a warning (the
         filter is not used); for a filter switched off it is no issue. The filters
         themselves are validated by `flim.core.filtering.validate_filters`. A value
-        of a category filter in use that its column doesn't have is a warning.
+        of a category filter in use that its column does not have is a warning.
         """
         from flim.core.filtering import validate_filters
 
@@ -621,7 +621,7 @@ class Pivot(Tool[PivotConfig]):
     ) -> Union[str, pd.DataFrame, None]:
         """Return the first rows of the pivoted first table.
 
-        None without a table with rows, or if the settings don't apply to it (shown
+        None without a table with rows, or if the settings do not apply to it (shown
         as issues).
         """
         from flim.core.tool import preview
@@ -868,7 +868,7 @@ class Unpivot(Tool[UnpivotConfig]):
     ) -> Union[str, pd.DataFrame, None]:
         """Return the rows the first two rows of the first table become.
 
-        None without a table with rows, or if the settings don't apply to it (shown
+        None without a table with rows, or if the settings do not apply to it (shown
         as issues).
         """
         from flim.core.tool import preview
@@ -981,7 +981,7 @@ class Scale(Tool[ScaleConfig]):
 
         The whole first table is scaled (the statistics are of all its rows, or of
         each group's); at most `EXAMPLE_COLUMNS` features are shown. None without a
-        table with rows or features, or if the settings don't apply to it.
+        table with rows or features, or if the settings do not apply to it.
         """
         from flim.core.tool import EXAMPLE_COLUMNS, EXAMPLE_ROWS, example_table, preview
 
@@ -1603,7 +1603,7 @@ class Calculate(Tool[CalculateConfig]):
     def validate(
         cls, config: CalculateConfig, schemas: Sequence[Any] = ()
     ) -> list[Issue]:
-        """Validate the config; calculations that can't run are errors.
+        """Validate the config; calculations that cannot run are errors.
 
         For example a missing name, a name used twice, an invalid expression, or an
         unknown function. Columns missing from the input are validated by
@@ -1662,7 +1662,7 @@ class Calculate(Tool[CalculateConfig]):
     def run(self, data: pd.DataFrame, *, config: CalculateConfig) -> dict[str, Any]:
         """Calculate the new columns, in order; later ones may use earlier ones.
 
-        A calculation that uses a column the table doesn't have is skipped, with a
+        A calculation that uses a column the table does not have is skipped, with a
         warning. A calculated column named like an input column replaces it, with a
         warning. Columns of calculations with `keep` False are not in the result.
 

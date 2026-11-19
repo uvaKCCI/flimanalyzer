@@ -725,8 +725,8 @@ def _tool_update(args: argparse.Namespace) -> int:
 def _app_validate(args: argparse.Namespace) -> int:
     """Validate an app settings file, as the GUI and flimbatch read it.
 
-    The GUI refuses a file with settings that can't be used (unknown or invalid) and
-    keeps the settings of tools that aren't installed; flimbatch refuses both.
+    The GUI refuses a file with settings that cannot be used (unknown or invalid) and
+    keeps the settings of tools that are not installed; flimbatch refuses both.
     """
     from flim.core.settings import validate_app_settings
 
@@ -739,16 +739,16 @@ def _app_validate(args: argparse.Namespace) -> int:
         return 1
     if validation.invalid or validation.unknown:
         print(
-            f"{PROG}: {args.validate}: settings that can't be used; the GUI and flimbatch"
+            f"{PROG}: {args.validate}: settings that cannot be used; the GUI and flimbatch"
             " refuse it",
             file=sys.stderr,
         )
         return 1
     if validation.not_validated:
         print(
-            f"{PROG}: {args.validate}: settings of tools that aren't installed; the GUI"
-            " uses it and keeps them, flimbatch refuses it (every setting must be usable"
-            " and validated)",
+            f"{PROG}: {args.validate}: settings of tools that are not installed; the"
+            " GUI uses it and keeps them, flimbatch refuses it (every setting must be"
+            " usable and validated)",
             file=sys.stderr,
         )
         return 1

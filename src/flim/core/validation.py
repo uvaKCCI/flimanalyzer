@@ -7,7 +7,7 @@ Each step's config is validated against the schemas of its inputs (`Tool.validat
 and its output schemas (`Tool.output_schema`) are passed to the steps that use them.
 
 Columns the workflow config names that are not in the input are replaced by a guess
-(the closest column of the same role) where the tool's `processing` isn't strict, or
+(the closest column of the same role) where the tool's `processing` is not strict, or
 removed where it lets the field skip them; the run then uses the resolved config. Steps whose inputs are not known before the run (e.g. the
 models a training step saves) are not validated.
 """
@@ -299,7 +299,7 @@ class Tracer:
         """Validate a tool call and record it as a step, instead of running it.
 
         The config is validated against the input schemas (`Tool.validate`); the
-        output schemas (`Tool.output_schema`) are empty if they can't be derived
+        output schemas (`Tool.output_schema`) are empty if they cannot be derived
         before the run.
 
         Args:
@@ -422,9 +422,9 @@ class DefaultWorkflowValidator:
         """Replace or remove the columns a config names that the inputs lack.
 
         Per missing column: replaced by the closest column of the same role if its
-        field isn't strict and the workflow guesses it (`Tool.never_guessed`); else,
+        field is not strict and the workflow guesses it (`Tool.never_guessed`); else,
         in `grouping` or `features`, removed if the field is skippable and the entry
-        isn't required; else an error. Fields that the workflow copies into its
+        is not required; else an error. Fields that the workflow copies into its
         steps (`bound_fields`) are validated at the workflow's level only. A column
         that is in the input with another role is an error. If there are issues, the
         config's `_share_fields` (if any) is called, which copies the guesses and
@@ -529,9 +529,9 @@ def resolve_step(
     """Apply a workflow file step's `processing` to its settings for its inputs.
 
     Per column that the settings name and the inputs lack: replaced by the closest
-    column of the same role if the field isn't strict and the tool guesses it
+    column of the same role if the field is not strict and the tool guesses it
     (`Tool.never_guessed`); else, in `grouping` or `features`, removed if the field
-    is skippable and the entry isn't required; else an error. A missing column in a
+    is skippable and the entry is not required; else an error. A missing column in a
     rule list the tool counts itself (e.g. Filter's `filters`) is left to the tool
     if the field is skippable. After removals, `grouping` and `features` keep at
     least the tool's minimum (`min_grouping`, `min_features`), and at least one

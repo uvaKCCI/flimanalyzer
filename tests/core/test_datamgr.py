@@ -21,7 +21,7 @@ def test_items_by_id_with_unique_titles(manager):
     b = manager.add(pd.DataFrame({"x": [2]}), "data.txt", source="b/data.txt")
     assert (a.title, b.title) == ("data.txt", "data.txt-1")
     assert a.id != b.id and a.data_type is TableType
-    # the same title can't mix up the two items (R1): each keeps its own table
+    # the same title cannot mix up the two items (R1): each keeps its own table
     assert manager.get(a.id).value["x"].tolist() == [1]
     assert manager.get(b.id).value["x"].tolist() == [2]
     assert manager.find("data.txt-1").id == b.id
@@ -35,7 +35,7 @@ def test_states_and_messages(manager):
     assert plot.data_type is PlotType and plot.modified
     manager.set_modified(plot.id, False)
     manager.set_modified(plot.id, False)  # no change: no message
-    manager.rename(plot.id, "Box Plot")  # its own title doesn't count
+    manager.rename(plot.id, "Box Plot")  # its own title does not count
     manager.close(plot.id)
     assert [m.kind for m in messages] == ["added", "modified", "renamed", "closed"]
     assert all(isinstance(m, Change) and m.item.id == plot.id for m in messages)

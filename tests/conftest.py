@@ -15,7 +15,7 @@ import pytest
 def no_modal_message_dialogs(monkeypatch):
     """Answer message dialogs and message boxes without showing them.
 
-    A modal dialog that a test doesn't answer would wait for a click and stop the
+    A modal dialog that a test does not answer would wait for a click and stop the
     whole run. Unless a test sets its own answer, a message dialog answers No (e.g.
     `Not Now`, `Don't Save`) and a message box OK; both are recorded in
     `shown_messages`.

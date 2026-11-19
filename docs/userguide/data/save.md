@@ -15,4 +15,4 @@ When you close a table window that has not been saved since it was made or chang
 
 Saves all open tables and plots in one step. Choose a folder and the formats (see [Saving results](/userguide/dialogs.md#saving-results) for the formats). The windows are saved in a new folder, named after the date and time, in the folder you chose, so earlier files are never overwritten. Tables are saved with all their rows, also those hidden by filters. The files are named after the windows; if two names would be the same file (for example `cells` and `Cells`), `-2`, `-3` and so on are added.
 
-The dialog opens at the folder you last used for it in this session, otherwise at the default results folder. Choosing a folder here doesn't change the default results folder. Afterwards, the saved windows count as saved, and a message lists any window that could not be saved.
+The dialog opens at the folder you last used for it in this session, otherwise at the default results folder. Choosing a folder here does not change the default results folder. Afterwards, the saved windows count as saved, and a message lists any window that could not be saved.

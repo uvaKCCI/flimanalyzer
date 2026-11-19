@@ -380,7 +380,7 @@ class RelativeChange(Tool[RelativeChangeConfig]):
     def validate(
         cls, config: RelativeChangeConfig, inputs: Sequence[Any]
     ) -> list[Issue]:
-        """Validate the config; a reference value the column doesn't have is an error."""
+        """Validate the config; a reference value the column does not have is an error."""
         issues = super().validate(config, inputs)
         schema = inputs[0]
         column = schema.column(config.reference_group) if schema is not None else None

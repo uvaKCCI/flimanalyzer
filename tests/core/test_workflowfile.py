@@ -57,7 +57,7 @@ def test_a_valid_file(tmp_path):
         (lambda d: d["steps"][2].update(output={"save": ["2.1"]}), "is not this step's"),
         (lambda d: d["steps"][0].update(processing="lenient"), "processing"),
         (lambda d: d["steps"][0].update(processing={"skippable": {"calculations": "most"}}), "processing"),
-        (lambda d: d["steps"][1].update(processing={"skippable": {"aggs": "some"}}), "Summarize can't skip entries of 'aggs'"),
+        (lambda d: d["steps"][1].update(processing={"skippable": {"aggs": "some"}}), "Summarize cannot skip entries of 'aggs'"),
         (lambda d: d["steps"][1].update(processing={"strict": {"colour": False}}), "Summarize has no field 'colour'"),
         (lambda d: d["steps"][1].update(config={"features": ["a"]}, processing={"skippable": {"features": "some"}, "required": {"features": ["b"]}}), "processing.required.features: 'b' is not an entry of features"),
         (lambda d: d.update(processing={"skippable": {"drop": "all"}}), "processing.skippable: no step's tool can skip entries of 'drop'"),
@@ -77,7 +77,7 @@ def test_errors(tmp_path, change, message):
 def test_unreadable_and_newer_files(tmp_path):
     bad = tmp_path / "bad.json"
     bad.write_text("{")
-    assert "can't be read" in validate_workflow_file(bad).errors[0]
+    assert "cannot be read" in validate_workflow_file(bad).errors[0]
     newer = write(tmp_path, {**GOOD, "schema_version": WORKFLOW_SCHEMA_VERSION + 1})
     error = validate_workflow_file(newer).errors[0]
     newest = WORKFLOW_SCHEMA_VERSION
@@ -674,7 +674,7 @@ def test_formats_of_kinds_the_tools_dont_make_are_errors(tmp_path):
     validation = validate_workflow_file(path)
     assert validation.definition is None
     assert ("step 01 (Summarize): output.formats: a format of kind 'plot', which Summarize"
-            " doesn't make (it makes: table)") in validation.errors  # fmt: skip
+            " does not make (it makes: table)") in validation.errors  # fmt: skip
     assert ("output.formats: a format of kind 'plot', which no step makes (the steps"
             " make: table)") in validation.errors  # fmt: skip
     assert len(validation.errors) == 2  # the workflow-level table format is fine
@@ -860,4 +860,4 @@ def test_override_scopes_are_validated_against_the_runs():
 def test_a_step_that_is_a_workflow_is_an_error_of_the_file(tmp_path):
     data = {"name": "w", "steps": [{"id": "1", "tool": "Basic FLIRR Analysis"}]}
     errors = validate_workflow_file(write(tmp_path, data)).errors
-    assert errors == ["step 01 (Basic FLIRR Analysis): a step can't be a workflow"]
+    assert errors == ["step 01 (Basic FLIRR Analysis): a step cannot be a workflow"]

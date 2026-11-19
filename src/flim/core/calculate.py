@@ -104,7 +104,7 @@ def expression_columns(expression: str) -> list[str]:
         The column names.
 
     Raises:
-        ValueError: If the expression is empty, can't be parsed, or uses something
+        ValueError: If the expression is empty, cannot be parsed, or uses something
             other than arithmetic, comparisons, boolean logic, numbers, column names
             and the math functions.
     """
@@ -162,7 +162,7 @@ def _is_called(tree: ast.AST, name_node: ast.Name) -> bool:
 def function_problem(
     name: str, args: Sequence[Any], params: Mapping[str, Any]
 ) -> Optional[str]:
-    """Return why a function calculation can't be called, or None.
+    """Return why a function calculation cannot be called, or None.
 
     Registers the built-in functions first. The arguments and parameters are bound
     to the function's signature; they are not called.
@@ -173,7 +173,7 @@ def function_problem(
         params: The keyword parameters.
 
     Returns:
-        The problem: the function is not registered, or the arguments don't fit its
+        The problem: the function is not registered, or the arguments do not fit its
         signature; None if it can be called.
     """
     _register_builtins()
@@ -395,7 +395,7 @@ def validate_calculations(
 
     Returns:
         (index, field, severity, message) per problem: `error` for calculations that
-        can't run (no name, a name used twice, an expression that is not valid, an
+        cannot run (no name, a name used twice, an expression that is not valid, an
         unknown function or wrong parameters), `warning` for ones that are skipped
         (a column neither in the table nor calculated before) and for names that
         replace an input column.
@@ -448,7 +448,7 @@ def applicable(
     """Return the presets (calculations) that apply to a table, in their order.
 
     A preset applies if the columns it uses are in the table, or are calculated by
-    other presets that apply, and if the table doesn't have its column yet.
+    other presets that apply, and if the table does not have its column yet.
 
     Args:
         presets: The calculations.

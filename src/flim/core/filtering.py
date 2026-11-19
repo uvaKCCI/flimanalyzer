@@ -10,9 +10,9 @@ values in [low, high]), `category` (a category column's values to keep),
 they nest. A leaf is used only if every `enabled` on its way is on: the top-level
 switch, its component's, its groups' and its own. Every node is evaluated on the input
 table; the masks are combined, and the table is copied once at the end, so the
-order of the nodes doesn't matter.
+order of the nodes does not matter.
 
-A node that is not enabled, an empty group, and a leaf on a column the table doesn't
+A node that is not enabled, an empty group, and a leaf on a column the table does not
 have are not used: they drop no rows. A group combines only the masks of the nodes
 it uses, and a group that uses none is not used itself. So a filter that is not used
 neither makes an `any` group keep every row nor a `not` group drop every row. A
@@ -210,9 +210,9 @@ def validate_filters(
 
     Returns:
         (path, severity, message) per problem: `error` for an expression that is not
-        allowed, `warning` for an expression on columns the table doesn't have (it
+        allowed, `warning` for an expression on columns the table does not have (it
         is not used) and for two ranges on one column in the same `all` group that
-        don't overlap (they drop all rows).
+        do not overlap (they drop all rows).
     """
     problems: list = []
     ranges: dict = {}
@@ -269,7 +269,7 @@ def _validate(
 
 
 def _overlaps(ranges: dict) -> list[tuple[str, str, str]]:
-    """Return a warning per column whose ranges (of one `all` group) don't overlap."""
+    """Return a warning per column whose ranges (of one `all` group) do not overlap."""
     problems = []
     for column, nodes in ranges.items():
         lows = [n.low for _, n in nodes if n.low is not None]
@@ -279,7 +279,7 @@ def _overlaps(ranges: dict) -> list[tuple[str, str, str]]:
                 (
                     nodes[-1][0],
                     "warning",
-                    f"the ranges on '{column}' don't overlap: all rows are dropped",
+                    f"the ranges on '{column}' do not overlap: all rows are dropped",
                 )
             )
     return problems
@@ -504,7 +504,7 @@ class WindowFeatures:
             have neither (e.g. a file of `Save Feature Settings...`).
         ranges: `RangeFilter` parameters of the feature filters' range leaves
             (`features`).
-        unused: The number of filters a table window doesn't use: those of
+        unused: The number of filters a table window does not use: those of
             `categories` and `other`.
     """
 

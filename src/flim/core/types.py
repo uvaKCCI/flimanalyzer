@@ -255,7 +255,7 @@ class ImageType(DataType):
     def content_hash(cls, value: Any) -> Optional[str]:
         """Return the SHA-256 of an array's shape, dtype and values in C order.
 
-        A Dask array is read a block of rows at a time; its chunks don't change the
+        A Dask array is read a block of rows at a time; its chunks do not change the
         hash (see `flim.core.hashing.array_hash`).
 
         Args:

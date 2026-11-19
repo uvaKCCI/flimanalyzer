@@ -154,7 +154,7 @@ class CancelToken:
     def is_set(self) -> bool:
         """Return whether cancellation has been requested.
 
-        In a Dask worker process the `distributed.Event` is read; False if it can't
+        In a Dask worker process the `distributed.Event` is read; False if it cannot
         be read.
         """
         if self._local is not None:
@@ -407,7 +407,7 @@ def _record_settings(
 
     The artifact (the run's Artifacts tab in the Prefect UI) holds the config as
     JSON, no data values, with the values the tool uses on the inputs filled in
-    (`Tool.used_config`). A failure is logged, not raised: the run doesn't depend on
+    (`Tool.used_config`). A failure is logged, not raised: the run does not depend on
     it.
     """
     if config is None or not hasattr(config, "model_dump_json"):
@@ -481,7 +481,7 @@ def _sources(value: Any) -> set[str]:
     return set()
 
 
-# extras of FLIMAnalyzer whose packages a run doesn't record (not used by a run)
+# extras of FLIMAnalyzer whose packages a run does not record (not used by a run)
 UNRECORDED_EXTRAS = ("test",)
 # the packages that run the tasks of a Dask executor (indirect dependencies, through
 # prefect-dask), recorded for runs on one

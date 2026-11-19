@@ -125,7 +125,7 @@ def app_icons() -> wx.IconBundle:
 
 
 def install_error_logging() -> None:
-    """Write the errors that GUI event handlers don't catch to the log.
+    """Write the errors that GUI event handlers do not catch to the log.
 
     wxPython reports these errors through `sys.excepthook`. The installed hook logs
     each error with its traceback (except `KeyboardInterrupt`) and then calls the
@@ -1450,7 +1450,7 @@ class AppFrame(wx.Frame):
         """Return the shown tables of the table windows by title, the current first.
 
         Each is a copy (`TableType.snapshot`): a run in its worker thread reads
-        tables that later edits in the windows don't change. `input_origins` holds
+        tables that later edits in the windows do not change. `input_origins` holds
         each copy with its item and the window's view (filters, rows shown), for the
         run summary's `Inputs`.
         """
@@ -1969,7 +1969,7 @@ class AppFrame(wx.Frame):
         All quits without saving.
 
         Returns:
-            Whether to quit. Once the user chose to quit, it doesn't ask again: on
+            Whether to quit. Once the user chose to quit, it does not ask again: on
             macOS, Quit both closes the main window and ends the session, and each
             asks this.
         """

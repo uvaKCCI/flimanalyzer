@@ -437,7 +437,7 @@ def test_a_kind_without_format_is_an_error(dialog, tmp_path):
     d.validate()
     assert d.formats.markers["plot_formats"].IsShown()
     assert any("at least one format" in i.message for i in d.execution_issues())
-    d.autosave.SetValue(False)  # not saving: the formats don't matter
+    d.autosave.SetValue(False)  # not saving: the formats do not matter
     d.validate()
     assert not d.formats.markers["plot_formats"].IsShown()
 

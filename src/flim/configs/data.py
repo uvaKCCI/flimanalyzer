@@ -466,7 +466,7 @@ class FilterConfig(DataTaskConfig):
     other: OtherFilters = Field(
         default_factory=OtherFilters,
         title="Other filters",
-        description="Filters of any kind. A filter on a column the table doesn't have"
+        description="Filters of any kind. A filter on a column the table does not have"
         " is not used (it drops no rows).",
         json_schema_extra={"order": 303},
     )
@@ -973,7 +973,7 @@ class CalculateConfig(DataTaskConfig):
     calculations: list[CalculationEntry] = Field(
         default_factory=_default_calculations,
         title="Calculations",
-        description="In order; a calculation that uses a column the table doesn't"
+        description="In order; a calculation that uses a column the table does not"
         " have is skipped.",
     )
 

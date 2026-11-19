@@ -64,7 +64,7 @@ pip install -e ".[gui]"
 
 ## Installing with Docker
 
-The Docker images run only [batch mode](/userguide/batch). They don't include the GUI. Each release is published to the GitHub Container Registry:
+The Docker images run only [batch mode](/userguide/batch). They do not include the GUI. Each release is published to the GitHub Container Registry:
 
 | Image | |
 |---|---|
@@ -155,9 +155,9 @@ The location of the log file is determined in this order; the first that applies
    * Windows: `%LOCALAPPDATA%\FLIMAnalyzer\Logs`
 5. For `flimbatch`, the results folder of the call, as `flimbatch.log`. `flimbatch` also writes its messages to the terminal.
 
-If the log folder can't be created or written to, the log goes to the folder `FLIMAnalyzer` in the system's temporary folder, and FLIMAnalyzer says so. The Settings dialog of the GUI shows the log file in use (`File` > `Settings...`).
+If the log folder cannot be created or written to, the log goes to the folder `FLIMAnalyzer` in the system's temporary folder, and FLIMAnalyzer says so. The Settings dialog of the GUI shows the log file in use (`File` > `Settings...`).
 
-A log file that reaches 10 MB is renamed with `.1` added (`.2`, `.3` for older parts; up to three are kept), and a new one is started. When the GUI starts, it removes the log files in its log folder that are older than 30 days; `log` > `max_age_days` in an app settings file sets another number of days. It removes only files named like FLIMAnalyzer's log files. `flimbatch` doesn't remove logs, because its log is usually in a results folder.
+A log file that reaches 10 MB is renamed with `.1` added (`.2`, `.3` for older parts; up to three are kept), and a new one is started. When the GUI starts, it removes the log files in its log folder that are older than 30 days; `log` > `max_age_days` in an app settings file sets another number of days. It removes only files named like FLIMAnalyzer's log files. `flimbatch` does not remove logs, because its log is usually in a results folder.
 
 `-l` (`--log-level`) sets the level of the messages written, for FLIMAnalyzer and for the libraries it uses. Each message names where it comes from, for example `flim.core.runner` or `matplotlib`.
 
@@ -168,7 +168,7 @@ The autoencoder tools and workflows have a `Device` setting: the tools `Autoenco
 * `auto` (default): uses an NVIDIA GPU (`cuda`) if there is one, otherwise the Apple GPU (`mps`), otherwise the CPU.
 * `cpu`, `cuda` or `mps`: uses that device, or the CPU if the device is not available.
 
-Which GPU can be used depends on the PyTorch build that was installed (see above). Trained models are saved so that they don't need a GPU, so a model trained on a GPU can also be used on a computer without one.
+Which GPU can be used depends on the PyTorch build that was installed (see above). Trained models are saved so that they do not need a GPU, so a model trained on a GPU can also be used on a computer without one.
 
 ## Prefect server
 
@@ -204,4 +204,4 @@ prefect config set PREFECT_API_AUTH_STRING="admin:password"
 
 `PREFECT_API_KEY` is used only for Prefect Cloud; `prefect cloud login` sets it together with `PREFECT_API_URL`.
 
-If the server set in the profile doesn't respond, FLIMAnalyzer writes a warning to the log and goes on with steps 2 and 3 above.
+If the server set in the profile does not respond, FLIMAnalyzer writes a warning to the log and goes on with steps 2 and 3 above.

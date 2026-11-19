@@ -53,7 +53,7 @@ class TableReader(Tool[TableReaderConfig]):
             `Table`: the table.
 
         Raises:
-            ValueError: If the file can't be read as a table.
+            ValueError: If the file cannot be read as a table.
         """
         table, warnings = read_file(file, config.read_settings())
         for message in warnings:
@@ -109,7 +109,7 @@ class ImportTables(Workflow[ImportTablesConfig]):
             config: The config; its `workflow` is a workflow's name or file, or None.
 
         Returns:
-            One issue for `workflow` if it can't be resolved or is not defined by a
+            One issue for `workflow` if it cannot be resolved or is not defined by a
             workflow file; none without a workflow.
         """
         if not config.workflow:
@@ -174,7 +174,7 @@ class ImportTables(Workflow[ImportTablesConfig]):
             config: The read settings and the workflow.
 
         Raises:
-            ValueError: If the workflow can't be resolved.
+            ValueError: If the workflow cannot be resolved.
         """
         if isinstance(files, (str, Path)):
             files = [files]

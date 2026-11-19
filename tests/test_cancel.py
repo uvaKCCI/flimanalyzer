@@ -298,7 +298,7 @@ def test_cancel_stops_plot_tasks_waiting_for_the_plot_lock():
         release.set()
 
     run = run_flow("plots", build, default_task_runner(4), cancel_token=token)
-    # the first plot finishes, the three waiting for the lock don't run
+    # the first plot finishes, the three waiting for the lock do not run
     assert len(calls) == 1
     counts = run.task_counts()
     assert counts == {"completed": 1, "cancelled": 3}

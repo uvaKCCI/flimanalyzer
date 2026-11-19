@@ -468,7 +468,7 @@ class Categorizer(Tool[CategorizerConfig]):
 
         The whole first table is categorized; the first row of each category is
         shown, at most `EXAMPLE_ROWS`. None without a table with rows or rules, or if
-        the settings don't apply to it.
+        the settings do not apply to it.
         """
         from flim.core.tool import EXAMPLE_COLUMNS, EXAMPLE_ROWS, example_table, preview
 

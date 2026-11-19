@@ -133,7 +133,7 @@ def test_import_settings_without_problems_shows_nothing(frame, tmp_path, boxes):
 
 def test_tool_dialog_refuses_only_for_its_own_problems(dialog, tmp_path, boxes):
     path = write(tmp_path, MIXED)
-    # K-Means has no settings in the file: the problems of other sections don't matter
+    # K-Means has no settings in the file: the problems of other sections do not matter
     assert not dialog("K-Means").load_settings(str(path))
     assert boxes == []
     d = dialog("Summarize")

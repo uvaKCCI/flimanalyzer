@@ -766,13 +766,13 @@ def test_separate_by_template():
     )  # fmt: skip
     (table,) = SeparateCategories()(data, config=config).values()
     assert list(table["FOV"])[:2] == ["a", "b"] and list(table["Cell"])[:2] == ["1", "12"]
-    assert table["Treatment"].isna().iloc[2]  # x.txt doesn't fit
+    assert table["Treatment"].isna().iloc[2]  # x.txt does not fit
     # the dialog's example line: the first row
     example = SeparateCategories.example(config, [data])
     assert _cells_of(example)[1][1:] == ["a", "ctrl", "1"]
     assert example.columns[1:].tolist() == ["\u2192 FOV", "\u2192 Treatment", "\u2192 Cell"]
     (issue,) = SeparateCategories.validate_data(config, [data])
-    assert issue.field == "template" and "don't fit" in issue.message
+    assert issue.field == "template" and "do not fit" in issue.message
     # {} skips a part; a template without names is an error
     skip = config.model_copy(update={"template": "{}-{FOV}-{}"})
     (table,) = SeparateCategories()(data.iloc[:2], config=skip).values()
@@ -799,7 +799,7 @@ def test_concat_of_one_table_passes_it_on_unchanged(data, mode):
 
 
 def test_concat_side_by_side_pairs_rows_by_position():
-    """Tables whose row labels aren't 0, 1, 2, ... (rows left after filtering) are
+    """Tables whose row labels are not 0, 1, 2, ... (rows left after filtering) are
     paired by position; they were paired by label, giving empty rows."""
     from flim.configs import ConcatConfig
     from flim.tools.data import Concat

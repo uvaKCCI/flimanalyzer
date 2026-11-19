@@ -4,7 +4,7 @@ This page is for users of FLIMAnalyzer 0.6. It lists what you must do, and what 
 
 In short:
 
-* Your settings files of 0.6 still work. 0.7 converts them when it reads them; 0.6 can't read the files that 0.7 writes.
+* Your settings files of 0.6 still work. 0.7 converts them when it reads them; 0.6 cannot read the files that 0.7 writes.
 * `flimbatch` needs `--run`, and reads each data file into a table of its own.
 * Tool settings for `flimbatch` go in tool files, not in the app settings file.
 * Workflows are strict by default, also in the GUI.
@@ -18,11 +18,11 @@ In short:
 
 ## Settings files of 0.6
 
-You don't have to change your settings files. Each time FLIMAnalyzer reads a settings file of 0.5 or 0.6, it converts the settings to the current format in memory, and the file stays as it is (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)).
+You do not have to change your settings files. Each time FLIMAnalyzer reads a settings file of 0.5 or 0.6, it converts the settings to the current format in memory, and the file stays as it is (see [Settings files from older versions](/userguide/settings.md#settings-files-from-older-versions)).
 
-* **Update the file, if you want.** When the GUI uses a file of an older version, it asks whether to update it. `Update` rewrites the file in the current format and keeps the original next to it, for example `lab.v1.json`. FLIMAnalyzer 0.6 can still read the original; it can't read the updated file. `flimsettings app --update FILE` and `flimsettings tool --update FILE` do the same from the command line (see [The flimsettings command](/userguide/flimsettings)). `flimbatch` never changes a settings file.
+* **Update the file, if you want.** When the GUI uses a file of an older version, it asks whether to update it. `Update` rewrites the file in the current format and keeps the original next to it, for example `lab.v1.json`. FLIMAnalyzer 0.6 can still read the original; it cannot read the updated file. `flimsettings app --update FILE` and `flimsettings tool --update FILE` do the same from the command line (see [The flimsettings command](/userguide/flimsettings)). `flimbatch` never changes a settings file.
 * **Validate the file.** 0.7 validates each settings file before it uses it. A file with unknown settings or invalid values is not used. `flimsettings app --validate FILE` lists the problems of a file, and the settings that were converted.
-* **The user settings file is new.** The GUI now saves the settings you change automatically, in `usersettings.json` (see [The user settings file](/userguide/settings.md#the-user-settings-file)). `Import Settings...` applies a file to the session only. `flimbatch` doesn't read the user settings file.
+* **The user settings file is new.** The GUI now saves the settings you change automatically, in `usersettings.json` (see [The user settings file](/userguide/settings.md#the-user-settings-file)). `Import Settings...` applies a file to the session only. `flimbatch` does not read the user settings file.
 * **`defaults.json` is deprecated.** The GUI started without `-s` still uses a `defaults.json` in the start folder, with a warning. Move the file to a folder of the app settings search path, give it a name, for example `cells.json`, and start with `-s cells` (see [App settings files](/userguide/settings.md#app-settings-files)). From 0.8.0, `defaults.json` is not read.
 * **A workflow's `Strict` is now `processing.strict`.** The `strict` setting that 0.6 saved for a workflow moves to its `processing` > `strict` when the file is read; `null` (automatic) becomes strict. See [Workflows in the GUI](#workflows-in-the-gui).
 * **`-s` takes app settings files only.** A tool file or a workflow file given with `-s` is an error.
@@ -84,9 +84,9 @@ Also note:
 * **New results layout.** Each call saves in one folder, `<output>/<date and time>/`, with a folder `run-<n>` for each `--run`, in the order given. Each `run-<n>` folder holds `run_summary.txt`, `resolved.json` and a folder for each step, `<id>-<tool>`, for example `01-Summarize`. A tool given to `--run` is step `01`. In 0.6 the results were in `<output>/<tool>/<date and time>/`. Workflows defined in code, for example `Basic FLIRR Analysis` and the autoencoder workflows, also save a folder per step, `<id>-<tool>`, in `flimbatch` and in the GUI; in 0.6 their results were not in step folders. Update scripts that read the result files.
 * **`flimbatch` always saves** the results of a tool run. It warns if a tool's `output` sets `save` to `false`, or sets `results_dir`, which `-o` replaces.
 * **Validate first.** `flimbatch --dry-run` validates every run against the first rows of the files and runs nothing. `flimsettings tool --resolve FILE` and `flimsettings workflow --resolve FILE` show every setting of a run before you run it.
-* **Strict columns.** A column that the settings name and the data doesn't have is an error. To use the closest matching column, as `--allow-guesses` did, use `--override processing.strict=false`, or set `"processing": {"strict": false}` in the tool or workflow file.
+* **Strict columns.** A column that the settings name and the data does not have is an error. To use the closest matching column, as `--allow-guesses` did, use `--override processing.strict=false`, or set `"processing": {"strict": false}` in the tool or workflow file.
 * **An unknown executor name for `-e`** is an error. In 0.6, `flimbatch` used the local executor.
-* **Settings files must be complete.** `flimbatch` stops with an error if a settings file has invalid values, unknown settings or settings of tools that aren't installed. In 0.6 it ignored them.
+* **Settings files must be complete.** `flimbatch` stops with an error if a settings file has invalid values, unknown settings or settings of tools that are not installed. In 0.6 it ignored them.
 
 Deprecated options still work and print a warning with the new form. They are removed in 0.8.0, except the executor names, which are removed in 1.0.0:
 
@@ -100,7 +100,7 @@ Deprecated options still work and print a warning with the new form. They are re
 
 ## Workflows in the GUI
 
-Workflows defined in code, for example `Basic FLIRR Analysis`, are strict by default also in the GUI: a column that the settings name and the data doesn't have is an error. In 0.6 the GUI used the closest matching column. To use the closest matching column, clear the `Strict` check box next to `Load Settings...` and `Save Settings...` in the workflow's dialog (see [Validating the settings](/userguide/workflows.md#validating-the-settings)). `Save Settings...` saves it as `processing` > `strict`.
+Workflows defined in code, for example `Basic FLIRR Analysis`, are strict by default also in the GUI: a column that the settings name and the data does not have is an error. In 0.6 the GUI used the closest matching column. To use the closest matching column, clear the `Strict` check box next to `Load Settings...` and `Save Settings...` in the workflow's dialog (see [Validating the settings](/userguide/workflows.md#validating-the-settings)). `Save Settings...` saves it as `processing` > `strict`.
 
 Workflow files are new in 0.7: a workflow as a JSON file of steps (see [Workflow files](/userguide/workflows.md#workflow-files)).
 
@@ -130,7 +130,7 @@ The former names still work in settings files, workflow files and `flimbatch --r
 Some bug fixes change results. Compare new results with results of 0.6 before you combine them. The changelog lists all changes under `Results that change`. The most important:
 
 * **Autoencoder Train, weight decay:** in all earlier releases, the weight decay was always 0, and the `Weight decays` setting changed another value of the optimizer. Training now uses the weight decay as set. Trained models, reconstructions and the results of `FLIM Data Augmentation Tuning` change.
-* **Autoencoder, missing values:** models trained with 0.7 scale the data before they set missing values to 0, as training does. Models saved before keep the earlier order, so their results don't change.
+* **Autoencoder, missing values:** models trained with 0.7 scale the data before they set missing values to 0, as training does. Models saved before keep the earlier order, so their results do not change.
 * **Autoencoder Augment Data, noise:** each feature gets its own noise level again, as in 0.5. Results with `Add noise` checked change.
 * **Pivot without other category columns:** the result is now one row with the mean of each feature for each value. In 0.6 the result had a column `index` and columns named after the letters of the values.
 * **Filter tool defaults:** the `Filter` tool started with the built-in defaults applies the three range filters that are on by default (`trp chi`, `NAD(P)H chi`, `FAD chi`). Uncheck them in the `Filter` dialog to keep all rows.
@@ -154,7 +154,7 @@ The names of saved result files and folders follow one rule:
 * Every other character than ASCII letters, digits, `-`, `_` and `.` becomes `_`.
 * Repeated `_` become one, and `_`, `.` and spaces at the start and end are removed.
 
-For example, the results of `Summary: NAD(P)H a2[%]` are saved as `Summary_NAD_P_H_a2_pcent`. In 0.6 only `%`, `:`, `/`, `\`, `|` and line breaks were replaced, so names kept spaces and brackets. Update scripts that find result files by name. `char_replacements` in the `output` section of a tool or workflow file adds or changes replacements. A run whose inputs give the same folder name doesn't start.
+For example, the results of `Summary: NAD(P)H a2[%]` are saved as `Summary_NAD_P_H_a2_pcent`. In 0.6 only `%`, `:`, `/`, `\`, `|` and line breaks were replaced, so names kept spaces and brackets. Update scripts that find result files by name. `char_replacements` in the `output` section of a tool or workflow file adds or changes replacements. A run whose inputs give the same folder name does not start.
 
 ## Plugin developers
 

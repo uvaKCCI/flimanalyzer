@@ -36,7 +36,7 @@ https://flimanalyzer.readthedocs.io).
   values to 0 before scaling the data, while training scaled first. `Autoencoder Run`
   and `Autoencoder Augment Data` therefore got other values than training for rows
   with missing values. Models trained now scale first; models saved before keep their
-  order, so their results don't change.
+  order, so their results do not change.
 - **Autoencoder Train without grouping:** rows that were exact duplicates of each
   other (all category and feature values equal) went into neither the training nor the
   validation set. They are now split like all other rows.
@@ -131,7 +131,7 @@ https://flimanalyzer.readthedocs.io).
   table shows the same rows as before. `Filter Settings...` is now `Filter Features...`
   and edits only the range filters; it has its own `Filter Features` checkbox, which
   replaces its `Use Filters` checkbox, and `Select All` and `Deselect All`. Each table
-  window has its own range filters and switches. A change in one window doesn't change
+  window has its own range filters and switches. A change in one window does not change
   the others, and a new window starts with the defaults for new tables: the `Filter`
   tool's range filters and the `filters` setting. `Save as Preset...` > `Defaults for
   new tables` in `Filter Features` changes them. Until 0.6.2 all table windows shared
@@ -145,7 +145,7 @@ https://flimanalyzer.readthedocs.io).
   results folder) to the user settings file
   `usersettings.json` in the platform's settings folder, and uses them at the next
   start. Until 0.6.2 they were lost when the GUI closed unless exported.
-  `flimbatch` does not read this file, so its results don't depend on settings changed
+  `flimbatch` does not read this file, so its results do not depend on settings changed
   in the GUI. `Import Settings...` applies a file to the session only. `Export
   Settings...` saves every setting as it is active, including the settings of every
   installed tool with its defaults.
@@ -158,13 +158,13 @@ https://flimanalyzer.readthedocs.io).
   the user's presets of `Calculate`. Exception: the user settings file's `favorites`
   take precedence over those of the app settings file.
 - **Settings files are validated before use:** a file with unknown settings or invalid
-  values, or a file that can't be used at all (it can't be read, comes from a newer
+  values, or a file that cannot be used at all (it cannot be read, comes from a newer
   version, or is a tool or workflow file), is not used. The GUI shows a message that
   lists the problems: at startup it then asks again which app settings file to start
   with, and `Import Settings...` and a tool dialog's `Load Settings...` load nothing.
   `flimsettings app --validate FILE` lists the problems of a file. `flimbatch` stops
   with an error if a settings file has invalid values, unknown settings or settings of
-  tools that aren't installed; until 0.6.2 it ignored them, and used a tool's defaults
+  tools that are not installed; until 0.6.2 it ignored them, and used a tool's defaults
   when its settings were invalid, with only a line in the log. `run_summary.txt` names
   the settings files used.
 - **`-s` takes app settings files only:** a tool file or a workflow file given with
@@ -227,7 +227,7 @@ https://flimanalyzer.readthedocs.io).
   `Source` (`Source` now holds each row's file), and `Add Input column` can leave it out.
   A single table is passed on unchanged. A table saved by 0.6 with a `Source` column of
   table names opens with it renamed `Source (before Read)`.
-- **Merge:** columns that both tables have and that aren't merged on get the suffixes
+- **Merge:** columns that both tables have and that are not merged on get the suffixes
   ` (left)` and ` (right)` instead of `_x` and `_y`; with `Combine identical columns`
   (checked by default), such a column whose values agree in both tables becomes one
   column. Enter `_x` and `_y` as suffixes and uncheck `Combine identical columns` to
@@ -248,7 +248,7 @@ https://flimanalyzer.readthedocs.io).
   `flimbatch --run`, with a warning (deprecated), and the tasks are also tagged with
   them in Prefect, so concurrency limits set on the former names still apply.
 - **Workflows defined in code** (for example `Basic FLIRR Analysis`) are strict by
-  default also in the GUI: a column that the settings name and the data doesn't have
+  default also in the GUI: a column that the settings name and the data does not have
   is an error. Until 0.6.2 the GUI used the closest matching column, unless `Strict`
   was on. The check box `Strict`, next to `Load Settings...` and `Save Settings...`,
   replaces the `Strict` setting; it is saved as the tool's `processing` > `strict`. A
@@ -262,7 +262,7 @@ https://flimanalyzer.readthedocs.io).
   brackets. `char_replacements` in the `output` section of tool settings, tool files and
   workflow files (workflow and step) adds or changes replacements; `resolved.json`
   states each step's. A
-  run whose inputs give the same folder name doesn't start.
+  run whose inputs give the same folder name does not start.
 - **`run_summary.txt`** also lists the versions of FLIMAnalyzer, Python, the installed
   dependencies of FLIMAnalyzer and the packages of installed plugin tools (with a Dask
   executor also `dask` and `distributed`) under `Versions`, and how the tasks ran under
@@ -351,7 +351,7 @@ https://flimanalyzer.readthedocs.io).
   A prefix limits an override to one run (`run-2.`) or one step (`run-2.steps.3.`, or
   `steps.3.` with a single `--run`). The order of precedence is: `--override` of the
   step, of the run, of every run; then the step in the file, the workflow, the tool's
-  default. The tools' `config` can't be set this way. A workflow defined in code always
+  default. The tools' `config` cannot be set this way. A workflow defined in code always
   saves its results: `output.save=false` for its run is an error. The run summary lists
   the overrides, and
   `resolved.json` holds the overridden settings.
@@ -398,11 +398,11 @@ https://flimanalyzer.readthedocs.io).
   its results in parts, for example `Summarize` with a table per feature, passes each
   part on, and the later steps run once per part. Only the results of steps with
   `output` > `save` are saved: a workflow in which no step saves is refused, and a step
-  that doesn't save and whose results no later step uses gets a warning. A step's
+  that does not save and whose results no later step uses gets a warning. A step's
   formats take precedence over the workflow's `output` > `formats`, for each kind of
   result. `processing`, for the whole workflow or per step, sets per field whether a
-  column that the data doesn't have is an error or is replaced by the closest one
-  (`strict`, default `true`), which entries a step may skip if they don't apply to the
+  column that the data does not have is an error or is replaced by the closest one
+  (`strict`, default `true`), which entries a step may skip if they do not apply to the
   data (`skippable`: `none`, `some` or `all`), and which entries must apply although
   skippable (`required`). `category` places a workflow in the menus (default:
   `Workflow`); `Import Tables...` offers those of `["File", "Import"]`. Workflow files
@@ -413,7 +413,7 @@ https://flimanalyzer.readthedocs.io).
   current table), or `flimbatch --run`. The built-in `Import` workflow is one. In the
   GUI, a run of `Import Tables` or of a workflow file that would open more windows than
   the app setting `max_windows` allows (default: 10 tables, 10 plots, 4 images)
-  doesn't start.
+  does not start.
 - **`Source` column:** each table read from a file gets `Source`, the file as a URI,
   for example `file:///data/Results-a-Dox15_01.txt`. `Data` > `Directory/File to Source`
   adds it to tables imported with 0.6 or earlier.
@@ -573,7 +573,7 @@ describes how API changes are handled.
   hidden by a single other filter.
 - **Merge without shared category columns:** with automatic `Merge on`, two tables
   without a shared category column stopped the run with an `IndexError`. The dialog
-  and the validation of workflow files now show the error, and the tool doesn't run.
+  and the validation of workflow files now show the error, and the tool does not run.
 - **Filter Settings (now `Filter Features`) checkboxes:** the checkbox of the first row, and of the row
   clicked last, couldn't be checked or unchecked; a click on it opened the cell editor
   instead.
@@ -593,28 +593,28 @@ describes how API changes are handled.
 - **Saving a table window when closing it** suggested the file name `frame.txt`; it now
   suggests the window's title.
 - **Save Feature Settings...:** an error writing the file, for example to a folder that
-  doesn't exist, was not shown; it is now shown below the table.
+  does not exist, was not shown; it is now shown below the table.
 - **Frequency Histogram, stacked, `Binned data table`:** each group's column held the
   height of the stack up to that group, not the group's own values.
 - **KDE plot colors:** with two grouping columns whose second had more than 4 values, or
   with more than 10 groups, colors repeated, so curves of different groups looked the
   same. The color now always shows the 1st grouping column, and shades of it show the
-  values of the 2nd; above 10 groups, the colors don't repeat.
-- **Swarm Plot:** its note advised a strip plot, which FLIMAnalyzer doesn't have.
+  values of the 2nd; above 10 groups, the colors do not repeat.
+- **Swarm Plot:** its note advised a strip plot, which FLIMAnalyzer does not have.
 - **`flimbatch --run "Concat Data"`** failed: tools are now found by their former names
   too.
 - **Import with a rename of empty text** inserted the new name between all characters
   of the column names; `Rename Columns` skips a replacement with empty text.
-- **Docker:** matplotlib warned at every start that it can't write its cache folder; the
+- **Docker:** matplotlib warned at every start that it cannot write its cache folder; the
   images set `MPLCONFIGDIR` to `/tmp/matplotlib`.
 - **`-i` and `-x` given more than once** (`-i a.txt -i b.txt`) used only the files of
   the last use. All uses now count, in both programs.
 - **`flimbatch` plots on macOS:** tools that draw plots failed, because macOS' default
-  matplotlib backend can't draw outside the main thread. `flimbatch` now draws with
+  matplotlib backend cannot draw outside the main thread. `flimbatch` now draws with
   the `Agg` backend, which opens no windows.
 - **Table window:** the window could be lower than its side bar, so the last buttons
   were cut off. It now opens at least as high as the side bar, within the screen, and
-  can't be made lower.
+  cannot be made lower.
 - **Series Analysis settings** listed the statistics in a different order each time
   they were saved, so saved files changed without a change of settings. They are now
   saved in a fixed order.

@@ -252,7 +252,7 @@ def test_an_unknown_encoding_in_the_read_settings_is_a_settings_error(data_dir, 
 
 @pytest.mark.parametrize("run", ["Concatenate", "Import"])
 def test_skippable_some_applies_to_fields_with_entries_only(data_dir, run, capsys):
-    """Concatenate has no features: none are skipped, so `some` doesn't apply."""
+    """Concatenate has no features: none are skipped, so `some` does not apply."""
     code = main(["-i", str(data_dir), *DRY_RUN, "--run", run,
                  "--override", "processing.skippable.features=some"])  # fmt: skip
     captured = capsys.readouterr()
@@ -502,10 +502,10 @@ def test_override_output_save_saves_every_step(data_dir, tmp_path, capsys):
 @pytest.mark.parametrize(
     "value, message",
     [
-        ("config.features=FLIRR", "config can't be overridden"),
+        ("config.features=FLIRR", "config cannot be overridden"),
         ("output.save=maybe", "use true or false"),
         ("output.formats=png", "is not kind:format"),
-        ("tool=Sort", "can't be overridden; use output.save"),
+        ("tool=Sort", "cannot be overridden; use output.save"),
     ],
 )
 def test_invalid_overrides_are_errors_before_the_run(data_dir, tmp_path, capsys, value, message):
@@ -561,7 +561,7 @@ def test_a_dry_run_reports_a_dask_cluster_that_doesnt_answer(data_dir, tmp_path,
                  "-e", "dask:address=tcp://127.0.0.1:9", "--server-timeout", "1",
                  "--no-prefect-server"])  # fmt: skip
     assert code == 1
-    assert "Executor dask: the Dask cluster at tcp://127.0.0.1:9 doesn't answer" in capsys.readouterr().err
+    assert "Executor dask: the Dask cluster at tcp://127.0.0.1:9 does not answer" in capsys.readouterr().err
 
 
 def test_input_and_exclude_can_be_repeated(data_dir, capsys):

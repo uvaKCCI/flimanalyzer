@@ -1,6 +1,6 @@
 # Gaussian Mixed Model
 
-Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters. It fits a Gaussian mixture model: unlike `K-Means`, it describes each cluster as a Gaussian (bell-shaped) distribution. By default it works on the features as they are; unlike `K-Means`, it doesn't standardize them unless `Standardize input` is checked. Clusters can have different sizes, shapes and orientations. Each data point is assigned to a cluster, and also gets a probability of belonging to each cluster.
+Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters. It fits a Gaussian mixture model: unlike `K-Means`, it describes each cluster as a Gaussian (bell-shaped) distribution. By default it works on the features as they are; unlike `K-Means`, it does not standardize them unless `Standardize input` is checked. Clusters can have different sizes, shapes and orientations. Each data point is assigned to a cluster, and also gets a probability of belonging to each cluster.
 
 **Menu Access:** `Analysis` > `Gaussian Mixed Model`
 
@@ -35,7 +35,7 @@ Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters
 
 ## Choosing the Number of Components
 
-Adding components always makes the model match the data more closely, even when the extra components only follow random noise. BIC (Bayesian Information Criterion) and AIC (Akaike Information Criterion) help find the number of components that describes the data well without adding components that aren't really there. Each gives a score for every number of components: how well the model matches the data, plus a penalty for every extra component.
+Adding components always makes the model match the data more closely, even when the extra components only follow random noise. BIC (Bayesian Information Criterion) and AIC (Akaike Information Criterion) help find the number of components that describes the data well without adding components that are not really there. Each gives a score for every number of components: how well the model matches the data, plus a penalty for every extra component.
 
 How to read them:
 

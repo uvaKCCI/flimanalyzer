@@ -622,7 +622,7 @@ class ConfigureFiltersDlg(wx.Dialog):
         """Show the feature filters and their switch of the Filter tool's settings.
 
         The feature filters (`features`) replace the table's range filters: range filters
-        of columns they don't have are switched off. `Filter Features` is set from
+        of columns they do not have are switched off. `Filter Features` is set from
         the settings' switches (`enabled` of `features`, and the top-level
         `enabled`); settings without them leave it as it is. The category and other
         filters are not used (e.g. the category values of presets saved by earlier

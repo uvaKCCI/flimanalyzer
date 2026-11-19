@@ -55,7 +55,7 @@ With pip, in a virtual environment in the cloned folder: `pip install -e ".[gui]
 
 ### With Docker
 
-The Docker images run only [batch mode](#run-flimanalyzer-in-batch-mode). They don't include the GUI. Each release is published to the GitHub Container Registry:
+The Docker images run only [batch mode](#run-flimanalyzer-in-batch-mode). They do not include the GUI. Each release is published to the GitHub Container Registry:
 
 | Image | |
 |---|---|
@@ -98,7 +98,7 @@ The autoencoder tools (Autoencoder Run and Autoencoder Augment Data) and workflo
 * `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
 * `cpu`, `cuda` or `mps`: uses that device, or the CPU if it is not available.
 
-Which GPU can be used depends on the PyTorch build that was installed (see [Installation](#installation)). Trained models are saved so that they don't need a GPU, so a model trained on a GPU can also be used on a computer without one.
+Which GPU can be used depends on the PyTorch build that was installed (see [Installation](#installation)). Trained models are saved so that they do not need a GPU, so a model trained on a GPU can also be used on a computer without one.
 
 ## Run FLIMAnalyzer in batch mode
 
@@ -140,7 +140,7 @@ Flow and task runs can be inspected in the Prefect UI of the server in use, e.g.
 
 ## Concurrent and distributed execution
 
-Every tool and workflow step runs as a Prefect task. A task starts as soon as the results it needs are ready. Tasks that don't depend on each other run concurrently, without waiting for each other. Tasks that draw figures take turns, because matplotlib's pyplot is not thread-safe.
+Every tool and workflow step runs as a Prefect task. A task starts as soon as the results it needs are ready. Tasks that do not depend on each other run concurrently, without waiting for each other. Tasks that draw figures take turns, because matplotlib's pyplot is not thread-safe.
 
 By default, up to one task per CPU core runs at a time, as threads. To change that number:
 

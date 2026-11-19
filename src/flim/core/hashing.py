@@ -13,11 +13,11 @@ The hash is SHA-256, as the `sha256sum` command gives it for a file:
 - a file: its bytes;
 - a table (`pandas.DataFrame`): its shape, the names and dtypes of its columns in
   their order, and its rows with their index, as `pandas.util.hash_pandas_object`
-  hashes them. That function hashes the values, not a pickle of them; pandas doesn't
+  hashes them. That function hashes the values, not a pickle of them; pandas does not
   promise the same hash across its versions, so the run summary records the pandas
   version next to the hash;
 - an array (NumPy, Dask, PyTorch): its shape, its dtype and its values in C order.
-  A Dask array is read a block of rows at a time, so the hash doesn't depend on its
+  A Dask array is read a block of rows at a time, so the hash does not depend on its
   chunks, and the array is never loaded whole.
 
 Prefect's own input hashing (`prefect.utilities.hashing.hash_objects`, MD5 of a JSON

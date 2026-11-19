@@ -224,7 +224,7 @@ def test_cpu_never_touches_cuda(needs_torch, data, tmp_path, monkeypatch):
     for name in ("is_available", "init", "_lazy_init", "device_count"):
         monkeypatch.setattr(torch.cuda, name, no_cuda)
     # PyTorch 2.12+ asks through torch.accelerator (e.g. the optimizer's CUDA-graph
-    # check): blocked as well, so a query that moves there doesn't pass unnoticed
+    # check): blocked as well, so a query that moves there does not pass unnoticed
     for name in ("current_accelerator", "is_available", "device_count"):
         if hasattr(torch.accelerator, name):
             monkeypatch.setattr(torch.accelerator, name, no_cuda)

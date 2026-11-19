@@ -3,7 +3,7 @@
 `flimbatch -i <files or folders> -o <folder> [-s settings.json] --run NAME ...`
 
 1. Reads the settings file given with `-s` (any version, see `flim.core.settings`),
-   else the defaults; the user settings file is not used, so batch results don't
+   else the defaults; the user settings file is not used, so batch results do not
    depend on settings changed in the GUI.
 2. Reads each data file into a table, with `Source` (the file as a URI); nothing
    else is done to the data before the runs.
@@ -219,12 +219,12 @@ def _session(args: argparse.Namespace, memory: "logging.Handler") -> int:
             )
         for note in notes + more:
             print(f"flimbatch: warning: {note}", file=sys.stderr)
-        # no user settings file: batch results don't depend on settings changed in the GUI
-        # every setting of the file must be usable: results don't depend on ignored
+        # no user settings file: batch results do not depend on settings changed in the GUI
+        # every setting of the file must be usable: results do not depend on ignored
         # settings or on which tools are installed
         # the workflow files first: a settings file may have their sections (the GUI
         # exports a section per registered workflow file). From -w or
-        # FLIM_WORKFLOW_PATH only: a settings file doesn't decide which workflow file a
+        # FLIM_WORKFLOW_PATH only: a settings file does not decide which workflow file a
         # name refers to
         search_path = workflow_path(folders=args.workflow_path)
         register_workflow_files(search_path)  # problems are logged: in the terminal and the log

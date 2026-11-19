@@ -6,7 +6,7 @@ fields, generated from its config; the function's parameters are generated from 
 signature. `Load Preset...` adds presets that apply to the input table: the
 built-in calculations and those saved with `Save as Preset...` (the user settings'
 `presets` > `Calculate`, one calculation per preset). `Remove Presets...` removes
-saved ones; the built-in ones can't be removed.
+saved ones; the built-in ones cannot be removed.
 """
 
 import inspect
@@ -371,7 +371,7 @@ class CalculationDialog(wx.Dialog):
         self.kind.Bind(wx.EVT_CHOICE, self._on_kind)
         row.Add(self.kind)
         sizer.Add(row, 0, wx.ALL, 8)
-        # the fields of every kind: built once, so they don't move with the kind
+        # the fields of every kind: built once, so they do not move with the kind
         self.shared = FieldsPanel(
             self, type(calculation), exclude=set(type(calculation).model_fields) - set(SHARED)
         )
@@ -448,7 +448,7 @@ class CalculationDialog(wx.Dialog):
             self._show(None, text, ok, False)
             return False
         problems = [p for p in validate_calculations([calculation], self.columns) if p[0] == 0]
-        # a column the table doesn't have: the calculation can't be made on it
+        # a column the table does not have: the calculation cannot be made on it
         errors = [
             m for _, _, severity, m in problems
             if severity == "error" or m.startswith("skipped")
@@ -700,7 +700,7 @@ class CalculationsEditor(_RowIssues, Editor):
         saved = saved_presets()
         if not saved:
             wx.MessageBox(
-                "There are no saved calculations (built-in ones can't be removed).",
+                "There are no saved calculations (built-in ones cannot be removed).",
                 "Remove Presets",
                 wx.OK,
             )

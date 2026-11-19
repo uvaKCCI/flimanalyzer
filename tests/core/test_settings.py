@@ -496,7 +496,7 @@ def test_update_settings_file_keeps_the_original(tmp_path):
     mixed = tmp_path / "mixed.json"
     mixed.write_text(json.dumps({"schema_version": 1, "bogus": 1}))
     with pytest.raises(ValueError, match="bogus"):
-        update_settings_file(mixed)  # settings that can't be used: not rewritten
+        update_settings_file(mixed)  # settings that cannot be used: not rewritten
 
 
 def test_update_keeps_a_tool_file_a_tool_file(tmp_path):
@@ -595,7 +595,7 @@ def test_app_settings_refuse_formats_of_kinds_a_tool_doesnt_make(tmp_path):
     }))  # fmt: skip
     validation = validate_settings_file(path)
     assert any(
-        i.startswith("tools.Summarize.output.formats: a format of kind 'plot', which Summarize doesn't make")
+        i.startswith("tools.Summarize.output.formats: a format of kind 'plot', which Summarize does not make")
         for i in validation.invalid
     )
     assert not any(i.startswith("tools.KDE") for i in validation.invalid)  # KDE makes plots

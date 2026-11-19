@@ -39,7 +39,7 @@ if not os.path.exists(os.path.join(os.path.dirname(__file__), "..", "src", "flim
     _version.__version__ = os.environ.get("READTHEDOCS_VERSION", "dev")
     sys.modules["flim._version"] = _version
 
-# wx.lib.newevent.NewEvent() is unpacked at import time, which a mock can't do: a
+# wx.lib.newevent.NewEvent() is unpacked at import time, which a mock cannot do: a
 # stand-in module replaces it
 _newevent = types.ModuleType("wx.lib.newevent")
 _newevent.NewEvent = lambda: (type("Event", (), {}), object())
@@ -198,7 +198,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "docs"]
 
 # every image fits the page, also in height (a tall dialog would otherwise run off
 # the bottom of the page), keeping its proportions
-# xelatex: the pages use Unicode characters (μ, τ, −, √, ↗, ⌘) that pdflatex can't set
+# xelatex: the pages use Unicode characters (μ, τ, −, √, ↗, ⌘) that pdflatex cannot set
 latex_engine = "xelatex"
 # long class names in the index have no break points: a smaller font, lines not
 # justified

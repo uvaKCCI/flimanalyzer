@@ -18,7 +18,7 @@ minor release:
 * The release notes (``CHANGELOG.md``) list it under ``Deprecated``, and later under
   ``Removed``.
 
-A change that can't keep the old name working the same way, for example a field whose
+A change that cannot keep the old name working the same way, for example a field whose
 values have another meaning, is listed under ``Changed``. To see the warnings when
 your code uses a deprecated name, run Python with ``-W default::DeprecationWarning``
 or run your tests with pytest, which shows them.

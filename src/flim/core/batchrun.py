@@ -273,7 +273,7 @@ def run_on_tables(
         The run.
 
     Raises:
-        BatchError: If the run's settings don't fit the tables, or two tables' names
+        BatchError: If the run's settings do not fit the tables, or two tables' names
             become the same folder name (see `validate_run`), or a workflow defined in
             code has errors for a table.
     """
@@ -437,7 +437,7 @@ def settings_file_issues(
 def ignored_settings(
     runs: Sequence[type["Tool"]], settings: AppSettings, output: Optional[str | os.PathLike]
 ) -> list[str]:
-    """Return a message for each setting of a `--run` tool that flimbatch doesn't use.
+    """Return a message for each setting of a `--run` tool that flimbatch does not use.
 
     A tool given to `--run` runs as a workflow of one step, `01`, with its settings
     from the settings file. flimbatch saves only under `-o` and always saves, so the

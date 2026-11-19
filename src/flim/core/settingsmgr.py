@@ -158,7 +158,7 @@ class UserSettingsFile:
     def _keep_older_version(self) -> None:
         """Copy the file to `<name>.v<version>.json` if it is of an older version.
 
-        Done once per version: an existing copy is kept. A file that can't be read
+        Done once per version: an existing copy is kept. A file that cannot be read
         is left to `read`.
         """
         import shutil
@@ -182,7 +182,7 @@ class UserSettingsFile:
         folder that then replaces the file. The folder is created if it does not
         exist. If writing fails, the file is left unchanged. A file of an older
         schema version is first copied to `usersettings.v<version>.json` (if that
-        doesn't exist yet), for going back to the older FLIMAnalyzer.
+        does not exist yet), for going back to the older FLIMAnalyzer.
 
         Args:
             changes: Sections in the settings file format, of any version.
@@ -213,7 +213,7 @@ def _ordered(data: dict) -> dict:
 
 
 def file_description(path: str | os.PathLike) -> str:
-    """Return the `description` of a settings file; empty if it has none or can't be read."""
+    """Return the `description` of a settings file; empty if it has none or cannot be read."""
     try:
         with open(path) as f:
             data = json.load(f)
@@ -290,9 +290,9 @@ class SettingsManager:
                 )
             else:
                 self.notices.append(
-                    f"The user settings file {user_file.path} cannot be read ({reason})."
-                    f" It was renamed to {target}, and a new user settings file is"
-                    " started. If it is from a newer FLIMAnalyzer, rename it back"
+                    f"The user settings file {user_file.path} cannot be read"
+                    f" ({reason}). It was renamed to {target}, and a new user settings"
+                    " file is started. If it is from a newer FLIMAnalyzer, rename it back"
                     " before using that version again."
                 )
 
@@ -373,7 +373,7 @@ class SettingsManager:
             config: The tool's config.
             autosave: Whether, where and in which formats the tool saves its results;
                 None for not saving. Defaults to None.
-            processing: How a run treats input that doesn't match the config; None:
+            processing: How a run treats input that does not match the config; None:
                 not set. Defaults to None.
 
         Returns:
@@ -415,8 +415,8 @@ class SettingsManager:
     def apply(self, validation: SettingsValidation) -> AppSettings:
         """Apply the usable sections of a validated settings file for this session.
 
-        The sections are not written to the user settings file. The validation is logged,
-        and the file becomes the manager's `source`.
+        The sections are not written to the user settings file. The validation is
+        logged, and the file becomes the manager's `source`.
 
         Args:
             validation: The result of `validate_settings_file`.
@@ -607,7 +607,7 @@ def app_settings_files(search_path: Sequence[Path]) -> tuple[list[Path], list[Pa
     """Return the app settings files in the folders of a search path, and the others.
 
     Each `.json` file is read: an app settings file (`settings_kind`, also of an
-    older version) is listed; tool files, workflow files and files that can't be
+    older version) is listed; tool files, workflow files and files that cannot be
     read as JSON are the others.
 
     Args:
@@ -816,8 +816,8 @@ def session_settings(
         user_file: The user settings file; None in flimbatch, whose runs do not depend
             on settings changed in the GUI.
         base: The lowest layer. Defaults to the built-in defaults.
-        refuse: Called with the validation of an app settings file that can't be
-            used or has settings that can't be used (`SettingsValidation.problems`),
+        refuse: Called with the validation of an app settings file that cannot be
+            used or has settings that cannot be used (`SettingsValidation.problems`),
             to say why it is not used; the session then asks `pick` again (or starts
             without a file). Without it, such a file is an error (`strict_choice`).
         complete: Refuse an app settings file unless all its settings can be used

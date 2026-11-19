@@ -2,7 +2,7 @@
 
 A workflow runs several tools in one run, for example to make summaries, relative changes and plots of the same features. Each tool is a step of the workflow. The workflow's dialog has the settings that the steps share, such as the grouping and the features, and passes them on to the steps. The controls that all dialogs have are described in [Tool dialogs](/userguide/dialogs).
 
-Steps that don't depend on each other run concurrently, without waiting for each other. A [progress dialog](#the-progress-dialog) lists the steps while they run, and `Cancel` stops the workflow. When a workflow defined in code finishes, a window `<workflow name> Graph`, for example `Basic FLIRR Analysis Graph`, shows the steps in blue and the data and results passed between them in red. Failed steps have a dark red outline, and skipped steps are faded. A [workflow file](#workflow-files) opens no graph window. Then the [run summary](#the-run-summary) says how the run ended.
+Steps that do not depend on each other run concurrently, without waiting for each other. A [progress dialog](#the-progress-dialog) lists the steps while they run, and `Cancel` stops the workflow. When a workflow defined in code finishes, a window `<workflow name> Graph`, for example `Basic FLIRR Analysis Graph`, shows the steps in blue and the data and results passed between them in red. Failed steps have a dark red outline, and skipped steps are faded. A [workflow file](#workflow-files) opens no graph window. Then the [run summary](#the-run-summary) says how the run ended.
 
 ## Results
 
@@ -16,7 +16,7 @@ The folder also gets a file `run_summary.txt`. It lists when the workflow ran, t
 
 Before the workflow runs, the dialog validates its settings against the selected data. A workflow may need a column that is not in the data, for example `FAD a1%` when the data has `FAD a1[%]`. In the dialog of a workflow defined in code, the `Strict` check box next to `Load Settings...` and `Save Settings...` (`Processing`) sets what happens; a workflow file sets it in its `processing` section (see [Workflow files](#workflow-files)):
 
-* `Strict` on (the default): the field is marked with an error sign, and the workflow can't run until you choose a column.
+* `Strict` on (the default): the field is marked with an error sign, and the workflow cannot run until you choose a column.
 * `Strict` off: the dialog uses the closest matching column of the same role and marks the field with a warning sign. Hover the mouse over the sign to see which column is used. The run summary lists these columns under "Notes". If no column is a close match, the field is marked with an error sign.
 
 `Save Settings...` writes the setting into the tool file, as `"processing": {"strict": false}`. In a tool file, you can also set it per field, and let a workflow skip missing features or grouping columns, as in a workflow file's steps (see `processing` under [Workflow files](#workflow-files)). `flimbatch --run FILE` uses the setting of the tool file it runs (see [Batch Mode](/userguide/batch)).
@@ -33,7 +33,7 @@ While a tool or a workflow runs, a progress dialog shows:
 
 ![](/images/analysis/workflow-progress.png)
 
-`Cancel` stops the run. Tasks that are running finish first, and the dialog says `Cancelling, waiting for ... to finish...`. Tasks that have not started yet don't run. The results of the completed tasks are kept in the results folder.
+`Cancel` stops the run. Tasks that are running finish first, and the dialog says `Cancelling, waiting for ... to finish...`. Tasks that have not started yet do not run. The results of the completed tasks are kept in the results folder.
 
 ## The run summary
 
@@ -55,7 +55,7 @@ Below it, the task table lists each task with its step id (`Step`), its results 
 
 ![](/images/analysis/workflow-summary.png)
 
-After a tool run that was not cancelled, there is no run summary. If the tool reported a warning, for example `Concatenate` when the rows of tables side by side don't match (see [Concatenate](/userguide/data/concat)), a message `<tool name>: warning` shows it after the result windows open. If a tool's tasks fail, a message lists the failed tasks.
+After a tool run that was not cancelled, there is no run summary. If the tool reported a warning, for example `Concatenate` when the rows of tables side by side do not match (see [Concatenate](/userguide/data/concat)), a message `<tool name>: warning` shows it after the result windows open. If a tool's tasks fail, a message lists the failed tasks.
 
 ## Workflow files
 
@@ -93,19 +93,19 @@ To start a workflow file from an example, `flimsettings workflow --show Import` 
     And `char_replacements`, the text replaced in the names of the files and folders the steps save into, for steps without their own, for example `{"%": "pct"}`. The replacements are made in order; then letters with accents lose them (`é` becomes `e`), and every character other than ASCII letters, digits, `-`, `_` and `.` becomes `_`. Repeated `_` become one, and `_`, `.` and spaces at the start and end are removed; a name with nothing left becomes `_`.
 
     A replacement may contain only these characters, and the text to replace cannot be empty. The built-in replacements are `%` to `pcent`, `τ` to `tau`, and `µ` and `μ` to `u`; the entries given are added to them, and an entry for the same text replaces the built-in one. Not set: the built-in replacements.
-* `processing` (optional): how the steps treat data that doesn't match their settings. It applies to every step (see `processing` of a step below).
+* `processing` (optional): how the steps treat data that does not match their settings. It applies to every step (see `processing` of a step below).
 * `steps`: one or more steps, each with:
     * `id`: a whole number from 1, for example `"3"` (the number `3` is read as `"3"`). Each step has its own id, and the id never changes. The id names the step's results folder, `<id>-<tool>`, with at least two digits, for example `03-Summarize`.
-    * `tool`: the tool's name, as in the menus. A step can't be a workflow.
+    * `tool`: the tool's name, as in the menus. A step cannot be a workflow.
     * `inputs` (optional): which tables the step gets: `"4.1"` is output 1 of step 4 (`"4"` the same), `"input"` the tables the run starts from. Without `inputs`, a step gets output 1 of the step before it; the first step gets the run's tables. A step may only use the outputs of steps listed before it. The outputs of a step are numbered from 1 in the order its tool makes them. A tool that takes several tables, such as `Concatenate`, gets one input: the tables.
-    * `description` (optional): a note for readers. FLIMAnalyzer doesn't use it.
+    * `description` (optional): a note for readers. FLIMAnalyzer does not use it.
     * `config`: the tool's settings, as in the `config` section of a tool file (`Save Settings...` in the tool's dialog writes a tool file); `{}` uses the tool's defaults. `classname` can be left out; the `classname` of another tool is an error.
     * `output` (optional): what the step saves.
         * `save` (default `false`): `true` saves all outputs of the step. A list such as `["3.1"]` saves only the outputs listed; they must be outputs of this step.
-        * `formats` (optional): the formats of the step's results, per kind, as in the workflow's `output.formats`. A kind that the step's tool doesn't make is an error.
+        * `formats` (optional): the formats of the step's results, per kind, as in the workflow's `output.formats`. A kind that the step's tool does not make is an error.
         * `char_replacements` (optional): the text replaced in the names of the step's files and folders, as in the workflow's `output.char_replacements`; it replaces the workflow's. `resolved.json` states the replacements of each step.
-    * `processing` (optional): how the step treats data that doesn't match its settings. The workflow's `processing` applies to every step; a step's own fields take precedence, field by field.
-        * `strict`: `true` (the default): a column that the settings name and the data doesn't have is an error. `false`: it is replaced by the closest column of the same role, and the run summary lists the replacement. One value for all fields, or one value per field, for example `{"features": false}`.
+    * `processing` (optional): how the step treats data that does not match its settings. The workflow's `processing` applies to every step; a step's own fields take precedence, field by field.
+        * `strict`: `true` (the default): a column that the settings name and the data does not have is an error. `false`: it is replaced by the closest column of the same role, and the run summary lists the replacement. One value for all fields, or one value per field, for example `{"features": false}`.
         * `skippable`: per field, which of its entries the step may skip if they do not apply to the data: `"none"` (the default): no entry, or the step fails. `"some"`: entries may be skipped if at least one applies; a field without entries has none to skip, and the step does not fail for it. `"all"`: all entries may be skipped, and the table passes on unchanged. Only some fields have entries that can be skipped: `grouping` and `features`, Rename Columns' `replacements`, Drop Columns' `drop`, Calculate's `calculations` and Filter's `features`, `categories` and `other` (the filters of each filter component). For example `{"calculations": "some"}`. The run summary lists what each step skipped.
         * `required`: per field, the entries that must apply although the field is skippable, for example `{"calculations": [{"name": "FLIRR"}]}` (a calculation by its name) or `{"features": ["FLIRR"]}`. Each entry must be in the step's settings.
 
@@ -120,15 +120,15 @@ For each kind of result that a step makes, the formats are those of the first of
 
 ### Saving
 
-Only the steps with `save` save their results. `flimbatch` doesn't run a workflow file in which no step saves, because the run would keep only its run summary; `--override output.save=true` makes every step save. A step that doesn't save, and whose outputs no later step uses, gets a warning before the run: its results are not kept. In the GUI, the results of these steps open in windows (see [Results of a workflow file](#results-of-a-workflow-file)).
+Only the steps with `save` save their results. `flimbatch` does not run a workflow file in which no step saves, because the run would keep only its run summary; `--override output.save=true` makes every step save. A step that does not save, and whose outputs no later step uses, gets a warning before the run: its results are not kept. In the GUI, the results of these steps open in windows (see [Results of a workflow file](#results-of-a-workflow-file)).
 
 ### How the steps run
 
-A run starts from its tables, for example the tables read from the files, one per file. Each step runs once per table, in parallel, until a step that takes several tables, such as `Concatenate`, joins them into one; the steps after it run once. Without such a step, every table runs through all steps on its own. A step can't combine tables per file with a joined table; `Merge` gets two single tables.
+A run starts from its tables, for example the tables read from the files, one per file. Each step runs once per table, in parallel, until a step that takes several tables, such as `Concatenate`, joins them into one; the steps after it run once. Without such a step, every table runs through all steps on its own. A step cannot combine tables per file with a joined table; `Merge` gets two single tables.
 
-Some steps make their results in parts, one per feature: for example `Summarize` without `Single table` (`"single_table": false`) makes a table per feature, and a plot without `Single figure` makes a figure per feature. Such a step passes the parts on, and the steps after it run once per part. A step can't combine the parts of different steps.
+Some steps make their results in parts, one per feature: for example `Summarize` without `Single table` (`"single_table": false`) makes a table per feature, and a plot without `Single figure` makes a figure per feature. Such a step passes the parts on, and the steps after it run once per part. A step cannot combine the parts of different steps.
 
-Before a run, the file is validated: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid, that `save` and `formats` name outputs and kinds of the step's tool, and the rules of [Saving](#saving). Then every step is validated against the columns it gets. Columns that a step's settings name and the data doesn't have are errors, unless the step's `processing` allows guesses (`strict`) or skipped entries (`skippable`). `flimsettings workflow --validate FILE` does the validation that needs no data, and `flimsettings workflow --resolve FILE` prints the file with every setting of every step stated, as `flimbatch` runs it (see [flimsettings](/userguide/flimsettings)). `flimbatch --dry-run` also validates the steps against the first rows of the data files (see [Validating a run first](/userguide/batch.md#validating-a-run-first)).
+Before a run, the file is validated: the ids, that every step only uses earlier steps' outputs, that every tool exists and its settings are valid, that `save` and `formats` name outputs and kinds of the step's tool, and the rules of [Saving](#saving). Then every step is validated against the columns it gets. Columns that a step's settings name and the data does not have are errors, unless the step's `processing` allows guesses (`strict`) or skipped entries (`skippable`). `flimsettings workflow --validate FILE` does the validation that needs no data, and `flimsettings workflow --resolve FILE` prints the file with every setting of every step stated, as `flimbatch` runs it (see [flimsettings](/userguide/flimsettings)). `flimbatch --dry-run` also validates the steps against the first rows of the data files (see [Validating a run first](/userguide/batch.md#validating-a-run-first)).
 
 ### The built-in workflow file
 
@@ -140,7 +140,7 @@ FLIMAnalyzer finds the built-in workflow file, and the workflow files in the fol
 
 1. The folders given with `-w` (`--workflow-path`), to `flimanalyzer`, `flimbatch` or `flimsettings`.
 2. The folders in the environment variable `FLIM_WORKFLOW_PATH` (separated by `:`, or `;` on Windows).
-3. The folders of `workflow_paths` in the user settings file. This setting is read only from the user settings file; in an app settings file, it is not used, and a message says so. `flimbatch` and `flimsettings` read no user settings file, so they don't use it.
+3. The folders of `workflow_paths` in the user settings file. This setting is read only from the user settings file; in an app settings file, it is not used, and a message says so. `flimbatch` and `flimsettings` read no user settings file, so they do not use it.
 4. The folder `workflows` in the platform's settings folder, next to `usersettings.json`.
 
 The folders of the search path also hold tool files: `flimbatch --run FILE` finds a workflow file or a tool file by its file name in these folders, then among the built-in workflow files, and `Save Settings...` in a tool's dialog starts in the first folder of the search path.
@@ -150,10 +150,10 @@ The folders of the search path also hold tool files: `flimbatch --run FILE` find
 There are three ways to run a workflow file in the GUI:
 
 * `File` > `Import Tables...` reads data files and runs the workflow chosen under `Workflow` on their tables (see [Import Tables](/userguide/data/load.md#import-tables)). `None (open the tables)`, the default, runs no workflow. `Other Workflow File...` runs a workflow file you choose, also one that is not in the workflow search path.
-* The workflow's own entry in the menus, in the menu and submenu its `category` names (see `category` above). Its dialog lists the open tables under `Tables`: check the tables to run it on. `Save results` is checked and can't be unchecked. The folder and the formats start with the default results folder and the formats of the file's `output` section; the run saves in the folder and the formats you choose there. The dialog doesn't keep them for the next time.
+* The workflow's own entry in the menus, in the menu and submenu its `category` names (see `category` above). Its dialog lists the open tables under `Tables`: check the tables to run it on. `Save results` is checked and cannot be unchecked. The folder and the formats start with the default results folder and the formats of the file's `output` section; the run saves in the folder and the formats you choose there. The dialog does not keep them for the next time.
 * `Workflow` > `Run Workflow File...`: choose a workflow file. It runs on the table of the current window, with the rows that window shows. FLIMAnalyzer first shows the workflow's description and steps; click `Run`. The results are saved in the default results folder, in the formats of the file's `output` section.
 
-Before the run, every step is validated against the columns of the tables. If a step names a column that the tables don't have, the run doesn't start, and a message lists the problems. If the run would open more windows than the app setting `max_windows` allows (see [Settings](/userguide/settings.md#layout-of-a-settings-file)), it doesn't start either; the message suggests running it with `flimbatch`, or adding a step that joins the tables, for example `Concatenate`.
+Before the run, every step is validated against the columns of the tables. If a step names a column that the tables do not have, the run does not start, and a message lists the problems. If the run would open more windows than the app setting `max_windows` allows (see [Settings](/userguide/settings.md#layout-of-a-settings-file)), it does not start either; the message suggests running it with `flimbatch`, or adding a step that joins the tables, for example `Concatenate`.
 
 ## Results of a workflow file
 
@@ -221,4 +221,4 @@ Settings:
 * `Grouping`, `Features`, `Time series` and `Resources`, and `Strict` next to the settings buttons: as in [FLIM Data Augmentation Tuning](#flim-data-augmentation-tuning).
 * `Training`: the settings of [Autoencoder Train](/userguide/analysis/aetrain), without those the workflow sets. The defaults are those of FLIM Data Augmentation Tuning, except the architecture, `AE Dimensionality Reduction 2-10`.
 * `Run`: the settings of [Autoencoder Run](/userguide/analysis/aerun), without those the workflow sets.
-* `Control`: the value of the time series column used as control. Default: `Ctrl`. The tables of normalized changes are sorted by the changes from this time point to the next. Upper and lower case don't matter.
+* `Control`: the value of the time series column used as control. Default: `Ctrl`. The tables of normalized changes are sorted by the changes from this time point to the next. Upper and lower case do not matter.

@@ -883,7 +883,7 @@ def test_calculate_dialog_is_a_read_only_table_with_presets(dialog, table, monke
     editor._on_remove(None)
     monkeypatch.setattr(wx, "MultiChoiceDialog", _Choose)
     editor._on_load_presets(None)
-    assert _Choose.offered == ["ratio = t1 / t2  (saved)"]  # built-in ones don't apply
+    assert _Choose.offered == ["ratio = t1 / t2  (saved)"]  # built-in ones do not apply
     assert d.result().config.calculations[0].name == "ratio"
     editor._on_remove_presets(None)
     assert calculate.saved_presets() == []

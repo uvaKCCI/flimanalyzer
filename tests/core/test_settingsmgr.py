@@ -338,7 +338,7 @@ def test_session_layers(monkeypatch, tmp_path):
 
 
 def test_session_without_user_file_ignores_it(monkeypatch, tmp_path):
-    # flimbatch: settings changed in the GUI don't reach batch runs
+    # flimbatch: settings changed in the GUI do not reach batch runs
     user = UserSettingsFile(tmp_path / "usersettings.json")
     SettingsManager(user_file=user).set_tool(KMEANS, KMeansConfig(n_clusters=7))
     assert session_settings().settings.tools.config(KMEANS).n_clusters == 2  # default
@@ -414,7 +414,7 @@ def test_user_settings_file_of_an_older_version_is_kept_before_it_is_rewritten(t
 
 
 def test_presets_are_merged_per_tool(tmp_path):
-    """An app settings file's presets don't hide the user's presets of other tools,
+    """An app settings file's presets do not hide the user's presets of other tools,
     and saving one tool's presets keeps the others'."""
     from flim.tools.data import Calculate, Filter
 

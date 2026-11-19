@@ -206,7 +206,7 @@ def test_pick_is_asked_only_with_files_and_without_a_file_given(tmp_path, monkey
         offered.append((files, default, warning))
         return Pick(files[0], default)
 
-    session_settings(pick=pick)  # the folder doesn't exist
+    session_settings(pick=pick)  # the folder does not exist
     folder.mkdir()
     session_settings(pick=pick)  # no files
     assert offered == []

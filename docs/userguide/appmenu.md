@@ -13,7 +13,7 @@ The tool panel, the main window of FLIMAnalyzer, has a group of icons for each m
 * `Exit` closes FLIMAnalyzer. On macOS it is `Quit FLIMAnalyzer` in the `FLIMAnalyzer` menu (⌘Q). If table or plot windows have unsaved results, FLIMAnalyzer lists them and asks first, also when you log out or shut down the computer (where the system lets it ask):
   * `Cancel` keeps everything open.
   * `Review...` asks for each window in turn: `Save`, `Don't Save`, or `Cancel`, which stops quitting.
-  * `Save All Windows...` saves them all (see [Saving all windows](/userguide/data/save.md#saving-all-windows)), then quits; if you cancel it, or a window can't be saved, FLIMAnalyzer stays open.
+  * `Save All Windows...` saves them all (see [Saving all windows](/userguide/data/save.md#saving-all-windows)), then quits; if you cancel it, or a window cannot be saved, FLIMAnalyzer stays open.
   * `Discard All` quits, and the unsaved results are lost.
 
   A table you opened from a file, and results that a tool saved when it ran, count as saved until you change them. Plots count as changed after you edit an axis, a label or a line.

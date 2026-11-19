@@ -477,7 +477,7 @@ class PandasFrame(wx.Frame):
 
         The window starts at the platform's default size, which is lower than the
         side bar's buttons; the side bar's height is also the window's minimum, so
-        that the buttons can't be cut off. The grid scrolls.
+        that the buttons cannot be cut off. The grid scrolls.
         """
         index = wx.Display.GetFromWindow(self)
         usable = wx.Display(max(index, 0)).GetClientArea()
@@ -702,7 +702,7 @@ class PandasFrame(wx.Frame):
 
         Args:
             kept: The values kept, by category column; columns not in it keep all
-                values, and columns the table doesn't have are ignored.
+                values, and columns the table does not have are ignored.
         """
         for key in [k for k in self.droppedrows if isinstance(k, tuple)]:
             del self.droppedrows[key]

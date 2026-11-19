@@ -1,6 +1,6 @@
 # Drop Columns
 
-The `Drop Columns` tool removes columns by their names, for example all columns whose names contain `Exc1_`. It also removes a column with an empty header. The built-in `Import` workflow drops the same columns with a Drop Columns step of its own (see [Import Tables](/userguide/data/load.md#import-tables)); changing this tool's settings doesn't change it.
+The `Drop Columns` tool removes columns by their names, for example all columns whose names contain `Exc1_`. It also removes a column with an empty header. The built-in `Import` workflow drops the same columns with a Drop Columns step of its own (see [Import Tables](/userguide/data/load.md#import-tables)); changing this tool's settings does not change it.
 
 **Menu Access:** `Data` > `Drop Columns`
 

@@ -197,7 +197,7 @@ class ExecutionOptions(BaseConfig):
             with Client(self.execution.address, timeout=self.server_timeout):
                 return None
         except Exception as err:  # e.g. OSError: timed out connecting
-            return f"the Dask cluster at {self.execution.address} doesn't answer ({err})"
+            return f"the Dask cluster at {self.execution.address} does not answer ({err})"
 
     def task_runner(self) -> "TaskRunner":
         """Create the Prefect task runner of the executor.

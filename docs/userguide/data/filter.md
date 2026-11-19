@@ -38,7 +38,7 @@ Follow these steps to view and change the range filters:
 
 **Note:** The `Filter Features` checkbox in the table window switches all range filters on or off together. This is a quick way to switch between the filtered table and the full data. A range filter applies only if `Filter Features` is on and the filter itself is on (see [When a filter applies](#when-a-filter-applies)).
 
-**Note:** The filters and their switches apply only to their table window. A change in one window doesn't change the other windows. A new table window starts with the defaults for new tables (see [Presets](#presets)).
+**Note:** The filters and their switches apply only to their table window. A change in one window does not change the other windows. A new table window starts with the defaults for new tables (see [Presets](#presets)).
 
 **Note:** Check `Show Dropped` in the `Filter Features` dialog to see the rows that the range filters hide. When you click `OK`, a new window, `<title> - Discarded`, opens with these rows. Rows hidden by the values selected in category columns (with `Filter Categories` on) are not in it. In this window, `Filter Features` and `Filter Categories` are off, so that all its rows are shown.
 

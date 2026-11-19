@@ -153,7 +153,7 @@ class ToolSettings(_Settings):
     Attributes:
         config: The tool's config as JSON, with `classname`; None if none is saved.
         output: Whether, where and in which formats the tool saves its results.
-        processing: How a run treats input that doesn't match the settings
+        processing: How a run treats input that does not match the settings
             (`flim.core.config.Processing`); written only if set.
         legacy: The plugin parameters of a FLIMAnalyzer 0.5 settings file that no
             config class was found for; None otherwise. It is written only if set.
@@ -310,7 +310,7 @@ def tool_settings(
         config: The tool's config.
         autosave: Whether, where and in which formats it saves its results; None for
             not saving. Defaults to None.
-        processing: How a run treats input that doesn't match the config; None: not
+        processing: How a run treats input that does not match the config; None: not
             set. Defaults to None.
 
     Returns:
@@ -1082,7 +1082,7 @@ def merge_sections(base: dict, changes: dict) -> dict:
     """Return a copy of `base` with the sections of `changes` merged into it.
 
     Each section is merged by its rule in `SECTION_MERGE`: replaced whole, or entry
-    by entry (`per key`), keeping the entries `changes` doesn't have; e.g. an app
+    by entry (`per key`), keeping the entries `changes` does not have; e.g. an app
     settings file with presets of Filter keeps the user's presets of Calculate. In
     `tools`, the sections under the former names of a registered tool are removed
     too. A section without a rule is replaced whole.
@@ -1385,13 +1385,13 @@ def validate_settings_file(path: str | os.PathLike) -> SettingsValidation:
             validation.invalid.append(f"tools.{name}.config: {reason}")
             data["tools"].pop(name, None)
             continue
-        # formats of kinds the tool doesn't make, as for tool and workflow files
+        # formats of kinds the tool does not make, as for tool and workflow files
         kinds = tool.output_kinds()
         for options in entry.output.formats:
             if options.kind not in kinds:
                 validation.invalid.append(
                     f"tools.{name}.output.formats: a format of kind '{options.kind}',"
-                    f" which {tool.name} doesn't make (it makes: {', '.join(kinds)})"
+                    f" which {tool.name} does not make (it makes: {', '.join(kinds)})"
                 )
                 data["tools"].pop(name, None)  # as for an invalid value (_remove_invalid)
     settings = _remove_invalid(data, validation.invalid)
@@ -1452,11 +1452,11 @@ def write_json(path: str | os.PathLike, data: Any, *, newline: bool = False) -> 
 
     Args:
         path: The file; it is replaced if it exists. Its folder must exist.
-        data: The data; values JSON doesn't know are written as texts.
+        data: The data; values JSON does not know are written as texts.
         newline: End the file with a line break. Defaults to False.
 
     Raises:
-        OSError: If the file can't be written.
+        OSError: If the file cannot be written.
     """
     import shutil
     import uuid
@@ -1549,9 +1549,9 @@ def update_settings_file(path: str | os.PathLike) -> Path:
         The copy of the original.
 
     Raises:
-        ValueError: If the file can't be used, has settings that can't be used, or
+        ValueError: If the file cannot be used, has settings that cannot be used, or
             is of the current version; the message says which.
-        OSError: If the file can't be copied or written.
+        OSError: If the file cannot be copied or written.
     """
     import shutil
 

@@ -1,6 +1,6 @@
 """Tools report warnings (Tool.warn): the task stays completed, its results go on, and
 the warning is the task's message (FlowRun.warnings, run summary). Concatenate side by
-side warns when the tables' rows don't match by their categories."""
+side warns when the tables' rows do not match by their categories."""
 
 import pandas as pd
 import pytest
@@ -26,7 +26,7 @@ def test_reordered_table_warns():
     a = _table()
     b = a.sort_values("Treatment", ascending=False, kind="stable", ignore_index=True)
     (warning,) = _warnings({"Table: A": a, "Table: B": b})
-    assert "'Table: B' don't match 'Table: A'" in warning
+    assert "'Table: B' do not match 'Table: A'" in warning
     assert "row 1, Treatment: Ctrl and Drug" in warning and "Merge" in warning
 
 

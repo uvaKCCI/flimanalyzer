@@ -3,7 +3,7 @@
 The presets are the built-in ones (the filename parsers of FLIMAnalyzer 0.6, see
 `flim.core.categories.separate_presets`) and those saved in the user settings file
 (`presets` > `Separate Categories`). `Remove Presets...` removes saved ones; the built-in ones
-can't be removed.
+cannot be removed.
 """
 
 from flim.configs.data import SeparateCategoriesConfig

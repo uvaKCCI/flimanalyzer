@@ -290,7 +290,7 @@ def separate_by_template(
 
     The template is turned into a regular expression by `template_regex`.
 
-    A value that doesn't fit the template is not separated (missing values in its
+    A value that does not fit the template is not separated (missing values in its
     row) and is named in a warning.
 
     Args:
@@ -313,7 +313,7 @@ def separate_by_template(
     unmatched = texts[matches.isna() & texts.notna()]
     if len(unmatched):
         result.warnings.append(
-            f"{column}: {len(unmatched)} value(s) don't fit the template '{template}' and"
+            f"{column}: {len(unmatched)} value(s) do not fit the template '{template}' and"
             f" are not separated: {_listed(unmatched.unique())}"
         )
     for i, name in enumerate(names, 1):

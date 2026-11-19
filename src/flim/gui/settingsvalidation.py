@@ -27,10 +27,10 @@ def show_problems(
     outcome: str = "The file is not used.",
     title: str = "Settings File",
 ) -> None:
-    """Show why a settings file can't be used, before it is refused.
+    """Show why a settings file cannot be used, before it is refused.
 
-    A file that can't be used at all (it can't be read, isn't a settings file, or is
-    of a newer version) is an error; a file with settings that can't be used
+    A file that cannot be used at all (it cannot be read, is not a settings file, or is
+    of a newer version) is an error; a file with settings that cannot be used
     (unknown or invalid) is a warning that lists them. Either way the file is not
     used: every setting of a file must be usable, as in flimbatch. The log lists all
     problems.
@@ -149,7 +149,7 @@ def confirm_rewrite(
     message = (
         validation.summary(limit=LISTED)
         + "\n\nAdding the settings rewrites the file in the current version; the"
-        " settings that can't be used are removed."
+        " settings that cannot be used are removed."
     )
     options = [REWRITE, SAVE_OTHER]
     with wx.SingleChoiceDialog(parent, message, "Save Settings", options) as dialog:

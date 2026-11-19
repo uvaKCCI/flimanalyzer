@@ -20,17 +20,17 @@ The dialog shows `Use filters`, the switch of all filters, and then the filters 
     - `Low` and `High`: rows with a value below `Low` or above `High` are dropped. Rows with a value equal to a limit are kept. Leave a limit empty for no limit on that side.
     - `Drop missing` (checked by default): also drops rows that have no value in the column.
 
-    `Low` can't be larger than `High`; the dialog marks such a row. Each column has one range filter here; put a second range on a column under `Other filters`.
+    `Low` cannot be larger than `High`; the dialog marks such a row. Each column has one range filter here; put a second range on a column under `Other filters`.
 
     `Select All` and `Deselect All` check or uncheck `Use` for all columns. `Load Feature Settings...` and `Save Feature Settings...` load and save the limits of each column (see [Settings](/userguide/settings)).
 
     ![](/images/data/filtertool-config.png)
 
-3. Under `Category values to keep` (switch: `Use category filters`), select a category column in the list on the left. Its values appear on the right, all checked. Uncheck the values whose rows should be dropped. Columns that filter rows are marked with `*`; columns you don't change keep all their rows. A column whose filter is off in the settings is marked with `* (off)`; when you check or uncheck one of its values, its filter is on again.
+3. Under `Category values to keep` (switch: `Use category filters`), select a category column in the list on the left. Its values appear on the right, all checked. Uncheck the values whose rows should be dropped. Columns that filter rows are marked with `*`; columns you do not change keep all their rows. A column whose filter is off in the settings is marked with `* (off)`; when you check or uncheck one of its values, its filter is on again.
 
 4. Under `Other filters` (switch: `Use other filters`), add conditions and further filters, one per row (`Add Other filter`, `Remove Other filters`):
     - `Use`: `no` switches the filter off.
-    - `Kind`: `range` (the default for a new row), `category` or `expression`. The cells the row's kind doesn't use are greyed out.
+    - `Kind`: `range` (the default for a new row), `category` or `expression`. The cells the row's kind does not use are greyed out.
     - `Expression`: a condition, written as in the [Calculate](/userguide/analysis/calculate.md#expressions) tool, for example `` `FAD tm` > 1000 & `FAD a1[%]` < 90 ``. Use `&` for and, `|` for or, and `~` for not. Rows with a missing value in a column of the condition are dropped.
     - `Column`, `Low`, `High`, `Drop missing` and `Values to keep`: a further range or category filter, for example a second range on a column that has one under `Feature filters`. Separate the values to keep with commas.
 

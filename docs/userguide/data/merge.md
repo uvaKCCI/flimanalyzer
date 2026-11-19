@@ -24,7 +24,7 @@ To use the `Merge` tool, follow the steps below:
     - `right`: all rows of the right table; values of the left table where they match.
     - `outer`: all rows of both tables.
 
-    `Merge on` sets the category columns whose values have to match. `Automatic` uses all category columns that the two tables share. If the two tables share no category column, the dialog shows an error and the tool doesn't run.
+    `Merge on` sets the category columns whose values have to match. `Automatic` uses all category columns that the two tables share. If the two tables share no category column, the dialog shows an error and the tool does not run.
 
     A row without a value in one of these columns matches no row of the other table. With `left`, `right` or `outer`, the row is kept, without the values of the other table; with `inner`, it is left out. The run summary gives the number of these rows in each table.
 

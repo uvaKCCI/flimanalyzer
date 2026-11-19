@@ -133,7 +133,7 @@ def test_validate_calculations(data):
         (5, "name", "warning"),  # replaces the column
         (7, "name", "error"),  # twice
     }
-    # without the table's columns: only what doesn't depend on them
+    # without the table's columns: only what does not depend on them
     assert {p[0] for p in validate_calculations(calculations)} == {0, 1, 2, 3, 7}
 
 

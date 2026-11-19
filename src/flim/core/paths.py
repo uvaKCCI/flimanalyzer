@@ -38,7 +38,7 @@ def with_default_replacements(value: Any) -> Any:
     """Return character replacements added to the defaults; refuse invalid ones.
 
     The validator of `CharReplacements`: a replacement may hold only the characters
-    a name keeps, so that it can't make a folder (`/`) or another invalid name.
+    a name keeps, so that it cannot make a folder (`/`) or another invalid name.
 
     Args:
         value: Text -> replacement; other values are returned as they are, for the
@@ -54,7 +54,7 @@ def with_default_replacements(value: Any) -> Any:
         return value
     for old, new in value.items():
         if not old:
-            raise ValueError("char_replacements: an empty text can't be replaced")
+            raise ValueError("char_replacements: an empty text cannot be replaced")
         if not isinstance(new, str) or re.search(f"[^{NAME_CHARS}]", new):
             raise ValueError(
                 f"char_replacements: {old!r} -> {new!r}: a replacement may contain"
@@ -236,12 +236,15 @@ def folder_problem(path: str | os.PathLike) -> Optional[str]:
     while not os.path.exists(existing):
         parent = os.path.dirname(existing)
         if parent == existing:  # not even the drive or share is there
-            return f"{path} can't be reached (is the drive or network share available?)"
+            return (
+                f"{path} cannot be reached (is the drive or network share"
+                " available?)"
+            )
         existing = parent
     if not os.path.isdir(existing):
         return f"{existing} is not a folder"
     if not os.access(existing, os.W_OK):
-        return f"{existing} can't be written to"
+        return f"{existing} cannot be written to"
     return None
 
 
@@ -337,7 +340,7 @@ def path_uri(directory: str, name: str) -> str:
 
 
 def with_extension(path: str | os.PathLike, extension: str) -> str:
-    """Return a path with a file extension, added if the path doesn't have it.
+    """Return a path with a file extension, added if the path does not have it.
 
     The comparison ignores case, so `data.JSON` is kept.
 

@@ -1320,11 +1320,11 @@ class VariantsEditor(ModelsEditor):
     """A list of configs of several kinds as one table.
 
     For example Calculate's expressions and functions: a column for the kind, then
-    the fields of all kinds. Cells of fields that a row's kind doesn't have are
+    the fields of all kinds. Cells of fields that a row's kind does not have are
     greyed out and not editable.
 
     Kinds with nested lists (e.g. filter groups) are shown, with their simple fields
-    editable, but can't be chosen for a row; their nested values are kept as they are.
+    editable, but cannot be chosen for a row; their nested values are kept as they are.
     """
 
     INACTIVE = wx.Colour(225, 225, 225)
@@ -1378,9 +1378,9 @@ class VariantsEditor(ModelsEditor):
         return names.index(self.spec.discriminator) + self.offset
 
     def _apply_kind(self, row: int) -> None:
-        """Grey out and clear the cells of fields the row's kind doesn't have.
+        """Grey out and clear the cells of fields the row's kind does not have.
 
-        The kind of a row with nested values can't be changed.
+        The kind of a row with nested values cannot be changed.
         """
         kind = self.grid.GetCellValue(row, self._kind_column()).strip()
         fields = self.kind_fields.get(kind)
@@ -1429,7 +1429,7 @@ class VariantsEditor(ModelsEditor):
     def add_row(self, values: dict, key: str = "") -> None:
         """Add a row with the values of a config, and keep the values.
 
-        The kept values supply the values the table doesn't show (see `rows`).
+        The kept values supply the values the table does not show (see `rows`).
 
         Args:
             values: The config's values by field name.
@@ -1447,8 +1447,8 @@ class VariantsEditor(ModelsEditor):
     def rows(self) -> list[tuple[str, dict]]:
         """Return (key, values) of each row.
 
-        Fields that the row's kind doesn't have are left out. While a row keeps the
-        kind it was set with, its values that the table doesn't show (e.g. a group's
+        Fields that the row's kind does not have are left out. While a row keeps the
+        kind it was set with, its values that the table does not show (e.g. a group's
         filters) are taken from the values it was set with.
 
         Raises:
@@ -2261,7 +2261,7 @@ class FieldsPanel(wx.Panel):
         self.widgets: dict[str, list] = {}  # field -> its label and editor
         self.fixed: set = set()  # fields that allow only one value now (not shown)
         self.hidden: set = set()  # fields not shown now: fixed, or `shown_when` not met
-        self.inapplicable: set = set()  # fields that don't apply to the input tables
+        self.inapplicable: set = set()  # fields that do not apply to the input tables
         specs = [s for s in visible(describe(model)) if s.name not in exclude]
         if stacked:
             self._stack(specs)
@@ -2412,7 +2412,7 @@ class FieldsPanel(wx.Panel):
 
         Lets each editor update (e.g. value choices) and offer only the values the
         config class allows given the other fields (`allowed_values`). Hides the
-        fields that allow only one value, those that don't apply to the input tables,
+        fields that allow only one value, those that do not apply to the input tables,
         and those whose `shown_when` is not met (e.g. the settings of another mode).
         """
         for editor in self.editors.values():
@@ -2439,7 +2439,7 @@ class FieldsPanel(wx.Panel):
         relayout(self)
 
     def set_inapplicable(self, names: Iterable[str]) -> None:
-        """Hide the fields that don't apply to the input tables.
+        """Hide the fields that do not apply to the input tables.
 
         Args:
             names: The fields' names (see `Tool.inapplicable_fields`).

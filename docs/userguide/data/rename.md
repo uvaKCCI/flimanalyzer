@@ -1,6 +1,6 @@
 # Rename Columns
 
-The `Rename Columns` tool replaces parts of the column names, for example `Exc1_-Ch1-_` with `trp `, so that `Exc1_-Ch1-_t1` becomes `trp t1`. The built-in `Import` workflow applies the same replacements with a Rename Columns step of its own (see [Import Tables](/userguide/data/load.md#import-tables)); changing this tool's settings doesn't change it.
+The `Rename Columns` tool replaces parts of the column names, for example `Exc1_-Ch1-_` with `trp `, so that `Exc1_-Ch1-_t1` becomes `trp t1`. The built-in `Import` workflow applies the same replacements with a Rename Columns step of its own (see [Import Tables](/userguide/data/load.md#import-tables)); changing this tool's settings does not change it.
 
 **Menu Access:** `Data` > `Rename Columns`
 
@@ -21,6 +21,6 @@ The `Rename Columns` tool replaces parts of the column names, for example `Exc1_
 
 3. Click `OK`.
 
-The result is `Table: Renamed`, with the same rows and columns as the input. If two columns would get the same name, the tool doesn't run and names the duplicates.
+The result is `Table: Renamed`, with the same rows and columns as the input. If two columns would get the same name, the tool does not run and names the duplicates.
 
 The default replacements are `Exc1_-Ch1-_` with `trp `, `Exc1_-Ch2-_` with `NAD(P)H ` and `Exc2_-Ch3-_` with `FAD `.

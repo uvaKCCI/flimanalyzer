@@ -154,7 +154,7 @@ FILTER = FilterConfig(
     other={"filters": [{"kind": "expression", "expression": "FLIRR > 0.1"}]},
 )  # fmt: skip
 SORT = SortConfig(features=["FAD a1"])
-# runs of workflows use the closest column for a column that the data doesn't have
+# runs of workflows use the closest column for a column that the data does not have
 GUESSES = ProcessingRules.of(Processing(strict=False))
 
 # Analysis

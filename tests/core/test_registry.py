@@ -143,7 +143,8 @@ def test_former_names_find_the_renamed_tool():
 
     assert tools.get("Concat Data") is tools.get("Concatenate")
     assert tools.get("Order Categories") is tools.get("Order Category Values")
-    assert "Concat Data" in tools and "Concat" not in tools  # a short name is not a name
+    # a short name is not a name
+    assert "Concat Data" in tools and "Concat" not in tools
     assert [t.name for t in tools.by_category()["Data"]].count("Concatenate") == 1
 
 
@@ -156,7 +157,8 @@ def test_a_former_name_works_with_a_deprecation_warning(caplog):
     with pytest.warns(DeprecationWarning, match="'Order Categories' is deprecated and is removed in 0.8.0; use 'Order Category Values'"):
         assert tools.get("Order Categories").name == "Order Category Values"
     assert "use 'Order Category Values'" in caplog.text
-    assert "Order Categories" in tools  # a membership test doesn't warn again or at all
+    # a membership test does not warn again or at all
+    assert "Order Categories" in tools
 
 
 def test_settings_under_a_former_name_warn(caplog):

@@ -462,13 +462,13 @@ def part_feature(config: Any) -> str:
     return ""
 
 
-# --- processing: how a step treats input that doesn't match its settings ---
+# --- processing: how a step treats input that does not match its settings ---
 
 Skippable = Literal["none", "some", "all"]
 
 
 class Processing(BaseModel):
-    """How a step processes input that doesn't match its settings.
+    """How a step processes input that does not match its settings.
 
     The `processing` group of a workflow step, of a workflow file (for all its
     steps) and of a tool file. Every field is optional; the layers are merged per
@@ -542,7 +542,7 @@ class ProcessingRules:
 
         Args:
             *layers: The layers, lowest first, e.g. the workflow's, then the step's;
-                None for a layer that isn't set; a sequence for several layers in
+                None for a layer that is not set; a sequence for several layers in
                 order (e.g. the command line's overrides).
 
         Returns:

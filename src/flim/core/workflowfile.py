@@ -22,9 +22,9 @@ from 1 in the order its tool returns them. A step's `output` says what is saved:
 the workflow's `output.formats` (a kind not listed in its default format). A step's
 `description` is a note for readers. A step's `config` may leave out `classname`
 (`tool` names the tool); a `classname` of another tool is an error. A step's
-`processing` (`flim.core.config.Processing`) says how it treats input that doesn't
+`processing` (`flim.core.config.Processing`) says how it treats input that does not
 match its settings: `strict` (columns not in the input are errors, or guessed),
-`skippable` (per field: whether entries that don't apply may be skipped) and
+`skippable` (per field: whether entries that do not apply may be skipped) and
 `required` (the entries that have to apply). The workflow's `processing` applies to
 every step; a step's fields take precedence, per key.
 
@@ -144,7 +144,7 @@ class WorkflowStep(BaseModel):
     output: StepOutput = Field(default_factory=StepOutput)
     processing: Processing = Field(
         default_factory=Processing,
-        description="How the step treats input that doesn't match its settings;"
+        description="How the step treats input that does not match its settings;"
         " over the workflow's, per key.",
     )
 
@@ -176,7 +176,7 @@ class WorkflowDefinition(BaseModel):
     output: WorkflowOutput = Field(default_factory=WorkflowOutput)
     processing: Processing = Field(
         default_factory=Processing,
-        description="How the steps treat input that doesn't match their settings;"
+        description="How the steps treat input that does not match their settings;"
         " a step's own fields take precedence, per key.",
     )
     steps: list[WorkflowStep] = Field(min_length=1)
@@ -231,7 +231,7 @@ class WorkflowValidation:
         workflow: For a tool file of a workflow defined in code without errors: the
             workflow with the file's settings (`settings_workflow`); else None.
         errors: Problems that stop the workflow from running.
-        warnings: Problems that don't, e.g. a step with its tool's defaults.
+        warnings: Problems that do not, e.g. a step with its tool's defaults.
     """
 
     path: Optional[Path]
@@ -267,7 +267,7 @@ def processing_issues(
     Args:
         tool: The tool class.
         processing: The step's `processing`.
-        config: The step's validated config; None if it isn't valid.
+        config: The step's validated config; None if it is not valid.
         where: The step, for the messages, e.g. `step 02 (Summarize)`.
 
     Returns:
@@ -290,7 +290,7 @@ def processing_issues(
         for key in getattr(processing, group):
             if key not in tool.skippable_fields:
                 errors.append(
-                    f"{where}: processing.{group}: {tool.name} can't skip entries of"
+                    f"{where}: processing.{group}: {tool.name} cannot skip entries of"
                     f" '{key}' (it can skip entries of: {can_skip})"
                 )
     for key, entries in processing.required.items():
@@ -347,7 +347,7 @@ def validate_definition(definition: WorkflowDefinition, validation: WorkflowVali
             continue
         tool = tools.get(step.tool)
         if issubclass(tool, Workflow):
-            validation.errors.append(f"{where} ({step.tool}): a step can't be a workflow")
+            validation.errors.append(f"{where} ({step.tool}): a step cannot be a workflow")
             continue
         classname = step.config.get("classname")
         expected = f"{tool.__module__}.{tool.__qualname__}"
@@ -374,7 +374,7 @@ def validate_definition(definition: WorkflowDefinition, validation: WorkflowVali
             if options.kind not in kinds:
                 validation.errors.append(
                     f"{where} ({step.tool}): output.formats: a format of kind"
-                    f" '{options.kind}', which {step.tool} doesn't make (it makes:"
+                    f" '{options.kind}', which {step.tool} does not make (it makes:"
                     f" {', '.join(kinds)})"
                 )
         save = step.output.save
@@ -433,7 +433,7 @@ def validate_workflow_file(path: str | os.PathLike, *, tool_files: bool = False)
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError) as err:
-        validation.errors.append(f"{path.name}: can't be read ({err})")
+        validation.errors.append(f"{path.name}: cannot be read ({err})")
         return validation
     if is_tool_file(data):
         if not tool_files:
@@ -521,7 +521,7 @@ def _validate_workflow_settings(
         if options.kind not in kinds:
             validation.errors.append(
                 f"{tool.name}: output.formats: a format of kind '{options.kind}', which"
-                f" {tool.name} doesn't make (it makes: {', '.join(kinds)})"
+                f" {tool.name} does not make (it makes: {', '.join(kinds)})"
             )
     if not validation.errors:
         validation.workflow = settings_workflow(tool, entry, path)
@@ -651,7 +651,7 @@ def workflow_files(search_path: Iterable[Path] = ()) -> list[Path]:
     """Return the built-in workflow files and those in the search path's folders.
 
     Args:
-        search_path: The folders; a folder that doesn't exist is passed over.
+        search_path: The folders; a folder that does not exist is passed over.
 
     Returns:
         The `.json` files, the built-in ones first, sorted by name per folder.
@@ -763,7 +763,7 @@ def part_configs(tool: Any, config: Any, schema: Any = None) -> list:
 
     With `features: all`, the features are taken from the schema of the step's
     input (the columns of the role `feature`), so that there is one part per
-    feature; if the schema isn't complete, there is one part with all features.
+    feature; if the schema is not complete, there is one part with all features.
 
     Args:
         tool: The tool class.
@@ -817,7 +817,7 @@ def _step_schemas(definition: WorkflowDefinition, schemas: dict) -> dict:
             if _mappable(tool, step):
                 config = part_configs(tool, config, inputs[0] if inputs else None)[0]
             specs = list(tool.output_schema(config, inputs).values())
-        except Exception:  # the outputs can't be worked out
+        except Exception:  # the outputs cannot be worked out
             specs = []
         known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
         previous = step.id
@@ -923,7 +923,7 @@ def _file_workflow_base() -> type["Workflow"]:
 
         @classmethod
         def structure_issues(cls) -> list[Issue]:
-            """Return the errors of steps whose shapes don't fit (`_shapes`, `_dims`)."""
+            """Return the errors of steps whose shapes do not fit (`_shapes`, `_dims`)."""
             errors = _shapes(cls.definition)[1] + _dims(cls.definition)[1]
             return [Issue(None, e) for e in errors]
 
@@ -954,7 +954,7 @@ def _file_workflow_base() -> type["Workflow"]:
             if not isinstance(tables, dict):
                 tables = {"Input": tables}
             dims, _ = _dims(self.definition)
-            # tables read by an earlier task (Import Tables) aren't known yet: unknown
+            # tables read by an earlier task (Import Tables) are not known yet: unknown
             schemas = _step_schemas(
                 self.definition,
                 {
@@ -1186,7 +1186,7 @@ def register_workflow_files(search_path: Iterable[Path] = (), log: bool = True) 
 
 
 def _is_tool_file(path: Path) -> bool:
-    """Return whether a file is a tool file; False if it can't be read as JSON."""
+    """Return whether a file is a tool file; False if it cannot be read as JSON."""
     from flim.core.settings import is_tool_file
 
     try:
@@ -1241,7 +1241,7 @@ def validate_steps(
         config = resolution.config
         try:
             specs = list(tool.output_schema(config, inputs).values())
-        except Exception:  # the outputs can't be worked out: not validated further
+        except Exception:  # the outputs cannot be worked out: not validated further
             specs = []
         known[step.id] = [getattr(s, "schema", None) or TableSchema.unknown() for s in specs]
         previous = step.id
@@ -1265,7 +1265,7 @@ def save_issues(definition: WorkflowDefinition) -> tuple[list[str], list[str]]:
         definition: The workflow.
 
     Returns:
-        The warnings: a step whose outputs no later step uses and that doesn't save
+        The warnings: a step whose outputs no later step uses and that does not save
         them (its work reaches no one); and the errors: none of the steps saves
         anything (the run would leave only its summary).
     """
@@ -1559,7 +1559,7 @@ def _parse_flat(values: Sequence[str]) -> Overrides:
 
     Raises:
         ValueError: If an argument is not `GROUP.FIELD=VALUE`, names a field that
-            can't be overridden, or has an invalid value; the message names it.
+            cannot be overridden, or has an invalid value; the message names it.
     """
     save, formats, given, layers = None, {}, [], []
     for argument in values:
@@ -1570,7 +1570,7 @@ def _parse_flat(values: Sequence[str]) -> Overrides:
         group, field_name, rest = parts[0], (parts[1] if len(parts) > 1 else ""), ".".join(parts[2:])
         if group == "config":
             raise ValueError(
-                f"--override {argument}: config can't be overridden (its fields mean"
+                f"--override {argument}: config cannot be overridden (its fields mean"
                 " different things per tool); set it in the tool or workflow file"
             )
         if (group, field_name) == ("output", "save") and not rest:
@@ -1589,7 +1589,7 @@ def _parse_flat(values: Sequence[str]) -> Overrides:
         elif (group, field_name) == ("processing", "required") and rest:
             layers.append(Processing(required={rest: _entries(value, path)}))
         else:
-            raise ValueError(f"--override {argument}: can't be overridden; use {OVERRIDABLE}")
+            raise ValueError(f"--override {argument}: cannot be overridden; use {OVERRIDABLE}")
         given.append(argument)
     return Overrides(
         save=save,

@@ -11,7 +11,7 @@ FLIMAnalyzer reads data from text files laid out like a spreadsheet: each line i
 
 1. Go to `File` > `Open Tables...` or click the `Open Tables` icon, the first icon in the tool panel.
 2. Choose one or more data files and click `Open`.
-3. FLIMAnalyzer reads each file into a table window of its own. The column headers are taken from the first line of the file. Three text columns are added first: `Source`, the file as a URI (for example `file:///data/9SR/Results-a-Dox15_01.txt`), `Directory`, the folder of the file, and `File`, its name. The other columns stay in the order of the file. A file that can't be read is listed in a message; the others are opened.
+3. FLIMAnalyzer reads each file into a table window of its own. The column headers are taken from the first line of the file. Three text columns are added first: `Source`, the file as a URI (for example `file:///data/9SR/Results-a-Dox15_01.txt`), `Directory`, the folder of the file, and `File`, its name. The other columns stay in the order of the file. A file that cannot be read is listed in a message; the others are opened.
 
 The files are read with the settings of the `Open Tables` tool (see [Read settings](#read-settings)). It has no dialog: to change its settings, use an app settings file with an `Open Tables` section in `tools` (see [Settings](/userguide/settings)).
 
@@ -31,7 +31,7 @@ The files are read with the settings of the `Open Tables` tool (see [Read settin
 
 **Categories from the file names:** after importing with `Import`, use [Separate Categories](separate.md) with one of its presets, the filename parsers of FLIMAnalyzer 0.6 (for example `FOV, Treatment, Cell`), on the `Source` column. To have them in every import, add such a step to your own copy of `Import` (see [Presets](separate.md#presets)).
 
-Before the run, the workflow's steps are validated against the first 20 rows of each file. If a run would open more windows than the app setting `max_windows` allows (by default 10 tables, 10 plots and 4 images), for example a workflow without a step that joins the tables run on 300 files, it doesn't start, and a message suggests running it with `flimbatch` or choosing a workflow that joins the tables, for example with `Concatenate`.
+Before the run, the workflow's steps are validated against the first 20 rows of each file. If a run would open more windows than the app setting `max_windows` allows (by default 10 tables, 10 plots and 4 images), for example a workflow without a step that joins the tables run on 300 files, it does not start, and a message suggests running it with `flimbatch` or choosing a workflow that joins the tables, for example with `Concatenate`.
 
 To run a workflow file on a table that is already open, for example after reshaping it with the table tools, use `Workflow` > `Run Workflow File...`. The workflow files found in the workflow search path are also listed in the menus, in the menu and submenu that their `category` names (the built-in `Import` in `File` > `Import`, files without `category` in the `Workflow` menu, see [Workflow files](/userguide/workflows.md#workflow-files)); there they run on the tables you select in their dialog.
 
@@ -46,7 +46,7 @@ To run a workflow file on a table that is already open, for example after reshap
 * `File's own Source, Directory, File`: what happens to a file's own `Source`, `Directory` or `File` column: `keep` (the default) or `rename` (see [The Source column](#the-source-column)).
 * `Name of renamed column`: the new name of such a column. Default: `{name} (before {tool})`, for example `Source (before Read)`.
 
-After [opening](#open-tables) or [importing](#import-tables) files, the data are shown in a table window. Some columns become category columns: columns with values taken from the file names by a workflow, and columns with one of the names FLIMAnalyzer knows as categories, such as `Treatment`, `FOV`, `Cell`, `Cell line`, `Well`, `Time` or `Compartment`. A category column has a small, usually fixed, set of possible values, such as treatment names. Category column headers have a light blue background. All other column headers have a gray background. Other text columns, such as `Source`, `Directory` and `File`, are not category columns: they can't be used to group or filter the data.
+After [opening](#open-tables) or [importing](#import-tables) files, the data are shown in a table window. Some columns become category columns: columns with values taken from the file names by a workflow, and columns with one of the names FLIMAnalyzer knows as categories, such as `Treatment`, `FOV`, `Cell`, `Cell line`, `Well`, `Time` or `Compartment`. A category column has a small, usually fixed, set of possible values, such as treatment names. Category column headers have a light blue background. All other column headers have a gray background. Other text columns, such as `Source`, `Directory` and `File`, are not category columns: they cannot be used to group or filter the data.
 
 ## The Source column
 

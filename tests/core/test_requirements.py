@@ -128,7 +128,7 @@ def test_all_features_are_not_counted_without_a_complete_schema(tool):
         config = tool.config_class(features="all")
     except ValidationError:
         pytest.skip("this tool has no 'All features'")
-    # an unknown input (no schema), or a schema that doesn't list all columns: the
+    # an unknown input (no schema), or a schema that does not list all columns: the
     # number of features is not known before the run, so it is not checked
     few = TableSchema.from_frame(_table(features=0))
     incomplete = few.model_copy(update={"complete": False})

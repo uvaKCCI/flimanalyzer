@@ -79,7 +79,7 @@ class ProcessingBox(BaseModel):
     strict: bool = Field(
         default=True,
         title="Strict",
-        description="Columns that the settings name and the data doesn't have are"
+        description="Columns that the settings name and the data does not have are"
         " errors. Off: they are replaced by the closest column of the same role,"
         " shown before the run.",
     )
@@ -129,7 +129,7 @@ def has_dialog(config_class: type) -> bool:
     """Return whether a dialog is registered for a config class or one of its bases.
 
     Registering (`register_dialog`), also of the generic `ConfigDialog`, says that the
-    tool can be fully configured in the GUI. The shared bases of all configs don't
+    tool can be fully configured in the GUI. The shared bases of all configs do not
     count.
 
     Args:
@@ -154,7 +154,7 @@ def shown_in_gui(tool: type["Tool"]) -> bool:
 
     A workflow file always (it is configured by its file); a tool or workflow only
     with a registered dialog (`has_dialog`). A tool of another package without one is
-    still shown in this version, with a `DeprecationWarning` (from 0.8.0 it isn't).
+    still shown in this version, with a `DeprecationWarning` (from 0.8.0 it is not).
     Where a tool is shown also depends on its `category`.
 
     Args:
@@ -1327,7 +1327,7 @@ class PresetsDialog(ConfigDialog):
     The buttons are `Load Preset...`, `Save as Preset...` and `Remove Presets...`.
     A preset is a `name` and the `settings` it sets: the values of `preset_fields`.
     Saved presets are in the user settings file (`presets` > the tool's name); the
-    presets of `built_in_presets` can't be replaced or removed.
+    presets of `built_in_presets` cannot be replaced or removed.
 
     Attributes:
         preset_fields: The config fields that a preset sets.

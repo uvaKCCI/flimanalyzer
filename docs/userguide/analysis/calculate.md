@@ -8,12 +8,12 @@ The `Calculate` tool adds new columns calculated from others, for example the me
 
 1. Select `Analysis` > `Calculate`.
 
-2. The `Configuration: Calculate` dialog opens with an empty `Calculations` list: a run makes only the calculations you set up in it, not those of earlier runs. The list shows each calculation's new column, what it computes and its options; it isn't edited directly. Use the buttons below it:
+2. The `Configuration: Calculate` dialog opens with an empty `Calculations` list: a run makes only the calculations you set up in it, not those of earlier runs. The list shows each calculation's new column, what it computes and its options; it is not edited directly. Use the buttons below it:
 
     - `Add Calculation...` opens the calculation editor (see below); `OK` there adds the calculation to the list. `Edit...` (or a double click on a row) opens it for the selected calculation.
     - `Remove` removes the selected calculations; `Up` and `Down` move the selected one. The calculations are made from top to bottom, so a calculation can use the columns of those above it.
-    - `Load Preset...` lists the calculations that apply to the table: the built-in ones (those of `Import`, such as `FLIRR` and `NAD(P)H tm`) and the ones you saved, marked `(saved)`. A calculation applies if the table has the columns it uses and doesn't have its result yet. Check the ones to add and click `OK`. A calculation that needs another one's result, for example `NADH %`, which needs `NADPH %`, is offered if that one applies too, and is added after it. If you check only `NADH %`, `Load Preset...` adds `NADPH %` too, before it.
-    - `Save as Preset...` saves the selected calculations, so that `Load Preset...` offers them in later sessions. A saved calculation with the same new column name is replaced; `Remove Presets...` removes saved ones. The other saved presets stay in the user settings file, also those that `Load Preset...` does not offer. The built-in calculations can't be removed.
+    - `Load Preset...` lists the calculations that apply to the table: the built-in ones (those of `Import`, such as `FLIRR` and `NAD(P)H tm`) and the ones you saved, marked `(saved)`. A calculation applies if the table has the columns it uses and does not have its result yet. Check the ones to add and click `OK`. A calculation that needs another one's result, for example `NADH %`, which needs `NADPH %`, is offered if that one applies too, and is added after it. If you check only `NADH %`, `Load Preset...` adds `NADPH %` too, before it.
+    - `Save as Preset...` saves the selected calculations, so that `Load Preset...` offers them in later sessions. A saved calculation with the same new column name is replaced; `Remove Presets...` removes saved ones. The other saved presets stay in the user settings file, also those that `Load Preset...` does not offer. The built-in calculations cannot be removed.
 
     **The calculation editor** first asks for the `Kind`, `expression` or `function`. Below it are the fields of every kind, which stay in place when you change the kind:
 
@@ -31,7 +31,7 @@ The `Calculate` tool adds new columns calculated from others, for example the me
 
 3. Click `OK`.
 
-The result is `Table: Calculated`, with the new columns after the existing ones. A row that uses a column the table doesn't have, and that no row above calculates, is skipped. The dialog marks it with a warning, and the run summary lists it. Infinite results, for example from a division by 0, are stored as missing values. A calculation whose results are numbers makes a feature; one whose results are `True` or `False`, or text, makes a category column.
+The result is `Table: Calculated`, with the new columns after the existing ones. A row that uses a column the table does not have, and that no row above calculates, is skipped. The dialog marks it with a warning, and the run summary lists it. Infinite results, for example from a division by 0, are stored as missing values. A calculation whose results are numbers makes a feature; one whose results are `True` or `False`, or text, makes a category column.
 
 ## Expressions
 

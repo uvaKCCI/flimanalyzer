@@ -51,7 +51,7 @@ class WorkflowGraph:
         pos = {}
         for level, nodes in enumerate(nx.topological_generations(self.graph)):
             nodes = sorted(nodes, key=lambda n: int(n[1:]))  # call order
-            # the label and a gap: boxed labels of neighbours don't touch
+            # the label and a gap: boxed labels of neighbours do not touch
             widths = [len(self.graph.nodes[n]["label"]) + 6 for n in nodes]
             x = -sum(widths) / 2
             for node, width in zip(nodes, widths):
@@ -73,7 +73,7 @@ class WorkflowGraph:
             fontsize: The label font size, in points. Defaults to 9.
             **callback: Handlers by matplotlib event name, e.g. `pick_event=...`.
                 Node labels carry the node id as `gid`; they are pickable if
-                callbacks are given. A handler that can't be connected is logged.
+                callbacks are given. A handler that cannot be connected is logged.
 
         Returns:
             The figure and the axes.

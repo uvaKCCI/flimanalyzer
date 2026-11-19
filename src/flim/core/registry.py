@@ -258,7 +258,7 @@ def register_tool(cls: ToolClassT) -> ToolClassT:
         The class.
 
     Raises:
-        ValueError: If the class can't be registered (see `ToolRegistry.register`).
+        ValueError: If the class cannot be registered (see `ToolRegistry.register`).
     """
     return tools.register(cls)
 
