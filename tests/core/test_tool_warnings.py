@@ -82,3 +82,19 @@ def test_numeric_only_side_by_side_renames_taken_names():
     )
     columns = list(next(iter(out.values())).columns)
     assert columns == ["Treatment", "x", "x (Table: B)"]
+
+
+def test_relative_change_warns_about_groups_without_reference_rows():
+    """The warning is the task's (run summary), not only a log record."""
+    from flim.configs.analysis import RelativeChangeConfig
+
+    data = pd.DataFrame({
+        "Treatment": pd.Categorical(["ctrl", "Dox", "ctrl", "Dox", "Dox"]),
+        "FOV": pd.Categorical(["1", "1", "2", "2", "3"]),
+        "x": [1.0, 2.0, 3.0, 4.0, 5.0],
+    })  # fmt: skip
+    config = RelativeChangeConfig(grouping=["Treatment", "FOV"], features=["x"], reference_value="ctrl")
+    tool = tools.get("Relative Change")()
+    tool(data, config=config)
+    (warning,) = tool.context.warnings
+    assert "no 'ctrl' rows in FOV 3: left empty" in warning

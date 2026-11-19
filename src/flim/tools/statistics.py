@@ -354,8 +354,8 @@ class RelativeChange(Tool[RelativeChangeConfig]):
             missing = matched.loc[matched["_merge"] == "left_only", keys]
             if len(missing):
                 groups = missing.drop_duplicates().astype(str).agg(", ".join, axis=1)
-                logger.warning(
-                    f"{self.name}: no '{config.reference_value}' rows in"
+                self.warn(
+                    f"no '{config.reference_value}' rows in"
                     f" {' / '.join(keys)} {'; '.join(groups)}: left empty"
                 )
             denominators = matched[features].set_axis(data.index)
