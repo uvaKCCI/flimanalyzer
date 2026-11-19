@@ -911,6 +911,7 @@ def _keep_user_choices(
 # settings file in the start folder that the GUI reads when started without -s
 # (deprecated: an app settings file given with -s replaces it)
 DEFAULTS_FILE = "defaults.json"
+DEFAULTS_FILE_REMOVED_IN = "0.8.0"
 
 
 def start_folder_settings() -> tuple[Optional[Path], Optional[str]]:
@@ -926,7 +927,8 @@ def start_folder_settings() -> tuple[Optional[Path], Optional[str]]:
     if not path.is_file():
         return None, None
     return path, (
-        f"reading {DEFAULTS_FILE} from the start folder is deprecated: move {path} to"
+        f"reading {DEFAULTS_FILE} from the start folder is deprecated and is removed in"
+        f" {DEFAULTS_FILE_REMOVED_IN}: move {path} to"
         f" a folder of the app settings search path (e.g. {default_app_settings_dir()}),"
         " give it a name,"
         " and start with -s NAME"

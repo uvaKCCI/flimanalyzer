@@ -590,13 +590,20 @@ class _ReadOnlyUserFile(UserSettingsFile):
 def _gui_settings_file(args: argparse.Namespace, user: dict) -> tuple[Optional[str], str]:
     """Return the app settings file the GUI starts with, and how it is chosen.
 
-    `-s FILE` if given; otherwise the user settings file's `default_app_settings`, if
-    it exists and can be used (the GUI asks to pick another otherwise).
+    `-s FILE` if given; otherwise `defaults.json` in the current folder, which the
+    GUI started from that folder reads (deprecated, see `start_folder_settings`);
+    otherwise the user settings file's `default_app_settings`, if it exists and can
+    be used (the GUI asks to pick another otherwise).
     """
     from flim.core.settings import validate_app_settings
+    from flim.core.settingsmgr import start_folder_settings
 
     if args.settings:
         return args.settings, "-s"
+    path, note = start_folder_settings()
+    if path is not None:
+        _warn(note)
+        return str(path), f"{path.name} in the current folder, if started from it; deprecated"
     default = user.get("default_app_settings")
     if default and Path(default).is_file() and validate_app_settings(default).error is None:
         return str(default), "the default app settings file"

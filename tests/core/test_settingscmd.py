@@ -206,6 +206,20 @@ def test_app_show_uses_the_default_app_settings_file_for_the_gui(
     assert "      flimanalyzer: 9 s  (from default app settings file)" in out
 
 
+def test_app_show_uses_defaults_json_of_the_current_folder_for_the_gui(
+    clean_env, tmp_path, monkeypatch, capsys
+):
+    """As the GUI started without -s from that folder (deprecated; C10)."""
+    monkeypatch.setenv("FLIM_USER_SETTINGS", str(tmp_path / "usersettings.json"))
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "defaults.json").write_text(json.dumps({"schema_version": 2, "server_timeout": 7}))
+    code, out, err = run(capsys, "app", "--show")
+    assert code == 0 and "deprecated and is removed in 0.8.0" in err
+    path = (tmp_path / "defaults.json").resolve()
+    assert f"App settings file of flimanalyzer: {path} (defaults.json in the current folder" in out
+    assert "      flimanalyzer: 7 s  (from app settings file)" in out
+
+
 def test_app_show_leaves_an_unreadable_user_settings_file_as_it_is(
     clean_env, tmp_path, monkeypatch, capsys
 ):

@@ -175,7 +175,7 @@ def test_start_folder_settings(monkeypatch, tmp_path):
     write(tmp_path, {"schema_version": 1}, "defaults.json")
     path, note = start_folder_settings()
     assert path == (tmp_path / "defaults.json").resolve()
-    assert "deprecated" in note and "-s NAME" in note
+    assert "deprecated and is removed in 0.8.0" in note and "-s NAME" in note
 
 
 @pytest.mark.parametrize(
