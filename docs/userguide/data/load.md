@@ -54,4 +54,4 @@ After [opening](#open-tables) or [importing](#import-tables) files, the data are
 
 When a file is read, its own `Source`, `Directory` or `File` column is kept: a table saved by FLIMAnalyzer keeps the `Source` of the files it was made from, and no other `Source` is added. A `Source` column whose values are not URIs (for example a column the measurement software wrote) is renamed `Source (before Read)` instead, and FLIMAnalyzer's own `Source` is added; the message after reading lists the renamed columns. The read setting `File's own Source, Directory, File` set to `rename` renames all three columns.
 
-![](/images/data/dataframe.png)
+![](/images/data/source-columns.png)

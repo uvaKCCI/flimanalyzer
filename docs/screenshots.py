@@ -37,6 +37,7 @@ from flim.configs import (  # noqa: E402
     HistogramConfig,
     MergeConfig,
     PairPlotConfig,
+    PivotConfig,
     SortConfig,
     SplitConfig,
     SummaryConfig,
@@ -107,17 +108,13 @@ def result_of(tool, config, inputs="data", result=None):
     return make
 
 
-def pivoted(data):
-    """What the data window's Pivot button makes of the Pivot example's choices."""
-    columns = ["FAD a1[%]", "NAD(P)H a2[%]"]
-    table = pd.pivot_table(
-        data[columns + CATEGORIES],
-        index=["FOV", "Cell"],
-        columns=["Treatment"],
-        observed=False,
-    )
-    table.columns = ["\n".join(col).strip() for col in table.columns.values]
-    return table.reset_index()
+def with_source(data):
+    """The data as a read table has it: `Source`, `Directory` and `File` first."""
+    from pathlib import PurePosixPath
+
+    file = PurePosixPath("/data/flim") / DATAFILE  # a neutral path, not the user's
+    columns = {"Source": file.as_uri(), "Directory": str(file.parent), "File": file.name}
+    return pd.concat([pd.DataFrame(columns, index=data.index), data], axis=1)
 
 
 # --- the screenshots: image path -> (kind, arguments) ---
@@ -215,6 +212,8 @@ BOX_SINGLE = BoxPlotConfig(
     plots_per_row=3,
 )
 
+PIVOT = PivotConfig(grouping=["Treatment"], features=["FAD a1[%]", "NAD(P)H a2[%]"])
+pivoted = result_of("Pivot", PIVOT)  # the Pivot example's table, `Table: Pivoted`
 SPLIT = SplitConfig(grouping=["FOV"])
 MERGE = MergeConfig(how="left", on=CATEGORIES)
 FOV_A = fov("a")  # the workflow examples: the same steps, faster
@@ -225,6 +224,7 @@ SHOTS = {
     "toolbar.png": ("main", {}),
     "data/exdata_table.png": ("table", {}),
     "data/dataframe.png": ("table", {}),
+    "data/source-columns.png": ("table", {"table": with_source, "size": (1000, 300)}),
     # Data
     "data/precision.png": ("table", {"crop": (400, 28, 1000, 250)}),  # decimals next to the control
     "data/category-filter.png": ("window", {"make": "category_filter"}),
@@ -243,7 +243,7 @@ SHOTS = {
     "data/merge-res1.png": ("table", {"tool": "Merge", "config": MERGE, "inputs": MERGE_INPUTS}),
     "data/merge-res3.png": ("table", {"tool": "Merge", "config": MERGE, "inputs": MERGE_INPUTS, "scroll_to_end": True}),
     "data/pivot-original.png": ("table", {}),
-    "data/pivot-result.png": ("table", {"table": pivoted, "title": DATAFILE}),
+    "data/pivot-result.png": ("table", {"tool": "Pivot", "config": PIVOT}),
     # Analysis
     "analysis/summary-config-nogrouping.png": ("dialog", {"tool": "Summarize", "config": SUMMARY}),
     "analysis/summary-result1-nogrouping.png": ("table", {"tool": "Summarize", "config": SUMMARY, "size": (1000, 300)}),
@@ -262,8 +262,8 @@ SHOTS = {
     "analysis/rf-output2.png": ("table", {"tool": "Random Forest", "config": FOREST, "size": (700, 400)}),
     "analysis/relchange-config-grouping.png": ("dialog", {"tool": "Relative Change", "config": RELCHANGE}),
     "analysis/relchange-result-grouping.png": ("table", {"tool": "Relative Change", "config": RELCHANGE}),
-    "analysis/relpivot-result.png": ("table", {"table": pivoted}),
-    "analysis/seriesanalysis-config.png": ("dialog", {"tool": "Series Analysis", "config": SERIES, "inputs": {"Table: pivoted": pivoted}}),
+    "analysis/relpivot-result.png": ("table", {"tool": "Pivot", "config": PIVOT}),
+    "analysis/seriesanalysis-config.png": ("dialog", {"tool": "Series Analysis", "config": SERIES, "inputs": {"Table: Pivoted": pivoted}}),
     "analysis/seriesanalysis-results.png": ("table", {"tool": "Series Analysis", "config": SERIES, "inputs": pivoted}),
     "analysis/categorize-config.png": ("dialog", {"tool": "Categorize Data", "config": CATEGORIZE}),
     "analysis/categorize-results.png": ("table", {"tool": "Categorize Data", "config": CATEGORIZE}),
@@ -436,9 +436,22 @@ class Shooter:
         from flim.gui.configdialog import dialog_class
 
         tool = tools.get(tool)
-        choices = self.tables(inputs or {"Table: data": "data"})
+        # the data under its file name, as the table windows show it
+        choices = self.tables(inputs or {DATAFILE: "data"})
+        from flim.core.execution import ExecutionOptions
+        from flim.core.saving import AutosaveConfig
+        from flim.core.workflow import Workflow
+
+        # as the GUI opens it: a workflow's `Save results` is checked and locked, in the
+        # results folder (~/FLIMAnalyzerResults, shown without the user's home)
+        locked = issubclass(tool, Workflow)
+        execution = None
+        if locked:
+            autosave = AutosaveConfig(enabled=True, results_dir="~/FLIMAnalyzerResults")
+            execution = ExecutionOptions(autosave=autosave)
         dialog = dialog_class(tool.config_class)(
-            self.frame, tool, config, data_choices=choices, selected=selected
+            self.frame, tool, config, data_choices=choices, selected=selected,
+            execution=execution, autosave_locked=locked,
         )
         if setup:
             getattr(self, setup)(dialog)
