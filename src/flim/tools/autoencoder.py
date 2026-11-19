@@ -142,8 +142,9 @@ class AETraining(Tool[AETrainConfig]):
     name = "Autoencoder Train Model"
     output_types = (TableType, PlotType, FileType)
     category = None  # a step of the Autoencoder Train workflow, not in the menus
-    # a concurrency limit set on the workflow's names limits the trainings
-    extra_tags = ("Autoencoder Train", "Autoencoder: Train")
+    # a concurrency limit set on the workflow's name (or its former names, until
+    # 0.8.0) limits the trainings
+    extra_tags = ("Autoencoder Train",)
     description = (
         "Trains and saves autoencoder models of the selected features, one per"
         " combination of batch size, learning rate and weight decay. Training and"

@@ -29,4 +29,9 @@ def test_autoencoder_names_without_colons_and_their_former_names():
         assert tools.get(old).name == new
     training = tools.get("Autoencoder Train Model")
     assert training.category is None  # a step, not in the menus
-    assert set(training.extra_tags) == {"Autoencoder Train", "Autoencoder: Train"}
+    assert training.extra_tags == ("Autoencoder Train",)
+    # the workflow's former name is a tag through the workflow, removed with it
+    import flim.workflow  # noqa: F401  (registers the workflows)
+    from flim.core.runner import task_names
+
+    assert task_names(training) == ["Autoencoder Train Model", "Autoencoder Train", "Autoencoder: Train"]

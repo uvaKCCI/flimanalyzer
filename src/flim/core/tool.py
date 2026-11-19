@@ -197,7 +197,8 @@ class Tool(Generic[ConfigT]):
     # the tool panel (still runnable by name and as a workflow step)
     category: ClassVar[Union[str, list[str], None]] = None
     # more Prefect tags of the tool's tasks, besides its name and former names (so
-    # that concurrency limits set on them apply), e.g. a workflow's names on its step
+    # that concurrency limits set on them apply), e.g. a workflow's name on its step;
+    # the former names of a tool named here are tags too (see `runner.task_names`)
     extra_tags: ClassVar[tuple[str, ...]] = ()
     description: ClassVar[str] = ""
     icon: ClassVar[Optional[str]] = None  # resource name; the GUI loads the bitmap

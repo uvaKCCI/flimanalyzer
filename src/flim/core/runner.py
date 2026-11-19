@@ -640,6 +640,30 @@ class _StartNotifier:
 FINAL_STATUSES = ("completed", "failed", "cancelled", "skipped")
 
 
+def task_names(tool: Any) -> list[str]:
+    """Return the names a tool's tasks are tagged with, besides the workflow's tags.
+
+    The tool's name, its former names, its `extra_tags`, and the former names of the
+    tools named in `extra_tags` (e.g. the Autoencoder Train workflow's on its
+    training step), so that concurrency limits set on any of them apply. The former
+    names are deprecated and removed in 0.8.0 (`registry.FORMER_NAMES_REMOVED_IN`).
+
+    Args:
+        tool: The tool (class or instance).
+
+    Returns:
+        The names, without repeats, in that order.
+    """
+    from flim.core.registry import tools
+
+    extras = list(getattr(tool, "extra_tags", ()))
+    names = [tool.name, *getattr(tool, "former_names", ()), *extras]
+    for extra in extras:
+        if extra in tools._tools:
+            names += getattr(tools._tools[extra], "former_names", ())
+    return list(dict.fromkeys(names))
+
+
 class FlowRun:
     """Records and executes the tool calls made while a flow is running."""
 
@@ -917,10 +941,8 @@ class FlowRun:
         # skips it (state NotReady) if one of them did not complete. Besides the
         # workflow's tags (which also name the results folders), every task is tagged
         # with its tool's name, so that concurrency limits on a tool apply everywhere;
-        # also with its former names (limits set on them keep applying; deprecated,
-        # removed in 0.8.0 with the former names) and its extra_tags.
-        names = [tool.name, *getattr(tool, "former_names", ()), *getattr(tool, "extra_tags", ())]
-        with tags(*dict.fromkeys(tag_list + names)):
+        # also with its former names and its extra_tags (see `task_names`).
+        with tags(*dict.fromkeys(tag_list + task_names(tool))):
             ref = run_tool.submit(tool, label, payload, autosave)
         with self._lock:
             self.graph.nodes[node]["ref"] = ref
