@@ -1,7 +1,8 @@
-"""Every tool rejects fewer features and grouping columns than it needs.
+"""Every tool rejects fewer features and grouping columns than it needs, and more
+grouping columns than it uses.
 
-The configs declare ``min_features`` and ``min_grouping``; Tool.validate checks them
-(dialogs), and the run checks them before the tool runs.
+The configs declare ``min_features``, ``min_grouping`` and ``max_grouping``;
+Tool.validate checks them (dialogs), and the run checks them before the tool runs.
 """
 
 import numpy as np
@@ -140,6 +141,35 @@ def test_too_few_grouping_columns_is_an_error(tool):
     schema = TableSchema.from_frame(_table())
     issues = tool.validate(tool.config_class(grouping=[]), [schema])
     assert [i for i in issues if i.field == "grouping" and i.severity == "error"]
+
+
+# tools whose plots use at most a number of grouping columns: more were dropped
+# silently before
+MAX_GROUPING = {"Box Plot": 4, "Violin Plot": 4, "Swarm Plot": 4, "Line Plot": 5}
+
+
+@pytest.mark.parametrize("tool", ALL, ids=lambda t: t.name)
+def test_maximum_of_grouping_columns(tool):
+    assert tool.config_class.max_grouping == MAX_GROUPING.get(tool.name)
+
+
+@pytest.mark.parametrize("name", sorted(MAX_GROUPING))
+def test_too_many_grouping_columns_is_an_error(name):
+    tool = tools.get(name)
+    most = MAX_GROUPING[name]
+    columns = [f"c{i}" for i in range(most + 1)]
+    data = _table()
+    for column in columns:
+        data[column] = pd.Categorical(["a", "b"] * 10)
+    schema = TableSchema.from_frame(data)
+
+    def grouping_errors(grouping):
+        config = tool.config_class(features=["f0"], grouping=grouping)
+        issues = tool.validate(config, [schema])
+        return [i for i in issues if i.field == "grouping" and i.severity == "error"]
+
+    assert grouping_errors(columns)
+    assert not grouping_errors(columns[:most])
 
 
 @pytest.mark.parametrize(

@@ -259,6 +259,7 @@ class BoxPlotConfig(AxesRange, CategoricalPlotConfig):
     """Config of Box Plot."""
 
     min_features = 1
+    max_grouping = 4  # x, hue, facet column and facet row
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
@@ -266,6 +267,7 @@ class ViolinPlotConfig(AxesRange, CategoricalPlotConfig):
     """Config of Violin Plot."""
 
     min_features = 1
+    max_grouping = 4  # x, hue, facet column and facet row
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "fit_axes": None}
 
 
@@ -273,6 +275,7 @@ class SwarmPlotConfig(AxesRange, CategoricalPlotConfig):
     """Config of Swarm Plot: the points to draw."""
 
     min_features = 1
+    max_grouping = 4  # x, hue, facet column and facet row
     legacy_keys = {
         **CategoricalPlotConfig.legacy_keys,
         "points": None,
@@ -291,6 +294,7 @@ class LinePlotConfig(CategoricalPlotConfig):
     min_features = 1
     legacy_keys = {**CategoricalPlotConfig.legacy_keys, "errorbar": "ci"}
     max_tiled_grouping = 3  # x, hue and style
+    max_grouping = 5  # x, hue, style, facet column and facet row
     legacy_dropped = frozenset({"display", "ordering", "x", "hue", "style", "col"})
 
     # confidence interval in percent, standard deviation, or None for no error bars

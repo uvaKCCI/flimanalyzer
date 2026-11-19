@@ -239,10 +239,11 @@ class TaskConfig(BaseConfig):
     legacy_dropped: ClassVar[frozenset[str]] = frozenset()
     # inherited fields the tool does not use; not shown in dialogs
     hidden_fields: ClassVar[frozenset[str]] = frozenset()
-    # the minimum number of features and grouping columns the tool needs; see
-    # requirement_issues
+    # the minimum number of features and grouping columns the tool needs, and the
+    # maximum number of grouping columns it uses (None: any); see requirement_issues
     min_features: ClassVar[int] = 0
     min_grouping: ClassVar[int] = 0
+    max_grouping: ClassVar[Optional[int]] = None
 
     grouping: list[CategoryColumn] = Field(
         default=[],
@@ -365,9 +366,10 @@ class Issue:
 def requirement_issues(
     config: "TaskConfig", schemas: Sequence[Optional["TableSchema"]] = ()
 ) -> list[Issue]:
-    """Return issues if a config selects fewer features or grouping columns than needed.
+    """Return issues if a config selects too few features or grouping columns, or too many.
 
-    The minimums are the config's `min_features` and `min_grouping`. "All features"
+    The minimums are the config's `min_features` and `min_grouping`, the maximum its
+    `max_grouping`. "All features"
     is counted against the input schemas (the distinct feature columns of the known
     and complete ones), and not validated if none of them is known and complete.
 
@@ -376,7 +378,7 @@ def requirement_issues(
         schemas: The schemas of the input tables; None for an unknown one.
 
     Returns:
-        One error per field below its minimum.
+        One error per field below its minimum or above its maximum.
     """
     issues = []
     minimums = (("features", config.min_features), ("grouping", config.min_grouping))
@@ -395,6 +397,10 @@ def requirement_issues(
             what = "feature" if name == "features" else "grouping column"
             plural = "s" if least > 1 else ""
             issues.append(Issue(name, f"Select at least {least} {what}{plural}"))
+    most = config.max_grouping
+    if most is not None and "grouping" in type(config).model_fields:
+        if len(config.grouping) > most:
+            issues.append(Issue("grouping", f"Select at most {most} grouping columns"))
     return issues
 
 
