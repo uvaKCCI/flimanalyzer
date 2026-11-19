@@ -26,7 +26,8 @@ EXECUTOR_HELP = """where and how tasks run:
                      a Dask cluster on this machine
   dask:address=URL[,KEY=VALUE...]
                      an existing Dask cluster
-other keys are further Dask arguments, e.g. threads_per_worker=2"""
+other keys are further Dask arguments, e.g. threads_per_worker=2
+also FLIM_EXECUTION__EXECUTOR and the other FLIM_EXECUTION variables"""
 LOG_LEVELS = ["debug", "info", "warning", "error", "critical"]
 LOG_LEVEL_VAR = "FLIM_LOG_LEVEL"
 DRY_RUN_VAR = "FLIM_DRY_RUN"  # flimbatch: true for a dry run, as --dry-run
@@ -125,11 +126,15 @@ def add_settings_options(
         "-s",
         "--settings",
         metavar="FILE",
-        help="app settings file: a path, or a name in the app settings search path",
+        help="app settings file: a path, or a name in the app settings search path\n"
+        "(FLIM_APP_SETTINGS_PATH). It takes precedence over the user settings\n"
+        "file; environment variables take precedence over it, and options over\n"
+        "their variables",
     )
     parser.add_argument("-c", "--config", metavar="FILE", help=argparse.SUPPRESS)
     parser.add_argument(
-        "-o", "--output", metavar="DIR", required=output_required, help="results folder"
+        "-o", "--output", metavar="DIR", required=output_required,
+        help="results folder; GUI: also FLIM_RESULTS_DIR",
     )
     parser.add_argument(
         "-e", "--executor", metavar="NAME[:KEY=VALUE,...]", help=EXECUTOR_HELP
@@ -140,15 +145,17 @@ def add_settings_options(
         action=argparse.BooleanOptionalAction,
         default=None,
         help="use or start a local Prefect server (--prefect-server), or a temporary"
-        " one\nfor each run (--no-prefect-server)",
+        " one\nfor each run (--no-prefect-server); also FLIM_PREFECT_SERVER=false",
     )
     parser.add_argument(
         "--server-timeout", type=float, metavar="SECONDS",
         help="how long to wait for Prefect server responses (and Dask cluster\n"
         "responses, if used); default 60. Below 60, a local Prefect server\n"
-        "that is started may not be ready in time.",
+        "that is started may not be ready in time. Also FLIM_SERVER_TIMEOUT.",
     )  # fmt: skip
-    parser.add_argument("--log-dir", metavar="DIR", help="folder of the log files")
+    parser.add_argument(
+        "--log-dir", metavar="DIR", help="folder of the log files, also FLIM_LOG_DIR"
+    )
 
 
 def settings_file(args: argparse.Namespace) -> tuple[Optional[str], list[str]]:

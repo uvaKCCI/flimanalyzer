@@ -176,8 +176,9 @@ class UserSettingsFile:
         """Write settings sections to the file, replacing only these sections.
 
         Under the lock file, the file's current content is read, the sections of
-        `changes` replace its sections (in `tools`, each tool's section; see
-        `merge_sections`), and the result is written to a temporary file in the same
+        `changes` are merged into it by their rules (`SECTION_MERGE`, see
+        `merge_sections`: whole, or entry by entry, e.g. each tool's section in
+        `tools`), and the result is written to a temporary file in the same
         folder that then replaces the file. The folder is created if it does not
         exist. If writing fails, the file is left unchanged. A file of an older
         schema version is first copied to `usersettings.v<version>.json` (if that
@@ -319,10 +320,12 @@ class SettingsManager:
         return self._version
 
     def update(self, changes: dict, *, keep: bool = True) -> AppSettings:
-        """Apply settings sections; each replaces the current section.
+        """Apply settings sections, merged into the current ones by their rules.
 
-        In `tools`, each tool's section is replaced separately. The sections are
-        validated as when a file is loaded: unknown keys are logged and ignored.
+        Each section is replaced whole or entry by entry (`SECTION_MERGE`, see
+        `merge_sections`); in `tools`, each tool's section is replaced separately.
+        The sections are validated as when a file is loaded: unknown keys are logged
+        and ignored.
 
         Args:
             changes: Sections in the settings file format, in the current version
@@ -735,8 +738,7 @@ def strict_choice(validation: SettingsValidation, *, complete: bool = False) -> 
     return validation
 
 
-# decides which validated settings file to use: the validation given, another file's
-# validation, or None for none
+# called with the validation of an app settings file that is not used, to say why
 Refusal = Callable[[SettingsValidation], None]
 
 
@@ -801,8 +803,10 @@ def session_settings(
     """Create the settings manager of a session from all settings layers.
 
     Layers, lowest first: `base`, the user settings file, the app settings file
-    `settings_file`, the environment, the command line. Only changes made later during
-    the session are written to the user settings file.
+    `settings_file`, the environment, the command line. One exception: `favorites`
+    of the user settings file take precedence over those of the app settings file,
+    which only presets them. Only changes made later during the session are written
+    to the user settings file.
 
     Args:
         settings_file: The argument of `-s`: a path, or a name in the app settings
@@ -822,12 +826,12 @@ def session_settings(
             files (`list_app_settings`) or a default app settings file is set, as
             `pick(files, default, warning, search_path)`; returns a `Pick`. Its
             `added_folder` is added to `appsettings_path` in the user settings file.
+            A default that does not exist or cannot be read is cleared in the user
+            settings file first, and `warning` says so (also added to the manager's
+            notices if `pick` is not called).
         update: Called with the validation of the app settings file used if it is of
             an older version, to offer to rewrite it in the current one (the GUI);
-            None: the file is only read. A default that does
-            not exist or cannot be read is cleared in the user settings file first,
-            and `warning` says so (also added to the manager's notices if `pick` is
-            not called).
+            None: the file is only read.
 
     Returns:
         The settings manager. Its `source` is the path of the app settings file, or

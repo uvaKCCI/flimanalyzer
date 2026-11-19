@@ -90,8 +90,6 @@ class RangeFilter(Filter):
     """A filter that drops the rows whose value in a column is outside a range.
 
     The range is inclusive: rows with values from `rangelow` to `rangehigh` are kept.
-    The constructor does not call `Filter.__init__`, so a range filter has no
-    `description` or `parameters` attribute.
 
     Args:
         name: The column the filter applies to.

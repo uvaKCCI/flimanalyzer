@@ -389,8 +389,9 @@ class CategorizerConfig(AnalysisConfig):
         default_factory=_default_rules,
         title="Rules",
         description=(
-            "Rows whose feature lies in a rule's range (min < value <= max) get the"
-            " rule's value; where ranges overlap, the first rule in the list applies."
+            "Rows whose value of the rule's feature lies in its range (min < value"
+            " <= max) get the rule's value. A row that several rules match, also"
+            " rules of different features, gets the value of the first in the list."
         ),
     )
     default: str = Field(
@@ -636,14 +637,14 @@ class _ModelFilesConfig(AutoencoderConfig):
 
 
 class AERunConfig(_ModelFilesConfig):
-    """Config of Autoencoder: Run: the saved models to run on the data."""
+    """Config of Autoencoder Run: the saved models to run on the data."""
 
     min_features = 1
     hidden_fields = frozenset({"grouping"})
 
 
 class AEAugmentConfig(_ModelFilesConfig):
-    """Config of Autoencoder: Augment Data: the models, copies and added noise."""
+    """Config of Autoencoder Augment Data: the models, copies and added noise."""
 
     min_features = 1
     min_grouping = 1

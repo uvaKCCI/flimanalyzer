@@ -204,7 +204,7 @@ def test_nested_resources_section(dialog):
 
 
 def test_model_files(dialog, tmp_path):
-    d = dialog("Autoencoder: Run")
+    d = dialog("Autoencoder Run")
     d.fields.editors["model_files"].set([tmp_path / "a.model"])
     d.fields.editors["features"].set(["x"])
     d.validate()

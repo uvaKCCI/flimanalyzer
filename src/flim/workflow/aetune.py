@@ -39,7 +39,7 @@ def train_models(
     last_epoch: bool = False,
     step: Optional[str] = None,
 ) -> list[tuple[str, TaskOutput]]:
-    """Add one Autoencoder: Train task per combination of the training settings.
+    """Add one Autoencoder Train task per combination of the training settings.
 
     A combination is one batch size, one learning rate and one weight decay. The
     tasks use `training` with `model_name` and without loss plots. Each task is
@@ -79,7 +79,7 @@ def model_files(output: TaskOutput, epoch: Optional[int] = None) -> list[Path]:
     """Return the model files a training task saved; waits for the task to finish.
 
     Args:
-        output: The output of an Autoencoder: Train task.
+        output: The output of an Autoencoder Train task.
         epoch: If set, only the files of that epoch, whose names end with
             `_epoch<epoch, four digits>.model`, e.g. `_epoch0006.model`. Defaults to
             None (all files).
@@ -218,7 +218,7 @@ class AETune(Workflow[AETuneConfig]):
         - 04: train a model per combination of the training settings (see
           `train_models`); 05 to 09: summarize their losses (see `loss_summary`).
         - For each model that was trained: 10: augment the filtered table with the
-          model's files (Autoencoder: Augment); 11: filter the result; 12, 13: its
+          model's files (Autoencoder Augment Data); 11: filter the result; 12, 13: its
           overview; 14: summarize its features (min, max, median, count) per value
           of the time series column, one table per feature.
 

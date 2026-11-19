@@ -10,8 +10,8 @@ A settings file has a section per settings area, and one per tool::
 
     {"schema_version": 2,
      "results_dir": null, "execution": {"executor": "local", ...},
-     "prefect_server": true, "log": {...},
-     "import": {...}, "filters": {...},
+     "prefect_server": true, "server_timeout": 60, "log": {...},
+     "presets": {...}, "favorites": [...], "filters": {...},
      "tools": {"Summarize": {"config": {...}, "output": {"save": true,
                              "results_dir": null, "formats": [...]}}, ...}}
 
@@ -23,9 +23,11 @@ of a workflow step; it is read as a settings file with that one tool's section.
 
 - `ToolSettingsMap`: the settings of each tool (its config, and its `output`: whether
   it saves its results, the folder and the formats), by tool name.
-- `AppSettings`: the results folder, the executor, the Prefect server, the log
-  folder, import, filters and the tool settings (Import's renaming, dropping
-  and calculating: the Rename Columns, Drop Columns and Calculate tools' settings).
+- `AppSettings`: the results folder, the executor, the Prefect server and its
+  timeout, the log, the GUI's settings (presets, favorites, window limits, search
+  paths), the table windows' filter switches and the tool settings. The `import`
+  section of 0.6 is dropped when a file is upgraded (`_v1_import`); the GUI offers
+  to save it as a workflow file.
 """
 
 import copy
@@ -1113,9 +1115,11 @@ def merge_sections(base: dict, changes: dict) -> dict:
 
 
 def update_settings(settings: AppSettings, data: dict) -> AppSettings:
-    """Return `settings` with the sections in `data` replacing its sections.
+    """Return `settings` with the sections in `data` merged into them.
 
-    In `tools`, each tool's section is replaced separately (see `merge_sections`).
+    Each section is merged by its rule in `SECTION_MERGE` (see `merge_sections`):
+    replaced whole, or entry by entry (`log`, `max_windows`, `presets` per tool);
+    in `tools`, each tool's section is replaced separately.
 
     Args:
         settings: The current settings; not changed.

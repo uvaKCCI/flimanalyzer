@@ -233,7 +233,8 @@ class ExpressionFilterNode(FilterNode):
         default="",
         title="Expression",
         description="A condition: comparisons, & (and), | (or), ~ (not), arithmetic"
-        " and math functions; column names in backticks.",
+        " and math functions. Column names of the table are recognized as they are;"
+        " backticks (`name`) are optional.",
     )
     engine: Literal["pandas"] = "pandas"
 
@@ -898,7 +899,7 @@ class Calculation(BaseConfig):
     """A new column calculated from others (base of the calculation kinds)."""
 
     enabled: bool = Field(default=True, title="Use", description="Unchecked: not calculated.")
-    name: str = Field(default="", title="New Column", description="The new column's name.")
+    name: str = Field(default="", title="New column", description="The new column's name.")
     kind: str = Field(
         default="expression",
         title="Kind",
@@ -1005,6 +1006,7 @@ class ImportTablesConfig(TableReaderConfig):
     workflow: Optional[str] = Field(
         default=None,
         title="Workflow",
-        description="The workflow run on the tables: the name of a workflow, or the"
-        " path of a workflow file. None: the tables are opened as they are read.",
+        description="The workflow run on the tables: a workflow defined by a workflow"
+        " file, by its name or the file's path (not a workflow defined in code). None:"
+        " the tables are opened as they are read.",
     )

@@ -216,7 +216,8 @@ class FLIMAnalyzerApp(wx.App):
 
         Registers the workflow files of the search path first. Without a settings
         manager, one with the user settings file is created. Notices of the settings
-        manager and an offer to import the workflow of the app settings file are shown
+        manager, and for an app settings file of FLIMAnalyzer 0.6 with import settings
+        an offer to save them as a workflow file (`offer_import_workflow`), are shown
         after the window opens.
 
         Args:
@@ -1334,7 +1335,8 @@ class AppFrame(wx.Frame):
         windows' shared filters are updated from it. If some settings cannot be used,
         a box says why (`flim.gui.settingsvalidation.show_problems`) and nothing is
         applied.
-        Afterwards the GUI offers to import the workflow the file names, if any.
+        Afterwards, for a file of FLIMAnalyzer 0.6 with import settings, the GUI offers
+        to save them as a workflow file (`offer_import_workflow`).
 
         Args:
             path: The settings file.
@@ -2093,8 +2095,9 @@ class AppFrame(wx.Frame):
         if not url:
             wx.MessageBox(
                 "No Prefect server is in use: each run uses a temporary server that"
-                " stops when the run ends. Start FLIMAnalyzer without"
-                " --no-prefect-server to keep a server with all runs.",
+                " stops when the run ends. To keep a server with all runs, start"
+                " FLIMAnalyzer without --no-prefect-server, FLIM_PREFECT_SERVER=false"
+                " or \"prefect_server\": false in the app settings file.",
                 "Prefect Server",
                 wx.OK | wx.ICON_INFORMATION,
             )
@@ -2113,7 +2116,8 @@ class AppFrame(wx.Frame):
             return
         wx.MessageBox(
             "No run with a Prefect page is known yet. Runs on a temporary server"
-            " (--no-prefect-server) have no page after they end.",
+            " (--no-prefect-server, FLIM_PREFECT_SERVER=false or prefect_server false)"
+            " have no page after they end.",
             "Last Run",
             wx.OK | wx.ICON_INFORMATION,
         )

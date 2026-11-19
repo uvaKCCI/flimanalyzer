@@ -1,4 +1,4 @@
-"""Autoencoder: Train: the architecture, with its description and layers."""
+"""Autoencoder Train: the architecture, with its description and layers."""
 
 import logging
 from typing import Any

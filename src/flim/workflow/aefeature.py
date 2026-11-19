@@ -68,7 +68,7 @@ class AEFeature(Workflow[AEFeatureConfig]):
           `data_run`.
         - 03: train a model per combination of the training settings on the filtered
           `data_train` (see `train_models`); 04: run each trained model of the last
-          epoch on the filtered `data_run` (Autoencoder: Run).
+          epoch on the filtered `data_run` (Autoencoder Run).
         - For FLIRR, the first principal component and the first feature of each
           model (parts `FLIRR`, `PCA` and each model's combination): 05: a KDE plot
           per time point; 06, 07: the mean per group of the other grouping columns

@@ -1220,14 +1220,15 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
 
 @register_tool
 class SeparateCategories(Tool[SeparateCategoriesConfig]):
-    """Separates a category column into several, at delimiters or by patterns."""
+    """Separates a category column: at delimiters, by patterns or by a template."""
 
     name = "Separate Categories"
     icon = "separate.png"
     category = "Data"
     description = (
         "Separates a category column into several: at delimiters (the reverse of"
-        " Fuse Categories), or by patterns, as the filename parser does."
+        " Fuse Categories), by patterns, as the filename parser does, or by a"
+        " template of the values' layout, e.g. Results-{FOV}-{Treatment}_{Cell}."
     )
     outputs = (OutputSpec("Separated", TableType),)
 

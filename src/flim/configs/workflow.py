@@ -178,7 +178,7 @@ class _AEWorkflowConfig(WorkflowConfig):
 
 class AETuneConfig(_AEWorkflowConfig):
     """FLIM Data Augmentation Tuning: trains autoencoders, then augments the data."""
-    min_features = 2  # its Autoencoder: Train steps need 2
+    min_features = 2  # its Autoencoder Train steps need 2
 
     legacy_keys = {**_AEWorkflowConfig.legacy_keys, "augment": None}
     bound_fields = {**_AEWorkflowConfig.bound_fields, "augment": _SHARED}
@@ -225,5 +225,7 @@ class AEFeatureConfig(_AEWorkflowConfig):
     control_group: Annotated[str, ValueOf("timeseries")] = Field(
         default="Ctrl",
         title="Control",
-        description="The value of the time series column used as control.",
+        description="The value of the time series column used as control. It is used"
+        " only to sort the cells: by the normalized changes from each time point"
+        " whose name contains it (any case, e.g. 'Ctrl' matches 'ctrl-1').",
     )

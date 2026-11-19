@@ -1,10 +1,13 @@
 """Calculating new columns from others: by expressions or by registered functions.
 
-A calculation of kind `expression` is evaluated with `pandas.eval` (engine `pandas`):
-arithmetic, comparisons, boolean logic and the math functions in `MATH_FUNCTIONS`;
-column names with spaces or other characters in backticks, e.g.::
+A calculation of kind `expression` is evaluated with `DataFrame.eval` (engine
+`python`): arithmetic, comparisons, boolean logic and the math functions in
+`MATH_FUNCTIONS`; column names with spaces or other characters in backticks, e.g.::
 
     `NAD(P)H a1[%]` * `NAD(P)H t1` / 100
+
+The backticks are optional for the table's column names: they are added
+(`quote_columns`).
 
 Before it is evaluated, an expression is
 parsed and validated (`expression_columns`): only these elements are allowed, no

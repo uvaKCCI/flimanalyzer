@@ -102,10 +102,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--override",
         action="append",
         default=[],
-        metavar="GROUP.FIELD=VALUE",
-        help="set a field for every step of the runs, over the files' settings, e.g.\n"
-        "output.save=true, output.formats=table:csv,plot:svg,\n"
-        "processing.strict=false, processing.skippable.features=some; repeatable",
+        metavar="[run-N.][steps.ID.]GROUP.FIELD=VALUE",
+        help="set a field over the files' settings, e.g. output.save=true,\n"
+        "output.formats=table:csv,plot:svg, processing.strict=false,\n"
+        "processing.skippable.features=some; repeatable. Without a prefix: every\n"
+        "step of every run; run-N.: every step of the N-th --run; steps.ID. (one\n"
+        "--run) or run-N.steps.ID.: one step. The more specific scope takes\n"
+        "precedence (step > run > every run); within a scope, the later argument\n"
+        "takes precedence",
     )
     parser.add_argument("--allow-guesses", action="store_true", help=argparse.SUPPRESS)
     add_log_option(parser)

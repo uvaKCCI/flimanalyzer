@@ -75,8 +75,8 @@ class Summarize(Tool[SummaryConfig]):
     output_types = (TableType,)
     category = "Analysis"
     description = (
-        "Calculates counts, min, max, mean, median (50th percentile), 25th percentile,"
-        " and 75th percentile, StDev, S.E.M, of grouped data."
+        "Calculates per group the count, minimum, maximum, mean, standard deviation,"
+        " standard error of the mean, median, 25th and 75th percentiles, and sum."
     )
     icon = "summary.png"
 

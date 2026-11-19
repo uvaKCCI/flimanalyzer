@@ -1,6 +1,9 @@
-"""Renaming and dropping columns by parts of their names.
+"""Column names: renaming and dropping columns by parts of their names, and new names.
 
-Import and the Rename Columns and Drop Columns tools use these functions.
+The Rename Columns and Drop Columns tools rename and drop columns
+(`renamed_columns`, `columns_to_drop`). The reader and the tools that add columns
+choose names that do not clash with the table's (`unique_name`, `make_room`,
+`free_names`); `validate_template` checks rename templates.
 """
 
 import re
@@ -100,8 +103,8 @@ def columns_to_drop(
 
 
 # columns FLIMAnalyzer writes with a fixed meaning: Source (each row's origin, a
-# URI), Input (Concatenate: the table a row came from), Directory and File (Import,
-# with Source)
+# URI), Input (Concatenate: the table a row came from), Directory and File (the
+# reader, with Source; deprecated, removed in 0.8.0)
 PROTECTED = ("Source", "Input", "Directory", "File")
 CLASH_TEMPLATE = "{name} (before {tool})"  # an existing column of a protected name
 TEMPLATE_FIELDS = ("name", "tool", "table")

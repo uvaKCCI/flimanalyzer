@@ -51,7 +51,7 @@ def test_autoencoder_parts():
     assert [train.output_prefix(c) for c in train().map_configs(config)] == [
         "32-0.001-0.0", "64-0.001-0.0"
     ]
-    run = tools.get("Autoencoder: Run")
+    run = tools.get("Autoencoder Run")
     config = run.config_class.model_construct(model_files=["/m/model_32_epoch0010.model"])
     assert run.mappable_output(config) and run.output_prefix(config) == "model_32_epoch0010"
 

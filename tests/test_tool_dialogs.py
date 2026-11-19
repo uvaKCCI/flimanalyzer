@@ -71,7 +71,7 @@ def test_category_order(dialog):
 
 def test_category_order_keeps_saved_orders(dialog):
     d = dialog(
-        "Order Categories", CategoryOrderConfig(categories={"Treatment": ["Placebo"]})
+        "Order Category Values", CategoryOrderConfig(categories={"Treatment": ["Placebo"]})
     )
     editor = d.fields.editors["categories"]
     # the saved values first, then the others of the data
@@ -380,12 +380,12 @@ def test_histogram_auto_range(dialog, tmp_path):
     assert d.result().config.features["t1"].min == 120
 
 
-# --- Autoencoder: Train ---
+# --- Autoencoder Train ---
 
 
 def test_architecture(dialog):
     d = dialog(
-        "Autoencoder: Train", AETrainConfig(features=["t1", "t2"], grouping=["FOV"])
+        "Autoencoder Train", AETrainConfig(features=["t1", "t2"], grouping=["FOV"])
     )
     editor = d.fields.editors["architecture"]
     editor.set("AE Simulator 1-6")

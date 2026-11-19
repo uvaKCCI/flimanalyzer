@@ -243,8 +243,8 @@ class Tool(Generic[ConfigT]):
         `output.formats`: the GUI offers formats for these kinds only, and the validation
         of tool and workflow files refuses formats of other kinds. A tool that
         declares neither (a plugin tool written for an earlier version) makes any
-        kind: a `DeprecationWarning` is given once, and `output_types` is required
-        from 0.8.0.
+        kind: a `DeprecationWarning` is given once, and `outputs` or `output_types`
+        is required from 0.8.0.
 
         Returns:
             The kinds without repeats; for a tool that declares none, all kinds with
@@ -259,8 +259,8 @@ class Tool(Generic[ConfigT]):
             _UNDECLARED.add(cls)
             warnings.warn(
                 f"{cls.name} ({cls.__module__}.{cls.__qualname__}) declares no output"
-                " types: set output_types (e.g. (TableType,)); tools without them are"
-                " not accepted from FLIMAnalyzer 0.8.0",
+                " types: set outputs or output_types (e.g. (TableType,)); tools without"
+                " them are not accepted from FLIMAnalyzer 0.8.0",
                 DeprecationWarning,
                 stacklevel=2,
             )

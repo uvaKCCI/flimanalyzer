@@ -1,7 +1,8 @@
 """Reading data files into tables: the same in the GUI and in batch mode.
 
 Each file becomes one table, with the columns of the file and `Source` (the file as
-a URI), `Directory` and `File` (deprecated: `Source` replaces them). Nothing else is
+a URI), `Directory` and `File` (deprecated, removed in 0.8.0: `Source` replaces
+them). Nothing else is
 done to the data: renaming, dropping, calculating, categories from file names and
 joining the tables are steps of a workflow. The one exception is the column type of
 columns with known category names (`Treatment`, `FOV`, ...): they are read as text,

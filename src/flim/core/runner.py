@@ -756,7 +756,9 @@ class FlowRun:
 
         Each value is recorded once, by its id, with its content hash and description
         (`DataType.content_hash`, `DataType.describe`), or those of the file it was
-        read from (`InputOrigin.file`). Values of types without a hash are left out.
+        read from (`InputOrigin.file`). Values that no data type accepts
+        (`DataType.of`) are left out; a value whose type has no hash is listed with
+        `-` as its hash.
 
         Args:
             inputs: The call's inputs.
@@ -1077,9 +1079,11 @@ class FlowRun:
     def write_summary(self) -> Optional[Path]:
         """Write `run_summary.txt` into the results folder, if there is one.
 
-        The summary lists the run's name, state, times, Prefect link, results folder
-        and task counts, the settings files and notes, and per task its status,
-        resources and message.
+        The summary lists the run's name, state, times (with `Elapsed`), Prefect
+        link, results folder and task counts; then, where there are any, the
+        sections `Settings` (the settings files), `Versions`, `Execution`, `Notes`
+        and `Inputs` (the inputs that enter the run, see `_record_inputs`); then
+        per task its step, folder, status, resources and message.
 
         Returns:
             The path of the file, or None without a results folder.
@@ -1308,9 +1312,13 @@ def run_flow(
         name: The flow's name, shown in the Prefect UI.
         build: The callable that makes the tool calls.
         task_runner: The Prefect task runner; None uses `default_task_runner`.
-        autosave_dir: If set, every task's results are saved below this folder
-            (`<autosave_dir>/<timestamp>/<task tags>/`; `<timestamp>-2`, ... if
-            the folder exists); the run summary is written there too.
+        autosave_dir: If set, the run gets a folder of its own below it, named by
+            its start time (`<autosave_dir>/<YYYY-MM-DD_HH-MM-SS>/`, `-2`, `-3`, ...
+            if a run already has that name; see `unique_run_folder`); `run_dir`
+            takes precedence. Each task saves its results below the run's folder,
+            in the folders its tags name, e.g. `01-<tool>/<table>/` for a step
+            (with `char_replacements` applied); the run summary is written into the
+            run's folder.
         on_progress: See `FlowRun`.
         cancel_token: The `CancelToken` that cancels the run when set, e.g. from
             another thread; None for a new one.

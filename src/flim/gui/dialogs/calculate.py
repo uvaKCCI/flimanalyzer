@@ -333,7 +333,7 @@ SHARED = ("enabled", "name", "keep", "description")  # the fields of every kind
 class CalculationDialog(wx.Dialog):
     """Dialog that edits one calculation: its kind, its shared fields, then its own.
 
-    The fields every kind has (`SHARED`: `Use`, `New Column`, `Keep`,
+    The fields every kind has (`SHARED`: `Use`, `New column`, `Keep`,
     `Description`) stay in place when the kind changes; below them are the fields of
     the kind. A function's are preceded by a preview: the call with its arguments,
     and the function's parameters and summary. Below the fields, the dialog shows
@@ -545,7 +545,7 @@ class CalculationsEditor(_RowIssues, Editor):
     """
 
     expands = True
-    HEADERS = ("New Column", "Calculation", "Options")
+    HEADERS = ("New column", "Calculation", "Options")
 
     def create(self, parent: wx.Window) -> wx.Window:
         """Create the table and its buttons."""

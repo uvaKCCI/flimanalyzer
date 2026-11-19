@@ -28,8 +28,11 @@ match its settings: `strict` (columns not in the input are errors, or guessed),
 `required` (the entries that have to apply). The workflow's `processing` applies to
 every step; a step's fields take precedence, per key.
 
-Workflow files are registered by their `name` like tools: the built-in files (in
-`flim/workflow/files`) and those in the folders of the `workflow_paths` setting.
+Workflow files are registered by their `name` like tools: first the built-in files
+(in `flim/workflow/files`), then those of the workflow search path, folder by folder
+(`workflow_path`: `-w`, else `FLIM_WORKFLOW_PATH`, else `workflow_paths` of the user
+settings file, else the default folder). A name that is taken already (ignoring
+case) is not registered again (`register_workflow_files`).
 """
 
 import itertools
@@ -126,8 +129,11 @@ class WorkflowStep(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    id: str = Field(description="An identifier that never changes, e.g. a number.")
-    tool: str = Field(description="The tool's (or workflow's) name.")
+    id: str = Field(
+        description="The step's number, a whole number from 1 (e.g. 1 or \"1\"); it"
+        " never changes and names the step's folder, e.g. 01-<tool>."
+    )
+    tool: str = Field(description="The tool's name; a step cannot be a workflow.")
     inputs: list[str] = Field(
         default=[],
         description="Output references, e.g. '4.1', '4' (output 1) or 'input' (the"
@@ -911,7 +917,8 @@ def _file_workflow_base() -> type["Workflow"]:
 
         definition = None  # WorkflowDefinition, set per file
         path = None  # the file
-        override = None  # Processing over every step's, e.g. flimbatch --allow-guesses
+        # Processing over every step's, e.g. flimbatch --override processing.strict=false
+        override = None
         inputs = (InputSpec("tables", TableType, many=True),)
 
         @classmethod
@@ -1056,8 +1063,8 @@ def workflow_class(
     Args:
         definition: The workflow.
         path: Its file; None if it has none.
-        override: A `processing` over every step's (e.g. flimbatch's deprecated
-            `--allow-guesses`); None: none.
+        override: A `processing` over every step's (e.g. of flimbatch's
+            `--override processing.strict=false`); None: none.
 
     Returns:
         A new class, named after the workflow, with its name and description.

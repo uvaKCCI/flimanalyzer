@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# executor names of the command line option -e
+# the deprecated executor names of -e (removed in 1.0.0) and the names that replace them
 LEGACY_EXECUTORS = {
     "LocalExecutor": "local",
     "LocalDaskExecutor": "dask-local",
@@ -41,7 +41,10 @@ class DaskLocalExecutorSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
     executor: Literal["dask-local"] = "dask-local"
     workers: Optional[int] = Field(
-        default=None, ge=1, description="Dask workers. None defaults to one per core."
+        default=None,
+        ge=1,
+        description="Dask workers. None: Dask's default for a local cluster (with"
+        " threads, one worker with a thread per core).",
     )
     scheduler: Literal["threads", "processes"] = Field(
         default="threads", description="Workers as threads of one process, or processes."
@@ -96,7 +99,10 @@ class ExecutionOptions(BaseConfig):
     def from_legacy(
         cls, executor: str = "LocalExecutor", execargs: str = "", **kwargs: Any
     ) -> Self:
-        """Create options from the command line's `-e` executor name and `-a` args.
+        """Create options from a deprecated `-e` executor name and `-a` args.
+
+        The names are removed in 1.0.0, `-a` in 0.8.0; see `flim.core.cli` for the
+        current `-e` forms.
 
         `execargs` is a string of `key=value` pairs separated by commas; pairs that are
         not `key=value` are skipped, and integer values are converted to int.

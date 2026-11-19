@@ -48,7 +48,8 @@ class SettingsViewer(wx.Dialog):
             self,
             label="These settings apply when FLIMAnalyzer starts. To change them, start"
             " it with the command-line option, the environment variable, or an app"
-            " settings file (-s) that sets them.",
+            " settings file (-s) that sets them. The results folder can also be set"
+            " with Make Default Folder in a tool dialog.",
         )
         note.Wrap(600)
 

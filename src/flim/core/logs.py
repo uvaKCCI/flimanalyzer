@@ -2,9 +2,11 @@
 
 A session's log file is named after the program, its start time and its process ID,
 e.g. `flimanalyzer_2026-11-09T14-23-43_12345.log` (`-` instead of `:`, which Windows
-does not allow in file names); a `flimbatch` call without a log folder writes
-`flimbatch.log` in its results folder instead. Records logged before the file is known (e.g. while
-the settings are read) are kept in memory and written to it when it is opened.
+does not allow in file names). Without a log folder (`log.dir`), a `flimbatch` call
+writes `flimbatch.log` into its results folder (`<output>/<date and time>/`), and a
+dry run, which makes no results folder, writes its log file, named as above, into
+the output folder. Records logged before the file is known (e.g. while the settings
+are read) are kept in memory and written to it when it is opened.
 """
 
 import datetime

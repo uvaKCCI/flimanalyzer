@@ -83,8 +83,9 @@ def save_results(
         name: The name of the task that produced the results.
         formats: The formats (`AutosaveConfig.formats`); a kind not listed is saved
             in its default format.
-        replacements: The character replacements of the file names; None for the
-            session's (a task on a Dask worker gets the run's).
+        replacements: The character replacements of the file names (the task's
+            `output.char_replacements`, passed on to a task on a Dask worker); None
+            for the defaults (`DEFAULT_CHAR_REPLACEMENTS`).
 
     Raises:
         ValueError: If two keys become the same file name (ignoring case); nothing
