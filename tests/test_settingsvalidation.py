@@ -85,6 +85,19 @@ def test_a_file_with_settings_that_cant_be_used_is_a_warning(tmp_path, boxes):
     assert style & wx.ICON_WARNING and not style & wx.ICON_ERROR
 
 
+def test_the_validate_command_is_that_of_the_file_kind(tmp_path):
+    """The box names the command that validates the file."""
+    tool_file = tmp_path / "tool.json"
+    tool_file.write_text('{"schema_version": 2, "tool": "Summarize", "config": {}}')
+    workflow = tmp_path / "workflow.json"
+    workflow.write_text('{"schema_version": 2, "name": "w", "steps": []}')
+    app = write(tmp_path, MIXED)
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json")
+    for path, kind in ((tool_file, "tool"), (workflow, "workflow"), (app, "app"), (broken, "app")):
+        assert settingsvalidation.validate_command(path) == f"flimsettings {kind} --validate {path}"
+
+
 def test_a_file_that_cant_be_used_is_an_error(tmp_path, boxes):
     settingsvalidation.show_problems(validate_settings_file(write(tmp_path, "{not json")))
     assert boxes[0][2] & wx.ICON_ERROR

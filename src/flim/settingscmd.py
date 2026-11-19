@@ -728,7 +728,9 @@ def _app_validate(args: argparse.Namespace) -> int:
     _register(args)
     validation = validate_app_settings(args.validate)
     print(validation.summary())
-    if validation.error or validation.invalid or validation.unknown:
+    if validation.error:  # not an app settings file at all: the summary says why
+        return 1
+    if validation.invalid or validation.unknown:
         print(
             f"{PROG}: {args.validate}: settings that can't be used; the GUI and flimbatch"
             " refuse it",

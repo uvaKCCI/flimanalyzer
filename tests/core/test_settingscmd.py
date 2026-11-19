@@ -226,6 +226,14 @@ def test_app_validate(tmp_path, capsys):
     unknown.write_text(json.dumps({"schema_version": 2, "colour": "red"}))
     code, out, err = run(capsys, "app", "--validate", str(unknown))
     assert code == 1 and "colour" in out and "the GUI and flimbatch refuse it" in err
+    # a file that is no app settings file: only why
+    tool_file = tmp_path / "tool.json"
+    tool_file.write_text(json.dumps({"schema_version": 2, "tool": "Summarize", "config": {}}))
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json")
+    for path in (tool_file, broken):
+        code, out, err = run(capsys, "app", "--validate", str(path))
+        assert code == 1 and out.strip() and "refuse it" not in err, (path, out, err)
 
 
 def test_user_show_reads_the_file_only(tmp_path, monkeypatch, capsys):

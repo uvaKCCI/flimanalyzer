@@ -44,10 +44,39 @@ def show_problems(
     logger.warning(validation.summary())
     icon = wx.ICON_ERROR if validation.error else wx.ICON_WARNING
     message = (
-        f"{validation.summary(limit=LISTED)}\n\n{outcome} flimsettings app --validate"
-        f" {validation.path} lists every problem."
+        f"{validation.summary(limit=LISTED)}\n\n{outcome} {validate_command(validation.path)}"
+        " lists every problem."
     )
     wx.MessageBox(message, title, wx.OK | icon, parent)
+
+
+def validate_command(path: Path) -> str:
+    """Return the flimsettings command that validates a settings file, by its kind.
+
+    `flimsettings tool --validate` for a tool file, `workflow --validate` for a
+    workflow file (`steps`), else `app --validate`, also for a file that cannot be read.
+
+    Args:
+        path: The settings file.
+
+    Returns:
+        The command, with the path.
+    """
+    import json
+
+    from flim.core.settings import is_tool_file
+
+    try:
+        data = json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        data = None
+    if is_tool_file(data):
+        kind = "tool"
+    elif isinstance(data, dict) and "steps" in data and "tools" not in data:
+        kind = "workflow"
+    else:
+        kind = "app"
+    return f"flimsettings {kind} --validate {path}"
 
 
 UPDATE_FILE = "Update"
