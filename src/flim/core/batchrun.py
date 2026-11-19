@@ -363,7 +363,8 @@ def tool_workflow(tool: type["Tool"], settings: AppSettings) -> type["Tool"]:
     """Return a tool as a workflow of one step, `1`, as `--run <tool>` runs it.
 
     The step has the tool's settings from `settings` (else its defaults), with their
-    `processing`, and always saves, in the tool's formats; its results go into the folder `01-<tool>`.
+    `processing`, and always saves, in the tool's formats and with its
+    `char_replacements`; its results go into the folder `01-<tool>`.
 
     Args:
         tool: The tool class.
@@ -377,10 +378,13 @@ def tool_workflow(tool: type["Tool"], settings: AppSettings) -> type["Tool"]:
     entry = settings.tools.entry(tool)
     config = settings.tools.config(tool).model_dump(mode="json", exclude={"classname", "version"})
     formats = [f.model_dump(mode="json") for f in entry.output.formats] if entry else []
+    output = {"save": True, "formats": formats}
+    if entry and entry.output.char_replacements is not None:
+        output["char_replacements"] = dict(entry.output.char_replacements)
     definition = WorkflowDefinition.model_validate({
         "name": tool.name,
         "steps": [{"id": "1", "tool": tool.name, "config": config,
-                   "output": {"save": True, "formats": formats},
+                   "output": output,
                    "processing": entry.processing.model_dump() if entry else {}}],
     })  # fmt: skip
     return workflow_class(definition)

@@ -845,3 +845,41 @@ def test_char_replacements_of_a_step_over_the_workflows_over_the_defaults(data_d
     resolved = json.loads((run / "resolved.json").read_text())
     assert [s["output"]["char_replacements"]["%"] for s in resolved["steps"]] == ["pct", "percent"]
     assert resolved["steps"][0]["output"]["char_replacements"]["µ"] == "u"  # with the defaults
+
+
+def test_a_tool_file_keeps_its_char_replacements(data_dir, tmp_path):
+    """`--run <tool file>`: the tool's `output.char_replacements` name the files and
+    are in resolved.json."""
+    path = tmp_path / "summarize.json"
+    path.write_text(json.dumps({
+        "schema_version": 2, "tool": "Summarize",
+        "config": {"features": ["FLIRR"], "aggs": ["mean"]},
+        "output": {"char_replacements": {"Summary": "SUMRY"}},
+    }))  # fmt: skip
+    out = tmp_path / "out"
+    assert main(["-i", str(data_dir), "-o", str(out), "--run", str(path), "--no-prefect-server"]) == 0
+    run = run_dir(out)
+    names = [p.name for p in run.rglob("*.txt")]
+    assert any("SUMRY" in n for n in names) and not any("Table_Summary" in n for n in names), names
+    resolved = json.loads((run / "resolved.json").read_text())
+    (step,) = resolved["steps"]
+    assert step["output"]["char_replacements"]["Summary"] == "SUMRY"
+
+
+def test_run_a_tool_keeps_its_char_replacements(data_dir, settings, tmp_path):
+    """`-s <settings> --run <tool>`: the tool section's `output.char_replacements`
+    name the files and are in resolved.json."""
+    settings.tools.set(tools.get("Summarize"), SummaryConfig(features=["FLIRR"], aggs=["mean"]))
+    data = settings.model_dump(mode="json")
+    data["tools"]["Summarize"]["output"]["char_replacements"] = {"Summary": "SUMRY"}
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps(data))
+    out = tmp_path / "out"
+    code = main(["-i", str(data_dir), "-o", str(out), "-s", str(path), "--run", "Summarize",
+                 "--no-prefect-server"])  # fmt: skip
+    assert code == 0
+    run = run_dir(out)
+    names = [p.name for p in run.rglob("*.txt")]
+    assert any("SUMRY" in n for n in names) and not any("Table_Summary" in n for n in names), names
+    (step,) = json.loads((run / "resolved.json").read_text())["steps"]
+    assert step["output"]["char_replacements"]["Summary"] == "SUMRY"
