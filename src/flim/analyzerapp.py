@@ -105,13 +105,7 @@ def interactive_run(
     Raises:
         SystemExit: If wxPython is not installed.
     """
-    try:
-        import wx  # noqa: F401
-    except ImportError:
-        sys.exit(
-            "flimanalyzer: the GUI needs wxPython, which is not installed:"
-            ' pip install "flimanalyzer[gui]". Without it, use flimbatch.'
-        )
+    require_wx()
     import wx
 
     from flim.gui.app import FLIMAnalyzerApp  # here, so batch runs do not import wx
@@ -256,6 +250,21 @@ def open_log(
     return logs.open_log_file("flimanalyzer", folder, memory)
 
 
+def require_wx() -> None:
+    """Exit with a message if wxPython, which the GUI needs, is not installed.
+
+    Raises:
+        SystemExit: If wxPython is not installed.
+    """
+    try:
+        import wx  # noqa: F401
+    except ImportError:
+        sys.exit(
+            "flimanalyzer: the GUI needs wxPython, which is not installed:"
+            ' pip install "flimanalyzer[gui]". Without it, use flimbatch.'
+        )
+
+
 def main(argv: Optional[Sequence[str]] = None) -> None:
     """Run flimanalyzer: start the GUI, or flimbatch with `--batch`.
 
@@ -288,6 +297,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
 
     parser = build_parser()
     args = parser.parse_args(argv)
+    require_wx()  # before the settings and the Prefect server, which take time
     try:
         level = log_level(args)
     except ValueError as err:

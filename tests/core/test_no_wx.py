@@ -73,3 +73,21 @@ def test_the_application_explains_a_missing_wxpython():
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 1
     assert 'pip install "flimanalyzer[gui]"' in result.stderr
+
+
+def test_a_missing_wxpython_is_found_before_the_prefect_server_starts():
+    """Without wxPython, no settings are read and no server is started."""
+    script = (
+        "import sys\n"
+        "sys.modules['wx'] = None  # as if not installed\n"
+        "from flim import analyzerapp\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise AssertionError('the Prefect server was looked for')\n"
+        "analyzerapp.use_prefect_server = fail\n"
+        "analyzerapp.session_settings = fail\n"
+        "sys.argv = ['flimanalyzer']\n"
+        "analyzerapp.main()\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 1 and "AssertionError" not in result.stderr, result.stderr
+    assert 'pip install "flimanalyzer[gui]"' in result.stderr
