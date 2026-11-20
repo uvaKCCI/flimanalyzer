@@ -64,6 +64,18 @@ class AnalysisListCtrl(
         self.Bind(wx.EVT_LIST_ITEM_CHECKED, self._on_item_checked)
         self.Bind(wx.EVT_LIST_ITEM_UNCHECKED, self._on_item_checked)
 
+    def OnLeftDown(self, evt):
+        """Passes clicks on the checkbox column to the list, others to the cell editor:
+        `TextEditMixin` opens the editor for a click on the current row and keeps the
+        click, so the checkbox of the current row could not be clicked."""
+        x = evt.GetPosition()[0] + self.GetScrollPos(wx.HORIZONTAL)
+        if x < self.GetColumnWidth(0):
+            if self.editor.IsShown():
+                self.CloseEditor()
+            evt.Skip()
+            return
+        listmix.TextEditMixin.OnLeftDown(self, evt)
+
     def IsChecked(self, index):
         return self.IsItemChecked(index)
 
@@ -253,13 +265,15 @@ class FilterListCtrl(AnalysisListCtrl):
         self.Bind(EVT_FILTERUPDATED, self.OnFilterUpdated)
 
     def setdrop(self, dropped):
+        """Sets the dropped rows by filter name; those of the filters not in the list
+        (e.g. category values hidden in the table window) are kept as `otherdropped`."""
         if dropped is None:
             dropped = {}
         self.dropped = dropped
         rfilter_names = [name for name in self.data]
         non_rfilters = [name for name in dropped if name not in rfilter_names]
         odropped = [dropped[n] for n in non_rfilters]
-        if len(odropped) > 1:
+        if len(odropped) > 0:
             odropped = np.concatenate(odropped)
             self.otherdropped = np.unique(odropped)
         else:

@@ -13,6 +13,7 @@ import wx
 import wx.grid
 
 from flim.core.fields import FieldSpec, describe, field_order, visible
+from flim.core.paths import with_extension
 from flim.core.schema import TableSchema
 from flim.core.validation import guess_column
 
@@ -946,11 +947,12 @@ class FeatureSettingsEditor(_RowIssues, Editor):
         with wx.FileDialog(
             self.control,
             "Save feature settings",
-            wildcard="JSON files (*.json)|*.json",
+            wildcard="JSON files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as dialog:
+            dialog.SetFilterIndex(0)  # the first type selected: with All files, the macOS panel adds .txt to a name without one
             if dialog.ShowModal() == wx.ID_OK:
-                self.save_settings(dialog.GetPath())
+                self.save_settings(with_extension(dialog.GetPath(), ".json"))
 
     def load_settings(self, path) -> tuple[list, list]:
         """Applies the settings in a file to the matching features (which stay

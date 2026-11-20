@@ -28,7 +28,7 @@ The tools of the `Data`, `Analysis`, `Plot` and `Workflow` menus are always avai
 
 ## Window
 
-The `Window` menu lists all open windows (table windows and plot windows). Select one to bring it to the front. `Close all windows` closes them.
+The `Window` menu lists all open windows (table windows and plot windows). Select one to bring it to the front. `Close all windows` closes them. On macOS, the system makes this list, as in other Mac apps: it also shows the main window and marks the window in front.
 
 ## Help
 

@@ -28,7 +28,7 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.settings import AppSettings, load_settings, save_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
-from flim.core.paths import canonical_folder
+from flim.core.paths import canonical_folder, with_extension
 from flim.core.graph import WorkflowGraph
 from flim.core.workflow import Workflow
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
@@ -69,6 +69,9 @@ import flim.gui.dialogs.unpivot  # noqa: F401
 # settings read at startup, if there are (else the defaults)
 DEFAULT_SETTINGS_FILE = "defaults.json"
 DOCS_URL = "https://flimanalyzer.readthedocs.io"
+# macOS lists the open windows in the Window menu itself (wxWidgets makes the menu
+# titled Window the system's window menu), so the GUI adds its own entries elsewhere only
+NATIVE_WINDOW_LIST = wx.Platform == "__WXMAC__"
 
 
 def docs_url(version: str = __version__) -> str:
@@ -411,11 +414,15 @@ class AppFrame(wx.Frame):
         windowtitle = os.path.basename(filenames[0])
         if len(filenames) != 1:
             windowtitle = "Imported Data"
+        # always a new window: a window of the same title (e.g. data.txt from another
+        # folder) keeps its data; the new one is named data.txt-1 (until the
+        # DataManager identifies items by ID instead of title, 0.7.0)
+        windowtitle = self.unique_window_title(windowtitle)
         event = DataWindowEvent(EVT_DATA_TYPE, self.GetId())
         event.SetEventInfo(
             data,
             windowtitle,
-            "update",
+            "createnew",
             config=None,
             showcolindex=False,
             analyzable=True,
@@ -464,7 +471,7 @@ class AppFrame(wx.Frame):
             event.SetEventInfo(
                 data,
                 windowtitle,
-                "update",
+                "createnew",  # a new window, never into one of the same title
                 config=None,
                 showcolindex=False,
                 analyzable=True,
@@ -477,7 +484,7 @@ class AppFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Import Settings",
-            wildcard="json files (*.json)|*.json",
+            wildcard="json files (*.json)|*.json|All files|*",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
@@ -502,12 +509,13 @@ class AppFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Export Settings",
-            wildcard="json files (*.json)|*.json",
+            wildcard="json files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
         ) as fileDialog:
+            fileDialog.SetFilterIndex(0)  # the first type selected: with All files, the macOS panel adds .txt to a name without one
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            self.save_settings(fileDialog.GetPath())
+            self.save_settings(with_extension(fileDialog.GetPath(), ".json"))
 
     def save_settings(self, path) -> None:
         """Saves the settings (in the current version)."""
@@ -697,27 +705,37 @@ class AppFrame(wx.Frame):
     def _on_hover(self, event):
         print(event)
 
+    def _window_menu_item(self, title):
+        """The Window menu's entry of a window, None if it has none (macOS)."""
+        for mitem in self.windowmenu.GetMenuItems():
+            if mitem.GetItemLabelText() == title:
+                return mitem
+        return None
+
     def append_window_to_menu(self, title, window):
+        """Lists a window in the Window menu (on macOS, the system lists it, see
+        `NATIVE_WINDOW_LIST`)."""
         self.windowframes[title] = window
-        mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
+        if not NATIVE_WINDOW_LIST:
+            mitem = self.windowmenu.Append(wx.Window.NewControlId(), title)
+            self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
         if isinstance(window, PandasFrame):
             self.window_zorder = [w for w in self.window_zorder if w != title]
             self.window_zorder.append(title)
         logging.debug(f"append window {self.window_zorder}")
-        self.Bind(wx.EVT_MENU, self.OnWindowSelectedInMenu, mitem)
 
     def remove_window_from_menu(self, title):
-        for mitem in self.windowmenu.GetMenuItems():
-            if mitem.GetItemLabelText() == title:
-                self.windowmenu.Remove(mitem.GetId())
-                window = self.windowframes[title]
-                del self.windowframes[title]
-                if isinstance(window, PandasFrame):
-                    title = window.GetTitle()
-                    self.window_zorder = [w for w in self.window_zorder if w != title]
-                logging.debug(f"remove window {self.window_zorder}")
-                return True
-        return False
+        if title not in self.windowframes:
+            return False
+        mitem = self._window_menu_item(title)
+        if mitem is not None:
+            self.windowmenu.Remove(mitem.GetId())
+        window = self.windowframes.pop(title)
+        if isinstance(window, PandasFrame):
+            title = window.GetTitle()
+            self.window_zorder = [w for w in self.window_zorder if w != title]
+        logging.debug(f"remove window {self.window_zorder}")
+        return True
 
     def OnDataWindowRequest(self, event):
         data = event.GetData()
@@ -745,6 +763,7 @@ class AppFrame(wx.Frame):
                 groups=event.GetGroups(),
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
+                filtered=event.IsFiltered(),
             )
             frame.set_modified(event.IsModified())
             frame.Show(True)
@@ -754,15 +773,14 @@ class AppFrame(wx.Frame):
     def OnRequestRenameDataWindow(self, original, new, frame):
         title = self.unique_window_title(new)
         self.window_zorder = [title if t == original else t for t in self.window_zorder]
-        for mitem in self.windowmenu.GetMenuItems():
-            if mitem.GetItemLabelText() == original:
-                mitem.SetItemLabel(title)
-                del self.windowframes[original]
-                self.windowframes[title] = frame
-                pub.sendMessage(
-                    RENAMED_DATA_WINDOW, original=original, new=title, frame=frame
-                )
-                return
+        if original not in self.windowframes:
+            return
+        mitem = self._window_menu_item(original)
+        if mitem is not None:
+            mitem.SetItemLabel(title)
+        del self.windowframes[original]
+        self.windowframes[title] = frame
+        pub.sendMessage(RENAMED_DATA_WINDOW, original=original, new=title, frame=frame)
 
     def OnClosingDataWindow(self, data, frame):
         title = frame.GetLabel()

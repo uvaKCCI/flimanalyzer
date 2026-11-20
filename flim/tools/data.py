@@ -1,6 +1,7 @@
 """Data tools: reorder, combine, filter and reshape tables."""
 
 import logging
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -99,6 +100,9 @@ class Concat(Tool[ConcatConfig]):
                         " rows are paired by position. To pair rows by their"
                         " categories, use Merge."
                     )
+            # rows are paired by position: the tables' own row labels (e.g. of rows
+            # left after filtering) would pair rows by label and add empty rows
+            frames = [df.reset_index(drop=True) for df in frames]
             if config.numbers_only:
                 # the first table keeps all its columns
                 frames = [
@@ -214,8 +218,12 @@ class Pivot(Tool[PivotConfig]):
         categories = category_columns(data)
         index = [c for c in categories if c not in config.grouping]
         logging.debug(f"pivoting {config.grouping}, index {index}")
+        source = data[features + categories]
+        if not index:  # no other category column: one row, keyed by a column dropped below
+            index = [unique_name("row", "row", list(map(str, data.columns)))]
+            source = source.assign(**{index[0]: 0})
         table = pd.pivot_table(
-            data[features + categories],
+            source,
             index=index,
             columns=config.grouping,
             observed=False,
@@ -226,6 +234,8 @@ class Pivot(Tool[PivotConfig]):
             headers.depth(features), headers.level_names(data)
         )
         table = table.reset_index()
+        if index[0] not in categories:  # the key of the single row
+            table = table.drop(columns=index[0])
         return {
             "Pivoted": headers.set_level_names(
                 table, feature_levels + list(config.grouping)
@@ -292,6 +302,32 @@ def unique_name(name: str, default: str, existing) -> str:
     return name
 
 
+def header_line_mismatch(columns) -> Optional[str]:
+    """Why columns with different numbers of header lines can't be unpivoted together,
+    with the columns of each number (None if they all have the same number)."""
+    groups: dict = {}
+    for c in columns:
+        groups.setdefault(len(headers.split(c)), []).append(str(c).replace("\n", " / "))
+    if len(groups) < 2:
+        return None
+
+    def listed(names):
+        shown = ", ".join(f"'{n}'" for n in names[:3])
+        return shown + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+
+    parts = [
+        f"{n} header line{'s' if n != 1 else ''}: {listed(names)}"
+        for n, names in sorted(groups.items(), reverse=True)
+    ]
+    return (
+        "the selected columns have different numbers of header lines ("
+        + "; ".join(parts)
+        + "). Select only columns with the same number, for example in a PCA result"
+        " either the features added with 'Include the features' or the standardized"
+        " ones."
+    )
+
+
 @register_tool
 class Unpivot(Tool[UnpivotConfig]):
     name = "Unpivot"
@@ -306,16 +342,30 @@ class Unpivot(Tool[UnpivotConfig]):
     # the value column of single-line columns (no other level names it)
     VALUE = "Value"
 
+    @classmethod
+    def validate(cls, config, inputs):
+        issues = super().validate(config, inputs)
+        schema = inputs[0] if inputs else None
+        if schema is None or not getattr(schema, "complete", False):
+            return issues
+        if config.features == "all":
+            columns = [c.name for c in schema.columns if c.role == "feature"]
+        else:
+            columns = list(config.features)
+        mismatch = header_line_mismatch(columns)
+        if mismatch:
+            issues.append(Issue("features", mismatch[:1].upper() + mismatch[1:]))
+        return issues
+
     def run(self, data, *, config):
         categories = category_columns(data)
         columns = selected_features(data, config.features)
         if not columns:
             raise ValueError(f"{self.name}: select the columns to unpivot")
         depth = headers.depth(columns)
-        if any(len(headers.split(c)) != depth for c in columns):
-            raise ValueError(
-                f"{self.name}: the columns have different numbers of header lines"
-            )
+        mismatch = header_line_mismatch(columns)
+        if mismatch:
+            raise ValueError(f"{self.name}: {mismatch}")
         names = headers.names_for(depth, headers.level_names(data))
         index = headers.level_index(config.level, names)
         category = unique_name(config.category_name or "", names[index], categories)

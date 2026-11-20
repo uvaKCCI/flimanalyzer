@@ -940,6 +940,22 @@ def test_bar_plot_heights_are_group_means(flim_data):
     assert heights == expected
 
 
+
+@pytest.mark.parametrize("grouping", [[], ["G"]])
+@pytest.mark.parametrize("dropna, mean_a", [(True, 5.5), (False, 4.0)])
+def test_bar_plot_drop_missing_with_and_without_grouping(grouping, dropna, mean_a):
+    # b is missing in two rows: Drop missing leaves them out for a too (0.6.2 and
+    # earlier: only with grouping columns)
+    data = pd.DataFrame(
+        {"a": [1.0, 2.0, 3.0, 10.0], "b": [10.0, np.nan, np.nan, 40.0], "G": pd.Categorical(["x"] * 4)}
+    )
+    config = BarPlotConfig(
+        grouping=grouping, features=["a", "b"], bar_type="stacked", dropna=dropna, error_bar="None"
+    )
+    (figure,) = [v for v in BarPlot()(data, config=config).values() if isinstance(v, matplotlib.figure.Figure)]
+    heights = [round(p.get_height(), 6) for p in figure.axes[0].patches]
+    assert heights == [mean_a, 25.0]
+
 # --- pair plot: sampled scatter panels ---
 
 PAIR_FEATURES = ["NAD(P)H t1", "NAD(P)H t2", "NAD(P)H a1[%]"]
@@ -1014,3 +1030,49 @@ def test_pair_plot_all_ignores_samples(flim_data):
     figure = _pairplot(flim_data, mode="all", samples=20)
     assert set(_points_per_panel(figure)) == {len(flim_data)}
     assert _notes(figure) == []
+
+
+@pytest.mark.parametrize("style, stacked", [("bar", True), ("barstacked", False)])
+def test_stacked_histogram_is_in_percent_of_all_rows(style, stacked):
+    from flim.tools.plot import FrequencyHistogram
+
+    # a: x = 1, 1, 2; b: x = 1; stacked: percent of all 4 rows, each group its own
+    data = pd.DataFrame({"G": pd.Categorical(["a", "a", "a", "b"]), "x": [1.0, 1.0, 2.0, 1.0]})
+    config = HistogramConfig(
+        grouping=["G"], histtype=style, stacked=stacked, table=True,
+        features={"x": HistogramRange(min=0.5, max=2.5, bins=2)},
+    )  # fmt: skip
+    assert config.stacked  # the barstacked style stacks: fixed
+    (table,) = [v for k, v in FrequencyHistogram()(data, config=config).items() if k.startswith("Table")]
+    assert list(table["a [rel %]"]) == [50.0, 25.0]
+    assert list(table["b [rel %]"]) == [25.0, 0.0]  # 0.6.2: the stack heights, 75 and 25
+
+
+def _groups_table(first, second=None):
+    columns = {"A": pd.Categorical([a for a in first for _ in (second or [None])])}
+    if second:
+        columns["B"] = pd.Categorical([b for _ in first for b in second])
+    return pd.DataFrame(columns)
+
+
+def test_group_styles_two_columns_colour_by_the_first():
+    from flim.tools.plot import group_styles
+
+    # second column with up to 4 values: one colour per value of A, a line style per B
+    styles = group_styles(_groups_table("xyz", ["1", "2", "3"]), ["A", "B"])
+    assert [s["color"] for s in styles[:3]] == [styles[0]["color"]] * 3
+    assert len({s["linestyle"] for s in styles[:3]}) == 3
+    # more values (0.6.2: 25 curves in 10 repeating colours): shades of A's colour
+    styles = group_styles(_groups_table("vwxyz", list("abcde")), ["A", "B"])
+    colors = [s["color"] for s in styles]
+    assert len(set(colors)) == 25  # no colour repeats
+    first = np.array(colors[:5])
+    assert list(np.diff(first.sum(axis=1)) < 0) == [True] * 4  # lighter to darker
+    assert "linestyle" not in styles[0]
+
+
+def test_group_styles_more_than_ten_groups_dont_repeat_colours():
+    from flim.tools.plot import group_styles
+
+    styles = group_styles(_groups_table([f"g{i:02d}" for i in range(12)]), ["A"])
+    assert len({s["color"] for s in styles}) == 12

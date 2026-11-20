@@ -19,6 +19,7 @@ import os
 import sys
 from typing import Optional
 
+import matplotlib
 import numpy as np
 import pandas as pd
 
@@ -141,10 +142,12 @@ def parse_arguments(argv=None):
         description="Imports FLIM data files and runs tools or workflows on them.",
     )
     parser.add_argument(
-        "-i", "--input", nargs="+", required=True, help="data files or folders"
+        "-i", "--input", nargs="+", action="extend", required=True,
+        help="data files or folders (repeatable)",
     )
     parser.add_argument(
-        "-x", "--exclude", nargs="+", default=[], help="files not to import"
+        "-x", "--exclude", nargs="+", action="extend", default=[],
+        help="files not to import (repeatable)",
     )
     parser.add_argument("-o", "--output", required=True, help="folder for the results")
     parser.add_argument(
@@ -192,6 +195,9 @@ def parse_arguments(argv=None):
 
 
 def main(argv=None) -> int:
+    # tools draw their figures in worker threads, into files: a backend without
+    # windows (macOS' default backend fails outside the main thread)
+    matplotlib.use("Agg")
     args = parse_arguments(argv)
     logging.basicConfig(
         level=args.log.upper(), format="%(levelname)s %(message)s", force=True

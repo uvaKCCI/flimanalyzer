@@ -21,7 +21,7 @@ from wx.lib.scrolledpanel import ScrolledPanel
 
 from flim.core.config import Issue, TaskConfig
 from flim.core.execution import ExecutionOptions
-from flim.core.paths import canonical_folder, folder_problem
+from flim.core.paths import canonical_folder, folder_problem, with_extension
 from flim.core.schema import ColumnInfo, TableSchema
 from flim.core.settings import read_tool_entry, tool_entry, write_tool_entry
 from flim.gui.editors import FieldErrors, FieldsPanel
@@ -401,11 +401,12 @@ class ConfigDialog(wx.Dialog):
         with wx.FileDialog(
             self,
             f"Save Settings: {self.tool.name}",
-            wildcard="JSON files (*.json)|*.json",
+            wildcard="JSON files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE,
         ) as dialog:
+            dialog.SetFilterIndex(0)  # the first type selected: with All files, the macOS panel adds .txt to a name without one
             if dialog.ShowModal() == wx.ID_OK:
-                self.save_settings(dialog.GetPath())
+                self.save_settings(with_extension(dialog.GetPath(), ".json"))
 
     def load_settings(self, path) -> bool:
         """Uses the tool's settings in a settings file (see

@@ -64,3 +64,10 @@ def shorten_path(path: str, max_length: int = 50) -> str:
             break
         tail.insert(0, part)
     return sep.join(head + ["..."] + tail)
+
+
+def with_extension(path, extension: str) -> str:
+    """``path`` with ``extension`` (with its dot, e.g. ``.json``), added if the path
+    doesn't end with it (case ignored, so ``data.JSON`` is kept)."""
+    path = os.fspath(path)
+    return path if path.lower().endswith(extension.lower()) else path + extension

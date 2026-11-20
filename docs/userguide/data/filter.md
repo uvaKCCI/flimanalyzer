@@ -34,7 +34,7 @@ Follow these steps to view and change the range filters:
 
 5. Click `OK`. The dialog closes, and the table shows only the rows whose values are inside the ranges of the filters switched on in step 4. While the dialog is open, it shows how many rows these filters hide (`Dropped from view`) and how many remain.
 
-**Note:** The `Use Filters` checkbox in the `Filter Settings` dialog and the `Filter Data` checkbox in the table window switch all the checked filters on or off at once. This is a quick way to switch between the filtered table and the full data.
+**Note:** The `Use Filters` checkbox in the `Filter Settings` dialog and the `Filter Data` checkbox in the table window switch all the checked filters on or off at once. This is a quick way to switch between the filtered table and the full data. A table window that opens while `Filter Data` is on shows only the rows inside the ranges too.
 
 ![](/images/data/filter-settings.png)
 

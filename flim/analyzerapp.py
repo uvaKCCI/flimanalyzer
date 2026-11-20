@@ -23,7 +23,8 @@ def parse_arguments():
         "-i",
         "--input",
         nargs="+",
-        help="data files to open in the GUI, each in its own window",
+        action="extend",
+        help="data files to open in the GUI, each in its own window (repeatable)",
     )
     parser.add_argument(
         "-e",
@@ -64,7 +65,8 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def interactive_run(fa, files=None, settings=None):
+def require_wx():
+    """Exits with a message if wxPython, which the GUI needs, is not installed."""
     try:
         import wx  # noqa: F401
     except ImportError:
@@ -72,6 +74,10 @@ def interactive_run(fa, files=None, settings=None):
             "flimanalyzer: the GUI needs wxPython, which is not installed:"
             ' pip install "flimanalyzer[gui]". Without it, use flimbatch.'
         )
+
+
+def interactive_run(fa, files=None, settings=None):
+    require_wx()
     from flim.gui.app import FLIMAnalyzerApp  # here: batch runs never import wx
 
     app = FLIMAnalyzerApp(fa, config=settings, files=files)
@@ -104,6 +110,7 @@ def main():
     #    __version__ = vf.read().strip()
 
     args = parse_arguments()
+    require_wx()  # before the settings and the Prefect server, which take time
     try:
         check_executor_available(args.executor)
     except RuntimeError as e:

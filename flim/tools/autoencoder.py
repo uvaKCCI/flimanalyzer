@@ -145,10 +145,11 @@ class AETraining(Tool[AETrainConfig]):
                 [groups.get_group(k) for k in groups.groups if k not in train_keys]
             )
         else:
+            data = data.reset_index(drop=True)  # unique row labels for the split
             train_df = data.sample(
                 n=int(np.around(config.train_size * len(data))), random_state=seed
             )
-            val_df = pd.concat([data, train_df, train_df]).drop_duplicates(keep=False)
+            val_df = data.drop(index=train_df.index)  # the other rows
 
         # scale and impute with the training data only, so no information leaks from
         # the validation data
@@ -211,7 +212,10 @@ class AETraining(Tool[AETrainConfig]):
         logging.info(f"Training {config.architecture} {label} on {device}.")
         ae = self._new_model(config).to(device)
         criterion = nn.MSELoss()
-        optimizer = optim.RMSprop(ae.parameters(), learning_rate, weight_decay)
+        # named: by position the third argument is RMSprop's alpha, not weight_decay
+        optimizer = optim.RMSprop(
+            ae.parameters(), lr=learning_rate, weight_decay=weight_decay
+        )
 
         loss_train, loss_val = [], []
         labels, decoded, encoded = [], [], []
@@ -302,7 +306,9 @@ class AETraining(Tool[AETrainConfig]):
         )
         for epoch, model in checkpoints:
             path = f"{base}_epoch{epoch:04d}.model"
-            pipeline = make_pipeline(imputer, scaler, model)
+            # as in training: scale (missing values pass through), then set missing
+            # values to 0
+            pipeline = make_pipeline(scaler, imputer, model)
             dump(pipeline, filename=path)
             results[os.path.basename(path)] = pipeline
             model_files[epoch] = path
@@ -560,8 +566,9 @@ class AEAugment(_ModelTool, Tool[AEAugmentConfig]):
 
     @staticmethod
     def noise_model(signal, snr_db):
-        """Mean and standard deviation of white noise for ``snr_db`` (per column)."""
-        signal_avg_db = 10 * np.log10(np.mean(signal**2))
+        """Mean (0) and standard deviation of white noise for ``snr_db``, per column of
+        ``signal``: each column's signal power is the mean of its squared values."""
+        signal_avg_db = 10 * np.log10((signal**2).mean().to_numpy())
         noise_avg_power = 10 ** ((signal_avg_db - snr_db) / 10)
         std_noise = np.sqrt(noise_avg_power)
         return np.zeros(std_noise.shape), std_noise

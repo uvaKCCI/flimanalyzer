@@ -505,7 +505,7 @@ def freeze_swarms(figure) -> None:
         add_note(
             figure,
             "Some points do not fit in their swarm and are drawn at its edges: "
-            "sample fewer points, or use a strip plot",
+            "plot fewer points, e.g. filter the rows",
         )
 
 
@@ -544,14 +544,17 @@ def grouped_meanbarplot(
     if categories is None:
         categories = []
     if len(categories) == 0:
+        values = data[list(feature)]
+        if dropna:
+            values = values.dropna(how="any")
         mean = pd.DataFrame(columns=feature)
-        mean.loc[0] = data[feature].mean()
+        mean.loc[0] = values.mean()
         if error_bar != "None":
             error = pd.DataFrame(columns=feature)
             if error_type == "std":
-                error.loc[0] = data[feature].std()
+                error.loc[0] = values.std()
             else:
-                error.loc[0] = data[feature].sem()
+                error.loc[0] = values.sem()
         else:
             error = None
         if bartype == "100% stacked":
@@ -850,23 +853,63 @@ class LinePlot(_Plot, Tool[LinePlotConfig]):
         return figure
 
 
+def _distinct_colors(n):
+    """Return `n` colours that differ from each other.
+
+    Up to 10: seaborn's default palette. More: evenly spaced hues (seaborn's `husl`
+    palette), so that no colour repeats.
+    """
+    return sns.color_palette(n_colors=n) if n <= 10 else sns.color_palette("husl", n)
+
+
+def _shades(color, n):
+    """Return `n` shades of a colour, from lighter to darker."""
+    if n == 1:
+        return [tuple(color)]
+    shades = []
+    for i in range(n):
+        f = -0.45 + 0.8 * i / (n - 1)  # < 0: towards white, > 0: towards black
+        target = 0.0 if f > 0 else 1.0
+        shades.append(tuple(c + (target - c) * abs(f) for c in color))
+    return shades
+
+
+def _level_values(data, column):
+    """Return a grouping column's values in the order of `groupby`."""
+    if isinstance(data[column].dtype, pd.CategoricalDtype):
+        return list(data[column].cat.categories)
+    return sorted(data[column].dropna().unique())
+
+
 def group_styles(data, groups) -> list[dict]:
-    """Colour (and, for two grouping columns, line style) of each group, in the order
-    of ``data.groupby(groups, observed=False)``: the same in every plot."""
+    """Return the line style of each group, the same in every plot.
+
+    With two grouping columns, the colour shows the value of the first column and
+    the line style the value of the second (up to 4 values); with more values of the
+    second column, shades of the first column's colour, from lighter to darker. With
+    one grouping column, or more than two, each group has its own colour. Colours
+    never repeat (`_distinct_colors`).
+
+    Args:
+        data: The table.
+        groups: The grouping columns.
+
+    Returns:
+        The matplotlib style arguments of each group, in the order of
+        `data.groupby(groups, observed=False)`.
+    """
     if len(groups) == 2:
-        values = [
-            data[g].cat.categories if hasattr(data[g], "cat") else data[g].unique()
-            for g in groups
-        ]
-        if len(values[1]) <= len(DEFAULT_LINESTYLES):
-            colors = sns.color_palette(n_colors=len(values[0]))
+        first, second = (_level_values(data, g) for g in groups)
+        colors = _distinct_colors(len(first))
+        if len(second) <= len(DEFAULT_LINESTYLES):
             return [
                 {"color": c, "linestyle": ls}
                 for c in colors
-                for ls in DEFAULT_LINESTYLES[: len(values[1])]
+                for ls in DEFAULT_LINESTYLES[: len(second)]
             ]
+        return [{"color": shade} for c in colors for shade in _shades(c, len(second))]
     n = data.groupby(list(groups), observed=False).ngroups
-    return [{"color": c} for c in sns.color_palette(n_colors=n)]
+    return [{"color": c} for c in _distinct_colors(n)]
 
 
 def grouped_kdeplot(data, column, ax, groups=(), show_legend=True, **kwargs):
@@ -1073,6 +1116,10 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
         counts, edges, _ = ax.hist(
             values, weights=weights, stacked=stacked, alpha=0.5, **kwargs
         )
+        if stacked and groups and np.ndim(counts) == 2:
+            # matplotlib returns the heights of the stack; each group's own values
+            # are the differences between its level and the one below
+            counts = np.diff(counts, axis=0, prepend=0)
         if groups and len(counts) > 1:
             # in the order of the groups (stacked and step histograms: reversed)
             handles = dict(zip(*reversed(ax.get_legend_handles_labels())))

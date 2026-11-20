@@ -132,3 +132,13 @@ def test_discover_isolates_errors(monkeypatch, caplog):
 def test_discover_real_entry_points():
     # nothing registers these groups yet; must not fail
     assert isinstance(registry.discover(), list)
+
+
+def test_former_names_find_the_renamed_tool():
+    # e.g. flimbatch --run "Concat Data" (Concatenate's name until 0.6.0)
+    import flim.tools  # noqa: F401  (registers the built-in tools)
+    from flim.core.registry import tools
+
+    assert tools.get("Concat Data") is tools.get("Concatenate")
+    assert "Concat Data" in tools and "Concat" not in tools  # a short name is not a name
+    assert [t.name for t in tools.by_category()["Data"]].count("Concatenate") == 1

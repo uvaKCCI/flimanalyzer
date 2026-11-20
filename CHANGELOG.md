@@ -6,6 +6,118 @@ All notable changes to FLIMAnalyzer, newest first. From 0.6.1 on, the sections f
 followed by `Documentation` and `Known issues` where needed. The sections of 0.6.0 and
 earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
+## 0.6.3 - 2026-11-20
+
+Bug fixes for 0.6.2. Same requirements as 0.6.2.
+
+### Results that change
+
+- **Pivot** of a table whose only category column is the pivoted one gives one row with
+  the means of each feature per value, e.g. `FLIRR` `ctrl` and `FLIRR` `dox`. Until
+  0.6.2 the result had the columns `index` and one column per letter of the values.
+- **Concatenate, `Columns (side by side)`:** rows were paired by their row labels, not
+  by position as its warning says, so tables whose rows were filtered got empty rows.
+  Rows are now paired by position.
+- **Autoencoder: Train, weight decay:** the `Weight decays` setting was passed to
+  PyTorch's RMSprop optimizer as its smoothing constant (`alpha`), and the weight decay
+  was always 0; in `FLIM Data Augmentation Tuning` the weight decay values varied
+  `alpha` instead. This was so in every published release. Training now uses the
+  weight decay as set, so trained models, reconstructions and tuning results change.
+- **Autoencoder: Augment Data, noise:** since 0.6.0, every feature got the same noise
+  level, set by the features with the largest values (a change in pandas 2.0). Each
+  feature gets its own noise level again, as in 0.5. Results with `Add noise` checked
+  change.
+- **Autoencoder, missing values:** a model saved by `Autoencoder: Train` set missing
+  values to 0 before scaling the data, while training scaled first. `Autoencoder: Run`
+  and `Autoencoder: Augment Data` therefore got other values than training for rows
+  with missing values. Models trained now scale first; models saved before keep their
+  order, so their results do not change.
+- **Autoencoder: Train without grouping:** rows that were exact duplicates of each
+  other (all category and feature values equal) went into neither the training nor the
+  validation set. They are now split like all other rows.
+- **FLIM Data Augmentation Tuning:** the KDE and Summarize steps grouped by the fixed
+  column `Treatment` instead of the workflow's time-series column. Results are the same
+  with the default (`Treatment`); they differ for other columns.
+- **Bar Plot, `Drop missing`:** without grouping columns, the setting had no effect:
+  each feature's mean left out only that feature's missing values. Now, as with
+  grouping, checked (the default) leaves out the rows in which any plotted feature is
+  missing, so all means and error bars come from the same rows.
+- **Frequency Histogram, `barstacked` style:** without `Stacked` checked, each group's
+  bars were in percent of that group's rows and were then stacked, so the stack added up
+  to the number of groups times 100%. The `barstacked` style now always stacks: each
+  group is in percent of all rows, and the stack shows the distribution of all rows.
+- **Frequency Histogram, stacked, `Binned data table`:** each group's column held the
+  height of the stack up to that group; it now holds the group's own values.
+- **Import, `NADPH/NADH`:** the import calculated `NADPH/NADH` before `NADH %`, which it
+  needs, so the column was never added. Imported tables now have it.
+- **Table windows opened while `Filter Data` is on:** the box was shown checked, but
+  the range filters were not applied: the new window showed all rows, and tools started
+  for it got all rows. The range filters now apply, so these tools get only the rows
+  inside the ranges. The `<title> - Discarded` window opens with `Filter Data` off, so
+  it shows all the rows the filters hide.
+
+### Fixed
+
+- **flimbatch on macOS:** every plot tool failed with `Cannot create a GUI FigureManager
+  outside the main thread using the MacOS backend`; `flimbatch` now draws with
+  matplotlib's `Agg` backend, as the GUI does.
+- **KDE plot colors:** with two grouping columns whose second had more than 4 values, or
+  with more than 10 groups, colors repeated, so curves of different groups looked the
+  same. The color now always shows the 1st grouping column, and shades of it show the
+  values of the 2nd; above 10 groups, the colors do not repeat.
+- **Swarm Plot:** its note advised a strip plot, which FLIMAnalyzer does not have.
+- **Box Plot, Violin Plot, Swarm Plot and Line Plot** ignored grouping columns after
+  the fourth (Line Plot: the fifth) without a message. More grouping columns are now an
+  error: the dialog marks the field and keeps `OK` disabled, and `flimbatch` and
+  workflows stop with an error naming the tool.
+- **`flimanalyzer` without wxPython** read the settings and started a Prefect server
+  before it said that wxPython is missing. It now says so first.
+- **`flimbatch --run "Concat Data"`** failed: tools are now found by their former names
+  too.
+- **Repeated `-i` and `-x`:** `flimbatch -i a.txt -i b.txt` read only `b.txt`, without a
+  message, and the same for `-x` and the GUI's `-i`. Each use now adds to the list.
+- **Two messages were never shown:** `OK` in a category column's `Select Items` with
+  nothing selected, and an invalid pattern in `Pattern Rename`, did nothing. Both now
+  say why.
+- **Filter Settings:** its `Load` button did nothing; it is removed.
+- **Saving a table window on close** suggested the file name `frame.txt`; it now
+  suggests the window's title.
+- **Save dialogs on macOS:** with wxPython 4.2.5, a save dialog that offered one file
+  type failed with the error `C++ assertion "nIndex < m_nCount" failed` when `Save` was
+  clicked, and no file was written. This affected `Export Settings...`, the tool
+  dialogs' `Save Settings...` and `Save Feature Settings...`, and saving tables and
+  plots. These dialogs now also offer `All files`; the first type is selected, and the
+  dialogs that save JSON files add `.json` to a file name without it.
+- **Filter Settings, `Dropped from view` and `Remaining`:** rows hidden by exactly one
+  other filter, for example one category value unchecked in the table window, were not
+  counted. They are now.
+- **Filter Settings checkboxes:** the checkbox of the first row, and of the row
+  clicked last, could not be checked or unchecked; a click on it opened the cell
+  editor instead.
+- **Filter Settings dialog:** each opening left a dialog behind that was updated on
+  every later filter change, so memory and work grew with each opening. The dialog is
+  now closed for good.
+- **Window menu on macOS** listed each window twice: the system lists the open windows
+  in the `Window` menu itself, and FLIMAnalyzer added its own entries. Only the
+  system's list is left.
+- **Opening or importing a file named like an open table window** (for example
+  `data.txt` from another folder) replaced that window's table and its unsaved changes.
+  It now opens in a new window, `data.txt-1`.
+- **Docker:** a release of an older series moved the `latest` and `latest-cpu` image
+  tags to it. They now move only for the highest release version, so after this release
+  they stay on 0.7.0.
+- **Unpivot** of columns with different numbers of header lines, for example a PCA
+  result with `Include the features`, stopped with `the columns have different numbers
+  of header lines` and no hint. The message now names the columns of each number and
+  what to select, and the dialog marks `Columns` before the run.
+### Known issues
+- **Autoencoder: Train with several combinations of settings** (more than one value
+  in `Learning rates`, `Weight decays` or `Batch sizes`): the `Model File` table lists
+  only the models of the combination saved last. The model files themselves, the loss
+  tables and the plots of all combinations are saved, named by their combination. To
+  use them, choose the model files in `Model files` of `Autoencoder: Run` or
+  `Autoencoder: Augment Data`, or train one combination per run. Fixed in 0.7.0.
+
 ## 0.6.2 - 2026-11-07
 
 Bug fixes for 0.6.1, and the CPU Docker image. Same requirements as 0.6.1.

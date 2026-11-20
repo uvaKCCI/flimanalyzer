@@ -164,3 +164,111 @@ def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
     before = set(frame.windowframes)
     frame.OnImportData(None)
     assert _new_windows(frame, before) == {} and messages
+
+
+def test_save_on_close_suggests_the_window_title(frame, monkeypatch, flim_data):
+    """It suggested `frame.txt` (the wx window name)."""
+    import flim.gui.dialogs
+
+    window = _open(frame, flim_data, "cells")
+    window.modified = True
+    suggested = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
+    monkeypatch.setattr(
+        flim.gui.dialogs, "save_dataframe",
+        lambda parent, title, data, name, **k: suggested.append(name) or False,
+    )  # fmt: skip
+    window.close_and_destroy(None)
+    assert suggested == ["cells.txt"]
+    window.modified = False
+
+
+def test_filter_settings_dialog_is_destroyed(frame, monkeypatch, flim_data):
+    """Each opening left a dialog that stayed subscribed to FILTERS_UPDATED."""
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    window = _open(frame, flim_data, "cells")
+    destroyed = []
+    real = ConfigureFiltersDlg.Destroy
+    monkeypatch.setattr(ConfigureFiltersDlg, "ShowModal", lambda dlg: wx.ID_CANCEL)
+    monkeypatch.setattr(
+        ConfigureFiltersDlg, "Destroy", lambda dlg: destroyed.append(dlg) or real(dlg)
+    )
+    window.OnFilterSettings(None)
+    assert len(destroyed) == 1
+
+
+def test_a_new_window_applies_the_range_filters_that_are_on(frame, flim_data):
+    # until 0.6.2 its Filter Data box was checked, but it showed (and passed on) all rows
+    low, high = flim_data[FEATURE].quantile([0.25, 0.75])
+    filters = frame.settings.filters  # shared by the windows
+    filters.range_filters = [{"name": FEATURE, "rangelow": low, "rangehigh": high, "selected": True}]
+    filters.use = True
+    expected = flim_data[FEATURE].between(low, high).sum()
+    window = _open(frame, flim_data, "New")
+    assert window.filtercb.GetValue() and window.filterbutton.IsEnabled()
+    assert len(window.GetViewData()) == expected < len(flim_data)
+    assert not window.is_modified()  # read from a file: the filters change only the view
+    # Show Dropped: the window of the hidden rows shows them all, its filters off
+    window.updateusefilter(True, showdiscarded=True)
+    discarded = frame.windowframes["New - Discarded"]
+    assert len(discarded.GetViewData()) == len(flim_data) - expected
+    assert not discarded.filtercb.GetValue()
+    filters.use = False
+    assert len(_open(frame, flim_data, "Unfiltered").GetViewData()) == len(flim_data)
+
+
+def test_windows_are_listed_once_and_follow_renames(frame, monkeypatch, flim_data):
+    """macOS lists the windows in the Window menu itself: the GUI's own entries made
+    each window appear twice there until 0.6.2."""
+    import flim.gui.app as app
+
+    for native in (True, False):
+        monkeypatch.setattr(app, "NATIVE_WINDOW_LIST", native)
+        title = f"native {native}"
+        window = _open(frame, flim_data, title)
+        labels = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
+        assert labels.count(title) == (0 if native else 1)
+        frame.OnRequestRenameDataWindow(title, f"{title} renamed", window)
+        assert f"{title} renamed" in frame.windowframes and title not in frame.windowframes
+        assert frame.remove_window_from_menu(f"{title} renamed")
+        assert f"{title} renamed" not in frame.windowframes
+        labels = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
+        assert f"{title} renamed" not in labels
+        window.Destroy()
+
+
+def test_open_file_of_an_open_windows_name_opens_a_new_window(frame, tmp_path):
+    """A file named like an open window (data.txt from another folder) gets its own
+    window; the open one keeps its data and unsaved changes (were replaced, R1)."""
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    pd.DataFrame({"x": [1.0, 2.0, 3.0]}).to_csv(tmp_path / "a" / "data.txt", sep="\t", index=False)
+    pd.DataFrame({"x": [9.0]}).to_csv(tmp_path / "b" / "data.txt", sep="\t", index=False)
+    assert frame.open_data_files([str(tmp_path / "a" / "data.txt")]) == "data.txt"
+    first = frame.windowframes["data.txt"]
+    first.modified = True  # changed, not saved
+
+    assert frame.open_data_files([str(tmp_path / "b" / "data.txt")]) == "data.txt-1"
+    assert frame.windowframes["data.txt"] is first
+    assert len(first.GetViewData()) == 3 and first.is_modified()
+    assert len(frame.windowframes["data.txt-1"].GetViewData()) == 1
+    first.modified = False
+
+
+def test_import_again_opens_a_new_window(frame, monkeypatch, tmp_path, flim_data):
+    from flim.gui.importdlg import ImportDlg
+
+    files = []
+    for name, part in (("Results_FOV1_WT_1.txt", flim_data.iloc[:10]), ("Results_FOV2_KO_2.txt", flim_data.iloc[10:25])):
+        path = tmp_path / name
+        part.drop(columns=["Treatment", "FOV", "Cell"]).to_csv(path, sep="\t", index=False)
+        files.append(str(path))
+    monkeypatch.setattr(ImportDlg, "ShowModal", lambda dlg: wx.ID_OK)
+    frame.settings.import_.include_files = files
+    frame.OnImportData(None)
+    first = frame.windowframes["Imported Data"]
+    first.modified = True  # changed, not saved
+    frame.OnImportData(None)  # the same files again
+    assert frame.windowframes["Imported Data"] is first and first.is_modified()
+    assert len(frame.windowframes["Imported Data-1"].GetViewData()) == 25

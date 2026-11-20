@@ -39,6 +39,21 @@ def test_filter_dialog(wxapp, table, recwarn):
         dlg.Destroy()
 
 
+def test_filter_dialog_counts_rows_hidden_by_one_category_value(wxapp, table):
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    # one category value hidden in the table window: 20 of the 40 rows
+    hidden = {("Treatment", "a"): np.flatnonzero(table["Treatment"] == "a")}
+    dlg = ConfigureFiltersDlg(None, AppSettings.default().filters, table, hidden)
+    try:
+        assert len(dlg.filterlist.otherdropped) == 20  # 0.6.2: ignored with one such filter
+        dlg.filterlist.dropped["x"] = np.arange(10)  # rows 0-9; the even ones are hidden already
+        assert len(dlg.filterlist.get_view_dropped("x")) == 5
+    finally:
+        dlg.Destroy()
+
+
 def test_select_dialog_shows_all_its_buttons(wxapp):
     from flim.gui.dialogs import SelectGroupsDlg
 
@@ -140,3 +155,72 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
         assert n_tools == 2 + len(tools)
     finally:
         frame.Destroy()
+
+
+def test_select_dialog_says_when_nothing_is_selected(wxapp, monkeypatch):
+    """OK with nothing checked shows a message (it was created but never shown)."""
+    import wx
+
+    from flim.gui.dialogs import SelectGroupsDlg
+
+    shown = []
+    monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: shown.append(message))
+    dlg = SelectGroupsDlg(None, "FOV: Select Items", groups=["a", "b"], selected=[])
+    try:
+        dlg.OnOK(None)
+        assert shown == ["Select at least one."]
+    finally:
+        dlg.Destroy()
+
+
+def test_pattern_rename_says_when_the_pattern_is_not_valid(wxapp, monkeypatch):
+    import wx
+
+    from flim.gui.dialogs import RenameGroupsDlg
+
+    shown = []
+    monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: shown.append(message))
+    dlg = RenameGroupsDlg(None, "FOV: Pattern Rename")
+    try:
+        dlg.patterntxt.SetValue("(")
+        dlg.OnOK(None)
+        assert shown and "Not a valid pattern" in shown[0]
+    finally:
+        dlg.Destroy()
+
+
+def test_filter_settings_have_no_load_button(wxapp, table):
+    # its Load button did nothing until 0.6.2
+    import wx
+
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, filters=AppSettings.default().filters, dataframe=table)
+    try:
+        labels = [c.GetLabel() for c in dlg.panel.GetChildren() if isinstance(c, wx.Button)]
+        assert "Load" not in labels and "OK" in labels
+    finally:
+        dlg.Destroy()
+
+
+def test_filter_list_checkbox_of_the_current_row_can_be_clicked(wxapp, table):
+    # until 0.6.2 a click on the current row's checkbox opened the cell editor
+    import wx
+
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, AppSettings.default().filters, table, {})
+    try:
+        ctrl = dlg.filterlist
+        ctrl.curRow = 0  # the current row, as after a click on it
+        y = ctrl.GetItemRect(0).GetTop() + 2
+        for x, to_list in ((5, True), (ctrl.GetColumnWidth(0) + 5, False)):
+            event = wx.MouseEvent(wx.wxEVT_LEFT_DOWN)
+            event.SetPosition(wx.Point(x, y))
+            ctrl.OnLeftDown(event)
+            # the checkbox column: the click goes to the list, which toggles the box
+            assert event.GetSkipped() is to_list
+    finally:
+        dlg.Destroy()

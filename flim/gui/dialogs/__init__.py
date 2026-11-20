@@ -42,11 +42,13 @@ def fix_filename(fname):
 
 
 def save_dataframe(
-    parent, title, data, filename, wildcard="txt files (*.txt)|*.txt", saveindex=True
+    parent, title, data, filename, wildcard="txt files (*.txt)|*.txt|All files|*",
+    saveindex=True,
 ):
     with wx.FileDialog(
         parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
     ) as fileDialog:
+        fileDialog.SetFilterIndex(0)  # the first type selected: with All files, the macOS panel adds .txt to a name without one
         fileDialog.SetFilename(fix_filename(filename))
         if fileDialog.ShowModal() == wx.ID_CANCEL:
             return None
@@ -60,7 +62,8 @@ def save_dataframe(
 
 
 def save_figure(
-    parent, title, fig, filename, wildcard="all files (*.*)|*.*", dpi=300, legend=None
+    parent, title, fig, filename, wildcard="all files (*.*)|*.*|PNG files (*.png)|*.png",
+    dpi=300, legend=None,
 ):
     with wx.FileDialog(
         parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
@@ -151,7 +154,7 @@ class SelectGroupsDlg(wx.Dialog):
 
     def OnOK(self, event):
         if len(self._get_selected()) == 0:
-            wx.MessageDialog(self, "Select at least one function.")
+            wx.MessageBox("Select at least one.", self.GetTitle(), wx.OK | wx.ICON_WARNING, self)
         else:
             self.EndModal(wx.ID_OK)
 
@@ -213,8 +216,6 @@ class ConfigureFiltersDlg(wx.Dialog):
 
         filtersizer.Add(self.filterlist, 0, wx.ALL | wx.EXPAND, 5)
 
-        loadbutton = wx.Button(self.panel, label="Load")
-        loadbutton.Bind(wx.EVT_BUTTON, self.OnLoad)
         okbutton = wx.Button(self.panel, label="OK")
         okbutton.Bind(wx.EVT_BUTTON, self.OnOK)
         cancelbutton = wx.Button(self.panel, label="Cancel")
@@ -222,7 +223,6 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
 
         buttonsizer = wx.BoxSizer(wx.VERTICAL)
-        buttonsizer.Add(loadbutton, 0, wx.ALL | wx.EXPAND, 5)
         buttonsizer.Add(
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
         )
@@ -263,9 +263,6 @@ class ConfigureFiltersDlg(wx.Dialog):
     def GetData(self):
         """The edited FilterSettings (None if cancelled)."""
         return self.result
-
-    def OnLoad(self, event):
-        pass
 
     def OnUseFilters(self, event):
         enable = event.GetEventObject().GetValue()
@@ -409,7 +406,10 @@ class RenameGroupsDlg(wx.Dialog):
         try:
             re.compile(self.patterntxt.GetLineText(0))
         except re.error:
-            wx.MessageDialog(self, "Invalid regex pattern")
+            wx.MessageBox(
+                "Not a valid pattern (regular expression).", self.GetTitle(),
+                wx.OK | wx.ICON_WARNING, self,
+            )  # fmt: skip
         else:
             self.EndModal(wx.ID_OK)
 

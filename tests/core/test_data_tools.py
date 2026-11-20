@@ -166,6 +166,16 @@ def test_pivot(data):
     assert {"t1\nWT", "t2\nKO"} <= set(df.columns)
 
 
+def test_pivot_without_other_category_columns_gives_one_row():
+    """The pivoted column is the only category column: the means over all rows."""
+    data = pd.DataFrame(
+        {"Treatment": pd.Categorical(["ctrl", "ctrl", "dox"]), "FLIRR": [0.4, 0.6, 0.8]}
+    )
+    result = table(Pivot()(data, config=PivotConfig(grouping=["Treatment"])))
+    assert list(result.columns) == ["FLIRR\nctrl", "FLIRR\ndox"]
+    assert len(result) == 1 and result.iloc[0].tolist() == pytest.approx([0.5, 0.8])
+
+
 def test_sort(data):
     df = table(Sort()(data, config=SortConfig(features=["t1"], ascending=False)))
     assert df["t1"].is_monotonic_decreasing
@@ -267,8 +277,16 @@ def test_unpivot_without_recorded_levels(data):
 def test_unpivot_needs_the_same_number_of_header_lines(data):
     pivoted = table(Pivot()(data, config=PivotConfig(grouping=["Treatment"])))
     pivoted["t3"] = 1.0
-    with pytest.raises(ValueError, match="different numbers of header lines"):
+    with pytest.raises(ValueError, match="different numbers of header lines") as err:
         Unpivot().run(pivoted, config=UnpivotConfig())
+    # the message names the columns of each number and how to avoid it
+    assert "1 header line: 't3'" in str(err.value) and "2 header lines: 't1 / " in str(err.value)
+    assert "Select only columns with the same number" in str(err.value)
+    # the dialog marks Features before the run
+    issues = Unpivot.validate(UnpivotConfig(), [TableSchema.from_frame(pivoted)])
+    assert [i.field for i in issues if "header lines" in i.message] == ["features"]
+    issues = Unpivot.validate(UnpivotConfig(features=["t3"]), [TableSchema.from_frame(pivoted)])
+    assert not [i for i in issues if "header lines" in i.message]
 
 
 def test_unique_name():
@@ -343,3 +361,14 @@ def test_split_outputs_known_from_the_schema(data):
     schema = TableSchema.from_frame(data)
     outputs = Split.output_schema(SplitConfig(grouping=["Treatment"]), [schema])
     assert sorted(outputs) == ["Split: Treatment=KO", "Split: Treatment=WT"]
+
+
+def test_concat_side_by_side_pairs_rows_by_position():
+    """Tables whose row labels aren't 0, 1, 2, ... (rows left after filtering) are
+    paired by position; they were paired by label, giving empty rows."""
+    a = pd.DataFrame({"FOV": pd.Categorical(list("abcdef")), "x": [1.0, 2, 3, 4, 5, 6]})
+    b = pd.DataFrame({"y": [10.0, 20, 30, 40, 50, 60]})
+    config = ConcatConfig(mode="horizontal", numbers_only=False)
+    result = table(Concat()({"A": a.iloc[[0, 2, 4]], "B": b.iloc[[1, 3, 5]]}, config=config))
+    assert len(result) == 3 and list(result.index) == [0, 1, 2]
+    assert list(result["x"]) == [1.0, 3.0, 5.0] and list(result["y"]) == [20.0, 40.0, 60.0]

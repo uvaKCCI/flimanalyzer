@@ -224,3 +224,64 @@ def test_cpu_never_touches_cuda(needs_torch, data, tmp_path, monkeypatch):
     common = dict(features=FEATURES, resources=resources, model_files=[files[-1]])
     RunAE()(data, config=AERunConfig(**common))
     AEAugment()(data, config=AEAugmentConfig(grouping=["FOV", "Cell"], **common))
+
+
+def test_training_passes_learning_rate_and_weight_decay_by_name(
+    needs_torch, data, tmp_path, monkeypatch
+):
+    # until 0.7.0 they were passed by position: weight decay became RMSprop's alpha
+    # (smoothing constant) and the weight decay was always 0
+    import torch
+
+    optimizers = []
+    real = torch.optim.RMSprop
+
+    def recording(*args, **kwargs):
+        optimizers.append(real(*args, **kwargs))
+        return optimizers[-1]
+
+    monkeypatch.setattr(torch.optim, "RMSprop", recording)
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    training(data, config=train_config(learning_rates=[1e-3], weight_decays=[1e-4], epochs=1))
+    (group,) = optimizers[0].param_groups
+    assert group["lr"] == 1e-3
+    assert group["weight_decay"] == 1e-4
+    assert group["alpha"] == 0.99  # PyTorch's default, no longer the weight decay
+
+
+
+def test_noise_is_set_per_feature():
+    # pandas >= 2 reduces np.mean(DataFrame) over all columns: one noise level for
+    # all features, set by the largest values
+    signal = pd.DataFrame({"small": [1.0, 2.0, 3.0], "large": [1000.0, 2000.0, 3000.0]})
+    mean, std = AEAugment.noise_model(signal, snr_db=20)
+    assert list(mean) == [0.0, 0.0]
+    assert len(std) == 2
+    assert std[1] == pytest.approx(1000 * std[0])  # proportional to each column's size
+
+
+def test_saved_model_handles_missing_values_as_training_did(needs_torch, data, tmp_path):
+    """Training scales, then sets missing values to 0; the saved model does the same
+    (it set them to 0 before scaling, so the model got other values)."""
+    import joblib
+
+    data = data.copy()
+    data.loc[data.index[:5], FEATURES[0]] = np.nan
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    config = train_config(timeseries="Treatment", model_name="M")
+    files = training(data, config=config)["Model File"]
+    pipeline = joblib.load(files[-1])
+    assert [name for name, _ in pipeline.steps][:2] == ["minmaxscaler", "simpleimputer"]
+    row = data[FEATURES].iloc[[0]].to_numpy(dtype=np.float32)  # its first feature missing
+    assert pipeline[:-1].transform(row)[0, 0] == 0.0
+
+
+def test_split_without_grouping_keeps_duplicate_rows(needs_torch, data):
+    # rows with equal values (here: all of them twice) go into the training or the
+    # validation set, never into neither
+    doubled = pd.concat([data, data])  # also repeats the row labels
+    config = train_config(grouping=[], train_size=0.75)
+    train_loader, val_loader, *_ = AETraining()._datasets(doubled, config, 32)
+    assert len(train_loader.dataset) + len(val_loader.dataset) == len(doubled)

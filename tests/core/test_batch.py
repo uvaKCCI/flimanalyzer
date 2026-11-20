@@ -1,6 +1,7 @@
 """Batch mode (flim.batch): import and run tools or workflows without the GUI."""
 
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -145,3 +146,36 @@ def test_the_application_command_hands_batch_runs_to_flimbatch(data_dir, tmp_pat
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr[-2000:]
     assert (out / "Imported.txt").exists()
+
+
+def test_flimbatch_draws_without_windows():
+    """Plots are drawn in worker threads: macOS' default backend would fail there."""
+    import subprocess
+    import sys
+
+    code = (
+        "import matplotlib\n"
+        "from flim.batch import main\n"
+        "try:\n"
+        "    main(['--help'])\n"
+        "except SystemExit:\n"
+        "    pass\n"
+        "print(matplotlib.get_backend())\n"
+    )
+    env = {k: v for k, v in os.environ.items() if k != "MPLBACKEND"}
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True
+    )
+    assert out.stdout.strip().splitlines()[-1].lower() == "agg"
+
+
+def test_repeated_input_and_exclude_options_add_up(monkeypatch):
+    """`-i a -i b` reads both; until 0.6.2 only the last use counted."""
+    from flim import analyzerapp
+    from flim.batch import parse_arguments
+
+    args = parse_arguments(["-i", "a.txt", "-i", "b.txt", "c.txt", "-x", "d", "-x", "e", "-o", "out"])
+    assert args.input == ["a.txt", "b.txt", "c.txt"] and args.exclude == ["d", "e"]
+    assert parse_arguments(["-i", "a.txt", "-o", "out"]).exclude == []
+    monkeypatch.setattr("sys.argv", ["flimanalyzer", "-i", "a.txt", "-i", "b.txt"])
+    assert analyzerapp.parse_arguments().input == ["a.txt", "b.txt"]

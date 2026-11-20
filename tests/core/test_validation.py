@@ -209,3 +209,14 @@ class TestRuns:
         config = StepsConfig(grouping=["Treatment", "FOV"])
         results = SummaryPivot().run(data, config=config)
         assert list(results) == ["Table: Summary", "Table: Pivoted"]
+
+
+def test_tune_steps_use_the_time_series_column(data):
+    # another column name than Treatment: the KDE and Summarize steps group by the
+    # workflow's time-series column
+    renamed = data.rename(columns={"Treatment": "Day"})
+    config = AETuneConfig(
+        grouping=["Day", "FOV", "Cell"], timeseries="Day", features=FEATURES, strict=True
+    )
+    report = AETune().resolve(config, [renamed], strict=True)
+    assert not [i for i in report.issues if "Treatment" in i.message]
