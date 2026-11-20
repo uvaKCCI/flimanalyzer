@@ -42,11 +42,13 @@ def fix_filename(fname):
 
 
 def save_dataframe(
-    parent, title, data, filename, wildcard="txt files (*.txt)|*.txt", saveindex=True
+    parent, title, data, filename, wildcard="txt files (*.txt)|*.txt|All files|*",
+    saveindex=True,
 ):
     with wx.FileDialog(
         parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT
     ) as fileDialog:
+        fileDialog.SetFilterIndex(0)  # the first type selected: with All files, the macOS panel adds .txt to a name without one
         fileDialog.SetFilename(fix_filename(filename))
         if fileDialog.ShowModal() == wx.ID_CANCEL:
             return None
@@ -60,7 +62,8 @@ def save_dataframe(
 
 
 def save_figure(
-    parent, title, fig, filename, wildcard="all files (*.*)|*.*", dpi=300, legend=None
+    parent, title, fig, filename, wildcard="all files (*.*)|*.*|PNG files (*.png)|*.png",
+    dpi=300, legend=None,
 ):
     with wx.FileDialog(
         parent, title, wildcard=wildcard, style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT

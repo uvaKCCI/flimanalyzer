@@ -28,7 +28,7 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.settings import AppSettings, load_settings, save_settings
 from flim.core.preprocessor import defaultpreprocessor
 from flim.core.importer import dataimporter
-from flim.core.paths import canonical_folder
+from flim.core.paths import canonical_folder, with_extension
 from flim.core.graph import WorkflowGraph
 from flim.core.workflow import Workflow
 from flim.core.registry import GUI_GROUP, TOOLS_GROUP, discover, tools
@@ -477,7 +477,7 @@ class AppFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Import Settings",
-            wildcard="json files (*.json)|*.json",
+            wildcard="json files (*.json)|*.json|All files|*",
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_CHANGE_DIR,
         ) as fileDialog:
             if fileDialog.ShowModal() == wx.ID_CANCEL:
@@ -502,12 +502,13 @@ class AppFrame(wx.Frame):
         with wx.FileDialog(
             self,
             "Export Settings",
-            wildcard="json files (*.json)|*.json",
+            wildcard="json files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT | wx.FD_CHANGE_DIR,
         ) as fileDialog:
+            fileDialog.SetFilterIndex(0)  # the first type selected: with All files, the macOS panel adds .txt to a name without one
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
-            self.save_settings(fileDialog.GetPath())
+            self.save_settings(with_extension(fileDialog.GetPath(), ".json"))
 
     def save_settings(self, path) -> None:
         """Saves the settings (in the current version)."""

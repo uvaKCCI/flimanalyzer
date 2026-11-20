@@ -77,6 +77,12 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Filter Settings:** its `Load` button did nothing; it is removed.
 - **Saving a table window on close** suggested the file name `frame.txt`; it now
   suggests the window's title.
+- **Save dialogs on macOS:** with wxPython 4.2.5, a save dialog that offered one file
+  type failed with the error `C++ assertion "nIndex < m_nCount" failed` when `Save` was
+  clicked, and no file was written. This affected `Export Settings...`, the tool
+  dialogs' `Save Settings...` and `Save Feature Settings...`, and saving tables and
+  plots. These dialogs now also offer `All files`; the first type is selected, and the
+  dialogs that save JSON files add `.json` to a file name without it.
 
 ## 0.6.2 - 2026-11-07
 
