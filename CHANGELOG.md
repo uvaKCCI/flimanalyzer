@@ -8,7 +8,7 @@ release has these sections where needed, in this order: `Results that change`,
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). The sections of 0.6.0 and
 earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
-## 0.7.0 - YYYY-MM-DD
+## 0.7.0 - 2026-11-20
 
 Settings files, workflow files, the `flimsettings` command and new data tools, and bug
 fixes for 0.6.2, several of which change results. Newly supported: Python 3.13 and
