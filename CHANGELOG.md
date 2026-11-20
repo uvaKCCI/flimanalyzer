@@ -6,7 +6,7 @@ All notable changes to FLIMAnalyzer, newest first. From 0.6.1 on, the sections f
 followed by `Documentation` and `Known issues` where needed. The sections of 0.6.0 and
 earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
-## 0.6.3 - unreleased
+## 0.6.3 - 2026-11-20
 
 Bug fixes for 0.6.2. Same requirements as 0.6.2.
 
