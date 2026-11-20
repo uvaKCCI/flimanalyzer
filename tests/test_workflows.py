@@ -41,3 +41,19 @@ def test_basic_flirr_workflow(flirr_data, tmp_path):
     assert any((tmp_path / wf.name).rglob("*.txt"))
     (summary,) = (tmp_path / wf.name).rglob("run_summary.txt")
     assert "State:      completed" in summary.read_text()
+
+
+def test_ae_tune_model_files_of_one_epoch():
+    from flim.workflow.aetune import model_files
+
+    class Output:
+        def __init__(self, value):
+            self._value = value
+
+        def value(self):
+            return self._value
+
+    files = ["/r/ae_0006_epoch0006.model", "/r/ae_epoch0012.model", "/r/b0006_epoch0003.model"]
+    found = model_files({"Model File": Output(files)}, epoch=6)
+    assert [str(p) for p in found] == ["/r/ae_0006_epoch0006.model"]  # 0.6: also b0006_...
+    assert len(model_files({"Model File": Output(files)})) == 3

@@ -19,15 +19,15 @@ The toolbar at the bottom of the plot window is the navigation toolbar of matplo
 
 ## Saving a Plot
 
-Click `Save` in the toolbar. In the file dialog, choose the folder and the file name, and the file type, for example PNG, PDF, SVG or TIFF. The plot is saved with the current view and with the changes you made in the window.
+Click `Save` in the toolbar. In the file dialog, choose the folder, the file name and the format: PNG (300 dpi), SVG or PDF. If the file name ends with `.png`, `.svg` or `.pdf`, the plot is saved in that format. Otherwise the extension of the chosen format is added; if a file with that name exists, the GUI asks whether to replace it. The plot is saved with the current view and with the changes you made in the window, cropped to its content.
 
-To save the plots automatically each time a tool runs, check `Save results in` in the tool's dialog. The plots are then saved as PNG files (see [Saving results](/userguide/dialogs.md#saving-results)).
+To save the plots automatically each time a tool runs, check `Save results` in the tool's dialog, and choose the formats under `Plots` (see [Saving results](/userguide/dialogs.md#saving-results)).
 
 ## Changing Axes, Labels and Lines
 
 Double-click parts of a plot to change them:
 
-- **An axis:** double-click just outside the plot, along the x or the y axis. The `Set X Axis` or `Set Y Axis` dialog opens. Set the `Axis label`, `Min value` and `Max value`, and click `OK`.
+- **An axis:** double-click just outside the plot, along the x or the y axis. The `Set X Axis` or `Set Y Axis` dialog opens. Set the `Axis label`, `Min value` and `Max value`, and click `OK`. The fields show the limits with all their digits, and a limit that is not changed stays the same. A limit must be a number; if it is not, a message shows the problem and the dialog stays open.
 
     ![](/images/analysis/plot-setaxis.png)
 
@@ -35,7 +35,7 @@ Double-click parts of a plot to change them:
 - **A line,** such as a curve of a KDE plot or a line of a line plot: a color dialog opens. Choose the new color of the line.
 
 ```{note}
-Double-click editing is not available in plots of the `Heatmap` and `Pair Plot` tools. The navigation toolbar and saving work in all plot windows.
+Double-click editing is not available in plots of the `Heatmap` and `Pair Plot` tools, in the `Importance Score Plot` of `Random Forest` and in the `PCA Explained Plot` of `PCA`. The navigation toolbar and saving work in all plot windows.
 ```
 
 The changes apply only to the plot window. They are not kept when you run the tool again.

@@ -20,7 +20,14 @@ from flim.configs import (  # noqa: E402
 from flim.core.execution import ExecutionOptions  # noqa: E402
 from flim.core.registry import tools  # noqa: E402
 
-TOOLS = [t for group in tools.by_category().values() for t in group]
+import flim.gui.dialogs  # noqa: E402,F401  (registers the dialogs)
+from flim.gui.configdialog import shown_in_gui  # noqa: E402
+
+# the tools the GUI offers (a category and a registered dialog)
+TOOLS = [
+    t for group in tools.by_category().values() for t in group
+    if shown_in_gui(t)
+]
 
 
 @pytest.fixture
@@ -87,14 +94,13 @@ def test_unused_fields_and_order(dialog):
     assert "grouping" not in d.fields.editors  # K-Means does not group
     names = list(d.fields.editors)
     # the tool's own settings first, the general ones after
-    assert names.index("n_clusters") < names.index("prefix")
+    assert names.index("n_clusters") < names.index("random_seed")
     assert names.index("tolerance") < names.index("random_seed")
-    label = next(
-        w.GetLabel()
-        for w in d.fields.GetChildren()
-        if isinstance(w, wx.StaticText) and w.GetLabel() == "Clusters"
-    )
-    assert label == "Clusters"  # the field's title
+    # the result prefix names the results: in the Output section
+    assert "prefix" not in names and list(d.output_fields.editors) == ["prefix"]
+    # the field's title labels its editor
+    label = d.fields.widgets["n_clusters"][0]
+    assert isinstance(label, wx.StaticText) and label.GetLabel() == "Clusters"
 
 
 def test_reference_values_are_offered(dialog):
@@ -147,13 +153,11 @@ def test_columns_follow_the_selected_input(dialog):
     assert grouping.items == ["Treatment"]
 
 
-def test_missing_features_are_noted_not_listed(dialog):
+def test_missing_features_are_not_listed(dialog):
     d = dialog("K-Means", KMeansConfig(features=["gone"]))
     features = d.fields.editors["features"]
     assert "gone" not in features.items  # only the input's features
-    assert features.get() == []
-    assert features.note.IsShown()
-    assert features.note.GetLabel() == "Not in this input (not used): gone"
+    assert features.get() == [] and not features.note.IsShown()  # ignored
 
 
 def test_mixed_and_optional_fields(dialog):
@@ -182,7 +186,7 @@ def test_rules_table(dialog):
 
 
 def test_nested_resources_section(dialog):
-    d = dialog("Autoencoder: Train")
+    d = dialog("Autoencoder Train Model")
     resources = d.fields.editors["resources"]
     resources.fields.editors["preferred_device"].set("cpu")
     resources.fields.editors["preferred_threads"].set(2)
@@ -200,7 +204,7 @@ def test_nested_resources_section(dialog):
 
 
 def test_model_files(dialog, tmp_path):
-    d = dialog("Autoencoder: Run")
+    d = dialog("Autoencoder Run")
     d.fields.editors["model_files"].set([tmp_path / "a.model"])
     d.fields.editors["features"].set(["x"])
     d.validate()
@@ -224,7 +228,9 @@ def test_inputs_of_tools_with_several(dialog, table):
 
 
 def test_execution_options(dialog, tmp_path):
-    d = dialog("Sort", execution=ExecutionOptions(executor="local", num_workers=3))
+    d = dialog(
+        "Sort", execution=ExecutionOptions(execution={"executor": "local", "workers": 3})
+    )
     d.autosave.SetValue(True)
     d.validate()
     assert not d.ok_button.IsEnabled()
@@ -232,8 +238,8 @@ def test_execution_options(dialog, tmp_path):
     d.folder.SetPath(str(tmp_path))
     d.validate()
     execution = d.result().execution
-    assert execution.autosave and execution.results_dir == Path(tmp_path)
-    assert execution.num_workers == 3  # other options are kept
+    assert execution.autosave.enabled and execution.autosave.results_dir == Path(tmp_path)
+    assert execution.execution.workers == 3  # other options are kept
 
 
 def test_results_folder_that_cannot_be_used(dialog, tmp_path):
@@ -254,11 +260,11 @@ def test_results_folder_is_stored_canonical(dialog, tmp_path):
     d.autosave.SetValue(True)
     d.folder.SetPath(str(tmp_path / "link"))
     d.validate()
-    assert d.result().execution.results_dir == Path(tmp_path / "real")
+    assert d.result().execution.autosave.results_dir == Path(tmp_path / "real")
 
 
 def test_autosave_locked(dialog, tmp_path):
-    options = ExecutionOptions(autosave=False)
+    options = ExecutionOptions()
     d = dialog("Sort", execution=options, autosave_locked=True)
     assert d.autosave.GetValue() and not d.autosave.IsEnabled()
 
@@ -271,6 +277,7 @@ def test_registered_dialog_and_open(wxapp, table, monkeypatch):
 
     from flim.configs import SortConfig
 
+    before = configdialog._DIALOGS.get(SortConfig)  # Sort's own registration
     configdialog.register_dialog(SortConfig)(SortDialog)
     try:
         assert configdialog.dialog_class(SortConfig) is SortDialog
@@ -291,7 +298,10 @@ def test_registered_dialog_and_open(wxapp, table, monkeypatch):
             is None
         )
     finally:
-        configdialog._DIALOGS.pop(SortConfig)
+        if before is None:
+            configdialog._DIALOGS.pop(SortConfig)
+        else:
+            configdialog._DIALOGS[SortConfig] = before
 
 
 def test_registered_field_editor(dialog):
@@ -355,7 +365,7 @@ def test_nested_settings_are_inline_and_advanced_ones_collapsed(dialog):
     editors["samples"].set(20000)
     result = d.result().config.points
     assert (result.mode, result.samples) == ("sample", 20000)
-    training = dialog("Autoencoder: Train")
+    training = dialog("Autoencoder Train Model")
     assert isinstance(training.fields.editors["resources"].control, wx.CollapsiblePane)
 
 
@@ -363,9 +373,7 @@ def test_missing_features_are_guessed(dialog):
     d = dialog("K-Means", KMeansConfig(features=["X", "gone"]))  # the input has "x"
     features = d.fields.editors["features"]
     assert features.get() == ["x"]
-    assert features.note.GetLabel() == (
-        "Guessed: X → x\nNot in this input (not used): gone"
-    )
+    assert features.note.GetLabel() == "Guessed: X → x"  # 'gone': ignored
 
 
 def test_tall_dialog_fits_a_small_screen(dialog, monkeypatch):
@@ -386,3 +394,322 @@ def test_tall_dialog_fits_a_small_screen(dialog, monkeypatch):
     assert d.GetSize().height <= 718
     assert d.ok_button.GetRect().GetBottom() <= d.GetClientSize().height
     assert d.fields.GetBestSize().height > d.scroll.GetSize().height  # it scrolls
+
+
+def test_split_needs_a_column_to_split_by(dialog):
+    from flim.configs import SplitConfig
+
+    d = dialog("Split")
+    d.validate()
+    assert marker(d, "grouping") == (True, "Select at least 1 grouping column")
+    assert not d.ok_button.IsEnabled()
+    d = dialog("Split", SplitConfig(grouping=["Treatment"]))
+    d.validate()
+    assert not marker(d, "grouping")[0] and d.ok_button.IsEnabled()
+
+
+def test_save_formats_of_the_tool_outputs(dialog, tmp_path):
+    from flim.core.saving import PlotSaveOptions, TableSaveOptions
+
+    kmeans = dialog("K-Means")
+    assert kmeans.save_kinds() == ["table"]  # its only declared output
+    assert list(kmeans.formats.editors) == ["table_formats"]
+    # output names that depend on the settings: the kinds from output_types
+    assert dialog("Summarize").save_kinds() == ["table"]
+    d = dialog("Box Plot")
+    assert d.save_kinds() == ["plot"]
+    assert dialog("Heatmap").save_kinds() == ["plot", "table"]
+    d.autosave.SetValue(True)
+    d.folder.SetPath(str(tmp_path))
+    d.formats.editors["plot_formats"].set(["png", "svg"])
+    d.formats.editors["plot_dpi"].set(150)
+    d.validate()
+    formats = d.result().execution.autosave.formats
+    assert formats == [PlotSaveOptions(dpi=150), PlotSaveOptions(format="svg")]
+    assert TableSaveOptions not in {type(f) for f in formats}
+
+
+def test_a_kind_without_format_is_an_error(dialog, tmp_path):
+    d = dialog("Box Plot")
+    d.autosave.SetValue(True)
+    d.folder.SetPath(str(tmp_path))
+    d.formats.editors["plot_formats"].set([])
+    d.validate()
+    assert d.formats.markers["plot_formats"].IsShown()
+    assert any("at least one format" in i.message for i in d.execution_issues())
+    d.autosave.SetValue(False)  # not saving: the formats do not matter
+    d.validate()
+    assert not d.formats.markers["plot_formats"].IsShown()
+
+
+@pytest.mark.parametrize("stored, follows", [(None, True), ("default", True), ("other", False)])
+def test_use_the_default_folder(dialog, tmp_path, stored, follows):
+    default, other = tmp_path / "default", tmp_path / "other"
+    folder = {None: None, "default": default, "other": other}[stored]
+    execution = ExecutionOptions(autosave={"enabled": folder is not None, "results_dir": folder})
+    d = dialog("K-Means", execution=execution, default_folder=default)
+    assert d.use_default.GetValue() is follows
+    assert d.folder.IsEnabled() is not follows
+    d.autosave.SetValue(True)
+    d.validate()
+    if follows:  # settings from before that stored the default folder: follow it too
+        assert d.folder.GetPath() == str(default)
+        assert d._autosave(stored=True).results_dir is None
+        assert d._autosave().results_dir == default  # where the run saves
+    else:
+        assert d._autosave(stored=True).results_dir == other
+
+
+def test_a_folder_inside_the_default_folder_is_kept_relative(dialog, tmp_path):
+    from pathlib import Path
+
+    default = tmp_path / "default"
+    inside, outside = default / "kmeans", tmp_path / "other"
+    execution = ExecutionOptions(autosave={"enabled": True, "results_dir": inside})
+    d = dialog("K-Means", execution=execution, default_folder=default)
+    assert not d.use_default.GetValue()
+    assert d._autosave(stored=True).results_dir == Path("kmeans")  # moves with the default
+    assert d._autosave().results_dir == inside  # where this run saves
+    assert "kept as kmeans" in d.folder_note.GetLabel()
+    d.folder.SetPath(str(outside))
+    d._on_folder()
+    assert d._autosave(stored=True).results_dir == outside
+    assert d.folder_note.GetLabel() == "Outside the default folder, kept as this path."
+    d.folder.SetPath(str(default))  # the default folder itself: none stored
+    d._on_folder()
+    assert d._autosave(stored=True).results_dir is None
+    # a relative folder from the settings is shown inside the default folder
+    assert d._shown_folder(Path("kmeans")) == str(inside)
+
+
+def test_without_a_results_folder_set_folders_are_kept_as_full_paths(dialog, tmp_path):
+    # the default is then only the start folder, which can change between sessions
+    default = tmp_path / "start"
+    inside = default / "kmeans"
+    execution = ExecutionOptions(autosave={"enabled": True, "results_dir": inside})
+    d = dialog("K-Means", execution=execution, default_folder=default, keep_relative=False)
+    assert d._autosave(stored=True).results_dir == inside
+    assert d.folder_note.GetLabel().startswith("Kept as this path")
+
+
+def test_no_default_folder_controls_without_a_default(dialog):
+    d = dialog("K-Means")
+    assert d.use_default is None and d.make_default is None
+
+
+
+def test_dialog_sections(dialog, tmp_path):
+    d = dialog("K-Means")
+    boxes = [
+        c.GetSizer().GetStaticBox().GetLabel()
+        for c in d.GetSizer().GetChildren()
+        if c.IsSizer() and isinstance(c.GetSizer(), wx.StaticBoxSizer)
+    ]
+    assert boxes == ["Input", "Settings", "Output"]
+    # the prefix is read and checked like the other fields
+    d.output_fields.editors["prefix"].set("run1")
+    d.fields.editors["features"].set(["x"])
+    d.validate()
+    assert d.result().config.prefix == "run1"
+
+
+def test_no_input_section_without_data(dialog):
+    d = dialog("K-Means", data_choices={})
+    boxes = [
+        c.GetSizer().GetStaticBox().GetLabel()
+        for c in d.GetSizer().GetChildren()
+        if c.IsSizer() and isinstance(c.GetSizer(), wx.StaticBoxSizer)
+    ]
+    assert boxes == ["Settings", "Output"]
+
+
+@pytest.mark.parametrize("tool", ["Series Analysis", "Random Forest", "Heatmap"])
+def test_grouping_is_hidden_where_it_has_no_effect(dialog, tool):
+    assert "grouping" not in dialog(tool).fields.editors
+
+
+def test_pca_random_seed_is_hidden(dialog):
+    assert "random_seed" not in dialog("PCA").fields.editors
+    assert "random_seed" in dialog("K-Means").fields.editors  # used there
+
+
+def test_dialog_shows_the_example_and_the_data_validation(dialog):
+    from flim.configs import FuseCategoriesConfig
+
+    d = dialog("Fuse Categories", FuseCategoriesConfig(grouping=["Treatment", "FOV"]))
+    assert d.example.IsShown() and d.example.table.IsShown()
+    header, first, *_ = d.example.rows()
+    assert header == ["Treatment", "FOV", "→ Treatment:FOV"]
+    assert first[2] == f"{first[0]}:{first[1]}"
+    d.fields.editors["delimiter"].set("r")  # occurs in "Drug"
+    issues = d.validate()
+    assert any(i.field == "delimiter" and i.severity == "warning" for i in issues)
+    assert d.ok_button.IsEnabled()  # a warning: the tool can still run
+
+
+def test_no_example_for_other_tools(dialog):
+    assert not dialog("K-Means").example.IsShown()
+
+
+def test_save_results_and_the_two_folders(dialog, tmp_path):
+    """`Use the default folder` switches the field between the default folder and
+    the tool's own one; without `Save results` the controls below are greyed."""
+    default, own = tmp_path / "default", tmp_path / "own"
+    execution = ExecutionOptions(autosave={"enabled": True, "results_dir": own})
+    d = dialog("K-Means", execution=execution, default_folder=default)
+    assert d.autosave.GetLabel() == "Save results"
+    assert not d.use_default.GetValue() and d.folder.GetPath() == str(own)
+    assert d.folder.IsEnabled() and d.make_default.IsEnabled()
+    d.use_default.SetValue(True)
+    d._on_use_default()
+    assert d.folder.GetPath() == str(default) and not d.folder.IsEnabled()
+    assert not d.make_default.IsEnabled()
+    d.use_default.SetValue(False)
+    d._on_use_default()
+    assert d.folder.GetPath() == str(own) and d.folder.IsEnabled()  # the own folder again
+    # not saving: everything below is greyed and keeps its values
+    d.autosave.SetValue(False)
+    d.validate()
+    assert not any(c.IsEnabled() for c in (d.folder, d.use_default, d.make_default))
+    assert not any(panel.IsEnabled() for panel in d.formats.panels)
+    assert d.folder.GetPath() == str(own)
+    d.autosave.SetValue(True)
+    d.validate()
+    assert d.folder.IsEnabled() and d.use_default.IsEnabled()
+
+
+def test_own_folder_starts_with_the_default(dialog, tmp_path):
+    default = tmp_path / "default"
+    d = dialog("K-Means", default_folder=default)
+    assert d.use_default.GetValue()
+    d.use_default.SetValue(False)
+    d._on_use_default()
+    assert d.folder.GetPath() == str(default)  # no folder of its own yet
+    assert not d.make_default.IsEnabled()  # it is the default already
+
+
+def test_read_settings_fields(wxapp):
+    """Tabs are shown as \\t and kept (a stripped tab read tab-separated files as one
+    column); lists of words are one line separated by commas."""
+    from flim.configs import ImportTablesConfig
+    from flim.core.fields import describe
+    from flim.gui.editors import editor_for
+
+    frame = wx.Frame(None)
+    try:
+        specs = {s.name: s for s in describe(ImportTablesConfig)}
+        assert specs["extensions"].title == "Files to include"
+        editors = {n: editor_for(ImportTablesConfig, specs[n])(frame, specs[n]) for n in specs}
+        defaults = ImportTablesConfig()
+        for name in ("delimiter", "extensions", "exclude"):
+            editors[name].set(getattr(defaults, name))
+        assert editors["delimiter"].control.GetValue() == "\\t,"
+        assert editors["delimiter"].get() == "\t,"
+        assert editors["extensions"].control.GetValue() == ".txt, .csv"
+        editors["extensions"].control.SetValue("txt, CSV, .dat")
+        config = ImportTablesConfig(extensions=editors["extensions"].get())
+        assert config.extensions == [".txt", ".csv", ".dat"]
+        editors["exclude"].control.SetValue("")
+        assert editors["exclude"].get() == []
+    finally:
+        frame.Destroy()
+
+
+def test_import_tables_dialog_keeps_the_tab(dialog):
+    from flim.configs import ImportTablesConfig
+
+    d = dialog("Import Tables", data_choices={})
+    config, issues = d.current_config()
+    assert config.delimiter == "\t," and config == ImportTablesConfig()
+
+
+def test_separate_names_keep_empty_entries(wxapp):
+    from flim.configs.data import SeparateCategoriesConfig
+    from flim.core.fields import describe
+    from flim.gui.editors import editor_for
+
+    frame = wx.Frame(None)
+    try:
+        spec = next(s for s in describe(SeparateCategoriesConfig) if s.name == "names")
+        editor = editor_for(SeparateCategoriesConfig, spec)(frame, spec)
+        editor.control.SetValue(", Treatment, Cell")
+        assert editor.get() == ["", "Treatment", "Cell"]  # the empty name skips a part
+    finally:
+        frame.Destroy()
+
+
+def test_separate_delimiters_as_characters(wxapp):
+    from flim.configs.data import SeparateCategoriesConfig
+    from flim.core.fields import describe
+    from flim.gui.editors import editor_for
+
+    frame = wx.Frame(None)
+    try:
+        spec = next(s for s in describe(SeparateCategoriesConfig) if s.name == "delimiters")
+        editor = editor_for(SeparateCategoriesConfig, spec)(frame, spec)
+        editor.set(["-", "_", "\t"])
+        assert editor.control.GetValue() == "-_\\t"
+        editor.control.SetValue(":, ")  # a comma and a space are delimiters too
+        assert editor.get() == [":", ",", " "]
+        editor.set(["::", "-"])  # longer delimiters: as a list
+        assert editor.control.GetValue() == '["::", "-"]' and editor.get() == ["::", "-"]
+    finally:
+        frame.Destroy()
+
+
+@pytest.mark.parametrize(
+    "answer, saved_in",
+    [(wx.ID_YES, "workflows"), (wx.ID_NO, "appsettings"), (wx.ID_CANCEL, None)],
+)
+def test_save_settings_keeps_tool_files_apart_from_app_settings(dialog, monkeypatch, tmp_path, answer, saved_in):
+    workflows, appsettings = tmp_path / "workflows", tmp_path / "appsettings"
+    appsettings.mkdir()
+    d = dialog("Summarize", workflow_folder=workflows, app_settings_folders=[appsettings])
+    started = {}
+
+    def show(file_dialog):
+        started["folder"] = file_dialog.GetDirectory()
+        return wx.ID_OK
+
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", show)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(appsettings / "summary.json"))
+    asked = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(dlg.GetMessage()) or answer)
+    d._on_save_settings(None)
+    assert started["folder"] == str(workflows)  # the file dialog starts in the workflow folder
+    assert "This folder is for app settings files" in asked[0]
+    saved = [p.parent.name for p in tmp_path.rglob("summary.json")]
+    assert saved == ([saved_in] if saved_in else [])
+
+
+def test_save_settings_updates_an_existing_app_settings_file_without_asking(dialog, monkeypatch, tmp_path):
+    appsettings = tmp_path / "appsettings"
+    appsettings.mkdir()
+    lab = appsettings / "lab.json"
+    lab.write_text('{"schema_version": 2}')
+    d = dialog("Summarize", workflow_folder=tmp_path / "workflows", app_settings_folders=[appsettings])
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", lambda dlg: wx.ID_OK)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(lab))
+    asked = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: asked.append(1) or wx.ID_YES)
+    d._on_save_settings(None)
+    assert asked == [] and "Summarize" in lab.read_text()
+
+
+def test_an_example_table_fits_a_small_screen(dialog, monkeypatch):
+    class SmallDisplay:
+        GetFromWindow = staticmethod(lambda window: 0)
+
+        def __init__(self, index=0):
+            pass
+
+        def GetClientArea(self):
+            return wx.Rect(0, 0, 1366, 718)
+
+    monkeypatch.setattr(wx, "Display", SmallDisplay)
+    from flim.configs import FuseCategoriesConfig
+
+    d = dialog("Fuse Categories", FuseCategoriesConfig(grouping=["Treatment", "FOV"]))
+    assert d.example.table.IsShown()
+    assert d.GetSize().height <= 718
+    assert d.ok_button.GetRect().GetBottom() <= d.GetClientSize().height

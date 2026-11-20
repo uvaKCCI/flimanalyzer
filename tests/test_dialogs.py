@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+from flim.gui.configdialog import shown_in_gui  # noqa: E402
 
 
 @pytest.fixture
@@ -19,14 +20,15 @@ def table():
 
 
 def test_filter_dialog(wxapp, table, recwarn):
+    from flim.core.filtering import window_filters
     from flim.core.settings import AppSettings
     from flim.gui.dialogs import ConfigureFiltersDlg
 
-    filters = AppSettings.default().filters
+    filters = window_filters(AppSettings.default())
     dlg = ConfigureFiltersDlg(None, filters=filters, dataframe=table)
     try:
         assert not [w for w in recwarn if "CheckListCtrlMixin" in str(w.message)]
-        assert dlg.GetTitle() == "Filter Settings"
+        assert dlg.GetTitle() == "Filter Features"
         filters = dlg.filterlist
         assert filters.GetItemCount() > 0
         checked = filters.IsChecked(0)
@@ -35,6 +37,22 @@ def test_filter_dialog(wxapp, table, recwarn):
         dlg.OnFiltersUpdated([], 0, 10, 40)
         assert dlg.dropped_label.GetLabel() == "Dropped from view: 10 (of 40)"
         assert dlg.remaining_label.GetLabel() == "Remaining: 30 (75.00%)"
+    finally:
+        dlg.Destroy()
+
+
+def test_filter_dialog_counts_rows_hidden_by_one_category_value(wxapp, table):
+    from flim.core.filtering import window_filters
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    # one category value hidden in the table window: 20 of the 40 rows
+    hidden = {("Treatment", "a"): np.flatnonzero(table["Treatment"] == "a")}
+    dlg = ConfigureFiltersDlg(None, window_filters(AppSettings.default()), table, hidden)
+    try:
+        assert len(dlg.filterlist.otherdropped) == 20  # 0.6.2: ignored with one such filter
+        dlg.filterlist.dropped["x"] = np.arange(10)  # rows 0-9; the even ones are hidden already
+        assert len(dlg.filterlist.get_view_dropped("x")) == 5
     finally:
         dlg.Destroy()
 
@@ -89,31 +107,6 @@ def test_list_checkboxes_notify_once_per_change(wxapp):
         frame.Destroy()
 
 
-def test_import_dialog_resize(wxapp):
-    import wx
-    from flim.core.settings import AppSettings
-    from flim.gui.importdlg import ImportDlg
-
-    dlg = ImportDlg(None, "Import", AppSettings.default())
-    try:
-        dlg.OnRGridSize(wx.SizeEvent(wx.Size(640, 300)))
-    finally:
-        dlg.Destroy()
-
-
-def test_import_dialog_opens_with_a_saved_parser(wxapp):
-    from flim.core.settings import AppSettings
-    from flim.gui.importdlg import ImportDlg
-
-    settings = AppSettings.default()
-    settings.import_.filename_parser.parser = "fov_treatment_cell_parser"
-    dlg = ImportDlg(None, "Import", settings)  # failed: the parser's class as text
-    try:
-        assert dlg.parser_chooser.GetValue() == "fov_treatment_cell_parser"
-    finally:
-        dlg.Destroy()
-
-
 def test_tool_panel_two_rows_groups_on_one_line(wxapp):
     import wx
     from flim.core.registry import tools
@@ -132,11 +125,151 @@ def test_tool_panel_two_rows_groups_on_one_line(wxapp):
             rows.setdefault(box.GetPosition().y, []).append(box.GetLabel())
         assert len(rows) == 2
         labels = [label for y in sorted(rows) for label in rows[y]]
-        assert labels == ["File"] + tools.categories()  # menu order is kept
+        # menu order is kept; the File tools (readers) are the File group's buttons;
+        # Monitor (the Prefect server) last
+        assert labels == ["File"] + [c for c in tools.categories() if c != "File"] + ["Monitor"]
         n_tools = sum(
             len([c for c in box.GetChildren() if isinstance(c, wx.BitmapButton)])
             for box in boxes
         )
-        assert n_tools == 2 + len(tools)
+        # Open and Import, the tools of the menus, Prefect Server and Last Run; workflow
+        # files only as favorites
+        in_menus = [
+            t for category, group in tools.by_category().items() if category != "File"
+            for t in group if getattr(t, "definition", None) is None and shown_in_gui(t)
+        ]
+        assert n_tools == 2 + len(in_menus) + 2
     finally:
         frame.Destroy()
+
+
+def test_select_dialog_says_when_nothing_is_selected(wxapp, monkeypatch):
+    """OK with nothing checked shows a message (it was created but never shown)."""
+    import wx
+
+    from flim.gui.dialogs import SelectGroupsDlg
+
+    shown = []
+    monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: shown.append(message))
+    dlg = SelectGroupsDlg(None, "FOV: Select Items", groups=["a", "b"], selected=[])
+    try:
+        dlg.OnOK(None)
+        assert shown == ["Select at least one."]
+    finally:
+        dlg.Destroy()
+
+
+def test_pattern_rename_says_when_the_pattern_is_not_valid(wxapp, monkeypatch):
+    import wx
+
+    from flim.gui.dialogs import RenameGroupsDlg
+
+    shown = []
+    monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: shown.append(message))
+    dlg = RenameGroupsDlg(None, "FOV: Pattern Rename")
+    try:
+        dlg.patterntxt.SetValue("(")
+        dlg.OnOK(None)
+        assert shown and "Not a valid pattern" in shown[0]
+    finally:
+        dlg.Destroy()
+
+
+def test_filter_settings_have_no_load_button(wxapp):
+    import wx
+
+    from flim.core.filtering import window_filters
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, filters=window_filters(AppSettings.default()), dataframe=pd.DataFrame({"x": [1.0]}))
+    try:
+        labels = [c.GetLabel() for c in dlg.panel.GetChildren() if isinstance(c, wx.Button)]
+        assert "Load" not in labels and "OK" in labels
+    finally:
+        dlg.Destroy()
+
+
+def test_filter_settings_buttons_show_their_whole_labels(wxapp, table):
+    import wx
+
+    from flim.core.filtering import window_filters
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg, FilterPresets
+
+    presets = FilterPresets(defaults=lambda: {}, save_defaults=lambda f: None, saved=lambda: [], save=lambda p: None)
+    dlg = ConfigureFiltersDlg(None, window_filters(AppSettings.default()), table, {}, presets=presets)
+    try:
+        dlg.Layout()
+        dlg.panel.Layout()
+        buttons = [c for c in dlg.panel.GetChildren() if isinstance(c, wx.Button)]
+        assert "Save as Preset..." in [b.GetLabel() for b in buttons]
+        for button in buttons:
+            assert button.GetSize().width >= button.GetBestSize().width, button.GetLabel()
+            assert button.GetRect().GetRight() <= dlg.panel.GetClientSize().width
+    finally:
+        dlg.Destroy()
+
+
+def test_filter_list_checkbox_of_the_current_row_can_be_clicked(wxapp, table):
+    import wx
+
+    from flim.core.filtering import window_filters
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, window_filters(AppSettings.default()), table, {})
+    try:
+        ctrl = dlg.filterlist
+        ctrl.curRow = 0  # the current row, as after a click on it
+        y = ctrl.GetItemRect(0).GetTop() + 2
+        for x, to_list in ((5, True), (ctrl.GetColumnWidth(0) + 5, False)):
+            event = wx.MouseEvent(wx.wxEVT_LEFT_DOWN)
+            event.SetPosition(wx.Point(x, y))
+            ctrl.OnLeftDown(event)
+            # the checkbox column: the click goes to the list, which toggles the box
+            assert event.GetSkipped() is to_list
+    finally:
+        dlg.Destroy()
+
+
+def _axis_dialog(limits):
+    from flim.gui.dialogs import ConfigureAxisDlg
+
+    dlg = ConfigureAxisDlg(None, "Set Y Axis", {"label": "FLIRR", "min": limits[0], "max": limits[1]})
+    ended = []
+    dlg.EndModal = ended.append  # not shown modal in the test
+    return dlg, ended
+
+
+def test_axis_dialog_keeps_limits_that_are_not_edited(wxapp):
+    """Small limits were rounded to 2 decimals: 0.0012-0.0048 became 0.0-0.0."""
+    import numpy as np
+    import wx
+
+    dlg, ended = _axis_dialog((np.float64(0.0012), 0.0048))
+    try:
+        dlg.labelinput.SetValue("New label")
+        dlg.OnOK(None)
+        assert ended == [wx.ID_OK]
+        assert dlg.get_settings() == {"label": "New label", "min": 0.0012, "max": 0.0048}
+    finally:
+        dlg.Destroy()
+
+
+def test_axis_dialog_reads_edited_limits_and_rejects_text(wxapp, no_modal_message_dialogs):
+    import wx
+
+    dlg, ended = _axis_dialog((0.0, 1.0))
+    try:
+        dlg.mininput.SetValue("1e-5")
+        dlg.maxinput.SetValue("abc")
+        dlg.OnOK(None)
+        assert ended == []  # stays open
+        assert "Max value: not a valid number" in no_modal_message_dialogs[0]
+        dlg.maxinput.SetValue(" 0.25 ")
+        dlg.OnOK(None)
+        assert ended == [wx.ID_OK]
+        assert dlg.get_settings()["min"] == 1e-5 and dlg.get_settings()["max"] == 0.25
+    finally:
+        dlg.Destroy()

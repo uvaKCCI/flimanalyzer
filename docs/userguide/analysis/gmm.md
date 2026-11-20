@@ -1,6 +1,6 @@
 # Gaussian Mixed Model
 
-Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters. It fits a Gaussian mixture model: unlike `K-Means`, it describes each cluster as a Gaussian (bell-shaped) distribution. It works on the features as they are; unlike `K-Means`, it doesn't standardize them. Clusters can have different sizes, shapes and orientations. Each data point is assigned to a cluster, and also gets a probability of belonging to each cluster.
+Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters. It fits a Gaussian mixture model: unlike `K-Means`, it describes each cluster as a Gaussian (bell-shaped) distribution. By default it works on the features as they are; unlike `K-Means`, it does not standardize them unless `Standardize input` is checked. Clusters can have different sizes, shapes and orientations. Each data point is assigned to a cluster, and also gets a probability of belonging to each cluster.
 
 **Menu Access:** `Analysis` > `Gaussian Mixed Model`
 
@@ -21,6 +21,7 @@ Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters
         - `tied`: all clusters share the same shape.
         - `diag`: each cluster has its own shape, aligned with the feature axes.
         - `spherical`: round clusters, each with its own size.
+    - `Standardize input` (unchecked by default): scale each feature to a mean of 0 and a standard deviation of 1 over the table before fitting, as `PCA` and `K-Means` do by default. Standardizing matters when features have very different ranges, especially for the `spherical` covariance. The covariance tables then say `(standardized)` in their names, because their values are in standardized units.
     - `Random seed`: with a number (default 0), every run gives the same results. Leave it empty for different results on every run.
 
     ![](/images/analysis/gmm-config.png)
@@ -28,18 +29,18 @@ Like `K-Means`, the `Gaussian Mixed Model` tool groups data points into clusters
 4. Click `OK`.
 
 5. The results are shown in new table windows:
-    - `Table: GMM <covariance>, Feature Clustering`: the category columns and the selected features, plus a category column `GMM <covariance>` with the cluster of each row, e.g. `GMM full 1`, `GMM full 2`. A column `GMM Prob Component <n>` for each cluster gives the probability that the row belongs to that cluster. Other columns of the table are not included.
+    - `Table: GMM <covariance>, Feature Clustering`: the category columns and the selected features, plus a category column `GMM <covariance>` with the cluster of each row, e.g. `GMM full 1`, `GMM full 2`. A column `GMM Prob Component <n>` for each cluster gives the probability that the row belongs to that cluster. Other columns of the table are not included. If the table already has the `GMM <covariance>` column, for example from an earlier GMM, the new one gets a number: `GMM full_1`.
     - `Table: GMM <covariance>, Component Information Criteria`: the BIC and AIC scores of models with 1 up to the chosen number of components. They help you choose the number of components (see below).
-    - `Table: GMM <covariance>, Covariance, component <n>`: one table per cluster with its covariance matrix, which describes how the features spread and vary together within the cluster.
+    - `Table: GMM <covariance>, Covariance, component <n>` (with `Standardize input`: `Covariance (standardized)`): one table per cluster with its covariance matrix, which describes how the features spread and vary together within the cluster.
 
 ## Choosing the Number of Components
 
-Adding components always makes the model match the data more closely, even when the extra components only follow random noise. BIC (Bayesian Information Criterion) and AIC (Akaike Information Criterion) help find the number of components that describes the data well without adding components that aren't really there. Each gives a score for every number of components: how well the model matches the data, plus a penalty for every extra component.
+Adding components always makes the model match the data more closely, even when the extra components only follow random noise. BIC (Bayesian Information Criterion) and AIC (Akaike Information Criterion) help find the number of components that describes the data well without adding components that are not really there. Each gives a score for every number of components: how well the model matches the data, plus a penalty for every extra component.
 
 How to read them:
 
 - Lower is better. Pick the number of components with the lowest score, or the point where the scores stop dropping much (the "elbow" of the curve).
-- BIC penalizes extra components more than AIC, especially for large tables. BIC tends to point to fewer components, AIC to more. If they disagree, BIC is the safer choice.
+- BIC penalizes extra components more than AIC, especially for large tables. BIC tends to point to fewer components, AIC to more. If they disagree, use BIC.
 - Only compare scores from the same table, features and `Covariance` setting. A score on its own means nothing.
 
 The scores are always calculated with the `EM` method, for 1 up to the chosen number of components, even when `Method` is `Variational Bayesian`.

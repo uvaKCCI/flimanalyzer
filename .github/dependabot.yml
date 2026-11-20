@@ -1,7 +1,16 @@
-# Keeps the Docker base image (python:3.12-slim, pinned by digest) current
+# Keeps the Docker base image (python:3.12-slim, pinned by digest) current: new
+# digests of the same Python version only; a new Python version for the image is
+# chosen for a release, not proposed by Dependabot. Pull requests go to dev, since
+# changes reach main only from dev.
 version: 2
 updates:
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    target-branch: dev
+    ignore:
+      - dependency-name: python
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor

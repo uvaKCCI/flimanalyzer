@@ -31,7 +31,7 @@ The `KS-Statistics` tool tests whether two samples come from the same distributi
     - The grouping columns other than the compared one. Without them, a column `Grouping` with the value `none`.
     - `Treatment 1`, `Treatment 2` and `Treatment 1 & 2`: the two compared values, and both together, e.g. `ctrl-Dox15`.
     - `dissimilar (<0.05)`: `Yes` or `No`.
-    - `n (Treatment 1)`, `n (Treatment 2)`: the number of data points in each sample.
+    - `n (Treatment 1)`, `n (Treatment 2)`: the number of data points in each sample. Rows without a value of the feature are not data points: the test and the numbers leave them out.
     - `p-values`, `statistic` (the KS statistic, a measure of how different the two samples are) and `critical D (0.05)` (its critical value).
 
 ## Example Output

@@ -22,14 +22,26 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Turns pivoted columns back into a category column.
    * - :doc:`Splitting Data <split>`
      - Creates a separate table for each value of a category column.
-   * - :doc:`Merge Data <merge>`
+   * - :doc:`Merge <merge>`
      - Combines two data tables by matching their category columns.
-   * - :doc:`Order Categories <order>`
+   * - :doc:`Order Category Values <order>`
      - Sets the order of the values in category columns.
    * - :doc:`Concatenate <concat>`
      - Stacks two or more data tables, or places them side by side.
    * - :doc:`Sort <sort>`
      - Reorders the rows by the values of one or more columns.
+   * - :doc:`Fuse Categories <fuse>`
+     - Joins category columns into one, for example FOV and Cell into FOV:Cell.
+   * - :doc:`Separate Categories <separate>`
+     - Separates a category column into several, at delimiters or by patterns.
+   * - :doc:`Rename Columns <rename>`
+     - Replaces parts of the column names, as Import does.
+   * - :doc:`Drop Columns <drop>`
+     - Removes columns by their names, as Import does.
+   * - :doc:`Directory/File to Source <source>`
+     - Adds the Source column to tables imported with FLIMAnalyzer 0.6 or earlier.
+   * - :doc:`Collect Files <collectfiles>`
+     - Lists the files of several workflow steps in one table (workflow files and flimbatch only).
    * - :doc:`Saving Data <save>`
      - Saves a data table to a file.
    
@@ -49,4 +61,10 @@ After you load data, you can change the tables to show trends more clearly, chan
     order
     concat
     sort
+    fuse
+    separate
+    rename
+    drop
+    source
+    collectfiles
     save

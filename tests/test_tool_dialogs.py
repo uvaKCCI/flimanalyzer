@@ -36,11 +36,25 @@ def table():
     )
 
 
-# --- Order Categories ---
+def _with_cell_editor(grid, row, col, use):
+    """Return `use(editor)` for a cell's editor, then release the editor.
+
+    `GetCellEditor` returns a new reference; one not released keeps the editor
+    beyond its grid, and wx later asserts that its control still has the grid's
+    event handler pushed ("any pushed event handlers must have been removed").
+    """
+    editor = grid.GetCellEditor(row, col)
+    try:
+        return use(editor)
+    finally:
+        editor.DecRef()
+
+
+# --- Order Category Values ---
 
 
 def test_category_order(dialog):
-    d = dialog("Order Categories")
+    d = dialog("Order Category Values")
     editor = d.fields.editors["categories"]
     assert editor.column_names() == ["Treatment", "FOV"]
     assert editor.get() == {}  # nothing checked: no order set
@@ -57,7 +71,7 @@ def test_category_order(dialog):
 
 def test_category_order_keeps_saved_orders(dialog):
     d = dialog(
-        "Order Categories", CategoryOrderConfig(categories={"Treatment": ["Placebo"]})
+        "Order Category Values", CategoryOrderConfig(categories={"Treatment": ["Placebo"]})
     )
     editor = d.fields.editors["categories"]
     # the saved values first, then the others of the data
@@ -69,9 +83,22 @@ def test_category_order_keeps_saved_orders(dialog):
 # --- Filter ---
 
 
+def _ranges(config) -> dict:
+    """The used range filters of a FilterConfig, by column."""
+    return {
+        f.column: RangeSettings(low=f.low, high=f.high, dropna=f.dropna)
+        for f in config.features.filters
+        if f.enabled
+    }
+
+
+def _categories(config) -> dict:
+    return {f.column: f.keep for f in config.categories.filters if f.enabled}
+
+
 def test_category_filters(dialog):
     d = dialog("Filter")
-    editor = d.fields.editors["category_filters"]
+    editor = d.fields.editors["categories"].view
     editor.columns.SetSelection(0)
     editor._show_values()
     editor.values.Check(2, False)  # drop Placebo
@@ -82,17 +109,17 @@ def test_category_filters(dialog):
     editor._on_check(None)
     assert editor.get() == {}  # keeps all values: no filter
     editor.set({"FOV": ["1"]})
-    assert d.result().config.category_filters == {"FOV": ["1"]}
+    assert _categories(d.result().config) == {"FOV": ["1"]}
 
 
 def test_range_filters_table(dialog, table):
     config = FilterConfig(range_filters={"t1": RangeSettings(low=120, high=180)})
     d = dialog("Filter", config)
-    editor = d.fields.editors["range_filters"]
+    editor = d.fields.editors["features"].view
     assert editor.features == ["t1", "t2"]  # a row for each numeric column
     assert [editor.is_used(r) for r in range(2)] == [True, False]
     editor.use(1)  # checking fills in the data's range
-    filters = d.result().config.range_filters
+    filters = _ranges(d.result().config)
     assert filters["t1"] == RangeSettings(low=120, high=180)  # kept as configured
     assert filters["t2"].low == pytest.approx(table["t2"].min(), rel=1e-5)
     assert filters["t2"].high == pytest.approx(table["t2"].max(), rel=1e-5)
@@ -105,23 +132,45 @@ def test_range_filters_table(dialog, table):
 # --- settings files ---
 
 
+def test_use_column_toggles_on_every_click_also_on_the_current_row(dialog):
+    import wx.grid
+
+    d = dialog("Filter")
+    editor = d.fields.editors["features"].view
+    editor.grid.SetGridCursor(0, 0)  # the current cell, as after a click on it
+    first = editor.is_used(0)
+    states = []
+    for _ in range(3):
+        event = wx.grid.GridEvent(editor.grid.GetId(), wx.grid.wxEVT_GRID_CELL_LEFT_CLICK, editor.grid, 0, 0)
+        editor._on_click(event)
+        states.append(editor.is_used(0))
+    assert states == [not first, first, not first]
+
+
 def test_save_and_load_feature_settings(dialog, tmp_path):
     import json
 
     path = tmp_path / "ranges.json"
     d = dialog("Filter", FilterConfig(range_filters={"t1": {"low": 120, "high": 180}}))
-    d.fields.editors["range_filters"].save_settings(path)
+    d.fields.editors["features"].view.save_settings(path)
     assert json.loads(path.read_text()) == {
         "t1": {"low": 120, "high": 180, "dropna": True}
     }
 
     other = dialog("Filter")
-    editor = other.fields.editors["range_filters"]
+    editor = other.fields.editors["features"].view
     applied, skipped = editor.load_settings(path)
     assert (applied, skipped) == (["t1"], [])
-    assert other.result().config.range_filters == {}  # applied, but not checked
+    assert _ranges(other.result().config) == {}  # applied, but not checked
     editor.use(0)
-    assert other.result().config.range_filters["t1"] == RangeSettings(low=120, high=180)
+    assert _ranges(other.result().config)["t1"] == RangeSettings(low=120, high=180)
+
+
+def test_feature_settings_that_cannot_be_saved_give_a_message(dialog, tmp_path):
+    d = dialog("Filter", FilterConfig(range_filters={"t1": {"low": 120, "high": 180}}))
+    editor = d.fields.editors["features"].view
+    editor.save_settings(tmp_path / "missing folder" / "ranges.json")  # no error raised
+    assert editor.message.GetLabel().startswith("Could not save ranges.json:")
 
 
 def test_load_settings_from_an_old_settings_file(dialog, tmp_path):
@@ -154,10 +203,10 @@ def test_load_settings_from_an_old_settings_file(dialog, tmp_path):
         min=100, max=200, bins=20
     )
     filters = dialog("Filter", FilterConfig(range_filters=["t2"]))
-    editor = filters.fields.editors["range_filters"]
+    editor = filters.fields.editors["features"].view
     assert editor.load_settings(path) == (["t2"], ["gone"])
     assert "1 are not in the table" in editor.message.GetLabel()
-    assert filters.result().config.range_filters["t2"] == RangeSettings(
+    assert _ranges(filters.result().config)["t2"] == RangeSettings(
         low=0.2, high=0.8
     )
 
@@ -189,7 +238,7 @@ def test_ok_takes_the_value_of_a_cell_still_being_edited(dialog):
     grid = editor.grid
     grid.SetGridCursor(0, 4)  # bins
     grid.EnableCellEditControl()
-    grid.GetCellEditor(0, 4).GetControl().SetValue("12")  # typed, cell not left
+    _with_cell_editor(grid, 0, 4, lambda e: e.GetControl().SetValue("12"))  # typed, cell not left
     closing = []  # the click reaches the dialog, which then closes
     d.Bind(wx.EVT_BUTTON, lambda e: closing.append(e.GetId()), id=wx.ID_OK)
     click = wx.CommandEvent(wx.EVT_BUTTON.typeId, wx.ID_OK)
@@ -208,7 +257,7 @@ def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
 
     path = tmp_path / "settings.json"
     app = AppSettings.default()
-    app.filters.use = True
+    app.filters.features.enabled = True
     save_settings(app, path)  # an application settings file
     d = dialog("Summarize")
     d.fields.editors["aggs"].set(["max"])
@@ -216,15 +265,16 @@ def test_every_dialog_loads_and_saves_its_tool_settings(dialog, tmp_path):
     d.folder.SetPath(str(tmp_path))
     assert d.save_settings(str(path))
     saved = load_settings(path)
-    assert saved.filters.use  # the other sections are kept
-    entry = saved.tool_settings.entry(tools.get("Summarize"))
-    assert entry.config["aggs"] == ["max"] and entry.autosave
-    assert list(json.loads(path.read_text())["tools"]) == ["Summarize"]
+    assert saved.filters.features.enabled  # the other sections are kept
+    entry = saved.tools.entry(tools.get("Summarize"))
+    assert entry.config["aggs"] == ["max"] and entry.autosave.enabled
+    # the app settings' tools (Filter) and the dialog's
+    assert list(json.loads(path.read_text())["tools"]) == ["Filter", "Summarize"]
 
     again = dialog("Summarize", SummaryConfig(aggs=["min"]))
     assert again.load_settings(str(path))
     assert again.result().config.aggs == ["max"]
-    assert str(again.result().execution.results_dir) == str(tmp_path)
+    assert str(again.result().execution.autosave.results_dir) == str(tmp_path)
     other = dialog("Sort")
     assert not other.load_settings(str(path))
     assert "No Sort settings" in other.settings_message.GetLabel()
@@ -330,12 +380,12 @@ def test_histogram_auto_range(dialog, tmp_path):
     assert d.result().config.features["t1"].min == 120
 
 
-# --- Autoencoder: Train ---
+# --- Autoencoder Train ---
 
 
 def test_architecture(dialog):
     d = dialog(
-        "Autoencoder: Train", AETrainConfig(features=["t1", "t2"], grouping=["FOV"])
+        "Autoencoder Train", AETrainConfig(features=["t1", "t2"], grouping=["FOV"])
     )
     editor = d.fields.editors["architecture"]
     editor.set("AE Simulator 1-6")
@@ -480,11 +530,11 @@ def test_categorize_rules_table(dialog):
     assert labels[:2] == ["Add Rule", "Remove Rules"]
     # the feature column: a drop-down of the input's features
     col = [c.name for c in editor.columns].index("feature")
-    choice = editor.grid.GetCellEditor(0, col)
-    assert isinstance(choice, wx.grid.GridCellChoiceEditor)
+    assert _with_cell_editor(editor.grid, 0, col, lambda e: isinstance(e, wx.grid.GridCellChoiceEditor))
     editor.grid.SetGridCursor(0, col)
     editor.grid.EnableCellEditControl()
-    assert editor.grid.GetCellEditor(0, col).GetControl().GetItems() == ["t1", "t2"]
+    items = _with_cell_editor(editor.grid, 0, col, lambda e: e.GetControl().GetItems())
+    assert items == ["t1", "t2"]
     editor.grid.DisableCellEditControl()
 
 
@@ -527,7 +577,7 @@ def test_unpivot_offers_the_levels_of_the_headers(dialog, table):
 
 def test_features_of_another_table_are_not_listed(dialog, table):
     """Settings of a run on the raw data, opened on its summary: the summary's
-    features only; the raw ones are checked again on the raw data."""
+    features only; saved features the input lacks are ignored, not kept."""
     from flim.configs import SummaryConfig
     from flim.tools.statistics import Summarize
 
@@ -548,7 +598,19 @@ def test_features_of_another_table_are_not_listed(dialog, table):
     d.input_controls[0].SetSelection(1)  # the raw data
     d._update_inputs()
     assert features.items == ["t1", "t2"]
-    assert features.get() == ["t1", "t2"]
+    assert features.get() == []  # the summary's feature is not in the raw data
+
+
+# --- Concatenate ---
+
+
+def test_concatenate_shows_the_settings_of_its_direction(dialog):
+    d = dialog("Concatenate")
+    shown = lambda name: d.fields.widgets[name][0].IsShown()  # noqa: E731
+    assert shown("add_input") and not shown("numbers_only")  # rows (default)
+    d.fields.editors["mode"].set("horizontal")
+    d.fields.refresh()
+    assert shown("numbers_only") and not shown("add_input") and not shown("clash_name")
 
 
 # --- Scatter Plot ---
@@ -583,7 +645,7 @@ def test_basic_flirr_reference_value_of_the_first_grouping_column(dialog):
     assert d.result().config.reference_value is None  # empty: the first value
 
 
-# --- the features and statistics a tool needs (restored in 0.6.2) ---
+# --- the features and statistics a tool needs ---
 
 
 def test_no_features_disable_ok(dialog):
@@ -603,3 +665,528 @@ def test_no_statistics_disable_ok(dialog):
     d.fields.editors["aggs"].check_all(False)  # every statistic unchecked
     d.validate()
     assert not d.ok_button.IsEnabled()
+
+
+def test_filter_dialog_keeps_all_parts(dialog, table):
+    from flim.configs.data import (
+        CategoryFilterNode as Category,
+        ExpressionFilterNode as Expression,
+        FilterGroup,
+        RangeFilterNode as Range,
+    )
+
+    config = FilterConfig(
+        features={"filters": [
+            Range(column="t1", low=120, high=180),
+            Range(column="t2", low=0, high=1, enabled=False),  # shown unchecked
+            Range(column="gone", high=3, enabled=False),  # not in the table: kept
+        ]},
+        categories={"filters": [Category(column="Treatment", keep=["Ctrl"])]},
+        other={"enabled": False, "filters": [
+            Expression(expression="t1 > 100"),
+            FilterGroup(kind="any", filters=[Range(column="t2", high=5), Expression(expression="t1 < 3")]),
+            Range(column="t1", high=500),  # a second range on t1
+        ]},
+    )  # fmt: skip
+    d = dialog("Filter", config)
+    ranges = d.fields.editors["features"].view
+    assert [ranges.is_used(r) for r in range(2)] == [True, False]
+    assert ranges.grid.GetCellValue(1, 3) == "1"  # t2's unused range is shown
+    others = d.fields.editors["other"].view
+    assert others.grid.GetNumberRows() == 3  # the expression, the group, the second t1
+    kind = others._kind_column()
+    assert others.grid.GetCellValue(1, kind) == "any" and others.grid.IsReadOnly(1, kind)
+    assert "any" not in others.columns[kind - others.offset].choices  # no new groups
+    result = d.result().config
+    for name in ("features", "categories", "other"):
+        got, expected = getattr(result, name), getattr(config, name)
+        assert got.enabled == expected.enabled, name
+        assert sorted(map(repr, got.filters)) == sorted(map(repr, expected.filters)), name
+
+
+def test_filter_dialog_shows_each_component_with_its_switch(dialog, table):
+    d = dialog("Filter", FilterConfig(other={"enabled": False}))
+    editors = d.fields.editors
+    order = [n for n in editors if n in ("enabled", "features", "categories", "other")]
+    assert order == ["enabled", "features", "categories", "other"]
+    switches = {n: editors[n].switch for n in ("features", "categories", "other")}
+    assert {n: s.GetLabel() for n, s in switches.items()} == {
+        "features": "Use feature filters",
+        "categories": "Use category filters",
+        "other": "Use other filters",
+    }
+    # a filter component that is off: its filters greyed out
+    assert editors["features"].view.control.IsEnabled()
+    assert not editors["other"].view.control.IsEnabled()
+    # Use filters off: all filter components greyed out, their switches kept
+    editors["enabled"].set(False)
+    d.fields.refresh()
+    assert not any(editors[n].view.control.IsEnabled() for n in switches)
+    config = d.result().config
+    assert not config.enabled and config.features.enabled and not config.other.enabled
+    editors["enabled"].set(True)
+    switches["other"].SetValue(True)
+    d.fields.refresh()
+    assert all(editors[n].view.control.IsEnabled() for n in switches)
+
+
+def test_category_filters_that_are_off_are_kept_and_used_again_on_an_edit(dialog, table):
+    from flim.configs.data import CategoryFilterNode as Category
+
+    config = FilterConfig(categories={"filters": [Category(column="Treatment", keep=["Ctrl"], enabled=False)]})
+    d = dialog("Filter", config)
+    view = d.fields.editors["categories"].view
+    assert view.columns.GetString(0) == "Treatment * (off)"
+    (kept,) = d.result().config.categories.filters
+    assert (kept.keep, kept.enabled) == (["Ctrl"], False)
+    view.columns.SetSelection(0)
+    view._show_values()
+    view.values.Check(1, True)  # keep Drug too: the filter is used again
+    view._on_check(None)
+    assert view.columns.GetString(0) == "Treatment *"
+    (edited,) = d.result().config.categories.filters
+    assert (edited.keep, edited.enabled) == (["Ctrl", "Drug"], True)
+
+
+def test_category_filters_on_columns_the_table_lacks_are_hidden_and_kept(dialog, table):
+    from flim.configs.data import CategoryFilterNode as Category
+
+    config = FilterConfig(categories={"filters": [
+        Category(column="Treatment", keep=["Ctrl"]),
+        Category(column="Gone", keep=["x"]),
+    ]})  # fmt: skip
+    d = dialog("Filter", config)
+    view = d.fields.editors["categories"].view
+    shown = [view.columns.GetString(i) for i in range(view.columns.GetCount())]
+    assert "Treatment *" in shown and not any(s.startswith("Gone") for s in shown)
+    kept = {f.column: f.keep for f in d.result().config.categories.filters}
+    assert kept == {"Treatment": ["Ctrl"], "Gone": ["x"]}  # not used, kept unchanged
+
+
+def test_source_dialog_shows_the_rename_only_for_a_source_column(dialog):
+    from flim.tools.data import SourceFromPath
+
+    plain = pd.DataFrame({"Directory": ["/d"], "File": ["a.txt"], "t1": [1.0]})
+    d = dialog("Directory/File to Source", data_choices={"Table: plain": plain})
+    d.validate()
+    assert not d.fields.editors["clash_name"].control.IsShown()  # nothing to rename
+    example = SourceFromPath.example(d.current_config()[0], [plain])
+    assert example.iloc[0].tolist() == ["/d", "a.txt", "file:///d/a.txt"]
+    taken = plain.assign(Source=["mine"])
+    d = dialog("Directory/File to Source", data_choices={"Table: taken": taken})
+    d.validate()
+    assert d.fields.editors["clash_name"].control.IsShown()
+
+
+def test_concatenate_shows_the_rename_only_for_an_input_column(dialog):
+    a = pd.DataFrame({"t1": [1.0]})
+    d = dialog("Concatenate", data_choices={"Table: a": a, "Table: b": a.copy()})
+    d.validate()
+    assert not d.fields.editors["clash_name"].control.IsShown()
+    d = dialog("Concatenate", data_choices={"Table: a": a.assign(Input=["x"]), "Table: b": a})
+    d.validate()
+    assert d.fields.editors["clash_name"].control.IsShown()
+
+
+def test_saved_grouping_columns_the_table_lacks_are_not_offered(dialog, table):
+    from flim.configs import SummaryConfig
+
+    # e.g. a column fused in an earlier session, saved with the settings
+    config = SummaryConfig(grouping=["FOV:Cell", "Treatment"], features=["t1"], aggs=["mean"])
+    d = dialog("Summarize", config)
+    editor = d.fields.editors["grouping"]
+    listed = [editor.rearrange.GetList().GetString(i) for i in range(editor.rearrange.GetList().GetCount())]
+    assert "FOV:Cell" not in listed
+    assert editor.get() == ["Treatment"]  # only the table's columns are used
+    assert d.result().config.grouping == ["Treatment"]
+
+
+class _Choose:
+    """wx.MultiChoiceDialog answered with OK and the first item."""
+
+    offered: list = []
+
+    def __init__(self, parent, message, title, labels):
+        _Choose.offered = list(labels)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def ShowModal(self):
+        return wx.ID_OK
+
+    def GetSelections(self):
+        return [0]
+
+
+def test_calculation_editor_shows_only_the_kinds_fields(wxapp, table):
+    from flim.core.schema import TableSchema
+    from flim.gui.dialogs.calculate import CalculationDialog
+
+    schema = TableSchema.from_frame(table)
+    d = CalculationDialog(None, None, list(table.columns), schema, [table])
+    try:
+        assert set(d.shared.editors) == {"enabled", "name", "keep", "description"}
+        assert set(d.fields.editors) == {"expression"}
+        d.shared.editors["name"].control.SetValue("ratio")
+        d.fields.editors["expression"].control.SetValue("t1 / t2")  # no backticks needed
+        assert d.validate() and d.example.rows()[0] == ["t1", "t2", "\u2192 ratio"]  # used, made
+        d.fields.editors["expression"].control.SetValue("t1 / t22")
+        assert not d.validate()  # OK disabled
+        assert "'t22' (did you mean 't2'?)" in d.message.GetLabel()
+        # a function: its own fields only; the shared ones stay in place, as edited
+        shared, position = d.shared, d.shared.editors["name"].control.GetPosition()
+        d.kind.SetSelection(1)
+        d._on_kind(None)
+        assert {"function", "args", "params"} <= set(d.fields.editors) and "expression" not in d.fields.editors
+        assert d.shared is shared and d.shared.editors["name"].control.GetValue() == "ratio"
+        assert d.shared.editors["name"].control.GetPosition() == position
+        d.fields.editors["function"].set("trp_Eperc_1")
+        d.fields.refresh()
+        params = d.fields.editors["params"]
+        assert params.fields is not None and set(params.fields.editors) == {"const"}
+        assert params.get() == {"const": 3100.0}
+        d.fields.editors["function"].set("ratio")
+        d.fields.refresh()
+        assert params.fields is None  # ratio has no parameters
+        d.validate()  # the preview above the arguments: the call and the function
+        preview = d.preview.GetLabel()
+        assert preview.startswith("ratio = ratio(") and "ratio(v1, v2): Return v1 / v2" in preview
+    finally:
+        d.Destroy()
+
+
+def test_calculate_dialog_is_a_read_only_table_with_presets(dialog, table, monkeypatch):
+    from flim.configs import CalculateConfig
+    from flim.configs.data import ExpressionCalculation
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.dialogs import calculate
+    from flim.tools.data import Calculate
+
+    calculate.bind(SettingsManager())
+    stored = CalculateConfig(calculations=[ExpressionCalculation(name="old", expression="t1 * 2")])
+    d = dialog("Calculate", Calculate.dialog_config(stored))
+    editor = d.fields.editors["calculations"]
+    assert editor.grid.GetNumberRows() == 0  # nothing from earlier runs
+    assert not editor.grid.IsEditable()
+    new = ExpressionCalculation(name="ratio", expression="t1 / t2")
+    monkeypatch.setattr(calculate, "edit_calculation", lambda *a, **k: new)
+    editor._on_add(None)  # the calculation editor answers with `new`
+    assert editor.grid.GetCellValue(0, 0) == "ratio" and editor.grid.GetCellValue(0, 1) == "t1 / t2"
+    monkeypatch.setattr(wx, "MessageBox", lambda *a, **k: wx.OK)
+    editor.grid.SetGridCursor(0, 0)
+    editor._on_save_presets(None)
+    assert [p.name for p in calculate.saved_presets()] == ["ratio"]
+    editor._on_remove(None)
+    monkeypatch.setattr(wx, "MultiChoiceDialog", _Choose)
+    editor._on_load_presets(None)
+    assert _Choose.offered == ["ratio = t1 / t2  (saved)"]  # built-in ones do not apply
+    assert d.result().config.calculations[0].name == "ratio"
+    editor._on_remove_presets(None)
+    assert calculate.saved_presets() == []
+
+
+
+def test_calculation_editor_example_without_use_or_keep(wxapp, table):
+    from flim.core.schema import TableSchema
+    from flim.gui.dialogs.calculate import CalculationDialog
+
+    d = CalculationDialog(None, None, list(table.columns), TableSchema.from_frame(table), [table])
+    try:
+        d.fields.editors["expression"].control.SetValue("t1 * 2")
+        d.shared.editors["enabled"].set(False)  # Use unchecked, no name: no error
+        d.validate()
+        assert "Not used" in d.message.GetLabel()
+        d.shared.editors["enabled"].set(True)
+        d.shared.editors["name"].control.SetValue("helper")
+        d.shared.editors["keep"].set(False)  # a helper column: its example is shown
+        assert d.validate() and d.example.rows()[0][-1] == "\u2192 helper"
+    finally:
+        d.Destroy()
+
+
+def test_separate_categories_presets(wxapp, monkeypatch):
+    """Load Preset... fills the settings of a built-in or saved preset; Save as
+    Preset... and Remove Presets... change only the saved ones."""
+    import flim.gui.dialogs.separate as separate
+    from flim.core.categories import PRESET_FIELDS, separate_presets
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import bind_presets, dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results_a_ctrl_1.txt"], "t1": [1.0]})
+    manager = SettingsManager()
+    bind_presets(manager)
+    tool = tools.get("Separate Categories")
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        assert isinstance(d, separate.SeparateDialog)
+        # Load Preset...: the 0.6 parser FOV, Treatment, Cell
+        monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        built_in = [p["name"] for p in separate_presets()]
+        index = built_in.index("FOV, Treatment, Cell")
+        monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: index)
+        d._on_load_preset(None)
+        config, _ = d.current_config()
+        assert config.mode == "pattern" and [p.name for p in config.patterns] == ["FOV", "Treatment", "Cell"]
+        # Save as Preset...: in the user settings, under its name; a built-in name is refused
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        (saved,) = manager.settings.presets.get("Separate Categories", [])
+        assert saved["name"] == "Mine" and saved["settings"]["column"] == "Source"
+        assert set(saved["settings"]) == set(PRESET_FIELDS)
+        messages = []
+        monkeypatch.setattr(wx, "MessageBox", lambda m, *a, **k: messages.append(m))
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Treatment, Time")
+        d._on_save_preset(None)
+        assert "built-in" in messages[0] and len(manager.settings.presets.get("Separate Categories", [])) == 1
+        # the saved one is offered after the built-in ones
+        assert [p["name"] for p in d.saved_presets()] == ["Mine"]
+        # Remove Presets...
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0])
+        d._on_remove_presets(None)
+        assert manager.settings.presets.get("Separate Categories", []) == []
+    finally:
+        d.Destroy()
+        bind_presets(None)
+
+
+def test_filter_dialog_presets_are_those_of_filter_features(wxapp, monkeypatch):
+    """The Filter dialog loads a preset saved in a table window's Filter Features...
+    (the feature filters and their switch), and saves its switch and its filter
+    components."""
+    from flim.core.filtering import WindowFilters, new_range, window_features, window_settings
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import bind_presets, dialog_class
+    from flim.gui.dialogs.filter import FilterDialog
+
+    data = pd.DataFrame({"t1": [1.0, 5.0], "Treatment": pd.Categorical(["a", "b"])})
+    manager = SettingsManager()
+    tool = tools.get("Filter")
+    window = WindowFilters(
+        features={"enabled": False},
+        range_filters=[new_range("t1") | {"rangelow": 2.0, "rangehigh": 9.0, "selected": True}],
+        category_filters={"Treatment": ["a"]},
+    )
+    earlier = {  # a preset of a development build: a flat list
+        "enabled": False,
+        "filters": [{"kind": "range", "column": "t1", "high": 3},
+                    {"kind": "category", "column": "Treatment", "keep": ["b"]}],
+    }  # fmt: skip
+    manager.set_presets(tool, [
+        {"name": "From a table", "settings": window_settings(window)},
+        {"name": "Earlier", "settings": earlier},
+    ])  # fmt: skip
+    bind_presets(manager)
+    config = FilterConfig(categories={"filters": [{"kind": "category", "column": "Treatment", "keep": ["a"]}]})
+    d = dialog_class(tool.config_class)(None, tool, config, data_choices={"Table: data": data})
+    try:
+        assert isinstance(d, FilterDialog)
+        monkeypatch.setattr(wx.SingleChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        choice = {"index": 0}
+        monkeypatch.setattr(wx.SingleChoiceDialog, "GetSelection", lambda dlg: choice["index"])
+        d._on_load_preset(None)
+        config, _ = d.current_config()
+        assert config.enabled is True  # a window's preset has no top-level switch
+        assert config.features.enabled is False  # the window's Filter Features
+        (leaf,) = config.features.filters
+        assert (leaf.column, leaf.low, leaf.high, leaf.enabled) == ("t1", 2.0, 9.0, True)
+        (category,) = config.categories.filters  # kept: not in the preset
+        assert (category.column, category.keep) == ("Treatment", ["a"])
+        # a preset of an earlier version: converted, sets all filter components
+        choice["index"] = 1
+        d._on_load_preset(None)
+        config, _ = d.current_config()
+        assert config.enabled is False and config.features.filters[0].high == 3
+        assert config.categories.filters[0].keep == ["b"]
+        # Save as Preset...: the switch and all filter components, also loaded by Filter Features...
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        saved = {p["name"]: p["settings"] for p in manager.settings.tool_presets(tool)}
+        assert set(saved) == {"From a table", "Earlier", "Mine"}
+        assert set(saved["Mine"]) == {"enabled", "features", "categories", "other"}
+        features = window_features(saved["Mine"])  # in a table window: the feature filters only
+        assert features.use is False and features.unused == 1
+        assert [(r["name"], r["rangehigh"]) for r in features.ranges if r["selected"]] == [("t1", 3.0)]
+        # Remove Presets...
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [0, 1, 2])
+        d._on_remove_presets(None)
+        assert manager.settings.tool_presets(tool) == []
+    finally:
+        d.Destroy()
+        bind_presets(None)
+
+
+def test_filter_tool_with_its_filters_switched_off_keeps_all_rows():
+    from flim.configs.data import FilterConfig
+    from flim.tools.data import Filter
+
+    data = pd.DataFrame({"t1": [1.0, 5.0, 9.0]})
+    on = FilterConfig(filters=[{"kind": "range", "column": "t1", "high": 4}])
+    assert len(Filter().run(data, config=on)["Filtered"]) == 1
+    off = on.model_copy(update={"enabled": False})
+    assert len(Filter().run(data, config=off)["Filtered"]) == 3
+    # a filter is used only if every enabled up its chain is on
+    group = FilterConfig(filters=[{"kind": "all", "enabled": False,
+                                   "filters": [{"kind": "range", "column": "t1", "high": 4}]}])
+    assert len(Filter().run(data, config=group)["Filtered"]) == 3
+
+
+def test_separate_shows_only_the_modes_fields(wxapp):
+    from flim.configs.data import SeparateCategoriesConfig
+    from flim.core.registry import tools
+    from flim.gui.configdialog import dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results-a-ctrl_1.txt"], "t1": [1.0]})
+    tool = tools.get("Separate Categories")
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        fields = d.fields
+
+        def shown():
+            names = ("delimiters", "names", "patterns", "template")
+            return {n for n in names if fields.editors[n].control.IsShown()}
+
+        assert shown() == {"delimiters", "names"}  # the default mode: delimiter
+        for mode, expected in (("template", {"template"}), ("pattern", {"patterns"})):
+            d.set_values(SeparateCategoriesConfig(column="Source", mode=mode))
+            assert shown() == expected, mode
+        # hidden fields keep their values
+        d.set_values(SeparateCategoriesConfig(column="Source", mode="pattern", template="{A}"))
+        assert fields.editors["template"].get() == "{A}"
+    finally:
+        d.Destroy()
+
+
+def test_spaces_in_values_are_kept(wxapp):
+    """Rename's new texts ('trp ') and Fuse's delimiter (' - ') keep their spaces; the
+    dialog trimmed them, which renamed Exc1_-Ch1-_t1 to trpt1."""
+    from flim.configs.data import FuseCategoriesConfig, RenameColumnsConfig
+    from flim.core.fields import describe
+    from flim.core.registry import tools
+    from flim.gui.configdialog import dialog_class
+    from flim.gui.editors import editor_for
+
+    tool = tools.get("Rename Columns")
+    data = pd.DataFrame({"Exc1_-Ch1-_t1": [1.0]})
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: d": data})
+    try:
+        config, _ = d.current_config()
+        assert config.replacements == RenameColumnsConfig().replacements
+        assert config.replacements[0].new == "trp "
+    finally:
+        d.Destroy()
+    frame = wx.Frame(None)
+    try:
+        spec = next(s for s in describe(FuseCategoriesConfig) if s.name == "delimiter")
+        editor = editor_for(FuseCategoriesConfig, spec)(frame, spec)
+        editor.control.SetValue(" - ")
+        assert editor.get() == " - "
+    finally:
+        frame.Destroy()
+
+
+def test_saving_or_removing_a_preset_keeps_the_other_stored_presets(wxapp, monkeypatch):
+    """Saving or removing rewrote the list of presets that were offered: presets not
+    valid with the current values were deleted, other fields were stripped."""
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import bind_presets, dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results_a_ctrl_1.txt"], "t1": [1.0]})
+    tool = tools.get("Separate Categories")
+    broken = {"name": "Broken", "settings": {"mode": "no such mode"}}
+    extra = {"name": "Extra", "settings": {"column": "Source", "note": "kept"}}
+    manager = SettingsManager()
+    manager.set_presets(tool, [broken, extra])
+    bind_presets(manager)
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        assert [p["name"] for p in d.saved_presets()] == ["Extra"]  # Broken: not offered
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        stored = manager.settings.tool_presets(tool)
+        assert [p["name"] for p in stored] == ["Broken", "Extra", "Mine"]
+        assert stored[:2] == [broken, extra]
+        d._on_save_preset(None)  # the same name: replaced in place
+        assert [p["name"] for p in manager.settings.tool_presets(tool)] == ["Broken", "Extra", "Mine"]
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [1])  # Mine
+        d._on_remove_presets(None)
+        assert manager.settings.tool_presets(tool) == [broken, extra]
+    finally:
+        d.Destroy()
+        bind_presets(None)
+
+
+def test_save_as_preset_saves_nothing_if_the_settings_are_not_valid(wxapp, monkeypatch, no_modal_message_dialogs):
+    """It saved the dialog's earlier values and said `Saved as preset`."""
+    from flim.core.config import Issue
+    from flim.core.registry import tools
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.configdialog import bind_presets, dialog_class
+
+    source = pd.DataFrame({"Source": ["file:///data/Results_a_ctrl_1.txt"], "t1": [1.0]})
+    tool = tools.get("Separate Categories")
+    manager = SettingsManager()
+    bind_presets(manager)
+    d = dialog_class(tool.config_class)(None, tool, data_choices={"Table: data": source})
+    try:
+        monkeypatch.setattr(d, "current_config", lambda: (None, [Issue("column", "Field required")]))
+        monkeypatch.setattr(wx.TextEntryDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.TextEntryDialog, "GetValue", lambda dlg: "Mine")
+        d._on_save_preset(None)
+        assert manager.settings.tool_presets(tool) == []
+        assert "not valid" in no_modal_message_dialogs[0]
+        assert "column: Field required" in no_modal_message_dialogs[0]
+        assert "Saved" not in d.settings_message.GetLabel()
+    finally:
+        d.Destroy()
+        bind_presets(None)
+
+
+def test_calculate_presets_keep_the_other_stored_presets(wxapp, dialog, monkeypatch):
+    """Saving or removing a calculation deleted the stored presets that were not valid."""
+    from flim.configs.data import ExpressionCalculation
+    from flim.core.settingsmgr import SettingsManager
+    from flim.gui.dialogs import calculate
+    from flim.tools.data import Calculate
+
+    manager = SettingsManager()
+    broken = {"name": "broken", "settings": {"calculations": [{"kind": "no such kind"}]}}
+    two = {
+        "name": "two",
+        "settings": {
+            "calculations": [
+                {"kind": "expression", "name": "a", "expression": "t1 * 2"},
+                {"kind": "expression", "name": "ratio", "expression": "t1 / 3"},
+            ]
+        },
+    }
+    manager.set_presets(Calculate, [broken, two])
+    calculate.bind(manager)
+    try:
+        calculate.save_presets([ExpressionCalculation(name="ratio", expression="t1 / t2")])
+        stored = manager.settings.tool_presets(Calculate)
+        assert [p["name"] for p in stored] == ["broken", "two", "ratio"]
+        assert stored[0] == broken
+        assert [c["name"] for c in stored[1]["settings"]["calculations"]] == ["a"]  # replaced
+        assert [p.name for p in calculate.saved_presets()] == ["a", "ratio"]
+        d = dialog("Calculate")
+        editor = d.fields.editors["calculations"]
+        monkeypatch.setattr(wx.MultiChoiceDialog, "ShowModal", lambda dlg: wx.ID_OK)
+        monkeypatch.setattr(wx.MultiChoiceDialog, "GetSelections", lambda dlg: [1])  # ratio
+        editor._on_remove_presets(None)
+        stored = manager.settings.tool_presets(Calculate)
+        assert [p["name"] for p in stored] == ["broken", "two"] and stored[0] == broken
+    finally:
+        calculate.bind(None)

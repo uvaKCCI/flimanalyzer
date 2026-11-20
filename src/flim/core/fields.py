@@ -1,0 +1,299 @@
+"""What the fields of a config hold, for building editors (dialogs) from them.
+
+`describe(config_class)` turns each Pydantic field into a `FieldSpec`: its
+kind (checkbox, choice, column list, ...), choices, bounds, title and help. It does
+not import wx, so other front ends can use it too.
+"""
+
+import types
+import typing
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Annotated, Any, Literal, Optional, Union
+
+import annotated_types
+from pydantic import BaseModel
+
+from flim.core.config import ColumnRole, ValueOf, fixed_value
+
+# fields of every config that are not edited
+METADATA_FIELDS = ("classname", "version")
+
+
+@dataclass(frozen=True)
+class FieldSpec:
+    """The description of one config field, from which an editor builds its control.
+
+    `name` is the field's name, `title` the label shown, `kind` the kind of control
+    (see `describe_annotation`); the comments describe the other attributes.
+    """
+
+    name: str
+    title: str
+    kind: str  # see describe_annotation
+    description: str = ""
+    optional: bool = False  # None is allowed
+    choices: tuple = ()  # choice, multichoice
+    labels: dict = field(default_factory=dict)  # choice: value -> label shown
+    role: Optional[str] = None  # column, columns: "category" or "feature"
+    allow_all: bool = False  # columns: "all" is allowed (all features)
+    item_type: Optional[type] = None  # numbers: int or float
+    model: Optional[type] = None  # model, models: the nested config class
+    variants: tuple = ()  # variants: the config classes of the kinds of entries
+    discriminator: Optional[str] = None  # variants: the field naming an entry's kind
+    column_field: Optional[str] = None  # value: the field naming the column
+    order: Optional[float] = None  # position in dialogs, see field_order
+    advanced: bool = False  # model: a collapsed section (else shown inline)
+    bounds: dict = field(default_factory=dict)  # ge, gt, le, lt
+    hidden: bool = False  # metadata, in hidden_fields, or only one value allowed
+    section: str = "settings"  # the dialog section: "settings" or "output"
+    wide: bool = False  # a row of its own at full width (e.g. a formula)
+    words: bool = False  # a list of texts, edited as one line separated by commas (empty entries kept)
+    escapes: bool = False  # text: a tab shown and typed as \t, a backslash as \\
+    chars: bool = False  # a list of single characters, typed as one text (with escapes)
+    # shown only while other fields have these values, e.g. {"mode": "pattern"}; a
+    # list of values: any of them
+    shown_when: dict = field(default_factory=dict)
+
+
+def title_of(name: str) -> str:
+    """Return the title of a field name, e.g. `N components` for `n_components`."""
+    text = name.replace("_", " ")
+    return text[:1].upper() + text[1:]
+
+
+def describe(model: type[BaseModel]) -> list[FieldSpec]:
+    """Return the descriptions of the fields of a config class, in definition order.
+
+    The kind and its details come from `describe_annotation`; title, description and
+    the editor options (`order`, `labels`, `advanced`, `section`, `wide`, `words`,
+    `escapes`, `chars`, `shown_when`) from the field's `Field(...)` arguments and
+    `json_schema_extra`. A nested model's section is collapsed (`advanced`) if the
+    field says so, otherwise if the model class has `advanced` set.
+
+    Args:
+        model: The config class.
+
+    Returns:
+        One `FieldSpec` per field. Fields not to be edited (metadata,
+        `hidden_fields`, fields with one allowed value) are marked hidden.
+    """
+    specs = []
+    for name, info in model.model_fields.items():
+        hidden = (
+            name in METADATA_FIELDS
+            or name in getattr(model, "hidden_fields", ())
+            or fixed_value(model, name)[0]
+        )
+        spec = describe_annotation(info.annotation, list(info.metadata))
+        extra = (
+            info.json_schema_extra if isinstance(info.json_schema_extra, dict) else {}
+        )
+        specs.append(
+            FieldSpec(
+                name=name,
+                title=info.title or title_of(name),
+                description=info.description or "",
+                order=extra.get("order"),
+                labels=dict(extra.get("labels", {})),
+                advanced=bool(
+                    extra.get("advanced", getattr(spec.get("model"), "advanced", False))
+                ),
+                hidden=hidden or spec.get("hidden", False),
+                section=extra.get("section", "settings"),
+                wide=bool(extra.get("wide", False)),
+                words=bool(extra.get("words", False)),
+                escapes=bool(extra.get("escapes", False)),
+                chars=bool(extra.get("chars", False)),
+                shown_when=dict(extra.get("shown_when", {})),
+                **{k: v for k, v in spec.items() if k != "hidden"},
+            )
+        )
+    return specs
+
+
+# where the fields every tool has go, see field_order
+GENERAL_ORDER = {"prefix": 200, "random_seed": 210, "grouping": 400, "features": 410}
+
+
+def field_order(spec: FieldSpec, index: int, large: bool) -> float:
+    """Return the position of a field in dialogs; fields are shown in increasing order.
+
+    A field's `order` (`Field(..., json_schema_extra={"order": 409})`) sets it; as
+    a float, subclasses can place fields between inherited ones. Without one: a
+    tool's own settings ~100, result prefix 200, random seed 210, a tool's own lists
+    and tables ~300, grouping 400, features 410, nested sections ~900; `index` (the
+    definition order) orders fields within these.
+
+    Args:
+        spec: The field.
+        index: The field's position in the definition order.
+        large: Whether the field is a list or table (placed at ~300 instead of ~100).
+
+    Returns:
+        The position.
+    """
+    if spec.order is not None:
+        return spec.order
+    if spec.name in GENERAL_ORDER:
+        return GENERAL_ORDER[spec.name]
+    base = 900 if spec.kind == "model" else 300 if large else 100
+    return base + index / 1000
+
+
+def visible(specs: list[FieldSpec]) -> list[FieldSpec]:
+    """Return the fields shown in a dialog.
+
+    These are the fields that are not hidden, without nested models that have no
+    visible field.
+    """
+    return [
+        s
+        for s in specs
+        if not s.hidden and not (s.kind == "model" and not visible(describe(s.model)))
+    ]
+
+
+def _unwrap(annotation: Any, metadata: list[Any]) -> tuple[Any, list[Any]]:
+    """Return the annotation without `Annotated`, and the metadata with its extras."""
+    while typing.get_origin(annotation) is Annotated:
+        args = typing.get_args(annotation)
+        annotation, metadata = args[0], metadata + list(args[1:])
+    return annotation, metadata
+
+
+def _role(metadata: Iterable[Any]) -> Optional[str]:
+    """Return the role of the first `ColumnRole` in the metadata, or None."""
+    return next((m.role for m in metadata if isinstance(m, ColumnRole)), None)
+
+
+def _bounds(metadata: Iterable[Any]) -> dict[str, Any]:
+    """Return the bounds (`ge`, `gt`, `le`, `lt`) set in the metadata."""
+    bounds = {}
+    for m in metadata:
+        for key, cls in (
+            ("ge", annotated_types.Ge),
+            ("gt", annotated_types.Gt),
+            ("le", annotated_types.Le),
+            ("lt", annotated_types.Lt),
+        ):
+            if isinstance(m, cls):
+                bounds[key] = getattr(m, key)
+        # Field(gt=...) inside Annotated arrives as a FieldInfo
+        for item in getattr(m, "metadata", ()):
+            bounds.update(_bounds([item]))
+    return bounds
+
+
+def _is_union(annotation: Any) -> bool:
+    """Return whether the annotation is a union (`Union[...]` or `X | Y`)."""
+    return typing.get_origin(annotation) in (Union, types.UnionType)
+
+
+def _is_model(annotation: Any) -> bool:
+    """Return whether the annotation is a Pydantic model class."""
+    return isinstance(annotation, type) and issubclass(annotation, BaseModel)
+
+
+def describe_annotation(
+    annotation: Any, metadata: Iterable[Any] = ()
+) -> dict[str, Any]:
+    """Return the kind and details of a field type.
+
+    Kinds: bool, choice, multichoice, int, float, number (int or float), mixed (a
+    number or one of `choices`), text, value (a value of the column another field
+    names), column, columns, path, paths, numbers, model, models, modelmap (a dict of
+    configs, e.g. per feature), variants (a list of configs of several kinds, told
+    apart by a discriminator field), json (anything else).
+
+    Args:
+        annotation: The field's type, possibly `Annotated`, optional or a union.
+        metadata: The field's metadata (e.g. `ColumnRole`, `ValueOf`, bounds).
+
+    Returns:
+        The keyword arguments of `FieldSpec` that follow from the type: always
+        `kind`, and depending on the kind `optional`, `choices`, `role`,
+        `allow_all`, `bounds`, `item_type`, `model`, `variants`, `discriminator` or
+        `column_field`.
+    """
+    annotation, metadata = _unwrap(annotation, list(metadata))
+    optional = False
+    if _is_union(annotation):
+        args = [a for a in typing.get_args(annotation) if a is not type(None)]
+        optional = len(args) < len(typing.get_args(annotation))
+        # list of columns or "all"
+        lists = [a for a in args if typing.get_origin(_unwrap(a, [])[0]) is list]
+        literals = [a for a in args if typing.get_origin(a) is Literal]
+        if lists and literals and typing.get_args(literals[0]) == ("all",):
+            spec = describe_annotation(lists[0], metadata)
+            return {**spec, "allow_all": True, "optional": optional}
+        kinds = [describe_annotation(a, metadata) for a in args]
+        if len(kinds) == 1:
+            return {**kinds[0], "optional": optional}
+        bounds = {}
+        for k in kinds:
+            bounds.update(k.get("bounds", {}))
+        names = {k["kind"] for k in kinds}
+        if names <= {"int", "float"}:
+            return {"kind": "number", "optional": optional, "bounds": bounds}
+        if names <= {"int", "float", "choice"}:
+            # a number or one of some values, e.g. a confidence level or "sd"
+            choices = tuple(c for k in kinds for c in k.get("choices", ()))
+            return {
+                "kind": "mixed",
+                "optional": optional,
+                "choices": choices,
+                "bounds": bounds,
+            }
+        return {"kind": "json", "optional": optional}
+
+    origin = typing.get_origin(annotation)
+    role = _role(metadata)
+    if annotation is bool:
+        return {"kind": "bool"}
+    if origin is Literal:
+        return {"kind": "choice", "choices": typing.get_args(annotation)}
+    if annotation is str:
+        value_of = next((m for m in metadata if isinstance(m, ValueOf)), None)
+        if value_of is not None:
+            return {"kind": "value", "column_field": value_of.column_field}
+        return {"kind": "column", "role": role} if role else {"kind": "text"}
+    if annotation in (int, float):
+        return {"kind": annotation.__name__, "bounds": _bounds(metadata)}
+    if annotation is Path:
+        return {"kind": "path"}
+    if _is_model(annotation):
+        return {"kind": "model", "model": annotation}
+    if origin in (list, set, tuple):
+        (item,) = typing.get_args(annotation)[:1] or (Any,)
+        item, item_metadata = _unwrap(item, [])
+        if typing.get_origin(item) is Literal:
+            return {"kind": "multichoice", "choices": typing.get_args(item)}
+        item_role = _role(item_metadata) or role
+        if item is str and item_role:
+            return {"kind": "columns", "role": item_role}
+        if item in (int, float):
+            return {
+                "kind": "numbers",
+                "item_type": item,
+                "bounds": _bounds(item_metadata),
+            }
+        if item is Path:
+            return {"kind": "paths"}
+        if _is_model(item):
+            return {"kind": "models", "model": item}
+        discriminator = next(
+            (getattr(m, "discriminator", None) for m in item_metadata if getattr(m, "discriminator", None)),
+            None,
+        )
+        variants = typing.get_args(item) if _is_union(item) else ()
+        if discriminator and variants and all(_is_model(v) for v in variants):
+            return {"kind": "variants", "variants": variants, "discriminator": discriminator}
+    if origin is dict:
+        key, value = typing.get_args(annotation) or (Any, Any)
+        key, key_metadata = _unwrap(key, [])
+        if _is_model(value):
+            # e.g. a range per feature
+            return {"kind": "modelmap", "model": value, "role": _role(key_metadata)}
+    return {"kind": "json"}

@@ -153,6 +153,12 @@ def test_run_summary_and_prefect_link(tmp_path):
     assert run.ui_url in text
     assert "1 cancelled" in text and "1 completed" in text and "1 failed" in text
     assert "boom" in text  # failure message of Boom
+    # the runtime: versions and execution, also without Prefect's artifacts
+    from flim import __version__
+
+    assert f"Versions:\n  FLIMAnalyzer {__version__}\n  Python " in text
+    assert "  numpy " in text and "  pytest " not in text  # no test extra
+    assert "Execution:\n  task runner: ThreadPoolTaskRunner" in text
 
 
 def test_progress_callback():
@@ -209,10 +215,10 @@ def test_autoencoder_training_stops_within_an_epoch(tmp_path):
 
     threading.Timer(1.0, token.set).start()
     start = time.monotonic()
-    # models are saved in the results folder
+    # models would be saved in the results folder; the cancelled training saves none
     run = run_flow("ae cancel", build, autosave_dir=str(tmp_path), cancel_token=token)
     assert time.monotonic() - start < 30
-    assert run.cancelled == ["Autoencoder: Train"]
+    assert run.cancelled == ["Autoencoder Train Model"]
     assert not list(tmp_path.rglob("*.model"))
 
 
@@ -237,7 +243,8 @@ def test_cancel_reaches_dask_worker_processes(tmp_path):
     threading.Thread(target=cancel_once_started, daemon=True).start()
     task_runner = DaskTaskRunner(cluster_kwargs={"n_workers": 1, "processes": True})
     run = run_flow("cancel dask processes", build, task_runner, cancel_token=token)
-    assert time.monotonic() - started["at"] < 5  # the task gives up after WAIT s
+    # cancelled well before the task gives up after WAIT s
+    assert time.monotonic() - started["at"] < 5
     assert dict(run.tasks()) == {"Long": "cancelled"}
     assert run.state == "cancelled"
 
@@ -291,7 +298,7 @@ def test_cancel_stops_plot_tasks_waiting_for_the_plot_lock():
         release.set()
 
     run = run_flow("plots", build, default_task_runner(4), cancel_token=token)
-    # the first plot finishes, the three waiting for the lock don't run
+    # the first plot finishes, the three waiting for the lock do not run
     assert len(calls) == 1
     counts = run.task_counts()
     assert counts == {"completed": 1, "cancelled": 3}

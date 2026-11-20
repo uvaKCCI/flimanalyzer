@@ -24,7 +24,7 @@ The `Box Plot` tool creates box plots of grouped data. Each box shows the median
 
     `Fit axes to the data` is checked by default. The value axes then run from the smallest to the largest value, plus a 5% margin. Uncheck it if the axes should include 0.
 
-    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (0: about as many rows as columns). Without `Single figure`, each feature gets its own figure. With more than 2 grouping columns, `Single figure` is hidden: each feature then gets its own figure with a grid of plots.
+    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (default 5; 0: about as many rows as columns). Without `Single figure`, each feature gets its own figure. With more than 2 grouping columns, `Single figure` is hidden: each feature then gets its own figure with a grid of plots.
 
     `Legend` sets where the legend is shown: `right`, `top`, `bottom` or `left` of the plots, `inside` a plot, or `none`. With `Single figure`, the tiles share one legend outside the plots. `Legend` appears only with 2 or more grouping columns. See [Hidden settings](/userguide/dialogs.md#hidden-settings).
 
@@ -33,8 +33,6 @@ The `Box Plot` tool creates box plots of grouped data. Each box shows the median
     ![](/images/analysis/boxplot-config-single.png)
 
     In the example, `FLIRR` is plotted, grouped by `Treatment` and `FOV`.
-
-    ![](/images/analysis/boxplot-config-grouping.png)
 
 4. Click `OK`.
 
@@ -46,14 +44,10 @@ To change the plot layout, change the order of the grouping columns. See the exa
 
 ## Example Output
 
-**Example Results:** `Grouping` - Treatment, FOV
+**Example Results:** left: `Grouping` - Treatment, FOV; right: `Grouping` - FOV, Treatment
 
-![](/images/analysis/boxplot-result1-grouping.png)
-
-
-**Example Results:** `Grouping` - FOV, Treatment
-
-![](/images/analysis/boxplot-result2-grouping.png)
+![](/images/analysis/boxplot-result1-grouping.png){width="49%"}
+![](/images/analysis/boxplot-result2-grouping.png){width="49%"}
 
 **Example Results:** `Single figure` - FAD a1[%], NAD(P)H a2[%], FLIRR; `Grouping` - Treatment, FOV
 

@@ -173,6 +173,12 @@ def test_train_run_augment(needs_torch, data, tmp_path, device):
         ),
     )
     (simulated,) = augment.values()
+    # a random seed gives the same noise, and so the same copies, on every run
+    seeded = dict(model_files=[files[-1]], sets=2, grouping=["FOV", "Cell"], **common)
+    first = AEAugment()(data, config=AEAugmentConfig(random_seed=7, **seeded))
+    again = AEAugment()(data, config=AEAugmentConfig(random_seed=7, **seeded))
+    (first,), (again,) = first.values(), again.values()
+    pd.testing.assert_frame_equal(first, again)
     assert len(simulated) == 2 * len(data)
     assert "index" not in simulated.columns
     assert simulated["Cell"].nunique() == 2 * len(
@@ -218,7 +224,7 @@ def test_cpu_never_touches_cuda(needs_torch, data, tmp_path, monkeypatch):
     for name in ("is_available", "init", "_lazy_init", "device_count"):
         monkeypatch.setattr(torch.cuda, name, no_cuda)
     # PyTorch 2.12+ asks through torch.accelerator (e.g. the optimizer's CUDA-graph
-    # check): blocked as well, so a query that moves there doesn't pass unnoticed
+    # check): blocked as well, so a query that moves there does not pass unnoticed
     for name in ("current_accelerator", "is_available", "device_count"):
         if hasattr(torch.accelerator, name):
             monkeypatch.setattr(torch.accelerator, name, no_cuda)
@@ -229,3 +235,104 @@ def test_cpu_never_touches_cuda(needs_torch, data, tmp_path, monkeypatch):
     common = dict(features=FEATURES, resources=resources, model_files=[files[-1]])
     RunAE()(data, config=AERunConfig(**common))
     AEAugment()(data, config=AEAugmentConfig(grouping=["FOV", "Cell"], **common))
+
+
+def test_training_passes_learning_rate_and_weight_decay_by_name(
+    needs_torch, data, tmp_path, monkeypatch
+):
+    # passed by position, the weight decay became RMSprop's alpha (smoothing
+    # constant) and the weight decay was 0
+    import torch
+
+    optimizers = []
+    real = torch.optim.RMSprop
+
+    def recording(*args, **kwargs):
+        optimizers.append(real(*args, **kwargs))
+        return optimizers[-1]
+
+    monkeypatch.setattr(torch.optim, "RMSprop", recording)
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    training(data, config=train_config(learning_rates=[1e-3], weight_decays=[1e-4], epochs=1))
+    (group,) = optimizers[0].param_groups
+    assert group["lr"] == 1e-3
+    assert group["weight_decay"] == 1e-4
+    assert group["alpha"] == 0.99  # PyTorch's default, no longer the weight decay
+
+
+
+def test_noise_is_set_per_feature():
+    # pandas >= 2 reduces np.mean(DataFrame) over all columns: one noise level for
+    # all features, set by the largest values
+    signal = pd.DataFrame({"small": [1.0, 2.0, 3.0], "large": [1000.0, 2000.0, 3000.0]})
+    mean, std = AEAugment.noise_model(signal, snr_db=20)
+    assert list(mean) == [0.0, 0.0]
+    assert len(std) == 2
+    assert std[1] == pytest.approx(1000 * std[0])  # proportional to each column's size
+
+
+def test_split_without_grouping_keeps_duplicate_rows(needs_torch, data):
+    # rows with equal values (here: all of them twice) go into the training or the
+    # validation set, never into neither
+    doubled = pd.concat([data, data])  # also repeats the row labels
+    config = train_config(grouping=[], train_size=0.75)
+    train_loader, val_loader, *_ = AETraining()._datasets(doubled, config, 32)
+    assert len(train_loader.dataset) + len(val_loader.dataset) == len(doubled)
+
+
+def test_saved_model_handles_missing_values_as_training_did(needs_torch, data, tmp_path):
+    """Training scales, then sets missing values to 0; the saved model does the same
+    (it set them to 0 before scaling, so the model got other values)."""
+    import joblib
+
+    data = data.copy()
+    data.loc[data.index[:5], FEATURES[0]] = np.nan
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    files = training(data, config=train_config(timeseries="Treatment", model_name="M"))["Model File"]
+    pipeline = joblib.load(files[-1])
+    assert [name for name, _ in pipeline.steps][:2] == ["minmaxscaler", "simpleimputer"]
+    row = data[FEATURES].iloc[[0]].to_numpy(dtype=np.float32)  # its first feature missing
+    assert pipeline[:-1].transform(row)[0, 0] == 0.0
+
+
+# --- the Autoencoder Train workflow ---
+
+
+def test_the_workflow_trains_each_combination_and_collects_the_model_files(
+    needs_torch, prefect_harness, data, tmp_path
+):
+    import flim.workflow  # noqa: F401  (registers the workflows)
+    from flim.configs import AETrainWorkflowConfig
+
+    workflow = tools.get("Autoencoder: Train")  # the former name of the tool
+    assert workflow.name == "Autoencoder Train"
+    config = AETrainWorkflowConfig(**train_config(batch_sizes=[16, 32]).model_dump(exclude={"classname"}))
+    run = workflow().run_flow(data, config=config, autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    labels = {a["label"]: a for _, a in run.graph.nodes(data=True) if "tool" in a}
+    trainings = [l for l in labels if l.startswith("Autoencoder Train Model")]
+    assert len(trainings) == 2 and any(l.startswith("Collect Files") for l in labels)
+    (files,) = [p for p in tmp_path.rglob("Table_Files.txt")]
+    table = pd.read_csv(files, sep="\t")
+    assert list(table.columns) == ["Input", "File"]
+    expected = {"-".join(str(v) for v in c) for c in combinations(config)}
+    assert set(table["Input"]) == expected and len(expected) == 2
+    assert all(str(f).endswith(".model") for f in table["File"])
+
+
+def test_the_workflow_does_not_pass_a_saved_prefix_to_its_steps(
+    needs_torch, prefect_harness, data, tmp_path
+):
+    """A prefix (e.g. from a settings file) went to the training step, whose results
+    the workflow then did not find under their names."""
+    import flim.workflow  # noqa: F401  (registers the workflows)
+    from flim.configs import AETrainWorkflowConfig
+
+    values = train_config().model_dump(exclude={"classname"})
+    config = AETrainWorkflowConfig(**{**values, "prefix": "Mine-"})  # accepted
+    run = tools.get("Autoencoder Train")().run_flow(data, config=config, autosave_dir=tmp_path)
+    assert run.state == "completed", run.failed
+    assert not [p for p in tmp_path.rglob("*") if p.name.startswith("Mine-")]
+    assert len(list(tmp_path.rglob("Table_Files.txt"))) == 1

@@ -11,6 +11,28 @@ import pandas as pd
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def no_modal_message_dialogs(monkeypatch):
+    """Answer message dialogs and message boxes without showing them.
+
+    A modal dialog that a test does not answer would wait for a click and stop the
+    whole run. Unless a test sets its own answer, a message dialog answers No (e.g.
+    `Not Now`, `Don't Save`) and a message box OK; both are recorded in
+    `shown_messages`.
+    """
+    try:
+        import wx
+    except ImportError:
+        yield []
+        return
+    shown = []
+    monkeypatch.setattr(
+        wx.MessageDialog, "ShowModal", lambda dialog: shown.append(dialog.GetMessage()) or wx.ID_NO
+    )
+    monkeypatch.setattr(wx, "MessageBox", lambda message, *args, **kwargs: shown.append(message) or wx.OK)
+    yield shown
+
+
 @pytest.fixture
 def flim_data():
     """Small synthetic FLIM table: 2 treatments x 3 FOVs x 10 cells."""
@@ -77,8 +99,8 @@ def wxapp():
 
 @pytest.fixture
 def data_choices(table):
-    """The input tables offered by the dialogs of ``dialog`` (``table``: the test
-    module's)."""
+    """The input tables offered by the dialogs that ``dialog`` makes (``table`` is a
+    fixture of the test module)."""
     return {"Table: data": table}
 
 
@@ -118,6 +140,20 @@ def close_figures():
     yield
     plt.close("all")
     # collect leftovers (e.g. wx objects kept alive by a failed test's traceback)
-    # here, on the main thread, not later in some worker thread
+    # here, on the main thread, not later in a worker thread
     gc.collect()
+
+
+@pytest.fixture(autouse=True)
+def user_settings_file(tmp_path, monkeypatch):
+    """Every test uses its own user settings file (FLIM_USER_SETTINGS), never the one in
+    the platform's settings folder."""
+    path = tmp_path / "user-settings.json"
+    monkeypatch.setenv("FLIM_USER_SETTINGS", str(path))
+    # nor the app settings files in the platform's settings folder (the GUI would ask
+    # which to start with)
+    monkeypatch.setenv("FLIM_APP_SETTINGS_PATH", str(tmp_path / "appsettings"))
+    # nor the platform's log folder (the default, so that FLIM_LOG_DIR stays unset)
+    monkeypatch.setattr("flim.core.logs.default_log_dir", lambda: tmp_path / "logs")
+    return path
 

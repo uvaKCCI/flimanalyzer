@@ -1,9 +1,8 @@
-"""Every tool rejects fewer features and grouping columns than it needs.
+"""Every tool rejects fewer features and grouping columns than it needs, and more
+grouping columns than it uses.
 
-0.5's plugins declared get_required_features / get_required_categories, and the GUI
-refused to run with fewer; 0.6.0 lost that check (the run code was rewritten and the
-plugin API removed, without a test). It is restored as ``min_features`` and
-``min_grouping`` on the configs, checked by Tool.validate (dialogs) and before a run.
+The configs declare ``min_features``, ``min_grouping`` and ``max_grouping``;
+Tool.validate checks them (dialogs), and the run checks them before the tool runs.
 """
 
 import numpy as np
@@ -15,28 +14,41 @@ import flim.workflow  # noqa: F401  (registers the workflows)
 from flim.core.registry import tools
 from flim.core.schema import TableSchema
 
-# tool -> (min_features, min_grouping): 0.5's numbers, where the tool existed; every
-# registered tool must be listed, so a new tool has to declare its requirements
+# tool -> (min_features, min_grouping), as the former plugins declared them where a
+# plugin existed; every registered tool must be listed, so a new tool has to declare
+# its requirements
 EXPECTED = {
+    # file
+    "Open Tables": (0, 0),
+    "Import Tables": (0, 0),
     # data
     "Concatenate": (0, 0),
+    "Calculate": (0, 0),
+    "Directory/File to Source": (0, 0),
+    "Drop Columns": (0, 0),
     "Filter": (0, 0),
+    "Fuse Categories": (0, 2),
+    "Collect Files": (0, 0),  # files, not tables
     "Merge": (0, 0),
-    "Order Categories": (0, 0),
+    "Order Category Values": (0, 0),
     "Pivot": (1, 0),
-    "Sort": (0, 0),  # 0.5: none (sorting by nothing leaves the table as it is)
-    "Split": (0, 0),  # new in 0.6
+    "Rename Columns": (0, 0),
+    "Sort": (0, 0),  # sorting by nothing leaves the table as it is
+    "Scale": (1, 0),
+    "Separate Categories": (0, 0),  # one column, checked by the tool
+    "Split": (0, 1),  # 0.6 required a column with a config check, now min_grouping
     "Unpivot": (1, 0),
     # analysis
-    "Autoencoder: Augment Data": (1, 1),
-    "Autoencoder: Run": (1, 0),  # 0.5 also a category; 0.6 has no grouping here
-    "Autoencoder: Train": (2, 0),
-    "Categorize Data": (0, 0),  # 0.5: 1; in 0.6 each rule names its feature
+    "Autoencoder Augment Data": (1, 1),
+    "Autoencoder Run": (1, 0),  # grouping is hidden: the tool does not group
+    "Autoencoder Train": (2, 0),  # a workflow: one Autoencoder Train Model per combination
+    "Autoencoder Train Model": (2, 0),  # its step, in no menu
+    "Categorize Data": (0, 0),  # each rule names its feature
     "Gaussian Mixed Model": (1, 0),
     "K-Means": (1, 0),
     "KS-Statistics": (1, 0),
     "PCA": (2, 0),
-    "Random Forest": (1, 0),  # 0.5's category is the target field in 0.6
+    "Random Forest": (1, 0),  # the category to predict is the target field
     "Relative Change": (1, 0),
     "Series Analysis": (2, 0),
     "Summarize": (1, 0),
@@ -53,12 +65,12 @@ EXPECTED = {
     "Swarm Plot": (1, 0),
     "Violin Plot": (1, 0),
     # workflows
-    "Basic FLIRR Analysis": (1, 1),  # 0.5: FLIRR, trp t1 and Treatment, FOV, Cell
-    "FLIM Data Augmentation Tuning": (2, 0),  # 0.5: 1, but its training steps need 2
+    "Basic FLIRR Analysis": (1, 1),
+    "FLIM Data Augmentation Tuning": (2, 0),  # its training steps need 2
     "FLIM Feature Analysis": (1, 0),
 }
 
-ALL = [t for ts in tools.by_category().values() for t in ts]
+ALL = [t for ts in tools.by_category().values() for t in ts] + tools.hidden()
 
 
 def _table(features=3):
@@ -108,11 +120,56 @@ def test_all_features_are_counted_in_the_table(tool):
     assert not [i for i in tool.validate(config, [enough]) if i.field == "features"]
 
 
+@pytest.mark.parametrize("tool", NEEDS_FEATURES, ids=lambda t: t.name)
+def test_all_features_are_not_counted_without_a_complete_schema(tool):
+    from pydantic import ValidationError
+
+    try:
+        config = tool.config_class(features="all")
+    except ValidationError:
+        pytest.skip("this tool has no 'All features'")
+    # an unknown input (no schema), or a schema that does not list all columns: the
+    # number of features is not known before the run, so it is not checked
+    few = TableSchema.from_frame(_table(features=0))
+    incomplete = few.model_copy(update={"complete": False})
+    for schemas in ([None], [incomplete]):
+        assert not [i for i in tool.validate(config, schemas) if i.field == "features"]
+
+
 @pytest.mark.parametrize("tool", NEEDS_GROUPING, ids=lambda t: t.name)
 def test_too_few_grouping_columns_is_an_error(tool):
     schema = TableSchema.from_frame(_table())
     issues = tool.validate(tool.config_class(grouping=[]), [schema])
     assert [i for i in issues if i.field == "grouping" and i.severity == "error"]
+
+
+# tools whose plots use at most a number of grouping columns: more were dropped
+# silently before
+MAX_GROUPING = {"Box Plot": 4, "Violin Plot": 4, "Swarm Plot": 4, "Line Plot": 5}
+
+
+@pytest.mark.parametrize("tool", ALL, ids=lambda t: t.name)
+def test_maximum_of_grouping_columns(tool):
+    assert tool.config_class.max_grouping == MAX_GROUPING.get(tool.name)
+
+
+@pytest.mark.parametrize("name", sorted(MAX_GROUPING))
+def test_too_many_grouping_columns_is_an_error(name):
+    tool = tools.get(name)
+    most = MAX_GROUPING[name]
+    columns = [f"c{i}" for i in range(most + 1)]
+    data = _table()
+    for column in columns:
+        data[column] = pd.Categorical(["a", "b"] * 10)
+    schema = TableSchema.from_frame(data)
+
+    def grouping_errors(grouping):
+        config = tool.config_class(features=["f0"], grouping=grouping)
+        issues = tool.validate(config, [schema])
+        return [i for i in issues if i.field == "grouping" and i.severity == "error"]
+
+    assert grouping_errors(columns)
+    assert not grouping_errors(columns[:most])
 
 
 @pytest.mark.parametrize(
@@ -126,7 +183,7 @@ def test_run_refuses_too_few_features(tool):
 
 def test_summarize_needs_a_statistic():
     # with none, the summary had no columns at all and failed with
-    # KeyError: "None of [...] are in the columns" (found in 0.6.0)
+    # KeyError: "None of [...] are in the columns"
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError):

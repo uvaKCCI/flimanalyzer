@@ -977,13 +977,16 @@ wheels = [
 name = "flimanalyzer"
 source = { editable = "." }
 dependencies = [
+    { name = "filelock" },
     { name = "joblib" },
     { name = "matplotlib" },
     { name = "networkx" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "platformdirs" },
     { name = "prefect" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "seaborn" },
@@ -1009,13 +1012,16 @@ test = [
 
 [package.dev-dependencies]
 docs = [
+    { name = "filelock" },
     { name = "joblib" },
     { name = "matplotlib" },
     { name = "myst-parser" },
     { name = "networkx" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "platformdirs" },
     { name = "pydantic" },
+    { name = "pydantic-settings" },
     { name = "pypubsub" },
     { name = "scikit-learn" },
     { name = "scipy" },
@@ -1030,14 +1036,17 @@ gui = [
 
 [package.metadata]
 requires-dist = [
+    { name = "filelock", specifier = ">=3.12,<5" },
     { name = "joblib", specifier = "<2" },
     { name = "matplotlib", specifier = ">=3.9,<3.13" },
     { name = "networkx", specifier = ">=3,<4" },
     { name = "numpy", specifier = ">=2.1,<3" },
     { name = "pandas", specifier = ">=2.2.2,<3" },
+    { name = "platformdirs", specifier = ">=4,<5" },
     { name = "prefect", specifier = ">=3.4.7,<4" },
     { name = "prefect-dask", marker = "extra == 'dask'", specifier = ">=0.3.7,<1" },
     { name = "pydantic", specifier = ">=2.7,<3" },
+    { name = "pydantic-settings", specifier = ">=2.7,<3" },
     { name = "pypubsub", marker = "extra == 'gui'", specifier = "<5" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
@@ -1055,13 +1064,16 @@ provides-extras = ["dask", "gui", "test"]
 
 [package.metadata.requires-dev]
 docs = [
+    { name = "filelock", specifier = ">=3.12,<5" },
     { name = "joblib", specifier = "<2" },
     { name = "matplotlib", specifier = ">=3.9,<3.13" },
     { name = "myst-parser", specifier = ">=4,<5" },
     { name = "networkx", specifier = ">=3,<4" },
     { name = "numpy", specifier = ">=2.1,<3" },
     { name = "pandas", specifier = ">=2.2.2,<3" },
+    { name = "platformdirs", specifier = ">=4,<5" },
     { name = "pydantic", specifier = ">=2.7,<3" },
+    { name = "pydantic-settings", specifier = ">=2.7,<3" },
     { name = "pypubsub", specifier = "<5" },
     { name = "scikit-learn", specifier = ">=1.5,<2" },
     { name = "scipy", specifier = ">=1.13,<2" },
@@ -2433,6 +2445,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/18/f0/a5595c1e8c3ae44b9828cb2f0fa8155e5095ef04d6327b8f61cf44a3df85/pillow-12.3.0-cp315-cp315t-win32.whl", hash = "sha256:1657923d2d45afb66526e5b933e5b3052e6bdea196c90d3abb2424e18c77dae8", size = 6474384, upload-time = "2026-07-01T11:56:18.855Z" },
     { url = "https://files.pythonhosted.org/packages/e4/04/62bcd9f844984c5938d3b05264a61d797a29d3e0812341a8204af70bbdee/pillow-12.3.0-cp315-cp315t-win_amd64.whl", hash = "sha256:8cd2f7bdda092d99c9fc2fb7391354f306d01443d22785d0cbfafa2e2c8bb418", size = 7243537, upload-time = "2026-07-01T11:56:21.214Z" },
     { url = "https://files.pythonhosted.org/packages/3d/68/1f3066acedf37673694a7141381d8f811ae97f30d34413d236abe7d489f1/pillow-12.3.0-cp315-cp315t-win_arm64.whl", hash = "sha256:06ff022112bc9cbf83b60f8e028d94ad87b60621706487e65f673de61610ab59", size = 2567491, upload-time = "2026-07-01T11:56:23.506Z" },
+]
+
+[[package]]
+name = "platformdirs"
+version = "4.14.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d7/9a/8475be631fb33ca1466915e70fd594c42a4e84b512db650eaa14f90fe75d/platformdirs-4.14.5.tar.gz", hash = "sha256:32e9921db7385aa8169bee4fe9501923e5715ba9fb7ea3b9c69b0d8e0639f7a1", size = 71464, upload-time = "2026-11-04T16:54:50.358Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/ae/ecbbbfd0e4343a6a521d49b3c8656fb4643dee2a4f6eaf941cf3280391a8/platformdirs-4.14.5-py3-none-any.whl", hash = "sha256:8e778c6fa421516f4d3369449f8df3b0e1b72c0e0005fe88e3ec772d0a14e750", size = 35402, upload-time = "2026-11-04T16:54:48.875Z" },
 ]
 
 [[package]]

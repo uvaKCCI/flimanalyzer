@@ -5,7 +5,8 @@ Thank you for helping to improve FLIMAnalyzer.
 ## Reporting a bug or asking for a feature
 
 Open an [issue](https://github.com/uvaKCCI/flimanalyzer/issues). For a bug, say which
-version you use (`Help` → `About FLIMAnalyzer`), your
+version you use (`Help` → `About FLIMAnalyzer`; on macOS `FLIMAnalyzer` →
+`About FLIMAnalyzer`), your
 operating system, what you did, what you expected and what happened. Attach the log
 file and, if you can, a small data file that shows the problem.
 
@@ -13,7 +14,7 @@ file and, if you can, a small data file that shows the problem.
 
 - **Ask on the issue first.** Say what you would like to change and wait for a
   maintainer's answer. If there is no issue yet, open one.
-- **Issues assigned to a maintainer are already being fixed.** Please don't open pull
+- **Issues assigned to a maintainer are already being fixed.** Please do not open pull
   requests for them. The fix is usually in a linked pull request into `dev`, and the
   issue stays open until the release with the fix is published.
 - **Pull requests go into `dev`,** not `main`. `main` only receives releases.

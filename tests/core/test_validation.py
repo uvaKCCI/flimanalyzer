@@ -1,4 +1,4 @@
-"""Workflow validation: dry runs, guessed columns, strict mode (flim.core.validation)."""
+"""Workflow validation: dry runs, guessed and skipped columns (flim.core.validation)."""
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,10 @@ from flim.configs import PivotConfig, SummaryConfig
 from flim.configs.workflow import AETuneConfig, BasicFLIRRConfig, WorkflowConfig
 from flim.core.config import CategoryColumn, FeatureColumn
 from flim.core.schema import TableSchema
+from flim.core.config import Processing, ProcessingRules
 from flim.core.validation import guess_column, replace_at
+
+GUESS = ProcessingRules(strict=False)
 from flim.core.workflow import Workflow, WorkflowValidationError, workflow_input
 from flim.tools.data import Pivot
 from flim.tools.statistics import Summarize
@@ -62,7 +65,7 @@ def test_replace_at():
 
 def test_missing_columns_are_guessed(data):
     config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=FEATURES)
-    report = BasicFLIRR().resolve(config, [data], strict=False)
+    report = BasicFLIRR().resolve(config, [data], GUESS)
     assert report.errors == []
     assert [(i.field, i.old, i.suggestion) for i in report.guesses] == [
         ("features[1]", "FAD a1%", "FAD a1[%]"),
@@ -76,8 +79,12 @@ def test_missing_columns_are_guessed(data):
 
 
 def test_strict_reports_errors(data):
-    config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=FEATURES, strict=True)
-    report = BasicFLIRR().resolve(config, [data], strict=False)  # the config's wins
+    config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=FEATURES)
+    report = BasicFLIRR().resolve(config, [data])  # strict by default
+    assert [i.field for i in report.errors] == ["features[1]", "features[2]"]
+    assert report.guesses == []
+    # strict per field: grouping may be guessed, features not
+    report = BasicFLIRR().resolve(config, [data], ProcessingRules.of(Processing(strict={"grouping": False})))
     assert [i.field for i in report.errors] == ["features[1]", "features[2]"]
     assert report.guesses == []
     # the steps do not repeat the workflow's missing columns
@@ -86,7 +93,7 @@ def test_strict_reports_errors(data):
 
 def test_guesses_reach_the_steps_bound_fields(data):
     config = AETuneConfig(grouping=["Treatment", "FOV"], features=FEATURES)
-    report = AETune().resolve(config, [data], strict=False)
+    report = AETune().resolve(config, [data], GUESS)
     assert report.errors == []
     assert report.config.training.features == report.config.features
     assert "FAD a1[%]" in report.config.augment.features
@@ -103,9 +110,8 @@ def test_feature_analysis_uses_the_grouping(data):
         timeseries="Day",
         control_group="ctrl",
         features=["FAD a1", "NAD(P)H a2", "FLIRR"],
-        strict=True,
     )
-    report = AEFeature().resolve(config, [renamed, renamed], strict=True)
+    report = AEFeature().resolve(config, [renamed, renamed])
     assert report.issues == []
 
 
@@ -130,7 +136,7 @@ class SummaryPivot(Workflow[StepsConfig]):
         Pivot()(summary, config=PivotConfig(grouping=config.pivot_by))
 
 
-def test_steps_are_checked_against_earlier_outputs(data):
+def test_steps_are_validated_against_earlier_outputs(data):
     # FOV is in the input, but not in the summary (grouped by Treatment only)
     report = SummaryPivot().resolve(StepsConfig(), [data])
     (error,) = report.errors
@@ -140,12 +146,12 @@ def test_steps_are_checked_against_earlier_outputs(data):
     assert report.issues == []
     pivot = report.steps[-1]
     assert pivot.inputs[0].names == ["Treatment", "FOV", "FLIRR\nmean"]
-    # the dialogs' check (not strict)
+    # the dialogs' validation
     issues = SummaryPivot.validate(StepsConfig(), [TableSchema.from_frame(data)])
     assert [i.step for i in issues] == ["Pivot"]
 
 
-def test_unknown_inputs_are_not_checked():
+def test_unknown_inputs_are_not_validated():
     report = SummaryPivot().resolve(StepsConfig(), [None])
     assert report.issues == [] and report.steps == []
 
@@ -157,12 +163,13 @@ def step_config(report, tool_name):
 def test_basic_flirr_settings_taken_from_the_data(data):
     config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=["FLIRR"])
     report = BasicFLIRR().resolve(config, [data])
-    # empty: the first value of the first grouping column; the columns by name
+    # not set: the first value of the first grouping column, and the FAD a1 and
+    # NAD(P)H a2 columns found by name
     first = list(data["Treatment"].cat.categories)[0]  # in category order
     assert step_config(report, "Relative Change").reference_value == first
     scatter = step_config(report, "Scatter Plot")
     assert (scatter.features, scatter.x_axis) == (["FAD a1[%]", "NAD(P)H a2[%]"], "FAD a1[%]")
-    # set: used
+    # set: the given values are used
     config = config.model_copy(
         update={"reference_value": "Dox30", "fad_a1": "NAD(P)H a2", "nadph_a2": "FAD a1"}
     )
@@ -195,7 +202,7 @@ class TestRuns:
             grouping=["Treatment", "FOV"], features=["flirr"]
         )
         run = SummaryPivot().run_flow(
-            data, config=config, autosave_dir=str(tmp_path), strict=False
+            data, config=config, autosave_dir=str(tmp_path), processing=GUESS
         )
         assert run.failed == []
         (summary,) = tmp_path.rglob("run_summary.txt")
@@ -209,3 +216,36 @@ class TestRuns:
         config = StepsConfig(grouping=["Treatment", "FOV"])
         results = SummaryPivot().run(data, config=config)
         assert list(results) == ["Table: Summary", "Table: Pivoted"]
+
+
+def test_tune_steps_use_the_time_series_column(data):
+    # another column name than Treatment: the KDE and Summarize steps group by the
+    # workflow's time-series column
+    renamed = data.rename(columns={"Treatment": "Day"})
+    config = AETuneConfig(
+        grouping=["Day", "FOV", "Cell"], timeseries="Day", features=FEATURES
+    )
+    report = AETune().resolve(config, [renamed])
+    assert not [i for i in report.issues if "Treatment" in i.message]
+
+
+def test_skippable_features_of_a_workflow_are_removed(data):
+    config = BasicFLIRRConfig(grouping=["Treatment", "FOV"], features=["FLIRR", "gone", "FAD a1[%]", "NAD(P)H a2[%]"])
+    rules = ProcessingRules.of(Processing(skippable={"features": "some"}))
+    report = BasicFLIRR().resolve(config, [data], rules)
+    assert report.errors == [] and report.config.features == ["FLIRR", "FAD a1[%]", "NAD(P)H a2[%]"]
+    assert [(i.field, i.old) for i in report.skipped] == [("features[1]", "gone")]
+    required = ProcessingRules.of(Processing(skippable={"features": "some"}, required={"features": ["gone"]}))
+    (error,) = BasicFLIRR().resolve(config, [data], required).errors
+    assert error.message == "Column 'gone' is not in the input (required)"
+
+
+def test_a_saved_workflow_strict_moves_to_processing():
+    """FLIMAnalyzer 0.6 saved `strict` in the workflows' config."""
+    from flim.core.settings import ToolSettings
+
+    entry = ToolSettings.model_validate({"config": {"classname": "x", "strict": False}})
+    assert entry.config == {"classname": "x"} and entry.processing.strict is False
+    entry = ToolSettings.model_validate({"config": {"strict": None}})  # automatic
+    assert entry.processing.strict is None
+    assert BasicFLIRRConfig.model_validate({"strict": True}).features  # dropped, accepted

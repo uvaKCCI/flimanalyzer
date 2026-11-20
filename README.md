@@ -1,6 +1,6 @@
-# <img src="flim/resources/flimanalyzer.png" alt="" width="80" align="top"> FLIMAnalyzer
+# <img src="src/flim/resources/flimanalyzer.png" alt="" width="80" align="top"> FLIMAnalyzer
 
-[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://github.com/uvaKCCI/flimanalyzer/blob/main/pyproject.toml) [![Tests](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/uvaKCCI/flimanalyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/uvaKCCI/flimanalyzer) [![Documentation Status](https://readthedocs.org/projects/flimanalyzer/badge/?version=latest)](https://flimanalyzer.readthedocs.io/en/latest/) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23426563.svg)](https://doi.org/10.5281/zenodo.23426563)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://github.com/uvaKCCI/flimanalyzer/blob/main/pyproject.toml) [![PyPI](https://img.shields.io/pypi/v/flimanalyzer)](https://pypi.org/project/flimanalyzer/) [![Tests](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/uvaKCCI/flimanalyzer/actions/workflows/tests.yml) [![codecov](https://codecov.io/gh/uvaKCCI/flimanalyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/uvaKCCI/flimanalyzer) [![Documentation Status](https://readthedocs.org/projects/flimanalyzer/badge/?version=latest)](https://flimanalyzer.readthedocs.io/en/latest/) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23426563.svg)](https://doi.org/10.5281/zenodo.23426563)
 
 Python package for analysis of Fluorescence Lifetime Imaging Microscopy (FLIM) data.
 
@@ -8,7 +8,7 @@ Documentation: https://flimanalyzer.readthedocs.io
 
 ## Requirements
 
-* Python 3.12 or later
+* Python 3.12 to 3.14
 * All Python dependencies, including [PyTorch](https://pytorch.org) and [Prefect](https://www.prefect.io), are declared in `pyproject.toml` and installed automatically.
 
 ## Installation
@@ -55,7 +55,7 @@ With pip, in a virtual environment in the cloned folder: `pip install -e ".[gui]
 
 ### With Docker
 
-The Docker images run only [batch mode](#run-flimanalyzer-in-batch-mode). They don't include the GUI. Each release is published to the GitHub Container Registry:
+The Docker images run only [batch mode](#run-flimanalyzer-in-batch-mode). They do not include the GUI. Each release is published to the GitHub Container Registry:
 
 | Image | |
 |---|---|
@@ -85,7 +85,7 @@ In an activated environment:
 
     flimanalyzer
 
-To open data files (tab- or comma-separated) right away, each in its own window:
+To open data files (tab- or comma-separated) at startup, each in its own window:
 
     uv run flimanalyzer -i results.txt more-results.csv
 
@@ -93,34 +93,33 @@ Run `flimanalyzer --help` for all command line options.
 
 ## Using a GPU
 
-The autoencoder tools (Autoencoder: Train, Run and Augment Data, and the FLIM Data Augmentation Tuning and FLIM Feature Analysis workflows) have a **Device** setting, in the GUI and in batch mode:
+The autoencoder tools (Autoencoder Run and Autoencoder Augment Data) and workflows (Autoencoder Train, FLIM Data Augmentation Tuning and FLIM Feature Analysis) have a **Device** setting, in the GUI and in batch mode:
 
 * `auto` (default): an NVIDIA GPU (`cuda`) if available, otherwise the Apple GPU (`mps`), otherwise the CPU.
 * `cpu`, `cuda` or `mps`: uses that device, or the CPU if it is not available.
 
-Which GPU can be used depends on the PyTorch build that was installed (see [Installation](#installation)). Trained models are saved so that they don't need a GPU, so a model trained on a GPU can also be used on a computer without one.
+Which GPU can be used depends on the PyTorch build that was installed (see [Installation](#installation)). Trained models are saved so that they do not need a GPU, so a model trained on a GPU can also be used on a computer without one.
 
 ## Run FLIMAnalyzer in batch mode
 
-`flimbatch` imports data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. It takes its settings from a settings file saved in the GUI (File > Export Settings...): the import settings and the settings of each tool. A tool's dialog can add its settings to such a file with Save Settings..., which keeps the file's other sections. Load Settings... reads the tool's own section back.
+`flimbatch` reads data files and runs tools or workflows on them without opening the GUI, for example on a computing cluster. A workflow file, for example the built-in `Import`, says exactly what a run does with the files. A tool runs with its settings from a tool file, which Save Settings... in the tool's dialog writes.
 
-    uv run flimbatch -i data/ -o results/ -c settings.json \
-        --run Summarize --run "Basic FLIRR Analysis"
+    uv run flimbatch -i data/ -o results/ --run Import --run summarize.json
 
-The imported table is saved as `results/Imported.txt`, and each tool's results in `results/<tool name>/`. A workflow column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error. `--allow-guesses` uses the closest column instead and lists it in the run summary. The exit code is 1 if a check or task failed. Run `flimbatch --help` for all options.
+Each call saves its results in a new folder below `-o`, named after the date and time, with a folder `run-<n>` per `--run`; a workflow file saves the results of the steps it marks to save. `--dry-run` validates the runs against the files without running them. A column that is not in the data (for example `FAD a1%` for `FAD a1[%]`) is an error, unless the tool or workflow file's `processing` section allows the closest column (`"strict": false`). The exit code is 1 if a validation or a task failed. Run `flimbatch --help` for all options.
 
-`flimanalyzer --batch …` does the same as `flimbatch …`. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
+`flimanalyzer --batch …` does the same as `flimbatch …`, but is deprecated and is removed in 0.8.0. On Windows, use `flimbatch`: `flimanalyzer` starts without a console there, so its messages are not shown.
 
 ### In Docker
 
-The image runs `flimbatch`. Make the folder with the data and the settings file available inside the container as `/work`:
+The image runs `flimbatch`. Make the folder with the data and the tool or workflow files available inside the container as `/work`:
 
     docker run --rm -v "$PWD:/work" ghcr.io/uvakcci/flimanalyzer:latest-cpu \
-        -i data/ -o results/ -c settings.json --run Summarize --no-prefect-server
+        -i data/ -o results/ --run summarize.json --no-prefect-server
 
 * On Linux, add `-u $(id -u)` so that the result files belong to you.
 * With the CUDA image, add `--gpus all` to use the GPU.
-* With `--no-prefect-server`, each run uses a temporary Prefect server. To report to a Prefect server instead, pass its address, for example `-e PREFECT_API_URL=http://prefect.example.org:4200/api`.
+* With `--no-prefect-server`, each run uses a temporary Prefect server. To report to a Prefect server instead, leave out `--no-prefect-server` and pass the server's address to `docker run`, before the image name, for example `docker run --rm -e PREFECT_API_URL=http://prefect.example.org:4200/api -v "$PWD:/work" ...`. An `-e` after the image name goes to `flimbatch`, which reads it as the executor.
 
 ## Prefect server
 
@@ -141,31 +140,31 @@ Flow and task runs can be inspected in the Prefect UI of the server in use, e.g.
 
 ## Concurrent and distributed execution
 
-Every tool and workflow step runs as a Prefect task. A task starts as soon as the results it needs are ready. Tasks that don't depend on each other run concurrently, without waiting for each other. Tasks that draw figures take turns, because matplotlib's pyplot is not thread-safe.
+Every tool and workflow step runs as a Prefect task. A task starts as soon as the results it needs are ready. Tasks that do not depend on each other run concurrently, without waiting for each other. Tasks that draw figures take turns, because matplotlib's pyplot is not thread-safe.
 
 By default, up to one task per CPU core runs at a time, as threads. To change that number:
 
-    uv run flimanalyzer --execargs="num_workers=4"
+    uv run flimanalyzer -e local:workers=4
 
-`num_workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default.
+`workers=1` runs one task at a time. Prefect's `PREFECT_TASKS_RUNNER_THREAD_POOL_MAX_WORKERS` setting, if set, is used as the default.
 
 FLIMAnalyzer can also use [Dask](https://www.dask.org). Dask support is optional; install it with `uv sync --extra dask` (or `pip install -e ".[dask]"`).
 
 On a *single node*, start a local Dask cluster:
 
-    uv run flimanalyzer -e LocalDaskExecutor --execargs="scheduler=processes,num_workers=8"
+    uv run flimanalyzer -e dask-local:workers=8,scheduler=processes
 
-As a general guideline, adjust `num_workers` to match the number of CPU cores in your system. Use `scheduler=threads` to run the workers as threads instead of processes.
+As a general guideline, adjust `workers` to match the number of CPU cores in your system. Use `scheduler=threads` to run the workers as threads instead of processes.
 
 To use an existing Dask cluster:
 
-    uv run flimanalyzer -e DaskExecutor --execargs="address=tcp://<scheduler-host>:8786"
+    uv run flimanalyzer -e dask:address=tcp://<scheduler-host>:8786
 
 ### Concurrency limits
 
-Prefect applies [tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits) set on the Prefect server, whichever executor is used. Every task is tagged with its tool's name as shown in the menu (e.g. `Autoencoder: Train`, not the Python class name), also as a step of a workflow; workflow steps can carry more tags, which also name their results folders. For example, to let only one autoencoder training run at a time, also inside workflows:
+Prefect applies [tag concurrency limits](https://docs.prefect.io/v3/develop/task-run-limits) set on the Prefect server, whichever executor is used. Every task is tagged with its tool's name as shown in the menu (e.g. `Autoencoder Train`, not the Python class name), also as a step of a workflow; workflow steps can carry more tags, which also name their results folders. For example, to let only one autoencoder training run at a time, also inside workflows:
 
-    uv run prefect concurrency-limit create "Autoencoder: Train" 1
+    uv run prefect concurrency-limit create "Autoencoder Train" 1
 
 `uv run prefect concurrency-limit ls` lists the limits, and `uv run prefect concurrency-limit delete <tag>` removes one.
 

@@ -159,7 +159,7 @@ CASES = [
 ]
 
 
-# seaborn/matplotlib API deprecations must not come back
+# deprecation warnings (seaborn, matplotlib) fail the test
 @pytest.mark.filterwarnings("error:.*deprecated:FutureWarning")
 @pytest.mark.filterwarnings("error::PendingDeprecationWarning")
 @pytest.mark.filterwarnings("error::matplotlib.MatplotlibDeprecationWarning")
@@ -705,7 +705,26 @@ def test_legend_position(data, tool, config_class, grouping, position, single_fi
             assert len(_legends(figure)) == 1 and not figure.legends
         else:
             assert not _legends(figure) and len(figure.legends) == 1
-            assert sorted(t.get_text() for t in figure.legends[0].get_texts())
+            _assert_legend_outside(figure, figure.legends[0], position)
+        legends = _legends(figure) + list(figure.legends)
+        for legend in legends:  # the entries name the groups
+            texts = " ".join(t.get_text() for t in legend.get_texts())
+            assert any(value in texts for value in ("WT", "KO", "1", "2")), texts
+
+
+def _assert_legend_outside(figure, legend, position):
+    """Assert that a figure legend is on the `position` side of the figure."""
+    figure.canvas.draw()
+    box = legend.get_window_extent()
+    center_x, center_y = (box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2
+    width, height = figure.bbox.width, figure.bbox.height
+    side = {
+        "right": center_x > width / 2,
+        "left": center_x < width / 2,
+        "top": center_y > height / 2,
+        "bottom": center_y < height / 2,
+    }
+    assert side[position], (position, box.extents, figure.bbox.extents)
 
 
 def test_single_figure_legend_is_not_inside():
@@ -780,7 +799,7 @@ def test_cancel_while_placing_swarms(data):
     from flim.core.tool import TaskCancelled
 
     plt.close("all")
-    big = pd.concat([data] * 30, ignore_index=True)  # 960 points per swarm
+    big = pd.concat([data] * 30, ignore_index=True)  # 960 rows: 480 points per swarm
     tool = SwarmPlot()
     token = threading.Event()
     tool._cancel_token = token
@@ -940,6 +959,22 @@ def test_bar_plot_heights_are_group_means(flim_data):
     assert heights == expected
 
 
+
+@pytest.mark.parametrize("grouping", [[], ["G"]])
+@pytest.mark.parametrize("dropna, mean_a", [(True, 5.5), (False, 4.0)])
+def test_bar_plot_drop_missing_with_and_without_grouping(grouping, dropna, mean_a):
+    # b is missing in two rows: Drop missing leaves them out for a too (0.6.2 and
+    # earlier: only with grouping columns)
+    data = pd.DataFrame(
+        {"a": [1.0, 2.0, 3.0, 10.0], "b": [10.0, np.nan, np.nan, 40.0], "G": pd.Categorical(["x"] * 4)}
+    )
+    config = BarPlotConfig(
+        grouping=grouping, features=["a", "b"], bar_type="stacked", dropna=dropna, error_bar="None"
+    )
+    (figure,) = [v for v in BarPlot()(data, config=config).values() if isinstance(v, matplotlib.figure.Figure)]
+    heights = [round(p.get_height(), 6) for p in figure.axes[0].patches]
+    assert heights == [mean_a, 25.0]
+
 # --- pair plot: sampled scatter panels ---
 
 PAIR_FEATURES = ["NAD(P)H t1", "NAD(P)H t2", "NAD(P)H a1[%]"]
@@ -1014,3 +1049,66 @@ def test_pair_plot_all_ignores_samples(flim_data):
     figure = _pairplot(flim_data, mode="all", samples=20)
     assert set(_points_per_panel(figure)) == {len(flim_data)}
     assert _notes(figure) == []
+
+
+@pytest.mark.parametrize("style, stacked", [("bar", True), ("barstacked", False)])
+def test_stacked_histogram_is_in_percent_of_all_rows(style, stacked):
+    from flim.tools.plot import FrequencyHistogram
+
+    # a: x = 1, 1, 2; b: x = 1; stacked: percent of all 4 rows, each group its own
+    data = pd.DataFrame({"G": pd.Categorical(["a", "a", "a", "b"]), "x": [1.0, 1.0, 2.0, 1.0]})
+    config = HistogramConfig(
+        grouping=["G"], histtype=style, stacked=stacked, table=True,
+        features={"x": HistogramRange(min=0.5, max=2.5, bins=2)},
+    )  # fmt: skip
+    assert config.stacked  # the barstacked style stacks: fixed
+    (table,) = [v for k, v in FrequencyHistogram()(data, config=config).items() if k.startswith("Table")]
+    assert list(table["a [rel %]"]) == [50.0, 25.0]
+    assert list(table["b [rel %]"]) == [25.0, 0.0]  # 0.6.2: the stack heights, 75 and 25
+
+
+def _groups_table(first, second=None):
+    columns = {"A": pd.Categorical([a for a in first for _ in (second or [None])])}
+    if second:
+        columns["B"] = pd.Categorical([b for _ in first for b in second])
+    return pd.DataFrame(columns)
+
+
+def test_group_styles_two_columns_colour_by_the_first():
+    from flim.tools.plot import group_styles
+
+    # second column with up to 4 values: one colour per value of A, a line style per B
+    styles = group_styles(_groups_table("xyz", ["1", "2", "3"]), ["A", "B"])
+    assert [s["color"] for s in styles[:3]] == [styles[0]["color"]] * 3
+    assert len({s["linestyle"] for s in styles[:3]}) == 3
+    # more values (0.6.2: 25 curves in 10 repeating colours): shades of A's colour
+    styles = group_styles(_groups_table("vwxyz", list("abcde")), ["A", "B"])
+    colors = [s["color"] for s in styles]
+    assert len(set(colors)) == 25  # no colour repeats
+    first = np.array(colors[:5])
+    assert list(np.diff(first.sum(axis=1)) < 0) == [True] * 4  # lighter to darker
+    assert "linestyle" not in styles[0]
+
+
+def test_group_styles_more_than_ten_groups_dont_repeat_colours():
+    from flim.tools.plot import group_styles
+
+    styles = group_styles(_groups_table([f"g{i:02d}" for i in range(12)]), ["A"])
+    assert len({s["color"] for s in styles}) == 12
+
+
+def test_flirr_plot_records_the_columns_it_plots(data, monkeypatch):
+    """The settings artifact shows the columns found by name, also in `features`."""
+    import prefect.artifacts
+
+    from flim.core.runner import _record_settings
+
+    config = FLIRRPlotConfig(grouping=["Treatment"])
+    used = FLIRRPlot.used_config(config, [data])
+    assert (used.flirr, used.fad_a1, used.nadph_a2) == ("FLIRR", "FAD a1%", "NAD(P)H a2%")
+    assert used.features == ["FLIRR", "FAD a1%", "NAD(P)H a2%"]
+    assert FLIRRPlot.used_config(config, []) == config  # no input: as given
+    recorded = []
+    monkeypatch.setattr(prefect.artifacts, "create_markdown_artifact", lambda **kw: recorded.append(kw))
+    _record_settings(FLIRRPlot(), config, [data])
+    assert '"FAD a1%"' in recorded[0]["markdown"] and '"features": [\n    "FLIRR"' in recorded[0]["markdown"]

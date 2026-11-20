@@ -1,4 +1,4 @@
-# Merge Data
+# Merge
 
 The `Merge` tool combines two data tables by matching the values in the category columns they share.
 
@@ -24,7 +24,13 @@ To use the `Merge` tool, follow the steps below:
     - `right`: all rows of the right table; values of the left table where they match.
     - `outer`: all rows of both tables.
 
-    `Merge on` sets the category columns whose values have to match. `Automatic` uses all category columns that the two tables share.
+    `Merge on` sets the category columns whose values have to match. `Automatic` uses all category columns that the two tables share. If the two tables share no category column, the dialog shows an error and the tool does not run.
+
+    A row without a value in one of these columns matches no row of the other table. With `left`, `right` or `outer`, the row is kept, without the values of the other table; with `inner`, it is left out. The run summary gives the number of these rows in each table.
+
+    Other columns that both tables have, for example `Source` or a feature in both, are handled by:
+    - `Combine identical columns` (checked by default): a column whose values are the same in both tables, in every row where both have a value, becomes one column with its name. Values are compared exactly; with `outer`, `left` or `right`, a row that has a value in only one table takes that value.
+    - `Suffix of the first table` and `Suffix of the second table` (default ` (left)` and ` (right)`): the other columns of both tables keep both versions, for example `FLIRR (left)` and `FLIRR (right)`; the run summary lists them. Enter `_x` and `_y` to name them as FLIMAnalyzer 0.6 did.
 
     ![](/images/data/merge-dialog.png)
 

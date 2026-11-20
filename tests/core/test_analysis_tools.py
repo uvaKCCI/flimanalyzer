@@ -80,6 +80,19 @@ def test_summary_single_table(data):
     )
 
 
+def test_summary_warns_about_rows_without_a_grouping_value(data):
+    data.loc[data.index[0], "Treatment"] = np.nan
+    config = SummaryConfig(grouping=["Treatment"], features=["t1", "t2"], aggs=["count"])
+    tool = Summarize()
+    (table,) = tool(data, config=config).values()
+    assert table["t1\ncount"].sum() == len(data) - 1  # left out, as before
+    # one warning, not one per feature
+    assert tool.context.warnings == ["1 row left out: no value in the grouping column 'Treatment'"]
+    tool = Summarize()
+    tool(data, config=SummaryConfig(features=["t1"], aggs=["count"]))
+    assert tool.context.warnings == []  # without grouping, no row is left out
+
+
 def test_summary_per_feature_and_mapping(data):
     config = SummaryConfig(features=["t1", "t2"], single_table=False, aggs=["max"])
     results = Summarize()(data, config=config)
@@ -127,6 +140,33 @@ def test_ks_statistics_match_scipy(flim_data):
     assert row["statistic"] == pytest.approx(expected.statistic)
     assert row["p-values"] == pytest.approx(expected.pvalue)
     assert {row["n (Treatment 1)"], row["n (Treatment 2)"]} == {len(wt), len(ko)}
+
+
+@pytest.mark.parametrize("values", [['a "1"', 'b "2"'], ["a\\1", "b\\2"], [1, 2]])
+def test_ks_stats_selects_groups_by_value(data, values):
+    # values with quotes or backslashes, and numbers: each group is tested
+    data["FOV"] = data["FOV"].cat.rename_categories(values)
+    config = KSStatsConfig(
+        grouping=["Treatment", "FOV"], features=["t1"], comparison="Treatment"
+    )
+    (table,) = KSStats()(data, config=config).values()
+    assert list(table["FOV"]) == values
+    assert table["n (Treatment 1)"].tolist() == [15, 15]
+
+
+def test_ks_stats_leaves_out_missing_values(data):
+    data.loc[data.index[:3], "t1"] = np.nan  # 3 WT rows
+    config = KSStatsConfig(grouping=["Treatment"], features=["t1"], comparison="Treatment")
+    (table,) = KSStats()(data, config=config).values()
+    row = table.iloc[0]
+    wt = data.loc[data["Treatment"] == "WT", "t1"].dropna()
+    ko = data.loc[data["Treatment"] == "KO", "t1"].dropna()
+    expected = stats.ks_2samp(ko, wt)
+    assert (row["Treatment 1"], row["Treatment 2"]) == ("KO", "WT")
+    assert (row["n (Treatment 1)"], row["n (Treatment 2)"]) == (30, 27)
+    assert row["p-values"] == pytest.approx(expected.pvalue)
+    assert row["statistic"] == pytest.approx(expected.statistic)
+    assert row["dissimilar (<0.05)"] == "Yes"
 
 
 def test_ks_stats_validate(data):
@@ -331,3 +371,75 @@ def test_categorizer_assigns_bins(flim_data):
     assert list(table["Level"]) == list(expected)
     assert table["Level"].dtype == "category"
     assert "other" in set(table["Level"])  # outside all rules: the default
+
+
+@pytest.mark.parametrize("plot", [True, False])
+def test_random_forest_reports_the_accuracy(data, plot):
+    config = RandomForestConfig(features=FEATURES, target="Treatment", importance_plot=plot)
+    results = RandomForest()(data, config=config)
+    accuracy = results["Table: Accuracy Data"]
+    assert list(accuracy.columns) == ["Accuracy", "Training rows", "Test rows"]
+    assert 0 <= accuracy["Accuracy"].iloc[0] <= 1
+    assert accuracy["Training rows"].iloc[0] + accuracy["Test rows"].iloc[0] == len(data)
+    assert ("Plot: Importance Score Plot" in results) == plot
+
+
+
+# --- standardize_input: one setting with one meaning in PCA, K-Means and GMM ---
+
+
+@pytest.mark.parametrize(
+    "tool, config_class, default",
+    [
+        ("PCA", "PCAConfig", True),
+        ("K-Means", "KMeansConfig", True),
+        ("Gaussian Mixed Model", "GMMConfig", False),  # today's defaults
+    ],
+)
+def test_standardize_input_is_the_same_in_every_tool(
+    monkeypatch, flim_data, tool, config_class, default
+):
+    import numpy as np
+
+    import flim.configs as configs
+    import flim.tools.ml as ml
+    from flim.core.registry import tools
+
+    features = ["NAD(P)H t1", "NAD(P)H t2"]
+    raw = flim_data[features].to_numpy(dtype=float)
+    seen = []
+    original = ml.prepared
+
+    def record(values, standardize):
+        result = original(values, standardize)
+        seen.append((standardize, result))
+        return result
+
+    monkeypatch.setattr(ml, "prepared", record)
+    config_cls = getattr(configs, config_class)
+    assert config_cls().standardize_input is default
+    for standardize in (True, False):
+        seen.clear()
+        kwargs = {"features": features, "standardize_input": standardize}
+        if tool == "PCA":
+            kwargs["keep_standardized"] = False
+        tools.get(tool)()(flim_data, config=config_cls(**kwargs))
+        flag, values = seen[0]
+        assert flag is standardize
+        expected = ml.standardized(raw) if standardize else raw
+        np.testing.assert_allclose(values, expected)
+
+
+def test_gmm_covariances_state_standardized_units(flim_data):
+    import flim.configs as configs
+    from flim.core.registry import tools
+
+    features = ["NAD(P)H t1", "NAD(P)H t2"]
+    gmm = tools.get("Gaussian Mixed Model")()
+    plain = gmm(flim_data, config=configs.GMMConfig(features=features, n_components=2))
+    scaled = gmm(
+        flim_data,
+        config=configs.GMMConfig(features=features, n_components=2, standardize_input=True),
+    )
+    assert any("Covariance, component 1" in k for k in plain)
+    assert any("Covariance (standardized), component 1" in k for k in scaled)

@@ -56,7 +56,7 @@ jobs:
     # the core must work without wxPython (the gui extra) and without torch:
     # installs the other dependencies from the lock file and runs the core tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +105,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" != "pull_request" ] || git diff --name-only \
               "origin/${{ github.base_ref }}...HEAD" -- Dockerfile .dockerignore \
-              pyproject.toml uv.lock flim .github/scripts/check-image.sh | grep -q .; then
+              pyproject.toml uv.lock src .github/scripts/check-image.sh | grep -q .; then
             echo "build=true" >> "$GITHUB_OUTPUT"
           else
             echo "No changes to the image's files: not built"
@@ -124,13 +124,94 @@ jobs:
           .github/scripts/check-image.sh flimanalyzer:ci "${{ github.sha }}"
           mkdir -p work/data
           printf 'x\ty\n1\t2\n3\t4\n' > work/data/Results_FOV1_WT_1.txt
-          # Summarize needs at least one feature (#204): select both columns
-          printf '{"tools": {"Summarize": {"config": {"features": ["x", "y"]}}}}\n' \
-            > work/settings.json
+          # a tool file (Summarize needs at least one feature, #204: both columns)
+          printf '{"schema_version": 2, "tool": "Summarize", "config": {"features": ["x", "y"]}}\n' \
+            > work/summarize.json
           docker run --rm -u "$(id -u)" -v "$PWD/work:/work" flimanalyzer:ci \
-            -i data -o results -c settings.json --run Summarize --no-prefect-server
-          test -s work/results/Imported.txt
-          test -n "$(find work/results/Summarize -name 'Table_Summary.txt')"
+            -i data -o results --run summarize.json --no-prefect-server
+          # <output>/<date and time>/run-1/<id>-<tool>/<table>/, with the run's records
+          run=$(find work/results -mindepth 2 -maxdepth 2 -type d -name run-1)
+          test -n "$(find "$run/01-Summarize" -name 'Table_Summary.txt')"
+          test -s "$run/resolved.json"
+          grep -q '^Inputs:' "$run/run_summary.txt"
+
+  install:
+    name: install (${{ matrix.os }}, ${{ matrix.python }}, ${{ matrix.extras || 'no extras' }})
+    # a clean install as users make it: the built wheel with its extras, resolved from
+    # pyproject.toml (not uv.lock), in a new environment, then a smoke test of each
+    # extra. wxPython has no Linux wheels on PyPI: the gui extra is tested on macOS and
+    # Windows. Bash on every runner (Git Bash on Windows)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
+        os: [ubuntu-latest]
+        extras: ["", "dask", "test", "dask,test"]
+        include:
+          - {os: macos-latest, python: "3.12", extras: "gui"}
+          - {os: macos-latest, python: "3.14", extras: "gui"}
+          - {os: macos-latest, python: "3.12", extras: "gui,dask,test"}
+          - {os: macos-latest, python: "3.14", extras: "gui,dask,test"}
+          - {os: windows-latest, python: "3.12", extras: ""}
+          - {os: windows-latest, python: "3.14", extras: ""}
+          - {os: windows-latest, python: "3.12", extras: "gui,dask,test"}
+          - {os: windows-latest, python: "3.14", extras: "gui,dask,test"}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # versioningit derives the version from the git tags
+
+      - uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+
+      - name: Build the wheel
+        run: uv build --wheel --out-dir dist
+
+      - name: Install the wheel with its extras in a new environment
+        run: |
+          uv venv --python ${{ matrix.python }} clean
+          wheel=$(ls dist/*.whl)
+          spec="$wheel"; [ -n "${{ matrix.extras }}" ] && spec="$wheel[${{ matrix.extras }}]"
+          bin=clean/bin; python=$bin/python
+          # uv needs the .exe on Windows; Git Bash runs the programs without it
+          [ "$RUNNER_OS" = Windows ] && bin=clean/Scripts && python=$bin/python.exe
+          echo "BIN=$bin" >> "$GITHUB_ENV"
+          uv pip install --python "$python" "$spec"
+
+      - name: Smoke test
+        env:
+          PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+          EXTRAS: ",${{ matrix.extras }},"
+        run: |
+          set -e
+          "$BIN"/python -c "import flim; print(flim.__version__)"
+          "$BIN"/flimbatch --help > /dev/null
+          "$BIN"/flimsettings --help > /dev/null
+          "$BIN"/flimsettings tool --list > /dev/null
+          mkdir -p work/data
+          printf 'Treatment\tFLIRR\nctrl\t1.0\nDox\t2.0\n' > work/data/a.txt
+          printf '{"schema_version": 2, "tool": "Summarize", "config": {"features": ["FLIRR"], "aggs": ["mean"]}}\n' \
+            > work/summarize.json
+          "$BIN"/flimbatch -i work/data -o work/out --run work/summarize.json --no-prefect-server
+          test -n "$(find work/out -name run_summary.txt)"
+          case "$EXTRAS" in *,dask,*)
+            "$BIN"/flimbatch -i work/data -o work/out-dask --run work/summarize.json \
+              -e dask-local:workers=2 --no-prefect-server ;;
+          esac
+          case "$EXTRAS" in *,gui,*)
+            "$BIN"/python -c "import wx, flim.gui, flim.gui.app; print(wx.version())"
+            # a GUI program on Windows, without a console: --help prints nothing there
+            [ "$RUNNER_OS" = Windows ] || "$BIN"/flimanalyzer --help > /dev/null ;;
+          esac
+          case "$EXTRAS" in *,test,*)
+            "$BIN"/python -m pytest -q -p no:cacheprovider tests/core/test_cli.py tests/core/test_hashing.py ;;
+          esac
 
   docs:
     name: docs
@@ -157,7 +238,7 @@ jobs:
     # passed, so the matrix can change without touching branch protection. The docker
     # job's skipped build (no image changes) counts as passed: its job result is success
     if: always()
-    needs: [tests, core, docker, docs]
+    needs: [tests, core, install, docker, docs]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

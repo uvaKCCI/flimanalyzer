@@ -12,7 +12,8 @@ CORE_MODULES = [
     "flim.core.schema",
     "flim.core.tool",
     "flim.tools",
-    "flim.batch",
+    "flim.batchcmd",
+    "flim.settingscmd",
 ]
 # every module of these packages (not subpackages)
 CORE_PACKAGES = [
@@ -41,8 +42,10 @@ def run(code):
 
 
 def test_core_imports_without_wx_and_torch():
-    """The core modules must import with wx (and torch) unavailable (CI also runs them
-    without wx); then everything but the GUI."""
+    """The core modules import with wx and torch unavailable (CI also runs tests/core
+    without them), and importing them does not load the tools. Then every module of
+    the core packages imports, and the registry holds the expected tools per category.
+    """
     run(
         f"for m in {CORE_MODULES!r}:\n"
         "    if m != 'flim.tools':\n"
@@ -55,7 +58,7 @@ def test_core_imports_without_wx_and_torch():
         "            importlib.import_module(f'{package}.{m.name}')\n"
         "from flim.core.registry import tools\n"
         "counts = {c: len(t) for c, t in tools.by_category().items()}\n"
-        "assert counts == {'Data': 8, 'Analysis': 12, 'Plot': 11, 'Workflow': 3}, counts\n"
+        "assert counts == {'File': 2, 'Data': 13, 'Analysis': 14, 'Plot': 11, 'Workflow': 3}, counts\n"
     )
 
 
@@ -69,4 +72,22 @@ def test_the_application_explains_a_missing_wxpython():
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 1
+    assert 'pip install "flimanalyzer[gui]"' in result.stderr
+
+
+def test_a_missing_wxpython_is_found_before_the_prefect_server_starts():
+    """Without wxPython, no settings are read and no server is started."""
+    script = (
+        "import sys\n"
+        "sys.modules['wx'] = None  # as if not installed\n"
+        "from flim import analyzerapp\n"
+        "def fail(*args, **kwargs):\n"
+        "    raise AssertionError('the Prefect server was looked for')\n"
+        "analyzerapp.use_prefect_server = fail\n"
+        "analyzerapp.session_settings = fail\n"
+        "sys.argv = ['flimanalyzer']\n"
+        "analyzerapp.main()\n"
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 1 and "AssertionError" not in result.stderr, result.stderr
     assert 'pip install "flimanalyzer[gui]"' in result.stderr
