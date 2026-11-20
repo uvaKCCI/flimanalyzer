@@ -32,6 +32,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   and `Autoencoder: Augment Data` therefore got other values than training for rows
   with missing values. Models trained now scale first; models saved before keep their
   order, so their results do not change.
+- **Autoencoder: Train without grouping:** rows that were exact duplicates of each
+  other (all category and feature values equal) went into neither the training nor the
+  validation set. They are now split like all other rows.
 
 ### Fixed
 

@@ -276,3 +276,12 @@ def test_saved_model_handles_missing_values_as_training_did(needs_torch, data, t
     assert [name for name, _ in pipeline.steps][:2] == ["minmaxscaler", "simpleimputer"]
     row = data[FEATURES].iloc[[0]].to_numpy(dtype=np.float32)  # its first feature missing
     assert pipeline[:-1].transform(row)[0, 0] == 0.0
+
+
+def test_split_without_grouping_keeps_duplicate_rows(needs_torch, data):
+    # rows with equal values (here: all of them twice) go into the training or the
+    # validation set, never into neither
+    doubled = pd.concat([data, data])  # also repeats the row labels
+    config = train_config(grouping=[], train_size=0.75)
+    train_loader, val_loader, *_ = AETraining()._datasets(doubled, config, 32)
+    assert len(train_loader.dataset) + len(val_loader.dataset) == len(doubled)
