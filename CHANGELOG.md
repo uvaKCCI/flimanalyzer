@@ -86,6 +86,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Filter Settings, `Dropped from view` and `Remaining`:** rows hidden by exactly one
   other filter, for example one category value unchecked in the table window, were not
   counted. They are now.
+- **Filter Settings checkboxes:** the checkbox of the first row, and of the row
+  clicked last, could not be checked or unchecked; a click on it opened the cell
+  editor instead.
 
 ## 0.6.2 - 2026-11-07
 

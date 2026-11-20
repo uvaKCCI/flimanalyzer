@@ -202,3 +202,25 @@ def test_filter_settings_have_no_load_button(wxapp, table):
         assert "Load" not in labels and "OK" in labels
     finally:
         dlg.Destroy()
+
+
+def test_filter_list_checkbox_of_the_current_row_can_be_clicked(wxapp, table):
+    # until 0.6.2 a click on the current row's checkbox opened the cell editor
+    import wx
+
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, AppSettings.default().filters, table, {})
+    try:
+        ctrl = dlg.filterlist
+        ctrl.curRow = 0  # the current row, as after a click on it
+        y = ctrl.GetItemRect(0).GetTop() + 2
+        for x, to_list in ((5, True), (ctrl.GetColumnWidth(0) + 5, False)):
+            event = wx.MouseEvent(wx.wxEVT_LEFT_DOWN)
+            event.SetPosition(wx.Point(x, y))
+            ctrl.OnLeftDown(event)
+            # the checkbox column: the click goes to the list, which toggles the box
+            assert event.GetSkipped() is to_list
+    finally:
+        dlg.Destroy()
