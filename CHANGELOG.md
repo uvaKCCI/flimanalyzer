@@ -110,6 +110,13 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   result with `Include the features`, stopped with `the columns have different numbers
   of header lines` and no hint. The message now names the columns of each number and
   what to select, and the dialog marks `Columns` before the run.
+### Known issues
+- **Autoencoder: Train with several combinations of settings** (more than one value
+  in `Learning rates`, `Weight decays` or `Batch sizes`): the `Model File` table lists
+  only the models of the combination saved last. The model files themselves, the loss
+  tables and the plots of all combinations are saved, named by their combination. To
+  use them, choose the model files in `Model files` of `Autoencoder: Run` or
+  `Autoencoder: Augment Data`, or train one combination per run. Fixed in 0.7.0.
 
 ## 0.6.2 - 2026-11-07
 
