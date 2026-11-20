@@ -166,6 +166,16 @@ def test_pivot(data):
     assert {"t1\nWT", "t2\nKO"} <= set(df.columns)
 
 
+def test_pivot_without_other_category_columns_gives_one_row():
+    """The pivoted column is the only category column: the means over all rows."""
+    data = pd.DataFrame(
+        {"Treatment": pd.Categorical(["ctrl", "ctrl", "dox"]), "FLIRR": [0.4, 0.6, 0.8]}
+    )
+    result = table(Pivot()(data, config=PivotConfig(grouping=["Treatment"])))
+    assert list(result.columns) == ["FLIRR\nctrl", "FLIRR\ndox"]
+    assert len(result) == 1 and result.iloc[0].tolist() == pytest.approx([0.5, 0.8])
+
+
 def test_sort(data):
     df = table(Sort()(data, config=SortConfig(features=["t1"], ascending=False)))
     assert df["t1"].is_monotonic_decreasing

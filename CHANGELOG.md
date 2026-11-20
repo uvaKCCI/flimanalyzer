@@ -10,6 +10,12 @@ earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
 Bug fixes for 0.6.2. Same requirements as 0.6.2.
 
+### Results that change
+
+- **Pivot** of a table whose only category column is the pivoted one gives one row with
+  the means of each feature per value, e.g. `FLIRR` `ctrl` and `FLIRR` `dox`. Until
+  0.6.2 the result had the columns `index` and one column per letter of the values.
+
 ### Fixed
 
 - **flimbatch on macOS:** every plot tool failed with `Cannot create a GUI FigureManager
