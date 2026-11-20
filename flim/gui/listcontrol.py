@@ -253,13 +253,15 @@ class FilterListCtrl(AnalysisListCtrl):
         self.Bind(EVT_FILTERUPDATED, self.OnFilterUpdated)
 
     def setdrop(self, dropped):
+        """Sets the dropped rows by filter name; those of the filters not in the list
+        (e.g. category values hidden in the table window) are kept as `otherdropped`."""
         if dropped is None:
             dropped = {}
         self.dropped = dropped
         rfilter_names = [name for name in self.data]
         non_rfilters = [name for name in dropped if name not in rfilter_names]
         odropped = [dropped[n] for n in non_rfilters]
-        if len(odropped) > 1:
+        if len(odropped) > 0:
             odropped = np.concatenate(odropped)
             self.otherdropped = np.unique(odropped)
         else:

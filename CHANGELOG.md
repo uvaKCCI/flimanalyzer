@@ -83,6 +83,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   dialogs' `Save Settings...` and `Save Feature Settings...`, and saving tables and
   plots. These dialogs now also offer `All files`; the first type is selected, and the
   dialogs that save JSON files add `.json` to a file name without it.
+- **Filter Settings, `Dropped from view` and `Remaining`:** rows hidden by exactly one
+  other filter, for example one category value unchecked in the table window, were not
+  counted. They are now.
 
 ## 0.6.2 - 2026-11-07
 
