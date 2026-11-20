@@ -1378,6 +1378,7 @@ class AppFrame(wx.Frame):
             # without FD_CHANGE_DIR: the working folder stays the start folder
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as fileDialog:
+            fileDialog.SetFilterIndex(0)  # JSON selected: with All files, the macOS panel adds .txt to a name without one
             if fileDialog.ShowModal() == wx.ID_CANCEL:
                 return
             path = with_extension(fileDialog.GetPath(), ".json")

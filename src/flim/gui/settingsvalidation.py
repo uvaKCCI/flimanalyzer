@@ -167,6 +167,7 @@ def _save_file(parent: Optional[wx.Window]) -> Optional[str]:
         wildcard="JSON files (*.json)|*.json|All files|*",
         style=wx.FD_SAVE,
     ) as dialog:
+        dialog.SetFilterIndex(0)  # JSON selected: with All files, the macOS panel adds .txt to a name without one
         return with_extension(dialog.GetPath(), ".json") if dialog.ShowModal() == wx.ID_OK else None
 
 
@@ -455,6 +456,7 @@ def offer_import_workflow(
         defaultFile=f"{validation.path.stem}-import.json", wildcard="Workflow files (*.json)|*.json|All files|*",
         style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
     ) as dialog:  # fmt: skip
+        dialog.SetFilterIndex(0)  # JSON selected: with All files, the macOS panel adds .txt to a name without one
         if dialog.ShowModal() != wx.ID_OK:
             return None
         path = Path(with_extension(dialog.GetPath(), ".json"))

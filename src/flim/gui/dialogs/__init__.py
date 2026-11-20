@@ -698,6 +698,7 @@ class ConfigureFiltersDlg(wx.Dialog):
                 self, "Save Filters", wildcard="JSON files (*.json)|*.json|All files|*",
                 style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
             ) as files:  # fmt: skip
+                files.SetFilterIndex(0)  # JSON selected: with All files, the macOS panel adds .txt to a name without one
                 if files.ShowModal() != wx.ID_OK:
                     return
                 path = with_extension(files.GetPath(), ".json")

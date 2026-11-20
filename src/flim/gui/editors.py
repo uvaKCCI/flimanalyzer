@@ -1616,6 +1616,7 @@ class FeatureSettingsEditor(_RowIssues, Editor):
             wildcard="JSON files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT,
         ) as dialog:
+            dialog.SetFilterIndex(0)  # JSON selected: with All files, the macOS panel adds .txt to a name without one
             if dialog.ShowModal() == wx.ID_OK:
                 self.save_settings(with_extension(dialog.GetPath(), ".json"))
 

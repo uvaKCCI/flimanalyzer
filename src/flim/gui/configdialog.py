@@ -1015,6 +1015,7 @@ class ConfigDialog(wx.Dialog):
             wildcard="JSON files (*.json)|*.json|All files|*",
             style=wx.FD_SAVE,
         ) as dialog:
+            dialog.SetFilterIndex(0)  # JSON selected: with All files, the macOS panel adds .txt to a name without one
             if dialog.ShowModal() != wx.ID_OK:
                 return
             path = Path(with_extension(dialog.GetPath(), ".json"))
