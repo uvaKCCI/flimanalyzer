@@ -65,6 +65,8 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   workflows stop with an error naming the tool.
 - **`flimanalyzer` without wxPython** read the settings and started a Prefect server
   before it said that wxPython is missing. It now says so first.
+- **`flimbatch --run "Concat Data"`** failed: tools are now found by their former names
+  too.
 
 ## 0.6.2 - 2026-11-07
 

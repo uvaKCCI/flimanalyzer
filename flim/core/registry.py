@@ -44,10 +44,21 @@ class ToolRegistry:
         self._tools.pop(name, None)
 
     def get(self, name: str):
-        return self._tools[name]
+        """The tool registered under ``name``, or that had it before (``former_names``):
+        settings files and command lines that name a renamed tool keep working."""
+        if name in self._tools:
+            return self._tools[name]
+        for cls in self._tools.values():
+            if name in getattr(cls, "former_names", ()):
+                return cls
+        raise KeyError(name)
 
     def __contains__(self, name: str) -> bool:
-        return name in self._tools
+        try:
+            self.get(name)
+        except KeyError:
+            return False
+        return True
 
     def __len__(self) -> int:
         return len(self._tools)
