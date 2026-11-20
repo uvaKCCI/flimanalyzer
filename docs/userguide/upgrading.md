@@ -81,7 +81,7 @@ Also note:
 
   A tool given to `--run` runs once on each table, not once on all files. An `-s` file that has no settings for the tool given to `--run NAME` is an error; in 0.6 the tool ran with its defaults.
 * **No range filters.** `flimbatch` no longer filters the data with the range filters of the table windows (`filters` > `use`). To filter rows, add a `Filter` step to a workflow file.
-* **New results layout.** Each call saves in one folder, `<output>/<date and time>/`, with a folder `run-<n>` for each `--run`, in the order given. Each `run-<n>` folder holds `run_summary.txt`, `resolved.json` and a folder for each step, `<id>-<tool>`, for example `01-Summarize`. A tool given to `--run` is step `01`. In 0.6 the results were in `<output>/<tool>/<date and time>/`. Workflows defined in code, for example `Basic FLIRR Analysis` and the autoencoder workflows, also save a folder per step, `<id>-<tool>`, in `flimbatch` and in the GUI; in 0.6 their results were not in step folders. Update scripts that read the result files.
+* **New results layout.** Each call saves in one folder, `<output>/<date and time>/`, with a folder `run-<n>` for each `--run`, in the order given. Each `run-<n>` folder holds `run_summary.txt`, `resolved.json` and a folder for each step, `<id>-<tool>`, for example `01-Summarize`. A tool given to `--run` is step `1`, in the folder `01-<tool>`. In 0.6 the results were in `<output>/<tool>/<date and time>/`. Workflows defined in code, for example `Basic FLIRR Analysis` and the autoencoder workflows, also save a folder per step, `<id>-<tool>`, in `flimbatch` and in the GUI; in 0.6 their results were not in step folders. Update scripts that read the result files.
 * **`flimbatch` always saves** the results of a tool run. It warns if a tool's `output` sets `save` to `false`, or sets `results_dir`, which `-o` replaces.
 * **Validate first.** `flimbatch --dry-run` validates every run against the first rows of the files and runs nothing. `flimsettings tool --resolve FILE` and `flimsettings workflow --resolve FILE` show every setting of a run before you run it.
 * **Strict columns.** A column that the settings name and the data does not have is an error. To use the closest matching column, as `--allow-guesses` did, use `--override processing.strict=false`, or set `"processing": {"strict": false}` in the tool or workflow file.
@@ -104,11 +104,12 @@ Workflows defined in code, for example `Basic FLIRR Analysis`, are strict by def
 
 Workflow files are new in 0.7: a workflow as a JSON file of steps (see [Workflow files](/userguide/workflows.md#workflow-files)).
 
-## Filters of the table windows
+## Filters
 
 * **`Filter Data` is now `Filter Features`.** The checkbox in the side bar of a table window switches the range filters on and off, as `Filter Data` did in 0.6.
 * **`Filter Settings...` is now `Filter Features...`.** The dialog edits the range filters and has its own `Filter Features` checkbox. Checking a range filter in it switches `Filter Features` on. Its presets and the defaults for new tables hold the range filters and `Filter Features` (see [Presets](/userguide/data/filter.md#presets)).
 * **Category filters have their own switch, `Filter Categories`.** In 0.6, the values hidden through a right-click on a category column header always applied, whether `Filter Data` was on or off. In 0.7 they apply only while `Filter Categories` is on. When you hide a value, the GUI switches `Filter Categories` on, so the table shows the same rows as in 0.6.
+* **In the `Filter` tool's dialog, `Range filters` is now `Feature filters`.** The settings in files are unchanged (`features`).
 * **Settings files:** `filters` > `use` of a 0.6 file becomes `filters` > `features` (`Filter Features`). The range filters become the `Filter` tool's feature filters (see [Filter Tool](/userguide/data/filtertool.md#filters-in-settings-files)).
 
 ## Renamed tools
@@ -144,6 +145,7 @@ Other changes to the results:
 * `Concatenate` names each row's table in the column `Input` instead of `Source`.
 * `Merge` gives columns that both tables have the suffixes ` (left)` and ` (right)` instead of `_x` and `_y`. To get the names of 0.6, enter `_x` and `_y` as suffixes and clear `Combine identical columns`.
 * Tools that add columns of fixed names, for example `PCA`, add `_1`, `_2` to a name that the table already has, instead of replacing that column.
+* `Box Plot`, `Violin Plot` and `Swarm Plot` use at most 4 grouping columns, `Line Plot` at most 5. More grouping columns are now an error of the settings; in 0.6 the further columns were ignored without a message.
 
 ## Names of saved files and folders
 
