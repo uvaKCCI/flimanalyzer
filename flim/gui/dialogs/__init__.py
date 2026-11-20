@@ -213,8 +213,6 @@ class ConfigureFiltersDlg(wx.Dialog):
 
         filtersizer.Add(self.filterlist, 0, wx.ALL | wx.EXPAND, 5)
 
-        loadbutton = wx.Button(self.panel, label="Load")
-        loadbutton.Bind(wx.EVT_BUTTON, self.OnLoad)
         okbutton = wx.Button(self.panel, label="OK")
         okbutton.Bind(wx.EVT_BUTTON, self.OnOK)
         cancelbutton = wx.Button(self.panel, label="Cancel")
@@ -222,7 +220,6 @@ class ConfigureFiltersDlg(wx.Dialog):
         self.Bind(wx.EVT_CLOSE, self.OnQuit)
 
         buttonsizer = wx.BoxSizer(wx.VERTICAL)
-        buttonsizer.Add(loadbutton, 0, wx.ALL | wx.EXPAND, 5)
         buttonsizer.Add(
             wx.StaticLine(self.panel, style=wx.LI_HORIZONTAL), 0, wx.ALL | wx.EXPAND, 5
         )
@@ -263,9 +260,6 @@ class ConfigureFiltersDlg(wx.Dialog):
     def GetData(self):
         """The edited FilterSettings (None if cancelled)."""
         return self.result
-
-    def OnLoad(self, event):
-        pass
 
     def OnUseFilters(self, event):
         enable = event.GetEventObject().GetValue()

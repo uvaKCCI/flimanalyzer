@@ -172,3 +172,18 @@ def test_pattern_rename_says_when_the_pattern_is_not_valid(wxapp, monkeypatch):
         assert shown and "Not a valid pattern" in shown[0]
     finally:
         dlg.Destroy()
+
+
+def test_filter_settings_have_no_load_button(wxapp, table):
+    # its Load button did nothing until 0.6.2
+    import wx
+
+    from flim.core.settings import AppSettings
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    dlg = ConfigureFiltersDlg(None, filters=AppSettings.default().filters, dataframe=table)
+    try:
+        labels = [c.GetLabel() for c in dlg.panel.GetChildren() if isinstance(c, wx.Button)]
+        assert "Load" not in labels and "OK" in labels
+    finally:
+        dlg.Destroy()
