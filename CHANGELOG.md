@@ -23,6 +23,10 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   was always 0; in `FLIM Data Augmentation Tuning` the weight decay values varied
   `alpha` instead. This was so in every published release. Training now uses the
   weight decay as set, so trained models, reconstructions and tuning results change.
+- **Autoencoder: Augment Data, noise:** since 0.6.0, every feature got the same noise
+  level, set by the features with the largest values (a change in pandas 2.0). Each
+  feature gets its own noise level again, as in 0.5. Results with `Add noise` checked
+  change.
 
 ### Fixed
 
