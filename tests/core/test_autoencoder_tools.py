@@ -260,3 +260,19 @@ def test_noise_is_set_per_feature():
     assert len(std) == 2
     assert std[1] == pytest.approx(1000 * std[0])  # proportional to each column's size
 
+
+def test_saved_model_handles_missing_values_as_training_did(needs_torch, data, tmp_path):
+    """Training scales, then sets missing values to 0; the saved model does the same
+    (it set them to 0 before scaling, so the model got other values)."""
+    import joblib
+
+    data = data.copy()
+    data.loc[data.index[:5], FEATURES[0]] = np.nan
+    training = AETraining()
+    training._output_dir = str(tmp_path)
+    config = train_config(timeseries="Treatment", model_name="M")
+    files = training(data, config=config)["Model File"]
+    pipeline = joblib.load(files[-1])
+    assert [name for name, _ in pipeline.steps][:2] == ["minmaxscaler", "simpleimputer"]
+    row = data[FEATURES].iloc[[0]].to_numpy(dtype=np.float32)  # its first feature missing
+    assert pipeline[:-1].transform(row)[0, 0] == 0.0

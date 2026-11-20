@@ -27,6 +27,11 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   level, set by the features with the largest values (a change in pandas 2.0). Each
   feature gets its own noise level again, as in 0.5. Results with `Add noise` checked
   change.
+- **Autoencoder, missing values:** a model saved by `Autoencoder: Train` set missing
+  values to 0 before scaling the data, while training scaled first. `Autoencoder: Run`
+  and `Autoencoder: Augment Data` therefore got other values than training for rows
+  with missing values. Models trained now scale first; models saved before keep their
+  order, so their results do not change.
 
 ### Fixed
 
