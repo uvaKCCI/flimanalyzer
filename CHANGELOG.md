@@ -6,6 +6,16 @@ All notable changes to FLIMAnalyzer, newest first. From 0.6.1 on, the sections f
 followed by `Documentation` and `Known issues` where needed. The sections of 0.6.0 and
 earlier are as published. Until 0.6.0, this file was called `CHANGES.md`.
 
+## 0.6.3 - unreleased
+
+Bug fixes for 0.6.2. Same requirements as 0.6.2.
+
+### Fixed
+
+- **flimbatch on macOS:** every plot tool failed with `Cannot create a GUI FigureManager
+  outside the main thread using the MacOS backend`; `flimbatch` now draws with
+  matplotlib's `Agg` backend, as the GUI does.
+
 ## 0.6.2 - 2026-11-07
 
 Bug fixes for 0.6.1, and the CPU Docker image. Same requirements as 0.6.1.

@@ -19,6 +19,7 @@ import os
 import sys
 from typing import Optional
 
+import matplotlib
 import numpy as np
 import pandas as pd
 
@@ -192,6 +193,9 @@ def parse_arguments(argv=None):
 
 
 def main(argv=None) -> int:
+    # tools draw their figures in worker threads, into files: a backend without
+    # windows (macOS' default backend fails outside the main thread)
+    matplotlib.use("Agg")
     args = parse_arguments(argv)
     logging.basicConfig(
         level=args.log.upper(), format="%(levelname)s %(message)s", force=True
