@@ -178,9 +178,11 @@ class TaskConfig(BaseConfig):
     # inherited fields the tool does not use; not shown in dialogs
     hidden_fields: ClassVar[frozenset[str]] = frozenset()
     # the least number of features and grouping columns the tool needs (in 0.5:
-    # get_required_features / get_required_categories); see requirement_issues
+    # get_required_features / get_required_categories), and the most grouping columns
+    # it uses (None: any); see requirement_issues
     min_features: ClassVar[int] = 0
     min_grouping: ClassVar[int] = 0
+    max_grouping: ClassVar[Optional[int]] = None
 
     grouping: list[CategoryColumn] = Field(
         default=[],
@@ -281,8 +283,9 @@ class Issue:
 
 def requirement_issues(config: "TaskConfig", schemas=()) -> list[Issue]:
     """Issues if the config selects fewer features or grouping columns than its tool
-    needs (``min_features``, ``min_grouping``). "All features" is counted against the
-    input schemas, and not checked while they are unknown."""
+    needs (``min_features``, ``min_grouping``), or more grouping columns than it uses
+    (``max_grouping``). "All features" is counted against the input schemas, and not
+    checked while they are unknown."""
     issues = []
     minimums = (("features", config.min_features), ("grouping", config.min_grouping))
     for name, least in minimums:
@@ -300,6 +303,10 @@ def requirement_issues(config: "TaskConfig", schemas=()) -> list[Issue]:
             what = "feature" if name == "features" else "grouping column"
             plural = "s" if least > 1 else ""
             issues.append(Issue(name, f"Select at least {least} {what}{plural}"))
+    most = config.max_grouping
+    if most is not None and "grouping" in type(config).model_fields:
+        if len(config.grouping) > most:
+            issues.append(Issue("grouping", f"Select at most {most} grouping columns"))
     return issues
 
 

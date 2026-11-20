@@ -115,6 +115,35 @@ def test_too_few_grouping_columns_is_an_error(tool):
     assert [i for i in issues if i.field == "grouping" and i.severity == "error"]
 
 
+# tools whose plots use at most a number of grouping columns: more were ignored
+# without a message until 0.6.2
+MAX_GROUPING = {"Box Plot": 4, "Violin Plot": 4, "Swarm Plot": 4, "Line Plot": 5}
+
+
+@pytest.mark.parametrize("tool", ALL, ids=lambda t: t.name)
+def test_maximum_of_grouping_columns(tool):
+    assert tool.config_class.max_grouping == MAX_GROUPING.get(tool.name)
+
+
+@pytest.mark.parametrize("name", sorted(MAX_GROUPING))
+def test_too_many_grouping_columns_is_an_error(name):
+    tool = tools.get(name)
+    most = MAX_GROUPING[name]
+    columns = [f"c{i}" for i in range(most + 1)]
+    data = _table()
+    for column in columns:
+        data[column] = pd.Categorical(["a", "b"] * (len(data) // 2))
+    schema = TableSchema.from_frame(data)
+
+    def grouping_errors(grouping):
+        config = tool.config_class(features=["f0"], grouping=grouping)
+        issues = tool.validate(config, [schema])
+        return [i for i in issues if i.field == "grouping" and i.severity == "error"]
+
+    assert grouping_errors(columns)
+    assert not grouping_errors(columns[:most])
+
+
 @pytest.mark.parametrize(
     "tool", [t for t in NEEDS_FEATURES if t.category != "Workflow"], ids=lambda t: t.name
 )

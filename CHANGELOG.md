@@ -59,6 +59,10 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   same. The color now always shows the 1st grouping column, and shades of it show the
   values of the 2nd; above 10 groups, the colors do not repeat.
 - **Swarm Plot:** its note advised a strip plot, which FLIMAnalyzer does not have.
+- **Box Plot, Violin Plot, Swarm Plot and Line Plot** ignored grouping columns after
+  the fourth (Line Plot: the fifth) without a message. More grouping columns are now an
+  error: the dialog marks the field and keeps `OK` disabled, and `flimbatch` and
+  workflows stop with an error naming the tool.
 
 ## 0.6.2 - 2026-11-07
 
