@@ -63,6 +63,8 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   the fourth (Line Plot: the fifth) without a message. More grouping columns are now an
   error: the dialog marks the field and keeps `OK` disabled, and `flimbatch` and
   workflows stop with an error naming the tool.
+- **`flimanalyzer` without wxPython** read the settings and started a Prefect server
+  before it said that wxPython is missing. It now says so first.
 
 ## 0.6.2 - 2026-11-07
 
