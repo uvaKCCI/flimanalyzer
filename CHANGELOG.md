@@ -106,6 +106,10 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Docker:** a release of an older series moved the `latest` and `latest-cpu` image
   tags to it. They now move only for the highest release version, so after this release
   they stay on 0.7.0.
+- **Unpivot** of columns with different numbers of header lines, for example a PCA
+  result with `Include the features`, stopped with `the columns have different numbers
+  of header lines` and no hint. The message now names the columns of each number and
+  what to select, and the dialog marks `Columns` before the run.
 
 ## 0.6.2 - 2026-11-07
 

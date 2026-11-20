@@ -277,8 +277,16 @@ def test_unpivot_without_recorded_levels(data):
 def test_unpivot_needs_the_same_number_of_header_lines(data):
     pivoted = table(Pivot()(data, config=PivotConfig(grouping=["Treatment"])))
     pivoted["t3"] = 1.0
-    with pytest.raises(ValueError, match="different numbers of header lines"):
+    with pytest.raises(ValueError, match="different numbers of header lines") as err:
         Unpivot().run(pivoted, config=UnpivotConfig())
+    # the message names the columns of each number and how to avoid it
+    assert "1 header line: 't3'" in str(err.value) and "2 header lines: 't1 / " in str(err.value)
+    assert "Select only columns with the same number" in str(err.value)
+    # the dialog marks Features before the run
+    issues = Unpivot.validate(UnpivotConfig(), [TableSchema.from_frame(pivoted)])
+    assert [i.field for i in issues if "header lines" in i.message] == ["features"]
+    issues = Unpivot.validate(UnpivotConfig(features=["t3"]), [TableSchema.from_frame(pivoted)])
+    assert not [i for i in issues if "header lines" in i.message]
 
 
 def test_unique_name():
