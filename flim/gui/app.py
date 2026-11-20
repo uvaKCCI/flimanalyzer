@@ -746,6 +746,7 @@ class AppFrame(wx.Frame):
                 groups=event.GetGroups(),
                 savemodified=event.SaveModified(),
                 enableclose=event.IsEnableClose(),
+                filtered=event.IsFiltered(),
             )
             frame.set_modified(event.IsModified())
             frame.Show(True)

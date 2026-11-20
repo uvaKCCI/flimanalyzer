@@ -196,3 +196,23 @@ def test_filter_settings_dialog_is_destroyed(frame, monkeypatch, flim_data):
     )
     window.OnFilterSettings(None)
     assert len(destroyed) == 1
+
+
+def test_a_new_window_applies_the_range_filters_that_are_on(frame, flim_data):
+    # until 0.6.2 its Filter Data box was checked, but it showed (and passed on) all rows
+    low, high = flim_data[FEATURE].quantile([0.25, 0.75])
+    filters = frame.settings.filters  # shared by the windows
+    filters.range_filters = [{"name": FEATURE, "rangelow": low, "rangehigh": high, "selected": True}]
+    filters.use = True
+    expected = flim_data[FEATURE].between(low, high).sum()
+    window = _open(frame, flim_data, "New")
+    assert window.filtercb.GetValue() and window.filterbutton.IsEnabled()
+    assert len(window.GetViewData()) == expected < len(flim_data)
+    assert not window.is_modified()  # read from a file: the filters change only the view
+    # Show Dropped: the window of the hidden rows shows them all, its filters off
+    window.updateusefilter(True, showdiscarded=True)
+    discarded = frame.windowframes["New - Discarded"]
+    assert len(discarded.GetViewData()) == len(flim_data) - expected
+    assert not discarded.filtercb.GetValue()
+    filters.use = False
+    assert len(_open(frame, flim_data, "Unfiltered").GetViewData()) == len(flim_data)

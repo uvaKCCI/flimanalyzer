@@ -176,17 +176,27 @@ class PandasFrame(wx.Frame):
         savemodified=True,
         precision=3,
         enableclose=True,
+        filtered=True,
     ):
+        """
+        Args:
+            filtered: whether the window applies the range filters when they are on
+                (``filters.use``), also when it opens; False for the window of the rows
+                they hide (``<title> - Discarded``), whose ``Filter Data`` is then off.
+        """
         super(PandasFrame, self).__init__(parent, wx.ID_ANY, title)
         # the app's filter settings (shared by its data windows), else the defaults
         self.filters = filters if filters is not None else AppSettings.default().filters
         self.enableclose = enableclose
+        self.filtered = filtered
         # *****
         # data = data.copy()
         # *****
         self.grid = None
         self.SetData(data, showcolindex, groups, analyzable, savemodified, precision)
         self._init_gui()
+        if self.filtered and self.filters.use:
+            self.updateusefilter(True)  # the shared range filters, as in the other windows
         self.Layout()
 
         self.Bind(wx.EVT_CLOSE, self.close_and_destroy)
@@ -290,7 +300,7 @@ class PandasFrame(wx.Frame):
         autosizebutton.Bind(wx.EVT_BUTTON, self.OnAutosize)
 
         self.filtercb = wx.CheckBox(self, wx.ID_ANY, label="Filter Data")
-        self.filtercb.SetValue(self.filters.use)
+        self.filtercb.SetValue(self.filtered and self.filters.use)
         self.filtercb.Bind(wx.EVT_CHECKBOX, self.OnFilterData)
 
         self.filterbutton = wx.Button(self, wx.ID_ANY, "Filter Settings...")
@@ -540,6 +550,7 @@ class PandasFrame(wx.Frame):
                 "createnew",
                 showcolindex=False,
                 analyzable=True,
+                filtered=False,  # the rows the filters hide
             )
             self.GetEventHandler().ProcessEvent(event)
 

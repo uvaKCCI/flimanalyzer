@@ -50,6 +50,11 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   height of the stack up to that group; it now holds the group's own values.
 - **Import, `NADPH/NADH`:** the import calculated `NADPH/NADH` before `NADH %`, which it
   needs, so the column was never added. Imported tables now have it.
+- **Table windows opened while `Filter Data` is on:** the box was shown checked, but
+  the range filters were not applied: the new window showed all rows, and tools started
+  for it got all rows. The range filters now apply, so these tools get only the rows
+  inside the ranges. The `<title> - Discarded` window opens with `Filter Data` off, so
+  it shows all the rows the filters hide.
 
 ### Fixed
 
