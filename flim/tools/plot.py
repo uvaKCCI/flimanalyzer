@@ -505,7 +505,7 @@ def freeze_swarms(figure) -> None:
         add_note(
             figure,
             "Some points do not fit in their swarm and are drawn at its edges: "
-            "sample fewer points, or use a strip plot",
+            "plot fewer points, e.g. filter the rows",
         )
 
 
