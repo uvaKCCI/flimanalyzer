@@ -353,3 +353,14 @@ def test_split_outputs_known_from_the_schema(data):
     schema = TableSchema.from_frame(data)
     outputs = Split.output_schema(SplitConfig(grouping=["Treatment"]), [schema])
     assert sorted(outputs) == ["Split: Treatment=KO", "Split: Treatment=WT"]
+
+
+def test_concat_side_by_side_pairs_rows_by_position():
+    """Tables whose row labels aren't 0, 1, 2, ... (rows left after filtering) are
+    paired by position; they were paired by label, giving empty rows."""
+    a = pd.DataFrame({"FOV": pd.Categorical(list("abcdef")), "x": [1.0, 2, 3, 4, 5, 6]})
+    b = pd.DataFrame({"y": [10.0, 20, 30, 40, 50, 60]})
+    config = ConcatConfig(mode="horizontal", numbers_only=False)
+    result = table(Concat()({"A": a.iloc[[0, 2, 4]], "B": b.iloc[[1, 3, 5]]}, config=config))
+    assert len(result) == 3 and list(result.index) == [0, 1, 2]
+    assert list(result["x"]) == [1.0, 3.0, 5.0] and list(result["y"]) == [20.0, 40.0, 60.0]

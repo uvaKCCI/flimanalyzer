@@ -99,6 +99,9 @@ class Concat(Tool[ConcatConfig]):
                         " rows are paired by position. To pair rows by their"
                         " categories, use Merge."
                     )
+            # rows are paired by position: the tables' own row labels (e.g. of rows
+            # left after filtering) would pair rows by label and add empty rows
+            frames = [df.reset_index(drop=True) for df in frames]
             if config.numbers_only:
                 # the first table keeps all its columns
                 frames = [

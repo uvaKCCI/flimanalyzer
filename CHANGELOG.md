@@ -15,6 +15,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Pivot** of a table whose only category column is the pivoted one gives one row with
   the means of each feature per value, e.g. `FLIRR` `ctrl` and `FLIRR` `dox`. Until
   0.6.2 the result had the columns `index` and one column per letter of the values.
+- **Concatenate, `Columns (side by side)`:** rows were paired by their row labels, not
+  by position as its warning says, so tables whose rows were filtered got empty rows.
+  Rows are now paired by position.
 
 ### Fixed
 
