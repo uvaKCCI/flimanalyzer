@@ -42,6 +42,12 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   each feature's mean left out only that feature's missing values. Now, as with
   grouping, checked (the default) leaves out the rows in which any plotted feature is
   missing, so all means and error bars come from the same rows.
+- **Frequency Histogram, `barstacked` style:** without `Stacked` checked, each group's
+  bars were in percent of that group's rows and were then stacked, so the stack added up
+  to the number of groups times 100%. The `barstacked` style now always stacks: each
+  group is in percent of all rows, and the stack shows the distribution of all rows.
+- **Frequency Histogram, stacked, `Binned data table`:** each group's column held the
+  height of the stack up to that group; it now holds the group's own values.
 
 ### Fixed
 

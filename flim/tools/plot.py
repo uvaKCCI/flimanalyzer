@@ -1076,6 +1076,10 @@ class FrequencyHistogram(_Plot, Tool[HistogramConfig]):
         counts, edges, _ = ax.hist(
             values, weights=weights, stacked=stacked, alpha=0.5, **kwargs
         )
+        if stacked and groups and np.ndim(counts) == 2:
+            # matplotlib returns the heights of the stack; each group's own values
+            # are the differences between its level and the one below
+            counts = np.diff(counts, axis=0, prepend=0)
         if groups and len(counts) > 1:
             # in the order of the groups (stacked and step histograms: reversed)
             handles = dict(zip(*reversed(ax.get_legend_handles_labels())))

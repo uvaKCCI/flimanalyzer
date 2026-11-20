@@ -21,7 +21,7 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data. By
     - `Load Feature Settings...` and `Save Feature Settings...` load and save the ranges and bins (see [Settings](/userguide/settings)).
 
     How the histogram looks:
-    - `Style`: `bar`, `barstacked`, `step` (the default) or `stepfilled`.
+    - `Style`: `bar`, `barstacked`, `step` (the default) or `stepfilled`. The `barstacked` style always stacks the groups, so `Stacked` is then checked and can't be changed.
     - `Stacked`: stacks the histograms of the groups on top of each other. The percentages are then of all measurements, so that the stack shows the whole data. Without it, each group's percentages are of the group's own measurements.
     - `Cumulative`: each bin shows its own value plus the values of all bins before it.
     - `Density`: scales each histogram so that its area is 1 (with `Stacked`: the area of the whole stack), instead of showing percentages. The y axis is then labelled `density`.
