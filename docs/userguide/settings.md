@@ -16,6 +16,8 @@ The settings come from several layers. Each layer changes only the settings it h
 
 One exception: for `favorites`, the user settings file takes precedence over the app settings file, which only presets it (see [Layout of a settings file](#layout-of-a-settings-file)).
 
+**Changes in the GUI with an app settings file.** The GUI saves your changes to the user settings file, which is below the app settings file. When you start the GUI again with the same app settings file, its values take precedence: your changes to the settings of tools, to presets, to the `Filter Features` and `Filter Categories` switches and to the results folder are replaced by the values of the app settings file, if it has them. A file written by `Export Settings...` has the settings of every tool. To keep your changes, export the settings to the app settings file again (see [Saving and loading all settings](#saving-and-loading-all-settings)).
+
 Within a section, a higher layer changes:
 
 * each entry on its own in `tools` and `presets` (per tool), `max_windows` (per kind of window), and `log` (per setting). For example, an app settings file with presets for `Filter` keeps your saved presets for `Calculate`, and one that sets only `log.dir` keeps your `log.max_age_days`.

@@ -633,6 +633,11 @@ describes how API changes are handled.
 
 - **Windows:** the autosave fix of 0.6.0 for mapped network drives (#163) is not yet
   verified on Windows. Please report in the issue.
+- **Changes in the GUI with an app settings file:** with `-s` or a default app
+  settings file, changes in the GUI to tool settings, presets, the filter switches and
+  the results folder last only for the session: at the next start the app settings
+  file takes precedence over the user settings file. To keep them, export the settings
+  to the app settings file again.
 
 ## 0.6.2 - 2026-11-07
 
