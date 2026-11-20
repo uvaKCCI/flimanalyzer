@@ -11,7 +11,7 @@ from typing import Any
 def write_version_info(
     project_dir: str | Path, template_fields: dict[str, Any], params: dict[str, Any]
 ) -> None:
-    """Write version/build info module used by the package at build time.
+    """Write the version module that the package reads at runtime (build time hook).
 
     Args:
         project_dir (str | Path): Root directory of the project where the
@@ -20,12 +20,12 @@ def write_version_info(
             including version, build_date, etc.
         params (dict[str, Any]): Parameters from pyproject configuration.
             Expected key: "path" – relative path to the target module file,
-            defaulting to "flim/_version.py".
+            defaulting to "src/flim/_version.py".
 
     Returns:
         None
     """
-    path = Path(project_dir) / params.get("path", "flim/_version.py")
+    path = Path(project_dir) / params.get("path", "src/flim/_version.py")
 
     try:
         git_hash = check_output(["git", "rev-parse", "HEAD"]).decode().strip()

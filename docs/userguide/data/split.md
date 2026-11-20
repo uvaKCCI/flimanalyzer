@@ -16,7 +16,7 @@ Follow these steps to split this table into a set of tables where each resulting
 
 3. Click `OK`.
 
-The `FOV` column in the original table contains five different values: `a`, `b`, `c`, `d`, and `e`. Splitting creates five new tables, one for each `FOV` value. Each table is named after its value, for example `Table: Split: FOV=a`. With several columns checked, there is a table for each combination of their values that occurs in the data.
+The `FOV` column in the original table contains five different values: `a`, `b`, `c`, `d`, and `e`. Splitting creates five new tables, one for each `FOV` value. Each table is named after its value, for example `Table: Split: FOV=a`. With several columns checked, there is a table for each combination of their values that occurs in the data. A row without a value in one of the checked columns goes into no table; the run summary gives the number of these rows.
 
 The table of `FOV` `a`:
 

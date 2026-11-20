@@ -33,16 +33,12 @@ jobs:
 
       - uses: astral-sh/setup-uv@v10.3.0
 
-      - name: Development version instead of post/local version
+      - name: Development version without the local part (PyPI refuses it)
         run: |
           python3 - <<'EOF'
           import re
           path = "pyproject.toml"
           text = open(path).read()
-          text = text.replace(
-              '[tool.versioningit.next-version]\nmethod = "smallest-release"',
-              '[tool.versioningit.next-version]\nmethod = "minor"',
-          )
           # editing the file makes the tree dirty: set both formats
           text, n = re.subn(
               r'^(distance|distance-dirty) = "[^"]*"',

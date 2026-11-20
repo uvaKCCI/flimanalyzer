@@ -1,5 +1,6 @@
 /dask-worker-space/
 *.json
+!src/flim/workflow/files/*.json
 *.pyc
 *.log
 *.svg
@@ -12,7 +13,7 @@ docs/_build
 /paper
 .vscode
 *.egg-info
-flim/_version.py
+src/flim/_version.py
 .DS_Store
 /references
 .venv/
@@ -26,3 +27,6 @@ coverage.xml
 # local planning notes
 PLAN-*.md
 milestones.md
+
+# PowerPoint files (diagrams and slides kept locally)
+*.pptx

@@ -1,12 +1,12 @@
 Plots
 ========
 
-The plotting tools show the data of a table as plots. Most plotting tools can group the data by the values in category columns. The `Pair Plot` uses only the first grouping column, the `FLIRR Plot` needs at least one, and in the `Heatmap` the grouping has no effect. You can group by a single category column or by several. In the table, the headers of category columns have a light blue background. All other column headers have a gray background.
+The plotting tools show the data of a table as plots. Most plotting tools can group the data by the values in category columns. The `Pair Plot` uses only the first grouping column, the `FLIRR Plot` needs at least one, and the `Heatmap` has no grouping: it always uses all rows of the table. You can group by a single category column or by several. In the table, the headers of category columns have a light blue background. All other column headers have a gray background.
 
 Select a Data Table
 -------------------
 
-The example table has these category columns, which you can use to group the data: `Cell`, `Compartment`, `FOV` and `Treatment`. When you group by several columns, the order of the columns matters: the data is grouped by the first column, then by the second, and so on. You can change this order.
+The example table has these category columns, which you can use to group the data: `Treatment`, `FOV` and `Cell`. When you group by several columns, the order of the columns matters: the data is grouped by the first column, then by the second, and so on. You can change this order.
 
 .. image:: /images/data/dataframe.png
 
@@ -73,11 +73,15 @@ Create a Plot
     kde
     heatmap
     flirr
-    plotwindow
 
 Plot Windows and Saving
 -----------------------
 
 Each plot opens in a plot window. There you can zoom into the plot, change its axes, labels and line colors, and save it as an image file. See :doc:`plotwindow`.
 
-The options common to all tool dialogs, such as the choice of the data and the result prefix, are described in :doc:`/userguide/dialogs`. To save the plots automatically each time a tool runs, check `Save results in` in the tool's dialog (see `Saving results <../dialogs.html#saving-results>`_). Plots are saved as PNG files.
+The options common to all tool dialogs, such as the choice of the data and the result prefix, are described in :doc:`/userguide/dialogs`. To save the plots automatically each time a tool runs, check `Save results` in the tool's dialog (see `Saving results <../dialogs.html#saving-results>`_). Plots are saved as `png` (the default), `svg` or `pdf` files, as chosen under `Save results`.
+
+.. toctree::
+    :hidden:
+
+    plotwindow

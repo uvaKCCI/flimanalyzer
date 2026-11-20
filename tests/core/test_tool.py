@@ -175,9 +175,10 @@ def test_validate_nested_columns(table):
 
     config = FilterConfig(range_filters={"y": {}}, category_filters={"T": ["a", "c"]})
     issues = Filter.validate(config, [TableSchema.from_frame(table)])
+    # a filter on a column the input does not have is not used: a warning
     assert [(i.field, i.severity) for i in issues] == [
-        ("range_filters['y']", "error"),
-        ("category_filters['T']", "warning"),
+        ("features.filters[0].column", "warning"),
+        ("categories.filters[0].keep", "warning"),
     ]
 
 
@@ -200,5 +201,111 @@ def test_tools_in_a_flow(prefect_harness, table):
     assert isinstance(outputs["plot"].value()["Plot: Plot"], matplotlib.figure.Figure)
     labels = [label for label, _ in run.tasks()]
     assert labels == ["Double", "Sort", "Demo Plot"]
-    # the graph links the steps through the table they pass on
-    assert run.graph.number_of_edges() >= 2
+    # the graph links the steps through the table they pass on; the plot is apart
+    label = {n: a["label"] for n, a in run.graph.nodes(data=True)}
+    edges = sorted((label[u], label[v]) for u, v in run.graph.edges)
+    assert edges == [("Double", "Table: Doubled"), ("Table: Doubled", "Sort")]
+
+
+
+# --- output kinds ---
+
+
+def _ours():
+    import flim.tools  # noqa: F401
+    import flim.workflow  # noqa: F401
+    from flim.core.registry import tools
+
+    every = [c for g in tools.by_category().values() for c in g] + tools.hidden()
+    return [c for c in every if getattr(c, "definition", None) is None]
+
+
+def test_every_tool_and_workflow_declares_its_output_kinds():
+    import warnings
+
+    for tool in _ours():
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            kinds = tool.output_kinds()
+        assert kinds, tool.name
+        declared = {o.type.kind for o in tool.outputs}
+        typed = {t.kind for t in tool.output_types}
+        assert not (declared and typed) or declared <= typed, tool.name  # they agree
+
+
+def test_output_schema_makes_only_the_declared_kinds():
+    """With two features and a category column, each tool's outputs have its kinds."""
+    import numpy as np
+    import pandas as pd
+
+    from flim.core.schema import TableSchema
+    from flim.core.workflow import Workflow
+
+    df = pd.DataFrame({
+        "Treatment": pd.Categorical(["a", "b"] * 10),
+        "FLIRR": np.random.rand(20), "NADH tm": np.random.rand(20),
+    })  # fmt: skip
+    schema = TableSchema.from_frame(df)
+    for tool in _ours():
+        if issubclass(tool, Workflow):
+            continue
+        fields = tool.config_class.model_fields
+        settings = {}
+        if "features" in fields:
+            dict_type = "dict" in str(fields["features"].annotation)
+            settings["features"] = {"FLIRR": {}, "NADH tm": {}} if dict_type else ["FLIRR", "NADH tm"]
+        if "grouping" in fields:
+            settings["grouping"] = ["Treatment"]
+        try:
+            config = tool.config_class.model_validate(settings)
+        except Exception:
+            config = tool.config_class()
+        specs = tool().output_schema(config, [schema] * max(1, len(tool.inputs)))
+        made = {s.type.kind for s in specs.values()}
+        assert made <= set(tool.output_kinds()), (tool.name, made)
+
+
+@pytest.mark.parametrize("name, option", [("PCA", "explained_plot"), ("Frequency Histogram", "table")])
+def test_optional_outputs_are_declared_kinds(name, option):
+    """An option that adds an output of another kind: that kind is declared."""
+    import numpy as np
+    import pandas as pd
+
+    from flim.core.registry import tools
+    from flim.core.schema import TableSchema
+
+    df = pd.DataFrame({
+        "Treatment": pd.Categorical(["a", "b"] * 10),
+        "FLIRR": np.random.rand(20), "NADH tm": np.random.rand(20),
+    })  # fmt: skip
+    tool = tools.get(name)
+    config = tool.config_class.model_validate({"features": ["FLIRR", "NADH tm"], option: True})
+    specs = tool().output_schema(config, [TableSchema.from_frame(df)])
+    made = {s.type.kind for s in specs.values()}
+    assert len(made) == 2 and made <= set(tool.output_kinds()), made
+
+
+def test_a_tool_without_output_types_makes_any_kind_with_a_deprecation_warning():
+    import pytest
+
+    from flim.core.config import TaskConfig
+    from flim.core.tool import Tool
+
+    class Old(Tool[TaskConfig]):
+        name = "Old plugin tool"
+
+    with pytest.warns(DeprecationWarning, match="declares no output types"):
+        kinds = Old.output_kinds()
+    assert kinds[0] == "table" and "plot" in kinds
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        assert Old.output_kinds() == kinds  # warned once
+
+
+def test_the_0_6_name_check_requirements_is_deprecated():
+    import flim.core.tool as tool_module
+
+    with pytest.warns(DeprecationWarning, match="removed in 0.8.0; use flim.core.tool.validate_requirements"):
+        assert tool_module.check_requirements is tool_module.validate_requirements

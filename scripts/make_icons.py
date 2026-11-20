@@ -1,14 +1,14 @@
-"""Draws the tool icons in flim/resources.
+"""Draws the tool icons in src/flim/resources.
 
-All icons share one flat style: 32x32 RGBA on a transparent background, drawn at
-8x and downsampled, with the same axes, line weights and colour palette.
+All icons share one flat style: 32x32 RGBA on a transparent background, and 64x64
+as `name@2x.png` for high-resolution screens, drawn at 8x and downsampled, with the same axes, line weights and colour palette.
 
 The palette is colour-blind safe (based on Okabe & Ito): two groups are always
 green and magenta, never red and green; blue is used for single data series and
 processing steps, gray for a third group. There is no red or orange.
 
 Usage:
-    uv run python scripts/make_icons.py [outdir]   # default: flim/resources
+    uv run python scripts/make_icons.py [outdir]   # default: src/flim/resources
 """
 
 import math
@@ -19,6 +19,10 @@ from PIL import Image, ImageDraw, ImageFont
 
 S = 8  # supersampling factor
 SIZE = 32
+# the sizes written, as (scale, file name suffix): `name@2x.png` is the high-resolution
+# version that Qt (QIcon) and wxPython (wx.BitmapBundle.FromFiles) load on screens
+# with a device pixel ratio of 2
+SCALES = ((1, ""), (2, "@2x"))
 
 # palette
 BLUE = (40, 100, 210, 255)  # single data series
@@ -284,15 +288,17 @@ def pivot_icon(reverse=False):
 
 def order_icon():
     im, d = canvas()
-    # categorical columns swap places: the first and last trade positions
-    table(d, 2, 11, 30, 30, 3, 4, header=None)
-    for i, c in enumerate((GREEN, LGRAY, MAGENTA)):
-        x = 2 + i * 28 / 3
-        d.rectangle(s(x, 11, x + 28 / 3, 15.75), fill=c, outline=DARK, width=px(1.1))
-    # two-headed arc from the first to the last column
-    x0, x1, y = 6.7, 25.3, 9.5
+    # one category column, a header and its values: two values trade places
+    x0, x1, y0, y1, rows = 4, 17, 2, 30, 4
+    table(d, x0, y0, x1, y1, 1, rows)
+    rh = (y1 - y0) / rows
+    for j, c in enumerate((GREEN, LGRAY, MAGENTA), start=1):
+        y = y0 + rh * j
+        d.rectangle(s(x0, y, x1, y + rh), fill=c, outline=DARK, width=px(1.1))
+    # two-headed arc beside the column, from the first value to the last
+    ya, yb = y0 + rh * 1.5, y0 + rh * 3.5
     n = 30
-    pts = [(x0 + (x1 - x0) * i / n, y - 7 * math.sin(math.pi * i / n)) for i in range(n + 1)]
+    pts = [(19 + 8 * math.sin(math.pi * i / n), ya + (yb - ya) * i / n) for i in range(n + 1)]
     line(d, pts[3:-3], DARK, 1.6)
     arrow(d, *pts[4], *pts[0], DARK, w=1.6, head=3.4)
     arrow(d, *pts[-5], *pts[-1], DARK, w=1.6, head=3.4)
@@ -309,6 +315,134 @@ def sort_icon():
         y = 2 + rh * (j + 1)
         d.rectangle(s(12.5, y, 23, y + rh), fill=c + (255,), outline=DARK, width=px(1.1))
     arrow(d, 27.5, 3, 27.5, 29, DARK, w=2.2, head=4.5)
+    return im
+
+
+def split_icon():
+    im, d = canvas()
+    # the rows of one table go to a table per category value
+    rh = 17 / 5
+    table(d, 1, 7, 13, 24, 2, 5)
+    for j, c in ((1, LGREEN), (2, LGREEN), (3, LMAGENTA), (4, LMAGENTA)):
+        y = 7 + rh * j
+        d.rectangle(s(1, y, 13, y + rh), fill=c, outline=DARK, width=px(1.1))
+    d.line(s(7, 7, 7, 24), fill=DARK, width=px(0.8))
+    arrow(d, 14, 11, 20, 6, DARK, w=1.5, head=3)
+    arrow(d, 14, 20, 20, 25, DARK, w=1.5, head=3)
+    table(d, 21, 1, 30, 12, 2, 3, header=GREEN, fill=LGREEN)
+    table(d, 21, 19, 30, 30, 2, 3, header=MAGENTA, fill=LMAGENTA)
+    return im
+
+
+def calculate_icon():
+    im, d = canvas()
+    # a new column calculated from the others
+    table(d, 2, 11, 30, 30, 3, 4)
+    x = 2 + 28 * 2 / 3
+    d.rectangle(s(x, 11, 30, 30), fill=LBLUE, outline=DARK, width=px(1.1))
+    d.rectangle(s(x, 11, 30, 15.75), fill=BLUE, outline=DARK, width=px(1.1))
+    for j in range(2, 4):
+        d.line(s(x, 11 + 4.75 * j, 30, 11 + 4.75 * j), fill=DARK, width=px(0.8))
+    label(d, 12, 5.5, "f(x)", 7.5, color=BLUE)
+    arrow(d, 19.5, 5, 25, 9.5, DARK, w=1.5, head=3)
+    return im
+
+
+def source_icon():
+    im, d = canvas()
+    # a folder and a file name become one column of file locations
+    d.polygon(s(1, 3, 6, 3, 7.5, 5, 13, 5, 13, 13, 1, 13), fill=LBLUE, outline=DARK, width=px(1.1))
+    document(d, 2.5, 17, 11.5, 29, fold=3)
+    for y in (22, 25):
+        d.line(s(4.5, y, 9.5, y), fill=GRAY, width=px(1.0))
+    arrow(d, 14, 8, 19, 12.5, DARK, w=1.5, head=3)
+    arrow(d, 14, 23, 19, 18.5, DARK, w=1.5, head=3)
+    table(d, 20.5, 2, 30, 30, 1, 5, header=BLUE)
+    return im
+
+
+def drop_icon():
+    im, d = canvas()
+    # a column is removed from the table
+    table(d, 2, 4, 30, 28, 3, 4)
+    x0, x1 = 2 + 28 / 3, 2 + 28 * 2 / 3
+    d.rectangle(s(x0, 4, x1, 28), fill=LGRAY, outline=DARK, width=px(1.1))
+    for color, w in ((WHITE, 5.2), (MAGENTA, 2.6)):
+        line(d, [(x0 - 2, 6), (x1 + 2, 26)], color, w)
+        line(d, [(x1 + 2, 6), (x0 - 2, 26)], color, w)
+    return im
+
+
+def rename_icon():
+    im, d = canvas()
+    # a pencil edits the column names in the header row
+    table(d, 2, 10, 30, 30, 3, 4)
+    d.rectangle(s(2, 10, 30, 15), fill=LBLUE, outline=DARK, width=px(1.1))
+    for i in (1, 2):
+        d.line(s(2 + 28 * i / 3, 10, 2 + 28 * i / 3, 15), fill=DARK, width=px(0.8))
+    # pencil from the upper right to its tip on the header
+    a = math.radians(135)
+    ux, uy = math.cos(a), math.sin(a)  # along the pencil, towards the tip
+    nx, ny = -uy, ux
+    tip = (13, 12.5)
+    body = 13
+    h = 2.3
+
+    def at(t, n):
+        return (tip[0] - ux * t + nx * n, tip[1] - uy * t + ny * n)
+
+    outline = [at(0, 0), at(4, h), at(body, h), at(body, -h), at(4, -h)]
+    d.polygon([v * S for p in [at(-1, 0), at(5, h + 1), at(body + 1, h + 1), at(body + 1, -h - 1), at(5, -h - 1)] for v in p], fill=WHITE)
+    d.polygon([v * S for p in outline for v in p], fill=BLUE, outline=DARK, width=px(1.0))
+    d.polygon([v * S for p in [at(0, 0), at(4, h), at(4, -h)] for v in p], fill=WHITE, outline=DARK, width=px(1.0))
+    circle(d, *at(0.8, 0), 0.9, DARK)
+    return im
+
+
+def fuse_icon(reverse=False):
+    im, d = canvas()
+    # two category columns become one (fuse), or one becomes two (separate)
+    left, right = (1, 13), (19, 31)
+    two, one = (right, left) if reverse else (left, right)
+    w = (two[1] - two[0]) / 2
+    table(d, two[0], 2, two[0] + w, 30, 1, 5, header=GREEN)
+    table(d, two[0] + w, 2, two[1], 30, 1, 5, header=MAGENTA)
+    table(d, one[0] + 1.5, 2, one[1] - 1.5, 30, 1, 5, header=None)
+    rh = 28 / 5
+    mid = (one[0] + one[1]) / 2
+    d.rectangle(s(one[0] + 1.5, 2, mid, 2 + rh), fill=GREEN, outline=DARK, width=px(1.1))
+    d.rectangle(s(mid, 2, one[1] - 1.5, 2 + rh), fill=MAGENTA, outline=DARK, width=px(1.1))
+    if reverse:
+        arrow(d, 13, 16, 18, 10, DARK, w=1.5, head=3)
+        arrow(d, 13, 16, 18, 22, DARK, w=1.5, head=3)
+    else:
+        arrow(d, 14, 10, 18.5, 16, DARK, w=1.5, head=3)
+        arrow(d, 14, 22, 18.5, 16, DARK, w=1.5, head=3)
+    return im
+
+
+def scale_icon():
+    im, d = canvas()
+    # a group of small bars (left) scaled up as a whole (right): a zoom from the
+    # small group's outline to the large one's, on one baseline
+    base, heights = 29, (0.45, 1.0, 0.7)
+    small = (1.5, 9, 10)  # x, width, height of the group
+    large = (15, 16, 25)
+
+    def outline(x0, width, height):
+        return (x0 - 0.5, base - height - 1, x0 + width + 0.5, base)
+
+    (ax0, ay0, ax1, _), (bx0, by0, bx1, _) = outline(*small), outline(*large)
+    line(d, [(ax0, ay0), (bx0, by0)], LGRAY, 0.9)
+    line(d, [(ax1, ay0), (bx1, by0)], LGRAY, 0.9)
+    for box in (outline(*small), outline(*large)):
+        d.rectangle(s(*box), outline=LGRAY, width=px(0.9))
+    for (x0, width, height), fill in ((small, LBLUE), (large, BLUE)):
+        bar = width / len(heights)
+        for i, h in enumerate(heights):
+            x = x0 + i * bar
+            d.rectangle(s(x, base - height * h, x + bar * 0.8, base), fill=fill, outline=DARK, width=px(0.9))
+    d.line(s(0.5, base, 31.5, base), fill=DARK, width=px(1.3))
     return im
 
 
@@ -557,7 +691,7 @@ def heatmap_icon():
             x, y = 2 + i * 7, 2 + j * 7
             d.rectangle(s(x, y, x + 7, y + 7), fill=VIRIDIS[v] + (255,))
     d.rectangle(s(2, 2, 30, 30), outline=DARK, width=px(1.1))
-    return im
+    return im.transpose(Image.Transpose.ROTATE_270)  # rows of the table as columns
 
 
 def seriesanalysis_icon():
@@ -659,6 +793,32 @@ def workflow_icon():
     document(d, 2, 17, 11, 30, fold=3)
     for y, c in ((22, GREEN), (25.5, MAGENTA)):
         d.rectangle(s(4, y - 1, 9, y + 1), fill=c)
+    return im
+
+
+def prefect_server_icon():
+    im, d = canvas()
+    # a server rack: three units, each with drive slots and a status light
+    for i in range(3):
+        y = 3 + i * 8.6
+        d.rounded_rectangle(s(4, y, 28, y + 7.2), radius=px(1.5), fill=WHITE, outline=DARK, width=px(1.3))
+        for x in (7.5, 10.5):
+            d.rectangle(s(x - 0.6, y + 2, x + 0.6, y + 5.2), fill=LGRAY)
+        line(d, [(14, y + 3.6), (21, y + 3.6)], LGRAY, w=1.2)
+        circle(d, 24.5, y + 3.6, 1.5, GREEN)
+    return im
+
+
+def prefect_lastrun_icon():
+    im, d = canvas()
+    # a browser window that shows a run: task bars on a timeline, by state
+    d.rounded_rectangle(s(1.5, 3, 30.5, 29), radius=px(2), fill=WHITE, outline=DARK, width=px(1.3))
+    d.rectangle(s(1.5, 3, 30.5, 8), fill=MAGENTA)
+    for x in (4, 7, 10):
+        circle(d, x, 5.5, 0.9, WHITE)
+    for i, (start, length, color) in enumerate(((4, 12, GREEN), (8, 10, GREEN), (12, 14, MAGENTA), (6, 8, GREEN))):
+        y = 11 + i * 4.3
+        d.rounded_rectangle(s(start, y, start + length, y + 2.6), radius=px(0.8), fill=color)
     return im
 
 
@@ -785,12 +945,20 @@ ICONS = {
     "fileopen.png": fileopen_icon,
     "import.png": import_icon,
     # Data
+    "calculate.png": calculate_icon,
     "concatenate.png": concatenate_icon,
+    "dropcolumns.png": drop_icon,
     "filter.png": filter_icon,
+    "fuse.png": fuse_icon,
     "merge.png": merge_icon,
     "order.png": order_icon,
     "pivot.png": pivot_icon,
+    "renamecolumns.png": rename_icon,
+    "scale.png": scale_icon,
+    "separate.png": lambda: fuse_icon(reverse=True),
     "sort.png": sort_icon,
+    "split.png": split_icon,
+    "source.png": source_icon,
     "unpivot.png": lambda: pivot_icon(reverse=True),
     # Analysis
     "aeaugment.png": aeaugment_icon,
@@ -818,6 +986,9 @@ ICONS = {
     "violinplot.png": violin_icon,
     # Workflow
     "workflow.png": workflow_icon,
+    # Runs
+    "prefect_server.png": prefect_server_icon,
+    "prefect_lastrun.png": prefect_lastrun_icon,
     "flirrworkflow.png": flirrworkflow_icon,
     "aetuneworkflow.png": aetuneworkflow_icon,
     "aefeatureworkflow.png": aefeatureworkflow_icon,
@@ -830,9 +1001,12 @@ def main(outdir):
     for name, draw in ICONS.items():
         im = draw()
         crisp = im.info.get("crisp")  # pixel-aligned drawing: average, don't sharpen
-        im.resize((SIZE, SIZE), Image.BOX if crisp else Image.LANCZOS).save(outdir / name)
+        for scale, suffix in SCALES:
+            size = SIZE * scale
+            path = outdir / name.replace(".png", f"{suffix}.png")
+            im.resize((size, size), Image.BOX if crisp else Image.LANCZOS).save(path)
     save_app_icon(outdir)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "flim" / "resources")
+    main(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent / "src" / "flim" / "resources")

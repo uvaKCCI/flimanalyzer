@@ -27,3 +27,4 @@ def test_to_db():
 def test_clean_replaces_spaces_and_slashes():
     assert utils.clean("a b/c") == "a_b_c"
     assert utils.clean("a#b") == "ab"
+    assert utils.clean("b128_l1e-05:d<1>") == "b128_l1e05d1"  # 0.6: kept : < >

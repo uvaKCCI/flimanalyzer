@@ -1,5 +1,6 @@
 import threading
 import time
+from pathlib import Path
 
 import pytest
 
@@ -53,13 +54,13 @@ def _tool_button(frame, name):
 
 
 def _open(frame, data, title="Data", **kwargs):
-    """Opens ``data`` in a data window, as the application does."""
+    """Opens ``data`` in a data window, as the GUI does."""
     from flim.gui.events import EVT_DATA_TYPE, DataWindowEvent
 
     event = DataWindowEvent(EVT_DATA_TYPE, frame.GetId())
     event.SetEventInfo(data, title, "createnew", **kwargs)
     frame.GetEventHandler().ProcessEvent(event)
-    return frame.windowframes[title]
+    return frame.windows_by_title()[title]
 
 
 def _statuses(dlg):
@@ -205,7 +206,7 @@ def test_cancelled_run_shows_results_folder_and_prefect_link(frame, monkeypatch,
     )
     assert frame.run_with_progress("My Tool", start) is None
     (run_dir,) = [p for p in tmp_path.iterdir() if p.is_dir()]
-    assert shown["paths"] == [str(run_dir)]
+    assert [Path(p) for p in shown["paths"]] == [run_dir]
     assert shown["texts"][0].startswith("My Tool was cancelled after ")
     assert "Results of the completed tasks are in:" in shown["texts"]
     assert shown["link"] and "/runs/flow-run/" in shown["link"]
@@ -218,7 +219,7 @@ def test_cancelled_run_without_autosave(frame, monkeypatch):
     start = _cancel_after_first_task(_starter(_first_task_then_waiting()))
     assert frame.run_with_progress("My Tool", start) is None
     assert shown["paths"] == []
-    assert "No results were saved because Autosave is off." in shown["texts"]
+    assert "No results were saved because Save results is off." in shown["texts"]
 
 
 def test_completed_run_is_returned(frame):
@@ -265,16 +266,16 @@ def test_toolbar_click_runs_the_tool_behind_the_progress_dialog(frame, monkeypat
         lambda dlg: outcomes.append(original(dlg)) or outcomes[-1],
     )
 
-    before = set(frame.windowframes)
+    before = set(frame.windows_by_title())
     _click(_tool_button(frame, "Summarize"))
 
     assert messages == []
     assert outcomes == [wx.ID_OK]
-    new = {t: w for t, w in frame.windowframes.items() if t not in before}
+    new = {t: w for t, w in frame.windows_by_title().items() if t not in before}
     assert new and all(isinstance(w, PandasFrame) for w in new.values())
     assert all(isinstance(w.GetViewData(), pd.DataFrame) for w in new.values())
     # close the data windows without the "save the modified data?" prompt
-    for window in frame.windowframes.values():
+    for window in frame.windows_by_title().values():
         if isinstance(window, PandasFrame):
             window.modified = False
     frame.OnCloseAll(None)
@@ -342,12 +343,12 @@ def test_results_folder_link_opens_the_file_browser(wxapp, monkeypatch, tmp_path
     try:
         assert dlg.ShowModal() == wx.ID_OK
         run_dir = dlg.run.autosave_dir
-        assert run_dir.startswith(str(tmp_path))
+        assert run_dir.is_relative_to(tmp_path)
         # long paths are shortened in the label, the click opens the whole path
         from flim.core.paths import shorten_path
 
         assert seen == {"shown": True, "label": shorten_path(run_dir)}
-        assert dlg.folder.path == run_dir and run_dir in dlg.folder.GetToolTipText()
+        assert dlg.folder.path == run_dir and str(run_dir) in dlg.folder.GetToolTipText()
         assert opened == [run_dir]
     finally:
         dlg.Destroy()
@@ -374,13 +375,13 @@ def test_open_data_files_opens_a_data_window(frame, tmp_path, flim_data):
 
     csv = tmp_path / "cells.csv"
     flim_data.to_csv(csv, index=False)
-    assert frame.open_data_files([str(csv)]) == "cells.csv"
-    window = frame.windowframes["cells.csv"]
+    assert frame.open_data_files([str(csv)]) == ["cells.csv"]
+    window = frame.windows_by_title()["cells.csv"]
     assert isinstance(window, PandasFrame)
     assert len(window.GetViewData()) == len(flim_data)
     assert not window.is_modified()  # just read from the file: closing asks nothing
     frame.OnCloseAll(None)
-    assert "cells.csv" not in frame.windowframes
+    assert "cells.csv" not in frame.windows_by_title()
 
 
 def test_result_tables_are_marked_modified(frame, flim_data):
@@ -403,10 +404,11 @@ def test_files_given_with_input_are_opened_at_startup(frame, monkeypatch, tmp_pa
 
     app = App()
     app.frame = frame
+    app.exclude = []  # no -x
     FLIMAnalyzerApp.open_files(app, [str(csv), str(tmp_path / "missing.csv")])
-    assert "cells.csv" in frame.windowframes
+    assert "cells.csv" in frame.windows_by_title()
     assert len(messages) == 1 and "missing.csv" in messages[0]
-    frame.windowframes["cells.csv"].modified = False
+    frame.windows_by_title()["cells.csv"].modified = False
     frame.OnCloseAll(None)
 
 
@@ -421,7 +423,7 @@ def test_input_option_is_passed_to_the_app(monkeypatch):
     monkeypatch.setattr(
         analyzerapp,
         "interactive_run",
-        lambda fa, files=None, settings=None: started.update(files=files),
+        lambda fa, files=None, settings_manager=None, **_: started.update(files=files),
     )
     analyzerapp.main()
     assert started["files"] == ["a.csv", "b.txt"]
@@ -473,7 +475,8 @@ def test_summary_of_a_completed_run(wxapp, tmp_path):
 
 
 def test_summary_lists_warnings(wxapp, tmp_path):
-    # a task that warned (Tool.warn) stays completed; the summary lists its warning
+    # a completed task with a message, as Tool.warn sets it: the summary lists the
+    # message under Warnings
     run = _starter(_tasks(2), autosave_dir=str(tmp_path))(None, None, None)
     node = next(n for n, a in run.graph.nodes(data=True) if a.get("label") == "T0")
     run.graph.nodes[node]["message"] = "rows are paired by position"
@@ -525,8 +528,8 @@ def test_workflow_always_shows_the_summary(frame, monkeypatch, flirr_data, tmp_p
     assert locked == [True]  # workflows always save their results
     ((first_line, folder, has_link),) = summaries
     assert first_line.startswith("Basic FLIRR Analysis completed all ")
-    assert folder and folder.startswith(str(tmp_path)) and has_link
-    assert any("Graph" in title for title in frame.windowframes)  # graph window opened too
+    assert folder and Path(folder).is_relative_to(tmp_path) and has_link
+    assert any("Graph" in title for title in frame.windows_by_title())  # graph window opened too
     frame.OnCloseAll(None)
 
 

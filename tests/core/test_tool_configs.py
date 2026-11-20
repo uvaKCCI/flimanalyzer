@@ -81,7 +81,7 @@ CHANGED = [
         training=AETrainConfig(
             epochs=2,
             architecture="AE Simulator 1-6",
-            rescale=True,
+            rescale_output=True,
             checkpoint_interval=2,
         ),
         augment=AEAugmentConfig(sets=7, add_noise=False),  # older versions: no noise
@@ -170,6 +170,8 @@ def test_category_order():
 
 
 def test_range_filter():
+    from flim.configs.data import RangeFilterNode
+
     legacy = {
         "name": "FLIRR",
         "rangelow": 0.1,
@@ -181,14 +183,18 @@ def test_range_filter():
     }
     unused = {**legacy, "name": "t1", "selected": False}  # the plugin did not apply it
     cfg = FilterConfig.from_legacy_params({"range_filters": [legacy, unused]})
-    assert cfg.range_filters == {"FLIRR": RangeSettings(low=0.1, high=2)}
+    assert cfg.features.filters == [RangeFilterNode(column="FLIRR", low=0.1, high=2)]
     assert cfg.to_legacy_params()["range_filters"] == [legacy]
-    # no limit: infinite for older versions
+    # a part that is off has no filters in use: none in the legacy form
+    off = cfg.model_copy(update={"features": cfg.features.model_copy(update={"enabled": False})})
+    assert off.to_legacy_params()["range_filters"] == []
+    # no limit: written as infinity in the legacy params
     cfg = FilterConfig(range_filters={"x": {"low": 1}})
     (legacy,) = cfg.to_legacy_params()["range_filters"]
     assert (legacy["rangelow"], legacy["rangehigh"]) == (1, float("inf"))
     assert FilterConfig.from_legacy_params(cfg.to_legacy_params()) == cfg
-    assert FilterConfig(range_filters=["x"]).range_filters == {"x": RangeSettings()}
+    # 0.6's fields: a list of columns, filters without limits
+    assert FilterConfig(range_filters=["x"]).features.filters == [RangeFilterNode(column="x")]
     with pytest.raises(ValidationError):
         RangeSettings(low=2, high=1)
 
@@ -363,7 +369,7 @@ def test_ae_tune_workflow_legacy():
     assert cfg.training.epochs == 9
     assert cfg.grouping == ["T"] and cfg.features == ["f"]
     # workflow defaults, not those of the tool
-    assert cfg.training.architecture == "AE Simulator 1-6" and cfg.training.rescale
+    assert cfg.training.architecture == "AE Simulator 1-6" and cfg.training.rescale_output
     assert cfg.resources.preferred_device == "cpu"
 
 
@@ -449,8 +455,27 @@ def test_classname_names_the_registered_tool():
         tools.unregister(DemoTool.name)
 
 
-def test_workflow_strict():
-    assert AETuneConfig().strict is None  # the mode decides: GUI False, batch True
-    cfg = AETuneConfig(strict=True)
-    assert AETuneConfig.model_validate_json(cfg.model_dump_json()).strict is True
-    assert "strict" not in cfg.to_legacy_params()
+def test_workflow_strict_moved_to_processing():
+    """`strict` was a config field in 0.6; it is the tool's `processing.strict` now."""
+    assert "strict" not in AETuneConfig.model_fields
+    assert AETuneConfig.model_validate({"strict": True}) == AETuneConfig()  # accepted, dropped
+    assert "strict" not in AETuneConfig().to_legacy_params()
+
+
+@pytest.mark.parametrize("seed", ["1", "2", "3"])
+def test_series_analysis_statistics_are_saved_in_a_fixed_order(seed):
+    import json
+    import subprocess
+    import sys
+
+    code = (
+        "import json, sys; sys.path.insert(0, 'src');"
+        "from flim.configs.analysis import SeriesAnalysisConfig;"
+        "print(json.dumps(SeriesAnalysisConfig(features=['a', 'b']).model_dump(mode='json')['statistics']))"
+    )
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                         env={"PYTHONHASHSEED": seed, "PATH": ""}, check=True).stdout  # fmt: skip
+    from flim.configs.analysis import SERIES_STATISTICS
+
+    statistics = json.loads(out)
+    assert statistics == [s for s in SERIES_STATISTICS if s in statistics]

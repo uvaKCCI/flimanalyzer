@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-FLIM = Path(__file__).resolve().parent.parent / "flim"
+FLIM = Path(__file__).resolve().parent.parent / "src" / "flim"
 SOURCES = sorted(p for p in FLIM.rglob("*.py") if "__pycache__" not in p.parts)
 
 
@@ -31,7 +31,9 @@ def test_referenced_icons_exist():
     referenced = {
         name
         for path in SOURCES
-        for name in re.findall(r'joinpath\("([^"]+\.png)"\)', path.read_text())
+        for name in re.findall(
+            r'(?:joinpath\(|icon_bitmap\(|icon = )"([^"]+\.png)"', path.read_text()
+        )
     }
     assert referenced, "no icon references found"
     missing = sorted(n for n in referenced if not (resources / n).exists())
@@ -41,20 +43,31 @@ def test_referenced_icons_exist():
 def test_no_unused_icons():
     resources = FLIM / "resources"
     code = "\n".join(path.read_text() for path in SOURCES)
-    unused = sorted(p.name for p in resources.glob("*.png") if p.name not in code)
+    # a high-resolution version counts as used with its icon
+    unused = sorted(
+        p.name for p in resources.glob("*.png") if p.name.replace("@2x", "") not in code
+    )
     assert not unused, f"icon files not used anywhere in flim/: {unused}"
 
 
-def test_icons_are_32px_rgba():
+def test_icons_are_32px_rgba_with_a_64px_version():
+    # name.png 32x32 and name@2x.png 64x64: the high-resolution version that Qt and
+    # wx.BitmapBundle load on screens with a device pixel ratio of 2
     Image = pytest.importorskip("PIL.Image")
+    resources = FLIM / "resources"
     wrong = {}
-    for p in sorted((FLIM / "resources").glob("*.png")):
-        if p.name == "flimanalyzer.png":  # application icon
+    for p in sorted(resources.glob("*.png")):
+        if p.name == "flimanalyzer.png":  # the program icon, see test_app_icon
             continue
+        size = 64 if p.stem.endswith("@2x") else 32
         with Image.open(p) as im:
-            if im.size != (32, 32) or im.mode != "RGBA":
+            if im.size != (size, size) or im.mode != "RGBA":
                 wrong[p.name] = (im.size, im.mode)
-    assert not wrong, f"icons must be 32x32 RGBA: {wrong}"
+    assert not wrong, f"icons must be RGBA, 32x32 and 64x64 (@2x): {wrong}"
+    icons = {p.stem for p in resources.glob("*.png")} - {"flimanalyzer"}
+    alone = sorted(n for n in icons if not n.endswith("@2x") and f"{n}@2x" not in icons)
+    extra = sorted(n for n in icons if n.endswith("@2x") and n[:-3] not in icons)
+    assert not alone and not extra, f"without a 64 px version: {alone}; without an icon: {extra}"
 
 
 def test_app_icon():

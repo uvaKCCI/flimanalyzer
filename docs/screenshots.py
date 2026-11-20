@@ -9,7 +9,8 @@ analysis/gmm-config.png) select screenshots; default: all.
 
 Dialogs and windows are captured by their window number (``screencapture -l``: only
 their own content, never other windows; the terminal needs the Screen Recording
-permission), plots are saved directly. Windows open on the screen while it runs.
+permission), plots are saved directly. Windows open on the screen while it runs. The runs use a
+temporary Prefect server, whatever server the Prefect profile names.
 """
 
 import os
@@ -27,6 +28,7 @@ import wx  # noqa: E402
 import flim.gui  # noqa: E402,F401  (registers the dialogs)
 import flim.tools  # noqa: E402,F401  (registers the tools)
 import flim.workflow  # noqa: E402,F401
+from flim.core.config import Processing, ProcessingRules  # noqa: E402
 from flim.configs import (  # noqa: E402
     ConcatConfig,
     FilterConfig,
@@ -35,6 +37,7 @@ from flim.configs import (  # noqa: E402
     HistogramConfig,
     MergeConfig,
     PairPlotConfig,
+    PivotConfig,
     SortConfig,
     SplitConfig,
     SummaryConfig,
@@ -105,23 +108,21 @@ def result_of(tool, config, inputs="data", result=None):
     return make
 
 
-def pivoted(data):
-    """What the data window's Pivot button makes of the Pivot example's choices."""
-    columns = ["FAD a1[%]", "NAD(P)H a2[%]"]
-    table = pd.pivot_table(
-        data[columns + CATEGORIES],
-        index=["FOV", "Cell"],
-        columns=["Treatment"],
-        observed=False,
-    )
-    table.columns = ["\n".join(col).strip() for col in table.columns.values]
-    return table.reset_index()
+def with_source(data):
+    """The data as a read table has it: `Source`, `Directory` and `File` first."""
+    from pathlib import PurePosixPath
+
+    file = PurePosixPath("/data/flim") / DATAFILE  # a neutral path, not the user's
+    columns = {"Source": file.as_uri(), "Directory": str(file.parent), "File": file.name}
+    return pd.concat([pd.DataFrame(columns, index=data.index), data], axis=1)
 
 
 # --- the screenshots: image path -> (kind, arguments) ---
-# kinds: "main" (the application window), "dialog" (a tool's configuration dialog),
-# "table" (a data window), "window" (another dialog of the application, made by a
-# function of the shooter), "plot" (a figure of a tool's results)
+# kinds: "main" (the main window), "dialog" (a tool's configuration dialog), "table"
+# (a data window), "window" (another dialog of the GUI, made by a method of the
+# shooter), "plot" (a figure of a tool's results), "graph" (the graph of a workflow
+# run), "plotwindow" (a plot window with its toolbar), "progress" (the progress
+# dialog of a workflow run)
 #
 # tables: "data", a function of the data, or a tool's result (tool, config, result)
 
@@ -142,12 +143,19 @@ HISTOGRAMS = [
     for style in ("bar", "barstacked", "step", "stepfilled")
 ]
 HISTOGRAM = HISTOGRAMS[0]  # the bar style, as the user guide's example
+HISTOGRAM_CUMULATIVE = HISTOGRAMS[2].model_copy(update={"cumulative": True})  # step style
 FLIRR = FLIRRPlotConfig(grouping=["Treatment", "FOV"])
 FILTER = FilterConfig(
-    category_filters={"Treatment": ["ctrl", "Dox15", "Dox30"]},
-    range_filters={"FAD a1[%]": {"low": 50, "high": 90}, "FLIRR": {"high": 2.4}},
-)
+    features={"filters": [
+        {"column": "FAD a1[%]", "low": 50, "high": 90},
+        {"column": "FLIRR", "high": 2.4},
+    ]},
+    categories={"filters": [{"kind": "category", "column": "Treatment", "keep": ["ctrl", "Dox15", "Dox30"]}]},
+    other={"filters": [{"kind": "expression", "expression": "FLIRR > 0.1"}]},
+)  # fmt: skip
 SORT = SortConfig(features=["FAD a1"])
+# runs of workflows use the closest column for a column that the data does not have
+GUESSES = ProcessingRules.of(Processing(strict=False))
 
 # Analysis
 SUMMARY = SummaryConfig(
@@ -204,6 +212,8 @@ BOX_SINGLE = BoxPlotConfig(
     plots_per_row=3,
 )
 
+PIVOT = PivotConfig(grouping=["Treatment"], features=["FAD a1[%]", "NAD(P)H a2[%]"])
+pivoted = result_of("Pivot", PIVOT)  # the Pivot example's table, `Table: Pivoted`
 SPLIT = SplitConfig(grouping=["FOV"])
 MERGE = MergeConfig(how="left", on=CATEGORIES)
 FOV_A = fov("a")  # the workflow examples: the same steps, faster
@@ -214,17 +224,16 @@ SHOTS = {
     "toolbar.png": ("main", {}),
     "data/exdata_table.png": ("table", {}),
     "data/dataframe.png": ("table", {}),
+    "data/source-columns.png": ("table", {"table": with_source, "size": (1000, 300)}),
     # Data
-    "data/precision.png": ("table", {"crop": (860, 28, 1000, 64)}),
-    "files/open-dlg.png": ("window", {"make": "open_dialog"}),
-    "files/import-dlg.png": ("window", {"make": "import_dialog"}),
+    "data/precision.png": ("table", {"crop": (400, 28, 1000, 250)}),  # decimals next to the control
     "data/category-filter.png": ("window", {"make": "category_filter"}),
     "data/filter-settings.png": ("window", {"make": "filter_settings"}),
     "data/sort-preresult.png": ("table", {}),
     "data/filtertool-config.png": ("dialog", {"tool": "Filter", "config": FILTER}),
     "data/sort-config.png": ("dialog", {"tool": "Sort", "config": SORT}),
     "data/sort-results.png": ("table", {"tool": "Sort", "config": SORT}),
-    "data/order-config.png": ("dialog", {"tool": "Order Categories", "setup": "show_treatment_order"}),
+    "data/order-config.png": ("dialog", {"tool": "Order Category Values", "setup": "show_treatment_order"}),
     "data/concat-config1.png": ("dialog", {"tool": "Concatenate", "config": ConcatConfig(), "inputs": TWO_FILES, "selected": [list(TWO_FILES)]}),
     "data/split-input.png": ("dialog", {"tool": "Split", "config": SPLIT}),
     "data/split-result.png": ("table", {"tool": "Split", "config": SPLIT, "result": "FOV=a"}),
@@ -234,9 +243,7 @@ SHOTS = {
     "data/merge-res1.png": ("table", {"tool": "Merge", "config": MERGE, "inputs": MERGE_INPUTS}),
     "data/merge-res3.png": ("table", {"tool": "Merge", "config": MERGE, "inputs": MERGE_INPUTS, "scroll_to_end": True}),
     "data/pivot-original.png": ("table", {}),
-    "data/pivot-input.png": ("window", {"make": "pivot_groups"}),
-    "data/pivot-columns.png": ("window", {"make": "pivot_columns"}),
-    "data/pivot-result.png": ("table", {"table": pivoted, "title": DATAFILE}),
+    "data/pivot-result.png": ("table", {"tool": "Pivot", "config": PIVOT}),
     # Analysis
     "analysis/summary-config-nogrouping.png": ("dialog", {"tool": "Summarize", "config": SUMMARY}),
     "analysis/summary-result1-nogrouping.png": ("table", {"tool": "Summarize", "config": SUMMARY, "size": (1000, 300)}),
@@ -255,8 +262,8 @@ SHOTS = {
     "analysis/rf-output2.png": ("table", {"tool": "Random Forest", "config": FOREST, "size": (700, 400)}),
     "analysis/relchange-config-grouping.png": ("dialog", {"tool": "Relative Change", "config": RELCHANGE}),
     "analysis/relchange-result-grouping.png": ("table", {"tool": "Relative Change", "config": RELCHANGE}),
-    "analysis/relpivot-result.png": ("table", {"table": pivoted}),
-    "analysis/seriesanalysis-config.png": ("dialog", {"tool": "Series Analysis", "config": SERIES, "inputs": {"Table: pivoted": pivoted}}),
+    "analysis/relpivot-result.png": ("table", {"tool": "Pivot", "config": PIVOT}),
+    "analysis/seriesanalysis-config.png": ("dialog", {"tool": "Series Analysis", "config": SERIES, "inputs": {"Table: Pivoted": pivoted}}),
     "analysis/seriesanalysis-results.png": ("table", {"tool": "Series Analysis", "config": SERIES, "inputs": pivoted}),
     "analysis/categorize-config.png": ("dialog", {"tool": "Categorize Data", "config": CATEGORIZE}),
     "analysis/categorize-results.png": ("table", {"tool": "Categorize Data", "config": CATEGORIZE}),
@@ -268,12 +275,11 @@ SHOTS = {
     "analysis/histogram-results1.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[0]}),
     "analysis/histogram-results2.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[1]}),
     "analysis/histogram-results3.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[2]}),
-    "analysis/histogram-results4.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAMS[3]}),
+    "analysis/histogram-cumulative.png": ("plot", {"tool": "Frequency Histogram", "config": HISTOGRAM_CUMULATIVE}),
     "analysis/histogram-results1a.png": ("table", {"tool": "Frequency Histogram", "config": HISTOGRAMS[0]}),
     "analysis/barplot-config-grouping.png": ("dialog", {"tool": "Bar Plot", "config": BAR[0]}),
     "analysis/barplot-result1-grouping.png": ("plot", {"tool": "Bar Plot", "config": BAR[0]}),
     "analysis/barplot-result2-grouping.png": ("plot", {"tool": "Bar Plot", "config": BAR[1]}),
-    "analysis/boxplot-config-grouping.png": ("dialog", {"tool": "Box Plot", "config": BOX[0]}),
     "analysis/boxplot-result1-grouping.png": ("plot", {"tool": "Box Plot", "config": BOX[0]}),
     "analysis/boxplot-result2-grouping.png": ("plot", {"tool": "Box Plot", "config": BOX[1]}),
     "analysis/lineplot-config-grouping.png": ("dialog", {"tool": "Line Plot", "config": LINE[0]}),
@@ -300,9 +306,9 @@ SHOTS = {
     "analysis/flirr-result.png": ("plot", {"tool": "FLIRR Plot", "config": FLIRR}),
     "analysis/pairplot-config.png": ("dialog", {"tool": "Pair Plot", "config": PAIRPLOT}),
     "analysis/pairplot-results.png": ("plot", {"tool": "Pair Plot", "config": PAIRPLOT}),
-    # 0.6.1: tool dialogs, autoencoders, single figure, plot window, runs
+    # tool dialogs, autoencoders, single figure, plot window, runs
     "dialogs/tool-dialog.png": ("dialog", {"tool": "K-Means", "config": KMEANS, "setup": "expand_resources"}),
-    "analysis/aetrain-config.png": ("dialog", {"tool": "Autoencoder: Train"}),
+    "analysis/aetrain-config.png": ("dialog", {"tool": "Autoencoder Train"}),
     "analysis/boxplot-config-single.png": ("dialog", {"tool": "Box Plot", "config": BOX_SINGLE}),
     "analysis/boxplot-result-single.png": ("plot", {"tool": "Box Plot", "config": BOX_SINGLE}),
     "analysis/plotwindow.png": ("plotwindow", {"tool": "Box Plot", "config": BOX[0]}),
@@ -352,7 +358,7 @@ def _make_key(window) -> None:
 
 
 def _activate() -> None:
-    """Brings the application to the front, so that its windows are drawn active."""
+    """Brings this program to the front, so that its windows are drawn active."""
     import ctypes
 
     app = _message(_objc().objc_getClass(b"NSApplication"), b"sharedApplication", ctypes.c_void_p)
@@ -430,9 +436,22 @@ class Shooter:
         from flim.gui.configdialog import dialog_class
 
         tool = tools.get(tool)
-        choices = self.tables(inputs or {"Table: data": "data"})
+        # the data under its file name, as the table windows show it
+        choices = self.tables(inputs or {DATAFILE: "data"})
+        from flim.core.execution import ExecutionOptions
+        from flim.core.saving import AutosaveConfig
+        from flim.core.workflow import Workflow
+
+        # as the GUI opens it: a workflow's `Save results` is checked and locked, in the
+        # results folder (~/FLIMAnalyzerResults, shown without the user's home)
+        locked = issubclass(tool, Workflow)
+        execution = None
+        if locked:
+            autosave = AutosaveConfig(enabled=True, results_dir="~/FLIMAnalyzerResults")
+            execution = ExecutionOptions(autosave=autosave)
         dialog = dialog_class(tool.config_class)(
-            self.frame, tool, config, data_choices=choices, selected=selected
+            self.frame, tool, config, data_choices=choices, selected=selected,
+            execution=execution, autosave_locked=locked,
         )
         if setup:
             getattr(self, setup)(dialog)
@@ -489,7 +508,7 @@ class Shooter:
         wx.CallAfter(self.next)
 
     def _graph(self, path, tool, config, rows=None):
-        """The graph of a workflow run, as the application shows it after the run."""
+        """The graph of a workflow run, as the GUI shows it after the run."""
         from flim.core.graph import WorkflowGraph
 
         figure, _ = WorkflowGraph(self.flow_run(tool, config, rows)).get_plot()
@@ -525,7 +544,7 @@ class Shooter:
                     on_progress=on_progress,
                     cancel_token=cancel_token,
                     on_start=on_start,
-                    strict=False,
+                    processing=GUESSES,
                 )
 
         dialog = RunProgressDialog(self.frame, tool, start_run)
@@ -566,7 +585,7 @@ class Shooter:
                     self.table(rows or "data"),
                     config=workflow.config_class(**config),
                     autosave_dir=self.results_folder(),
-                    strict=False,
+                    processing=GUESSES,
                 )
         return self.results[key]
 
@@ -591,39 +610,7 @@ class Shooter:
             self.results[key] = tool()(*tables, config=config)
         return self.results[key]
 
-    # --- other dialogs of the application ---
-
-    def open_dialog(self):
-        from flim.core.settings import AppSettings
-        from flim.gui.importdlg import ImportDlg
-
-        return ImportDlg(
-            self.frame,
-            "Open File",
-            AppSettings.default(),
-            parsefname=False,
-            preprocess=False,
-            singlefile=True,
-        )
-
-    def import_dialog(self):
-        from flim.core.settings import AppSettings
-        from flim.gui.importdlg import ImportDlg
-
-        settings = AppSettings.default()
-        settings.import_.filename_parser.parser = "fov_treatment_cell_parser"
-        settings.import_.filename_parser.patterns = []  # the parser's own
-        dialog = ImportDlg(self.frame, "Import File(s)", settings)
-        # as after Add Files (the files don't exist here)
-        dialog.files_list.Set(
-            [
-                f"/data/9SR/Results-{f}-{t}_{c:02d}.txt"
-                for f in ("a", "b")
-                for t in TREATMENTS
-                for c in (1, 2)
-            ]
-        )
-        return dialog
+    # --- other dialogs of the GUI ---
 
     def category_filter(self):
         from flim.gui.dialogs import SelectGroupsDlg
@@ -639,32 +626,15 @@ class Shooter:
         )
 
     def filter_settings(self):
+        from flim.core.filtering import window_filters
         from flim.core.settings import AppSettings
         from flim.gui.dialogs import ConfigureFiltersDlg
 
-        filters = AppSettings.default().filters
-        filters.use = True
-        return ConfigureFiltersDlg(self.frame, filters, self.data, {})
-
-    def pivot_groups(self):
-        from flim.gui.dialogs import SelectGroupsDlg
-
-        return SelectGroupsDlg(
-            self.frame,
-            title="Pivot data: Groups to pivot",
-            groups=CATEGORIES,
-            selected=["Treatment"],
-        )
-
-    def pivot_columns(self):
-        from flim.gui.dialogs import SelectGroupsDlg
-
-        columns = [c for c in self.data.columns if c not in CATEGORIES]
-        return SelectGroupsDlg(
-            self.frame,
-            title="Pivot data: Columns to retain",
-            groups=columns,
-            selected=["FAD a1[%]", "NAD(P)H a2[%]"],
+        filters = window_filters(AppSettings.default())  # as a new table window
+        filters.features.enabled = True  # Filter Features on
+        # Filter Features..., with the preset buttons, as a table window opens it
+        return ConfigureFiltersDlg(
+            self.frame, filters, self.data, {}, presets=self.frame.filter_presets()
         )
 
     def axis_dialog(self):
@@ -691,7 +661,7 @@ class Shooter:
         relayout(editor.pane)
 
     def show_treatment_order(self, dialog):
-        """Order Categories: Treatment selected and checked, its values shown."""
+        """Order Category Values: Treatment selected and checked, its values shown."""
         editor = dialog.fields.editors["categories"]
         index = editor.columns.FindString("Treatment")
         editor.columns.Check(index)
@@ -710,10 +680,15 @@ def main(argv=None):
     if unknown:
         print(f"Unknown screenshots: {', '.join(unknown)}")
         return 2
-    app = wx.App(False)
-    shooter = Shooter(load(argv[0]), names)
-    wx.CallLater(DELAY, shooter.next)
-    app.MainLoop()
+    # a temporary Prefect server, as the tests use: the runs never reach the server of
+    # the user's Prefect profile, and the run summary shows no server address
+    from prefect.testing.utilities import prefect_test_harness
+
+    with prefect_test_harness():
+        app = wx.App(False)
+        shooter = Shooter(load(argv[0]), names)
+        wx.CallLater(DELAY, shooter.next)
+        app.MainLoop()
     return 0
 
 

@@ -1,6 +1,6 @@
 """Tools report warnings (Tool.warn): the task stays completed, its results go on, and
-the warning is the task's message (run summary, Prefect UI). First use: Concatenate side
-by side warns when the tables' rows don't match by their categories (0.6.2)."""
+the warning is the task's message (FlowRun.warnings, run summary). Concatenate side by
+side warns when the tables' rows do not match by their categories."""
 
 import pandas as pd
 import pytest
@@ -26,7 +26,7 @@ def test_reordered_table_warns():
     a = _table()
     b = a.sort_values("Treatment", ascending=False, kind="stable", ignore_index=True)
     (warning,) = _warnings({"Table: A": a, "Table: B": b})
-    assert "'Table: B' don't match 'Table: A'" in warning
+    assert "'Table: B' do not match 'Table: A'" in warning
     assert "row 1, Treatment: Ctrl and Drug" in warning and "Merge" in warning
 
 
@@ -82,3 +82,19 @@ def test_numeric_only_side_by_side_renames_taken_names():
     )
     columns = list(next(iter(out.values())).columns)
     assert columns == ["Treatment", "x", "x (Table: B)"]
+
+
+def test_relative_change_warns_about_groups_without_reference_rows():
+    """The warning is the task's (run summary), not only a log record."""
+    from flim.configs.analysis import RelativeChangeConfig
+
+    data = pd.DataFrame({
+        "Treatment": pd.Categorical(["ctrl", "Dox", "ctrl", "Dox", "Dox"]),
+        "FOV": pd.Categorical(["1", "1", "2", "2", "3"]),
+        "x": [1.0, 2.0, 3.0, 4.0, 5.0],
+    })  # fmt: skip
+    config = RelativeChangeConfig(grouping=["Treatment", "FOV"], features=["x"], reference_value="ctrl")
+    tool = tools.get("Relative Change")()
+    tool(data, config=config)
+    (warning,) = tool.context.warnings
+    assert "no 'ctrl' rows in FOV 3: left empty" in warning

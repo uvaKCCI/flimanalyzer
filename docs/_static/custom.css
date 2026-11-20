@@ -1,0 +1,6 @@
+/* Screenshots narrowed and floated right (see _narrow_tall_images in conf.py): a
+   heading starts below them, so a new section doesn't begin beside an image of the
+   previous one. */
+.rst-content h1, .rst-content h2, .rst-content h3, .rst-content h4 {
+    clear: both;
+}

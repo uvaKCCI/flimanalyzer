@@ -21,13 +21,13 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data. By
     - `Load Feature Settings...` and `Save Feature Settings...` load and save the ranges and bins (see [Settings](/userguide/settings)).
 
     How the histogram looks:
-    - `Style`: `bar`, `barstacked`, `step` (the default) or `stepfilled`.
+    - `Style`: `bar`, `barstacked`, `step` (the default) or `stepfilled`. The `barstacked` style always stacks the groups, so `Stacked` is then checked and cannot be changed.
     - `Stacked`: stacks the histograms of the groups on top of each other. The percentages are then of all measurements, so that the stack shows the whole data. Without it, each group's percentages are of the group's own measurements.
     - `Cumulative`: each bin shows its own value plus the values of all bins before it.
     - `Density`: scales each histogram so that its area is 1 (with `Stacked`: the area of the whole stack), instead of showing percentages. The y axis is then labelled `density`.
     - `Binned data table`: also creates a table of the values of each bin, for each feature.
 
-    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (0: about as many rows as columns). Without `Single figure`, each feature gets its own figure.
+    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (default 5; 0: about as many rows as columns). Without `Single figure`, each feature gets its own figure.
 
     `Legend` sets where the legend is shown: `right`, `top`, `bottom` or `left` of the plots, `inside` a plot, or `none`. With `Single figure`, the tiles share one legend outside the plots. `Legend` appears with 1 or more grouping columns. See [Hidden settings](/userguide/dialogs.md#hidden-settings).
 
@@ -43,21 +43,13 @@ The `Frequency Histogram` tool creates frequency histograms for grouped data. By
 
 ## Example Output
 
-**Example Results:** Use of the `bar` histogram style:
+**Example Results:** top left: the `bar` histogram style; top right: the `barstacked` style; bottom left: the `step` style; bottom right: `Cumulative` checked, in the `step` style, grouped by `Treatment`.
 
-![](/images/analysis/histogram-results1.png)
+![](/images/analysis/histogram-results1.png){width="49%"}
+![](/images/analysis/histogram-results2.png){width="49%"}
 
-**Example Results:** Use of the `barstacked` histogram style:
-
-![](/images/analysis/histogram-results2.png)
-
-**Example Results:** Use of the `step` histogram style:
-
-![](/images/analysis/histogram-results3.png)
-
-**Example Results:** Use of the `stepfilled` histogram style:
-
-![](/images/analysis/histogram-results4.png)
+![](/images/analysis/histogram-results3.png){width="49%"}
+![](/images/analysis/histogram-cumulative.png){width="49%"}
 
 **Example Results:** Generated `Binned data table`:
 

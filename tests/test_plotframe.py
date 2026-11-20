@@ -72,18 +72,20 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
             event.SetEventInfo(fig, title, "createnew")
             frame.GetEventHandler().ProcessEvent(event)
 
-        plots = {t: w for t, w in frame.windowframes.items() if isinstance(w, PlotFrame)}
+        plots = {t: w for t, w in frame.windows_by_title().items() if isinstance(w, PlotFrame)}
         assert set(plots) == set(sizes), (set(plots), set(sizes))
         # some window managers apply sizes asynchronously: let the resize events run,
-        # as the app's event loop would
+        # as the GUI's event loop would
         deadline = time.monotonic() + 2
         while time.monotonic() < deadline and any(
             w.canvas.get_width_height() != w.canvas_size for w in plots.values()
         ):
             wx.Yield()
             time.sleep(0.05)
+        from flim.gui.app import NATIVE_WINDOW_LIST
+
         menu = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
-        assert set(plots) <= set(menu)
+        assert NATIVE_WINDOW_LIST or set(plots) <= set(menu)  # macOS lists them itself
         for title, window in plots.items():
             # opens at the figure's size, scaled down to fit the screen if needed
             fig_w, fig_h = sizes[title]
@@ -101,12 +103,12 @@ def test_figures_from_worker_thread_open_in_app_windows(wxapp, table):
         title, window = next(iter(plots.items()))
         window.Close()
         wx.Yield()
-        assert title not in frame.windowframes
+        assert title not in frame.windows_by_title()
         assert title not in [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
 
         frame.OnCloseAll(None)
         wx.Yield()
-        assert not any(isinstance(w, PlotFrame) for w in frame.windowframes.values())
+        assert not any(isinstance(w, PlotFrame) for w in frame.windows_by_title().values())
     finally:
         frame.Destroy()
 
@@ -134,7 +136,7 @@ def test_plot_window_fits_a_small_screen_without_resize_events(wxapp, monkeypatc
         window.Destroy()
 
 
-def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch):
+def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch, tmp_path):
     """A figure much larger than the screen: shrunk and zoomed out (lower dpi on
     screen), so that its layout keeps room for titles and labels; saving keeps the
     figure's dpi."""
@@ -162,5 +164,42 @@ def test_big_figure_is_zoomed_out_not_only_shrunk(wxapp, monkeypatch):
         with warnings.catch_warnings():
             warnings.simplefilter("error")  # e.g. "constrained_layout not applied"
             window.canvas.draw()
+        assert fig.dpi < 100  # zoomed out on the screen
+        # saved as the window's Save does (savefig's default dpi): at the figure's dpi
+        import matplotlib.image
+
+        fig.savefig(tmp_path / "tiles.png", format="png")
+        height, width = matplotlib.image.imread(tmp_path / "tiles.png").shape[:2]
+        inches = fig.get_size_inches()
+        assert (width, height) == pytest.approx((inches[0] * 100, inches[1] * 100), abs=2)
     finally:
         window.Destroy()
+
+
+@pytest.mark.parametrize("index, extension", [(0, ".png"), (1, ".svg"), (2, ".pdf")])
+def test_save_button_offers_the_plot_formats(wxapp, monkeypatch, tmp_path, index, extension):
+    import matplotlib.figure
+    import wx
+
+    from flim.gui import plotframe
+
+    fig = matplotlib.figure.Figure(figsize=(2, 1))
+    fig.add_subplot().plot([0, 1], [0, 1])
+    window = plotframe.PlotFrame(None, fig, "FLIRR plot")
+    offered = []
+
+    def show(dialog):
+        offered.append(dialog.GetWildcard())
+        return wx.ID_OK
+
+    monkeypatch.setattr(wx.FileDialog, "ShowModal", show)
+    monkeypatch.setattr(wx.FileDialog, "GetPath", lambda dlg: str(tmp_path / "plot"))
+    monkeypatch.setattr(wx.FileDialog, "GetFilterIndex", lambda dlg: index)
+    try:
+        path = window.toolbar.save_figure()
+    finally:
+        window.Destroy()
+    assert path == str(tmp_path / "plot") + extension and (tmp_path / f"plot{extension}").exists()
+    assert offered[0] == (
+        "PNG image (*.png)|*.png|SVG drawing (*.svg)|*.svg|PDF document (*.pdf)|*.pdf"
+    )

@@ -6,7 +6,8 @@ from flim.gui import macos
 
 
 def test_app_name_functions_never_raise():
-    # cosmetic only: they must not stop the app from starting on any platform
+    # they must not raise on any platform: the name is cosmetic, an error would stop
+    # the GUI from starting
     macos.set_bundle_name("FLIMAnalyzer")
     macos.set_display_name("FLIMAnalyzer")
 

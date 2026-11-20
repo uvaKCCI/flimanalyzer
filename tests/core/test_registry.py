@@ -29,8 +29,11 @@ def test_register_and_lookup():
 
 def test_missing_attributes():
     reg = ToolRegistry()
-    with pytest.raises(ValueError, match="category"):
-        reg.register(type("T", (), {"name": "T", "config_class": TaskConfig}))
+    with pytest.raises(ValueError, match="name"):
+        reg.register(type("T", (), {"config_class": TaskConfig}))
+    # no category: allowed, in no menu
+    reg.register(type("T", (), {"name": "T", "config_class": TaskConfig}))
+    assert [t.name for t in reg.hidden()] == ["T"]
 
 
 def test_name_conflict():
@@ -130,5 +133,41 @@ def test_discover_isolates_errors(monkeypatch, caplog):
 
 
 def test_discover_real_entry_points():
-    # nothing registers these groups yet; must not fail
+    # FLIMAnalyzer registers no entry points in these groups; discover must not fail
     assert isinstance(registry.discover(), list)
+
+
+def test_former_names_find_the_renamed_tool():
+    import flim.tools  # noqa: F401  (registers the built-in tools)
+    from flim.core.registry import tools
+
+    assert tools.get("Concat Data") is tools.get("Concatenate")
+    assert tools.get("Order Categories") is tools.get("Order Category Values")
+    # a short name is not a name
+    assert "Concat Data" in tools and "Concat" not in tools
+    assert [t.name for t in tools.by_category()["Data"]].count("Concatenate") == 1
+
+
+def test_a_former_name_works_with_a_deprecation_warning(caplog):
+    import flim.tools  # noqa: F401
+    from flim.core import registry
+    from flim.core.registry import tools
+
+    registry._warned_former.discard("Order Categories")
+    with pytest.warns(DeprecationWarning, match="'Order Categories' is deprecated and is removed in 0.8.0; use 'Order Category Values'"):
+        assert tools.get("Order Categories").name == "Order Category Values"
+    assert "use 'Order Category Values'" in caplog.text
+    # a membership test does not warn again or at all
+    assert "Order Categories" in tools
+
+
+def test_settings_under_a_former_name_warn(caplog):
+    import flim.tools  # noqa: F401
+    from flim.core import registry
+    from flim.core.registry import tools
+    from flim.core.settings import AppSettings
+
+    registry._warned_former.discard("Order Categories")
+    settings = AppSettings.model_validate({"tools": {"Order Categories": {"config": {}}}})
+    with pytest.warns(DeprecationWarning, match="'Order Categories' is deprecated"):
+        assert settings.tools.entry(tools.get("Order Category Values")) is not None

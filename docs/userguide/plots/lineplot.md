@@ -26,10 +26,10 @@ The `Line Plot` tool creates line plots of grouped data. Each point on a line sh
 
     Set the lines and their error bars:
     - `Error`: a number from 1 to 99 for a confidence interval in percent (default 95), `sd` for the standard deviation, or empty for no error bars.
-    - `Error style`: error `bars` at each point, or a `band` around the line.
-    - `Markers`: draws a marker at each point of the lines, a different one for each value of the 3rd grouping column. Without a 3rd grouping column, no markers are drawn.
+    - `Error style`: error `bars` at each point (default), or a `band` around the line.
+    - `Markers` (checked by default): draws a marker at each point of the lines, a different one for each value of the 3rd grouping column. Without a 3rd grouping column, no markers are drawn.
 
-    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (0: about as many rows as columns). Without `Single figure`, each feature gets its own figure. With more than 3 grouping columns, `Single figure` is hidden: each feature then gets its own figure with a grid of plots.
+    `Single figure` draws the plots of all features as tiles of one figure. `Plots per row` sets how many tiles are in each row (default 5; 0: about as many rows as columns). Without `Single figure`, each feature gets its own figure. With more than 3 grouping columns, `Single figure` is hidden: each feature then gets its own figure with a grid of plots.
 
     `Legend` sets where the legend is shown: `right`, `top`, `bottom` or `left` of the plots, `inside` a plot, or `none`. With `Single figure`, the tiles share one legend outside the plots. `Legend` appears only with 2 or more grouping columns. See [Hidden settings](/userguide/dialogs.md#hidden-settings).
 

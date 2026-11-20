@@ -2,14 +2,17 @@
 
 ## Concept
 
-FLIMAnalyzer is free software for analyzing fluorescence lifetime imaging microscopy (FLIM) data. It is written in Python by the UVA Keck Center for Cellular Imaging. Its code is in the public GitHub repository [uvaKCCI/flimanalyzer](https://github.com/uvaKCCI/flimanalyzer).
+FLIMAnalyzer is open source software for the analysis of fluorescence lifetime imaging microscopy (FLIM) data. The code is in the public GitHub repository [uvaKCCI/flimanalyzer](https://github.com/uvaKCCI/flimanalyzer).
 
-FLIMAnalyzer reads fitted FLIM data from text files laid out like a spreadsheet, usually tab-separated `.txt` files or comma-separated `.csv` files. It combines several files into one table, and it can read values such as the treatment or the cell from the file names (see [Loading Data](/userguide/data/load)). The tables can then be filtered, sorted, rearranged and summarized (see [Data Tables](/userguide/data/index)).
+FLIMAnalyzer reads FLIM data from text files. Each file contains a table of fitted values. Usually, tabs (`.txt` files) or commas (`.csv` files) separate the columns. The built-in `Import` workflow combines the tables of many files into one table. The `Separate Categories` tool gets values from the file names, for example the treatment or the cell (see [Loading Data](/userguide/data/load)). You can filter, sort, change and summarize the tables (see [Data Tables](/userguide/data/index)).
 
-The analysis tools include summaries, relative changes, Kolmogorov-Smirnov (KS) statistics, principal component analysis (PCA), clustering and random forests (see [Analysis](/userguide/analysis/index)). Many of them use the scikit-learn package. The plots use the pandas, matplotlib and seaborn packages (see [Plots](/userguide/plots/index)). Autoencoders, built with PyTorch, reduce the features to a few values or make augmented (simulated) data; tools for tuning their training are included.
+The analysis tools calculate summaries, relative changes and Kolmogorov-Smirnov (KS) statistics. They also do principal component analysis (PCA), clustering and random forest classification (see [Analysis](/userguide/analysis/index)). Many of these tools use the scikit-learn package. The plot tools use the pandas, matplotlib and seaborn packages (see [Plots](/userguide/plots/index)).
 
-There are three ways to work with FLIMAnalyzer:
+The autoencoder tools use the PyTorch package. An autoencoder decreases the number of features to a small number of values. It can also make augmented (simulated) data. Other tools help you to find good settings for the training of an autoencoder.
 
-* **The GUI** (graphical user interface): open data, choose a tool from a menu or the tool panel, set its options in a dialog, and see the results in table and plot windows (see [Menus](/userguide/appmenu) and [Tool dialogs](/userguide/dialogs)).
-* **Workflows** run several tools in one go, for example summaries, relative changes and plots of the same features (see [Workflows](/userguide/workflows)).
-* **Batch mode** (`flimbatch`) runs tools and workflows without the GUI, with the settings saved in the GUI, for example on a computing cluster (see [Batch Mode](/userguide/batch)).
+You can use FLIMAnalyzer in two modes:
+
+* **GUI** (graphical user interface): Open the data. Select a tool in a menu or in the tool panel. Set the tool settings in the dialog of the tool. The results show in table windows and plot windows (see [Menus](/userguide/appmenu) and [Tool dialogs](/userguide/dialogs)).
+* **Batch mode** (`flimbatch`): FLIMAnalyzer runs the tools without the GUI, for example on a computing cluster. The tool settings come from a tool file or a workflow file. You can save a tool file from the dialog of the tool in the GUI (see [Batch Mode](/userguide/batch)).
+
+In the GUI and in batch mode, a workflow runs a sequence of tools. For example, a workflow can make summaries, relative changes and plots of the same features (see [Workflows](/userguide/workflows)).
