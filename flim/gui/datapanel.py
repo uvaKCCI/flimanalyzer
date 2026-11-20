@@ -427,8 +427,9 @@ class PandasFrame(wx.Frame):
         # need to make sure we pass copy of dropped rows so we can cancel without affecting droppedrows
         dlg = ConfigureFiltersDlg(self, shown, self.data, self.droppedrows.copy())
         response = dlg.ShowModal()
+        edited = dlg.GetData() if response == wx.ID_OK else None
+        dlg.Destroy()  # else it stays subscribed to FILTERS_UPDATED
         if response == wx.ID_OK:
-            edited = dlg.GetData()
             self.filters.range_filters = self._merged_filters(edited.range_filters)
             self.filters.show_dropped = edited.show_dropped
             self.filters.use = edited.use
@@ -619,8 +620,10 @@ class PandasFrame(wx.Frame):
                 showusefilter=False,
             )
             response = dlg.ShowModal()
+            result = dlg.GetData() if response == wx.ID_OK else None
+            dlg.Destroy()  # else it stays subscribed to FILTERS_UPDATED
             if response == wx.ID_OK:
-                edited = dlg.GetData().range_filters
+                edited = result.range_filters
                 self.filters.range_filters = self._merged_filters(edited)
                 self.apply_filters({f["name"]: f for f in edited})
 

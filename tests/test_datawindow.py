@@ -181,3 +181,18 @@ def test_save_on_close_suggests_the_window_title(frame, monkeypatch, flim_data):
     window.close_and_destroy(None)
     assert suggested == ["cells.txt"]
     window.modified = False
+
+
+def test_filter_settings_dialog_is_destroyed(frame, monkeypatch, flim_data):
+    """Each opening left a dialog that stayed subscribed to FILTERS_UPDATED."""
+    from flim.gui.dialogs import ConfigureFiltersDlg
+
+    window = _open(frame, flim_data, "cells")
+    destroyed = []
+    real = ConfigureFiltersDlg.Destroy
+    monkeypatch.setattr(ConfigureFiltersDlg, "ShowModal", lambda dlg: wx.ID_CANCEL)
+    monkeypatch.setattr(
+        ConfigureFiltersDlg, "Destroy", lambda dlg: destroyed.append(dlg) or real(dlg)
+    )
+    window.OnFilterSettings(None)
+    assert len(destroyed) == 1

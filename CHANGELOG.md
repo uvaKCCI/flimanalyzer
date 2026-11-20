@@ -89,6 +89,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Filter Settings checkboxes:** the checkbox of the first row, and of the row
   clicked last, could not be checked or unchecked; a click on it opened the cell
   editor instead.
+- **Filter Settings dialog:** each opening left a dialog behind that was updated on
+  every later filter change, so memory and work grew with each opening. The dialog is
+  now closed for good.
 
 ## 0.6.2 - 2026-11-07
 
