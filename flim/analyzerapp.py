@@ -23,7 +23,8 @@ def parse_arguments():
         "-i",
         "--input",
         nargs="+",
-        help="data files to open in the GUI, each in its own window",
+        action="extend",
+        help="data files to open in the GUI, each in its own window (repeatable)",
     )
     parser.add_argument(
         "-e",

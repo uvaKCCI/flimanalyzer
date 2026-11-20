@@ -67,6 +67,8 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   before it said that wxPython is missing. It now says so first.
 - **`flimbatch --run "Concat Data"`** failed: tools are now found by their former names
   too.
+- **Repeated `-i` and `-x`:** `flimbatch -i a.txt -i b.txt` read only `b.txt`, without a
+  message, and the same for `-x` and the GUI's `-i`. Each use now adds to the list.
 
 ## 0.6.2 - 2026-11-07
 

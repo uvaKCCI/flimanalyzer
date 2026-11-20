@@ -97,7 +97,7 @@ Run `flimanalyzer --help` for all command-line options.
 
 | Option | |
 |---|---|
-| `-i`, `--input` | data files to open at startup, each in its own table window |
+| `-i`, `--input` | data files to open at startup, each in its own table window (can be given more than once) |
 | `-c`, `--config` | settings file to start with, instead of `defaults.json` (see [Settings](/userguide/settings)) |
 | `-l`, `--log` | logging level: `debug`, `info` (default), `warning`, `error` or `critical` |
 | `--no-prefect-server` | don't start a local Prefect server if none is found (see [Prefect server](#prefect-server)) |

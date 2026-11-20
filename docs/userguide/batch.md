@@ -26,8 +26,8 @@ Before a workflow runs, its settings are checked against the data (see [Workflow
 
 | Option | |
 |---|---|
-| `-i`, `--input` | data files or folders (required) |
-| `-x`, `--exclude` | files not to import |
+| `-i`, `--input` | data files or folders (required; can be given more than once) |
+| `-x`, `--exclude` | files not to import (can be given more than once) |
 | `-o`, `--output` | folder for the results (required). `flimbatch` stops with a message if it can't be reached or written to. |
 | `-c`, `--settings`, `--config` | settings file |
 | `-r`, `--run` | tool or workflow to run; repeat for several |

@@ -167,3 +167,15 @@ def test_flimbatch_draws_without_windows():
         [sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True
     )
     assert out.stdout.strip().splitlines()[-1].lower() == "agg"
+
+
+def test_repeated_input_and_exclude_options_add_up(monkeypatch):
+    """`-i a -i b` reads both; until 0.6.2 only the last use counted."""
+    from flim import analyzerapp
+    from flim.batch import parse_arguments
+
+    args = parse_arguments(["-i", "a.txt", "-i", "b.txt", "c.txt", "-x", "d", "-x", "e", "-o", "out"])
+    assert args.input == ["a.txt", "b.txt", "c.txt"] and args.exclude == ["d", "e"]
+    assert parse_arguments(["-i", "a.txt", "-o", "out"]).exclude == []
+    monkeypatch.setattr("sys.argv", ["flimanalyzer", "-i", "a.txt", "-i", "b.txt"])
+    assert analyzerapp.parse_arguments().input == ["a.txt", "b.txt"]
