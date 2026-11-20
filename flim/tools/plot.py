@@ -544,14 +544,17 @@ def grouped_meanbarplot(
     if categories is None:
         categories = []
     if len(categories) == 0:
+        values = data[list(feature)]
+        if dropna:
+            values = values.dropna(how="any")
         mean = pd.DataFrame(columns=feature)
-        mean.loc[0] = data[feature].mean()
+        mean.loc[0] = values.mean()
         if error_bar != "None":
             error = pd.DataFrame(columns=feature)
             if error_type == "std":
-                error.loc[0] = data[feature].std()
+                error.loc[0] = values.std()
             else:
-                error.loc[0] = data[feature].sem()
+                error.loc[0] = values.sem()
         else:
             error = None
         if bartype == "100% stacked":

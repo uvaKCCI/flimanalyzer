@@ -940,6 +940,22 @@ def test_bar_plot_heights_are_group_means(flim_data):
     assert heights == expected
 
 
+
+@pytest.mark.parametrize("grouping", [[], ["G"]])
+@pytest.mark.parametrize("dropna, mean_a", [(True, 5.5), (False, 4.0)])
+def test_bar_plot_drop_missing_with_and_without_grouping(grouping, dropna, mean_a):
+    # b is missing in two rows: Drop missing leaves them out for a too (0.6.2 and
+    # earlier: only with grouping columns)
+    data = pd.DataFrame(
+        {"a": [1.0, 2.0, 3.0, 10.0], "b": [10.0, np.nan, np.nan, 40.0], "G": pd.Categorical(["x"] * 4)}
+    )
+    config = BarPlotConfig(
+        grouping=grouping, features=["a", "b"], bar_type="stacked", dropna=dropna, error_bar="None"
+    )
+    (figure,) = [v for v in BarPlot()(data, config=config).values() if isinstance(v, matplotlib.figure.Figure)]
+    heights = [round(p.get_height(), 6) for p in figure.axes[0].patches]
+    assert heights == [mean_a, 25.0]
+
 # --- pair plot: sampled scatter panels ---
 
 PAIR_FEATURES = ["NAD(P)H t1", "NAD(P)H t2", "NAD(P)H a1[%]"]

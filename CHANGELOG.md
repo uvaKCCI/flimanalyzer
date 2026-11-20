@@ -38,6 +38,10 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **FLIM Data Augmentation Tuning:** the KDE and Summarize steps grouped by the fixed
   column `Treatment` instead of the workflow's time-series column. Results are the same
   with the default (`Treatment`); they differ for other columns.
+- **Bar Plot, `Drop missing`:** without grouping columns, the setting had no effect:
+  each feature's mean left out only that feature's missing values. Now, as with
+  grouping, checked (the default) leaves out the rows in which any plotted feature is
+  missing, so all means and error bars come from the same rows.
 
 ### Fixed
 
