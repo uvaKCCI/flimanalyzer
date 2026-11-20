@@ -54,6 +54,10 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **flimbatch on macOS:** every plot tool failed with `Cannot create a GUI FigureManager
   outside the main thread using the MacOS backend`; `flimbatch` now draws with
   matplotlib's `Agg` backend, as the GUI does.
+- **KDE plot colors:** with two grouping columns whose second had more than 4 values, or
+  with more than 10 groups, colors repeated, so curves of different groups looked the
+  same. The color now always shows the 1st grouping column, and shades of it show the
+  values of the 2nd; above 10 groups, the colors do not repeat.
 
 ## 0.6.2 - 2026-11-07
 
