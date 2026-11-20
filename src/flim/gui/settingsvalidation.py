@@ -444,7 +444,7 @@ def offer_import_workflow(
         " imports with workflow files, so these settings are not used.\n\nSave them as"
         " a workflow file, to run with File > Import Tables...?"
     )
-    with wx.MessageDialog(parent, question, "Import settings", style=wx.YES_NO | wx.ICON_QUESTION) as dialog:
+    with wx.MessageDialog(parent, question, "Save Import as Workflow", style=wx.YES_NO | wx.ICON_QUESTION) as dialog:
         dialog.SetYesNoLabels("Save as Workflow File...", "Don't Save")
         if dialog.ShowModal() != wx.ID_YES:
             return None
