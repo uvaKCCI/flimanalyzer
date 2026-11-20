@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import pytest
 
 from flim.core import preprocessor as pp
@@ -69,3 +70,14 @@ def test_calculate_adds_columns_from_available_inputs(flim_data):
     assert "trp tm" not in data.columns
     assert any(entry[1][0].startswith("trp") for entry in skipped)
     assert len(calculated) > 0
+
+
+def test_nadph_nadh_is_calculated_after_the_values_it_needs():
+    # until 0.6.2 NADPH/NADH came before NADH %, which it needs, and was always skipped
+    from flim.core.preprocessor import defaultpreprocessor
+
+    data = pd.DataFrame({"NAD(P)H t2": [2000.0, 3000.0]})
+    result, _, _ = defaultpreprocessor().calculate(data, inplace=False)
+    assert "NADPH/NADH" in result.columns
+    expected = result["NADPH %"] / result["NADH %"]
+    assert list(result["NADPH/NADH"]) == pytest.approx(list(expected))

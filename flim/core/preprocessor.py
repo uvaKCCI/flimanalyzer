@@ -85,8 +85,8 @@ class defaultpreprocessor:
             "NAD(P)H tm",
             "NAD(P)H a2[%]/a1[%]",
             "NADPH %",
-            "NADPH/NADH",
             "NADH %",
+            "NADPH/NADH",  # after the two it needs
             "trp tm",
             "trp E%1",
             "trp E%2",

@@ -48,6 +48,8 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   group is in percent of all rows, and the stack shows the distribution of all rows.
 - **Frequency Histogram, stacked, `Binned data table`:** each group's column held the
   height of the stack up to that group; it now holds the group's own values.
+- **Import, `NADPH/NADH`:** the import calculated `NADPH/NADH` before `NADH %`, which it
+  needs, so the column was never added. Imported tables now have it.
 
 ### Fixed
 
