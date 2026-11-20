@@ -100,6 +100,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Window menu on macOS** listed each window twice: the system lists the open windows
   in the `Window` menu itself, and FLIMAnalyzer added its own entries. Only the
   system's list is left.
+- **Opening or importing a file named like an open table window** (for example
+  `data.txt` from another folder) replaced that window's table and its unsaved changes.
+  It now opens in a new window, `data.txt-1`.
 
 ## 0.6.2 - 2026-11-07
 
