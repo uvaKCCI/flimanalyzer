@@ -1,4 +1,4 @@
-# Merge Data
+# Merge
 
 The `Merge` tool combines two data tables by matching the values in the category columns they share.
 

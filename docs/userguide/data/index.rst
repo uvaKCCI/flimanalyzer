@@ -22,7 +22,7 @@ After you load data, you can change the tables to show trends more clearly, chan
      - Turns pivoted columns back into a category column.
    * - :doc:`Splitting Data <split>`
      - Creates a separate table for each value of a category column.
-   * - :doc:`Merge Data <merge>`
+   * - :doc:`Merge <merge>`
      - Combines two data tables by matching their category columns.
    * - :doc:`Order Category Values <order>`
      - Sets the order of the values in category columns.
