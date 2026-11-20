@@ -16,16 +16,63 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: changes
+    # what a pull request changes in its target branch, so the other jobs run only for
+    # what is affected: nothing (e.g. main into dev without own commits): all skipped;
+    # only docs/ or *.md files at the top: only the docs build; anything else (code,
+    # tests, workflows, dependencies): all jobs. Pull requests into dev run one Python
+    # version (`full` false); into main and release/*, and pushes: all versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+      docs: ${{ steps.diff.outputs.docs }}
+      full: ${{ steps.diff.outputs.full }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2  # a pull request's merge commit and its target branch (HEAD^1)
+
+      - name: Compare with the target branch
+        id: diff
+        run: |
+          full=true
+          [ "${{ github.event_name }}" = pull_request ] && [ "${{ github.base_ref }}" = dev ] && full=false
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" != pull_request ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "docs=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          files=$(git diff --name-only HEAD^1 HEAD)
+          echo "Changed files:"; echo "${files:-(none)}"
+          docs=false; code=false
+          # the docs build imports flim from src: any change runs it (about a minute)
+          [ -n "$files" ] && docs=true
+          # no `grep -q` at the end of a pipe: with pipefail, an early exit fails the pipe
+          others=$(printf '%s\n' "$files" | grep -v -E '^(docs/.*|[^/]+\.md)$' || true)
+          [ -n "$others" ] && code=true
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "docs=$docs code=$code full=$full"
+
   tests:
     name: tests (${{ matrix.python }})
     # macOS: wxPython has no Linux wheels on PyPI; the runner also has a GUI
     # session, so the dialog tests run instead of being skipped
+    # Pull requests into dev: only the GUI tests (the core jobs run tests/core), on 3.14;
+    # into main and release/*, and pushes: the whole suite on the oldest and newest
+    # Python. Serial: the GUI tests fail and hang in parallel (modal dialogs depend on
+    # their event loop and timing; decided 2026-11-02)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.12", "3.14"]  # oldest and newest supported (~10 min each)
+        python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.14"]' || '["3.14"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,10 +88,15 @@ jobs:
       - name: Run tests
         env:
           PREFECT_SERVER_ANALYTICS_ENABLED: "false"
-        run: uv run --frozen --no-sync pytest -v --cov --cov-report=xml
+        run: |
+          paths="tests"
+          [ "${{ needs.changes.outputs.full }}" = true ] || paths="tests --ignore=tests/core"
+          cov=""
+          [ "${{ matrix.python }}" = "3.14" ] && cov="--cov --cov-report=xml"
+          uv run --frozen --no-sync pytest -v --durations=20 $cov $paths
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() && matrix.python == '3.12' }}
+        if: ${{ !cancelled() && matrix.python == '3.14' }}
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
@@ -55,12 +107,16 @@ jobs:
     name: core (no gui) (${{ matrix.python }})
     # the core must work without wxPython (the gui extra) and without torch:
     # installs the other dependencies from the lock file and runs the core tests
+    # in parallel (pytest-xdist): the core tests do not use wx. Pull requests into dev:
+    # 3.14 only
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.12", "3.13", "3.14"]
+        python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.13", "3.14"]' || '["3.14"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -86,12 +142,25 @@ jobs:
       - name: Run core tests
         env:
           PREFECT_SERVER_ANALYTICS_ENABLED: "false"
-        run: .venv/bin/python -m pytest -v tests/core
+        run: |
+          cov=""
+          [ "${{ matrix.python }}" = "3.14" ] && cov="--cov --cov-report=xml"
+          .venv/bin/python -m pytest -v -n auto --durations=20 $cov tests/core
+
+      - name: Upload coverage to Codecov
+        if: ${{ !cancelled() && matrix.python == '3.14' }}
+        uses: codecov/codecov-action@v7
+        with:
+          files: coverage.xml
+          use_oidc: true
+          fail_ci_if_error: false  # a Codecov outage must not block merges
 
   docker:
     name: docker (headless)
     # the batch image builds and runs; the CPU build of PyTorch keeps it small.
     # Not published: see docker.yml (releases)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -140,7 +209,11 @@ jobs:
     # a clean install as users make it: the built wheel with its extras, resolved from
     # pyproject.toml (not uv.lock), in a new environment, then a smoke test of each
     # extra. wxPython has no Linux wheels on PyPI: the gui extra is tested on macOS and
-    # Windows. Bash on every runner (Git Bash on Windows)
+    # Windows. Bash on every runner (Git Bash on Windows). Linux: no extras (the core
+    # without optional packages) and dask,test (the extras' checks); single extras add
+    # nothing that these two miss
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:
@@ -151,7 +224,7 @@ jobs:
       matrix:
         python: ["3.12", "3.14"]
         os: [ubuntu-latest]
-        extras: ["", "dask", "test", "dask,test"]
+        extras: ["", "dask,test"]
         include:
           - {os: macos-latest, python: "3.12", extras: "gui"}
           - {os: macos-latest, python: "3.14", extras: "gui"}
@@ -217,6 +290,8 @@ jobs:
     name: docs
     # builds the documentation as Read the Docs does (.readthedocs.yaml): only the
     # "docs" dependency group, flimanalyzer imported from the source tree; warnings fail
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -235,10 +310,10 @@ jobs:
   checks:
     name: all checks
     # the one required check (main, release/* ruleset): passes only if every job above
-    # passed, so the matrix can change without touching branch protection. The docker
-    # job's skipped build (no image changes) counts as passed: its job result is success
+    # passed, so the matrix can change without touching branch protection. A job that
+    # is skipped (nothing it checks changed, see the changes job) counts as passed
     if: always()
-    needs: [tests, core, install, docker, docs]
+    needs: [changes, tests, core, install, docker, docs]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
