@@ -777,11 +777,13 @@ class ConfigDialog(wx.Dialog):
         self.scroll.SetMinSize((width, min(best.height + 4, int(usable.height * 0.6))))
         self.Layout()
         self.Fit()
-        # the whole dialog, buttons included, stays on the usable part of the screen
+        # the whole dialog, buttons included, stays on the usable part of the screen;
+        # the settings keep at least a few rows (on a 768 px screen, the Input and
+        # Output sections leave little more)
         excess = self.GetSize().height - int(usable.height * 0.95)
         if excess > 0:
             scroll = self.scroll.GetMinSize().height
-            self.scroll.SetMinSize((width, max(scroll - excess, 120)))
+            self.scroll.SetMinSize((width, max(scroll - excess, 60)))
             self.Layout()
             self.Fit()
         self.SetMinSize((420, min(self.GetSize().height, 300)))
