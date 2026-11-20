@@ -948,7 +948,7 @@ class PandasFrame(wx.Frame):
         if buttonlabel == SAVE_ALL_ROWS:
             fname = flim.gui.dialogs.save_dataframe(
                 self,
-                "Save entire data.",
+                SAVE_ALL_ROWS.rstrip("."),
                 self.data,
                 original + ".txt",
                 saveindex=self.showcolindex,
@@ -956,7 +956,7 @@ class PandasFrame(wx.Frame):
         elif buttonlabel == SAVE_SHOWN_ROWS:
             fname = flim.gui.dialogs.save_dataframe(
                 self,
-                "Save current data view",
+                SAVE_SHOWN_ROWS.rstrip("."),
                 self.dataview,
                 original + ".txt",
                 saveindex=self.showcolindex,
@@ -997,7 +997,7 @@ class PandasFrame(wx.Frame):
             if answer == wx.ID_YES:
                 if flim.gui.dialogs.save_dataframe(
                     self,
-                    "Save entire data.",
+                    SAVE_ALL_ROWS.rstrip("."),
                     self.data,
                     self.GetTitle() + ".txt",
                     saveindex=self.showcolindex,
