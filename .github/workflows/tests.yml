@@ -142,3 +142,22 @@ jobs:
 
       - name: Build the documentation
         run: uv run --frozen --no-sync python -m sphinx -W --keep-going -E -b html docs docs/_build/html
+
+  all-checks:
+    name: all checks
+    # the one required check (release/* ruleset): passes only if every job above
+    # passed. The docker job's skipped build (no image changes) counts as passed: its
+    # job result is success
+    if: always()
+    needs: [tests, core, docker, docs]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail if a job failed or was cancelled
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in success|skipped) ;; *) echo "A job ended with: $r"; exit 1 ;; esac
+          done
