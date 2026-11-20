@@ -71,6 +71,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   too.
 - **Repeated `-i` and `-x`:** `flimbatch -i a.txt -i b.txt` read only `b.txt`, without a
   message, and the same for `-x` and the GUI's `-i`. Each use now adds to the list.
+- **Two messages were never shown:** `OK` in a category column's `Select Items` with
+  nothing selected, and an invalid pattern in `Pattern Rename`, did nothing. Both now
+  say why.
 
 ## 0.6.2 - 2026-11-07
 

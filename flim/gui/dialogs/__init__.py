@@ -151,7 +151,7 @@ class SelectGroupsDlg(wx.Dialog):
 
     def OnOK(self, event):
         if len(self._get_selected()) == 0:
-            wx.MessageDialog(self, "Select at least one function.")
+            wx.MessageBox("Select at least one.", self.GetTitle(), wx.OK | wx.ICON_WARNING, self)
         else:
             self.EndModal(wx.ID_OK)
 
@@ -409,7 +409,10 @@ class RenameGroupsDlg(wx.Dialog):
         try:
             re.compile(self.patterntxt.GetLineText(0))
         except re.error:
-            wx.MessageDialog(self, "Invalid regex pattern")
+            wx.MessageBox(
+                "Not a valid pattern (regular expression).", self.GetTitle(),
+                wx.OK | wx.ICON_WARNING, self,
+            )  # fmt: skip
         else:
             self.EndModal(wx.ID_OK)
 
