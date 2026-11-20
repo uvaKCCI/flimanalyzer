@@ -75,6 +75,8 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
   nothing selected, and an invalid pattern in `Pattern Rename`, did nothing. Both now
   say why.
 - **Filter Settings:** its `Load` button did nothing; it is removed.
+- **Saving a table window on close** suggested the file name `frame.txt`; it now
+  suggests the window's title.
 
 ## 0.6.2 - 2026-11-07
 

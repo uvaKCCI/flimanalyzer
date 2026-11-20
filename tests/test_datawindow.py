@@ -164,3 +164,20 @@ def test_import_with_no_readable_files(frame, monkeypatch, tmp_path):
     before = set(frame.windowframes)
     frame.OnImportData(None)
     assert _new_windows(frame, before) == {} and messages
+
+
+def test_save_on_close_suggests_the_window_title(frame, monkeypatch, flim_data):
+    """It suggested `frame.txt` (the wx window name)."""
+    import flim.gui.dialogs
+
+    window = _open(frame, flim_data, "cells")
+    window.modified = True
+    suggested = []
+    monkeypatch.setattr(wx.MessageDialog, "ShowModal", lambda dlg: wx.ID_YES)
+    monkeypatch.setattr(
+        flim.gui.dialogs, "save_dataframe",
+        lambda parent, title, data, name, **k: suggested.append(name) or False,
+    )  # fmt: skip
+    window.close_and_destroy(None)
+    assert suggested == ["cells.txt"]
+    window.modified = False

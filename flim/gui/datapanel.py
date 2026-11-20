@@ -809,7 +809,7 @@ class PandasFrame(wx.Frame):
                     self,
                     "Save current data view",
                     self.dataview,
-                    self.GetName() + ".txt",
+                    self.GetTitle() + ".txt",
                     wildcard="txt files (*.txt)|*.txt",
                     saveindex=self.showcolindex,
                 ):
