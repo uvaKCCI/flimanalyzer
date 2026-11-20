@@ -18,6 +18,11 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Concatenate, `Columns (side by side)`:** rows were paired by their row labels, not
   by position as its warning says, so tables whose rows were filtered got empty rows.
   Rows are now paired by position.
+- **Autoencoder: Train, weight decay:** the `Weight decays` setting was passed to
+  PyTorch's RMSprop optimizer as its smoothing constant (`alpha`), and the weight decay
+  was always 0; in `FLIM Data Augmentation Tuning` the weight decay values varied
+  `alpha` instead. This was so in every published release. Training now uses the
+  weight decay as set, so trained models, reconstructions and tuning results change.
 
 ### Fixed
 
