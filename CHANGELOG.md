@@ -35,6 +35,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Autoencoder: Train without grouping:** rows that were exact duplicates of each
   other (all category and feature values equal) went into neither the training nor the
   validation set. They are now split like all other rows.
+- **FLIM Data Augmentation Tuning:** the KDE and Summarize steps grouped by the fixed
+  column `Treatment` instead of the workflow's time-series column. Results are the same
+  with the default (`Treatment`); they differ for other columns.
 
 ### Fixed
 
