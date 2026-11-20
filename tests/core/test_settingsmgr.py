@@ -210,6 +210,21 @@ def test_export_writes_all_settings(tmp_path):
     assert SettingsManager().apply(validation).tools.config(KMEANS).n_clusters == 2
 
 
+def test_export_leaves_out_formats_of_kinds_a_tool_does_not_make(tmp_path):
+    """A table format of Bar Plot (e.g. from a development build's user settings
+    file) is not exported: the exported file would be refused."""
+    from flim.core.settings import validate_settings_file
+
+    manager = SettingsManager()
+    formats = [{"kind": "table", "format": "tsv"}, {"kind": "plot", "format": "png", "dpi": 300}]
+    manager.update({"tools": {"Bar Plot": {"output": {"save": True, "formats": formats}}}})
+    out = tmp_path / "export.json"
+    manager.export(out)
+    assert written(out)["tools"]["Bar Plot"]["output"]["formats"] == [formats[1]]
+    validation = validate_settings_file(out)
+    assert not validation.problems and not validation.invalid
+
+
 def test_legacy_is_written_only_if_set(tmp_path):
     from flim.core.settings import ToolSettings
 

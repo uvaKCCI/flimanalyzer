@@ -502,7 +502,9 @@ class SettingsManager:
         Every installed tool's settings are written, its defaults if none are set, so
         that the file does not depend on the defaults of the version that reads it.
         Defaults that do not pass validation are not written: they could not be used
-        when the file is read. `appsettings_path`, `workflow_paths`,
+        when the file is read. Nor are formats of kinds a tool does not make (e.g.
+        from the user settings file of a development build, or of a version whose tool
+        made more kinds): the validation of the file would refuse the tool's section. `appsettings_path`, `workflow_paths`,
         `default_app_settings` and `last_run_url` are left out: they are read only
         from the user settings file.
 
@@ -533,6 +535,13 @@ class SettingsManager:
         data = _ordered(data)
         for key in USER_FILE_ONLY:  # one user's, on one computer
             data.pop(key, None)
+        made = {t.name: t for group in registry.by_category().values() for t in group}
+        made.update({t.name: t for t in registry.hidden()})
+        for name, entry in data["tools"].items():
+            output = entry.get("output") if isinstance(entry, dict) else None
+            if name in made and isinstance(output, dict) and output.get("formats"):
+                kinds = set(made[name].output_kinds())
+                output["formats"] = [f for f in output["formats"] if f.get("kind") in kinds]
         data["tools"] = dict(sorted(data["tools"].items()))
         write_json(path, data)
 
