@@ -103,6 +103,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Opening or importing a file named like an open table window** (for example
   `data.txt` from another folder) replaced that window's table and its unsaved changes.
   It now opens in a new window, `data.txt-1`.
+- **Docker:** a release of an older series moved the `latest` and `latest-cpu` image
+  tags to it. They now move only for the highest release version, so after this release
+  they stay on 0.7.0.
 
 ## 0.6.2 - 2026-11-07
 
