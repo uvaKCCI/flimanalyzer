@@ -216,3 +216,23 @@ def test_a_new_window_applies_the_range_filters_that_are_on(frame, flim_data):
     assert not discarded.filtercb.GetValue()
     filters.use = False
     assert len(_open(frame, flim_data, "Unfiltered").GetViewData()) == len(flim_data)
+
+
+def test_windows_are_listed_once_and_follow_renames(frame, monkeypatch, flim_data):
+    """macOS lists the windows in the Window menu itself: the GUI's own entries made
+    each window appear twice there until 0.6.2."""
+    import flim.gui.app as app
+
+    for native in (True, False):
+        monkeypatch.setattr(app, "NATIVE_WINDOW_LIST", native)
+        title = f"native {native}"
+        window = _open(frame, flim_data, title)
+        labels = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
+        assert labels.count(title) == (0 if native else 1)
+        frame.OnRequestRenameDataWindow(title, f"{title} renamed", window)
+        assert f"{title} renamed" in frame.windowframes and title not in frame.windowframes
+        assert frame.remove_window_from_menu(f"{title} renamed")
+        assert f"{title} renamed" not in frame.windowframes
+        labels = [m.GetItemLabelText() for m in frame.windowmenu.GetMenuItems()]
+        assert f"{title} renamed" not in labels
+        window.Destroy()

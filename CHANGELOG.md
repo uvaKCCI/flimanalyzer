@@ -97,6 +97,9 @@ Bug fixes for 0.6.2. Same requirements as 0.6.2.
 - **Filter Settings dialog:** each opening left a dialog behind that was updated on
   every later filter change, so memory and work grew with each opening. The dialog is
   now closed for good.
+- **Window menu on macOS** listed each window twice: the system lists the open windows
+  in the `Window` menu itself, and FLIMAnalyzer added its own entries. Only the
+  system's list is left.
 
 ## 0.6.2 - 2026-11-07
 
