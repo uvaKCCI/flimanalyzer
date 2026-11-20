@@ -9,6 +9,16 @@ import pytest
 
 import flim.analyzerapp as analyzerapp
 
+REQUIRE_WX = analyzerapp.require_wx  # the check, for the test of its message
+
+
+@pytest.fixture(autouse=True)
+def _wx_not_needed(monkeypatch):
+    """These tests start flimanalyzer up to the GUI, which they replace: they run
+    without wxPython too (the core job), so its check is left out here. The check
+    itself is tested in test_no_wx.py."""
+    monkeypatch.setattr(analyzerapp, "require_wx", lambda: None)
+
 
 @pytest.fixture
 def clean_logging(tmp_path, monkeypatch):
@@ -308,6 +318,7 @@ def test_unavailable_executor_stops_the_start(monkeypatch, capsys):
 
 
 def test_gui_needs_wxpython(monkeypatch):
+    monkeypatch.setattr(analyzerapp, "require_wx", REQUIRE_WX)
     monkeypatch.setitem(sys.modules, "wx", None)  # import wx raises ImportError
     with pytest.raises(SystemExit, match="needs wxPython"):
         analyzerapp.interactive_run(object())

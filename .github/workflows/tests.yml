@@ -178,9 +178,11 @@ jobs:
           uv venv --python ${{ matrix.python }} clean
           wheel=$(ls dist/*.whl)
           spec="$wheel"; [ -n "${{ matrix.extras }}" ] && spec="$wheel[${{ matrix.extras }}]"
-          bin=clean/bin; [ "$RUNNER_OS" = Windows ] && bin=clean/Scripts
+          bin=clean/bin; python=$bin/python
+          # uv needs the .exe on Windows; Git Bash runs the programs without it
+          [ "$RUNNER_OS" = Windows ] && bin=clean/Scripts && python=$bin/python.exe
           echo "BIN=$bin" >> "$GITHUB_ENV"
-          uv pip install --python "$bin/python" "$spec"
+          uv pip install --python "$python" "$spec"
 
       - name: Smoke test
         env:

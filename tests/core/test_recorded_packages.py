@@ -29,6 +29,10 @@ def test_packages_of_plugin_tools_are_recorded(monkeypatch):
 
 
 def test_a_dask_executor_adds_the_packages_that_run_its_tasks():
+    import pytest
+
+    pytest.importorskip("distributed")  # the dask extra
+
     class DaskTaskRunner:  # the name decides
         pass
 
