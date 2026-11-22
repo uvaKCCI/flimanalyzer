@@ -6,10 +6,16 @@ one before it; nothing is published from a branch or by hand.
 
 Two kinds of release:
 
-- **A release from `main`** (`X.Y.0`, or `X.Y.Z` of the newest series): `dev` into
-  `main`.
-- **A patch of an older series** (e.g. 0.6.3 after 0.7.0): a fix branch `fix/X.Y.Z`
-  from `release/X.Y.x` into that branch. The steps marked *(patch)* apply only to it.
+- **A release `X.Y.0`:** `dev` into `main`, tagged on `main`. Development for it
+  happens on `dev` (`feature/*`, `fix/*`, `docs/*`, `ci/*` from `dev` back into `dev`).
+- **A patch `X.Y.Z`** of any series, the newest too: fix branches `fix/X.Y.Z` or
+  `fix/X.Y.Z-topic` from `release/X.Y.x` into that branch, tagged there. The steps
+  marked *(patch)* apply only to it.
+
+`release/X.Y.x` is created from the tag `vX.Y.0` when `X.Y.0` is released. It is never
+merged into `dev` or `main`: `main` stays at `X.Y.0` until `X.Y+1.0`. A bug in both a
+released series and `dev` gets a fix in each, written for that line's code, with one
+issue and the same regression test (run it on both lines to see where the bug is).
 
 ## Checked in CI
 
@@ -52,13 +58,14 @@ These fail on their own; the list below doesn't repeat them.
 - [ ] The release's section in `CHANGELOG.md`, dated, with the structure of the
       previous section; sections of released versions stay as published.
 - [ ] Merged by pull request: `dev` into `main`, or *(patch)* `fix/X.Y.Z` into
-      `release/X.Y.x`, all checks passed.
+      `release/X.Y.x`, all checks passed. A release branch is never merged into `dev`
+      or `main`.
 
 ## 4. Tag and GitHub release
 
 - [ ] Annotated tag `vX.Y.Z`, message `Version X.Y.Z`, on the merge commit.
-- [ ] GitHub release from the tag, notes = the changelog section.
-      *(patch)* `--latest=false`, so the newest series stays Latest.
+- [ ] GitHub release from the tag, notes = the changelog section. Latest only for
+      the highest version: *(patch)* of an older series `--latest=false`.
 
 ## 5. Published by CI from the release
 
@@ -75,11 +82,12 @@ Say the order before creating the release: the PyPI upload waits for approval.
 - [ ] Each platform traces back to the tag and commit: PyPI files (hashes), image
       labels and digests, the Read the Docs version. Record the identifiers.
 - [ ] Close the issues a pull request didn't close, with a comment naming the release.
-- [ ] `main` into `dev` (release from `main`).
+- [ ] *(X.Y.0)* `main` into `dev`, so the tag is in `dev`'s history.
+- [ ] *(X.Y.0)* Create `release/X.Y.x` from the tag `vX.Y.0`, for its patches.
 - [ ] *(patch)* Into `dev`, by a pull request: the release's changelog section, as
-      published, and every fix of the patch that `dev` doesn't have yet (code made for
-      the older series, CI and workflow changes). The changelog check fails on `dev`
-      until the section is there.
+      published (the changelog check fails on `dev` until it is there). Each bug the
+      patch fixed is fixed on `dev` too, or its regression test shows `dev` doesn't
+      have it; CI and workflow changes made on the release branch also go to `dev`.
 - [ ] Delete the merged fix and release-preparation branches.
 - [ ] `CITATION.cff` and the README's citation table only for a version a publication
       used.
