@@ -105,10 +105,9 @@ jobs:
 
   core:
     name: core (no gui) (${{ matrix.python }})
-    # the core must work without wxPython (the gui extra) and without torch:
-    # installs the other dependencies from the lock file and runs the core tests
-    # in parallel (pytest-xdist): the core tests do not use wx. Pull requests into dev:
-    # 3.14 only
+    # the core with everything but the GUI: all extras except gui (wxPython), torch
+    # (CPU), from the lock file; runs the core tests in parallel (pytest-xdist): the
+    # core tests do not use wx. Pull requests into dev: 3.14 only
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -126,12 +125,18 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install dependencies without wxPython and torch
+      # every extra except gui (an extra added later is included), from the lock file;
+      # torch as its CPU build of the locked version (the lock has the CUDA build for
+      # Linux), as the CI Docker build
+      - name: Install all dependencies except wxPython, with CPU torch
         run: |
-          uv export --frozen --extra test --no-group gui --no-hashes --no-emit-project --no-annotate --no-header \
-            | grep -v -E '^(torch|nvidia-|triton|cuda-)' > core-requirements.txt
+          uv export --frozen --all-extras --no-extra gui --no-group gui --no-hashes --no-emit-project \
+            --no-annotate --no-header > all-requirements.txt
+          torch=$(grep -oE '^torch==[0-9.]+' all-requirements.txt | head -n 1)
+          grep -v -E '^(torch|nvidia-|triton|cuda-)' all-requirements.txt > core-requirements.txt
           uv venv --python ${{ matrix.python }}
           uv pip install --no-deps -r core-requirements.txt
+          uv pip install --no-deps --index-url https://download.pytorch.org/whl/cpu "$torch"
           uv pip install --no-deps -e .
 
       - name: Check that wxPython is not installed and flimbatch starts
