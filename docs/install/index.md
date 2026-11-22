@@ -205,3 +205,4 @@ prefect config set PREFECT_API_AUTH_STRING="admin:password"
 `PREFECT_API_KEY` is used only for Prefect Cloud; `prefect cloud login` sets it together with `PREFECT_API_URL`.
 
 If the server set in the profile does not respond, FLIMAnalyzer writes a warning to the log and goes on with steps 2 and 3 above.
+
