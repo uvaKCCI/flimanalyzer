@@ -28,10 +28,12 @@ def _git(*args) -> list[str]:
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="needs git")
 def test_every_release_has_a_changelog_section():
-    """Each release up to the newest one in this branch's history has a section, also
-    the patch releases of an older series, which are tagged on their maintenance
-    branch (e.g. 0.6.3 on release/0.6.x, after 0.7.0): their section is copied into
-    dev when they are published (RELEASING.md)."""
+    """Each release of this branch's series and older ones has a section: the series of
+    the newest release tag in the branch's history (on dev after 0.7.0: 0.7). Patches
+    are tagged on their maintenance branch, outside dev's history (0.6.3 on
+    release/0.6.x after 0.7.0; a 0.7.1 on release/0.7.x after dev moved on), so the
+    series is compared, not the version; their section is copied into dev when they are
+    published (RELEASING.md). A maintenance branch isn't asked for newer series."""
     try:
         _git("rev-parse", "HEAD")
     except subprocess.CalledProcessError:
@@ -41,10 +43,10 @@ def test_every_release_has_a_changelog_section():
         # a shallow clone without tags: CI must fetch them (fetch-depth 0)
         assert not os.environ.get("CI"), "no release tags: check out with fetch-depth 0"
         pytest.skip("no release tags in this clone")
-    newest = max(tuple(map(int, m.groups())) for m in merged)
+    series = max(tuple(map(int, m.groups()))[:2] for m in merged)
     releases = {
         v for t in _git("tag", "-l", "v*") if (m := RELEASE.match(t))
-        if FIRST_SECTION <= (v := tuple(map(int, m.groups()))) <= newest
+        if FIRST_SECTION <= (v := tuple(map(int, m.groups()))) and v[:2] <= series
     }
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     sections = {
