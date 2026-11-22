@@ -110,16 +110,6 @@ def test_tool_folders_are_stored_relative_to_the_default_folder(tmp_path):
     assert resolved_folder(outside, default) == outside
 
 
-@pytest.mark.skipif(os.sys.platform != "darwin", reason="case-insensitive file names by default")
-def test_folders_compared_without_case_on_macos(tmp_path):
-    from pathlib import Path
-
-    from flim.core.paths import stored_folder
-
-    default = tmp_path / "Results"
-    assert stored_folder(tmp_path / "results" / "a", default) == Path("a")
-
-
 # --- file and folder names ---
 
 

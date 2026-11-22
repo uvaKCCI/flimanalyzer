@@ -58,21 +58,27 @@ jobs:
           echo "docs=$docs code=$code full=$full"
 
   tests:
-    name: tests (${{ matrix.python }})
-    # macOS: wxPython has no Linux wheels on PyPI; the runner also has a GUI
-    # session, so the dialog tests run instead of being skipped
-    # Pull requests into dev: only the GUI tests (the core jobs run tests/core), on 3.14;
-    # into main and release/*, and pushes: the whole suite on the oldest and newest
-    # Python. Serial: the GUI tests fail and hang in parallel (modal dialogs depend on
-    # their event loop and timing; decided 2026-11-02)
+    name: tests (${{ matrix.os }}, ${{ matrix.python }})
+    # the GUI tests (tests/, without tests/core: the core jobs run those with every
+    # extra but gui). macOS: wxPython has no Linux wheels on PyPI; the runner has a GUI
+    # session, so the dialog tests run instead of being skipped. Pull requests into
+    # dev: 3.14; into main and release/*, and pushes: 3.12 and 3.14. Windows: one job,
+    # the newest Python (decided 2026-11-21). Serial: the GUI tests fail and hang in
+    # parallel (modal dialogs depend on their event loop and timing; decided 2026-11-02)
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
+        os: [macos-latest]
         python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.14"]' || '["3.14"]') }}
+        include:
+          - {os: windows-latest, python: "3.14"}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -89,14 +95,12 @@ jobs:
         env:
           PREFECT_SERVER_ANALYTICS_ENABLED: "false"
         run: |
-          paths="tests"
-          [ "${{ needs.changes.outputs.full }}" = true ] || paths="tests --ignore=tests/core"
           cov=""
-          [ "${{ matrix.python }}" = "3.14" ] && cov="--cov --cov-report=xml"
-          uv run --frozen --no-sync pytest -v --durations=20 $cov $paths
+          [ "${{ matrix.os }}" = macos-latest ] && [ "${{ matrix.python }}" = "3.14" ] && cov="--cov --cov-report=xml"
+          uv run --frozen --no-sync pytest -v --durations=20 $cov tests --ignore=tests/core
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() && matrix.python == '3.14' }}
+        if: ${{ !cancelled() && matrix.os == 'macos-latest' && matrix.python == '3.14' }}
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml

@@ -100,8 +100,15 @@ def test_local_task_runner():
     assert ExecutionOptions().task_runner()._max_workers >= 1
 
 
-@pytest.mark.skipif(HAS_DASK, reason="prefect-dask is installed")
-def test_dask_needs_extra():
+def test_dask_needs_extra(monkeypatch):
+    # prefect-dask hidden: the core job installs the dask extra
+    import flim.core.execution as execution
+
+    find_spec = importlib.util.find_spec
+    monkeypatch.setattr(
+        execution.importlib.util, "find_spec",
+        lambda name, *a: None if name == "prefect_dask" else find_spec(name, *a),
+    )
     with pytest.raises(RuntimeError, match="extra dask"):
         ExecutionOptions(execution=DaskLocalExecutorSettings()).task_runner()
 
