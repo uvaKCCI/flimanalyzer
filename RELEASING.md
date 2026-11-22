@@ -1,0 +1,85 @@
+# Releasing FLIMAnalyzer
+
+For maintainers. Go through the list from the top when a release is planned, not when
+it is due: the preflight finds what would block a later step. Each step builds on the
+one before it; nothing is published from a branch or by hand.
+
+Two kinds of release:
+
+- **A release from `main`** (`X.Y.0`, or `X.Y.Z` of the newest series): `dev` into
+  `main`.
+- **A patch of an older series** (e.g. 0.6.3 after 0.7.0): a fix branch `fix/X.Y.Z`
+  from `release/X.Y.x` into that branch. The steps marked *(patch)* apply only to it.
+
+## Checked in CI
+
+These fail on their own; the list below doesn't repeat them.
+
+- `CHANGELOG.md` has a section for every release up to the newest one in the branch's
+  history, also for the patches of an older series
+  (`tests/core/test_release_records.py`).
+- Every image in `docs/images` is retaken by `docs/screenshots.py` or is a copy of an
+  app icon, and every image is used by a page (same file).
+- Every tool in a menu has a screenshot of its dialog, except the ones listed in
+  `tests/core/test_docs_tools.py` (`KNOWN_MISSING`).
+- The documentation builds as on Read the Docs, warnings as errors (`docs` job).
+- Docker `latest` moves only for the highest release version
+  (`.github/scripts/is-newest-release.sh`).
+
+## 1. Preflight (when the release is planned)
+
+- [ ] The target branch's rules (`main`: branch protection; `release/*`: rulesets) and
+      the check names they require (`all checks`) against the jobs of the workflows
+      *on the branch being merged*: a maintenance branch can lag behind `dev` in CI.
+- [ ] The workflows that run for the tag come from the tagged commit
+      (`release.yml`, `docker.yml`): check them there, not on `main`.
+- [ ] The `pypi` environment (required reviewer, `v*` tags only) and the tag
+      ruleset (`v*` can't be updated or deleted).
+- [ ] The issues the release closes, and which of them a pull request closes on its
+      own (only one into the default branch does).
+
+## 2. Documentation matches the release
+
+- [ ] User guide pages for every new and changed tool, dialog and menu entry.
+- [ ] Screenshots retaken from the version being released:
+      `uv run python docs/screenshots.py DATAFILE` on macOS (see its docstring); none
+      shows an older version. New tools: add their dialog to `SHOTS` and remove them
+      from `KNOWN_MISSING`.
+- [ ] Every page read in the rendered preview, not only the changed ones.
+
+## 3. Changelog and version
+
+- [ ] The release's section in `CHANGELOG.md`, dated, with the structure of the
+      previous section; sections of released versions stay as published.
+- [ ] Merged by pull request: `dev` into `main`, or *(patch)* `fix/X.Y.Z` into
+      `release/X.Y.x`, all checks passed.
+
+## 4. Tag and GitHub release
+
+- [ ] Annotated tag `vX.Y.Z`, message `Version X.Y.Z`, on the merge commit.
+- [ ] GitHub release from the tag, notes = the changelog section.
+      *(patch)* `--latest=false`, so the newest series stays Latest.
+
+## 5. Published by CI from the release
+
+Say the order before creating the release: the PyPI upload waits for approval.
+
+- [ ] `release.yml` builds and checks the version; **check the build before approving**
+      the `pypi` environment.
+- [ ] `docker.yml` pushes `X.Y.Z` and `X.Y.Z-cpu` to ghcr.io (`latest` only for the
+      highest version).
+- [ ] Read the Docs builds `vX.Y.Z`; `stable` is the highest version.
+
+## 6. Afterwards
+
+- [ ] Each platform traces back to the tag and commit: PyPI files (hashes), image
+      labels and digests, the Read the Docs version. Record the identifiers.
+- [ ] Close the issues a pull request didn't close, with a comment naming the release.
+- [ ] `main` into `dev` (release from `main`).
+- [ ] *(patch)* Into `dev`, by a pull request: the release's changelog section, as
+      published, and every fix of the patch that `dev` doesn't have yet (code made for
+      the older series, CI and workflow changes). The changelog check fails on `dev`
+      until the section is there.
+- [ ] Delete the merged fix and release-preparation branches.
+- [ ] `CITATION.cff` and the README's citation table only for a version a publication
+      used.
