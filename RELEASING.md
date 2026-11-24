@@ -34,6 +34,10 @@ These fail on their own; the list below doesn't repeat them.
 
 ## 1. Preflight (when the release is planned)
 
+- [ ] Every entry planned for the release (its milestone) is done, or moved to another
+      release by the maintainer: list the open ones for the maintainer and get a
+      decision on each. Release timing is the maintainer's decision; the planned bug
+      fixes and features come first.
 - [ ] The target branch's rules (`main`: branch protection; `release/*`: rulesets) and
       the check names they require (`all checks`) against the jobs of the workflows
       *on the branch being merged*: a maintenance branch can lag behind `dev` in CI.
@@ -45,6 +49,8 @@ These fail on their own; the list below doesn't repeat them.
       own (only one into the default branch does).
 
 ## 2. Documentation matches the release
+
+Only after every planned fix and feature is merged (step 1).
 
 - [ ] User guide pages for every new and changed tool, dialog and menu entry.
 - [ ] Screenshots retaken from the version being released:
