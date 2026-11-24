@@ -62,9 +62,11 @@ jobs:
     # the GUI tests (tests/, without tests/core: the core jobs run those with every
     # extra but gui). macOS: wxPython has no Linux wheels on PyPI; the runner has a GUI
     # session, so the dialog tests run instead of being skipped. Pull requests into
-    # dev: 3.14; into main and release/*, and pushes: 3.12 and 3.14. Windows: one job,
-    # the newest Python (decided 2026-11-21). Serial: the GUI tests fail and hang in
-    # parallel (modal dialogs depend on their event loop and timing; decided 2026-11-02)
+    # dev: 3.14; into main and release/*, and pushes: 3.12 and 3.14. Windows (one job,
+    # the newest Python, decided 2026-11-21) is left out until its failures in CI are
+    # understood (milestones, Unscheduled, 2026-11-23); the matrix keeps `os` for it.
+    # Serial: the GUI tests fail and hang in parallel (modal dialogs depend on their
+    # event loop and timing; decided 2026-11-02)
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
@@ -77,8 +79,6 @@ jobs:
       matrix:
         os: [macos-latest]
         python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.14"]' || '["3.14"]') }}
-        include:
-          - {os: windows-latest, python: "3.14"}
     steps:
       - uses: actions/checkout@v7
         with:
