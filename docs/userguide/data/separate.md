@@ -13,15 +13,15 @@ The `Separate Categories` tool separates one category or text column into severa
     - `Column`: the category or text column to separate, for example `Source`. Values that are file URIs (`file:///...`, see [The Source column](load.md#the-source-column)) are separated as their paths, with special characters decoded (`%20` as a space).
     - `Mode`: `delimiter`, `template` or `pattern` (see below). The dialog shows only the settings of the chosen mode.
     - `Part`: which part of the values to separate: the whole `value`, or, for a path, its `file name`, with or without its extension.
-    - `Keep the original column` (checked by default): unchecked, the separated column is removed.
+    - `Keep the original column` (checked by default): unchecked, the original column used as input for the separate operation is removed.
 
-    Below the settings, the dialog shows an example in a small table: a few different values of the column, and the new columns, marked `→`. For example, `file:///data/Results-ko_01.txt` next to `→ Treatment` `ko` and `→ Cell` `01`. The table shows the value as it is in the column, also when `Part` separates only its file name. If a setting is not valid, for example a pattern, the example names the error. The dialog also warns about values that cannot be separated as set. If the table already has a column with a new column's name, the new column gets a number, for example `FOV_1`, so that no column is replaced; the dialog warns about it, and so does the run summary. The separated column does not count if it is removed (`Keep the original column` unchecked): a new column can have its name, for example `File` and `N` from `File`.
+    Below the settings, the dialog shows an example in a small table: a few different values of the column, and the new columns, marked `→`. For example, `file:///data/Results-ko_01.txt` next to `→ Treatment` `ko` and `→ Cell` `01`. The table shows the value as it is in the column, also when `Part` separates only its file name. If a setting is not valid, for example a pattern, the example names the error. The dialog also warns about values that cannot be separated as set. If the table already has a column with a new column's name, the new column gets a number, for example `FOV_1`, so that no column is replaced; the dialog warns about it, and so does the run summary. The input column does not count if it is removed (`Keep the original column` unchecked): a new column can have its name, for example `File` and `N` from `File`.
 
     ![](/images/data/separate-config.png)
 
 3. Click `OK`.
 
-The result is `Table: Separated`, with the new columns after the separated column, or in its place if it is removed.
+The result is `Table: Separated`, with the new columns after the input column, or in its place if it is removed.
 
 ## At delimiters
 
