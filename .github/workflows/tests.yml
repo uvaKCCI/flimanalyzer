@@ -107,35 +107,6 @@ jobs:
           use_oidc: true
           fail_ci_if_error: false  # a Codecov outage must not block merges
 
-  # TEMPORARY (0.7.1, 2026-11-24): the Dask hang on Windows (milestones, 0.7.1), before
-  # and after the lock update; removed before merging. Not part of `all checks`
-  windows-dask:
-    name: windows dask (${{ matrix.python }})
-    runs-on: windows-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.12", "3.14"]
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v10.3.0
-        with:
-          enable-cache: true
-      - name: Install (no GUI)
-        run: uv sync --frozen --extra test --extra dask --no-group gui --python ${{ matrix.python }}
-      - name: distributed version
-        run: uv run --frozen --no-sync python -c "import distributed; print('distributed', distributed.__version__)"
-      - name: The Dask cancel test
-        env:
-          PREFECT_SERVER_ANALYTICS_ENABLED: "false"
-        run: uv run --frozen --no-sync pytest -v "tests/test_cancel.py::test_task_cancelling_itself_skips_only_its_dependents"
-
   core:
     name: core (no gui) (${{ matrix.python }})
     # the core with everything but the GUI: all extras except gui (wxPython), torch
