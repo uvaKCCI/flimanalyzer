@@ -68,3 +68,12 @@ def test_docker_workflow_moves_latest_only_for_the_highest_release():
     workflow = (ROOT / ".github" / "workflows" / "docker.yml").read_text()
     assert ".github/scripts/is-newest-release.sh" in workflow
     assert "steps.newest.outputs.latest == 'true'" in workflow
+
+
+def test_docker_workflow_never_overwrites_a_version_tag():
+    # a manual start on a release tag is refused; a run for a version tag that is
+    # already published (e.g. "Re-run all jobs") stops before pushing
+    workflow = (ROOT / ".github" / "workflows" / "docker.yml").read_text()
+    assert "github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/')" in workflow
+    assert 'docker buildx imagetools inspect "$tag"' in workflow
+    assert workflow.index("Version tag not yet published") < workflow.index("push: true")
