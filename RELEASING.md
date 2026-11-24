@@ -55,6 +55,13 @@ These fail on their own; the list below doesn't repeat them.
 
 ## 3. Changelog and version
 
+- [ ] *(X.Y.0)* `uv.lock` current: if its last update (Dependabot's monthly pull
+      request, or by hand) is more than about two weeks old, `uv lock --upgrade` on
+      `prep/X.Y.0`, so the release ships current packages and they get the full test
+      run. Changed dependencies of the Docker image go in the changelog.
+- [ ] Dependabot alerts (Security tab) checked: a fix goes through `dev`, and for a
+      released series through `release/X.Y.x` as a patch release. Dependabot's
+      automatic security pull requests are off, since GitHub opens them against `main`.
 - [ ] The release's section in `CHANGELOG.md`, dated, with the structure of the
       previous section; sections of released versions stay as published.
 - [ ] Merged by pull request: `dev` into `main`, or *(patch)* `fix/X.Y.Z` into

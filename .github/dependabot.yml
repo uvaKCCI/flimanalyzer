@@ -1,9 +1,12 @@
-# Keeps the Docker base image (python:3.12-slim, pinned by digest) current: new
-# digests of the same Python version only; a new Python version for the image is
-# chosen for a release, not proposed by Dependabot. Pull requests go to dev, since
-# changes reach main only from dev.
+# Version updates; pull requests go to dev, since changes reach main only from dev.
+# Security updates (automatic pull requests for alerts) stay off: GitHub always opens
+# them against the default branch, main ("security updates always use the default
+# branch", Dependabot options reference). Alerts are on; their fixes go through dev, or
+# release/X.Y.x for a patch release (RELEASING.md).
 version: 2
 updates:
+  # the Docker base image (python:3.12-slim, pinned by digest): new digests of the same
+  # Python version only; a new Python version for the image is chosen for a release
   - package-ecosystem: docker
     directory: /
     schedule:
@@ -14,3 +17,19 @@ updates:
         update-types:
           - version-update:semver-major
           - version-update:semver-minor
+
+  # uv.lock (the Docker images, CI and `uv sync` install from it): monthly, within the
+  # ranges of pyproject.toml (lockfile-only: pyproject.toml is not changed). One pull
+  # request for all minor and patch updates; each major update on its own
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: monthly
+    target-branch: dev
+    versioning-strategy: lockfile-only
+    groups:
+      minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
