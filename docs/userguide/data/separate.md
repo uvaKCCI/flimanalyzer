@@ -35,7 +35,13 @@ For example, to separate file names like `Results-ko_01.txt`: `Part` `file name 
 
 ## By a template
 
-Mode `template`: the `Template` describes the layout of the values. `{Name}` is a part that becomes the new column `Name`, `{}` a part that is not kept, and the text between the braces must be in the value as it is. For example, with `Part` `file name without extension`, the template `Results-{FOV}-{Treatment}_{Cell}` takes `FOV` `a`, `Treatment` `ctrl` and `Cell` `1` from `Results-a-ctrl_1.txt`; `{}-{FOV}-{}` takes only `FOV`.
+Mode `template`: the `Template` describes the layout of the values. `{Name}` is a part that becomes the new column `Name`, `{}` a part that is not kept, and the text between the braces must be in the value as it is.
+
+For example, for a category column `File` with the value `Results-a-ctrl_1.txt`, and `Part` `file name without extension`:
+
+- `Results-{FOV}-{Treatment}_{Cell}` → `FOV` `a`, `Treatment` `ctrl`, `Cell` `1`
+- `{}-{FOV}-{Treatment}_{}` → `FOV` `a`, `Treatment` `ctrl`
+- `{}-{FOV}-{}` → `FOV` `a`
 
 The dialog's example line shows what the template takes from the first row. A value that does not fit the template is not separated: its row gets missing values in the new columns, and the run summary lists these values.
 
