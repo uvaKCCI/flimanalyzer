@@ -79,7 +79,6 @@ jobs:
         python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.14"]' || '["3.14"]') }}
         include:
           - {os: windows-latest, python: "3.14"}
-          - {os: windows-latest, python: "3.12"}  # TEMPORARY: is the Windows hang 3.14-specific?
     steps:
       - uses: actions/checkout@v7
         with:
@@ -91,15 +90,6 @@ jobs:
 
       - name: Install dependencies
         run: uv sync --frozen --extra gui --extra test --extra dask --python ${{ matrix.python }}
-
-      # TEMPORARY (2026-11-23): why the icon fails in the Windows GUI tests; reports only
-      - name: Windows GUI diagnostic
-        if: matrix.os == 'windows-latest'
-        continue-on-error: true
-        timeout-minutes: 10
-        env:
-          PREFECT_SERVER_ANALYTICS_ENABLED: "false"
-        run: uv run --frozen --no-sync python .github/scripts/windows-gui-diagnostic.py
 
       - name: Run tests
         env:
