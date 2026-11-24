@@ -22,7 +22,8 @@ jobs:
     # what is affected: nothing (e.g. main into dev without own commits): all skipped;
     # only docs/ or *.md files at the top: only the docs build; anything else (code,
     # tests, workflows, dependencies): all jobs. Pull requests into dev run one Python
-    # version (`full` false); into main and release/*, and pushes: all versions
+    # version (`full` false); into main and release/*, and pushes: the oldest and newest
+    # (3.12, 3.14; 3.13 dropped, user 2026-11-24)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -119,7 +120,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.13", "3.14"]' || '["3.14"]') }}
+        python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.14"]' || '["3.14"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
