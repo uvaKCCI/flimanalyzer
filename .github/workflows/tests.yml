@@ -79,6 +79,7 @@ jobs:
         python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.14"]' || '["3.14"]') }}
         include:
           - {os: windows-latest, python: "3.14"}
+          - {os: windows-latest, python: "3.12"}  # TEMPORARY: is the Windows hang 3.14-specific?
     steps:
       - uses: actions/checkout@v7
         with:
