@@ -55,6 +55,7 @@ from flim.configs.analysis import (  # noqa: E402
     RelativeChangeConfig,
     SeriesAnalysisConfig,
 )
+from flim.configs.workflow import AEFeatureConfig  # noqa: E402
 from flim.configs.plot import (  # noqa: E402
     BarPlotConfig,
     BoxPlotConfig,
@@ -248,8 +249,11 @@ SPLIT = SplitConfig(grouping=["FOV"])
 MERGE = MergeConfig(how="left", on=CATEGORIES)
 SCALE = ScaleConfig(features=["FAD a1[%]", "NAD(P)H a2[%]", "FLIRR"])
 FUSE = FuseCategoriesConfig(grouping=["Treatment", "FOV"])
-fused = result_of("Fuse Categories", FUSE)  # with the column `Treatment:FOV`
+# the fused column `Treatment:FOV` without the original columns, so Separate Categories
+# can give its parts their names back
+fused = result_of("Fuse Categories", FUSE.model_copy(update={"keep_original": False}))
 SEPARATE = SeparateCategoriesConfig(column="Treatment:FOV", names=["Treatment", "FOV"])
+FEATURE_ANALYSIS = AEFeatureConfig(control_group="ctrl")  # the data's control group
 FOV_A = fov("a")  # the workflow examples: the same steps, faster
 TWO_FILES = {"example1.txt": FOV_A, "example2.txt": fov("b")}
 MERGE_INPUTS = {DATAFILE: "data", "Table: Summary": fad_a1_means}
@@ -364,7 +368,7 @@ SHOTS = {
     "data/import-config.png": ("dialog", {"tool": "Import Tables"}),
     "workflow/flirr-config.png": ("dialog", {"tool": "Basic FLIRR Analysis"}),
     "workflow/aetune-config.png": ("dialog", {"tool": "FLIM Data Augmentation Tuning"}),
-    "workflow/aefeature-config.png": ("dialog", {"tool": "FLIM Feature Analysis"}),
+    "workflow/aefeature-config.png": ("dialog", {"tool": "FLIM Feature Analysis", "config": FEATURE_ANALYSIS}),
 }
 
 
@@ -439,6 +443,11 @@ class Shooter:
         from flim.core.tools import FLIMAnalyzer
         from flim.gui.app import AppFrame
 
+        # the built-in workflow files, as the app registers them at startup (e.g. for
+        # the Workflow choice of Import Tables)
+        from flim.core.workflowfile import register_workflow_files
+
+        register_workflow_files(log=False)
         self.data = data
         self.names = list(names)
         self.results = {}
