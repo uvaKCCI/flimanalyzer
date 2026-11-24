@@ -94,6 +94,8 @@ def _skip_sklearn_members(app, what, name, obj, skip, options):
 # little content: small dialogs and windows; icons up to ICON_WIDTH are left inline
 SMALL_WIDTH = 1100
 ICON_WIDTH = 64
+# the resolution of the plots that docs/screenshots.py saves (matplotlib's default)
+PLOT_DPI = 100
 
 
 def _narrow_tall_images(app, doctree):
@@ -104,8 +106,10 @@ def _narrow_tall_images(app, doctree):
     flows beside them; in the PDF they are half the text width. The screenshots are
     taken on a high-resolution screen (two pixels per point), and the theme shows an
     image at its pixel size up to the column width, so tall dialogs would fill
-    several screens. Icons (up to `ICON_WIDTH` pixels) and images with a width set
-    are left as they are.
+    several screens. Icons (up to `ICON_WIDTH` pixels), images with a width set and
+    plots are left as they are. Plots are the figures that the tools save (matplotlib,
+    `PLOT_DPI`); the screenshots of dialogs, tables and windows (`screencapture`) have
+    no dpi.
     """
     from docutils import nodes
     from PIL import Image
@@ -117,9 +121,12 @@ def _narrow_tall_images(app, doctree):
         try:
             with Image.open(path) as image:
                 width, height = image.size
+                dpi = image.info.get("dpi")
         except OSError:
             continue
         if width <= ICON_WIDTH:
+            continue
+        if dpi and round(dpi[0]) == PLOT_DPI:  # a plot: shown at its size
             continue
         _to_own_block(node)
         # dialogs, and small images; large plots and windows stay as they are
