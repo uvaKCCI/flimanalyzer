@@ -46,14 +46,10 @@ To change the plot layout and how the bars are grouped, change the order of the 
 
 ## Example Output
 
-**Example Results:** `Grouping` - Treatment, FOV
+**Example Results:** left: `Grouping` - Treatment, FOV; right: `Grouping` - FOV, Treatment
 
-![](/images/analysis/barplot-result1-grouping.png)
-
-
-**Example Results:** `Grouping` - FOV, Treatment
-
-![](/images/analysis/barplot-result2-grouping.png)
+![](/images/analysis/barplot-result1-grouping.png){width="49%"}
+![](/images/analysis/barplot-result2-grouping.png){width="49%"}
 
 ```{note}
 You can zoom into the plot, change its axes and labels, and save it in its plot window. See [The Plot Window](/userguide/plots/plotwindow).

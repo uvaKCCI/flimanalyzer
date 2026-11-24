@@ -112,3 +112,37 @@ def test_docs_images_are_linked():
     assert not unlinked, f"docs/images not used by any page: {unlinked}"
     missing = sorted(linked_images() - docs_images())
     assert not missing, f"pages link images that don't exist: {missing}"
+
+
+PLOT_KINDS = {"plot", "graph"}  # matplotlib figures, saved at 100 dpi
+
+
+def png_dpi(path: Path):
+    """The resolution a PNG file records (its pHYs chunk), or None."""
+    data = path.read_bytes()
+    pos = 8  # after the PNG signature
+    while pos + 8 <= len(data):
+        length = int.from_bytes(data[pos:pos + 4], "big")
+        kind = data[pos + 4:pos + 8]
+        if kind == b"pHYs":
+            per_unit = int.from_bytes(data[pos + 8:pos + 12], "big")
+            return round(per_unit * 0.0254) if data[pos + 16] == 1 else None  # unit: metre
+        if kind == b"IDAT":
+            return None
+        pos += 12 + length
+    return None
+
+
+def test_plots_are_shown_at_their_size():
+    """docs/conf.py narrows images up to 1100 px to half the page width (for small
+    dialogs), except plots, which it recognises by their 100 dpi: result plots narrowed
+    that way were unreadable in 0.7.0 (user, 2026-11-20). Plots must carry 100 dpi, and
+    screenshots must not."""
+    conf = (DOCS / "conf.py").read_text(encoding="utf-8")
+    assert "PLOT_DPI = 100" in conf and "round(dpi[0]) == PLOT_DPI" in conf
+    wrong = sorted(
+        f"{name} ({kind}, dpi {png_dpi(IMAGES / name)})"
+        for name, (kind, _) in screenshots().items()
+        if (png_dpi(IMAGES / name) == 100) != (kind in PLOT_KINDS)
+    )
+    assert not wrong, f"plots must have 100 dpi, screenshots none: {wrong}"
