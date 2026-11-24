@@ -15,6 +15,8 @@ The `Directory/File to Source` tool adds the `Source` column (each row's file as
 
     Below the settings, the dialog shows what the tool makes of a few rows, in a small table: `Directory`, `File` and the new column `→ Source`, for example `file:///data/9SR/Results-a.txt`. Long values are shortened in the middle.
 
+    ![](/images/data/source-config.png)
+
 3. Click `OK`.
 
 The result is `Table: With Source`. Folders recorded on Windows (`D:\KCCI data\9SR`) and on macOS or Linux (`/data/9SR`) both work; spaces and other special characters are written percent-encoded (`file:///D:/KCCI%20data/9SR/Results-a.txt`).

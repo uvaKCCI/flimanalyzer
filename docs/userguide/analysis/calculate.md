@@ -29,6 +29,8 @@ The `Calculate` tool adds new columns calculated from others, for example the me
 
     Below the fields, the editor shows the result for the table's first rows in a small table: the columns the calculation uses, and the calculated column, marked `→`, for example `→ FLIRR`. Otherwise it shows what is wrong, for example `skipped: 'FAD tn' (did you mean 'FAD tm'?) not in the table or calculated before`. `OK` is enabled only when the calculation can be made on the table.
 
+    ![](/images/analysis/calculate-config.png)
+
 3. Click `OK`.
 
 The result is `Table: Calculated`, with the new columns after the existing ones. A row that uses a column the table does not have, and that no row above calculates, is skipped. The dialog marks it with a warning, and the run summary lists it. Infinite results, for example from a division by 0, are stored as missing values. A calculation whose results are numbers makes a feature; one whose results are `True` or `False`, or text, makes a category column.

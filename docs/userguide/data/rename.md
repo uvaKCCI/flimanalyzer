@@ -19,6 +19,8 @@ The `Rename Columns` tool replaces parts of the column names, for example `Exc1_
 
     Below the settings, the dialog shows the columns that are renamed in a small table, each next to its new name (`→ New name`), for example `Exc1_-Ch1-_t1` and `trp t1`. Above the table, it says how many more columns are renamed.
 
+    ![](/images/data/rename-config.png)
+
 3. Click `OK`.
 
 The result is `Table: Renamed`, with the same rows and columns as the input. If two columns would get the same name, the tool does not run and names the duplicates.

@@ -22,6 +22,8 @@ The `Autoencoder Augment Data` tool creates simulated copies of a table with mod
     - `Features`: the same features the models were trained on. They are used in the order of the table's columns. `All features` uses all numeric columns of the table (see [Features](/userguide/dialogs.md#features)).
     - `Device` and `Threads`, in the `Resources` section: see [Resources](/userguide/dialogs.md#resources).
 
+    ![](/images/analysis/aeaugment-config.png)
+
 4. Click `OK`.
 
 5. For each model file, the result is shown in a new table window, `Table: Simulated-<file>`. It has the category columns of the input and the simulated features, in the units of the input and sorted by name. It has one row per input row and copy; the input rows themselves are not included. For each signal with amplitude features (e.g. `FAD a1`, `FAD a2`), the relative amplitudes in percent (e.g. `FAD a1[%]`) are calculated again from the simulated amplitudes.

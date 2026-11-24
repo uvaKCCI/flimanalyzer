@@ -1204,8 +1204,8 @@ class FuseCategories(Tool[FuseCategoriesConfig]):
                 joined by the delimiter) and `keep_original`.
 
         Returns:
-            `Fused`: the table with the new column after the last fused column
-            (numbered if its name is taken); without `keep_original` the fused
+            `Fused`: the table with the new column after the last input column
+            (numbered if its name is taken); without `keep_original` the input
             columns are removed.
         """
         from flim.core.categories import fuse

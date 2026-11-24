@@ -151,6 +151,11 @@ There are three ways to run a workflow file in the GUI:
 
 * `File` > `Import Tables...` reads data files and runs the workflow chosen under `Workflow` on their tables (see [Import Tables](/userguide/data/load.md#import-tables)). `None (open the tables)`, the default, runs no workflow. `Other Workflow File...` runs a workflow file you choose, also one that is not in the workflow search path.
 * The workflow's own entry in the menus, in the menu and submenu its `category` names (see `category` above). Its dialog lists the open tables under `Tables`: check the tables to run it on. `Save results` is checked and cannot be unchecked. The folder and the formats start with the default results folder and the formats of the file's `output` section; the run saves in the folder and the formats you choose there. The dialog does not keep them for the next time.
+
+  For example, the dialog of the built-in `Import` workflow, in `File` > `Import`:
+
+  ![](/images/workflow/import-config.png)
+
 * `Workflow` > `Run Workflow File...`: choose a workflow file. It runs on the table of the current window, with the rows that window shows. FLIMAnalyzer first shows the workflow's description and steps; click `Run`. The results are saved in the default results folder, in the formats of the file's `output` section.
 
 Before the run, every step is validated against the columns of the tables. If a step names a column that the tables do not have, the run does not start, and a message lists the problems. If the run would open more windows than the app setting `max_windows` allows (see [Settings](/userguide/settings.md#layout-of-a-settings-file)), it does not start either; the message suggests running it with `flimbatch`, or adding a step that joins the tables, for example `Concatenate`.
@@ -170,6 +175,8 @@ When the run ends, a window opens for each result that no later step uses, for e
 Makes summaries and relative changes of the features, and KDE, line, pair and scatter plots.
 
 Settings:
+
+![](/images/workflow/flirr-config.png)
 
 * `Grouping`: the category columns to group the data by, in this order. Default: `Treatment`, `FOV`, `Cell`. The first column (for example `Treatment`) is the one the results compare.
 * `Reference value`: the value of the first grouping column that the relative changes refer to, for example `ctrl`. Empty (default): the first value of that column, in the order of its categories (see [Order Category Values](/userguide/data/order)).
@@ -200,6 +207,8 @@ Trains an autoencoder for each combination of batch size, learning rate and weig
 
 Settings:
 
+![](/images/workflow/aetune-config.png)
+
 * `Grouping`: the training and validation sets are split by these groups. Default: `Treatment`, `FOV`, `Cell`.
 * `Features`: the features the autoencoders use. By default, the FAD and NAD(P)H amplitudes (a1, a2), lifetimes (t1, t2) and photons.
 * `Time series`: the category column with the time points. The KDE plots and the summaries of the augmented data are grouped by it. Default: `Treatment`.
@@ -217,6 +226,8 @@ Settings:
 Uses two data tables, chosen under `Training data` and `Data`: training data (for example the augmented data from `FLIM Data Augmentation Tuning`) and the data to analyze. The workflow trains an autoencoder on the training data for each combination of batch size, learning rate and weight decay. It then runs each model, as it is after the last training round (epoch), on the data to analyze. Finally, it compares the first feature from each model with FLIRR and with the first principal component of a PCA. The comparison includes summaries, normalized changes along the time series, KS statistics and plots. Like PCA, the autoencoder reduces the features to a few values. Unlike PCA, it is not limited to weighted sums of the features.
 
 Settings:
+
+![](/images/workflow/aefeature-config.png)
 
 * `Grouping`, `Features`, `Time series` and `Resources`, and `Strict` next to the settings buttons: as in [FLIM Data Augmentation Tuning](#flim-data-augmentation-tuning).
 * `Training`: the settings of [Autoencoder Train](/userguide/analysis/aetrain), without those the workflow sets. The defaults are those of FLIM Data Augmentation Tuning, except the architecture, `AE Dimensionality Reduction 2-10`.

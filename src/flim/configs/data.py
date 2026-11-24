@@ -739,7 +739,7 @@ class FuseCategoriesConfig(DataTaskConfig):
     keep_original: bool = Field(
         default=True,
         title="Keep the original columns",
-        description="Keep the fused columns; unchecked: they are removed.",
+        description="Keep the input columns; unchecked: they are removed.",
     )
 
 
@@ -810,7 +810,7 @@ class SeparateCategoriesConfig(DataTaskConfig):
     keep_original: bool = Field(
         default=True,
         title="Keep the original column",
-        description="Keep the separated column; unchecked: it is removed.",
+        description="Keep the input column; unchecked: it is removed.",
     )
 
     @field_validator("mode", mode="before")
