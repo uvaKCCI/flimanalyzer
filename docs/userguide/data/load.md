@@ -26,6 +26,8 @@ The files are read with the settings of the `Open Tables` tool (see [Read settin
     - `Import`: renames the channels' columns (for example `Exc1_-Ch2-_t1` to `NAD(P)H t1`, see [Rename Columns](rename.md)), drops the other channels' columns ([Drop Columns](drop.md)), joins the tables into one and adds the calculated FLIM features ([Calculate](/userguide/analysis/calculate.md)). This is what `Import...` did up to FLIMAnalyzer 0.6 with the default settings. `Import` saves the joined table with the calculated features (see [Results of a workflow file](/userguide/workflows.md#results-of-a-workflow-file)). Files without these channels' columns, for example files of one channel with columns such as `_t1`, are joined as they are; the run summary lists the calculations that were skipped.
     - Your own workflow files, for example a copy of `Import` with a Separate Categories step that takes categories from the file names (see [Workflow files](/userguide/workflows.md#workflow-files)).
     - `Other Workflow File...`, the last entry: choose any workflow file, also one with another category or outside the workflow search path.
+    ![](/images/data/import-config.png)
+
 4. Click `OK`. With a workflow, FLIMAnalyzer shows its steps; click `Run`.
 5. The files are read, one task per file, and the workflow runs on the tables. A window opens for each result that no later step of the workflow uses, for example the joined table of `Import`. Results that the workflow saves open as saved; the run summary shows where.
 

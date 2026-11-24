@@ -20,6 +20,8 @@ Column headers made by tools can have several lines, one per *level*. Pivoting t
 
     Below the settings, the dialog shows the rows that the table's first two rows become, in a small table.
 
+    ![](/images/data/unpivot-config.png)
+
 5. Click `OK`.
 
 For example, unpivoting the level `Treatment` of the columns `FLIRR` / `ctrl`, `FLIRR` / `Dox15`, `t1` / `ctrl` and `t1` / `Dox15` gives a category column `Treatment` (`ctrl`, `Dox15`) and the value columns `FLIRR` and `t1`: the table before pivoting. Unpivoting the level `Feature` instead gives a category column `Feature` (`FLIRR`, `t1`) and the value columns `ctrl` and `Dox15`.

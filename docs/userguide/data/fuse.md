@@ -17,6 +17,8 @@ The `Fuse Categories` tool joins two or more category columns into one, for exam
 
     Below the settings, the dialog shows an example in a small table: a few rows with different values, the columns to fuse, and the new column, marked `→`. For example, `FOV` `1` and `Cell` `2` next to `→ FOV:Cell` `1:2`. If the table already has a column with a new column's name, the new column gets a number, for example `FOV_1`, so that no column is replaced; the dialog warns about it, and so does the run summary. A fused column that is removed (`Keep the original columns` unchecked) does not count: the new column can have its name, for example `FOV` for `FOV` and `Cell` fused.
 
+    ![](/images/data/fuse-config.png)
+
 3. Click `OK`.
 
 The result is `Table: Fused`, with the new column after the last fused column, or in its place if the fused columns are removed. Its categories are the combinations that occur in the table, in the order of the fused columns' categories. A row with a missing value in one of the columns gets a missing value.

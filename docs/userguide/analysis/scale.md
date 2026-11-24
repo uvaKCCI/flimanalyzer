@@ -20,6 +20,8 @@ The `Scale` tool scales the selected features, so that features with different u
 
     Below the settings, the dialog shows the first rows of up to three features before and after scaling, in a small table. The whole table is scaled for it, so the values are those the tool makes.
 
+    ![](/images/analysis/scale-config.png)
+
 3. Click `OK`.
 
 The result is `Table: Scaled`, with the columns of the input table and the scaled features. With `Keep the original features` checked, the scaled features are added after the last column; unchecked, they replace the original features, in their places. The new columns are named after the method, with two header lines: `<feature>` / `standardized`, `<feature>` / `min-max` or `<feature>` / `robust`. Missing values stay missing.

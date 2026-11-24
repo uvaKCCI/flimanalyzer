@@ -17,6 +17,8 @@ The `Drop Columns` tool removes columns by their names, for example all columns 
 
     Below the settings, the dialog shows the columns that would be dropped in a small table, for example `Exc1_-Ch1-_t1`. Above the table, it says how many more columns are dropped.
 
+    ![](/images/data/drop-config.png)
+
 3. Click `OK`.
 
 The result is `Table: Columns Dropped`, with the same rows as the input.

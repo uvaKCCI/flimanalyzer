@@ -33,11 +33,14 @@ from flim.configs import (  # noqa: E402
     ConcatConfig,
     FilterConfig,
     FLIRRPlotConfig,
+    FuseCategoriesConfig,
     GMMConfig,
     HistogramConfig,
     MergeConfig,
     PairPlotConfig,
     PivotConfig,
+    ScaleConfig,
+    SeparateCategoriesConfig,
     SortConfig,
     SplitConfig,
     SummaryConfig,
@@ -116,6 +119,33 @@ def with_source(data):
     columns = {"Source": file.as_uri(), "Directory": str(file.parent), "File": file.name}
     return pd.concat([pd.DataFrame(columns, index=data.index), data], axis=1)
 
+
+
+def raw_names(data):
+    """The data with the column names of the FLIM software, before Rename Columns:
+    `trp t1` as `Exc1_-Ch1-_t1` and so on (the Rename Columns and Drop Columns
+    examples)."""
+    prefixes = {"trp ": "Exc1_-Ch1-_", "NAD(P)H ": "Exc1_-Ch2-_", "FAD ": "Exc2_-Ch3-_"}
+
+    def raw(name):
+        for new, old in prefixes.items():
+            if name.startswith(new):
+                return old + name[len(new):]
+        return name
+
+    return data.rename(columns=raw)
+
+
+def with_unused_channel(data):
+    """The renamed data with columns of a channel that is not renamed (`Exc3_`), as
+    Drop Columns' default rows remove them."""
+    extra = {f"Exc3_-Ch4-_{c}": data[f"FAD {c}"] for c in ("a1", "t1", "chi")}
+    return pd.concat([data, pd.DataFrame(extra, index=data.index)], axis=1)
+
+
+def legacy_columns(data):
+    """The data as FLIMAnalyzer 0.6 read it: `Directory` and `File`, no `Source`."""
+    return with_source(data).drop(columns=["Source"])
 
 # --- the screenshots: image path -> (kind, arguments) ---
 # kinds: "main" (the main window), "dialog" (a tool's configuration dialog), "table"
@@ -216,6 +246,10 @@ PIVOT = PivotConfig(grouping=["Treatment"], features=["FAD a1[%]", "NAD(P)H a2[%
 pivoted = result_of("Pivot", PIVOT)  # the Pivot example's table, `Table: Pivoted`
 SPLIT = SplitConfig(grouping=["FOV"])
 MERGE = MergeConfig(how="left", on=CATEGORIES)
+SCALE = ScaleConfig(features=["FAD a1[%]", "NAD(P)H a2[%]", "FLIRR"])
+FUSE = FuseCategoriesConfig(grouping=["Treatment", "FOV"])
+fused = result_of("Fuse Categories", FUSE)  # with the column `Treatment:FOV`
+SEPARATE = SeparateCategoriesConfig(column="Treatment:FOV", names=["Treatment", "FOV"])
 FOV_A = fov("a")  # the workflow examples: the same steps, faster
 TWO_FILES = {"example1.txt": FOV_A, "example2.txt": fov("b")}
 MERGE_INPUTS = {DATAFILE: "data", "Table: Summary": fad_a1_means}
@@ -315,6 +349,22 @@ SHOTS = {
     "analysis/plot-setaxis.png": ("window", {"make": "axis_dialog"}),
     "analysis/workflow-progress.png": ("progress", {"tool": "Basic FLIRR Analysis", "config": FLIRR_WORKFLOW}),
     "analysis/workflow-summary.png": ("window", {"make": "run_summary"}),
+    # dialogs of the tools that had none (2026-11-24): every tool in a menu has one
+    "data/rename-config.png": ("dialog", {"tool": "Rename Columns", "inputs": {DATAFILE: raw_names}}),
+    "data/drop-config.png": ("dialog", {"tool": "Drop Columns", "inputs": {DATAFILE: with_unused_channel}}),
+    "analysis/calculate-config.png": ("dialog", {"tool": "Calculate"}),
+    "analysis/scale-config.png": ("dialog", {"tool": "Scale", "config": SCALE}),
+    "data/fuse-config.png": ("dialog", {"tool": "Fuse Categories", "config": FUSE}),
+    "data/separate-config.png": ("dialog", {"tool": "Separate Categories", "config": SEPARATE, "inputs": {"Table: Fused": fused}}),
+    "data/source-config.png": ("dialog", {"tool": "Directory/File to Source", "inputs": {DATAFILE: legacy_columns}}),
+    "data/pivot-config.png": ("dialog", {"tool": "Pivot", "config": PIVOT}),
+    "data/unpivot-config.png": ("dialog", {"tool": "Unpivot", "inputs": {"Table: Pivoted": pivoted}}),
+    "analysis/aerun-config.png": ("dialog", {"tool": "Autoencoder Run"}),
+    "analysis/aeaugment-config.png": ("dialog", {"tool": "Autoencoder Augment Data"}),
+    "data/import-config.png": ("dialog", {"tool": "Import Tables"}),
+    "workflow/flirr-config.png": ("dialog", {"tool": "Basic FLIRR Analysis"}),
+    "workflow/aetune-config.png": ("dialog", {"tool": "FLIM Data Augmentation Tuning"}),
+    "workflow/aefeature-config.png": ("dialog", {"tool": "FLIM Feature Analysis"}),
 }
 
 

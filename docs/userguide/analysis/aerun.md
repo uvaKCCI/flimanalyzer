@@ -17,6 +17,8 @@ The `Autoencoder Run` tool applies models saved by [Autoencoder Train](/userguid
     - `Features`: the same features the models were trained on. They are used in the order of the table's columns. `All features` uses all numeric columns of the table (see [Features](/userguide/dialogs.md#features)).
     - `Device` and `Threads`, in the `Resources` section: see [Resources](/userguide/dialogs.md#resources).
 
+    ![](/images/analysis/aerun-config.png)
+
 4. Click `OK`.
 
 5. For each model file, the results are shown in two new table windows, with the category columns of the input and one row per input row:
