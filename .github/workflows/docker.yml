@@ -4,13 +4,16 @@ name: Docker
 # each published GitHub release (never from a tag push alone):
 #   ghcr.io/uvakcci/flimanalyzer:<version>-cpu, :latest-cpu  (CPU PyTorch; amd64, arm64)
 #   ghcr.io/uvakcci/flimanalyzer:<version>, :latest          (CUDA PyTorch; amd64)
+# `latest` and `latest-cpu` move only for the highest release version.
 # Each image is checked before it is pushed (.github/scripts/check-image.sh). Pull
 # requests only build and test the image (tests.yml).
+# A version tag (e.g. 0.7.0, 0.7.0-cpu) is pushed once and never overwritten: a run that
+# would push an existing one fails before building (also "Re-run all jobs").
 
 on:
   release:
     types: [published]
-  workflow_dispatch:  # a branch: tagged with its name; a release tag: rebuilds its images
+  workflow_dispatch:  # branches only: tagged with the branch name (a release tag is refused)
 
 permissions:
   contents: read
@@ -50,6 +53,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # a release tag's images come only from its published release: a manual start
+      # would build them again
+      - name: Manual starts only for branches
+        if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "::error::$GITHUB_REF_NAME is a tag: its images are published with its release; start this workflow on a branch"
+          exit 1
+
+      # version tags never move: a re-run of a successful job, or any other run for a
+      # release that already has this tag, stops here. Only "not found" counts as free;
+      # any other registry error stops too
+      - name: Version tag not yet published
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="$IMAGE:${GITHUB_REF_NAME#v}${{ matrix.suffix }}"
+          if out=$(docker buildx imagetools inspect "$tag" 2>&1); then
+            echo "::error::$tag is already published; version tags are never overwritten"
+            exit 1
+          elif ! grep -qi "not found" <<< "$out"; then
+            echo "::error::could not check $tag: $out"
+            exit 1
+          fi
+          echo "$tag is not published yet"
+
+      # `latest` only for the highest release: a release of an older series (e.g.
+      # 0.6.3 after 0.7.0) does not move it
+      - name: Newest release
+        id: newest
+        run: echo "latest=$(.github/scripts/is-newest-release.sh "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -60,7 +93,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=ref,event=branch
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !github.event.release.prerelease }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !github.event.release.prerelease && steps.newest.outputs.latest == 'true' }}
 
       - name: Free disk space for the CUDA image
         if: matrix.variant == 'cuda'

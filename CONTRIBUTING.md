@@ -33,6 +33,8 @@ Pull requests that fix an issue already being fixed, or that target `main`, are 
 
 All pull requests have to pass the tests in CI before they can be merged.
 
+Maintainers: how a release is made is in [RELEASING.md](RELEASING.md).
+
 ## License
 
 By contributing, you agree that your contribution is licensed under the

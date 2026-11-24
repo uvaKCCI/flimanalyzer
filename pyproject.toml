@@ -55,6 +55,7 @@ test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+    "pytest-timeout>=2.3",  # a hanging test fails with its stack trace (pytest.ini_options)
     "pytest-xdist>=3.6",
 ]
 
@@ -195,6 +196,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+# seconds per test (pytest-timeout); the slowest take about 20 s. A hang fails with the
+# stack of every thread. On Windows (no signals) it also ends the test run
+timeout = 300
 
 [tool.coverage.run]
 source = ["flim"]
