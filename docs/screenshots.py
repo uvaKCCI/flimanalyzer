@@ -366,6 +366,7 @@ SHOTS = {
     "analysis/aerun-config.png": ("dialog", {"tool": "Autoencoder Run"}),
     "analysis/aeaugment-config.png": ("dialog", {"tool": "Autoencoder Augment Data"}),
     "data/import-config.png": ("dialog", {"tool": "Import Tables"}),
+    "workflow/import-config.png": ("dialog", {"tool": "Import"}),
     "workflow/flirr-config.png": ("dialog", {"tool": "Basic FLIRR Analysis"}),
     "workflow/aetune-config.png": ("dialog", {"tool": "FLIM Data Augmentation Tuning"}),
     "workflow/aefeature-config.png": ("dialog", {"tool": "FLIM Feature Analysis", "config": FEATURE_ANALYSIS}),

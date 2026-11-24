@@ -10,6 +10,9 @@ NO_DIALOG = {"Open Tables"}
 
 def test_every_tool_dialog_has_a_screenshot():
     import flim.workflow  # noqa: F401  (registers the built-in workflows)
+    from flim.core.workflowfile import register_workflow_files
+
+    register_workflow_files(log=False)  # as the app does: File > Import
 
     in_menus = {t.name for t in tools._tools.values() if category_path(t)} - NO_DIALOG
     shot = {options.get("tool") for kind, options in screenshots().values() if kind == "dialog"}

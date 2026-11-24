@@ -151,6 +151,11 @@ There are three ways to run a workflow file in the GUI:
 
 * `File` > `Import Tables...` reads data files and runs the workflow chosen under `Workflow` on their tables (see [Import Tables](/userguide/data/load.md#import-tables)). `None (open the tables)`, the default, runs no workflow. `Other Workflow File...` runs a workflow file you choose, also one that is not in the workflow search path.
 * The workflow's own entry in the menus, in the menu and submenu its `category` names (see `category` above). Its dialog lists the open tables under `Tables`: check the tables to run it on. `Save results` is checked and cannot be unchecked. The folder and the formats start with the default results folder and the formats of the file's `output` section; the run saves in the folder and the formats you choose there. The dialog does not keep them for the next time.
+
+  For example, the dialog of the built-in `Import` workflow, in `File` > `Import`:
+
+  ![](/images/workflow/import-config.png)
+
 * `Workflow` > `Run Workflow File...`: choose a workflow file. It runs on the table of the current window, with the rows that window shows. FLIMAnalyzer first shows the workflow's description and steps; click `Run`. The results are saved in the default results folder, in the formats of the file's `output` section.
 
 Before the run, every step is validated against the columns of the tables. If a step names a column that the tables do not have, the run does not start, and a message lists the problems. If the run would open more windows than the app setting `max_windows` allows (see [Settings](/userguide/settings.md#layout-of-a-settings-file)), it does not start either; the message suggests running it with `flimbatch`, or adding a step that joins the tables, for example `Concatenate`.
