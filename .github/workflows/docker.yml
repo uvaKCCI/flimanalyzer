@@ -4,6 +4,7 @@ name: Docker
 # each published GitHub release (never from a tag push alone):
 #   ghcr.io/uvakcci/flimanalyzer:<version>-cpu, :latest-cpu  (CPU PyTorch; amd64, arm64)
 #   ghcr.io/uvakcci/flimanalyzer:<version>, :latest          (CUDA PyTorch; amd64)
+# `latest` and `latest-cpu` move only for the highest release version.
 # Each image is checked before it is pushed (.github/scripts/check-image.sh). Pull
 # requests only build and test the image (tests.yml).
 
@@ -50,6 +51,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # `latest` only for the highest release: a release of an older series (e.g.
+      # 0.6.3 after 0.7.0) does not move it
+      - name: Newest release
+        id: newest
+        run: echo "latest=$(.github/scripts/is-newest-release.sh "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -60,7 +67,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=ref,event=branch
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !github.event.release.prerelease }}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !github.event.release.prerelease && steps.newest.outputs.latest == 'true' }}
 
       - name: Free disk space for the CUDA image
         if: matrix.variant == 'cuda'
