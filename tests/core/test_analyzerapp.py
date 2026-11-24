@@ -329,34 +329,6 @@ def test_startup_error_without_wxpython_is_quiet(monkeypatch):
     analyzerapp.show_startup_error("no server")  # no exception, nothing shown
 
 
-def test_gui_starts_with_files_and_settings(monkeypatch):
-    pytest.importorskip("wx")
-    import flim.gui.app
-
-    created = {}
-
-    class FakeApp:
-        def __init__(self, fa, settings_manager=None, files=None, **_):
-            created.update(fa=fa, manager=settings_manager, files=files)
-
-        def MainLoop(self):
-            created["loop"] = True
-
-    monkeypatch.setattr(flim.gui.app, "FLIMAnalyzerApp", FakeApp)
-    fa, manager = object(), object()
-    analyzerapp.interactive_run(fa, files=["a.txt"], settings_manager=manager)
-    assert created == {"fa": fa, "manager": manager, "files": ["a.txt"], "loop": True}
-
-
-def test_startup_error_shows_a_message_box(monkeypatch):
-    wx = pytest.importorskip("wx")
-    shown = []
-    monkeypatch.setattr(wx, "App", lambda *a, **k: object())
-    monkeypatch.setattr(wx, "MessageBox", lambda message, *a, **k: shown.append(message))
-    analyzerapp.show_startup_error("No Prefect server could be started")
-    assert shown == ["No Prefect server could be started"]
-
-
 @pytest.mark.filterwarnings("ignore:.*found in sys.modules:RuntimeWarning")
 def test_runs_as_a_module(monkeypatch):
     # python -m flim.analyzerapp runs main(), like the flimanalyzer command

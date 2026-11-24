@@ -58,20 +58,26 @@ jobs:
           echo "docs=$docs code=$code full=$full"
 
   tests:
-    name: tests (${{ matrix.python }})
-    # macOS: wxPython has no Linux wheels on PyPI; the runner also has a GUI
-    # session, so the dialog tests run instead of being skipped
-    # Pull requests into dev: only the GUI tests (the core jobs run tests/core), on 3.14;
-    # into main and release/*, and pushes: the whole suite on the oldest and newest
-    # Python. Serial: the GUI tests fail and hang in parallel (modal dialogs depend on
-    # their event loop and timing; decided 2026-11-02)
+    name: tests (${{ matrix.os }}, ${{ matrix.python }})
+    # the GUI tests (tests/, without tests/core: the core jobs run those with every
+    # extra but gui). macOS: wxPython has no Linux wheels on PyPI; the runner has a GUI
+    # session, so the dialog tests run instead of being skipped. Pull requests into
+    # dev: 3.14; into main and release/*, and pushes: 3.12 and 3.14. Windows (one job,
+    # the newest Python, decided 2026-11-21) is left out until its failures in CI are
+    # understood (milestones, Unscheduled, 2026-11-23); the matrix keeps `os` for it.
+    # Serial: the GUI tests fail and hang in parallel (modal dialogs depend on their
+    # event loop and timing; decided 2026-11-02)
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
+        os: [macos-latest]
         python: ${{ fromJSON(needs.changes.outputs.full == 'true' && '["3.12", "3.14"]' || '["3.14"]') }}
     steps:
       - uses: actions/checkout@v7
@@ -89,14 +95,12 @@ jobs:
         env:
           PREFECT_SERVER_ANALYTICS_ENABLED: "false"
         run: |
-          paths="tests"
-          [ "${{ needs.changes.outputs.full }}" = true ] || paths="tests --ignore=tests/core"
           cov=""
-          [ "${{ matrix.python }}" = "3.14" ] && cov="--cov --cov-report=xml"
-          uv run --frozen --no-sync pytest -v --durations=20 $cov $paths
+          [ "${{ matrix.os }}" = macos-latest ] && [ "${{ matrix.python }}" = "3.14" ] && cov="--cov --cov-report=xml"
+          uv run --frozen --no-sync pytest -v --durations=20 $cov tests --ignore=tests/core
 
       - name: Upload coverage to Codecov
-        if: ${{ !cancelled() && matrix.python == '3.14' }}
+        if: ${{ !cancelled() && matrix.os == 'macos-latest' && matrix.python == '3.14' }}
         uses: codecov/codecov-action@v7
         with:
           files: coverage.xml
@@ -105,10 +109,9 @@ jobs:
 
   core:
     name: core (no gui) (${{ matrix.python }})
-    # the core must work without wxPython (the gui extra) and without torch:
-    # installs the other dependencies from the lock file and runs the core tests
-    # in parallel (pytest-xdist): the core tests do not use wx. Pull requests into dev:
-    # 3.14 only
+    # the core with everything but the GUI: all extras except gui (wxPython), torch
+    # (CPU), from the lock file; runs the core tests in parallel (pytest-xdist): the
+    # core tests do not use wx. Pull requests into dev: 3.14 only
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
@@ -126,12 +129,18 @@ jobs:
         with:
           enable-cache: true
 
-      - name: Install dependencies without wxPython and torch
+      # every extra except gui (an extra added later is included), from the lock file;
+      # torch as its CPU build of the locked version (the lock has the CUDA build for
+      # Linux), as the CI Docker build
+      - name: Install all dependencies except wxPython, with CPU torch
         run: |
-          uv export --frozen --extra test --no-group gui --no-hashes --no-emit-project --no-annotate --no-header \
-            | grep -v -E '^(torch|nvidia-|triton|cuda-)' > core-requirements.txt
+          uv export --frozen --all-extras --no-extra gui --no-group gui --no-hashes --no-emit-project \
+            --no-annotate --no-header > all-requirements.txt
+          torch=$(grep -oE '^torch==[0-9.]+' all-requirements.txt | head -n 1)
+          grep -v -E '^(torch|nvidia-|triton|cuda-)' all-requirements.txt > core-requirements.txt
           uv venv --python ${{ matrix.python }}
           uv pip install --no-deps -r core-requirements.txt
+          uv pip install --no-deps --index-url https://download.pytorch.org/whl/cpu "$torch"
           uv pip install --no-deps -e .
 
       - name: Check that wxPython is not installed and flimbatch starts
@@ -296,6 +305,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # the release tags, for the changelog check
 
       - uses: astral-sh/setup-uv@v10.3.0
         with:
@@ -303,6 +314,12 @@ jobs:
 
       - name: Install the docs dependency group
         run: uv sync --frozen --only-group docs --python 3.12
+
+      # a section per release in CHANGELOG.md; every docs image retaken by
+      # docs/screenshots.py or an app icon, and used. No flim import, so no conftest;
+      # pytest as in uv.lock (the core jobs run the same file)
+      - name: Release records
+        run: uv run --frozen --no-sync --with pytest==9.1.1 python -m pytest -q --noconftest -p no:cacheprovider tests/core/test_release_records.py
 
       - name: Build the documentation
         run: uv run --frozen --no-sync python -m sphinx -W --keep-going -E -b html docs docs/_build/html
