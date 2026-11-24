@@ -38,6 +38,14 @@ These fail on their own; the list below doesn't repeat them.
       release by the maintainer: list the open ones for the maintainer and get a
       decision on each. Release timing is the maintainer's decision; the planned bug
       fixes and features come first.
+- [ ] **No known vulnerabilities that have a fix:** the release's Python packages
+      (`uv.lock`) and Docker images (`uv.lock` and the base image) ship without known
+      vulnerabilities for which a fixed version exists. Check the Dependabot alerts
+      (Security tab) for the branch being released; update the lock file within the
+      ranges of `pyproject.toml`, or the base image. One without a fix yet is listed
+      under `Known issues` in the changelog. Fixes go through `dev`, and for a released
+      series through `release/X.Y.x` as a patch release (Dependabot's automatic security
+      pull requests are off: GitHub opens them against `main`).
 - [ ] The target branch's rules (`main`: branch protection; `release/*`: rulesets) and
       the check names they require (`all checks`) against the jobs of the workflows
       *on the branch being merged*: a maintenance branch can lag behind `dev` in CI.
@@ -65,9 +73,6 @@ Only after every planned fix and feature is merged (step 1).
       request, or by hand) is more than about two weeks old, `uv lock --upgrade` on
       `prep/X.Y.0`, so the release ships current packages and they get the full test
       run. Changed dependencies of the Docker image go in the changelog.
-- [ ] Dependabot alerts (Security tab) checked: a fix goes through `dev`, and for a
-      released series through `release/X.Y.x` as a patch release. Dependabot's
-      automatic security pull requests are off, since GitHub opens them against `main`.
 - [ ] The release's section in `CHANGELOG.md`, dated, with the structure of the
       previous section; sections of released versions stay as published.
 - [ ] Merged by pull request: `dev` into `main`, or *(patch)* `fix/X.Y.Z` into
@@ -76,6 +81,7 @@ Only after every planned fix and feature is merged (step 1).
 
 ## 4. Tag and GitHub release
 
+- [ ] The Dependabot alerts again, just before tagging: no new one with a fix.
 - [ ] Annotated tag `vX.Y.Z`, message `Version X.Y.Z`, on the merge commit.
 - [ ] GitHub release from the tag, notes = the changelog section. Latest only for
       the highest version: *(patch)* of an older series `--latest=false`.
